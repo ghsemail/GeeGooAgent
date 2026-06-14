@@ -1,0 +1,222 @@
+{
+  "main": {
+    "id": "46f2d15e98e4619f",
+    "type": "split",
+    "children": [
+      {
+        "id": "27588017e9b414bf",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "831b35ac21e12697",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "docs/architecture/layers/L2-tools/tool-server-mapping.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "tool-server-mapping"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "88915dfcf1463707",
+    "type": "split",
+    "children": [
+      {
+        "id": "aaf6a66b9f18e396",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "1eaacd4e4fa647ae",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "文件列表"
+            }
+          },
+          {
+            "id": "464252fceabb5b4c",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "搜索"
+            }
+          },
+          {
+            "id": "afe07ec3fb9ceb55",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "书签"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "f99c8bd73d1f9039",
+    "type": "split",
+    "children": [
+      {
+        "id": "a848a7efcdbd1cfd",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "285905e1788cbfc5",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "docs/architecture/layers/L2-tools/tool-server-mapping.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "tool-server-mapping 的反向链接列�?
+            }
+          },
+          {
+            "id": "ec0ee8844423e874",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "docs/architecture/layers/L2-tools/tool-server-mapping.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "tool-server-mapping 的出链列�?
+            }
+          },
+          {
+            "id": "b8d190200f5a21fa",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "标签"
+            }
+          },
+          {
+            "id": "61eb3054c72c7b0b",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "添加笔记属�?
+            }
+          },
+          {
+            "id": "e9908556d043c692",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "docs/architecture/layers/L2-tools/tool-server-mapping.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "tool-server-mapping 的大�?
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:打开快速切�?: false,
+      "graph:查看关系图谱": false,
+      "canvas:新建白板": false,
+      "daily-notes:打开/创建今天的日�?: false,
+      "templates:插入模板": false,
+      "command-palette:打开命令面板": false,
+      "bases:新建数据�?: false
+    }
+  },
+  "active": "831b35ac21e12697",
+  "lastOpenFiles": [
+    "scripts/ssh_verify_domains.py",
+    "src/geegoo_agent/tools/__pycache__/domains.cpython-311.pyc",
+    "tests/unit/__pycache__/test_tool_domains.cpython-311-pytest-9.0.3.pyc",
+    "tests/unit/test_tool_domains.py",
+    "src/geegoo_agent/tools/domains.py",
+    "tests/unit/__pycache__/test_github_token_setup.cpython-311-pytest-9.0.3.pyc",
+    "tests/unit/test_github_token_setup.py",
+    "scripts/ssh_fix_geegoo_path.py",
+    "scripts/ssh_configure_and_doctor.py",
+    "scripts/_01818_bot.json",
+    "scripts/update_grid_bot_01818.py",
+    "docs/architecture/layers/L2-tools/tool-catalog.md",
+    "docs/architecture/layers/L2-tools/sandbox-integration.md",
+    "docs/architecture/layers/L2-tools/tool-server-mapping.md",
+    "docs/architecture/layers/L2-tools/tool-server-mapping修改意见.md",
+    "docs/reference/geegoo-mcp/strategy/strategy-generation.md",
+    "docs/reference/geegoo-mcp/strategy/README.md",
+    "docs/reference/geegoo-mcp/strategy/loopback.md",
+    "docs/reference/geegoo-mcp/reminder/smart-reminder.md",
+    "docs/reference/geegoo-mcp/reminder/grid-reminder.md",
+    "docs/reference/geegoo-mcp/reminder/dca-reminder.md",
+    "docs/reference/geegoo-mcp/market/trading-data.md",
+    "docs/reference/geegoo-mcp/market/reports.md",
+    "docs/reference/geegoo-mcp/bot/smart-trade.md",
+    "docs/reference/geegoo-mcp/bot/hdg-bot.md",
+    "docs/reference/geegoo-mcp/bot/grid-bot.md",
+    "docs/reference/geegoo-mcp/bot/dca-bot.md",
+    "docs/reference/geegoo-mcp/analyst/agent-analyst.md",
+    "docs/reference/geegoo-mcp/README.md",
+    "docs/reference/geegoo-mcp/interface-map.md",
+    "docs/reference/geegoo-mcp/common.md",
+    "docs/reference/geegoo-mcp/architecture.md",
+    "docs/architecture/layers/L2-tools/tool-server-mapping 1.md"
+  ]
+}

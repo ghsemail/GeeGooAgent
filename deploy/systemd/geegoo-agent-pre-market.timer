@@ -1,0 +1,10 @@
+[Unit]
+Description=GeeGoo Agent pre-market timer (Mon-Fri 08:00 Asia/Shanghai)
+[Timer]
+OnCalendar=Mon..Fri *-*-* 08:00:00
+Timezone=Asia/Shanghai
+Persistent=true
+Unit=geegoo-agent-pre-market.service
+
+[Install]
+WantedBy=timers.target

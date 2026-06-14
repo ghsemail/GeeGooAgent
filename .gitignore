@@ -1,0 +1,33 @@
+# Local config & secrets
+config.json
+config.local.json
+config.prod.json
+.env
+.env.*
+
+# Runtime data
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+
+# Test & tools
+retest_out.txt
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# IDE
+.idea/
+.vscode/
+*.swp

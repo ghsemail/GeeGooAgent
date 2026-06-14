@@ -1,0 +1,95 @@
+name: pre_market
+version: "1.0.0"
+description: 盘前准备 workflow — MVP Phase 1
+phase: 1
+mode: scheduled
+
+# MVP Tool 白名单（~19，与 tool-catalog.md 对齐；Step 9 实现注册）
+tools:
+  - check_trading_day
+  - get_report_bot_codes
+  - fetch_market_news
+  - fetch_stock_news
+  - get_mcp_analysis
+  - get_stock_daily_reports
+  - list_today_reports
+  - get_capital_flow
+  - get_capital_distribution
+  - get_bot_yesterday_attitude
+  - recall_yesterday_summary
+  - read_working_state
+  - create_pre_market_report
+  - save_local_report
+  - send_feishu_summary
+  - write_execution_log
+
+# Step 12 实现的 LLM 任务（非 Tool Registry 条目，列于此供文档对齐）
+llm_tasks:
+  - parse_weekly_analysis
+  - parse_market_sentiment
+  - synthesize_pre_market_report
+
+rules:
+  - rules/api-routing.md
+  - rules/attitude-mapping.md
+  - rules/report-format.md
+
+bundled:
+  - skills/bundled/finance-news
+  - skills/bundled/eastmoney-news
+  - skills/bundled/free-stock-global-quotes-news
+
+workflow:
+  prelude:
+    - id: check_trading_day
+      tool: check_trading_day
+      short_circuit_if: "is_trading_day == false"
+    - id: get_report_bot_codes
+      tool: get_report_bot_codes
+  phase_a:
+    - id: index_analysis
+      tool: get_mcp_analysis
+      repeat: 5
+      params:
+        period: hourly
+        prompt_id: "69ec7035b9ccd3d9befc6c23"
+    - id: market_news
+      tool: fetch_market_news
+      markets: [US, CN, HK]
+  phase_b:
+    per_stock:
+      - id: stock_news
+        tool: fetch_stock_news
+      - id: capital_flow
+        tool: get_capital_flow
+        params:
+          period: DAY
+      - id: capital_distribution
+        tool: get_capital_distribution
+      - id: weekly_analysis
+        tool: get_mcp_analysis
+        params:
+          period: weekly
+      - id: bot_attitude
+        tool: get_bot_yesterday_attitude
+      - id: idempotency_check
+        tool: list_today_reports
+        optional: true
+      - id: synthesize_and_submit
+        tools:
+          - synthesize_pre_market_report
+          - create_pre_market_report
+          - save_local_report
+        optional_tools:
+          - send_feishu_summary
+  meta:
+    - id: execution_log
+      tool: write_execution_log
+      after_each_step: true
+
+indices:
+  - { name: 道琼斯, code: "^DJI.US" }
+  - { name: 纳斯达克, code: "^IXIC.US" }
+  - { name: 上证指数, code: "000001.SH" }
+  - { name: 深证成指, code: "399001.SZ" }
+  - { name: 恒生指数, code: "800000.HK" }

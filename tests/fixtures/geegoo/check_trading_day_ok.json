@@ -1,0 +1,10 @@
+{
+  "code": 100,
+  "message": "success",
+  "data": {
+    "is_trading_day": true,
+    "date": "2026-06-05",
+    "market": "HK",
+    "code": "00700.HK"
+  }
+}

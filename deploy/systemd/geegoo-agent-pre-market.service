@@ -1,0 +1,17 @@
+[Unit]
+Description=GeeGoo Agent pre-market workflow (oneshot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=geegoo-agent
+Group=geegoo-agent
+WorkingDirectory=/opt/geegoo-agent
+EnvironmentFile=-/etc/geegoo-agent/env
+ExecStart=/opt/geegoo-agent/venv/bin/geegoo run pre_market --config /etc/geegoo-agent/config.json
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,15 @@
+{
+  "code": 100,
+  "message": "success",
+  "data": {
+    "capital_in_super": 1000000.0,
+    "capital_in_big": 520000.0,
+    "capital_in_mid": 310000.0,
+    "capital_in_small": 180000.0,
+    "capital_out_super": 860000.0,
+    "capital_out_big": 470000.0,
+    "capital_out_mid": 260000.0,
+    "capital_out_small": 150000.0,
+    "update_time": "2026-04-27 15:59:59"
+  }
+}
