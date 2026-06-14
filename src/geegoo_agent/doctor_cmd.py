@@ -50,8 +50,9 @@ def check_secrets(config: AppConfig) -> list[CheckResult]:
     ]
     for key, label, getter in checks:
         try:
-            getter()
-            results.append(CheckResult(label, True, secrets.masked(key)))
+            value = getter()
+            detail = value if key == "mcp_token" else secrets.masked(key)
+            results.append(CheckResult(label, True, detail))
         except ConfigError:
             results.append(CheckResult(label, False, "missing or placeholder — run geegoo setup"))
     return results

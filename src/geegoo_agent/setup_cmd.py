@@ -140,7 +140,9 @@ def run_setup(
         token_key = current_token
 
     if interactive and not mcp_token:
-        mcp_token = _prompt_secret("mcp_token", current=current_mcp)
+        hint = "（回车保留原值）" if current_mcp else ""
+        entered = input(f"mcp_token{hint}: ").strip()
+        mcp_token = entered or current_mcp
     if mcp_token is None:
         mcp_token = current_mcp
 
@@ -182,7 +184,7 @@ def run_setup(
     model = llm.get("model") or preset.default_model
     print(f"\n已写入 {path}")
     print(f"  LLM: {preset.label} / {model}")
-    print(f"  mcp_token: {'已配置' if raw.get('mcp_token') else '未配置'}")
+    print(f"  mcp_token: {raw.get('mcp_token') or '未配置'}")
     if github_token_path_written is not None:
         print(f"  GitHub PAT: 已写入 {github_token_path_written}（chmod 600）")
     elif github_token():
