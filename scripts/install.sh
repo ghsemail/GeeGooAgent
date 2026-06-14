@@ -5,14 +5,14 @@
 #
 # Options (env):
 #   GEEGOO_HOME       default ~/.geegoo
-#   GEEGOO_REPO       default https://github.com/ghsemail/GeeGooAgent.git
+#   GEEGOO_REPO       default git@github.com:ghsemail/GeeGooAgent.git
 #   GEEGOO_SKIP_SETUP=1   skip interactive geegoo setup after install
 
 set -euo pipefail
 
 GEEGOO_HOME="${GEEGOO_HOME:-$HOME/.geegoo}"
 INSTALL_DIR="${GEEGOO_INSTALL_DIR:-$GEEGOO_HOME/geegoo-agent}"
-GEEGOO_REPO="${GEEGOO_REPO:-https://github.com/ghsemail/GeeGooAgent.git}"
+GEEGOO_REPO="${GEEGOO_REPO:-git@github.com:ghsemail/GeeGooAgent.git}"
 CONFIG_PATH="${GEEGOO_CONFIG:-$GEEGOO_HOME/config.json}"
 DATA_DIR="${GEEGOO_HOME}/data"
 VENV_DIR="$INSTALL_DIR/venv"

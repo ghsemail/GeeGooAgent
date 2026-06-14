@@ -18,7 +18,7 @@ geegoo chat
 ### 本地开发
 
 ```bash
-git clone https://github.com/ghsemail/GeeGooAgent.git
+git clone git@github.com:ghsemail/GeeGooAgent.git
 cd GeeGooAgent
 pip install -e ".[dev]"
 geegoo setup

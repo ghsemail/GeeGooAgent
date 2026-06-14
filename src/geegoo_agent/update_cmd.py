@@ -21,7 +21,7 @@ _KEEP_ON_MERGE = frozenset({"venv", ".git"})
 
 
 def default_repo_url() -> str:
-    return os.environ.get("GEEGOO_REPO", "https://github.com/ghsemail/GeeGooAgent.git").strip()
+    return os.environ.get("GEEGOO_REPO", "git@github.com:ghsemail/GeeGooAgent.git").strip()
 
 
 def github_token() -> str:
