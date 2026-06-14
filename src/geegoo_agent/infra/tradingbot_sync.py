@@ -15,7 +15,18 @@ def _extract_api_key(py_file: Path, var_name: str = "API_KEY") -> str:
 
 
 def build_config(tradingbot_root: Path, *, base_host: str = "118.195.135.97") -> dict:
-    mcp_key = _extract_api_key(tradingbot_root / "mcpAPIServer.py")
+    for candidate in (
+        tradingbot_root / "mcp" / "constants.py",
+        tradingbot_root / "mcpAPIServer.py",
+    ):
+        if candidate.is_file():
+            try:
+                mcp_key = _extract_api_key(candidate)
+                break
+            except ValueError:
+                continue
+    else:
+        raise ValueError(f"API_KEY not found under {tradingbot_root}")
     geegoo_url = f"http://{base_host}:5700"
     return {
         "base_url": geegoo_url,
