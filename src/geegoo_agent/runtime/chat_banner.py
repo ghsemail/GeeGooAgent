@@ -41,16 +41,10 @@ _CATEGORY_ORDER = (
     ToolCategory.META,
 )
 
-GEEGOO_HERO = f"""[bold {_C_ACCENT}]    ╭──╮      ╭─╮   ╭──╮[/]
-[bold {_C_GOLD}]   ╭╯  ╰╮    ╭╯ ╰╮ ╭╯  ╰╮[/]
-[bold {_C_ACCENT}]  ╭╯    ╰╮  │   │╭╯    ╰╮[/]
-[bold {_C_GOLD}] ╭╯      ╰╮ │   ││      │[/]
-[bold {_C_ACCENT}] │   ▲    │ │ ▲ ││   ▼   │[/]
-[bold {_C_GOLD}] │  ╱│╲   │ │╱ │╲││  ╱│╲  │[/]
-[bold {_C_ACCENT}] ╰╮      ╭╯ ╰╮   ╭╯╰╮      ╭╯[/]
-[bold {_C_GOLD}]  ╰╮    ╭╯   ╰╮ ╭╯  ╰╮    ╭╯[/]
-[bold {_C_ACCENT}]   ╰╮  ╭╯     ╰─╯    ╰╮  ╭╯[/]
-[bold {_C_GOLD}]    ╰──╯              ╰──╯[/]"""
+GEEGOO_HERO = f"""[bold {_C_ACCENT}]  ╔═╗ ╔═╗ ╔═╗   ╔═╗ ╔═╗ ╔═╗[/]
+[bold {_C_GOLD}]  ║ ╚╗ ║  ║     ║ ╔╝ ║ ║ ║ ║[/]
+[bold {_C_ACCENT}]  ║ ╔╝ ╚═╗ ╚═╗   ║ ╚╗ ║ ║ ║ ║[/]
+[bold {_C_GOLD}]  ╚═╝  ╚═╝ ╚═╝   ╚═╝ ╚═╝ ╚═╝[/]"""
 
 GEEGOO_WIDE_LOGO = r"""[bold {_accent}] ██████╗ [/][bold {_gold}]███████╗[/][bold {_accent}]███████╗[/][bold {_gold}] ██████╗ [/][bold {_accent}] █████╗ [/][bold {_gold}] █████╗[/]
 [bold {_accent}]██╔════╝ [/][bold {_gold}]██╔════╝[/][bold {_accent}]██╔════╝[/][bold {_gold}]██╔════╝ [/][bold {_accent}]██╔══██╗[/][bold {_gold}]██╔══██╗[/]
