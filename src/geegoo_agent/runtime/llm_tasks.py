@@ -13,6 +13,7 @@ from geegoo_agent.exceptions import LLMTaskError
 from geegoo_agent.llm.gateway import ModelGateway
 from geegoo_agent.llm.types import Message
 from geegoo_agent.memory.models import PreMarketWorking
+from geegoo_agent.tools.mappings import is_a_share
 from geegoo_agent.tools.schemas import ConfidenceType, ResultType, SuggestionType
 
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)```", re.IGNORECASE)
@@ -36,13 +37,13 @@ _SYNTHESIZE_SYSTEM = """\
 
 2. **新闻事件解读**：从市场新闻和个股新闻中提取 3-5 条最有影响力的消息，用自然语言概括要点，分析对标的的可能影响。禁止输出原始 JSON 数据结构。
 
-3. **资金流向与分布分析**：结合资金流向（主力净流入/流出方向、规模）和资金分布（超大单/大单/中单/小单净流入），判断资金态度是「积极进场」/「谨慎观望」/「积极离场」。必须有定量结论。
+3. **资金流向与分布分析**（仅港股/美股标的）：结合资金流向与资金分布判断资金态度。A 股（代码以 .SH/.SZ 结尾）无此数据，报告中不写「资金流向与分布」章节，综合判断也不引用该维度。
 
 4. **周线技术简述**：从周线分析中提取关键支撑/阻力位、均线状态、趋势判断。
 
-5. **Bot 盘前态度**：结合 Bot 昨日/上一交易日态度，判断机器视角的倾向。
+5. **Bot 盘前态度**：结合 Bot/Reminder 上一交易日态度，判断机器视角的倾向。
 
-6. **综合判断**：综合以上 5 个维度，给出多空判断和置信度。
+6. **综合判断**：综合以上维度，给出多空判断和置信度。
   - 判定依据必须包含具体参数引用（如"指数偏正面：道指+1.2%、纳指+0.8%"）
   - 置信度判断依据：信号一致性高（4+ 维度同向）→ high；3 维度同向 → medium；信号冲突 → low
   - 支撑/阻力从周线技术分析中提取
@@ -179,11 +180,16 @@ def _build_synthesis_prompt(context: PreMarketReportContext) -> str:
         market_parts.append(f"### {mk}市场新闻\n{cleaned[:600]}")
 
     # === 3. 个股数据 ===
+    a_share = is_a_share(code)
     stock_parts = [
         f"## 个股信息",
         f"- 标的: {ws.stock_name} ({code})",
         f"- Bot ID: {ws.bot_id}",
     ]
+    if a_share:
+        stock_parts.append(
+            "- 注意：A 股标的，资金流向与资金分布不可用，报告中勿写该章节。"
+        )
 
     # Bot 态度
     attitude = ws.attitude or "neutral"
@@ -202,13 +208,12 @@ def _build_synthesis_prompt(context: PreMarketReportContext) -> str:
             f"- 短期趋势: {wp.short_term_trend}, 中期趋势: {wp.mid_term_trend}, 长期趋势: {wp.long_term_trend}"
         )
 
-    # 资金流向
-    flow = ws.capital_flow_summary or "暂无"
-    stock_parts.append(f"\n## 资金流向\n{flow}")
-
-    # 资金分布
-    dist = ws.capital_distribution_summary or "暂无"
-    stock_parts.append(f"\n## 资金分布\n{dist}")
+    # 资金流向与分布（A 股跳过）
+    if not a_share:
+        flow = ws.capital_flow_summary or "暂无"
+        stock_parts.append(f"\n## 资金流向\n{flow}")
+        dist = ws.capital_distribution_summary or "暂无"
+        stock_parts.append(f"\n## 资金分布\n{dist}")
 
     # 个股新闻
     stock_news = _clean_news_text(ws.stock_news_summary or "暂无")

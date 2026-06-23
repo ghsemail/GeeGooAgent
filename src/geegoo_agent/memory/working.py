@@ -5,6 +5,7 @@ from __future__ import annotations
 from geegoo_agent.infra.state_store import FileStateStore
 from geegoo_agent.memory.models import BotStock, PreMarketWorking, StockWorkspace
 from geegoo_agent.runtime.pre_market_constants import PRE_MARKET_INDEX_CODES, PRE_MARKET_NEWS_MARKETS
+from geegoo_agent.tools.mappings import is_a_share
 from geegoo_agent.tools.types import ToolResult
 
 
@@ -80,7 +81,9 @@ class WorkingMemoryStore:
         elif tool_name == "get_capital_flow" and result.data is not None:
             code = str(result.data.get("code", ""))
             if code and code in updated.stocks:
-                if result.status == "skipped":
+                if result.status == "skipped" and is_a_share(code):
+                    updated.stocks[code].capital_flow_summary = None
+                elif result.status == "skipped":
                     updated.stocks[code].capital_flow_summary = str(
                         result.data.get("skip_reason") or result.summary
                     )[:2000]
@@ -92,9 +95,12 @@ class WorkingMemoryStore:
         elif tool_name == "get_capital_distribution" and result.data is not None:
             code = str(result.data.get("code", ""))
             if code and code in updated.stocks:
-                updated.stocks[code].capital_distribution_summary = str(
-                    result.data.get("formatted", "") or result.summary
-                )[:2000]
+                if result.status == "skipped" and is_a_share(code):
+                    updated.stocks[code].capital_distribution_summary = None
+                else:
+                    updated.stocks[code].capital_distribution_summary = str(
+                        result.data.get("formatted", "") or result.summary
+                    )[:2000]
 
         elif tool_name == "get_bot_yesterday_attitude" and result.data is not None:
             code = str(result.data.get("code", ""))

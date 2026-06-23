@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from geegoo_agent.memory.models import BotStock, PreMarketWorking
 from geegoo_agent.runtime.llm_tasks import PreMarketSynthesis
-from geegoo_agent.tools.mappings import attitude_to_result
+from geegoo_agent.tools.mappings import attitude_to_result, is_a_share
 
 
 def build_stub_report_content(working: PreMarketWorking, code: str) -> str:
@@ -34,20 +34,27 @@ def build_stub_report_content(working: PreMarketWorking, code: str) -> str:
         mk_label = {"US": "美股", "CN": "A股", "HK": "港股"}.get(mk, mk)
         news_lines.append(f"### {mk_label}新闻\n{news_raw[:300]}\n")
 
-    # 资金流向与分布
-    cap_lines = ["## 三、资金流向与分布", ""]
-    cap_lines.append(f"### 资金流向\n{ws.capital_flow_summary or '暂无数据'}")
-    cap_lines.append(f"\n### 资金分布\n{ws.capital_distribution_summary or '暂无数据'}")
+    # 资金流向与分布（A 股跳过）
+    section = 3
+    if not is_a_share(code):
+        cap_lines = [f"## {section}、资金流向与分布", ""]
+        cap_lines.append(f"### 资金流向\n{ws.capital_flow_summary or '暂无数据'}")
+        cap_lines.append(f"\n### 资金分布\n{ws.capital_distribution_summary or '暂无数据'}")
+        section += 1
+    else:
+        cap_lines = []
 
     # 周线技术分析
-    weekly_lines = ["## 四、周线技术分析", "", ws.weekly_analysis_ref or "暂无数据"]
+    weekly_lines = [f"## {section}、周线技术分析", "", ws.weekly_analysis_ref or "暂无数据"]
+    section += 1
 
     # Bot 态度
-    attitude_lines = ["## 五、Bot 盘前态度", "", f"态度：{ws.attitude or 'neutral'}"]
+    attitude_lines = [f"## {section}、Bot 盘前态度", "", f"态度：{ws.attitude or 'neutral'}"]
+    section += 1
 
     # 综合判断
     summary_lines = [
-        "## 六、综合判断",
+        f"## {section}、综合判断",
         "",
         "LLM 合成未执行，以下为 stub 模式默认值。",
         "- result: neutral",
@@ -55,10 +62,11 @@ def build_stub_report_content(working: PreMarketWorking, code: str) -> str:
         "- suggestion: hold",
         "- reason: phase B stub fallback，LLM 合成未运行，请检查日志。",
     ]
+    section += 1
 
     # 个股新闻
     stock_news_lines = [
-        "## 七、个股新闻",
+        f"## {section}、个股新闻",
         "",
         ws.stock_news_summary or "暂无数据",
     ]
@@ -69,7 +77,8 @@ def build_stub_report_content(working: PreMarketWorking, code: str) -> str:
     ]
     lines.extend(index_lines)
     lines.extend(news_lines)
-    lines.extend(cap_lines)
+    if cap_lines:
+        lines.extend(cap_lines)
     lines.extend(weekly_lines)
     lines.extend(attitude_lines)
     lines.extend(summary_lines)
