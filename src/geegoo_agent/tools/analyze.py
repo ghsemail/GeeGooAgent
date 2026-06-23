@@ -161,7 +161,7 @@ class GetCapitalDistributionTool(BaseTool):
 
 class GetBotYesterdayAttitudeTool(BaseTool):
     name = "get_bot_yesterday_attitude"
-    description = "Get yesterday bot attitude; 404 maps to neutral."
+    description = "获取上一交易日 Bot 态度（服务端自动回溯最近 7 天）；无记录兜底为 neutral。"
     category = ToolCategory.ANALYSIS
     input_model = GetBotYesterdayAttitudeParams
 
@@ -184,12 +184,13 @@ class GetBotYesterdayAttitudeTool(BaseTool):
             language=params.language,
         )
         mapped = attitude_to_result(attitude.attitude)
+        date_info = f" @ {attitude.date}" if attitude.date else ""
         return ToolResult(
             status="ok",
             summary=(
-                f"Attitude for {params.bot_id}: {attitude.attitude}"
+                f"Attitude for {params.bot_id}{date_info}: {attitude.attitude}"
                 if attitude.found
-                else f"No yesterday attitude for {params.bot_id}, default neutral"
+                else f"无上一交易日 attitude 记录 {params.bot_id}，兜底 neutral"
             ),
             data={
                 **attitude.model_dump(),

@@ -28,15 +28,33 @@ JSON 字段：
 """
 
 _SYNTHESIZE_SYSTEM = """\
-你是盘前报告合成助手。根据提供的指数、新闻、个股数据生成盘前研判，仅输出 JSON。
+你是盘前报告合成助手。根据提供的多维度数据（市场概况、新闻、资金流向、资金分布、周线技术、Bot态度），生成结构化盘前研判报告。仅输出 JSON，不要其他文字。
+
+=== 分析步骤（必须按顺序分析） ===
+
+1. **市场概况分析**：根据各国指数走势判断整体市场情绪（bullish/bearish/mixed），分析美、A、港三大市场联动性与各自驱动力。必须输出具体市场判断，不能用"暂无"。
+
+2. **新闻事件解读**：从市场新闻和个股新闻中提取 3-5 条最有影响力的消息，用自然语言概括要点，分析对标的的可能影响。禁止输出原始 JSON 数据结构。
+
+3. **资金流向与分布分析**：结合资金流向（主力净流入/流出方向、规模）和资金分布（超大单/大单/中单/小单净流入），判断资金态度是「积极进场」/「谨慎观望」/「积极离场」。必须有定量结论。
+
+4. **周线技术简述**：从周线分析中提取关键支撑/阻力位、均线状态、趋势判断。
+
+5. **Bot 盘前态度**：结合 Bot 昨日/上一交易日态度，判断机器视角的倾向。
+
+6. **综合判断**：综合以上 5 个维度，给出多空判断和置信度。
+  - 判定依据必须包含具体参数引用（如"指数偏正面：道指+1.2%、纳指+0.8%"）
+  - 置信度判断依据：信号一致性高（4+ 维度同向）→ high；3 维度同向 → medium；信号冲突 → low
+  - 支撑/阻力从周线技术分析中提取
+
 JSON 字段：
 - result: long/short/neutral
 - confidence: high/medium/low
-- reason: 非空判定依据
+- reason: 详细判定依据（≥80字，含具体参数和数据点）
 - suggestion: buy/sell/hold
-- report: 完整 Markdown 报告（九章结构摘要即可）
-- summary: 200 字以内摘要
-- support, resistance: 数字或 null
+- report: 完整 Markdown 报告（严格按照九章结构，每章必须有实质性内容，不能写"暂无"）
+- summary: 150-250字摘要，包含市场概况、关键风险、操作建议
+- support, resistance: 数字或 null（从周线分析提取）
 """
 
 
@@ -140,22 +158,99 @@ def _build_synthesis_prompt(context: PreMarketReportContext) -> str:
     code = context.code
     ws = working.stocks[code]
     mc = working.market_context
-    parts = [
-        f"标的: {ws.stock_name} ({code})",
-        f"昨日 Bot 态度: {ws.attitude or 'neutral'}",
-        f"周线分析原文:\n{ws.weekly_analysis_ref or '暂无'}",
-        f"资金流向: {ws.capital_flow_summary or '暂无'}",
-        f"资金分布:\n{ws.capital_distribution_summary or '暂无'}",
-        f"个股新闻:\n{ws.stock_news_summary or '暂无'}",
-        "指数分析:",
+
+    # === 1. 市场概况（指数分析，每段落最多 500 字） ===
+    market_parts = ["## 市场概况（指数分析）"]
+    for label, idx_code in [
+        ("道琼斯", "^DJI.US"),
+        ("纳斯达克", "^IXIC.US"),
+        ("上证指数", "000001.SH"),
+        ("深证成指", "399001.SZ"),
+        ("恒生指数", "800000.HK"),
+    ]:
+        analysis = mc.index_analysis_refs.get(idx_code, "暂无数据")
+        market_parts.append(f"### {label} ({idx_code})\n{analysis[:500]}")
+
+    # === 2. 市场新闻（做摘要预处理，每市场最多 600 字） ===
+    market_parts.append("\n## 市场新闻")
+    for mk, news_raw in mc.market_news.items():
+        # 清理原始 JSON 格式的新闻数据
+        cleaned = _clean_news_text(news_raw)
+        market_parts.append(f"### {mk}市场新闻\n{cleaned[:600]}")
+
+    # === 3. 个股数据 ===
+    stock_parts = [
+        f"## 个股信息",
+        f"- 标的: {ws.stock_name} ({code})",
+        f"- Bot ID: {ws.bot_id}",
     ]
-    for idx_code, analysis in mc.index_analysis_refs.items():
-        parts.append(f"- {idx_code}: {analysis[:300]}")
-    for market, news in mc.market_news.items():
-        parts.append(f"市场新闻 {market}: {news[:300]}")
+
+    # Bot 态度
+    attitude = ws.attitude or "neutral"
+    stock_parts.append(f"\n## Bot 盘前态度\n{attitude}")
+
+    # 周线分析
+    weekly = ws.weekly_analysis_ref or "暂无"
+    stock_parts.append(f"\n## 周线技术分析\n{weekly[:800]}")
+
     if context.weekly_parsed is not None:
-        parts.append(f"周线结构化: {context.weekly_parsed.model_dump_json()}")
-    return "\n\n".join(parts)
+        wp = context.weekly_parsed
+        stock_parts.append(
+            f"\n### 周线关键位\n"
+            f"- 短期支撑: {wp.support_short}, 短期阻力: {wp.resistance_short}\n"
+            f"- 中期支撑: {wp.support_mid}, 中期阻力: {wp.resistance_mid}\n"
+            f"- 短期趋势: {wp.short_term_trend}, 中期趋势: {wp.mid_term_trend}, 长期趋势: {wp.long_term_trend}"
+        )
+
+    # 资金流向
+    flow = ws.capital_flow_summary or "暂无"
+    stock_parts.append(f"\n## 资金流向\n{flow}")
+
+    # 资金分布
+    dist = ws.capital_distribution_summary or "暂无"
+    stock_parts.append(f"\n## 资金分布\n{dist}")
+
+    # 个股新闻
+    stock_news = _clean_news_text(ws.stock_news_summary or "暂无")
+    stock_parts.append(f"\n## 个股新闻\n{stock_news[:600]}")
+
+    return "\n\n".join(market_parts) + "\n\n" + "\n\n".join(stock_parts)
+
+
+def _clean_news_text(raw: str) -> str:
+    """清洗新闻原始文本：去除 JSON 结构标记，提取可读摘要。"""
+    import json as _json
+
+    text = (raw or "").strip()
+    if not text or text in ("暂无", "暂无数据"):
+        return "暂无相关新闻"
+
+    # 尝试解析 JSON，提取标题/内容
+    try:
+        data = _json.loads(text)
+        if isinstance(data, list):
+            items = []
+            for item in data[:8]:
+                if isinstance(item, dict):
+                    title = item.get("title") or item.get("Title") or ""
+                    summary = item.get("summary") or item.get("Summary") or item.get("content", "")[:100] or ""
+                    line = f"- {title}"
+                    if summary and summary != title:
+                        line += f"：{summary}"
+                    items.append(line)
+                else:
+                    items.append(f"- {str(item)[:150]}")
+            return "\n".join(items) if items else "暂无相关新闻"
+        elif isinstance(data, dict):
+            items = data.get("items") or data.get("data") or data.get("news") or []
+            if isinstance(items, list) and items:
+                return _clean_news_text(_json.dumps(items, ensure_ascii=False))
+            return str(data)[:600]
+    except (_json.JSONDecodeError, ValueError):
+        pass
+
+    # 非 JSON：保持原样但截断
+    return text[:800]
 
 
 def synthesize_pre_market_report(
