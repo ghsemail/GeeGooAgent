@@ -1,6 +1,6 @@
 # Pre-Market Workflow
 
-**触发时间**: 交易日早上 8:00（systemd timer，见 Step 15）  
+**触发时间**（GeeGooAgent systemd 默认仅 A/港股盘前 **08:00**；美股请用 Hermes `盘前准备-美股` job **21:00**，见 geegoo skill `cron/market-schedules.md`）  
 **目的**: 生成盘前预判报告，为当日交易决策提供依据  
 **输出**: 每只股票独立 `.md` 文件（本地留档 + 数据库），按日期归档
 
