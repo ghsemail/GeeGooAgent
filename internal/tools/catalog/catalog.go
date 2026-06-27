@@ -52,7 +52,7 @@ func AllHTTP() []HTTPSpec {
 		{Name: "search_code", Description: "Search stock by code or name.", Path: "/searchCode", RequiresMCPToken: false, DirectResponse: true},
 		{Name: "get_position", Description: "Get account position for a symbol.", Path: "/getPosition"},
 		{Name: "get_current_price", Description: "Get latest price.", Path: "/getCurrentPrice", DirectResponse: true},
-		{Name: "get_ticker", Description: "Get real-time ticker.", Path: "/getTicker"},
+		{Name: "get_ticker", Description: "盘中逐笔行情 (MCP /getTicker)；区别于 get_current_price 现价快照。", Path: "/getTicker"},
 		{Name: "get_broker", Description: "Get broker distribution.", Path: "/getBroker"},
 		{Name: "get_index_signals", Description: "List index signals.", Path: "/getIndexSignalForSkill", RequiresMCPToken: false, DirectResponse: true},
 		{Name: "get_signal_combinations", Description: "List combined signals.", Path: "/getSignalCombinationForSkill", RequiresMCPToken: false, DirectResponse: true},

@@ -7,14 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
 
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
-// ChatUI renders Hermes-style terminal output (Python chat_ui.py parity).
+// ChatUI renders Hermes / Claude Code inspired terminal output.
 type ChatUI struct {
 	out   io.Writer
 	plain bool
@@ -62,6 +61,17 @@ func (u *ChatUI) println(text string) {
 	}
 }
 
+func (u *ChatUI) contentWidth() int {
+	w := u.width - 4
+	if w < 40 {
+		return 40
+	}
+	if w > 100 {
+		return 100
+	}
+	return w
+}
+
 func (u *ChatUI) ruleWidth() int {
 	w := u.width
 	if w < 40 {
@@ -74,30 +84,40 @@ func (u *ChatUI) ruleWidth() int {
 }
 
 func (u *ChatUI) printRule() {
-	u.println(strings.Repeat("─", u.ruleWidth()))
+	u.println(styleDim.Render(strings.Repeat("─", u.ruleWidth())))
 }
 
-// PrintBanner shows welcome panel (rich or plain).
+// PrintBanner shows Hermes-style two-column welcome panel.
 func (u *ChatUI) PrintBanner(opts BannerOptions) {
 	if u.plain {
 		u.println("")
 		u.write(BuildPlainBanner(opts))
 		return
 	}
+	rev := opts.Revision
+	if rev == "" {
+		rev = ResolveRevision(opts.InstallDir)
+	}
 	u.println("")
 	if u.width >= 95 {
-		u.println(styleGold.Render(geegooWideLogo))
+		u.println(renderWideLogo())
 		u.println("")
 	}
 	left := buildBannerLeft(opts)
 	right := buildBannerRight(opts)
-	panel := styleBorder.Render(left + "\n\n" + right)
-	title := styleGold.Render(fmt.Sprintf("GeeGoo Agent · upstream %s", opts.Revision))
-	u.println(title)
-	u.println(panel)
+	cols := lipgloss.JoinHorizontal(lipgloss.Top,
+		lipgloss.NewStyle().Padding(0, 2).Align(lipgloss.Center).Render(left),
+		lipgloss.NewStyle().Padding(0, 1).Render(right),
+	)
+	u.println(styleGold.Render(formatVersionLabel(rev)))
+	u.println(stylePanel.Render(cols))
 	u.println("")
-	u.println(styleDim.Render("Welcome to GeeGoo Agent! Type your message or /help for commands."))
-	u.println(styleDim.Render("✦ Tip: /verbose on shows live Tool steps; /verbose off hides them."))
+	u.println(styleText.Render("Welcome to GeeGoo Agent! ") + styleDim.Render("Type your message or /help for commands."))
+	u.println(
+		styleDim.Render("✦ Tip: ") +
+			styleDim.Render("/think on") + styleDim.Render(" shows DeepSeek reasoning; ") +
+			styleDim.Render("/verbose off") + styleDim.Render(" hides live steps."),
+	)
 	u.println("")
 }
 
@@ -121,8 +141,11 @@ func (u *ChatUI) PrintStatusBar(model string, thinking, dryRun bool, steps int) 
 		dry = "on"
 	}
 	u.println(fmt.Sprintf(" %s %s %s think %s │ dry-run %s │ %d steps",
-		styleGold.Render("⚕"), styleGold.Render(modelShort),
-		styleDim.Render("│"), think, dry, steps))
+		styleGold.Render("⚕"),
+		styleGold.Render(modelShort),
+		styleDim.Render("│"),
+		think, dry, steps,
+	))
 }
 
 func (u *ChatUI) PrintTurnFooter(model string, thinking, dryRun bool, steps int) {
@@ -136,19 +159,19 @@ func (u *ChatUI) PrintTurnFooter(model string, thinking, dryRun bool, steps int)
 
 func (u *ChatUI) PrintPrompt() {
 	if u.plain {
-		u.write("❯ ")
+		u.write("> ")
 		return
 	}
-	u.write(styleGold.Render("❯ ") + " ")
+	u.write(styleGold.Render("❯ "))
 }
 
 func (u *ChatUI) PrintUser(text string) {
 	if u.plain {
-		u.println(fmt.Sprintf("\n● %s\n", text))
+		u.println(fmt.Sprintf("\n> %s\n", text))
 		return
 	}
 	u.println("")
-	u.println(styleGold.Render("● ") + text)
+	u.println(styleGold.Render("● ") + styleText.Render(text))
 }
 
 func (u *ChatUI) PrintAssistant(text string) {
@@ -159,21 +182,18 @@ func (u *ChatUI) PrintAssistant(text string) {
 		return
 	}
 	body := text
-	if r, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(u.ruleWidth()-4),
-	); err == nil {
+	if r, err := newMarkdownRenderer(u.contentWidth()); err == nil {
 		if rendered, err := r.Render(text); err == nil {
 			body = strings.TrimRight(rendered, "\n")
 		}
 	}
 	title := styleGold.Render("⚕ GeeGoo")
+	inner := title + "\n" + body
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#FFBF00")).
+		BorderForeground(lipgloss.Color(colorBorder)).
 		Padding(0, 1).
-		Width(u.ruleWidth()).
-		Render(title + "\n" + body)
+		Render(inner)
 	u.println(box)
 }
 
@@ -245,7 +265,9 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 			u.println(fmt.Sprintf("  → %s(%s)", name, fmtArgs(args)))
 			return
 		}
-		u.println(fmt.Sprintf("  ┊ %s %s", toolEmoji(name), styleDim.Render("preparing "+displayToolName(name)+"…")))
+		label := displayToolName(name)
+		u.println(fmt.Sprintf("  ┊ %s %s",
+			toolEmoji(name), styleToolRun.Render("preparing "+label+"…")))
 	case "tool_done":
 		name, _ := data["name"].(string)
 		status, _ := data["status"].(string)
@@ -267,8 +289,9 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 			u.println(fmt.Sprintf("  %s %s [%s] %s", mark, name, status, truncate(summary, 160)))
 			return
 		}
+		ok := status == string(tools.StatusOK)
 		color := styleGold
-		if status != string(tools.StatusOK) {
+		if !ok {
 			color = styleErr
 		}
 		argsPart := ""
@@ -277,7 +300,11 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 		}
 		label := displayToolName(name)
 		u.println(fmt.Sprintf("  ┊ %s %s%s %s",
-			toolEmoji(name), color.Render(fmt.Sprintf("%-22s", label)), styleDim.Render(argsPart), styleDim.Render(fmt.Sprintf("%.1fs", duration))))
+			toolEmoji(name),
+			color.Render(fmt.Sprintf("%-22s", label)),
+			styleDim.Render(argsPart),
+			styleDim.Render(fmt.Sprintf("%.1fs", duration)),
+		))
 	case "error":
 		msg, _ := data["message"].(string)
 		u.PrintError(msg)
@@ -305,38 +332,4 @@ func fmtArgs(args map[string]any) string {
 
 func fmtArgsCompact(args map[string]any) string {
 	return fmtArgs(args)
-}
-
-func displayToolName(name string) string {
-	if name == "recall" {
-		return "session_search"
-	}
-	return name
-}
-
-func toolEmoji(name string) string {
-	switch name {
-	case "search_code":
-		return "🔍"
-	case "get_current_price", "get_ticker":
-		return "💹"
-	case "get_position":
-		return "📊"
-	case "check_trading_day":
-		return "📅"
-	case "fetch_market_news", "fetch_stock_news":
-		return "📰"
-	case "get_mcp_analysis":
-		return "📊"
-	case "get_capital_flow", "get_capital_distribution":
-		return "💰"
-	case "get_stock_daily_reports", "list_today_reports":
-		return "📝"
-	case "write_execution_log":
-		return "📋"
-	case "recall":
-		return "🔍"
-	default:
-		return "⚡"
-	}
 }

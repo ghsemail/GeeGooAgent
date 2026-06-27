@@ -116,7 +116,7 @@ func buildBannerLeft(opts BannerOptions) string {
 	if opts.DryRun {
 		dry = "on"
 	}
-	lines := []string{"", styleGold.Render(geegooHero), "",
+	lines := []string{"", renderHero(), "",
 		styleAmber.Render(modelShort) + styleDim.Render(" · ") + styleDim.Render(opts.Provider),
 		styleDim.Render(fmt.Sprintf("think %s · dry-run %s", think, dry)),
 	}
@@ -141,7 +141,7 @@ func buildBannerRight(opts BannerOptions) string {
 		if len(names) == 0 {
 			continue
 		}
-		lines = append(lines, styleDim.Render(label+":")+" "+truncateToolList(names, 44))
+		lines = append(lines, styleDim.Render(label+":")+" "+styleText.Render(truncateToolList(names, 44)))
 		shown++
 		if shown >= 7 {
 			break
@@ -151,7 +151,7 @@ func buildBannerRight(opts BannerOptions) string {
 		lines = append(lines, "")
 		lines = append(lines, styleAmber.Render("APIs"))
 		for k, v := range opts.APIHosts {
-			lines = append(lines, styleDim.Render(k)+" ("+v+")")
+			lines = append(lines, styleDim.Render(k)+" "+styleText.Render("("+v+")"))
 		}
 	}
 	skills := scanSkills(opts.ProjectRoot)
@@ -166,7 +166,7 @@ func buildBannerRight(opts BannerOptions) string {
 	} else {
 		count := 0
 		for cat, names := range skills {
-			lines = append(lines, styleDim.Render(cat+":")+" "+truncateToolList(names, 52))
+			lines = append(lines, styleDim.Render(cat+":")+" "+styleText.Render(truncateToolList(names, 52)))
 			count++
 			if count >= 8 {
 				break
@@ -195,7 +195,7 @@ func groupTools(registry *tools.Registry, names []string) map[string][]string {
 
 func toolCategory(name string) string {
 	switch {
-	case strings.HasPrefix(name, "search_"), name == "recall", name == "get_ticker":
+	case strings.HasPrefix(name, "search_"), name == "recall":
 		return "perceive"
 	case strings.HasPrefix(name, "get_"), strings.HasPrefix(name, "fetch_"), strings.Contains(name, "analysis"):
 		return "analyze"
@@ -286,6 +286,10 @@ func toolNamesForBanner(opts BannerOptions) []string {
 		return nil
 	}
 	return opts.Registry.ListNames()
+}
+
+func formatVersionLabel(rev string) string {
+	return fmt.Sprintf("GeeGoo Agent · upstream %s", rev)
 }
 
 func shortHost(raw string) string {
