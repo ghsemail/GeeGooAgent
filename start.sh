@@ -21,10 +21,23 @@ PID_RUNTIME="${APP_DIR}/agent-runtime.pid"
 
 log() { echo "[GeeGooAgent] $*"; }
 
+install_geegoo_wrapper() {
+  cat > "$BIN_DIR/geegoo" <<EOF
+#!/usr/bin/env bash
+set -a
+# shellcheck disable=SC1091
+source "\${GEEGOO_HOME:-$HOME/.geegoo}/agent.env" 2>/dev/null || true
+set +a
+exec "$BIN_DIR/geegoo.bin" "\$@"
+EOF
+  chmod +x "$BIN_DIR/geegoo" "$BIN_DIR/geegoo.bin" 2>/dev/null || true
+}
+
 build() {
   log "building geegoo + agentRuntimeServer..."
-  go build -o "$BIN_DIR/geegoo" ./cmd/geegoo
+  go build -o "$BIN_DIR/geegoo.bin" ./cmd/geegoo
   go build -o "$BIN_DIR/agentRuntimeServer" ./cmd/agent-runtime
+  install_geegoo_wrapper
 }
 
 start_runtime() {
