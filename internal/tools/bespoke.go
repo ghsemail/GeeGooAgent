@@ -2,12 +2,14 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 )
 
@@ -281,11 +283,45 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "recall", Description: "Search past chat sessions (stub).",
+		Name: "recall",
+		Description: "Search past geegoo chat sessions for stock price lookups and user queries. " +
+			"Use when the user asks what they checked before, including after quit/restart.",
 		Handle: func(ctx Context, args map[string]any) Result {
-			_ = ctx
-			_ = args
-			return Result{Status: StatusOK, Summary: "recall: not implemented in Go A3", Data: map[string]any{"items": []any{}}}
+			if ctx.StateStore == nil {
+				return Result{Status: StatusError, Summary: "state_store not configured", ExitCode: 1}
+			}
+			query := strArg(args, "query", "")
+			limit := intArg(args, "limit", 5)
+			if limit < 1 {
+				limit = 1
+			}
+			if limit > 20 {
+				limit = 20
+			}
+			store := chatsession.NewChatSessionStore(ctx.StateStore)
+			hits, err := chatsession.SearchPastSessions(store, query, ctx.SessionID, limit, 30)
+			if err != nil {
+				return errResult(err)
+			}
+			if len(hits) == 0 {
+				return Result{
+					Status: StatusOK, Summary: "No matching past chat sessions",
+					Data: map[string]any{"count": 0, "matches": []any{}},
+				}
+			}
+			top := hits[0]
+			summary := fmt.Sprintf("Found %d session(s); latest: %s (%s)", len(hits), top.Snippet, top.SessionID)
+			for _, e := range top.StockEvents {
+				if e.Code != "" && e.Tool == "get_current_price" {
+					priceNote := ""
+					if e.Price != nil {
+						priceNote = fmt.Sprintf(" @ %v", *e.Price)
+					}
+					summary = fmt.Sprintf("Found %d session(s); latest: %s%s (%s)", len(hits), e.Code, priceNote, top.SessionID)
+					break
+				}
+			}
+			return Result{Status: StatusOK, Summary: summary, Data: chatsession.HitsToData(hits)}
 		},
 	})
 }
@@ -389,6 +425,20 @@ func strArg(args map[string]any, key, def string) string {
 		return v
 	}
 	return def
+}
+
+func intArg(args map[string]any, key string, def int) int {
+	switch v := args[key].(type) {
+	case float64:
+		return int(v)
+	case int:
+		return v
+	case json.Number:
+		n, _ := v.Int64()
+		return int(n)
+	default:
+		return def
+	}
 }
 
 func today() string { return time.Now().Format("2006-01-02") }

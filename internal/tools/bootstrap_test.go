@@ -1,9 +1,11 @@
 package tools_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
+	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 	"github.com/ghsemail/GeeGooAgent/internal/tools/catalog"
 )
@@ -28,12 +30,16 @@ func TestRegisterAllToolCount(t *testing.T) {
 }
 
 func TestAllToolsDryRun(t *testing.T) {
+	root := t.TempDir()
 	client := mcp.NewClient("http://127.0.0.1:3120", "sk-test", mcp.Options{
 		AllowedHosts: []string{"127.0.0.1"},
 	})
 	r := tools.NewRegistry()
-	tools.RegisterAll(r, tools.Deps{MCP: client, WorkspaceRoot: t.TempDir()})
-	ctx := tools.Context{SessionID: "test", MCPToken: "tok", DryRun: true, WorkspaceRoot: t.TempDir()}
+	tools.RegisterAll(r, tools.Deps{MCP: client, WorkspaceRoot: root})
+	state := infra.NewStateStore(filepath.Join(root, "state"))
+	ctx := tools.Context{
+		SessionID: "test", MCPToken: "tok", DryRun: true, WorkspaceRoot: root, StateStore: state,
+	}
 	for _, name := range r.Names() {
 		if name == "read_working_state" {
 			continue

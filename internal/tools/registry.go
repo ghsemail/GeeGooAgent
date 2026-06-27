@@ -1,6 +1,14 @@
 package tools
 
-import "github.com/ghsemail/GeeGooAgent/internal/llm"
+import (
+	"github.com/ghsemail/GeeGooAgent/internal/infra"
+	"github.com/ghsemail/GeeGooAgent/internal/llm"
+)
+
+// EventEmitter is optional L0 bus for /flow and observability.
+type EventEmitter interface {
+	Emit(event string, payload map[string]any)
+}
 
 // Status is tool execution outcome.
 type Status string
@@ -19,6 +27,8 @@ type Context struct {
 	DryRun        bool
 	Step          int
 	WorkspaceRoot string
+	EventBus      EventEmitter
+	StateStore    *infra.StateStore
 }
 
 // Result is returned by a tool handler.
@@ -89,6 +99,11 @@ func (r *Registry) Schemas(filter []string) []llm.ToolSchema {
 	return out
 }
 
+// ListNames returns registered tool names sorted.
+func (r *Registry) ListNames() []string {
+	return r.sortedNames(nil)
+}
+
 // Execute runs a tool by name.
 func (r *Registry) Execute(req CallRequest, ctx Context) Result {
 	t, ok := r.tools[req.Name]
@@ -98,7 +113,16 @@ func (r *Registry) Execute(req CallRequest, ctx Context) Result {
 	if req.Arguments == nil {
 		req.Arguments = map[string]any{}
 	}
-	return t.Handle(ctx, req.Arguments)
+	if ctx.EventBus != nil {
+		ctx.EventBus.Emit("ToolCalled", map[string]any{"tool": req.Name, "step": ctx.Step})
+	}
+	result := t.Handle(ctx, req.Arguments)
+	if ctx.EventBus != nil {
+		ctx.EventBus.Emit("ToolFinished", map[string]any{
+			"tool": req.Name, "step": ctx.Step, "status": string(result.Status), "summary": result.Summary,
+		})
+	}
+	return result
 }
 
 func (r *Registry) sortedNames(filter []string) []string {
@@ -119,9 +143,3 @@ func (r *Registry) sortedNames(filter []string) []string {
 	return filter
 }
 
-// ChatToolNames are on-demand tools for geegoo chat (A2 subset).
-var ChatToolNames = []string{
-	"search_code",
-	"get_current_price",
-	"check_trading_day",
-}

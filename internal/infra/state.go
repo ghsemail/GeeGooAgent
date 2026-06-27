@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -61,7 +62,41 @@ func (s *StateStore) Load(key string) (map[string]any, error) {
 	return data, nil
 }
 
-// Checkpoint records workflow progress.
+// ListKeys returns slash-separated keys under prefix (without .json suffix).
+func (s *StateStore) ListKeys(prefix string) ([]string, error) {
+	base := s.root
+	if prefix != "" {
+		base = filepath.Join(s.root, filepath.FromSlash(prefix))
+	}
+	if _, err := os.Stat(base); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var keys []string
+	err := filepath.WalkDir(base, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".json") {
+			return nil
+		}
+		rel, err := filepath.Rel(s.root, path)
+		if err != nil {
+			return err
+		}
+		key := strings.TrimSuffix(filepath.ToSlash(rel), ".json")
+		keys = append(keys, key)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(keys)
+	return keys, nil
+}
+
 type Checkpoint struct {
 	SessionID string         `json:"session_id"`
 	Step      int            `json:"step"`

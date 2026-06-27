@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/chatprompt"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
@@ -27,7 +28,7 @@ func NewSession() *Session {
 	return &Session{
 		ID: newSessionID(),
 		Messages: []llm.Message{
-			{Role: llm.RoleSystem, Content: chatSystemPrompt},
+			{Role: llm.RoleSystem, Content: chatprompt.System()},
 		},
 		CreatedAt: time.Now().UTC(),
 	}
@@ -57,7 +58,7 @@ func NewUpstreamSession(messages []UpstreamMessage) (*Session, string) {
 		}
 	}
 	if len(session.Messages) == 0 {
-		session.AppendMessage(llm.Message{Role: llm.RoleSystem, Content: chatSystemPrompt})
+		session.AppendMessage(llm.Message{Role: llm.RoleSystem, Content: chatprompt.System()})
 	}
 	if len(session.Messages) > 0 {
 		last := session.Messages[len(session.Messages)-1]

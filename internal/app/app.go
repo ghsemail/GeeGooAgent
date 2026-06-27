@@ -25,6 +25,7 @@ type App struct {
 	Workflow  *workflow.Runner
 	Working   *memory.WorkingStore
 	State     *infra.StateStore
+	EventBus  *infra.EventBus
 	Workspace string
 }
 
@@ -48,6 +49,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	state := infra.NewStateStore(workspace)
 	working := memory.NewWorkingStore(state)
 	checkpoints := infra.NewCheckpointManager(state)
+	eventBus := infra.NewEventBus()
 
 	mcpClient := mcp.NewClient(cfg.EffectiveMCPURL(), cfg.MCPAPIKey(), mcp.Options{
 		AllowedHosts: cfg.ResolvedAllowedHosts(),
@@ -80,7 +82,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	return &App{
 		Config: cfg, MCP: mcpClient, Registry: registry, Gateway: gateway,
 		Loop: runtime.NewReActLoop(gateway, executor), Executor: executor,
-		Workflow: wf, Working: working, State: state, Workspace: workspace,
+		Workflow: wf, Working: working, State: state, EventBus: eventBus, Workspace: workspace,
 	}, nil
 }
 
@@ -90,6 +92,7 @@ func (a *App) RunPreMarket(skill string) (workflow.RunResult, error) {
 		return workflow.RunResult{}, fmt.Errorf("unsupported skill: %s", skill)
 	}
 	sessionID := newSessionID()
+	a.EventBus.Emit("RunStarted", map[string]any{"session_id": sessionID, "skill": skill})
 	working, err := a.Working.Create(sessionID, skill)
 	if err != nil {
 		return workflow.RunResult{}, err
@@ -103,7 +106,7 @@ func (a *App) RunPreMarket(skill string) (workflow.RunResult, error) {
 func (a *App) ToolContext(sessionID string) tools.Context {
 	return tools.Context{
 		SessionID: sessionID, MCPToken: a.Config.MCPToken(), DryRun: a.Config.DryRun,
-		WorkspaceRoot: a.Workspace,
+		WorkspaceRoot: a.Workspace, EventBus: a.EventBus, StateStore: a.State,
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -16,6 +17,7 @@ type TurnResult struct {
 	AssistantText string
 	Failed        bool
 	Error         string
+	StepRecords   []StepRecord
 }
 
 // ReActLoop runs plan → act → observe for one chat turn.
@@ -23,6 +25,7 @@ type ReActLoop struct {
 	gateway       *llm.Gateway
 	executor      *Executor
 	maxToolRounds int
+	onProgress    ProgressFunc
 }
 
 // NewReActLoop creates a ReAct loop.
@@ -31,6 +34,17 @@ func NewReActLoop(gateway *llm.Gateway, executor *Executor) *ReActLoop {
 		gateway:       gateway,
 		executor:      executor,
 		maxToolRounds: maxToolRounds,
+	}
+}
+
+// SetProgress wires live step output (geegoo chat verbose UI).
+func (l *ReActLoop) SetProgress(fn ProgressFunc) {
+	l.onProgress = fn
+}
+
+func (l *ReActLoop) emit(event string, data map[string]any) {
+	if l.onProgress != nil {
+		l.onProgress(event, data)
 	}
 }
 
@@ -43,46 +57,91 @@ func (l *ReActLoop) RunTurn(
 ) TurnResult {
 	session.AppendMessage(llm.Message{Role: llm.RoleUser, Content: userText})
 	messages := session.LLMMessages()
+	records := []StepRecord{}
+
+	l.emit("turn_start", map[string]any{"user_text": userText})
 
 	for round := 0; round < l.maxToolRounds; round++ {
 		session.StepCounter++
 		step := session.StepCounter
-		_ = step
+		l.emit("round_start", map[string]any{"round": round + 1, "step": step})
 
 		resp, err := l.gateway.Chat(messages, schemas, session.ID, step)
 		if err != nil {
 			msg := fmt.Sprintf("模型调用失败: %v", err)
-			return TurnResult{AssistantText: msg, Failed: true, Error: err.Error()}
+			l.emit("error", map[string]any{"message": msg})
+			return TurnResult{AssistantText: msg, Failed: true, Error: err.Error(), StepRecords: records}
 		}
+
+		toolNames := make([]string, 0, len(resp.ToolCalls))
+		for _, c := range resp.ToolCalls {
+			toolNames = append(toolNames, c.Name)
+		}
+		planSummary := strings.TrimSpace(resp.Content)
+		if planSummary == "" && len(toolNames) > 0 {
+			planSummary = fmt.Sprintf("决策: 调用 %s", strings.Join(toolNames, ", "))
+		}
+		if planSummary == "" {
+			planSummary = "（无显式计划文本）"
+		}
+		if len(planSummary) > 300 {
+			planSummary = planSummary[:300]
+		}
+		records = append(records, StepRecord{
+			Step: step, Timestamp: time.Now().UTC(), Kind: "plan", Summary: planSummary,
+		})
+		l.emit("llm_plan", map[string]any{
+			"step": step, "content": resp.Content, "tool_names": toolNames,
+		})
 
 		if len(resp.ToolCalls) == 0 {
 			text := strings.TrimSpace(resp.Content)
 			if text == "" {
 				text = "（无文本回复）"
 			}
+			l.emit("reply_start", map[string]any{"step": step})
 			session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: text})
-			return TurnResult{AssistantText: text}
+			summary := text
+			if len(summary) > 300 {
+				summary = summary[:300]
+			}
+			records = append(records, StepRecord{
+				Step: step, Timestamp: time.Now().UTC(), Kind: "reply", Summary: summary,
+			})
+			return TurnResult{AssistantText: text, StepRecords: records}
 		}
 
+		l.emit("llm_tools", map[string]any{"step": step, "tool_names": toolNames})
+
 		assistant := llm.Message{
-			Role:    llm.RoleAssistant,
-			Content: resp.Content,
-			ToolCalls: resp.ToolCalls,
+			Role: llm.RoleAssistant, Content: resp.Content, ToolCalls: resp.ToolCalls,
 		}
 		session.AppendMessage(assistant)
 		messages = append(messages, assistant)
 
 		for _, call := range resp.ToolCalls {
 			toolCtx.Step = step
+			l.emit("tool_start", map[string]any{
+				"step": step, "name": call.Name, "arguments": call.Arguments,
+			})
 			result := l.executor.Execute(tools.CallRequest{
-				Name:      call.Name,
-				Arguments: call.Arguments,
+				Name: call.Name, Arguments: call.Arguments,
 			}, toolCtx)
+			l.emit("tool_done", map[string]any{
+				"step": step, "name": call.Name, "status": string(result.Status),
+				"summary": result.Summary, "arguments": call.Arguments,
+			})
+			summary := result.Summary
+			if len(summary) > 300 {
+				summary = summary[:300]
+			}
+			records = append(records, StepRecord{
+				Step: step, Timestamp: time.Now().UTC(), Kind: "tool",
+				ToolName: call.Name, ToolStatus: string(result.Status), Summary: summary,
+			})
 
 			toolMsg := llm.Message{
-				Role:       llm.RoleTool,
-				Content:    toolResultContent(result),
-				ToolCallID: call.ID,
+				Role: llm.RoleTool, Content: toolResultContent(result), ToolCallID: call.ID,
 			}
 			session.AppendMessage(toolMsg)
 			messages = append(messages, toolMsg)
@@ -90,7 +149,8 @@ func (l *ReActLoop) RunTurn(
 	}
 
 	msg := "已达到单轮 Tool 调用上限，请缩小问题范围后重试。"
-	return TurnResult{AssistantText: msg, Failed: true, Error: "max_tool_rounds"}
+	l.emit("error", map[string]any{"message": msg})
+	return TurnResult{AssistantText: msg, Failed: true, Error: "max_tool_rounds", StepRecords: records}
 }
 
 func toolResultContent(result tools.Result) string {

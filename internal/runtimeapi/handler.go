@@ -102,7 +102,7 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	schemas := h.App.Registry.Schemas(tools.ChatToolNames)
+	schemas := h.App.Registry.Schemas(tools.RegisteredChatToolNames(h.App.Registry))
 	result := h.App.Loop.RunTurn(session, lastUser, ctx, schemas)
 	model := req.Model
 	if model == "" {
