@@ -9,3 +9,6 @@ const chatSystemPrompt = `你是 GeeGoo 股票分析 Agent，帮助用户分析 
 - 不要编造价格；Tool 失败时如实说明。
 
 出站服务：GeeGooBot mcp-api :3120（Tool 主路径）；GeeGooSignal catalog :3210 / analyze :3230；GeeGooData :3300（可选直读）。`
+
+// ChatSystemPrompt returns the default system prompt for chat/runtime.
+func ChatSystemPrompt() string { return chatSystemPrompt }
