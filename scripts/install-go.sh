@@ -25,8 +25,12 @@ mkdir -p "$GEEGOO_HOME" "$DATA_DIR" "$BIN_DIR"
 export PATH="/usr/local/go/bin:${PATH:-}"
 
 if ! command -v go >/dev/null 2>&1; then
-  echo "ERROR: go not found. Install Go 1.22+ (e.g. /usr/local/go) first." >&2
-  exit 1
+  if [ -f "$INSTALL_DIR/scripts/ensure-go.sh" ]; then
+    bash "$INSTALL_DIR/scripts/ensure-go.sh"
+  else
+    echo "ERROR: go not found. Install Go 1.22+ (e.g. /usr/local/go) first." >&2
+    exit 1
+  fi
 fi
 
 if [ -d "$INSTALL_DIR/.git" ]; then

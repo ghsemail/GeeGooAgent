@@ -86,6 +86,7 @@ def main() -> int:
     steps = [
         f"test -d {install_dir}/.git || git clone git@github.com:ghsemail/GeeGooAgent.git {install_dir}",
         f"cd {install_dir} && git fetch origin main && git reset --hard origin/main",
+        f"cd {install_dir} && bash scripts/ensure-go.sh",
         f"cd {install_dir} && bash scripts/install-go.sh",
     ]
     for cmd in steps:
