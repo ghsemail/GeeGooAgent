@@ -66,6 +66,15 @@ def patch_config(raw: dict, api_key: str) -> dict:
     raw["api_key"] = api_key
     raw["geegoo_api_key"] = api_key
     raw["signal_base_url"] = GEEGOO_SIGNAL
+    raw["data_base_url"] = GEEGOO_DATA
+    env_lines = f"""export GEEGOO_BOT_MCP_URL={GEEGOO_BOT_MCP}
+export GEEGOO_SIGNAL_CATALOG_API_URL={GEEGOO_SIGNAL}
+export GEEGOO_DATA_HTTP_URL={GEEGOO_DATA}
+export GEEGOO_CONFIG={config_path}
+export PATH=/home/ubuntu/.geegoo/bin:/usr/local/go/bin:$PATH
+"""
+    with sftp.open("/home/ubuntu/.geegoo/agent.env", "w") as f:
+        f.write(env_lines)
     sandbox = raw.setdefault("sandbox", {})
     hosts = set(sandbox.get("allowed_hosts") or [])
     hosts.update(ALLOWED_HOSTS)
@@ -112,6 +121,7 @@ def main() -> int:
     print(f"\nPatched {config_path}")
     print(f"  geegoo_url = {GEEGOO_BOT_MCP}")
     print(f"  signal_base_url = {GEEGOO_SIGNAL}")
+    print(f"  data_base_url = {GEEGOO_DATA}")
 
     code, out = run(
         agent,

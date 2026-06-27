@@ -38,6 +38,9 @@ func (c *AppConfig) DataHTTPURL() string {
 	if v := os.Getenv("GEEGOO_DATA_HTTP_URL"); v != "" {
 		return trimSlash(v)
 	}
+	if c.DataBaseURL != "" {
+		return trimSlash(c.DataBaseURL)
+	}
 	return DefaultDataHTTPURL
 }
 
@@ -52,7 +55,7 @@ func (c *AppConfig) EffectiveMCPURL() string {
 // LegacyPortWarnings detects Trading-era ports in config (5700/5800/5600).
 func (c *AppConfig) LegacyPortWarnings() []string {
 	var warnings []string
-	for _, u := range []string{c.BaseURL, c.GeeGooURL, c.SignalBaseURL} {
+	for _, u := range []string{c.BaseURL, c.GeeGooURL, c.SignalBaseURL, c.DataBaseURL} {
 		if hasLegacyPort(u) {
 			warnings = append(warnings, fmt.Sprintf(
 				"config URL %q uses legacy Trading port; prefer GeeGooBot :3120 / GeeGooSignal :3210 / GeeGooData :3300",

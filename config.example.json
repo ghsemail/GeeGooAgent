@@ -5,6 +5,7 @@
   "geegoo_api_key": "sk-REPLACE",
   "mcp_token": "",
   "signal_base_url": "http://127.0.0.1:3210",
+  "data_base_url": "http://127.0.0.1:3300",
   "output_dir": "./data",
   "feishu_webhook_url": null,
   "dry_run": false,

@@ -6,6 +6,8 @@ APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$APP_DIR"
 
 GEEGOO_HOME="${GEEGOO_HOME:-$HOME/.geegoo}"
+# shellcheck disable=SC1091
+source "$GEEGOO_HOME/agent.env" 2>/dev/null || true
 BIN_DIR="${GEEGOO_BIN_DIR:-$GEEGOO_HOME/bin}"
 CONFIG_PATH="${GEEGOO_CONFIG:-$GEEGOO_HOME/config.json}"
 mkdir -p "$BIN_DIR"

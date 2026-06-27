@@ -31,6 +31,7 @@ type AppConfig struct {
 	GeeGooAPIKey     string        `json:"geegoo_api_key"`
 	UserMCPToken     string        `json:"mcp_token"`
 	SignalBaseURL    string        `json:"signal_base_url"`
+	DataBaseURL      string        `json:"data_base_url"`
 	OutputDir        string        `json:"output_dir"`
 	DryRun           bool          `json:"dry_run"`
 	FeishuWebhookURL *string       `json:"feishu_webhook_url"`
