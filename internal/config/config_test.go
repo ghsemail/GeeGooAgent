@@ -17,9 +17,9 @@ func TestLoadValidConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")
 	content := `{
-		"base_url": "http://118.195.135.97:3120",
+		"base_url": "http://127.0.0.1:3120",
 		"api_key": "sk-test",
-		"geegoo_url": "http://118.195.135.97:3120",
+		"geegoo_url": "http://127.0.0.1:3120",
 		"geegoo_api_key": "sk-test",
 		"mcp_token": "user-token",
 		"output_dir": "` + filepath.ToSlash(dir) + `/data"
@@ -31,7 +31,7 @@ func TestLoadValidConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.MCPURL() != "http://118.195.135.97:3120" {
+	if cfg.MCPURL() != "http://127.0.0.1:3120" {
 		t.Fatalf("MCPURL = %q", cfg.MCPURL())
 	}
 	if cfg.MCPAPIKey() != "sk-test" {

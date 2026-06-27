@@ -19,9 +19,9 @@ func TestDoctorValidConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")
 	content := `{
-		"base_url": "http://118.195.135.97:3120",
+		"base_url": "http://127.0.0.1:3120",
 		"api_key": "sk-real-key",
-		"geegoo_url": "http://118.195.135.97:3120",
+		"geegoo_url": "http://127.0.0.1:3120",
 		"geegoo_api_key": "sk-real-key",
 		"mcp_token": "user-mcp",
 		"llm": {"token_key": "llm-key"}
