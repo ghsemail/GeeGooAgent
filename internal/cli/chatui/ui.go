@@ -241,19 +241,45 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 			u.println(fmt.Sprintf("⋯ step %v", data["step"]))
 		}
 	case "llm_plan":
+		reasoning, _ := data["reasoning"].(string)
+		content, _ := data["content"].(string)
+		toolNames, _ := data["tool_names"].([]string)
 		if u.plain {
-			if v, ok := data["content"].(string); ok && strings.TrimSpace(v) != "" {
-				u.println(fmt.Sprintf("  [计划] %s", truncate(v, 300)))
+			if strings.TrimSpace(reasoning) != "" {
+				u.println(fmt.Sprintf("  [思考] %s", truncate(reasoning, 500)))
 			}
-			if names, ok := data["tool_names"].([]string); ok && len(names) > 0 {
-				u.println(fmt.Sprintf("  [决策] 调用: %s", strings.Join(names, ", ")))
+			if strings.TrimSpace(content) != "" {
+				u.println(fmt.Sprintf("  [计划] %s", truncate(content, 300)))
 			}
+			if len(toolNames) > 0 {
+				u.println(fmt.Sprintf("  [决策] 调用: %s", strings.Join(toolNames, ", ")))
+			}
+			return
+		}
+		if strings.TrimSpace(reasoning) != "" {
+			u.println("  " + styleAmber.Render("💭 思考"))
+			for _, line := range strings.Split(truncate(reasoning, 600), "\n") {
+				line = strings.TrimSpace(line)
+				if line != "" {
+					u.println("    " + styleDim.Render(line))
+				}
+			}
+		}
+		if strings.TrimSpace(content) != "" {
+			u.println("  " + styleAmber.Render("📋 计划") + " " + styleText.Render(truncate(content, 280)))
+		}
+		if len(toolNames) > 0 {
+			u.println("  " + styleDim.Render("→ 调用: "+strings.Join(toolNames, ", ")))
 		}
 	case "llm_tools":
 		if u.plain {
 			if names, ok := data["tool_names"].([]string); ok {
 				u.println(fmt.Sprintf("  ⋯ 计划调用: %s", strings.Join(names, ", ")))
 			}
+			return
+		}
+		if names, ok := data["tool_names"].([]string); ok && len(names) > 0 {
+			u.println("  " + styleDim.Render("⋯ 执行: "+strings.Join(names, ", ")))
 		}
 	case "tool_start":
 		name, _ := data["name"].(string)

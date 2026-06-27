@@ -5,6 +5,8 @@ func displayToolName(name string) string {
 	switch name {
 	case "recall":
 		return "session_search"
+	case "web_search":
+		return "web_search"
 	case "get_ticker":
 		return "get_ticker" // MCP /getTicker — 盘中逐笔，非 get_current_price
 	case "get_current_price":
@@ -16,7 +18,7 @@ func displayToolName(name string) string {
 
 func toolEmoji(name string) string {
 	switch name {
-	case "search_code", "recall":
+	case "search_code", "recall", "web_search":
 		return "🔍"
 	case "get_current_price", "get_ticker":
 		return "💹"

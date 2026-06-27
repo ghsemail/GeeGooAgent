@@ -419,6 +419,9 @@ func (r *Repl) setModel(choice string) {
 	r.persistConfigField(func(llmCfg *config.LLMConfig) {
 		llmCfg.Model = resolved
 	})
+	if err := r.App.RebuildGateway(); err != nil {
+		fmt.Fprintf(r.stdout, "警告: 重建 LLM 失败: %v\n", err)
+	}
 	fmt.Fprintf(r.stdout, "已切换模型: %s / %s\n", llm.Presets[provider].Label, resolved)
 }
 
@@ -458,6 +461,10 @@ func (r *Repl) handleThink(args []string) {
 	r.persistConfigField(func(llmCfg *config.LLMConfig) {
 		llmCfg.Thinking = enabled
 	})
+	if err := r.App.RebuildGateway(); err != nil {
+		r.UI.PrintError("重建 LLM 失败: " + err.Error())
+		return
+	}
 	state := args[0]
 	if enabled != nil {
 		if *enabled {

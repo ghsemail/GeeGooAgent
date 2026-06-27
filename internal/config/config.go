@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // LLMConfig mirrors Python llm section.
@@ -16,6 +17,12 @@ type LLMConfig struct {
 	MaxTokens       int     `json:"max_tokens"`
 	Thinking        *bool   `json:"thinking"`
 	ReasoningEffort string  `json:"reasoning_effort"`
+}
+
+// SearchConfig controls free web search (DuckDuckGo by default).
+type SearchConfig struct {
+	Provider   string `json:"provider"`
+	MaxResults int    `json:"max_results"`
 }
 
 // SandboxConfig holds HTTP host allowlist.
@@ -37,6 +44,7 @@ type AppConfig struct {
 	FeishuWebhookURL *string       `json:"feishu_webhook_url"`
 	MaxSteps         int           `json:"max_steps"`
 	LLM              LLMConfig     `json:"llm"`
+	Search           SearchConfig  `json:"search"`
 	Sandbox          SandboxConfig `json:"sandbox"`
 }
 
@@ -79,6 +87,21 @@ func applyEnv(cfg *AppConfig) {
 	if v := os.Getenv("MCP_TOKEN"); v != "" {
 		cfg.UserMCPToken = v
 	}
+	if v := os.Getenv("GEEGOO_WEB_SEARCH"); v != "" {
+		cfg.Search.Provider = v
+	}
+}
+
+// EffectiveSearch returns search settings with defaults (duckduckgo, max 5).
+func (c *AppConfig) EffectiveSearch() SearchConfig {
+	out := c.Search
+	if strings.TrimSpace(out.Provider) == "" {
+		out.Provider = "duckduckgo"
+	}
+	if out.MaxResults <= 0 {
+		out.MaxResults = 5
+	}
+	return out
 }
 
 // MCPURL returns the MCP base URL (env override > geegoo_url > base_url).

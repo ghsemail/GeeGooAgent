@@ -11,6 +11,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
+	"github.com/ghsemail/GeeGooAgent/internal/search"
 )
 
 const (
@@ -35,7 +36,23 @@ func RegisterBespokeTools(r *Registry, deps Deps) {
 
 func registerPerceptionTools(r *Registry, deps Deps) {
 	r.Register(Tool{
-		Name: "search_code", Description: "Search stock by code or name.",
+		Name: "search_code",
+		Description: "在 GeeGoo 股票库中按代码或名称（中/英/繁）模糊搜索，含 SpaceX 等特殊标的。查价/分析/找 Bot 标的时优先使用。",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"regex": map[string]any{
+					"type":        "string",
+					"description": "代码或名称关键词，如 spacex、00700、腾讯",
+				},
+				"market": map[string]any{
+					"type":        "array",
+					"items":       map[string]any{"type": "string"},
+					"description": "可选市场过滤，如 [\"HK\",\"US\"]",
+				},
+			},
+			"required": []any{"regex"},
+		},
 		Handle: func(ctx Context, args map[string]any) Result {
 			regex := strArg(args, "regex", "")
 			markets := stringSliceArg(args["market"])
@@ -46,20 +63,85 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if err != nil {
 				return errResult(err)
 			}
-			out := make([]map[string]string, 0, len(items))
+			anyItems := make([]any, 0, len(items))
 			for _, it := range items {
-				out = append(out, map[string]string{"code": it.Code, "name": it.Name})
-			}
-			anyItems := make([]any, len(out))
-			for i, row := range out {
-				m := map[string]any{}
-				for k, v := range row {
-					m[k] = v
+				row := map[string]any{"code": it.Code, "name": it.Name}
+				if it.NameEN != "" {
+					row["name_en"] = it.NameEN
 				}
-				anyItems[i] = m
+				if it.NameZH != "" {
+					row["name_zh"] = it.NameZH
+				}
+				if it.Market != "" {
+					row["market"] = it.Market
+				}
+				if it.StockType != "" {
+					row["stock_type"] = it.StockType
+				}
+				if it.LotSize > 0 {
+					row["lot_size"] = it.LotSize
+				}
+				anyItems = append(anyItems, row)
 			}
-			return Result{Status: StatusOK, Summary: fmt.Sprintf("search_code: %d item(s)", len(out)),
-				Data: map[string]any{"items": anyItems}}
+			summary := fmt.Sprintf("search_code: %d item(s)", len(items))
+			if len(items) > 0 {
+				top := items[0]
+				label := top.Name
+				if label == "" {
+					label = top.NameEN
+				}
+				summary = fmt.Sprintf("search_code: %d item(s); top: %s (%s)", len(items), label, top.Code)
+			}
+			return Result{Status: StatusOK, Summary: summary, Data: map[string]any{"items": anyItems}}
+		},
+	})
+	r.Register(Tool{
+		Name: "web_search",
+		Description: "网页搜索（免费 DuckDuckGo）。仅当 search_code 在 GeeGoo 股票库无结果、且需要外部新闻/时事时使用。",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"query": map[string]any{
+					"type":        "string",
+					"description": "Search query in Chinese or English",
+				},
+			},
+			"required": []any{"query"},
+		},
+		Handle: func(ctx Context, args map[string]any) Result {
+			query := strArg(args, "query", "")
+			if query == "" {
+				return Result{Status: StatusError, Summary: "web_search: query required", ExitCode: 1}
+			}
+			if ctx.DryRun {
+				return okDryRun("web_search", map[string]any{"query": query, "results": []any{}})
+			}
+			cfg := deps.Search
+			if strings.TrimSpace(cfg.Provider) == "" {
+				cfg.Provider = search.ProviderDuckDuckGo
+			}
+			if cfg.MaxResults <= 0 {
+				cfg.MaxResults = 5
+			}
+			hits, err := search.Search(context.Background(), search.Config{
+				Provider: cfg.Provider, MaxResults: cfg.MaxResults,
+			}, query)
+			if err != nil {
+				return errResult(err)
+			}
+			if len(hits) == 0 {
+				return Result{Status: StatusOK, Summary: "web_search: no results",
+					Data: map[string]any{"query": query, "results": []any{}, "count": 0}}
+			}
+			items := make([]map[string]any, 0, len(hits))
+			for _, h := range hits {
+				items = append(items, map[string]any{
+					"title": h.Title, "url": h.URL, "snippet": h.Snippet,
+				})
+			}
+			summary := fmt.Sprintf("web_search: %d hit(s); top: %s", len(items), shorten(hits[0].Title, 80))
+			return Result{Status: StatusOK, Summary: summary,
+				Data: map[string]any{"query": query, "count": len(items), "results": items}}
 		},
 	})
 	r.Register(Tool{
@@ -465,6 +547,14 @@ func toAnySlice(in []map[string]string) []any {
 		out[i] = row
 	}
 	return out
+}
+
+func shorten(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= n {
+		return s
+	}
+	return s[:n-3] + "..."
 }
 
 func stringSliceArg(raw any) []string {

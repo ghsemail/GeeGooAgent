@@ -169,14 +169,14 @@ func TestParityHighFrequencyTools(t *testing.T) {
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`[{"code":"00700.HK","name":"腾讯控股"}]`))
+			_, _ = w.Write([]byte(`[{"code":"00700.HK","name":{"en":"TENCENT","init":"腾讯控股","zh_hk":"騰訊控股"},"market":"HK","lot_size":100,"stock_type":"STOCK"}]`))
 		}
 		client := newTestClient(t, handler)
 		items, err := client.SearchCode(ctx, "00700", []string{"HK"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(items) != 1 || items[0].Code != "00700.HK" {
+		if len(items) != 1 || items[0].Code != "00700.HK" || items[0].Name != "腾讯控股" {
 			t.Fatalf("unexpected: %+v", items)
 		}
 	})

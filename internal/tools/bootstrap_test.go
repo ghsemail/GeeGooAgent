@@ -44,7 +44,9 @@ func TestAllToolsDryRun(t *testing.T) {
 		if name == "read_working_state" {
 			continue
 		}
-		result := r.Execute(tools.CallRequest{Name: name, Arguments: map[string]any{"code": "00700.HK", "regex": "00700"}}, ctx)
+		result := r.Execute(tools.CallRequest{Name: name, Arguments: map[string]any{
+			"code": "00700.HK", "regex": "00700", "query": "SpaceX IPO",
+		}}, ctx)
 		if result.Status == tools.StatusError {
 			t.Fatalf("%s dry-run failed: %s", name, result.Summary)
 		}

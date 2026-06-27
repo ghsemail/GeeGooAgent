@@ -59,7 +59,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	workingLoader := workflow.WorkingLoaderAdapter{Store: working}
 	tools.RegisterAll(registry, tools.Deps{
 		MCP: mcpClient, WorkspaceRoot: workspace, ProjectRoot: findProjectRoot(),
-		Working: workingLoader,
+		Working: workingLoader, Search: cfg.EffectiveSearch(),
 	})
 
 	executor := runtime.NewExecutor(registry)
@@ -71,19 +71,34 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	}}
 	wf := workflow.NewRunner(executor, working, cpAdapter)
 
-	var gateway *llm.Gateway
-	provider, err := llm.BuildProviderFromConfig(cfg.LLM.Provider, cfg.LLM.TokenKey, cfg.LLM.Model)
-	if err == nil {
-		gateway = llm.NewGateway(provider, llm.GatewayConfig{
-			MaxRetries: 3, Temperature: cfg.LLM.Temperature, MaxTokens: cfg.LLM.MaxTokens,
-		})
+	app := &App{
+		Config: cfg, MCP: mcpClient, Registry: registry,
+		Executor: executor, Workflow: wf, Working: working, State: state, EventBus: eventBus, Workspace: workspace,
 	}
+	if err := app.RebuildGateway(); err != nil {
+		fmt.Fprintf(os.Stderr, "警告: LLM 未就绪: %v\n", err)
+	}
+	app.Loop = runtime.NewReActLoop(app.Gateway, executor)
 
-	return &App{
-		Config: cfg, MCP: mcpClient, Registry: registry, Gateway: gateway,
-		Loop: runtime.NewReActLoop(gateway, executor), Executor: executor,
-		Workflow: wf, Working: working, State: state, EventBus: eventBus, Workspace: workspace,
-	}, nil
+	return app, nil
+}
+
+// RebuildGateway recreates the LLM gateway from current config (after /think or /model).
+func (a *App) RebuildGateway() error {
+	provider, err := llm.BuildProviderFromLLMFields(
+		a.Config.LLM.Provider, a.Config.LLM.TokenKey, a.Config.LLM.Model,
+		a.Config.LLM.Thinking, a.Config.LLM.ReasoningEffort,
+	)
+	if err != nil {
+		return err
+	}
+	a.Gateway = llm.NewGateway(provider, llm.GatewayConfig{
+		MaxRetries: 3, Temperature: a.Config.LLM.Temperature, MaxTokens: a.Config.LLM.MaxTokens,
+	})
+	if a.Loop != nil {
+		a.Loop.SetGateway(a.Gateway)
+	}
+	return nil
 }
 
 // RunPreMarket executes the pre_market skill workflow.

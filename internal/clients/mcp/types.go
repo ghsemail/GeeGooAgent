@@ -75,8 +75,13 @@ type DailyReportsData struct {
 
 // SearchCodeItem from /searchCode.
 type SearchCodeItem struct {
-	Code string `json:"code"`
-	Name string `json:"name"`
+	Code      string `json:"code"`
+	Name      string `json:"name"` // display: init > en > zh_hk
+	NameEN    string `json:"name_en,omitempty"`
+	NameZH    string `json:"name_zh,omitempty"`
+	Market    string `json:"market,omitempty"`
+	StockType string `json:"stock_type,omitempty"`
+	LotSize   int    `json:"lot_size,omitempty"`
 }
 
 // CurrentPriceData from /getCurrentPrice.

@@ -73,6 +73,7 @@ var (
 		"get_bot_log_by_type":      {},
 		"fetch_market_news":        {},
 		"fetch_stock_news":         {},
+		"web_search":               {},
 		"recall":                   {},
 	}
 	strategyTools = map[string]struct{}{

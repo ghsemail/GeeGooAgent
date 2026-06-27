@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
+	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/tools/catalog"
 )
 
@@ -14,6 +15,7 @@ type Deps struct {
 	WorkspaceRoot string
 	ProjectRoot   string
 	Working       WorkingLoader
+	Search        config.SearchConfig
 }
 
 // WorkingLoader loads working memory for meta tools.

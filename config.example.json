@@ -19,6 +19,10 @@
     "thinking": null,
     "reasoning_effort": "high"
   },
+  "search": {
+    "provider": "duckduckgo",
+    "max_results": 5
+  },
   "sandbox": {
     "allowed_hosts": [
       "127.0.0.1",

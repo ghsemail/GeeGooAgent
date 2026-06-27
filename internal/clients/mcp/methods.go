@@ -194,14 +194,15 @@ func (c *Client) GetStockDailyReports(ctx context.Context, mcpToken, code, repor
 
 // SearchCode calls POST /searchCode (no mcp_token).
 func (c *Client) SearchCode(ctx context.Context, regex string, markets []string) ([]SearchCodeItem, error) {
-	marketAny := make([]any, len(markets))
-	for i, m := range markets {
-		marketAny[i] = m
+	body := map[string]any{"regex": regex}
+	if len(markets) > 0 {
+		marketAny := make([]any, len(markets))
+		for i, m := range markets {
+			marketAny[i] = m
+		}
+		body["market"] = marketAny
 	}
-	raw, err := c.PostDirect(ctx, "/searchCode", map[string]any{
-		"regex":  regex,
-		"market": marketAny,
-	})
+	raw, err := c.PostDirect(ctx, "/searchCode", body)
 	if err != nil {
 		return nil, err
 	}
@@ -215,9 +216,7 @@ func (c *Client) SearchCode(ctx context.Context, regex string, markets []string)
 		if !ok {
 			continue
 		}
-		code, _ := m["code"].(string)
-		name, _ := m["name"].(string)
-		out = append(out, SearchCodeItem{Code: code, Name: name})
+		out = append(out, parseSearchCodeItem(m))
 	}
 	return out, nil
 }

@@ -37,6 +37,11 @@ func NewReActLoop(gateway *llm.Gateway, executor *Executor) *ReActLoop {
 	}
 }
 
+// SetGateway swaps the LLM gateway (e.g. after /think or /model).
+func (l *ReActLoop) SetGateway(gateway *llm.Gateway) {
+	l.gateway = gateway
+}
+
 // SetProgress wires live step output (geegoo chat verbose UI).
 func (l *ReActLoop) SetProgress(fn ProgressFunc) {
 	l.onProgress = fn
@@ -78,6 +83,9 @@ func (l *ReActLoop) RunTurn(
 			toolNames = append(toolNames, c.Name)
 		}
 		planSummary := strings.TrimSpace(resp.Content)
+		if planSummary == "" && strings.TrimSpace(resp.ReasoningContent) != "" {
+			planSummary = strings.TrimSpace(resp.ReasoningContent)
+		}
 		if planSummary == "" && len(toolNames) > 0 {
 			planSummary = fmt.Sprintf("决策: 调用 %s", strings.Join(toolNames, ", "))
 		}
@@ -91,7 +99,7 @@ func (l *ReActLoop) RunTurn(
 			Step: step, Timestamp: time.Now().UTC(), Kind: "plan", Summary: planSummary,
 		})
 		l.emit("llm_plan", map[string]any{
-			"step": step, "content": resp.Content, "tool_names": toolNames,
+			"step": step, "content": resp.Content, "reasoning": resp.ReasoningContent, "tool_names": toolNames,
 		})
 
 		if len(resp.ToolCalls) == 0 {
@@ -115,6 +123,7 @@ func (l *ReActLoop) RunTurn(
 
 		assistant := llm.Message{
 			Role: llm.RoleAssistant, Content: resp.Content, ToolCalls: resp.ToolCalls,
+			ReasoningContent: resp.ReasoningContent,
 		}
 		session.AppendMessage(assistant)
 		messages = append(messages, assistant)

@@ -13,18 +13,22 @@ import (
 
 // OpenAIProvider calls OpenAI-compatible chat/completions endpoints.
 type OpenAIProvider struct {
-	model      string
-	apiKey     string
-	baseURL    string
-	httpClient *http.Client
+	model           string
+	apiKey          string
+	baseURL         string
+	httpClient      *http.Client
+	thinkingEnabled bool
+	reasoningEffort string
 }
 
 // OpenAIOptions configures the HTTP provider.
 type OpenAIOptions struct {
-	Model      string
-	APIKey     string
-	BaseURL    string
-	HTTPClient *http.Client
+	Model           string
+	APIKey          string
+	BaseURL         string
+	HTTPClient      *http.Client
+	ThinkingEnabled bool
+	ReasoningEffort string
 }
 
 // NewOpenAIProvider creates an OpenAI-compatible provider.
@@ -38,10 +42,12 @@ func NewOpenAIProvider(opts OpenAIOptions) *OpenAIProvider {
 		base = "https://api.openai.com/v1"
 	}
 	return &OpenAIProvider{
-		model:      opts.Model,
-		apiKey:     opts.APIKey,
-		baseURL:    base,
-		httpClient: client,
+		model:           opts.Model,
+		apiKey:          opts.APIKey,
+		baseURL:         base,
+		httpClient:      client,
+		thinkingEnabled: opts.ThinkingEnabled,
+		reasoningEffort: opts.ReasoningEffort,
 	}
 }
 
@@ -56,6 +62,12 @@ func (p *OpenAIProvider) Chat(messages []Message, tools []ToolSchema, temperatur
 	}
 	if len(tools) > 0 {
 		body["tools"] = toOpenAITools(tools)
+	}
+	if p.thinkingEnabled {
+		body["thinking"] = map[string]any{"type": "enabled"}
+		if effort := strings.TrimSpace(p.reasoningEffort); effort != "" {
+			body["reasoning_effort"] = effort
+		}
 	}
 	raw, err := json.Marshal(body)
 	if err != nil {
@@ -87,6 +99,9 @@ func toOpenAIMessages(messages []Message) []map[string]any {
 	out := make([]map[string]any, 0, len(messages))
 	for _, m := range messages {
 		item := map[string]any{"role": string(m.Role)}
+		if m.Role == RoleAssistant && m.ReasoningContent != "" {
+			item["reasoning_content"] = m.ReasoningContent
+		}
 		if m.Role == RoleAssistant && len(m.ToolCalls) > 0 {
 			item["content"] = m.Content
 			calls := make([]map[string]any, 0, len(m.ToolCalls))
@@ -136,8 +151,9 @@ func parseOpenAIResponse(raw []byte, model string) (*Response, error) {
 	var envelope struct {
 		Choices []struct {
 			Message struct {
-				Content   string `json:"content"`
-				ToolCalls []struct {
+				Content          string `json:"content"`
+				ReasoningContent string `json:"reasoning_content"`
+				ToolCalls        []struct {
 					ID       string `json:"id"`
 					Function struct {
 						Name      string `json:"name"`
@@ -168,8 +184,9 @@ func parseOpenAIResponse(raw []byte, model string) (*Response, error) {
 		})
 	}
 	return &Response{
-		Content:   msg.Content,
-		ToolCalls: calls,
+		Content:          msg.Content,
+		ReasoningContent: msg.ReasoningContent,
+		ToolCalls:        calls,
 		Usage: TokenUsage{
 			PromptTokens:     envelope.Usage.PromptTokens,
 			CompletionTokens: envelope.Usage.CompletionTokens,
@@ -185,8 +202,17 @@ func truncate(s string, n int) string {
 	return s[:n]
 }
 
-// BuildProviderFromConfig creates a provider from config fields.
+// BuildProviderFromConfig creates a provider from config fields (no thinking).
 func BuildProviderFromConfig(providerName, tokenKey, model string) (Provider, error) {
+	return BuildProviderFromLLMFields(providerName, tokenKey, model, nil, "")
+}
+
+// BuildProviderFromLLMFields creates a provider with optional thinking settings.
+func BuildProviderFromLLMFields(
+	providerName, tokenKey, model string,
+	thinking *bool,
+	reasoningEffort string,
+) (Provider, error) {
 	if tokenKey == "" {
 		return nil, fmt.Errorf("LLM 未配置：请填写 llm.token_key")
 	}
@@ -198,9 +224,16 @@ func BuildProviderFromConfig(providerName, tokenKey, model string) (Provider, er
 	if !ok {
 		return nil, fmt.Errorf("unknown llm provider: %s", providerName)
 	}
+	resolved := ResolveModel(name, model)
+	effort := strings.TrimSpace(reasoningEffort)
+	if effort == "" {
+		effort = "high"
+	}
 	return NewOpenAIProvider(OpenAIOptions{
-		Model:   ResolveModel(name, model),
-		APIKey:  tokenKey,
-		BaseURL: preset.BaseURL,
+		Model:           resolved,
+		APIKey:          tokenKey,
+		BaseURL:         preset.BaseURL,
+		ThinkingEnabled: ResolveThinkingEnabled(name, resolved, thinking),
+		ReasoningEffort: effort,
 	}), nil
 }
