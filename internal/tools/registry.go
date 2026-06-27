@@ -14,10 +14,11 @@ const (
 
 // Context carries dependencies for tool handlers.
 type Context struct {
-	SessionID string
-	MCPToken  string
-	DryRun    bool
-	Step      int
+	SessionID     string
+	MCPToken      string
+	DryRun        bool
+	Step          int
+	WorkspaceRoot string
 }
 
 // Result is returned by a tool handler.

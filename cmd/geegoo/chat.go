@@ -27,6 +27,10 @@ func runChat(args []string) {
 		fmt.Fprintf(os.Stderr, "chat: %v\n", err)
 		os.Exit(2)
 	}
+	if application.Gateway == nil {
+		fmt.Fprintf(os.Stderr, "chat: LLM 未配置，请填写 llm.token_key\n")
+		os.Exit(2)
+	}
 
 	session := runtime.NewSession()
 	schemas := application.Registry.Schemas(tools.ChatToolNames)

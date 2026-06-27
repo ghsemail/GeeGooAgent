@@ -21,6 +21,8 @@ func main() {
 		runDoctor(os.Args[2:])
 	case "chat":
 		runChat(os.Args[2:])
+	case "run":
+		runSkill(os.Args[2:])
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -49,9 +51,10 @@ func printUsage() {
 Usage:
   %s doctor [--config PATH]
   %s chat [--config PATH] [--dry-run] [--message TEXT]
+  %s run <skill> [--config PATH] [--dry-run]
 
 Subcommands (planned):
-  setup, update, run, resume
+  setup, update, resume
 
-`, cliName, cliName, cliName)
+`, cliName, cliName, cliName, cliName)
 }
