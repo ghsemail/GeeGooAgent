@@ -1,3 +1,6 @@
+# Go build output
+bin/
+
 # Local config & secrets
 config.json
 config.local.json
