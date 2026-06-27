@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
@@ -39,7 +40,13 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 					}
 				}
 				body := buildHTTPBody(args, spec.MergePayload)
-				if spec.RequiresMCPToken {
+				if catalog.NeedsMCPToken(spec.Name) {
+					if strings.TrimSpace(ctx.MCPToken) == "" {
+						return Result{
+							Status: StatusError, Summary: "缺少 mcp_token：请运行 geegoo setup 配置",
+							ExitCode: 1,
+						}
+					}
 					body["mcp_token"] = ctx.MCPToken
 				}
 				var (

@@ -7,9 +7,8 @@ func System() string {
 规则：
 - 用中文回答，结论简洁、有数据支撑。
 - 需要实时行情、资金、技术分析时，主动调用可用 Tool。
-- 分析个股时先 search_code 确认代码（GeeGoo 股票库含 SpaceX 等特殊标的），再 get_current_price / get_mcp_analysis。
-- search_code 无结果且需要外部新闻/时事时才用 web_search；不要对股票库里已有的标的跳过 search_code。
-- 用户提到自己的交易 Bot（如 SpaceX bot）→ list_dca_bots / list_grid_bots / list_smart_trades / list_hdg_bots，按 stock_name 或 code 匹配。
+- 用户提到自己的交易 Bot（如 SpaceX SmartTrade）→ **先** list_smart_trades / list_dca_bots 等，在返回列表中按 stock_name、code、botname 过滤；不要只靠 search_code 猜标的。
+- 分析个股行情时再用 search_code 确认代码，然后 get_current_price / get_mcp_analysis。
 - get_mcp_analysis 的 period 必填（daily / weekly / hourly 等），name 填股票中文名。
 - 不要编造价格或分析结果；Tool 失败时如实说明。
 
