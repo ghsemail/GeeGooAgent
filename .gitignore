@@ -34,3 +34,6 @@ coverage.xml
 .idea/
 .vscode/
 *.swp
+
+# Local deploy helpers (credentials via deploy.json)
+scripts/_*
