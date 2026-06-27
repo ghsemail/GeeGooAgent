@@ -29,7 +29,7 @@ func TestDoctorValidConfig(t *testing.T) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	code := doctor.Run(path)
+	code := doctor.RunWithOptions(path, doctor.Options{SkipConnectivity: true})
 	if code != 0 {
 		t.Fatalf("expected exit 0, got %d", code)
 	}

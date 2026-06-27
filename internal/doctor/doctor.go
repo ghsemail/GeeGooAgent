@@ -7,6 +7,11 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 )
 
+// Options tune doctor behavior.
+type Options struct {
+	SkipConnectivity bool
+}
+
 // CheckResult is one diagnostic line.
 type CheckResult struct {
 	Name   string
@@ -14,8 +19,13 @@ type CheckResult struct {
 	Detail string
 }
 
-// Run performs A0 doctor checks (config file presence and parse).
+// Run performs config, secret, and GeeGoo connectivity checks.
 func Run(configPath string) int {
+	return RunWithOptions(configPath, Options{})
+}
+
+// RunWithOptions runs doctor with optional connectivity skip (unit tests).
+func RunWithOptions(configPath string, opts Options) int {
 	results := []CheckResult{}
 	cfg, cfgResults := checkConfigFile(configPath)
 	results = append(results, cfgResults...)
@@ -31,8 +41,26 @@ func Run(configPath string) int {
 		return 1
 	}
 
-	fmt.Println("\n配置检查通过（A0）。完整 API/LLM 检查将在后续阶段启用。")
+	fmt.Printf("\n出站端点: %s\n", endpointSummary(cfg))
+
+	if !opts.SkipConnectivity {
+		connResults := checkConnectivity(cfg)
+		printResults(connResults)
+		if anyFailed(connResults) {
+			fmt.Println("\n部分 GeeGoo 服务不可达；确认 GeeGooBot :3120 / Signal :3210 / Data :3300 / agent-runtime :3400。")
+			return 1
+		}
+	}
+
+	fmt.Println("\n全部检查通过。")
 	return 0
+}
+
+func endpointSummary(cfg *config.AppConfig) string {
+	return fmt.Sprintf(
+		"MCP %s | Signal %s | Data %s | runtime %s",
+		cfg.EffectiveMCPURL(), cfg.SignalCatalogURL(), cfg.DataHTTPURL(), runtimeHealthURL(),
+	)
 }
 
 func checkConfigFile(path string) (*config.AppConfig, []CheckResult) {
