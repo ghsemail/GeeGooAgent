@@ -34,7 +34,7 @@ def build_config(tradingbot_root: Path, *, base_host: str = "118.195.135.97") ->
         "geegoo_url": geegoo_url,
         "geegoo_api_key": mcp_key,
         "mcp_token": "",
-        "signal_base_url": "http://146.56.225.252:5800",
+        "signal_base_url": "http://146.56.225.252:3210",
         "output_dir": "/var/lib/geegoo-agent/data",
         "feishu_webhook_url": None,
         "dry_run": False,

@@ -31,7 +31,7 @@ class AppConfig(BaseModel):
     geegoo_url: str
     geegoo_api_key: str
     mcp_token: str
-    signal_base_url: str = "http://146.56.225.252:5800"
+    signal_base_url: str = "http://146.56.225.252:3210"
     output_dir: Path = Path("./data")
     dry_run: bool = False
     feishu_webhook_url: str | None = None
