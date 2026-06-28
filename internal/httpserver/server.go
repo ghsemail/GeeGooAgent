@@ -17,13 +17,20 @@ type Options struct {
 	WriteTimeoutSec int
 }
 
-// NewMux returns a mux with GET /health.
+// NewMux returns a mux with GET /health and GET /ready.
 func NewMux(serviceName string) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"status":  "ok",
+			"service": serviceName,
+		})
+	})
+	mux.HandleFunc("GET /ready", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"status":  "ready",
 			"service": serviceName,
 		})
 	})

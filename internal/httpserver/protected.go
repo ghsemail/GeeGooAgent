@@ -6,7 +6,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/auth"
 )
 
-// NewProtectedHandler wraps mux with Bearer auth; /health is public.
+// NewProtectedHandler wraps mux with Bearer auth; /health and /ready are public.
 func NewProtectedHandler(serviceName, apiKey string, allowInsecure bool, register func(*http.ServeMux)) http.Handler {
 	mux := NewMux(serviceName)
 	if register != nil {
@@ -16,6 +16,6 @@ func NewProtectedHandler(serviceName, apiKey string, allowInsecure bool, registe
 	if allowInsecure {
 		key = ""
 	}
-	skip := map[string]struct{}{"/health": {}}
+	skip := map[string]struct{}{"/health": {}, "/ready": {}}
 	return auth.SkipPaths(skip, auth.BearerAPIKey(key))(mux)
 }

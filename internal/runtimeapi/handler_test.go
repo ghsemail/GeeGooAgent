@@ -35,6 +35,23 @@ func TestHealthEndpoint(t *testing.T) {
 	}
 }
 
+func TestReadyEndpoint(t *testing.T) {
+	mux := httpserver.NewMux("agent-runtime")
+	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d", rec.Code)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["status"] != "ready" || body["service"] != "agent-runtime" {
+		t.Fatalf("body=%v", body)
+	}
+}
+
 func TestChatCompletionsWithMockLLM(t *testing.T) {
 	registry := tools.NewRegistry()
 	provider := &llm.MockProvider{

@@ -22,6 +22,7 @@ func checkConnectivity(cfg *config.AppConfig) []CheckResult {
 		})
 	}
 	results = append(results, checkHTTPGet("GeeGooBot mcp-api /health", cfg.EffectiveMCPURL()+"/health", "", 15))
+	results = append(results, checkHTTPGet("GeeGooBot mcp-api /ready", cfg.EffectiveMCPURL()+"/ready", "", 15))
 	results = append(results, checkMCPPost(cfg, "checkTradingDay", map[string]any{
 		"mcp_token": cfg.MCPToken(),
 		"code":      "00700.HK",
@@ -31,6 +32,7 @@ func checkConnectivity(cfg *config.AppConfig) []CheckResult {
 
 	runtimeURL := strings.TrimSuffix(runtimeHealthURL(), "/")
 	results = append(results, checkHTTPGet("agent-runtime /health", runtimeURL+"/health", "", 10))
+	results = append(results, checkHTTPGet("agent-runtime /ready", runtimeURL+"/ready", "", 10))
 	return results
 }
 

@@ -67,7 +67,6 @@ func AllHTTP() []HTTPSpec {
 		{Name: "create_etf_prompt_template", Description: "Create ETF prompt template.", Path: "/createEtfPromptTemplate", MergePayload: true},
 		{Name: "edit_etf_prompt_template", Description: "Edit ETF prompt template.", Path: "/editEtfPromptTemplate", MergePayload: true},
 		{Name: "delete_etf_prompt_template", Description: "Delete ETF prompt template.", Path: "/deleteEtfPromptTemplate", MergePayload: true},
-		{Name: "switch_bot", Description: "Enable or disable a bot/reminder.", Path: "/switchBot"},
 	}
 	raw = append(raw, reportCRUD("pre_market", "pre-market report",
 		"/createPreMarketReport", "/updatePreMarketReport", "/deletePreMarketReport", "/getPreMarketReports", false)...)
