@@ -44,11 +44,17 @@ def fetch_mcp_api_key() -> str:
     cfg = load_deploy()
     bot = ssh_connect(cfg["targets"]["geegoo-tradingbot"])
     _, o, _ = bot.exec_command(
-        "python3 -c \"import re; t=open('/home/ubuntu/apps/TradingBot/mcp/constants.py').read(); "
-        "m=re.search(r'API_KEY\\s*=\\s*\\\"([^\\\"]+)\\\"', t); print(m.group(1) if m else '')\"",
+        "grep '^GEEGOO_BOT_MCP_API_KEY=' /home/ubuntu/apps/GeeGooBot/.env 2>/dev/null | cut -d= -f2-",
         timeout=30,
     )
     key = o.read().decode().strip()
+    if not key:
+        _, o, _ = bot.exec_command(
+            "python3 -c \"import re; t=open('/home/ubuntu/apps/TradingBot/mcp/constants.py').read(); "
+            "m=re.search(r'API_KEY\\s*=\\s*\\\"([^\\\"]+)\\\"', t); print(m.group(1) if m else '')\"",
+            timeout=30,
+        )
+        key = o.read().decode().strip()
     bot.close()
     if not key:
         local = Path(r"D:\Geegoo\TradingBot\mcp\constants.py")
@@ -67,6 +73,14 @@ def patch_config(raw: dict, api_key: str) -> dict:
     raw["geegoo_api_key"] = api_key
     raw["signal_base_url"] = GEEGOO_SIGNAL
     raw["data_base_url"] = GEEGOO_DATA
+    sandbox = raw.setdefault("sandbox", {})
+    hosts = set(sandbox.get("allowed_hosts") or [])
+    hosts.update(ALLOWED_HOSTS)
+    sandbox["allowed_hosts"] = sorted(hosts)
+    return raw
+
+
+def write_agent_env(sftp: paramiko.SFTPClient, config_path: str) -> None:
     env_lines = f"""export GEEGOO_BOT_MCP_URL={GEEGOO_BOT_MCP}
 export GEEGOO_SIGNAL_CATALOG_API_URL={GEEGOO_SIGNAL}
 export GEEGOO_DATA_HTTP_URL={GEEGOO_DATA}
@@ -75,11 +89,6 @@ export PATH=/home/ubuntu/.geegoo/bin:/usr/local/go/bin:$PATH
 """
     with sftp.open("/home/ubuntu/.geegoo/agent.env", "w") as f:
         f.write(env_lines)
-    sandbox = raw.setdefault("sandbox", {})
-    hosts = set(sandbox.get("allowed_hosts") or [])
-    hosts.update(ALLOWED_HOSTS)
-    sandbox["allowed_hosts"] = sorted(hosts)
-    return raw
 
 
 def main() -> int:
@@ -115,6 +124,7 @@ def main() -> int:
         raw["output_dir"] = "/home/ubuntu/.geegoo/data"
 
     raw = patch_config(raw, api_key)
+    write_agent_env(sftp, config_path)
     with sftp.open(config_path, "w") as f:
         f.write(json.dumps(raw, indent=2, ensure_ascii=False).encode("utf-8") + b"\n")
     sftp.close()
