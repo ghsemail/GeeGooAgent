@@ -3,14 +3,13 @@
   "message": "success",
   "data": [
     {
-      "in_flow": -185791500.0,
-      "main_in_flow": -106682800.0,
-      "super_in_flow": -32509240.0,
-      "big_in_flow": -3675200.0,
-      "mid_in_flow": -7317740.0,
-      "sml_in_flow": -4846380.0,
-      "capital_flow_item_time": "2026-06-04 15:00:00",
-      "last_valid_time": "N/A"
+      "in_flow": -87654321,
+      "main_in_flow": -106682800,
+      "super_in_flow": -10000000,
+      "big_in_flow": -20000000,
+      "mid_in_flow": -30000000,
+      "sml_in_flow": -46682800,
+      "capital_flow_item_time": "2026-06-05 16:00:00"
     }
   ]
 }

@@ -1,32 +1,34 @@
-# Hermes → GeeGoo Agent 切换检查清单
+# Hermes to GeeGoo Agent Cutover Checklist
 
-> **本清单仅记录切换步骤，不在部署时自动禁用 Hermes。**
+This checklist records the manual cutover steps from Hermes scheduling to the Go-native GeeGoo Agent systemd timer.
 
-## 前置条件
+## Preconditions
 
-- [ ] `pytest -q` 全绿（含 `tests/e2e/test_pre_market_dry_run.py`）
-- [ ] 服务器已完成 [tests/smoke/README.md](../tests/smoke/README.md) 冒烟表 #1–#4
-- [ ] `/etc/geegoo-agent/config.json` 权限 `600`，密钥未提交 git
+- [ ] `go test ./...` passes.
+- [ ] `go build ./cmd/geegoo` passes.
+- [ ] Server smoke checks in `tests/smoke/README.md` pass.
+- [ ] `/etc/geegoo-agent/config.json` has mode `600`.
+- [ ] Secrets are not committed to git.
 
-## 并行验证（建议 1–3 个交易日）
+## Parallel Verification
 
-- [ ] systemd timer 已 enable：`systemctl is-enabled geegoo-agent-pre-market.timer`
-- [ ] 与 Hermes 盘前 cron **同时运行**，对比产出：
-  - [ ] 每股本地 `{code}-premarket.md` 存在
-  - [ ] GeeGoo API 有 `createPreMarketReport` 记录
-  - [ ] `bot_id` / `bot_name` / `bot_type` 非空
-  - [ ] execution-log 含 supervisor 通过记录
-- [ ] 抽检 ≥3 股报告与 Hermes 可比（结构、态度映射、关键数值）
+- [ ] `geegoo-agent-pre-market.timer` is enabled: `systemctl is-enabled geegoo-agent-pre-market.timer`.
+- [ ] GeeGoo Agent and the old scheduler run in parallel for at least one trading day.
+- [ ] Per-stock local `{code}-premarket.md` files exist.
+- [ ] GeeGoo API has `createPreMarketReport` records.
+- [ ] `bot_id`, `bot_name`, and `bot_type` are non-empty.
+- [ ] `execution-log.md` records the complete workflow.
+- [ ] Sample reports are structurally comparable with the old output.
 
-## 切换日
+## Cutover
 
-- [ ] 确认当日 `check_trading_day` 为交易日（或已验证非交易日短路路径）
-- [ ] 禁用 Hermes 盘前 cron（**手动操作**，记录原 cron 行以便回滚）
-- [ ] 仅保留 `geegoo-agent-pre-market.timer` 触发
-- [ ] 观察首个独立运行日：journalctl + execution-log + supervisor
+- [ ] Confirm `check_trading_day` returns a valid trading-day decision.
+- [ ] Disable the old Hermes pre-market cron manually and record the original cron line for rollback.
+- [ ] Keep only `geegoo-agent-pre-market.timer` active.
+- [ ] Observe the first independent run with `journalctl`, local reports, and API records.
 
-## 回滚
+## Rollback
 
-- [ ] 重新启用 Hermes 盘前 cron
-- [ ] `systemctl disable --now geegoo-agent-pre-market.timer`
-- [ ] 保留 `/var/lib/geegoo-agent` 数据以便排查
+- [ ] Re-enable the old Hermes pre-market cron.
+- [ ] Disable the GeeGoo timer: `systemctl disable --now geegoo-agent-pre-market.timer`.
+- [ ] Preserve `/var/lib/geegoo-agent` for troubleshooting.

@@ -1,34 +1,28 @@
 ---
 name: pre_market
-description: 盘前准备 — 交易日 8:00 生成预判报告（指数+新闻+个股+写库）
-version: "1.0.0"
+description: Generate pre-market analysis reports on trading days.
+version: "2.0.0"
 ---
 
 # pre_market Skill Pack
 
-GeeGoo 盘前自动化工作流。由 `WorkflowRunner` 按 `manifest.yaml` 步骤表驱动；LLM 仅负责解析与报告合成（Step 12）。
+GeeGoo pre-market automation is executed by the Go `WorkflowRunner` according to `manifest.yaml`. The LLM is used only for analysis and report synthesis; API calls, checkpointing, and persistence are handled by the Go runtime.
 
-## 资产文件
+## Assets
 
-| 文件 | 说明 |
-|------|------|
-| `manifest.yaml` | Tool 白名单、workflow 步骤、bundled 脚本 |
-| `workflow.md` | 完整业务流程（阶段 A/B） |
-| `template.md` | 盘前报告 Markdown 模板 |
+| File | Description |
+| --- | --- |
+| `manifest.yaml` | Tool allowlist and workflow step definitions. |
+| `workflow.md` | Full business workflow. |
+| `template.md` | Markdown report template. |
 
-## 关联 Rules（仓库根目录 `rules/`）
+## Related Rules
 
-- `api-routing.md` — geegoo mcp 5700 路由
-- `attitude-mapping.md` — attitude → result 映射
-- `report-format.md` — create_pre_market_report 必填字段
+- `rules/api-routing.md` - 3xxx GeeGoo service routing.
+- `rules/attitude-mapping.md` - attitude to result mapping.
+- `rules/report-format.md` - required `createPreMarketReport` fields.
 
-## Bundled 脚本（`skills/bundled/`）
-
-- `finance-news` — 市场新闻 US/CN/HK
-- `eastmoney-news` — A股/个股新闻搜索
-- `free-stock-global-quotes-news` — A股个股新闻备选
-
-## 运行
+## Run
 
 ```bash
 geegoo run pre_market --config config.json
@@ -37,12 +31,6 @@ geegoo resume --session <id> --config config.json
 geegoo chat --config config.json
 ```
 
-## 非交易日
+## Non-Trading Days
 
-`check_trading_day` 返回 `false` 时 workflow 立即完成，不生成个股报告。
-
-## 已知 API 状态（2026-05-20）
-
-- `getCapitalFlow`：已恢复，`period=DAY`
-- `getPreMarketReports`：ObjectId 序列化已修复
-- `getBotYesterdayAttitude`：404 为正常空状态 → neutral
+When `check_trading_day` returns `false`, the workflow finishes immediately and does not create per-stock reports.

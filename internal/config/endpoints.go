@@ -8,10 +8,10 @@ import (
 
 // GeeGoo 服务默认端口（见 docs/refactor/ports.md）。
 const (
-	DefaultBotMCPURL         = "http://127.0.0.1:3120"
-	DefaultSignalCatalogURL  = "http://127.0.0.1:3210"
-	DefaultSignalAnalyzeURL  = "http://127.0.0.1:3230"
-	DefaultDataHTTPURL       = "http://127.0.0.1:3300"
+	DefaultBotMCPURL        = "http://127.0.0.1:3120"
+	DefaultSignalCatalogURL = "http://127.0.0.1:3210"
+	DefaultSignalAnalyzeURL = "http://127.0.0.1:3230"
+	DefaultDataHTTPURL      = "http://127.0.0.1:3300"
 )
 
 // SignalCatalogURL returns GeeGooSignal catalog-api (:3210).

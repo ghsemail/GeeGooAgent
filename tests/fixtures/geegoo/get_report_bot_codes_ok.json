@@ -3,10 +3,10 @@
   "message": "success",
   "data": [
     {
-      "stock_name": "腾讯控股",
       "code": "00700.HK",
+      "stock_name": "腾讯控股",
       "bot_id": "662f3e12ab45cd7890ef1234",
-      "bot_name": "港股DCA一号",
+      "bot_name": "Tencent DCA",
       "bot_type": "DCA"
     }
   ]

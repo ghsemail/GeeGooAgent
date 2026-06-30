@@ -2,13 +2,12 @@
   "code": 100,
   "message": "success",
   "data": {
-    "attitude_id": "6631a2b3c4d5e6f7890ab123",
+    "attitude": "bullish",
+    "analysis_report": "positive momentum",
     "bot_id": "662f3e12ab45cd7890ef1234",
     "code": "00700.HK",
     "stock_name": "腾讯控股",
-    "date": "2026-04-27",
-    "attitude": "bullish",
-    "analysis_report": "昨日看多。",
+    "date": "2026-06-04",
     "language": "cn"
   }
 }

@@ -16,17 +16,18 @@ import (
 
 // App wires config, MCP client, tools, LLM, and workflow.
 type App struct {
-	Config    *config.AppConfig
-	MCP       *mcp.Client
-	Registry  *tools.Registry
-	Gateway   *llm.Gateway
-	Loop      *runtime.ReActLoop
-	Executor  *runtime.Executor
-	Workflow  *workflow.Runner
-	Working   *memory.WorkingStore
-	State     *infra.StateStore
-	EventBus  *infra.EventBus
-	Workspace string
+	Config      *config.AppConfig
+	MCP         *mcp.Client
+	Registry    *tools.Registry
+	Gateway     *llm.Gateway
+	Loop        *runtime.ReActLoop
+	Executor    *runtime.Executor
+	Workflow    *workflow.Runner
+	Working     *memory.WorkingStore
+	State       *infra.StateStore
+	Checkpoints *infra.CheckpointManager
+	EventBus    *infra.EventBus
+	Workspace   string
 }
 
 // LoadFromConfigPath builds an App from config.json.
@@ -73,7 +74,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 
 	app := &App{
 		Config: cfg, MCP: mcpClient, Registry: registry,
-		Executor: executor, Workflow: wf, Working: working, State: state, EventBus: eventBus, Workspace: workspace,
+		Executor: executor, Workflow: wf, Working: working, State: state, Checkpoints: checkpoints, EventBus: eventBus, Workspace: workspace,
 	}
 	if err := app.RebuildGateway(); err != nil {
 		fmt.Fprintf(os.Stderr, "警告: LLM 未就绪: %v\n", err)
@@ -115,6 +116,32 @@ func (a *App) RunPreMarket(skill string) (workflow.RunResult, error) {
 	ctx := a.ToolContext(sessionID)
 	result := a.Workflow.Run(sessionID, skill, workflow.PhaseASteps(), workflow.PerStockSteps(), ctx, working)
 	return result, nil
+}
+
+// ResumePreMarket resumes a pre_market workflow from its latest checkpoint.
+func (a *App) ResumePreMarket(sessionID string) (workflow.RunResult, error) {
+	cp, err := a.Checkpoints.LoadLatest(sessionID)
+	if err != nil {
+		return workflow.RunResult{}, err
+	}
+	if cp == nil {
+		return workflow.RunResult{}, fmt.Errorf("checkpoint not found for session: %s", sessionID)
+	}
+	if cp.Skill != "pre_market" {
+		return workflow.RunResult{}, fmt.Errorf("unsupported checkpoint skill: %s", cp.Skill)
+	}
+	working, err := a.Working.Load(sessionID)
+	if err != nil {
+		return workflow.RunResult{}, err
+	}
+	if working == nil {
+		return workflow.RunResult{}, fmt.Errorf("working state not found for session: %s", sessionID)
+	}
+	if cp.Status == "completed" || working.Phase == "done" {
+		return workflow.RunResult{SessionID: sessionID, Status: "completed", Working: working}, nil
+	}
+	ctx := a.ToolContext(sessionID)
+	return a.Workflow.RunFrom(sessionID, cp.Skill, workflow.PhaseASteps(), workflow.PerStockSteps(), ctx, working, cp.Step), nil
 }
 
 // ToolContext builds execution context for the current session.

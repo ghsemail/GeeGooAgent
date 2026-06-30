@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GeeGoo Agent one-line installer (Hermes-style).
+# GeeGoo Agent one-line installer.
 #
 #   curl -fsSL https://raw.githubusercontent.com/ghsemail/GeeGooAgent/main/scripts/install.sh | bash
 #
@@ -14,13 +14,13 @@ GEEGOO_HOME="${GEEGOO_HOME:-$HOME/.geegoo}"
 INSTALL_DIR="${GEEGOO_INSTALL_DIR:-$GEEGOO_HOME/geegoo-agent}"
 GEEGOO_REPO="${GEEGOO_REPO:-git@github.com:ghsemail/GeeGooAgent.git}"
 CONFIG_PATH="${GEEGOO_CONFIG:-$GEEGOO_HOME/config.json}"
-DATA_DIR="${GEEGOO_HOME}/data"
-VENV_DIR="$INSTALL_DIR/venv"
+DATA_DIR="$GEEGOO_HOME/data"
 BIN_DIR="$GEEGOO_HOME/bin"
+BINARY_PATH="$INSTALL_DIR/geegoo"
 
 echo "==> GeeGoo Agent install"
-echo "    home:   $GEEGOO_HOME"
-echo "    repo:   $INSTALL_DIR"
+echo "    home: $GEEGOO_HOME"
+echo "    repo: $INSTALL_DIR"
 
 mkdir -p "$GEEGOO_HOME" "$DATA_DIR" "$BIN_DIR"
 
@@ -32,23 +32,28 @@ else
   git clone "$GEEGOO_REPO" "$INSTALL_DIR"
 fi
 
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "ERROR: python3 not found. Install Python 3.11+ first." >&2
+if ! command -v go >/dev/null 2>&1; then
+  echo "ERROR: go not found. Install Go 1.20+ first." >&2
   exit 1
 fi
 
-echo "==> creating venv"
-if [ ! -d "$VENV_DIR" ]; then
-  python3 -m venv "$VENV_DIR"
+GO_VERSION="$(go env GOVERSION | sed 's/^go//')"
+GO_MAJOR="${GO_VERSION%%.*}"
+GO_MINOR_PATCH="${GO_VERSION#*.}"
+GO_MINOR="${GO_MINOR_PATCH%%.*}"
+if [ "${GO_MAJOR:-0}" -lt 1 ] || { [ "$GO_MAJOR" -eq 1 ] && [ "${GO_MINOR:-0}" -lt 20 ]; }; then
+  echo "ERROR: Go 1.20+ is required. Found $(go env GOVERSION)." >&2
+  exit 1
 fi
-# shellcheck disable=SC1091
-source "$VENV_DIR/bin/activate"
-pip install -U pip wheel -q
-pip install -e "$INSTALL_DIR[dev]" -q
+
+echo "==> building geegoo"
+(
+  cd "$INSTALL_DIR"
+  go build -o "$BINARY_PATH" ./cmd/geegoo
+)
 
 echo "==> linking geegoo into $BIN_DIR"
-ln -sf "$VENV_DIR/bin/geegoo" "$BIN_DIR/geegoo"
-ln -sf "$VENV_DIR/bin/geegoo-agent" "$BIN_DIR/geegoo-agent" 2>/dev/null || true
+ln -sf "$BINARY_PATH" "$BIN_DIR/geegoo"
 
 PATH_LINE="export PATH=\"$BIN_DIR:\$PATH\""
 CONFIG_LINE="export GEEGOO_CONFIG=\"$CONFIG_PATH\""
@@ -66,32 +71,23 @@ export GEEGOO_CONFIG="$CONFIG_PATH"
 export GEEGOO_HOME="$GEEGOO_HOME"
 
 if [ ! -f "$CONFIG_PATH" ]; then
-  cp "$INSTALL_DIR/config.example.json" "$CONFIG_PATH"
-  chmod 600 "$CONFIG_PATH"
-  python3 - <<PY
-import json
-from pathlib import Path
-p = Path("$CONFIG_PATH")
-raw = json.loads(p.read_text(encoding="utf-8"))
-raw["output_dir"] = "$DATA_DIR"
-p.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-PY
+  geegoo setup --config "$CONFIG_PATH" --force
   echo "==> created $CONFIG_PATH"
 fi
 
 echo ""
-echo "安装完成。"
-echo "  geegoo setup    # 配置 LLM + mcp_token"
-echo "  geegoo doctor   # 检查连通性"
-echo "  geegoo chat     # 开始对话"
-echo "  geegoo update   # 更新到最新版"
+echo "Install complete."
+echo "  geegoo setup    # write default config"
+echo "  geegoo doctor   # check connectivity"
+echo "  geegoo chat     # start chat"
+echo "  geegoo update   # pull and rebuild"
 echo ""
-echo "若命令未找到，请执行: source ~/.bashrc"
+echo "If geegoo is not found, run: source ~/.bashrc"
 
 if [ "${GEEGOO_SKIP_SETUP:-0}" != "1" ] && [ -t 0 ]; then
   echo ""
-  read -r -p "是否现在运行 geegoo setup? [Y/n] " ans
-  if [ -z "$ans" ] || [ "$ans" = "y" ] || [ "$ans" = "Y" ]; then
-    geegoo setup --config "$CONFIG_PATH" --skip-install
+  read -r -p "Run geegoo setup now? [y/N] " ans
+  if [ "$ans" = "y" ] || [ "$ans" = "Y" ]; then
+    geegoo setup --config "$CONFIG_PATH" --force
   fi
 fi

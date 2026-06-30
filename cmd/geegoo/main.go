@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ghsemail/GeeGooAgent/internal/doctor"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
+	"github.com/ghsemail/GeeGooAgent/internal/doctor"
 )
 
 const cliName = "geegoo"
@@ -17,6 +17,12 @@ func main() {
 		os.Exit(2)
 	}
 	switch os.Args[1] {
+	case "setup":
+		runSetup(os.Args[2:])
+	case "update":
+		runUpdate(os.Args[2:])
+	case "resume":
+		runResume(os.Args[2:])
 	case "doctor":
 		runDoctor(os.Args[2:])
 	case "chat":
@@ -35,8 +41,8 @@ func main() {
 func runDoctor(args []string) {
 	fs := flag.NewFlagSet("doctor", flag.ExitOnError)
 	configPath := fs.String("config", config.DefaultPath(), "path to config.json")
-	skipLLM := fs.Bool("skip-llm", false, "skip LLM ping (A0 default)")
-	skipAPI := fs.Bool("skip-api", false, "skip MCP API ping (A0 default)")
+	skipLLM := fs.Bool("skip-llm", false, "skip LLM ping")
+	skipAPI := fs.Bool("skip-api", false, "skip MCP API ping")
 	_ = skipLLM
 	_ = skipAPI
 	if err := fs.Parse(args); err != nil {
@@ -46,15 +52,15 @@ func runDoctor(args []string) {
 }
 
 func printUsage() {
-	fmt.Printf(`%s — GeeGoo Agent CLI (Go)
+	fmt.Printf(`%s - GeeGoo Agent CLI (Go)
 
 Usage:
+  %s setup [--config PATH] [--force]
+  %s update [--dir PATH]
+  %s resume --session ID [--config PATH] [--dry-run]
   %s doctor [--config PATH]
   %s chat [--config PATH] [--dry-run] [--message TEXT]
   %s run <skill> [--config PATH] [--dry-run]
 
-Subcommands (planned):
-  setup, update, resume
-
-`, cliName, cliName, cliName, cliName)
+`, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
 }

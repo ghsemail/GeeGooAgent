@@ -2,8 +2,8 @@
   "code": 100,
   "message": "success",
   "data": {
-    "analysis_result": "## 周线分析\n短期：看跌",
-    "model": "gpt-4o",
+    "analysis_result": "周线分析：指数保持震荡上行，短线关注支撑位。",
+    "model": "test-model",
     "create_date": "2026-06-05"
   }
 }

@@ -66,15 +66,33 @@ func (r *Runner) Run(
 	ctx tools.Context,
 	working *memory.PreMarketWorking,
 ) RunResult {
+	return r.RunFrom(sessionID, skill, phaseA, perStock, ctx, working, 0)
+}
+
+// RunFrom resumes a workflow by skipping flattened steps up to completedStep.
+func (r *Runner) RunFrom(
+	sessionID, skill string,
+	phaseA, perStock []Step,
+	ctx tools.Context,
+	working *memory.PreMarketWorking,
+	completedStep int,
+) RunResult {
 	flatLen := len(phaseA)
+	finalStep := completedStep
 	for index, step := range phaseA {
-		ctx.Step = index + 1
+		stepIndex := index + 1
+		if stepIndex <= completedStep {
+			continue
+		}
+		finalStep = stepIndex
+		ctx.Step = stepIndex
 		var errResult *RunResult
-		working, errResult = r.processStep(sessionID, skill, step, ctx, working, index+1)
+		working, errResult = r.processStep(sessionID, skill, step, ctx, working, stepIndex)
 		if errResult != nil {
 			return *errResult
 		}
 		if step.Tool == "check_trading_day" && working.IsTradingDay != nil && !*working.IsTradingDay {
+			_ = r.checkpts.Save(sessionID, skill, "completed", step.Tool, stepIndex, working)
 			return RunResult{SessionID: sessionID, Status: "completed", Working: working}
 		}
 	}
@@ -102,6 +120,10 @@ func (r *Runner) Run(
 					break
 				}
 				stepCounter++
+				if stepCounter <= completedStep {
+					continue
+				}
+				finalStep = stepCounter
 				ctx.Step = stepCounter
 				named := Step{Name: code + "/" + step.Name, Tool: step.Tool, ArgFunc: step.ArgFunc, Arguments: step.Arguments}
 				var errResult *RunResult
@@ -137,6 +159,7 @@ func (r *Runner) Run(
 		_ = r.working.Save(working)
 	}
 
+	_ = r.checkpts.Save(sessionID, skill, "completed", "workflow_complete", finalStep, working)
 	return RunResult{SessionID: sessionID, Status: "completed", Working: working}
 }
 
