@@ -1,8 +1,12 @@
 package app
 
 import (
+	cryptorand "crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
+	"sync/atomic"
+	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
@@ -13,6 +17,8 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
 )
+
+var fallbackSessionCounter uint64
 
 // App wires config, MCP client, tools, LLM, and workflow.
 type App struct {
@@ -169,7 +175,11 @@ func findProjectRoot() string {
 }
 
 func newSessionID() string {
-	return "run-" + fmt.Sprintf("%d", os.Getpid())
+	var suffix [4]byte
+	if _, err := cryptorand.Read(suffix[:]); err == nil {
+		return fmt.Sprintf("run-%s-%d-%s", time.Now().UTC().Format("20060102T150405.000000000Z"), os.Getpid(), hex.EncodeToString(suffix[:]))
+	}
+	return fmt.Sprintf("run-%s-%d-%d", time.Now().UTC().Format("20060102T150405.000000000Z"), os.Getpid(), atomic.AddUint64(&fallbackSessionCounter, 1))
 }
 
 func encodeWorkingMap(w *memory.PreMarketWorking) map[string]any {

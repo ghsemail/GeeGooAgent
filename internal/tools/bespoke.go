@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	indexPromptID          = "69ec7035b9ccd3d9befc6c23"
-	aShareCapitalSkip      = "A-share capital flow not available for this account"
+	indexPromptID     = "69ec7035b9ccd3d9befc6c23"
+	aShareCapitalSkip = "A-share capital flow not available for this account"
 )
 
 var dryRunSampleBots = []map[string]string{
@@ -36,7 +36,7 @@ func RegisterBespokeTools(r *Registry, deps Deps) {
 
 func registerPerceptionTools(r *Registry, deps Deps) {
 	r.Register(Tool{
-		Name: "search_code",
+		Name:        "search_code",
 		Description: "在 GeeGoo 股票库中按代码或名称（中/英/繁）模糊搜索，含 SpaceX 等特殊标的。查价/分析/找 Bot 标的时优先使用。",
 		Parameters: map[string]any{
 			"type": "object",
@@ -96,7 +96,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "web_search",
+		Name:        "web_search",
 		Description: "网页搜索（免费 DuckDuckGo）。仅当 search_code 在 GeeGoo 股票库无结果、且需要外部新闻/时事时使用。",
 		Parameters: map[string]any{
 			"type": "object",
@@ -206,7 +206,11 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("fetch_market_news", map[string]any{"market": market, "text": "", "items": []any{}})
 			}
-			return Result{Status: StatusError, Summary: "fetch_market_news: script runner not implemented in Go A3", ExitCode: 1}
+			return Result{
+				Status:  StatusSkip,
+				Summary: "fetch_market_news: script runner unavailable; continuing without bundled news",
+				Data:    map[string]any{"market": market, "text": "", "items": []any{}, "source": "unavailable"},
+			}
 		},
 	})
 	r.Register(Tool{
@@ -216,7 +220,11 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("fetch_stock_news", map[string]any{"code": code, "text": "", "source": "dry-run"})
 			}
-			return Result{Status: StatusError, Summary: "fetch_stock_news: script runner not implemented in Go A3", ExitCode: 1}
+			return Result{
+				Status:  StatusSkip,
+				Summary: "fetch_stock_news: script runner unavailable; continuing without bundled news",
+				Data:    map[string]any{"code": code, "text": "", "source": "unavailable"},
+			}
 		},
 	})
 }
