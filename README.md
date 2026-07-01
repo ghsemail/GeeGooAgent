@@ -4,6 +4,15 @@ GeeGoo Agent is a Go-native workflow agent for market analysis and pre-market re
 
 The project now builds and runs as a single Go binary named `geegoo`. Configuration and local runtime data default to `~/.geegoo/`, and can be overridden with `GEEGOO_HOME` and `GEEGOO_CONFIG`.
 
+## Platform Blueprint
+
+To **generate a new self-hosted agent** (any domain, not only stock analysis), use the canonical blueprint:
+
+- [docs/architecture/platform-blueprint/README.md](docs/architecture/platform-blueprint/README.md) — six-layer architecture, Skill Pack spec, 15-step agent build guide
+- [docs/architecture/platform-blueprint/agent-build-guide.md](docs/architecture/platform-blueprint/agent-build-guide.md) — copy-paste Cursor prompts per step
+
+GeeGoo-specific API mapping remains in [docs/architecture/domains/](docs/architecture/domains/).
+
 ## Quick Start
 
 ### Linux / macOS

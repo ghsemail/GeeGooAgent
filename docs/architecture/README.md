@@ -37,9 +37,20 @@ L5 → L4 → L3 → L2 → L1 → L0
 
 `repo-layout.md` 定义 `src/geegoo/` 与六层一一对应。文档先行、实现跟随时以本目录 diff 为准更新蓝图。
 
+## 通用自托管 Agent 蓝图
+
+若要**从零生成任意领域的自托管 Agent**（不限 GeeGoo 股票场景），以通用蓝图为准：
+
+→ **[platform-blueprint/README.md](./platform-blueprint/README.md)** — 六层接口、Skill 规范、15 Step 智能体构建指南
+
+GeeGoo 专用实现叠加本目录 `domains/` 与 [../engineering/](../engineering/)。
+
+---
+
 ## 阅读顺序
 
-**若要开始写代码**，请先读 [../engineering/requirements.md](../engineering/requirements.md) 与 [../engineering/cursor-workflow.md](../engineering/cursor-workflow.md)。
+**若要开始写代码**，请先读 [../engineering/requirements.md](../engineering/requirements.md) 与 [../engineering/cursor-workflow.md](../engineering/cursor-workflow.md)。  
+**若要 fork 新 Agent 平台**，请先读 [platform-blueprint/agent-build-guide.md](./platform-blueprint/agent-build-guide.md)。
 
 1. [00-overview.md](./00-overview.md) — 定位、工程六层、核心原则
 2. 按层深入（L5 → L0）：

@@ -11,4 +11,6 @@
 
 **阅读顺序**：requirements → coding-standards + testing-standards → cursor-workflow → 按 Step 开工。
 
+**fork 新 Agent 平台**（非 GeeGoo 领域）：先读 [../architecture/platform-blueprint/README.md](../architecture/platform-blueprint/README.md) 与 [agent-build-guide.md](../architecture/platform-blueprint/agent-build-guide.md)。
+
 **铁律**：每 Step 未完成 [testing-standards.md §5](./testing-standards.md#5-分-step-测试交付物强制) 对应用例，不得进入下一步。
