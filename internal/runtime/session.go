@@ -57,14 +57,14 @@ func NewUpstreamSession(messages []UpstreamMessage) (*Session, string) {
 			lastUser = m.Content
 		}
 	}
-	if len(session.Messages) == 0 {
-		session.AppendMessage(llm.Message{Role: llm.RoleSystem, Content: chatprompt.System()})
-	}
 	if len(session.Messages) > 0 {
 		last := session.Messages[len(session.Messages)-1]
 		if last.Role == llm.RoleUser && last.Content == lastUser {
 			session.Messages = session.Messages[:len(session.Messages)-1]
 		}
+	}
+	if len(session.Messages) == 0 || session.Messages[0].Role != llm.RoleSystem {
+		session.Messages = append([]llm.Message{{Role: llm.RoleSystem, Content: chatprompt.System()}}, session.Messages...)
 	}
 	return session, lastUser
 }

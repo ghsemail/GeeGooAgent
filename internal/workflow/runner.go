@@ -92,7 +92,9 @@ func (r *Runner) RunFrom(
 			return *errResult
 		}
 		if step.Tool == "check_trading_day" && working.IsTradingDay != nil && !*working.IsTradingDay {
-			_ = r.checkpts.Save(sessionID, skill, "completed", step.Tool, stepIndex, working)
+			if err := r.checkpts.Save(sessionID, skill, "completed", step.Tool, stepIndex, working); err != nil {
+				return RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: err.Error()}
+			}
 			return RunResult{SessionID: sessionID, Status: "completed", Working: working}
 		}
 	}
@@ -159,7 +161,9 @@ func (r *Runner) RunFrom(
 		_ = r.working.Save(working)
 	}
 
-	_ = r.checkpts.Save(sessionID, skill, "completed", "workflow_complete", finalStep, working)
+	if err := r.checkpts.Save(sessionID, skill, "completed", "workflow_complete", finalStep, working); err != nil {
+		return RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: err.Error()}
+	}
 	return RunResult{SessionID: sessionID, Status: "completed", Working: working}
 }
 
@@ -185,7 +189,9 @@ func (r *Runner) processStep(
 		}, ctx)
 		working, _ = r.working.Apply(working, "write_execution_log", logResult)
 	}
-	_ = r.checkpts.Save(sessionID, skill, "running", step.Tool, stepIndex, working)
+	if err := r.checkpts.Save(sessionID, skill, "running", step.Tool, stepIndex, working); err != nil {
+		return working, &RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: err.Error()}
+	}
 	if result.Status == tools.StatusError {
 		return working, &RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: result.Summary}
 	}
