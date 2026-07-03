@@ -41,8 +41,13 @@ geegoo doctor
 | `geegoo doctor` | Check config, MCP connectivity, and LLM readiness. |
 | `geegoo update` | Pull the latest code and rebuild the Go binary. |
 | `geegoo chat` | Start the interactive ReAct + tool chat loop. |
-| `geegoo run pre_market` | Run the deterministic pre-market workflow. |
-| `geegoo resume --session <id>` | Resume a checkpointed pre-market session. |
+| `geegoo run <skill>` | Run a skill workflow (e.g. `pre_market`). See `geegoo skills list`. |
+| `geegoo resume --session <id>` | Resume a checkpointed workflow (idempotent by step key). |
+| `geegoo migrate [--dry-run]` | Migrate legacy file-based chat sessions to SQLite. |
+| `geegoo skills list` | List registered skills. |
+| `geegoo scheduler run` | Start the in-process cron scheduler (long-running). |
+| `geegoo scheduler list` | Show scheduled jobs and last verdicts. |
+| `geegoo verify --codes <list> [--date <D>]` | Cutover field-completeness verification of pre-market reports. |
 
 ## Runtime Ports
 
@@ -113,4 +118,42 @@ The timer runs `geegoo run pre_market` at 08:00 Asia/Shanghai on weekdays.
 ```bash
 go test ./...
 go build ./cmd/geegoo
+geegoo verify --codes 00700.HK,000001.SZ --date <YYYY-MM-DD>
 ```
+
+## Architecture (Hermes Parity)
+
+GeeGooAgent is benchmarked against the Hermes Agent architecture and reorganized into a platform-agnostic Go core with entry points (CLI, HTTP runtime) at the edges.
+
+```text
+internal/
+  agent/        platform-agnostic core: Agent.Run(ctx, session, input)
+  provider/     (named llm/ today) gateway + OpenAI-compatible providers
+  tools/        registry, contract, approval, catalog, bespoke
+  session/      (named chatsession/ today) SQLite + FTS5 session store
+  memory/       working memory + EvidenceStore (SQLite)
+  workflow/     runner, pre_market steps, supervisor, errors
+  skills/       manifest-driven skill registry
+  scheduler/    in-process cron + supervisor-driven retry
+  report/       LLM evidence-only synthesis (result/confidence stay rule-based)
+  verify/       cutover field-completeness checks
+  infra/        SQLite handle + schema, state, events, guard
+  cli/          chatrepl + chatui + commands
+  clients/mcp/  GeeGooBot MCP client
+  search/       free web search (DuckDuckGo)
+  config/ doctor/ auth/ httpserver/
+```
+
+Key capabilities delivered in P1–P8:
+
+- **SQLite foundation**: chat sessions, evidence records, working state, checkpoints, execution events in one WAL-enabled DB with FTS5; `geegoo migrate` from legacy JSON.
+- **Prompt stability**: system message stays byte-identical across turns; tool activity injected as dynamic user-side context → DeepSeek prefix cache friendly.
+- **Interruptible**: `context.Context` threaded through provider/gateway/tools/loop; Ctrl+C aborts in-flight LLM + tool calls.
+- **Supervisor + idempotent resume**: post-run verdict (pass/recoverable/terminal); resume skips by step key, not step number; recoverable errors auto-retry once.
+- **Skill registry**: `geegoo run <skill>` dispatches via manifest; intraday/post_market placeholders registered.
+- **LLM report synthesis**: LLM writes reason/suggestion/summary strictly from evidence; result/confidence stay rule-based so it cannot flip a decision.
+- **Tool contracts**: `Result.Meta`, empty-success detection (code=100 but empty → Skip), approval gate for mutating tools, fixture replay tests.
+- **In-process scheduler**: cron-driven skill execution with exponential-backoff retry on non-pass verdicts.
+- **Cutover verification**: `geegoo verify` quantifies bot_id/bot_name/bot_type non-empty rate, enum validity, reason length, evidence_refs presence.
+
+Full roadmap and Hermes comparison: [`deploy/hermes-parity-roadmap.md`](deploy/hermes-parity-roadmap.md). Cutover runbook: [`deploy/hermes-migration-checklist.md`](deploy/hermes-migration-checklist.md).

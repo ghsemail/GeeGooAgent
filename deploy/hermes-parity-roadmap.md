@@ -127,7 +127,7 @@ GeeGooAgent/
 
 每个 phase 一个 PR，每个 PR 跑 `go test ./...` + 服务器 rebuild。
 
-### P1 — SQLite 地基（最高优先级）
+### P1 — SQLite 地基（最高优先级）✅ 已完成 `0abf256`
 
 **目标：** 把 Session / Working / Checkpoint / Evidence 从文件 JSON 迁到 SQLite，老调用方零改动。
 
@@ -150,7 +150,10 @@ GeeGooAgent/
 - WAL 文件出现，并发写不丢
 - `geegoo migrate --dry-run` 能预览
 
-### P2 — 核心统一 + Prompt 稳定性
+### P2 — 核心统一 + Prompt 稳定性 ✅ 已完成
+- P2a `638d239` Prompt 稳定性
+- P2b `3a50acd` context.Context 贯穿 + 中断
+- P2c `3270338` agent 核心门面（`llm→provider` 重命名暂缓，低优先）
 
 **目标：** 统一 chat 与 workflow 入口；修 Prompt 缓存失效。
 
@@ -167,7 +170,7 @@ GeeGooAgent/
 - DeepSeek 连续两轮调用，system prompt 字节级不变
 - Ctrl+C 能中断进行中的 tool 调用
 
-### P3 — 质检 + 真幂等
+### P3 — 质检 + 真幂等 ✅ 已完成 `2cd380e`
 
 **目标：** Supervisor 跑后验收；Resume 按 stepKey 幂等；错误分类。
 
@@ -184,7 +187,7 @@ GeeGooAgent/
 - `create_pre_market_report` 业务码错 → terminal → 停手告警
 - 非交易日 verdict=pass
 
-### P4 — Skill 化
+### P4 — Skill 化 ✅ 已完成 `28066a3`
 
 **目标：** `geegoo run <skill>` 通用，不再硬编码 `pre_market`。
 
@@ -200,7 +203,7 @@ GeeGooAgent/
 - 新增 skill 只放 manifest + template，不改 Go 代码
 - `geegoo skills list` 列出可用 skill
 
-### P5 — Report Synthesis LLM 综合层
+### P5 — Report Synthesis LLM 综合层 ✅ 已完成 `864f387`
 
 **目标：** LLM 只综合，不当数据源。
 
@@ -215,7 +218,7 @@ GeeGooAgent/
 - 报告 evidence_refs 全部能在 SQLite 查到 payload
 - LLM 调用失败不阻塞 workflow
 
-### P6 — Tool 契约
+### P6 — Tool 契约 ✅ 已完成 `3c6fcba`
 
 **目标：** schema 校验 + toolset 分组 + fixture replay。
 
@@ -230,7 +233,7 @@ GeeGooAgent/
 - `create_pre_market_report` 写前 approval
 - fixture 测试覆盖 5+ 关键工具
 
-### P7 — Scheduler
+### P7 — Scheduler ✅ 已完成 `8913a6d`
 
 **目标：** Go 内 cron，与 systemd 并存过渡。
 
@@ -244,7 +247,7 @@ GeeGooAgent/
 - systemd timer 可禁用
 - 失败 30 分钟后自动重跑
 
-### P8 — 验收
+### P8 — 验收 ✅ 已完成 `b993792`
 
 **目标：** Parallel verification checklist 升级为可执行。
 
