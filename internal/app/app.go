@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -34,6 +36,9 @@ type App struct {
 	Checkpoints *infra.CheckpointManager
 	EventBus    *infra.EventBus
 	Workspace   string
+	// P1 SQLite foundation. DB is nil when disabled via GEEGOO_DB=off or open failure.
+	DB      *infra.DB
+	Evidence *memory.EvidenceStore
 }
 
 // LoadFromConfigPath builds an App from config.json.
@@ -82,12 +87,40 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 		Config: cfg, MCP: mcpClient, Registry: registry,
 		Executor: executor, Workflow: wf, Working: working, State: state, Checkpoints: checkpoints, EventBus: eventBus, Workspace: workspace,
 	}
+	if err := app.openDatabase(); err != nil {
+		fmt.Fprintf(os.Stderr, "警告: SQLite 未启用: %v（回退到文件存储）\n", err)
+	}
 	if err := app.RebuildGateway(); err != nil {
 		fmt.Fprintf(os.Stderr, "警告: LLM 未就绪: %v\n", err)
 	}
 	app.Loop = runtime.NewReActLoop(app.Gateway, executor)
 
 	return app, nil
+}
+
+// openDatabase opens the SQLite store at workspace/geegoo.db unless
+// GEEGOO_DB=off. On success wires EvidenceStore. Failure is non-fatal:
+// callers fall back to the legacy file StateStore.
+func (a *App) openDatabase() error {
+	if v := strings.ToLower(strings.TrimSpace(os.Getenv("GEEGOO_DB"))); v == "off" || v == "0" || v == "false" {
+		return nil
+	}
+	dbPath := filepath.Join(a.Workspace, "geegoo.db")
+	db, err := infra.OpenSQLite(dbPath)
+	if err != nil {
+		return err
+	}
+	a.DB = db
+	a.Evidence = memory.NewEvidenceStore(db)
+	return nil
+}
+
+// Close releases resources owned by the App (currently the SQLite handle).
+func (a *App) Close() error {
+	if a.DB != nil {
+		return a.DB.Close()
+	}
+	return nil
 }
 
 // RebuildGateway recreates the LLM gateway from current config (after /think or /model).

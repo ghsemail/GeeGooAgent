@@ -111,7 +111,7 @@ func ExtractStockEvents(session *ChatSession) []StockEvent {
 }
 
 // SearchPastSessions finds recent chat sessions with stock/price activity.
-func SearchPastSessions(store *ChatSessionStore, query, excludeSessionID string, limit, scanLimit int) ([]SessionRecallHit, error) {
+func SearchPastSessions(store SessionStore, query, excludeSessionID string, limit, scanLimit int) ([]SessionRecallHit, error) {
 	if store == nil {
 		return nil, nil
 	}

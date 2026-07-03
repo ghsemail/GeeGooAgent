@@ -34,6 +34,7 @@ func TestPreMarketDryRunE2E(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer application.Close()
 	result, err := application.RunPreMarket("pre_market")
 	if err != nil {
 		t.Fatal(err)

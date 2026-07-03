@@ -25,7 +25,7 @@ type Repl struct {
 	App          *app.App
 	ConfigPath   string
 	Chat         *chatsession.ChatSession
-	SessionStore *chatsession.ChatSessionStore
+	SessionStore chatsession.SessionStore
 	Session      *runtime.Session
 	Registry     *tools.Registry
 	Loop         *runtime.ReActLoop
@@ -49,10 +49,15 @@ func NewWithSession(application *app.App, configPath string, sessionID string, d
 	if stdout == nil {
 		stdout = os.Stdout
 	}
-	if application.State == nil {
-		return nil, fmt.Errorf("state store not configured")
+	if application.State == nil && application.DB == nil {
+		return nil, fmt.Errorf("no state store or database configured")
 	}
-	store := chatsession.NewChatSessionStore(application.State)
+	var store chatsession.SessionStore
+	if application.DB != nil {
+		store = chatsession.NewSQLiteSessionStore(application.DB)
+	} else {
+		store = chatsession.NewChatSessionStore(application.State)
+	}
 	var chat *chatsession.ChatSession
 	var err error
 	if sessionID != "" {

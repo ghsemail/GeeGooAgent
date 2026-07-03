@@ -61,6 +61,16 @@ type ChatSessionIndex struct {
 	Sessions  []ChatSessionIndexEntry
 }
 
+// SessionStore is the persistence abstraction for chat sessions.
+// Both the legacy file-backed store and the SQLite store implement it.
+type SessionStore interface {
+	Create() (*ChatSession, error)
+	Load(sessionID string) (*ChatSession, error)
+	Save(session *ChatSession) error
+	ListIndexedSessions() ([]ChatSessionIndexEntry, error)
+	ListSessionIDs() ([]string, error)
+}
+
 // ChatSessionStore persists chat sessions under state/chat/{id}.
 type ChatSessionStore struct {
 	store *infra.StateStore
