@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/app"
 	"github.com/ghsemail/GeeGooAgent/internal/auth"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
@@ -67,6 +68,7 @@ func TestChatCompletionsWithMockLLM(t *testing.T) {
 		Registry: registry,
 		Gateway:  gateway,
 		Loop:     runtime.NewReActLoop(gateway, runtime.NewExecutor(registry)),
+		Agent:    agent.New(gateway, runtime.NewExecutor(registry), registry),
 	}
 
 	mux := httpserver.NewMux("agent-runtime")

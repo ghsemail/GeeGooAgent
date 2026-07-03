@@ -114,7 +114,7 @@ func findProjectRoot() string {
 }
 
 func (r *Repl) attachProgress() {
-	r.Loop.SetProgress(func(event string, data map[string]any) {
+	r.App.Agent.SetProgress(func(event string, data map[string]any) {
 		if r.Verbose {
 			r.UI.EmitProgress(event, data)
 		}
@@ -209,7 +209,7 @@ func (r *Repl) runTurn(text string) runtime.TurnResult {
 	ctx := r.App.ToolContext(r.Session.ID)
 	ctx.DryRun = r.DryRun
 	turnCtx := r.turnCtx()
-	result := r.Loop.RunTurn(turnCtx, r.Session, text, ctx, schemas)
+	result := r.App.Agent.Run(turnCtx, r.Session, text, ctx, schemas)
 	if r.curCancel != nil {
 		r.curCancel()
 		r.curCancel = nil

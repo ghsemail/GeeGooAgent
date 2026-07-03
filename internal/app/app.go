@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
@@ -39,6 +40,9 @@ type App struct {
 	// P1 SQLite foundation. DB is nil when disabled via GEEGOO_DB=off or open failure.
 	DB      *infra.DB
 	Evidence *memory.EvidenceStore
+	// P2c platform-agnostic agent core. Owns the ReAct loop; used by chat,
+	// runtime HTTP, and (later) workflow/scheduler.
+	Agent *agent.Agent
 }
 
 // LoadFromConfigPath builds an App from config.json.
@@ -94,6 +98,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 		fmt.Fprintf(os.Stderr, "警告: LLM 未就绪: %v\n", err)
 	}
 	app.Loop = runtime.NewReActLoop(app.Gateway, executor)
+	app.Agent = agent.New(app.Gateway, executor, registry)
 
 	return app, nil
 }
