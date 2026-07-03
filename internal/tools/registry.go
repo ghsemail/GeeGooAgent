@@ -32,6 +32,11 @@ type Context struct {
 	WorkspaceRoot  string
 	EventBus       EventEmitter
 	StateStore     *infra.StateStore
+	// Interactive marks an ad-hoc chat session (vs deterministic workflow).
+	// Mutating tools require approval when Interactive and not Approved.
+	Interactive bool
+	// Approved indicates the user confirmed a mutating tool call.
+	Approved bool
 }
 
 // GoContext returns the embedded context.Context, defaulting to background.
@@ -48,6 +53,9 @@ type Result struct {
 	Summary  string
 	Data     map[string]any
 	ExitCode int
+	// Meta carries observability metadata: api_code, duration_ms, retried,
+	// raw_envelope, etc. Not part of the LLM-facing tool output.
+	Meta map[string]any
 }
 
 // CallRequest is an executor dispatch payload.

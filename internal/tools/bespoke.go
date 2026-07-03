@@ -245,10 +245,14 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if err != nil {
 				return errResult(err)
 			}
-			return Result{Status: StatusOK, Summary: fmt.Sprintf("MCP analysis %s (%s)", code, period), Data: map[string]any{
+			data := map[string]any{
 				"code": code, "period": period, "analysis_result": result.AnalysisResult,
 				"model": result.Model, "create_date": result.CreateDate,
-			}}
+			}
+			if status, note, _ := ClassifyHTTPPayload("get_mcp_analysis", data, nil); status != StatusOK {
+				return Result{Status: status, Summary: note, Data: data}
+			}
+			return Result{Status: StatusOK, Summary: fmt.Sprintf("MCP analysis %s (%s)", code, period), Data: data}
 		},
 	})
 	r.Register(Tool{

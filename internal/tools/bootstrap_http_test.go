@@ -20,7 +20,7 @@ func TestListSmartTradesSendsMCPToken(t *testing.T) {
 		}
 		_ = json.NewDecoder(r.Body).Decode(&gotBody)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"code":100,"data":[],"message":"success"}`))
+		_, _ = w.Write([]byte(`{"code":100,"data":[{"bot_id":"b1","botname":"x","code":"00700.HK","stock_name":"腾讯","bot_type":"SmartTrade"}],"message":"success"}`))
 	}))
 	defer srv.Close()
 

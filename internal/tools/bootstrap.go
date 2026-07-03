@@ -3,6 +3,7 @@ package tools
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
@@ -30,7 +31,7 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 		r.Register(Tool{
 			Name:        spec.Name,
 			Description: spec.Description,
-			Handle: func(ctx Context, args map[string]any) Result {
+			Handle: ApprovalGate(spec.Name, func(ctx Context, args map[string]any) Result {
 				if ctx.DryRun {
 					return Result{
 						Status:  StatusDryRun,
@@ -48,25 +49,31 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 					}
 					body["mcp_token"] = ctx.MCPToken
 				}
+				started := time.Now()
 				var (
-					data any
-					err  error
+					data     any
+					envelope map[string]any
+					err      error
 				)
 				if spec.DirectResponse {
 					data, err = deps.MCP.PostDirect(ctx.GoContext(), spec.Path, body)
 				} else {
-					var envelope map[string]any
 					envelope, err = deps.MCP.Post(ctx.GoContext(), spec.Path, body)
 					if err == nil {
 						data = envelope["data"]
 					}
 				}
 				if err != nil {
-					return Result{Status: StatusError, Summary: err.Error(), ExitCode: 1}
+					return Result{Status: StatusError, Summary: err.Error(), ExitCode: 1,
+						Meta: MetaFromEnvelope(nil, started)}
 				}
 				normalized, summary := normalizeHTTPResponse(spec.Name, data)
-				return Result{Status: StatusOK, Summary: summary, Data: normalized}
-			},
+				meta := MetaFromEnvelope(envelope, started)
+				if status, note, _ := ClassifyHTTPPayload(spec.Name, normalized, envelope); status != StatusOK {
+					return Result{Status: status, Summary: note, Data: normalized, Meta: meta}
+				}
+				return Result{Status: StatusOK, Summary: summary, Data: normalized, Meta: meta}
+			}),
 		})
 	}
 }
