@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -47,12 +48,18 @@ func (g *Gateway) SetSleep(fn func(time.Duration)) {
 }
 
 // Chat invokes the provider with retries.
-func (g *Gateway) Chat(messages []Message, tools []ToolSchema, sessionID string, step int) (*Response, error) {
+func (g *Gateway) Chat(ctx context.Context, messages []Message, tools []ToolSchema, sessionID string, step int) (*Response, error) {
 	_ = sessionID
 	_ = step
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var lastErr error
 	for attempt := 0; attempt < g.config.MaxRetries; attempt++ {
-		resp, err := g.primary.Chat(messages, tools, g.config.Temperature, g.config.MaxTokens)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		resp, err := g.primary.Chat(ctx, messages, tools, g.config.Temperature, g.config.MaxTokens)
 		if err == nil {
 			return resp, nil
 		}

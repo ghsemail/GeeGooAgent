@@ -53,7 +53,7 @@ func NewOpenAIProvider(opts OpenAIOptions) *OpenAIProvider {
 
 func (p *OpenAIProvider) Model() string { return p.model }
 
-func (p *OpenAIProvider) Chat(messages []Message, tools []ToolSchema, temperature float64, maxTokens int) (*Response, error) {
+func (p *OpenAIProvider) Chat(ctx context.Context, messages []Message, tools []ToolSchema, temperature float64, maxTokens int) (*Response, error) {
 	body := map[string]any{
 		"model":       p.model,
 		"messages":    toOpenAIMessages(messages),
@@ -73,7 +73,7 @@ func (p *OpenAIProvider) Chat(messages []Message, tools []ToolSchema, temperatur
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, p.baseURL+"/chat/completions", bytes.NewReader(raw))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/chat/completions", bytes.NewReader(raw))
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -54,12 +55,18 @@ func (l *ReActLoop) emit(event string, data map[string]any) {
 }
 
 // RunTurn executes one user message through LLM + tools.
+// ctx governs cancellation for the whole turn (LLM calls + tool execution).
 func (l *ReActLoop) RunTurn(
+	ctx context.Context,
 	session *Session,
 	userText string,
 	toolCtx tools.Context,
 	schemas []llm.ToolSchema,
 ) TurnResult {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	toolCtx.Ctx = ctx
 	session.AppendMessage(llm.Message{Role: llm.RoleUser, Content: userText})
 	messages := session.LLMMessages()
 	records := []StepRecord{}
@@ -67,11 +74,16 @@ func (l *ReActLoop) RunTurn(
 	l.emit("turn_start", map[string]any{"user_text": userText})
 
 	for round := 0; round < l.maxToolRounds; round++ {
+		if err := ctx.Err(); err != nil {
+			msg := fmt.Sprintf("已中断: %v", err)
+			l.emit("error", map[string]any{"message": msg})
+			return TurnResult{AssistantText: msg, Failed: true, Error: err.Error(), StepRecords: records}
+		}
 		session.StepCounter++
 		step := session.StepCounter
 		l.emit("round_start", map[string]any{"round": round + 1, "step": step})
 
-		resp, err := l.gateway.Chat(messages, schemas, session.ID, step)
+		resp, err := l.gateway.Chat(ctx, messages, schemas, session.ID, step)
 		if err != nil {
 			msg := fmt.Sprintf("模型调用失败: %v", err)
 			l.emit("error", map[string]any{"message": msg})

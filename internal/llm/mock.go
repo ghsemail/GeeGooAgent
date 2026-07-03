@@ -1,5 +1,7 @@
 package llm
 
+import "context"
+
 // MockProvider returns scripted responses for tests.
 type MockProvider struct {
 	ModelName string
@@ -13,7 +15,8 @@ func (m *MockProvider) Model() string {
 	return "mock-model"
 }
 
-func (m *MockProvider) Chat(messages []Message, tools []ToolSchema, temperature float64, maxTokens int) (*Response, error) {
+func (m *MockProvider) Chat(ctx context.Context, messages []Message, tools []ToolSchema, temperature float64, maxTokens int) (*Response, error) {
+	_ = ctx
 	if len(m.Responses) == 0 {
 		return &Response{Content: "mock empty", Usage: TokenUsage{Model: m.Model()}}, nil
 	}

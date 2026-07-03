@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -59,7 +58,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("search_code", map[string]any{"items": []any{}})
 			}
-			items, err := deps.MCP.SearchCode(context.Background(), regex, markets)
+			items, err := deps.MCP.SearchCode(ctx.GoContext(), regex, markets)
 			if err != nil {
 				return errResult(err)
 			}
@@ -123,7 +122,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if cfg.MaxResults <= 0 {
 				cfg.MaxResults = 5
 			}
-			hits, err := search.Search(context.Background(), search.Config{
+			hits, err := search.Search(ctx.GoContext(), search.Config{
 				Provider: cfg.Provider, MaxResults: cfg.MaxResults,
 			}, query)
 			if err != nil {
@@ -151,7 +150,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("check_trading_day", map[string]any{"is_trading_day": true, "code": code, "market": "HK", "date": today()})
 			}
-			data, err := deps.MCP.CheckTradingDay(context.Background(), ctx.MCPToken, code)
+			data, err := deps.MCP.CheckTradingDay(ctx.GoContext(), ctx.MCPToken, code)
 			if err != nil {
 				return errResult(err)
 			}
@@ -167,7 +166,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("get_current_price", map[string]any{"code": code, "price": nil})
 			}
-			price, err := deps.MCP.GetCurrentPrice(context.Background(), ctx.MCPToken, code)
+			price, err := deps.MCP.GetCurrentPrice(ctx.GoContext(), ctx.MCPToken, code)
 			if err != nil {
 				return errResult(err)
 			}
@@ -185,7 +184,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 				return Result{Status: StatusDryRun, Summary: fmt.Sprintf("dry-run: %d sample bot(s)", len(items)),
 					Data: map[string]any{"bots": toAnySlice(items)}}
 			}
-			bots, err := deps.MCP.GetReportBotCodes(context.Background(), ctx.MCPToken)
+			bots, err := deps.MCP.GetReportBotCodes(ctx.GoContext(), ctx.MCPToken)
 			if err != nil {
 				return errResult(err)
 			}
@@ -242,7 +241,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 					"code": code, "period": period, "analysis_result": fmt.Sprintf("[dry-run] analysis for %s", name),
 				})
 			}
-			result, err := deps.MCP.GetMCPAnalysis(context.Background(), ctx.MCPToken, name, code, promptID, period, "cn")
+			result, err := deps.MCP.GetMCPAnalysis(ctx.GoContext(), ctx.MCPToken, name, code, promptID, period, "cn")
 			if err != nil {
 				return errResult(err)
 			}
@@ -265,7 +264,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("get_capital_flow", map[string]any{"code": code, "items": []any{}})
 			}
-			flows, err := deps.MCP.GetCapitalFlow(context.Background(), ctx.MCPToken, code, period, "")
+			flows, err := deps.MCP.GetCapitalFlow(ctx.GoContext(), ctx.MCPToken, code, period, "")
 			if err != nil {
 				return errResult(err)
 			}
@@ -287,7 +286,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("get_capital_distribution", map[string]any{"code": code})
 			}
-			dist, err := deps.MCP.GetCapitalDistribution(context.Background(), ctx.MCPToken, code)
+			dist, err := deps.MCP.GetCapitalDistribution(ctx.GoContext(), ctx.MCPToken, code)
 			if err != nil {
 				return errResult(err)
 			}
@@ -304,7 +303,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("get_bot_yesterday_attitude", map[string]any{"bot_id": botID, "code": code, "attitude": "neutral"})
 			}
-			att, err := deps.MCP.GetBotYesterdayAttitude(context.Background(), ctx.MCPToken, botID, "cn")
+			att, err := deps.MCP.GetBotYesterdayAttitude(ctx.GoContext(), ctx.MCPToken, botID, "cn")
 			if err != nil {
 				return errResult(err)
 			}
@@ -321,7 +320,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("get_stock_daily_reports", map[string]any{"pre_market": []any{}, "intraday": []any{}, "post_market": []any{}})
 			}
-			reports, err := deps.MCP.GetStockDailyReports(context.Background(), ctx.MCPToken, code, reportDate)
+			reports, err := deps.MCP.GetStockDailyReports(ctx.GoContext(), ctx.MCPToken, code, reportDate)
 			if err != nil {
 				return errResult(err)
 			}
@@ -339,7 +338,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 				return Result{Status: StatusDryRun, Summary: fmt.Sprintf("dry-run: no existing reports for %s", code),
 					Data: map[string]any{"code": code, "report_date": reportDate, "count": 0, "already_reported": false}}
 			}
-			reports, err := deps.MCP.GetStockDailyReports(context.Background(), ctx.MCPToken, code, reportDate)
+			reports, err := deps.MCP.GetStockDailyReports(ctx.GoContext(), ctx.MCPToken, code, reportDate)
 			if err != nil {
 				return errResult(err)
 			}
@@ -425,7 +424,7 @@ func registerReportTools(r *Registry, deps Deps) {
 				return Result{Status: StatusDryRun, Summary: fmt.Sprintf("dry-run: skipped create_pre_market_report %s", code),
 					Data: map[string]any{"report_id": "dry-run-id", "code": code}}
 			}
-			result, err := deps.MCP.CreatePreMarketReport(context.Background(), ctx.MCPToken, args)
+			result, err := deps.MCP.CreatePreMarketReport(ctx.GoContext(), ctx.MCPToken, args)
 			if err != nil {
 				return errResult(err)
 			}

@@ -1,6 +1,9 @@
 package llm
 
-import "encoding/json"
+import (
+	"context"
+	"encoding/json"
+)
 
 // Role is a chat message role.
 type Role string
@@ -53,7 +56,7 @@ type Response struct {
 // Provider calls an LLM backend.
 type Provider interface {
 	Model() string
-	Chat(messages []Message, tools []ToolSchema, temperature float64, maxTokens int) (*Response, error)
+	Chat(ctx context.Context, messages []Message, tools []ToolSchema, temperature float64, maxTokens int) (*Response, error)
 }
 
 // ParseToolArguments decodes tool arguments from JSON string or map.

@@ -1,6 +1,7 @@
 package runtime_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -44,6 +45,7 @@ func TestReActLoopExecutesToolThenReplies(t *testing.T) {
 	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
 	session := runtime.NewSession()
 	result := loop.RunTurn(
+		context.Background(),
 		session,
 		"查一下腾讯",
 		tools.Context{SessionID: session.ID},
@@ -92,7 +94,7 @@ func TestReActLoopToolRoundTripWithMCPMock(t *testing.T) {
 
 	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
 	session := runtime.NewSession()
-	result := loop.RunTurn(session, "腾讯多少钱", tools.Context{}, registry.Schemas([]string{"get_current_price"}))
+	result := loop.RunTurn(context.Background(), session, "腾讯多少钱", tools.Context{}, registry.Schemas([]string{"get_current_price"}))
 	if result.AssistantText != "腾讯现价 99.5 港元。" {
 		t.Fatalf("got %q", result.AssistantText)
 	}

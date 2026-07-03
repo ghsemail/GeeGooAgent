@@ -1,6 +1,8 @@
 package tools
 
 import (
+	"context"
+
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
@@ -22,13 +24,22 @@ const (
 
 // Context carries dependencies for tool handlers.
 type Context struct {
-	SessionID     string
-	MCPToken      string
-	DryRun        bool
-	Step          int
-	WorkspaceRoot string
-	EventBus      EventEmitter
-	StateStore    *infra.StateStore
+	Ctx            context.Context
+	SessionID      string
+	MCPToken       string
+	DryRun         bool
+	Step           int
+	WorkspaceRoot  string
+	EventBus       EventEmitter
+	StateStore     *infra.StateStore
+}
+
+// GoContext returns the embedded context.Context, defaulting to background.
+func (c Context) GoContext() context.Context {
+	if c.Ctx != nil {
+		return c.Ctx
+	}
+	return context.Background()
 }
 
 // Result is returned by a tool handler.

@@ -2,10 +2,12 @@ package chatrepl
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 
@@ -35,6 +37,7 @@ type Repl struct {
 	StepLog      []runtime.StepRecord
 	InstallDir   string
 	ProjectRoot  string
+	curCancel    context.CancelFunc
 	stdin        io.Reader
 	stdout       io.Writer
 }
@@ -157,6 +160,15 @@ func (r *Repl) Run() int {
 	}
 }
 
+// turnCtx returns a per-turn context that is cancelled on SIGINT (Ctrl+C).
+// Cancelling mid-turn aborts in-flight LLM and tool calls; the next turn
+// gets a fresh context so the user can continue chatting afterwards.
+func (r *Repl) turnCtx() context.Context {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	r.curCancel = stop
+	return ctx
+}
+
 func (r *Repl) printBanner() {
 	cfg := r.App.Config
 	provider := llm.ProviderName(cfg.LLM.Provider)
@@ -196,7 +208,15 @@ func (r *Repl) runTurn(text string) runtime.TurnResult {
 	schemas := r.Registry.Schemas(tools.RegisteredChatToolNames(r.Registry))
 	ctx := r.App.ToolContext(r.Session.ID)
 	ctx.DryRun = r.DryRun
-	result := r.Loop.RunTurn(r.Session, text, ctx, schemas)
+	turnCtx := r.turnCtx()
+	result := r.Loop.RunTurn(turnCtx, r.Session, text, ctx, schemas)
+	if r.curCancel != nil {
+		r.curCancel()
+		r.curCancel = nil
+	}
+	if result.Failed && (turnCtx.Err() != nil) {
+		r.UI.PrintInfo("（本回合已中断，可继续输入下一句）")
+	}
 	r.StepLog = append(r.StepLog, result.StepRecords...)
 	newRecords := make([]chatsession.ChatStepRecord, 0, len(result.StepRecords))
 	for _, rec := range result.StepRecords {

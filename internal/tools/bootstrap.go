@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -54,10 +53,10 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 					err  error
 				)
 				if spec.DirectResponse {
-					data, err = deps.MCP.PostDirect(context.Background(), spec.Path, body)
+					data, err = deps.MCP.PostDirect(ctx.GoContext(), spec.Path, body)
 				} else {
 					var envelope map[string]any
-					envelope, err = deps.MCP.Post(context.Background(), spec.Path, body)
+					envelope, err = deps.MCP.Post(ctx.GoContext(), spec.Path, body)
 					if err == nil {
 						data = envelope["data"]
 					}
