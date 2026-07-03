@@ -66,6 +66,19 @@ func TestPreMarketDryRunE2E(t *testing.T) {
 		if _, err := os.Stat(reportPath); err != nil {
 			t.Fatalf("missing report %s: %v", reportPath, err)
 		}
+		reportRaw, err := os.ReadFile(reportPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		report := string(reportRaw)
+		for _, want := range []string{"## Decision", "## Evidence Refs", "ev_", "## Data Gaps"} {
+			if !strings.Contains(report, want) {
+				t.Fatalf("missing report section/content %q in %s", want, reportPath)
+			}
+		}
+		if strings.Contains(strings.ToLower(report), "stub") {
+			t.Fatalf("report still contains stub marker: %s", reportPath)
+		}
 	}
 	logPath := filepath.Join(application.Workspace, time.Now().Format("2006-01-02"), "execution-log.md")
 	raw, err := os.ReadFile(logPath)

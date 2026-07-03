@@ -1,5 +1,13 @@
 package memory
 
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"strings"
+	"time"
+)
+
 // BotStock is one monitored bot from get_report_bot_codes.
 type BotStock struct {
 	Code      string `json:"code"`
@@ -7,6 +15,17 @@ type BotStock struct {
 	BotID     string `json:"bot_id"`
 	BotName   string `json:"bot_name"`
 	BotType   string `json:"bot_type"`
+}
+
+// EvidenceRef is a stable, auditable reference to an observed tool payload.
+type EvidenceRef struct {
+	ID          string `json:"id"`
+	RunID       string `json:"run_id"`
+	Tool        string `json:"tool"`
+	Source      string `json:"source"`
+	ObservedAt  string `json:"observed_at"`
+	PayloadHash string `json:"payload_hash"`
+	Summary     string `json:"summary"`
 }
 
 // MarketContext holds phase A global data.
@@ -45,6 +64,7 @@ type PreMarketWorking struct {
 	MarketContext  MarketContext             `json:"market_context"`
 	Stocks         map[string]StockWorkspace `json:"stocks"`
 	Artifacts      map[string]string         `json:"artifacts"`
+	EvidenceRefs   []EvidenceRef             `json:"evidence_refs"`
 	StepsCompleted []string                  `json:"steps_completed"`
 	CurrentStock   string                    `json:"current_stock_code"`
 }
@@ -62,6 +82,53 @@ func NewPreMarketWorking(sessionID, skill string) *PreMarketWorking {
 		},
 		Stocks:         map[string]StockWorkspace{},
 		Artifacts:      map[string]string{},
+		EvidenceRefs:   []EvidenceRef{},
 		StepsCompleted: []string{},
 	}
+}
+
+// NewEvidenceRef creates a deterministic evidence ID from the run, source, tool,
+// and canonical payload hash. ObservedAt is intentionally excluded from the ID.
+func NewEvidenceRef(runID, tool, source, summary string, payload any, observedAt time.Time) EvidenceRef {
+	payloadHash := PayloadHash(payload)
+	idHash := sha256.Sum256([]byte(strings.Join([]string{runID, tool, source, payloadHash}, "\x00")))
+	return EvidenceRef{
+		ID:          "ev_" + hex.EncodeToString(idHash[:])[:12],
+		RunID:       runID,
+		Tool:        tool,
+		Source:      source,
+		ObservedAt:  observedAt.UTC().Format(time.RFC3339Nano),
+		PayloadHash: payloadHash,
+		Summary:     OneLine(summary, 240),
+	}
+}
+
+// PayloadHash returns a canonical SHA-256 hash for evidence payloads.
+func PayloadHash(payload any) string {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		raw = []byte(strings.TrimSpace(toString(payload)))
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
+}
+
+// OneLine normalizes user-facing evidence summaries.
+func OneLine(s string, n int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if len(s) <= n {
+		return s
+	}
+	if n <= 3 {
+		return s[:n]
+	}
+	return s[:n-3] + "..."
+}
+
+func toString(v any) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	raw, _ := json.Marshal(v)
+	return string(raw)
 }

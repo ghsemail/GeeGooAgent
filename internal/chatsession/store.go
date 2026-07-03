@@ -25,33 +25,33 @@ type ChatStepRecord struct {
 
 // ChatSession is a persisted interactive chat session.
 type ChatSession struct {
-	ID          string        `json:"id"`
-	Title       string        `json:"title,omitempty"`
-	Tags        []string      `json:"tags,omitempty"`
-	Summary     string        `json:"summary,omitempty"`
-	ToolNames   []string      `json:"tool_names,omitempty"`
-	Metadata    map[string]any `json:"metadata,omitempty"`
-	Status      string        `json:"status"`
-	CreatedAt   time.Time     `json:"created_at"`
-	UpdatedAt   time.Time     `json:"updated_at"`
-	Messages    []llm.Message `json:"messages"`
+	ID          string           `json:"id"`
+	Title       string           `json:"title,omitempty"`
+	Tags        []string         `json:"tags,omitempty"`
+	Summary     string           `json:"summary,omitempty"`
+	ToolNames   []string         `json:"tool_names,omitempty"`
+	Metadata    map[string]any   `json:"metadata,omitempty"`
+	Status      string           `json:"status"`
+	CreatedAt   time.Time        `json:"created_at"`
+	UpdatedAt   time.Time        `json:"updated_at"`
+	Messages    []llm.Message    `json:"messages"`
 	StepRecords []ChatStepRecord `json:"step_records"`
-	StepCounter int           `json:"step_counter"`
+	StepCounter int              `json:"step_counter"`
 }
 
 // ChatSessionIndexEntry is a compact manifest row for session lookup.
 type ChatSessionIndexEntry struct {
-	ID          string
-	Title       string
-	Tags        []string
-	Summary     string
-	ToolNames   []string
-	Status      string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID           string
+	Title        string
+	Tags         []string
+	Summary      string
+	ToolNames    []string
+	Status       string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 	MessageCount int
 	StepCount    int
-	Metadata    map[string]any
+	Metadata     map[string]any
 }
 
 // ChatSessionIndex stores searchable session metadata.
@@ -251,14 +251,14 @@ func (c *ChatSession) toMap() map[string]any {
 		"tool_names": c.ToolNames, "metadata": c.Metadata, "status": c.Status,
 		"created_at": c.CreatedAt.Format(time.RFC3339),
 		"updated_at": c.UpdatedAt.Format(time.RFC3339),
-		"messages": msgs, "step_records": records, "step_counter": c.StepCounter,
+		"messages":   msgs, "step_records": records, "step_counter": c.StepCounter,
 	}
 }
 
 func chatSessionFromMap(data map[string]any) (*ChatSession, error) {
 	session := &ChatSession{
 		ID: stringField(data, "id"), Title: stringField(data, "title"), Summary: stringField(data, "summary"),
-		Status: stringField(data, "status"),
+		Status:      stringField(data, "status"),
 		StepCounter: intField(data, "step_counter"),
 	}
 	session.Tags = stringSliceField(data, "tags")
@@ -354,12 +354,40 @@ func stringSliceField(m map[string]any, k string) []string {
 func (s *ChatSessionStore) loadIndex() (*ChatSessionIndex, error) {
 	data, err := s.store.Load(s.indexKey())
 	if err != nil {
+		if strings.Contains(err.Error(), "corrupt state file") {
+			return s.rebuildIndex()
+		}
 		return nil, err
 	}
 	if data == nil {
 		return &ChatSessionIndex{Version: 1}, nil
 	}
 	return chatSessionIndexFromMap(data), nil
+}
+
+func (s *ChatSessionStore) rebuildIndex() (*ChatSessionIndex, error) {
+	ids, err := s.ListSessionIDs()
+	if err != nil {
+		return nil, err
+	}
+	idx := &ChatSessionIndex{Version: 1}
+	for _, id := range ids {
+		session, err := s.Load(id)
+		if err != nil {
+			return nil, err
+		}
+		if session == nil {
+			continue
+		}
+		idx.Sessions = append(idx.Sessions, indexEntryFromSession(session))
+	}
+	sort.Slice(idx.Sessions, func(i, j int) bool {
+		return idx.Sessions[i].UpdatedAt.After(idx.Sessions[j].UpdatedAt)
+	})
+	if err := s.saveIndex(idx); err != nil {
+		return nil, err
+	}
+	return idx, nil
 }
 
 func (s *ChatSessionStore) saveIndex(index *ChatSessionIndex) error {
