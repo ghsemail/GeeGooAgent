@@ -35,6 +35,8 @@ func main() {
 		runSkills(os.Args[2:])
 	case "scheduler":
 		runScheduler(os.Args[2:])
+	case "verify":
+		runVerify(os.Args[2:])
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -70,6 +72,7 @@ Usage:
   %s migrate [--config PATH] [--dry-run]
   %s skills list
   %s scheduler <run|list> [--config PATH]
+  %s verify --codes CODES [--date YYYY-MM-DD] [--config PATH]
 
-`, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
+`, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
 }
