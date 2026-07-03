@@ -100,6 +100,9 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	}
 	app.Loop = runtime.NewReActLoop(app.Gateway, executor)
 	app.Agent = agent.New(app.Gateway, executor, registry)
+	if adapter := newSynthesizerAdapter(app.Gateway, app.Config.LLM.Model); adapter != nil {
+		workflow.SetDefaultSynthesizer(adapter)
+	}
 
 	return app, nil
 }

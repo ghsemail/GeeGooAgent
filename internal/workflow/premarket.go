@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -139,7 +140,20 @@ func BuildReportContent(w *memory.PreMarketWorking, code string) string {
 	return strings.Join(lines, "\n")
 }
 
+// defaultSynthesizer is the optional LLM report synthesizer used by
+// BuildCreateReportArgs. Set via SetDefaultSynthesizer. When nil or when
+// synthesis fails, the rule-based view is used unchanged.
+var defaultSynthesizer SynthesizerProvider
+
+// SetDefaultSynthesizer wires an LLM report synthesizer for BuildCreateReportArgs.
+func SetDefaultSynthesizer(s SynthesizerProvider) { defaultSynthesizer = s }
+
 // BuildCreateReportArgs builds MCP createPreMarketReport body.
+//
+// result and confidence are always rule-based (attitude → result, evidence
+// count → confidence). reason/suggestion/summary come from the LLM
+// synthesizer when configured and successful; otherwise the rule-based view
+// is used. The LLM never decides result/confidence.
 func BuildCreateReportArgs(w *memory.PreMarketWorking, code string) map[string]any {
 	ws := w.Stocks[code]
 	var bot memory.BotStock
@@ -156,12 +170,25 @@ func BuildCreateReportArgs(w *memory.PreMarketWorking, code string) map[string]a
 	}
 	evidence := collectReportEvidence(w, code)
 	view := buildReportView(ws, evidence)
+	reason := view.Reason
+	suggestion := view.Suggestion
+	summary := plainSummary(report, 200)
+	if defaultSynthesizer != nil {
+		if r, s, sm, err := defaultSynthesizer.Synthesize(context.Background(), ws, evidence, w.MarketContext); err == nil && strings.TrimSpace(r) != "" {
+			reason = r
+			if strings.TrimSpace(s) != "" {
+				suggestion = s
+			}
+			if strings.TrimSpace(sm) != "" {
+				summary = sm
+			}
+		}
+	}
 	return map[string]any{
 		"code": bot.Code, "stock_name": bot.StockName, "bot_id": bot.BotID,
 		"bot_name": bot.BotName, "bot_type": bot.BotType,
 		"result": attitudeToResult(attitude), "confidence": view.Confidence,
-		"reason":     view.Reason,
-		"suggestion": view.Suggestion, "report": report, "summary": plainSummary(report, 200),
+		"reason": reason, "suggestion": suggestion, "report": report, "summary": summary,
 		"evidence_refs": evidenceIDs(evidence),
 	}
 }

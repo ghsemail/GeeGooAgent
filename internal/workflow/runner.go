@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -46,9 +47,18 @@ func (r RunResult) OK() bool { return r.Status == "completed" }
 
 // Runner executes deterministic workflow steps.
 type Runner struct {
-	executor *runtime.Executor
-	working  *memory.WorkingStore
-	checkpts CheckpointSaver
+	executor     *runtime.Executor
+	working      *memory.WorkingStore
+	checkpts     CheckpointSaver
+	synthesizer  SynthesizerProvider
+}
+
+// SynthesizerProvider abstracts report.Synthesizer so the workflow package
+// does not import report (avoids a cycle). Implementations return
+// (reason, suggestion, summary, error). A nil/absent provider means the
+// rule-based report path is used.
+type SynthesizerProvider interface {
+	Synthesize(ctx context.Context, ws memory.StockWorkspace, evidence []memory.EvidenceRef, mc memory.MarketContext) (reason, suggestion, summary string, err error)
 }
 
 // CheckpointSaver persists checkpoints.
@@ -60,6 +70,10 @@ type CheckpointSaver interface {
 func NewRunner(executor *runtime.Executor, working *memory.WorkingStore, checkpts CheckpointSaver) *Runner {
 	return &Runner{executor: executor, working: working, checkpts: checkpts}
 }
+
+// SetSynthesizer wires an LLM report synthesizer. Optional; when nil the
+// rule-based report content path is used.
+func (r *Runner) SetSynthesizer(s SynthesizerProvider) { r.synthesizer = s }
 
 // Run executes phase A then optional per-stock phase B, then runs supervisor.
 func (r *Runner) Run(
