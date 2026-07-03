@@ -56,17 +56,18 @@ type StockWorkspace struct {
 
 // PreMarketWorking is workflow working memory.
 type PreMarketWorking struct {
-	SessionID      string                    `json:"session_id"`
-	Skill          string                    `json:"skill"`
-	Phase          string                    `json:"phase"`
-	IsTradingDay   *bool                     `json:"is_trading_day"`
-	BotCodes       []BotStock                `json:"bot_codes"`
-	MarketContext  MarketContext             `json:"market_context"`
-	Stocks         map[string]StockWorkspace `json:"stocks"`
-	Artifacts      map[string]string         `json:"artifacts"`
-	EvidenceRefs   []EvidenceRef             `json:"evidence_refs"`
-	StepsCompleted []string                  `json:"steps_completed"`
-	CurrentStock   string                    `json:"current_stock_code"`
+	SessionID        string                    `json:"session_id"`
+	Skill            string                    `json:"skill"`
+	Phase            string                    `json:"phase"`
+	IsTradingDay     *bool                     `json:"is_trading_day"`
+	BotCodes         []BotStock                `json:"bot_codes"`
+	MarketContext    MarketContext             `json:"market_context"`
+	Stocks           map[string]StockWorkspace `json:"stocks"`
+	Artifacts        map[string]string         `json:"artifacts"`
+	EvidenceRefs     []EvidenceRef             `json:"evidence_refs"`
+	StepsCompleted   []string                  `json:"steps_completed"`
+	CompletedStepKeys []string                 `json:"completed_step_keys,omitempty"`
+	CurrentStock     string                    `json:"current_stock_code"`
 }
 
 // NewPreMarketWorking creates initial working state.
@@ -80,10 +81,11 @@ func NewPreMarketWorking(sessionID, skill string) *PreMarketWorking {
 			IndexCodesDone:    []string{},
 			MarketNews:        map[string]string{},
 		},
-		Stocks:         map[string]StockWorkspace{},
-		Artifacts:      map[string]string{},
-		EvidenceRefs:   []EvidenceRef{},
-		StepsCompleted: []string{},
+		Stocks:            map[string]StockWorkspace{},
+		Artifacts:         map[string]string{},
+		EvidenceRefs:      []EvidenceRef{},
+		StepsCompleted:    []string{},
+		CompletedStepKeys: []string{},
 	}
 }
 

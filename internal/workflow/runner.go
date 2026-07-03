@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
@@ -33,10 +34,11 @@ func (s Step) Args(working *memory.PreMarketWorking) map[string]any {
 
 // RunResult is workflow outcome.
 type RunResult struct {
-	SessionID string
-	Status    string
-	Working   *memory.PreMarketWorking
-	LastError string
+	SessionID  string
+	Status     string
+	Working    *memory.PreMarketWorking
+	LastError  string
+	Supervisor *SupervisorReport
 }
 
 // OK returns true when completed successfully.
@@ -59,17 +61,20 @@ func NewRunner(executor *runtime.Executor, working *memory.WorkingStore, checkpt
 	return &Runner{executor: executor, working: working, checkpts: checkpts}
 }
 
-// Run executes phase A then optional per-stock phase B.
+// Run executes phase A then optional per-stock phase B, then runs supervisor.
 func (r *Runner) Run(
 	sessionID, skill string,
 	phaseA, perStock []Step,
 	ctx tools.Context,
 	working *memory.PreMarketWorking,
 ) RunResult {
-	return r.RunFrom(sessionID, skill, phaseA, perStock, ctx, working, 0)
+	return r.finishWithSupervisor(r.RunFrom(sessionID, skill, phaseA, perStock, ctx, working, 0), ctx)
 }
 
-// RunFrom resumes a workflow by skipping flattened steps up to completedStep.
+// RunFrom resumes a workflow. completedStep is retained for backward
+// compatibility but idempotency is now driven by working.CompletedStepKeys:
+// a step is skipped when its named key is already present. This means bot
+// list reordering between runs no longer causes step-index drift.
 func (r *Runner) RunFrom(
 	sessionID, skill string,
 	phaseA, perStock []Step,
@@ -77,22 +82,22 @@ func (r *Runner) RunFrom(
 	working *memory.PreMarketWorking,
 	completedStep int,
 ) RunResult {
-	flatLen := len(phaseA)
-	finalStep := completedStep
+	_ = completedStep // idempotency via CompletedStepKeys now
+	stepCounter := 0
 	for index, step := range phaseA {
-		stepIndex := index + 1
-		if stepIndex <= completedStep {
+		stepCounter = index + 1
+		key := stepKey(step.Name, step.Tool)
+		if isStepComplete(working, key) {
 			continue
 		}
-		finalStep = stepIndex
-		ctx.Step = stepIndex
+		ctx.Step = stepCounter
 		var errResult *RunResult
-		working, errResult = r.processStep(sessionID, skill, step, ctx, working, stepIndex)
+		working, errResult = r.processStep(sessionID, skill, step, ctx, working, stepCounter)
 		if errResult != nil {
 			return *errResult
 		}
 		if step.Tool == "check_trading_day" && working.IsTradingDay != nil && !*working.IsTradingDay {
-			if err := r.checkpts.Save(sessionID, skill, "completed", step.Tool, stepIndex, working); err != nil {
+			if err := r.checkpts.Save(sessionID, skill, "completed", step.Tool, stepCounter, working); err != nil {
 				return RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: err.Error()}
 			}
 			return RunResult{SessionID: sessionID, Status: "completed", Working: working}
@@ -102,7 +107,6 @@ func (r *Runner) RunFrom(
 	if perStock != nil && (working.IsTradingDay == nil || *working.IsTradingDay) {
 		working.Phase = "phase_b"
 		_ = r.working.Save(working)
-		stepCounter := flatLen
 		for _, bot := range working.BotCodes {
 			code := bot.Code
 			ws, ok := working.Stocks[code]
@@ -122,12 +126,12 @@ func (r *Runner) RunFrom(
 					break
 				}
 				stepCounter++
-				if stepCounter <= completedStep {
+				named := Step{Name: code + "/" + step.Name, Tool: step.Tool, ArgFunc: step.ArgFunc, Arguments: step.Arguments}
+				key := stepKey(named.Name, named.Tool)
+				if isStepComplete(working, key) {
 					continue
 				}
-				finalStep = stepCounter
 				ctx.Step = stepCounter
-				named := Step{Name: code + "/" + step.Name, Tool: step.Tool, ArgFunc: step.ArgFunc, Arguments: step.Arguments}
 				var errResult *RunResult
 				working, errResult = r.processStep(sessionID, skill, named, ctx, working, stepCounter)
 				if errResult != nil {
@@ -140,7 +144,6 @@ func (r *Runner) RunFrom(
 					return *errResult
 				}
 				if step.Tool == "list_today_reports" {
-					// check already_reported via working apply
 					if working.Stocks[code].Status == "skipped" {
 						skipStock = true
 					}
@@ -161,10 +164,28 @@ func (r *Runner) RunFrom(
 		_ = r.working.Save(working)
 	}
 
-	if err := r.checkpts.Save(sessionID, skill, "completed", "workflow_complete", finalStep, working); err != nil {
+	if err := r.checkpts.Save(sessionID, skill, "completed", "workflow_complete", stepCounter, working); err != nil {
 		return RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: err.Error()}
 	}
 	return RunResult{SessionID: sessionID, Status: "completed", Working: working}
+}
+
+// finishWithSupervisor runs acceptance checks on a completed (or failed) run
+// and attaches the report. Verdict does not flip a failed status to completed.
+func (r *Runner) finishWithSupervisor(result RunResult, ctx tools.Context) RunResult {
+	if result.Working == nil {
+		return result
+	}
+	eng := NewEngine(ctx.WorkspaceRoot, DefaultPreMarketChecks())
+	report := eng.Verify(result.Working, time.Now().Format("2006-01-02"))
+	result.Supervisor = &report
+	if ctx.EventBus != nil {
+		ctx.EventBus.Emit("SupervisorVerified", map[string]any{
+			"session_id": result.SessionID, "verdict": string(report.Verdict),
+			"summary": report.Summary(),
+		})
+	}
+	return result
 }
 
 func (r *Runner) processStep(
@@ -193,10 +214,57 @@ func (r *Runner) processStep(
 		return working, &RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: err.Error()}
 	}
 	if result.Status == tools.StatusError {
-		return working, &RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: result.Summary}
+		kind := classifyError(step.Tool, result.Summary)
+		if kind == ErrorRecoverable {
+			// One retry for transient errors before giving up.
+			result2 := r.executor.Execute(tools.CallRequest{Name: step.Tool, Arguments: step.Args(working)}, ctx)
+			working, _ = r.working.Apply(working, step.Tool, result2)
+			if result2.Status != tools.StatusError {
+				markStepComplete(working, stepKey(step.Name, step.Tool))
+				return working, nil
+			}
+			return working, &RunResult{
+				SessionID: sessionID, Status: "failed", Working: working,
+				LastError: (&StepError{Kind: ErrorRecoverable, Tool: step.Tool, Message: result2.Summary}).Error(),
+			}
+		}
+		return working, &RunResult{
+			SessionID: sessionID, Status: "failed", Working: working,
+			LastError: (&StepError{Kind: ErrorTerminal, Tool: step.Tool, Message: result.Summary}).Error(),
+		}
 	}
+	markStepComplete(working, stepKey(step.Name, step.Tool))
 	return working, nil
 }
+
+// stepKey is the idempotency key for a workflow step.
+func stepKey(name, tool string) string {
+	if name == "" {
+		return tool
+	}
+	return name
+}
+
+func isStepComplete(working *memory.PreMarketWorking, key string) bool {
+	for _, k := range working.CompletedStepKeys {
+		if k == key {
+			return true
+		}
+	}
+	return false
+}
+
+func markStepComplete(working *memory.PreMarketWorking, key string) {
+	if isStepComplete(working, key) {
+		return
+	}
+	working.CompletedStepKeys = append(working.CompletedStepKeys, key)
+}
+
+// Test-only accessors for idempotency helpers.
+func IsStepCompleteForTest(w *memory.PreMarketWorking, key string) bool { return isStepComplete(w, key) }
+func MarkStepCompleteForTest(w *memory.PreMarketWorking, key string)    { markStepComplete(w, key) }
+func StepKeyForTest(name, tool string) string                            { return stepKey(name, tool) }
 
 // CheckpointAdapter bridges infra checkpoint manager.
 type CheckpointAdapter struct {

@@ -267,6 +267,7 @@ func cloneWorking(w *PreMarketWorking) *PreMarketWorking {
 	c := *w
 	c.BotCodes = append([]BotStock(nil), w.BotCodes...)
 	c.StepsCompleted = append([]string(nil), w.StepsCompleted...)
+	c.CompletedStepKeys = append([]string(nil), w.CompletedStepKeys...)
 	c.MarketContext.IndexCodesDone = append([]string(nil), w.MarketContext.IndexCodesDone...)
 	c.MarketContext.IndexAnalysisRefs = map[string]string{}
 	for k, v := range w.MarketContext.IndexAnalysisRefs {
@@ -294,6 +295,7 @@ func encodeWorking(w *PreMarketWorking) map[string]any {
 		"session_id": w.SessionID, "skill": w.Skill, "phase": w.Phase,
 		"current_stock_code": w.CurrentStock,
 		"steps_completed":    w.StepsCompleted, "artifacts": w.Artifacts,
+		"completed_step_keys": w.CompletedStepKeys,
 		"evidence_refs": encodeEvidenceRefs(w.EvidenceRefs),
 	}
 	if w.IsTradingDay != nil {
@@ -350,6 +352,13 @@ func decodeWorking(data map[string]any) (*PreMarketWorking, error) {
 		for _, s := range steps {
 			if str, ok := s.(string); ok {
 				w.StepsCompleted = append(w.StepsCompleted, str)
+			}
+		}
+	}
+	if keys, ok := data["completed_step_keys"].([]any); ok {
+		for _, s := range keys {
+			if str, ok := s.(string); ok {
+				w.CompletedStepKeys = append(w.CompletedStepKeys, str)
 			}
 		}
 	}
