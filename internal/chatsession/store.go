@@ -143,17 +143,16 @@ func (s *ChatSessionStore) ListIndexedSessions() ([]ChatSessionIndexEntry, error
 	return entries, nil
 }
 
-// SyncChatSystemPrompt refreshes system message with tool activity summary.
+// SyncChatSystemPrompt ensures the leading system message is the stable system
+// prompt. It no longer mutates the system content with tool activity — that
+// would break DeepSeek/OpenAI prefix caching. Dynamic context is injected by
+// RuntimeMessages at LLM-call time instead.
 func (c *ChatSession) SyncChatSystemPrompt() {
-	content := chatprompt.System()
-	if activity := c.ToolActivitySummary(); activity != "" {
-		content = chatprompt.System() + "\n\n本会话 Tool 活动：\n" + activity
-	}
 	if len(c.Messages) > 0 && c.Messages[0].Role == llm.RoleSystem {
-		c.Messages[0].Content = content
+		c.Messages[0].Content = chatprompt.System()
 		return
 	}
-	c.Messages = append([]llm.Message{{Role: llm.RoleSystem, Content: content}}, c.Messages...)
+	c.Messages = append([]llm.Message{{Role: llm.RoleSystem, Content: chatprompt.System()}}, c.Messages...)
 }
 
 // ToolActivitySummary lists market-related tools already called in this chat.
@@ -198,9 +197,28 @@ func (c *ChatSession) SyncFromRuntime(messages []llm.Message, stepCounter int, n
 }
 
 // RuntimeMessages returns a copy of chat messages for the ReAct loop.
+//
+// To preserve DeepSeek/OpenAI prefix caching, the stored system message stays
+// byte-identical across turns. Dynamic per-turn context (tool activity summary)
+// is injected here as a short user-side context message immediately before the
+// last user message, so the stable prefix (system + prior turns) remains
+// cacheable.
 func (c *ChatSession) RuntimeMessages() []llm.Message {
 	out := make([]llm.Message, len(c.Messages))
 	copy(out, c.Messages)
+	activity := strings.TrimSpace(c.ToolActivitySummary())
+	if activity == "" || len(out) == 0 {
+		return out
+	}
+	lastIdx := len(out) - 1
+	if out[lastIdx].Role != llm.RoleUser {
+		return out
+	}
+	ctxMsg := llm.Message{
+		Role:    llm.RoleUser,
+		Content: "本会话 Tool 活动（供参考，勿重复调用）：\n" + activity,
+	}
+	out = append(out[:lastIdx], append([]llm.Message{ctxMsg}, out[lastIdx:]...)...)
 	return out
 }
 
