@@ -31,7 +31,7 @@ func runSkill(args []string) {
 		fmt.Fprintln(os.Stderr, "warning: LLM not configured (workflow stub mode)")
 	}
 
-	result, err := application.RunPreMarket(skill)
+	result, err := application.RunSkill(skill)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "run: %v\n", err)
 		os.Exit(2)

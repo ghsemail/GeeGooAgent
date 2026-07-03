@@ -31,6 +31,8 @@ func main() {
 		runSkill(os.Args[2:])
 	case "migrate":
 		runMigrate(os.Args[2:])
+	case "skills":
+		runSkills(os.Args[2:])
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -64,6 +66,7 @@ Usage:
   %s chat [--config PATH] [--dry-run] [--message TEXT]
   %s run <skill> [--config PATH] [--dry-run]
   %s migrate [--config PATH] [--dry-run]
+  %s skills list
 
-`, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
+`, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
 }

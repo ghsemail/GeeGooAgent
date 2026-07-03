@@ -17,6 +17,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
+	"github.com/ghsemail/GeeGooAgent/internal/skills"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
 )
@@ -146,10 +147,24 @@ func (a *App) RebuildGateway() error {
 	return nil
 }
 
+// Skills is the registry of runnable skills (built-in + any registered at runtime).
+var DefaultSkills = skills.Default()
+
 // RunPreMarket executes the pre_market skill workflow.
+// Kept for backward compatibility; new callers should use RunSkill.
 func (a *App) RunPreMarket(skill string) (workflow.RunResult, error) {
-	if skill != "pre_market" {
-		return workflow.RunResult{}, fmt.Errorf("unsupported skill: %s", skill)
+	return a.RunSkill(skill)
+}
+
+// RunSkill executes a named skill workflow looked up in the skill registry.
+// Returns an error if the skill is not registered.
+func (a *App) RunSkill(skill string) (workflow.RunResult, error) {
+	spec, ok := DefaultSkills.Get(skill)
+	if !ok {
+		return workflow.RunResult{}, fmt.Errorf("unknown skill: %s (run 'geegoo skills list')", skill)
+	}
+	if spec.PhaseA == nil || spec.PerStock == nil {
+		return workflow.RunResult{}, fmt.Errorf("skill %s has no step functions defined", skill)
 	}
 	sessionID := newSessionID()
 	a.EventBus.Emit("RunStarted", map[string]any{"session_id": sessionID, "skill": skill})
@@ -158,11 +173,12 @@ func (a *App) RunPreMarket(skill string) (workflow.RunResult, error) {
 		return workflow.RunResult{}, err
 	}
 	ctx := a.ToolContext(sessionID)
-	result := a.Workflow.Run(sessionID, skill, workflow.PhaseASteps(), workflow.PerStockSteps(), ctx, working)
+	result := a.Workflow.Run(sessionID, skill, spec.PhaseA(), spec.PerStock(), ctx, working)
 	return result, nil
 }
 
-// ResumePreMarket resumes a pre_market workflow from its latest checkpoint.
+// ResumePreMarket resumes a workflow from its latest checkpoint. The checkpoint's
+// skill name drives step lookup via the registry, so resume works for any skill.
 func (a *App) ResumePreMarket(sessionID string) (workflow.RunResult, error) {
 	cp, err := a.Checkpoints.LoadLatest(sessionID)
 	if err != nil {
@@ -171,7 +187,8 @@ func (a *App) ResumePreMarket(sessionID string) (workflow.RunResult, error) {
 	if cp == nil {
 		return workflow.RunResult{}, fmt.Errorf("checkpoint not found for session: %s", sessionID)
 	}
-	if cp.Skill != "pre_market" {
+	spec, ok := DefaultSkills.Get(cp.Skill)
+	if !ok || spec.PhaseA == nil || spec.PerStock == nil {
 		return workflow.RunResult{}, fmt.Errorf("unsupported checkpoint skill: %s", cp.Skill)
 	}
 	working, err := a.Working.Load(sessionID)
@@ -185,7 +202,7 @@ func (a *App) ResumePreMarket(sessionID string) (workflow.RunResult, error) {
 		return workflow.RunResult{SessionID: sessionID, Status: "completed", Working: working}, nil
 	}
 	ctx := a.ToolContext(sessionID)
-	return a.Workflow.RunFrom(sessionID, cp.Skill, workflow.PhaseASteps(), workflow.PerStockSteps(), ctx, working, cp.Step), nil
+	return a.Workflow.RunFrom(sessionID, cp.Skill, spec.PhaseA(), spec.PerStock(), ctx, working, cp.Step), nil
 }
 
 // ToolContext builds execution context for the current session.
