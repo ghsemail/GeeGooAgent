@@ -128,3 +128,49 @@ func TestReActLoopEmptyContentLengthHint(t *testing.T) {
 		t.Fatalf("got %q", result.AssistantText)
 	}
 }
+
+func TestReActLoopStripsSIDOnlyContent(t *testing.T) {
+	provider := &llm.MockProvider{
+		Responses: []*llm.Response{{
+			Content: "[SID=abc123]", FinishReason: "stop",
+		}},
+	}
+	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
+	gateway.SetSleep(func(time.Duration) {})
+	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
+	result := loop.RunTurn(context.Background(), runtime.NewSession(), "hi", tools.Context{}, nil)
+	if !strings.Contains(result.AssistantText, "模型未返回可读内容") {
+		t.Fatalf("got %q", result.AssistantText)
+	}
+}
+
+func TestReActLoopEmptyAfterToolErrorSurfacesTool(t *testing.T) {
+	registry := tools.NewRegistry()
+	registry.Register(tools.Tool{
+		Name: "search_code",
+		Handle: func(ctx tools.Context, args map[string]any) tools.Result {
+			return tools.Result{Status: tools.StatusError, Summary: "HTTP 404 for /searchCode: 404 page not found", ExitCode: 1}
+		},
+	})
+	provider := &llm.MockProvider{
+		Responses: []*llm.Response{
+			{
+				Content: "[SID=only]",
+				ToolCalls: []llm.ToolCall{
+					{ID: "c1", Name: "search_code", Arguments: map[string]any{"regex": "腾讯"}},
+				},
+			},
+			{Content: "", FinishReason: "stop"},
+		},
+	}
+	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
+	gateway.SetSleep(func(time.Duration) {})
+	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
+	result := loop.RunTurn(
+		context.Background(), runtime.NewSession(), "腾讯价格", tools.Context{},
+		registry.Schemas([]string{"search_code"}),
+	)
+	if !strings.Contains(result.AssistantText, "search_code") || !strings.Contains(result.AssistantText, "404") {
+		t.Fatalf("got %q", result.AssistantText)
+	}
+}

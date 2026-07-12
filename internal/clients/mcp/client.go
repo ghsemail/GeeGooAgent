@@ -69,7 +69,7 @@ func NewClient(baseURL, apiKey string, opts Options) *Client {
 
 // Post sends a standard MCP request expecting {"code":100,...}.
 func (c *Client) Post(ctx context.Context, path string, body map[string]any) (map[string]any, error) {
-	raw, err := c.doJSON(ctx, path, body, false)
+	raw, err := c.doJSON(ctx, path, body)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func (c *Client) Post(ctx context.Context, path string, body map[string]any) (ma
 
 // PostDirect handles MCP Common endpoints (bare object/array or code envelope).
 func (c *Client) PostDirect(ctx context.Context, path string, body map[string]any) (any, error) {
-	raw, err := c.doJSON(ctx, path, body, true)
+	raw, err := c.doJSON(ctx, path, body)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func (c *Client) PostDirect(ctx context.Context, path string, body map[string]an
 	return data, nil
 }
 
-func (c *Client) doJSON(ctx context.Context, path string, body map[string]any, direct bool) ([]byte, error) {
+func (c *Client) doJSON(ctx context.Context, path string, body map[string]any) ([]byte, error) {
 	fullURL := c.baseURL + path
 	host, err := hostFromURL(fullURL)
 	if err != nil {
@@ -169,47 +169,46 @@ func (c *Client) doJSON(ctx context.Context, path string, body map[string]any, d
 			continue
 		}
 
-		if resp.StatusCode == 401 {
-			var data map[string]any
-			_ = json.Unmarshal(raw, &data)
-			if errMsg, ok := data["error"].(string); ok {
-				return nil, newClientError(errMsg, nil, 401)
-			}
-		}
-
-		if resp.StatusCode == 400 {
-			var data map[string]any
-			if json.Unmarshal(raw, &data) == nil {
-				msg, _ := data["message"].(string)
-				if msg == "" {
-					msg = string(raw)
-				}
-				var codePtr *int
-				if code, ok := data["code"].(float64); ok {
-					ic := int(code)
-					codePtr = &ic
-				}
-				return nil, newClientError(msg, codePtr, 400)
-			}
-		}
-
-		if !direct && resp.StatusCode >= 400 {
-			var data map[string]any
-			if json.Unmarshal(raw, &data) == nil {
-				if code, ok := data["code"].(float64); ok {
-					ic := int(code)
-					msg, _ := data["message"].(string)
-					if msg == "" {
-						msg = fmt.Sprintf("api error code %d", ic)
-					}
-					return nil, newClientError(msg, &ic, resp.StatusCode)
-				}
-			}
+		if resp.StatusCode >= 400 {
+			return nil, clientErrorFromHTTP(path, resp.StatusCode, raw)
 		}
 
 		return raw, nil
 	}
 	return nil, newClientError(fmt.Sprintf("request failed after retries: %v", lastErr), nil, 0)
+}
+
+func clientErrorFromHTTP(path string, status int, raw []byte) error {
+	var data map[string]any
+	if json.Unmarshal(raw, &data) == nil {
+		if errMsg, ok := data["error"].(string); ok && strings.TrimSpace(errMsg) != "" {
+			return newClientError(errMsg, nil, status)
+		}
+		msg, _ := data["message"].(string)
+		var codePtr *int
+		if code, ok := data["code"].(float64); ok {
+			ic := int(code)
+			codePtr = &ic
+		}
+		if strings.TrimSpace(msg) != "" {
+			return newClientError(msg, codePtr, status)
+		}
+		if codePtr != nil {
+			return newClientError(fmt.Sprintf("api error code %d", *codePtr), codePtr, status)
+		}
+	}
+	snippet := strings.TrimSpace(string(raw))
+	if snippet == "" {
+		snippet = fmt.Sprintf("HTTP %d", status)
+	}
+	return newClientError(fmt.Sprintf("HTTP %d for %s: %s", status, path, truncate(snippet, 120)), nil, status)
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n]
 }
 
 func hostFromURL(raw string) (string, error) {

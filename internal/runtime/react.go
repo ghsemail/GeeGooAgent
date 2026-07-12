@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -106,10 +107,7 @@ func (l *ReActLoop) RunTurn(
 		for _, c := range resp.ToolCalls {
 			toolNames = append(toolNames, c.Name)
 		}
-		planSummary := strings.TrimSpace(resp.Content)
-		if planSummary == "" && strings.TrimSpace(resp.ReasoningContent) != "" {
-			planSummary = strings.TrimSpace(resp.ReasoningContent)
-		}
+		planSummary := readableAssistantText(resp.Content, resp.ReasoningContent)
 		if planSummary == "" && len(toolNames) > 0 {
 			planSummary = fmt.Sprintf("决策: 调用 %s", strings.Join(toolNames, ", "))
 		}
@@ -127,12 +125,9 @@ func (l *ReActLoop) RunTurn(
 		})
 
 		if len(resp.ToolCalls) == 0 {
-			text := strings.TrimSpace(resp.Content)
+			text := readableAssistantText(resp.Content, resp.ReasoningContent)
 			if text == "" {
-				text = strings.TrimSpace(resp.ReasoningContent)
-			}
-			if text == "" {
-				text = emptyReplyMessage(resp)
+				text = emptyReplyMessage(resp, records)
 			}
 			l.emit("reply_start", map[string]any{"step": step})
 			session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: text})
@@ -232,9 +227,50 @@ func toolResultContent(result tools.Result) string {
 	return text
 }
 
-func emptyReplyMessage(resp *llm.Response) string {
+func emptyReplyMessage(resp *llm.Response, records []StepRecord) string {
+	var fails []string
+	for _, r := range records {
+		if r.Kind != "tool" {
+			continue
+		}
+		if !strings.EqualFold(r.ToolStatus, "error") {
+			continue
+		}
+		line := r.ToolName
+		if s := strings.TrimSpace(r.Summary); s != "" {
+			line += ": " + s
+		}
+		fails = append(fails, line)
+	}
+	if len(fails) > 0 {
+		var b strings.Builder
+		b.WriteString("工具调用失败，且模型未返回可读说明：")
+		for _, f := range fails {
+			b.WriteString("\n- ")
+			b.WriteString(f)
+		}
+		return b.String()
+	}
 	if resp != nil && strings.EqualFold(resp.FinishReason, "length") {
 		return "模型输出被 max_tokens 截断（thinking 可能占满预算）。请提高 config.json 的 llm.max_tokens（建议 ≥8192），或 /think off / 降低 reasoning_effort 后重试。"
 	}
 	return "模型未返回可读内容。若开启了 thinking，请提高 llm.max_tokens 或执行 /think off 后重试。"
+}
+
+// readableAssistantText prefers content, then reasoning, and strips provider noise like [SID=...].
+func readableAssistantText(content, reasoning string) string {
+	if text := stripProviderNoise(content); text != "" {
+		return text
+	}
+	return stripProviderNoise(reasoning)
+}
+
+var sidTokenRE = regexp.MustCompile(`(?i)\[SID=[^\]]+\]`)
+
+func stripProviderNoise(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	return strings.TrimSpace(sidTokenRE.ReplaceAllString(s, ""))
 }
