@@ -97,7 +97,37 @@ func BuildPlainBanner(opts BannerOptions) string {
 	lines = append(lines, fmt.Sprintf("%d tools · %d skills · /help for commands", totalTools, totalSkills))
 	lines = append(lines, "")
 	lines = append(lines, "Welcome to GeeGoo Agent! Type your message or /help for commands.")
+	lines = append(lines, "")
+	for _, line := range welcomeTipLines() {
+		lines = append(lines, "  ✦ "+line)
+	}
 	return strings.Join(lines, "\n") + "\n"
+}
+
+// welcomeTipLines returns onboarding hints shown under the welcome banner.
+func welcomeTipLines() []string {
+	return []string{
+		"个股信号/走势：例如「分析 SpaceX 信号趋势」— 自动 search_code → 取 prompt 模板 → 技术信号分析",
+		"/details collapsed 折叠思考与工具 · Space 切换折叠块 · Ctrl+X 多 live session",
+		"/think on 开启 DeepSeek 推理 · /verbose on 展开过程 · /help 查看全部斜杠命令",
+		"/toolsets 切换工具分组（market / bot_manager 等）· /tools 列出当前可用 Tool",
+		"/recall 关键词 搜索历史会话（含 /exit 后的 closed 会话）· /dry-run on 跳过写 API",
+		"查交易 Bot：list_smart_trades / list_dca_bots；不要用 get_report_bot_codes 列机器人",
+		"查价先 search_code（如 SPCX、腾讯）再 get_current_price；拼写 SpaceX 勿写成 Xspace",
+	}
+}
+
+// RenderWelcomeTips returns styled multi-line tips for the Hermes welcome panel.
+func RenderWelcomeTips() string {
+	var b strings.Builder
+	b.WriteString(styleDim.Render("✦ Tips:"))
+	b.WriteByte('\n')
+	for _, tip := range welcomeTipLines() {
+		b.WriteString(styleDim.Render("  · "))
+		b.WriteString(styleText.Render(tip))
+		b.WriteByte('\n')
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
 
 func buildBannerLeft(opts BannerOptions) string {

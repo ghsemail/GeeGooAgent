@@ -22,7 +22,7 @@ func TestRegisterAllToolCount(t *testing.T) {
 		AllowedHosts: []string{"127.0.0.1"},
 	})
 	r := tools.NewRegistry()
-	tools.RegisterAll(r, tools.Deps{MCP: client, WorkspaceRoot: t.TempDir()})
+	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: t.TempDir()})
 	names := r.Names()
 	if len(names) < 80 {
 		t.Fatalf("expected >= 80 tools, got %d", len(names))
@@ -35,7 +35,7 @@ func TestAllToolsDryRun(t *testing.T) {
 		AllowedHosts: []string{"127.0.0.1"},
 	})
 	r := tools.NewRegistry()
-	tools.RegisterAll(r, tools.Deps{MCP: client, WorkspaceRoot: root})
+	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: root})
 	state := infra.NewStateStore(filepath.Join(root, "state"))
 	ctx := tools.Context{
 		SessionID: "test", MCPToken: "tok", DryRun: true, WorkspaceRoot: root, StateStore: state,
@@ -65,7 +65,7 @@ func TestNewsToolsSkipWhenScriptRunnerUnavailable(t *testing.T) {
 		AllowedHosts: []string{"127.0.0.1"},
 	})
 	r := tools.NewRegistry()
-	tools.RegisterAll(r, tools.Deps{MCP: client, WorkspaceRoot: root})
+	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: root})
 
 	ctx := tools.Context{SessionID: "test", MCPToken: "tok", WorkspaceRoot: root}
 	cases := []tools.CallRequest{

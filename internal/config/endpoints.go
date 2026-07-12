@@ -9,6 +9,7 @@ import (
 // GeeGoo 服务默认端口（见 docs/refactor/ports.md）。
 const (
 	DefaultBotMCPURL        = "http://127.0.0.1:3120"
+	DefaultSignalAPIURL     = "http://127.0.0.1:3200"
 	DefaultSignalCatalogURL = "http://127.0.0.1:3210"
 	DefaultSignalAnalyzeURL = "http://127.0.0.1:3230"
 	DefaultDataHTTPURL      = "http://127.0.0.1:3300"
@@ -25,27 +26,51 @@ func (c *AppConfig) SignalCatalogURL() string {
 	return DefaultSignalCatalogURL
 }
 
-// DefaultPythonAdminURL is TradingSignal adminServer (ops model SSOT writer).
-const DefaultPythonAdminURL = "http://146.56.225.252:5800"
+// SignalAPIURL returns GeeGooSignal signal-api (:3200).
+func (c *AppConfig) SignalAPIURL() string {
+	if v := os.Getenv("GEEGOO_SIGNAL_SIGNAL_API_URL"); v != "" {
+		return trimSlash(v)
+	}
+	if c.SignalAPIURLField != "" {
+		return trimSlash(c.SignalAPIURLField)
+	}
+	if c.SignalBaseURL != "" {
+		if u := replacePort(c.SignalBaseURL, "3200"); u != "" {
+			return u
+		}
+	}
+	return DefaultSignalAPIURL
+}
 
-// AdminModelURLs returns candidate bases for POST /queryModel (catalog first, then Python admin).
+// SignalAPIKey returns Bearer for GeeGooSignal signal-api.
+func (c *AppConfig) SignalAPIKey() string {
+	if v := os.Getenv("GEEGOO_SIGNAL_SIGNAL_API_KEY"); v != "" {
+		return v
+	}
+	if c.SignalAPIKeyField != "" {
+		return c.SignalAPIKeyField
+	}
+	return c.MCPAPIKey()
+}
+
+// SignalCatalogAPIKey returns Bearer for GeeGooSignal catalog-api.
+func (c *AppConfig) SignalCatalogAPIKey() string {
+	if v := os.Getenv("GEEGOO_SIGNAL_CATALOG_API_KEY"); v != "" {
+		return v
+	}
+	if c.SignalCatalogAPIKeyField != "" {
+		return c.SignalCatalogAPIKeyField
+	}
+	return c.SignalAPIKey()
+}
+
+// AdminModelURLs returns candidate bases for POST /queryModel (GeeGooSignal catalog :3210).
 func (c *AppConfig) AdminModelURLs() []string {
 	var out []string
 	if v := os.Getenv("GEEGOO_ADMIN_URL"); v != "" {
 		out = append(out, trimSlash(v))
 	}
 	out = append(out, c.SignalCatalogURL())
-	// Prefer production Python admin when catalog is localhost default (Agent host is remote).
-	catalog := c.SignalCatalogURL()
-	if strings.Contains(catalog, "127.0.0.1") || strings.Contains(catalog, "localhost") {
-		out = append(out, DefaultPythonAdminURL)
-	} else {
-		// Same host as catalog, port 5800 — Python admin still authoritative for ops writes.
-		if u := replacePort(catalog, "5800"); u != "" && u != catalog {
-			out = append(out, u)
-		}
-		out = append(out, DefaultPythonAdminURL)
-	}
 	return uniqueNonEmpty(out)
 }
 

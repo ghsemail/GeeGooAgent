@@ -6,14 +6,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/tools/catalog"
 )
 
 // Deps bundles shared dependencies for tool registration.
 type Deps struct {
-	MCP           *mcp.Client
+	HTTP          HTTPBackends
 	WorkspaceRoot string
 	ProjectRoot   string
 	Working       WorkingLoader
@@ -57,9 +56,9 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 					err      error
 				)
 				if spec.DirectResponse {
-					data, err = deps.MCP.PostDirect(ctx.GoContext(), spec.Path, body)
+					data, err = deps.HTTP.ForTool(spec.Name).PostDirect(ctx.GoContext(), spec.Path, body)
 				} else {
-					envelope, err = deps.MCP.Post(ctx.GoContext(), spec.Path, body)
+					envelope, err = deps.HTTP.ForTool(spec.Name).Post(ctx.GoContext(), spec.Path, body)
 					if err == nil {
 						data = envelope["data"]
 					}

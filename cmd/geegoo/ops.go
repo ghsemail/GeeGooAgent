@@ -42,8 +42,9 @@ func runSetup(args []string) {
 		os.Exit(1)
 	}
 	fmt.Printf("config=%s\n", *configPath)
-	fmt.Printf("mcp=%s signal_catalog=%s signal_analyze=%s data=%s\n",
+	fmt.Printf("mcp=%s signal_api=%s signal_catalog=%s signal_analyze=%s data=%s\n",
 		config.DefaultBotMCPURL,
+		config.DefaultSignalAPIURL,
 		config.DefaultSignalCatalogURL,
 		config.DefaultSignalAnalyzeURL,
 		config.DefaultDataHTTPURL,

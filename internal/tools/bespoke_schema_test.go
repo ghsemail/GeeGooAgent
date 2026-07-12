@@ -10,7 +10,7 @@ import (
 func TestAnalysisToolSchemasExposeRequiredFields(t *testing.T) {
 	client := mcp.NewClient("http://127.0.0.1:3120", "sk-test", mcp.Options{AllowedHosts: []string{"127.0.0.1"}})
 	r := tools.NewRegistry()
-	tools.RegisterAll(r, tools.Deps{MCP: client, WorkspaceRoot: t.TempDir()})
+	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: t.TempDir()})
 
 	byName := map[string]map[string]any{}
 	for _, schema := range r.Schemas(nil) {
@@ -39,7 +39,7 @@ func TestAnalysisToolSchemasExposeRequiredFields(t *testing.T) {
 func TestGetMCPAnalysisRejectsMissingCode(t *testing.T) {
 	client := mcp.NewClient("http://127.0.0.1:3120", "sk-test", mcp.Options{AllowedHosts: []string{"127.0.0.1"}})
 	r := tools.NewRegistry()
-	tools.RegisterAll(r, tools.Deps{MCP: client, WorkspaceRoot: t.TempDir()})
+	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: t.TempDir()})
 	res := r.Execute(tools.CallRequest{
 		Name: "get_mcp_analysis", Arguments: map[string]any{"name": "SpaceX", "period": "daily"},
 	}, tools.Context{SessionID: "s1", MCPToken: "mcp-test", DryRun: false})

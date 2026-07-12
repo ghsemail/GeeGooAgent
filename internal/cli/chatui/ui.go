@@ -110,6 +110,16 @@ func RenderInitializing() string {
 	return styleDim.Render("Initializing agent...")
 }
 
+// RenderThinkingLine returns body text for expanded reasoning sections.
+func RenderThinkingLine(line string) string {
+	return styleText.Render("    " + line)
+}
+
+// RenderDetailLine returns body text for tool/activity detail sections.
+func RenderDetailLine(line string) string {
+	return styleText.Render("    " + line)
+}
+
 // PrintBanner shows Hermes-style two-column welcome panel.
 func (u *ChatUI) PrintBanner(opts BannerOptions) {
 	u.write(RenderBanner(opts, u.width, u.plain))
@@ -147,12 +157,7 @@ func RenderBanner(opts BannerOptions, width int, plain bool) string {
 	b.WriteByte('\n')
 	b.WriteString(styleText.Render("Welcome to GeeGoo Agent! ") + styleDim.Render("Type your message or /help for commands."))
 	b.WriteByte('\n')
-	b.WriteString(
-		styleDim.Render("✦ Tip: ") +
-			styleDim.Render("/think on") + styleDim.Render(" shows DeepSeek reasoning; ") +
-			styleDim.Render("/details collapsed") + styleDim.Render(" folds thinking/tools; ") +
-			styleDim.Render("Ctrl+X") + styleDim.Render(" switches sessions."),
-	)
+	b.WriteString(RenderWelcomeTips())
 	b.WriteByte('\n')
 	b.WriteByte('\n')
 	return b.String()
@@ -300,7 +305,7 @@ func (u *ChatUI) AbortStreamReply() {
 	hadVisible := strings.TrimSpace(u.streamBuf.String()) != ""
 	u.write("\n")
 	if hadVisible && !u.plain {
-		u.println(styleDim.Render("  ↳ （计划文本，继续调用工具…）"))
+		u.println(styleText.Render("  ↳ （计划文本，继续调用工具…）"))
 	}
 	u.streamActive = false
 	u.streamBuf.Reset()
@@ -406,7 +411,7 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 			for _, line := range strings.Split(truncate(reasoning, 600), "\n") {
 				line = strings.TrimSpace(line)
 				if line != "" {
-					u.println("    " + styleDim.Render(line))
+					u.println("    " + styleText.Render(line))
 				}
 			}
 		}
@@ -414,7 +419,7 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 			u.println("  " + styleAmber.Render("📋 计划") + " " + styleText.Render(truncate(content, 280)))
 		}
 		if len(toolNames) > 0 {
-			u.println("  " + styleDim.Render("→ 调用: "+strings.Join(toolNames, ", ")))
+			u.println("  " + styleText.Render("→ 调用: "+strings.Join(toolNames, ", ")))
 		}
 	case "llm_tools":
 		u.AbortStreamReply()
@@ -425,7 +430,7 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 			return
 		}
 		if names, ok := data["tool_names"].([]string); ok && len(names) > 0 {
-			u.println("  " + styleDim.Render("⋯ 执行: "+strings.Join(names, ", ")))
+			u.println("  " + styleText.Render("⋯ 执行: "+strings.Join(names, ", ")))
 		}
 	case "tool_start":
 		u.AbortStreamReply()
@@ -475,8 +480,8 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 		u.println(fmt.Sprintf("  ┊ %s %s%s %s",
 			toolEmoji(name),
 			color.Render(fmt.Sprintf("%-22s", label)),
-			styleDim.Render(argsPart),
-			styleDim.Render(fmt.Sprintf("%.1fs", duration)),
+			styleText.Render(argsPart),
+			styleThinking.Render(fmt.Sprintf("%.1fs", duration)),
 		))
 	case "error":
 		u.AbortStreamReply()

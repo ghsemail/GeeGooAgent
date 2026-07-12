@@ -104,7 +104,11 @@ func (m *Model) renderTranscript() string {
 			if block.IsExpanded(m.display) {
 				body := strings.TrimRight(block.Body, "\n")
 				for _, line := range strings.Split(body, "\n") {
-					b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render("    " + line))
+					if block.Kind == KindThinking {
+						b.WriteString(chatui.RenderThinkingLine(line))
+					} else {
+						b.WriteString(chatui.RenderDetailLine(line))
+					}
 					b.WriteByte('\n')
 				}
 			}

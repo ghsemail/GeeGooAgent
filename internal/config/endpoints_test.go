@@ -30,6 +30,21 @@ func TestLegacyPortWarning(t *testing.T) {
 	}
 }
 
+func TestAdminModelURLsUsesCatalogOnly(t *testing.T) {
+	cfg := &config.AppConfig{SignalBaseURL: "http://146.56.225.252:3210"}
+	urls := cfg.AdminModelURLs()
+	if len(urls) != 1 || urls[0] != "http://146.56.225.252:3210" {
+		t.Fatalf("admin URLs = %v", urls)
+	}
+}
+
+func TestSignalAPIURLFromCatalogHost(t *testing.T) {
+	cfg := &config.AppConfig{SignalBaseURL: "http://146.56.225.252:3210"}
+	if got := cfg.SignalAPIURL(); got != "http://146.56.225.252:3200" {
+		t.Fatalf("signal api = %q", got)
+	}
+}
+
 func TestEnvOverridesSignalAndData(t *testing.T) {
 	t.Setenv("GEEGOO_SIGNAL_CATALOG_API_URL", "http://signal.local:3210")
 	t.Setenv("GEEGOO_DATA_HTTP_URL", "http://data.local:3300")

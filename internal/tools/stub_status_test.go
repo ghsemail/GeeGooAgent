@@ -12,7 +12,7 @@ func TestRecallYesterdaySummaryIsNotASuccessfulStub(t *testing.T) {
 		AllowedHosts: []string{"127.0.0.1"},
 	})
 	r := tools.NewRegistry()
-	tools.RegisterAll(r, tools.Deps{MCP: client, WorkspaceRoot: t.TempDir()})
+	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: t.TempDir()})
 
 	result := r.Execute(tools.CallRequest{Name: "recall_yesterday_summary"}, tools.Context{SessionID: "test"})
 	if result.Status != tools.StatusSkip {

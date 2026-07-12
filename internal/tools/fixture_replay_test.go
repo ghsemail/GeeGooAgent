@@ -46,7 +46,7 @@ func TestFixtureListSmartTradesReplay(t *testing.T) {
 
 	client := mcp.NewClient(srv.URL, "sk-test", mcp.Options{AllowedHosts: []string{"127.0.0.1"}})
 	r := tools.NewRegistry()
-	tools.RegisterAll(r, tools.Deps{MCP: client, WorkspaceRoot: t.TempDir()})
+	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: t.TempDir()})
 
 	res := r.Execute(tools.CallRequest{Name: "list_smart_trades", Arguments: map[string]any{}}, tools.Context{
 		SessionID: "s1", MCPToken: "mcp-user-fixtures", DryRun: false,
@@ -87,7 +87,7 @@ func TestFixtureListSmartTradesEmptyClassifiedAsSkip(t *testing.T) {
 
 	client := mcp.NewClient(srv.URL, "sk-test", mcp.Options{AllowedHosts: []string{"127.0.0.1"}})
 	r := tools.NewRegistry()
-	tools.RegisterAll(r, tools.Deps{MCP: client, WorkspaceRoot: t.TempDir()})
+	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: t.TempDir()})
 
 	res := r.Execute(tools.CallRequest{Name: "list_smart_trades", Arguments: map[string]any{}}, tools.Context{
 		SessionID: "s2", MCPToken: "mcp-user", DryRun: false,
@@ -120,7 +120,7 @@ func TestFixtureGetMCPAnalysisEmptyResultClassifiedAsSkip(t *testing.T) {
 
 	client := mcp.NewClient(srv.URL, "sk-test", mcp.Options{AllowedHosts: []string{"127.0.0.1"}})
 	r := tools.NewRegistry()
-	tools.RegisterAll(r, tools.Deps{MCP: client, WorkspaceRoot: t.TempDir()})
+	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: t.TempDir()})
 
 	res := r.Execute(tools.CallRequest{Name: "get_mcp_analysis", Arguments: map[string]any{
 		"name": "腾讯控股", "code": "00700.HK", "period": "weekly",

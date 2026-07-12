@@ -71,14 +71,17 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	checkpoints := infra.NewCheckpointManager(state)
 	eventBus := infra.NewEventBus()
 
-	mcpClient := mcp.NewClient(cfg.EffectiveMCPURL(), cfg.MCPAPIKey(), mcp.Options{
-		AllowedHosts: cfg.ResolvedAllowedHosts(),
-	})
+	mcpOpts := mcp.Options{AllowedHosts: cfg.ResolvedAllowedHosts()}
+	httpBackends := tools.HTTPBackends{
+		MCP: mcp.NewClient(cfg.EffectiveMCPURL(), cfg.MCPAPIKey(), mcpOpts),
+		SignalAPI: mcp.NewClient(cfg.SignalAPIURL(), cfg.SignalAPIKey(), mcpOpts),
+		SignalCatalog: mcp.NewClient(cfg.SignalCatalogURL(), cfg.SignalCatalogAPIKey(), mcpOpts),
+	}
 
 	registry := tools.NewRegistry()
 	workingLoader := workflow.WorkingLoaderAdapter{Store: working}
 	tools.RegisterAll(registry, tools.Deps{
-		MCP: mcpClient, WorkspaceRoot: workspace, ProjectRoot: findProjectRoot(),
+		HTTP: httpBackends, WorkspaceRoot: workspace, ProjectRoot: findProjectRoot(),
 		Working: workingLoader, Search: cfg.EffectiveSearch(),
 	})
 
@@ -92,7 +95,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	wf := workflow.NewRunner(executor, working, cpAdapter)
 
 	app := &App{
-		Config: cfg, MCP: mcpClient, Registry: registry,
+		Config: cfg, MCP: httpBackends.MCP, Registry: registry,
 		Executor: executor, Workflow: wf, Working: working, State: state, Checkpoints: checkpoints, EventBus: eventBus, Workspace: workspace,
 	}
 	if err := app.openDatabase(); err != nil {

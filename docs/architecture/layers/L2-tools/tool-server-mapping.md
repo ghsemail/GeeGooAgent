@@ -4,24 +4,29 @@
 >
 > 生成基准：`geegoo` 全量 82 个 Tool（`bootstrap.all_tool_instances()`）。
 
-## 服务器别名
+## 服务器别名（GeeGoo Go 3xxx）
 
 | 别名 | IP | 端口 | 说明 |
 |------|-----|------|------|
-| **geegoo mcp** | `118.195.135.97` | **5700** | 统一 MCP API（Bot CRUD、策略、分析、workflow、报告） |
-| **SignalServer** | `146.56.225.252` | **5800** | 信号/回测（Agent **不直连**，经 geegoo mcp 转发） |
-| **TradingServer** | `43.134.94.87` | **7000** | 富途行情/持仓（Agent **不直连**，经 geegoo mcp 转发） |
+| **GeeGooBot mcp-api** | `118.195.135.97` | **3120** | MCP 契约 API（GeeGooAgent 主入口） |
+| **GeeGooSignal signal-api** | `146.56.225.252` | **3200** | 标的搜索、回测等 |
+| **GeeGooSignal catalog-api** | `146.56.225.252` | **3210** | 指标信号、queryModel |
+| **GeeGooData data-api** | `47.80.14.120` | **3300** | 行情数据 |
 
-> **5900 已废弃**：原 geegoo mcp 已合并入 geegoo mcp（5700）。
+> **5xxx Python 老栈保留**：TradingBot `:5700`、TradingSignal `:5800` 等同机并行，供 App/运维与 Strangler 内部调用；**GeeGooAgent 不直连**。
 
 配置项对应关系（`config.json`）：
 
-| 配置项               | 默认 URL                       | 说明                                    |
+| 配置项 | 生产 URL | 说明 |
 | ----------------- | ---------------------------- | --------------------------------------- |
-| `geegoo_url`        | `http://118.195.135.97:5700` | geegoo mcp 唯一入口                            |
-| `geegoo_api_key`    | `sk-...`                     | geegoo mcp Bearer Token（`mk-` 已废弃）       |
-| `base_url` / `api_key` | 同 `geegoo_url` / `geegoo_api_key` | 兼容旧配置，新部署请只用 geegoo_* |
-| `signal_base_url` | `http://146.56.225.252:5800` | SignalServer（Tool 不直连） |
+| `geegoo_url` / `base_url` | `http://118.195.135.97:3120` | GeeGooBot mcp-api |
+| `geegoo_api_key` / `api_key` | `GEEGOO_BOT_MCP_API_KEY` | mcp-api Bearer（**非**旧 Python sk- key） |
+| `signal_base_url` | `http://146.56.225.252:3210` | catalog-api |
+| `signal_api_url` | `http://146.56.225.252:3200` | signal-api（可省略，由 catalog 主机推导） |
+| `signal_api_key` / `signal_catalog_api_key` | 各服务 Bearer | 见 GeeGooSignal `.env` |
+| `data_base_url` | `http://47.80.14.120:3300` | GeeGooData |
+
+参考：`config.production.example.json`
 
 ## 图例
 
