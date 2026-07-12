@@ -9,7 +9,7 @@ from pathlib import Path
 import paramiko
 
 DEPLOY = Path(r"C:\Users\ghsemail\.cursor\skills\remote-deploy\deploy.json")
-EXPECTED_HEAD = "6a3fd62e"
+EXPECTED_HEAD = "f4944955"
 
 
 def ssh_run(host_cfg: dict, cmd: str, timeout: int = 300) -> str:
