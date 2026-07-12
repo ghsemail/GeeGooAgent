@@ -14,8 +14,8 @@ import (
 	prompt "github.com/c-bata/go-prompt"
 
 	"github.com/ghsemail/GeeGooAgent/internal/app"
-	"github.com/ghsemail/GeeGooAgent/internal/cli/chatui"
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
+	"github.com/ghsemail/GeeGooAgent/internal/cli/chatui"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
@@ -182,7 +182,7 @@ func (r *Repl) printBanner() {
 		SessionID: r.Chat.ID, Provider: preset.Label, Model: model,
 		Registry: r.Registry, ToolNames: tools.RegisteredChatToolNames(r.Registry),
 		Thinking: llm.ResolveThinkingEnabled(provider, model, cfg.LLM.Thinking),
-		DryRun: r.DryRun, Workspace: workspace, InstallDir: r.InstallDir,
+		DryRun:   r.DryRun, Workspace: workspace, InstallDir: r.InstallDir,
 		ProjectRoot: r.ProjectRoot,
 		APIHosts: chatui.APIHostsFromConfig(
 			cfg.EffectiveMCPURL(), cfg.SignalCatalogURL(), cfg.DataHTTPURL(),
@@ -208,6 +208,10 @@ func (r *Repl) runTurn(text string) runtime.TurnResult {
 	schemas := r.Registry.Schemas(tools.RegisteredChatToolNames(r.Registry))
 	ctx := r.App.ToolContext(r.Session.ID)
 	ctx.DryRun = r.DryRun
+	// Chat is an interactive, user-facing entry point.  Mutating tools must
+	// therefore pass through ApprovalGate instead of inheriting the workflow
+	// default (non-interactive) policy from App.ToolContext.
+	ctx.Interactive = true
 	turnCtx := r.turnCtx()
 	result := r.App.Agent.Run(turnCtx, r.Session, text, ctx, schemas)
 	if r.curCancel != nil {

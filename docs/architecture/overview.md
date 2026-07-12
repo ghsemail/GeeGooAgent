@@ -30,6 +30,11 @@
 │  │ + dynamic ctx│  │  openai)     │  │  bespoke)    │               │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘               │
 │         │                 │                 │                       │
+│  ┌──────┴───────────────────────────────────────────────────────┐   │
+│  │ Context Compressor (internal/prompt)                         │   │
+│  │ Hermes-style token-threshold compression before LLM rounds   │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│         │                 │                 │                       │
 │  ┌──────┴───────┐  ┌──────┴───────┐  ┌──────┴───────┐               │
 │  │ DeepSeek     │  │ 3 providers  │  │ ~82 tools    │               │
 │  │ thinking +   │  │ chat_compl.  │  │ approval gate│               │
@@ -79,6 +84,11 @@ GeeGooAgent/
 │   │
 │   ├── chatprompt/          # 系统 prompt（静态人格 + 路由规则）
 │   │   └── prompt.go
+│   │
+│   ├── prompt/              # 上下文压缩（Hermes-style，LLM 轮前触发）
+│   │   ├── compressor.go    # 四阶段压缩 + ShouldCompress
+│   │   ├── summary.go       # 辅助 LLM 结构化摘要
+│   │   └── estimate.go      # token 估算（chars/4）
 │   │
 │   ├── llm/                 # Provider 层（roadmap 计划重命名为 provider/）
 │   │   ├── types.go         # Message / Provider interface / ToolSchema
@@ -221,6 +231,8 @@ POST /v1/chat/completions（Bearer + X-MCP-Token）
 ### Prompt 系统
 
 `internal/chatprompt/prompt.go` 提供稳定 system prompt（人格 + Tool 路由规则 + 记忆规则）。`ChatSession.RuntimeMessages()` 在最后一条 user message 前注入动态 Tool 活动 context（user 角色），**system message 跨轮字节不变**，保 DeepSeek/OpenAI 前缀缓存命中率。DeepSeek thinking 模式通过 `llm/openai.go` 的 `thinking`/`reasoning_effort`/`reasoning_content` 解析接入。
+
+`internal/prompt/compressor.go` 在每轮 LLM 调用前按 token 阈值（`threshold × context_length`）触发 Hermes-style 四阶段压缩：清旧 tool 结果 → 头/中/尾边界 → 辅助 LLM 摘要 → 组装写回会话。详见 [`layers/L3-memory/compaction.md`](layers/L3-memory/compaction.md)。
 
 ### Provider 解析
 

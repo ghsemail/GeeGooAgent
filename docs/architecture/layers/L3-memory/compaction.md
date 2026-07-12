@@ -2,27 +2,29 @@
 
 ## 职责
 
-防止 SessionMemory 超过 `context_token_budget`。
+长对话接近模型上下文窗时自动压缩，避免 API context-length 失败与 token 费用失控。
 
-## 四级策略
+## 实现
 
+GeeGooAgent 采用 **Hermes-style 单层 Agent 压缩器**（`internal/prompt/compressor.go`），挂在 ReAct / `Agent.Run` 每轮 `gateway.Chat` 之前。chat CLI 与 HTTP `agent-runtime` 共用同一路径。
 
-| 级别      | 触发                 | 动作                                   |
-| ------- | ------------------ | ------------------------------------ |
-| L1 工具截断 | 每个 tool result 写入时 | 全文→Working；Session 留 500 token 摘要    |
-| L2 滑动窗口 | token > 60k        | 保留 system + 最近 8 轮 + Working Summary |
-| L3 阶段压缩 | phase_a → phase_b  | 插入 PhaseASummary，删 5 指数原始 results    |
-| L4 紧急压缩 | token > 90k        | LLM 生成滚动摘要；archive 旧 messages        |
+完整设计见 [`../../../superpowers/specs/2026-07-12-context-compression-design.md`](../../../superpowers/specs/2026-07-12-context-compression-design.md)。
 
+### 触发
 
-## 接口
+`prompt_tokens ≥ threshold × context_length`（默认 threshold=0.5，context_length=128000）。优先用上一轮 API 返回的 `prompt_tokens`，否则 `EstimateTokens`（chars/4）粗估。
 
-```python
-class ContextBuilder:
-    def build(self, session, working) -> list[Message]: ...
-    def compact_if_needed(self, session) -> None: ...
-```
+### 四阶段
 
-## MVP
+| 阶段 | 动作 |
+| --- | --- |
+| Phase 1 | 清除保护尾之外的大 tool 结果（无 LLM） |
+| Phase 2 | 确定头/中/尾边界，对齐 tool 组 |
+| Phase 3 | 辅助 LLM 生成结构化摘要（可配置 `auxiliary.compression`，空则回退主 LLM） |
+| Phase 4 | 组装头 + 摘要 + 尾，sanitize tool 对，写回 `session.Messages` |
 
-L1 + L2；L3 规则生成摘要（可不调 LLM）。
+摘要失败时**跳过本次压缩**，保留完整中间轮（比 Hermes 更保守）。确定性 `workflow` 路径不调用 Compressor。
+
+### 与 Prompt 稳定性
+
+压缩不修改 `Messages[0]` 的稳定 system 正文；compaction note 放在摘要消息内，与 P2a 前缀缓存约定一致。

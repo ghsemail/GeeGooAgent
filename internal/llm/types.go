@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 )
 
 // Role is a chat message role.
@@ -74,6 +75,6 @@ func ParseToolArguments(raw any) (map[string]any, error) {
 		}
 		return out, nil
 	default:
-		return map[string]any{}, nil
+		return nil, fmt.Errorf("tool arguments must be a JSON object or string, got %T", raw)
 	}
 }

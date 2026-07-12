@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
+	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
@@ -23,10 +24,12 @@ type TurnResult struct {
 
 // ReActLoop runs plan → act → observe for one chat turn.
 type ReActLoop struct {
-	gateway       *llm.Gateway
-	executor      *Executor
-	maxToolRounds int
-	onProgress    ProgressFunc
+	gateway          *llm.Gateway
+	executor         *Executor
+	maxToolRounds    int
+	onProgress       ProgressFunc
+	compressor       *prompt.Compressor
+	lastPromptTokens int
 }
 
 // NewReActLoop creates a ReAct loop.
@@ -41,6 +44,11 @@ func NewReActLoop(gateway *llm.Gateway, executor *Executor) *ReActLoop {
 // SetGateway swaps the LLM gateway (e.g. after /think or /model).
 func (l *ReActLoop) SetGateway(gateway *llm.Gateway) {
 	l.gateway = gateway
+}
+
+// SetCompressor wires optional context compaction before LLM calls.
+func (l *ReActLoop) SetCompressor(c *prompt.Compressor) {
+	l.compressor = c
 }
 
 // SetProgress wires live step output (geegoo chat verbose UI).
@@ -83,11 +91,15 @@ func (l *ReActLoop) RunTurn(
 		step := session.StepCounter
 		l.emit("round_start", map[string]any{"round": round + 1, "step": step})
 
+		messages = l.applyCompression(ctx, session, messages)
 		resp, err := l.gateway.Chat(ctx, messages, schemas, session.ID, step)
 		if err != nil {
 			msg := fmt.Sprintf("模型调用失败: %v", err)
 			l.emit("error", map[string]any{"message": msg})
 			return TurnResult{AssistantText: msg, Failed: true, Error: err.Error(), StepRecords: records}
+		}
+		if resp.Usage.PromptTokens > 0 {
+			l.lastPromptTokens = resp.Usage.PromptTokens
 		}
 
 		toolNames := make([]string, 0, len(resp.ToolCalls))
@@ -172,6 +184,33 @@ func (l *ReActLoop) RunTurn(
 	msg := "已达到单轮 Tool 调用上限，请缩小问题范围后重试。"
 	l.emit("error", map[string]any{"message": msg})
 	return TurnResult{AssistantText: msg, Failed: true, Error: "max_tool_rounds", StepRecords: records}
+}
+
+func (l *ReActLoop) applyCompression(ctx context.Context, session *Session, messages []llm.Message) []llm.Message {
+	if l.compressor == nil {
+		return messages
+	}
+	est := l.lastPromptTokens
+	if est <= 0 {
+		est = prompt.EstimateTokens(session.Messages)
+	}
+	if !l.compressor.ShouldCompress(est, len(session.Messages)) {
+		return messages
+	}
+	before := len(session.Messages)
+	out, did, newSummary, err := l.compressor.Compress(ctx, session.Messages, session.PreviousSummary, est)
+	if err != nil || !did {
+		return messages
+	}
+	session.Messages = out
+	session.PreviousSummary = newSummary
+	l.emit("context_compressed", map[string]any{
+		"before_msgs":             before,
+		"after_msgs":              len(out),
+		"estimated_tokens_before": est,
+		"summary_chars":           len(session.PreviousSummary),
+	})
+	return session.LLMMessages()
 }
 
 func toolResultContent(result tools.Result) string {

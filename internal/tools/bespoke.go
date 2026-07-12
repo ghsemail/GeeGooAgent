@@ -358,7 +358,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 		Handle: func(ctx Context, args map[string]any) Result {
 			_ = ctx
 			_ = args
-			return Result{Status: StatusOK, Summary: "recall_yesterday_summary: not implemented", Data: map[string]any{}}
+			return Result{Status: StatusSkip, Summary: "recall_yesterday_summary is not implemented", Data: map[string]any{"implemented": false}}
 		},
 	})
 	r.Register(Tool{

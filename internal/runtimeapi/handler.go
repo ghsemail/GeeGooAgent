@@ -52,9 +52,9 @@ type chatResponse struct {
 }
 
 type chatChoice struct {
-	Index        int          `json:"index"`
-	Message      chatMessage  `json:"message"`
-	FinishReason string       `json:"finish_reason"`
+	Index        int         `json:"index"`
+	Message      chatMessage `json:"message"`
+	FinishReason string      `json:"finish_reason"`
 }
 
 type modelsResponse struct {
@@ -91,6 +91,10 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	sessionID := "api-" + time.Now().Format("150405")
 	ctx := h.App.ToolContext(sessionID)
 	ctx.MCPToken = mcpToken
+	// An OpenAI-compatible request is an ad-hoc user interaction, not a
+	// pre-authorized deterministic workflow. Keep write tools behind the
+	// approval gate until this API exposes an explicit approval protocol.
+	ctx.Interactive = true
 
 	upstream := make([]runtime.UpstreamMessage, 0, len(req.Messages))
 	for _, m := range req.Messages {

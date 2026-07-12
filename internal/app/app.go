@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	cryptorand "crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -11,11 +12,13 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
+	"github.com/ghsemail/GeeGooAgent/internal/clients/admin"
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/skills"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -39,7 +42,7 @@ type App struct {
 	EventBus    *infra.EventBus
 	Workspace   string
 	// P1 SQLite foundation. DB is nil when disabled via GEEGOO_DB=off or open failure.
-	DB      *infra.DB
+	DB       *infra.DB
 	Evidence *memory.EvidenceStore
 	// P2c platform-agnostic agent core. Owns the ReAct loop; used by chat,
 	// runtime HTTP, and (later) workflow/scheduler.
@@ -100,6 +103,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	}
 	app.Loop = runtime.NewReActLoop(app.Gateway, executor)
 	app.Agent = agent.New(app.Gateway, executor, registry)
+	app.wireCompressor()
 	if adapter := newSynthesizerAdapter(app.Gateway, app.Config.LLM.Model); adapter != nil {
 		workflow.SetDefaultSynthesizer(adapter)
 	}
@@ -133,10 +137,41 @@ func (a *App) Close() error {
 }
 
 // RebuildGateway recreates the LLM gateway from current config (after /think or /model).
+// When llm.use_ops_model is true/nil, prefers ops configured model from Signal catalog/admin.
 func (a *App) RebuildGateway() error {
+	providerName := a.Config.LLM.Provider
+	tokenKey := a.Config.LLM.TokenKey
+	model := a.Config.LLM.Model
+	baseURL := strings.TrimSpace(a.Config.LLM.BaseURL)
+
+	if a.Config.LLM.OpsModelEnabled() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		doc, src, err := admin.QueryConfiguredFromCandidates(ctx, a.Config.AdminModelURLs()...)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "警告: 拉取运营配置模型失败（回退本地 llm）: %v\n", err)
+		} else {
+			name := strings.TrimSpace(doc.Name)
+			if name == "" {
+				name = strings.TrimSpace(doc.DisplayName)
+			}
+			if tok := strings.TrimSpace(doc.Token); tok != "" {
+				tokenKey = tok
+			}
+			if name != "" {
+				model = name
+			}
+			if bu := strings.TrimSpace(doc.BaseURL); bu != "" {
+				baseURL = bu
+			}
+			providerName = llm.InferProviderFromNames(doc.DisplayName, doc.Name)
+			fmt.Fprintf(os.Stderr, "LLM: 使用运营配置 model=%s base_url=%s from %s\n", model, baseURL, src)
+		}
+	}
+
 	provider, err := llm.BuildProviderFromLLMFields(
-		a.Config.LLM.Provider, a.Config.LLM.TokenKey, a.Config.LLM.Model,
-		a.Config.LLM.Thinking, a.Config.LLM.ReasoningEffort,
+		providerName, tokenKey, model,
+		a.Config.LLM.Thinking, a.Config.LLM.ReasoningEffort, baseURL,
 	)
 	if err != nil {
 		return err
@@ -147,7 +182,36 @@ func (a *App) RebuildGateway() error {
 	if a.Loop != nil {
 		a.Loop.SetGateway(a.Gateway)
 	}
+	if a.Agent != nil {
+		a.Agent.SetGateway(a.Gateway)
+	}
+	a.wireCompressor()
 	return nil
+}
+
+func (a *App) wireCompressor() {
+	cfg := a.Config.EffectiveCompression()
+	if !cfg.Enabled {
+		a.setCompressor(nil)
+		return
+	}
+	aux := a.Config.EffectiveAuxiliaryCompression()
+	provider, err := llm.BuildProviderFromLLMFields(aux.Provider, aux.TokenKey, aux.Model, nil, "", aux.BaseURL)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "警告: 上下文压缩未启用: %v\n", err)
+		a.setCompressor(nil)
+		return
+	}
+	a.setCompressor(prompt.NewCompressor(cfg, &prompt.ProviderSummarizer{Provider: provider}))
+}
+
+func (a *App) setCompressor(c *prompt.Compressor) {
+	if a.Agent != nil {
+		a.Agent.SetCompressor(c)
+	}
+	if a.Loop != nil {
+		a.Loop.SetCompressor(c)
+	}
 }
 
 // Skills is the registry of runnable skills (built-in + any registered at runtime).
@@ -162,6 +226,12 @@ func (a *App) RunPreMarket(skill string) (workflow.RunResult, error) {
 // RunSkill executes a named skill workflow looked up in the skill registry.
 // Returns an error if the skill is not registered.
 func (a *App) RunSkill(skill string) (workflow.RunResult, error) {
+	return a.RunSkillContext(context.Background(), skill)
+}
+
+// RunSkillContext executes a named skill with cancellation propagated to tools
+// and optional LLM synthesis.
+func (a *App) RunSkillContext(ctx context.Context, skill string) (workflow.RunResult, error) {
 	spec, ok := DefaultSkills.Get(skill)
 	if !ok {
 		return workflow.RunResult{}, fmt.Errorf("unknown skill: %s (run 'geegoo skills list')", skill)
@@ -169,20 +239,30 @@ func (a *App) RunSkill(skill string) (workflow.RunResult, error) {
 	if spec.PhaseA == nil || spec.PerStock == nil {
 		return workflow.RunResult{}, fmt.Errorf("skill %s has no step functions defined", skill)
 	}
+	phaseA := spec.PhaseA()
+	perStock := spec.PerStock()
+	if len(phaseA) == 0 && len(perStock) == 0 {
+		return workflow.RunResult{}, fmt.Errorf("skill %s is registered but has no executable steps", skill)
+	}
 	sessionID := newSessionID()
 	a.EventBus.Emit("RunStarted", map[string]any{"session_id": sessionID, "skill": skill})
 	working, err := a.Working.Create(sessionID, skill)
 	if err != nil {
 		return workflow.RunResult{}, err
 	}
-	ctx := a.ToolContext(sessionID)
-	result := a.Workflow.Run(sessionID, skill, spec.PhaseA(), spec.PerStock(), ctx, working)
+	toolCtx := a.ToolContextWithContext(ctx, sessionID)
+	result := a.Workflow.Run(sessionID, skill, phaseA, perStock, toolCtx, working)
 	return result, nil
 }
 
 // ResumePreMarket resumes a workflow from its latest checkpoint. The checkpoint's
 // skill name drives step lookup via the registry, so resume works for any skill.
 func (a *App) ResumePreMarket(sessionID string) (workflow.RunResult, error) {
+	return a.ResumePreMarketContext(context.Background(), sessionID)
+}
+
+// ResumePreMarketContext resumes a workflow and propagates cancellation to tool calls.
+func (a *App) ResumePreMarketContext(ctx context.Context, sessionID string) (workflow.RunResult, error) {
 	cp, err := a.Checkpoints.LoadLatest(sessionID)
 	if err != nil {
 		return workflow.RunResult{}, err
@@ -194,6 +274,11 @@ func (a *App) ResumePreMarket(sessionID string) (workflow.RunResult, error) {
 	if !ok || spec.PhaseA == nil || spec.PerStock == nil {
 		return workflow.RunResult{}, fmt.Errorf("unsupported checkpoint skill: %s", cp.Skill)
 	}
+	phaseA := spec.PhaseA()
+	perStock := spec.PerStock()
+	if len(phaseA) == 0 && len(perStock) == 0 {
+		return workflow.RunResult{}, fmt.Errorf("checkpoint skill %s has no executable steps", cp.Skill)
+	}
 	working, err := a.Working.Load(sessionID)
 	if err != nil {
 		return workflow.RunResult{}, err
@@ -204,14 +289,19 @@ func (a *App) ResumePreMarket(sessionID string) (workflow.RunResult, error) {
 	if cp.Status == "completed" || working.Phase == "done" {
 		return workflow.RunResult{SessionID: sessionID, Status: "completed", Working: working}, nil
 	}
-	ctx := a.ToolContext(sessionID)
-	return a.Workflow.RunFrom(sessionID, cp.Skill, spec.PhaseA(), spec.PerStock(), ctx, working, cp.Step), nil
+	toolCtx := a.ToolContextWithContext(ctx, sessionID)
+	return a.Workflow.RunFrom(sessionID, cp.Skill, phaseA, perStock, toolCtx, working, cp.Step), nil
 }
 
 // ToolContext builds execution context for the current session.
 func (a *App) ToolContext(sessionID string) tools.Context {
+	return a.ToolContextWithContext(context.Background(), sessionID)
+}
+
+// ToolContextWithContext builds execution context for the current session.
+func (a *App) ToolContextWithContext(ctx context.Context, sessionID string) tools.Context {
 	return tools.Context{
-		SessionID: sessionID, MCPToken: a.Config.MCPToken(), DryRun: a.Config.DryRun,
+		Ctx: ctx, SessionID: sessionID, MCPToken: a.Config.MCPToken(), DryRun: a.Config.DryRun,
 		WorkspaceRoot: a.Workspace, EventBus: a.EventBus, StateStore: a.State,
 	}
 }

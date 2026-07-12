@@ -25,6 +25,69 @@ func (c *AppConfig) SignalCatalogURL() string {
 	return DefaultSignalCatalogURL
 }
 
+// DefaultPythonAdminURL is TradingSignal adminServer (ops model SSOT writer).
+const DefaultPythonAdminURL = "http://146.56.225.252:5800"
+
+// AdminModelURLs returns candidate bases for POST /queryModel (catalog first, then Python admin).
+func (c *AppConfig) AdminModelURLs() []string {
+	var out []string
+	if v := os.Getenv("GEEGOO_ADMIN_URL"); v != "" {
+		out = append(out, trimSlash(v))
+	}
+	out = append(out, c.SignalCatalogURL())
+	// Prefer production Python admin when catalog is localhost default (Agent host is remote).
+	catalog := c.SignalCatalogURL()
+	if strings.Contains(catalog, "127.0.0.1") || strings.Contains(catalog, "localhost") {
+		out = append(out, DefaultPythonAdminURL)
+	} else {
+		// Same host as catalog, port 5800 — Python admin still authoritative for ops writes.
+		if u := replacePort(catalog, "5800"); u != "" && u != catalog {
+			out = append(out, u)
+		}
+		out = append(out, DefaultPythonAdminURL)
+	}
+	return uniqueNonEmpty(out)
+}
+
+func replacePort(raw, port string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	// crude host:port swap for http(s)://host:port
+	schemeSep := "://"
+	i := strings.Index(raw, schemeSep)
+	if i < 0 {
+		return ""
+	}
+	rest := raw[i+len(schemeSep):]
+	host := rest
+	if j := strings.Index(rest, "/"); j >= 0 {
+		host = rest[:j]
+	}
+	if k := strings.LastIndex(host, ":"); k >= 0 {
+		host = host[:k]
+	}
+	return raw[:i+len(schemeSep)] + host + ":" + port
+}
+
+func uniqueNonEmpty(in []string) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	for _, s := range in {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	return out
+}
+
 // SignalAnalyzeURL returns GeeGooSignal analyze-api (:3230).
 func (c *AppConfig) SignalAnalyzeURL() string {
 	if v := os.Getenv("GEEGOO_SIGNAL_ANALYZE_API_URL"); v != "" {

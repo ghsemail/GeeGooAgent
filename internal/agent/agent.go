@@ -11,6 +11,7 @@ import (
 	"context"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
+	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
@@ -44,6 +45,24 @@ func (a *Agent) Run(
 	schemas []llm.ToolSchema,
 ) runtime.TurnResult {
 	return a.Loop.RunTurn(ctx, session, userText, toolCtx, schemas)
+}
+
+// SetCompressor wires context compression into the owned loop.
+func (a *Agent) SetCompressor(c *prompt.Compressor) {
+	if a != nil && a.Loop != nil {
+		a.Loop.SetCompressor(c)
+	}
+}
+
+// SetGateway swaps the LLM gateway and keeps the owned loop in sync.
+func (a *Agent) SetGateway(g *llm.Gateway) {
+	if a == nil {
+		return
+	}
+	a.Gateway = g
+	if a.Loop != nil {
+		a.Loop.SetGateway(g)
+	}
 }
 
 // SetProgress wires live step output (used by chat UI).

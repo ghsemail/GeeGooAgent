@@ -12,14 +12,18 @@ import (
 
 // Step is one workflow step.
 type Step struct {
-	Name      string
-	Tool      string
-	Arguments map[string]any
-	ArgFunc   func(*memory.PreMarketWorking) map[string]any
+	Name           string
+	Tool           string
+	Arguments      map[string]any
+	ArgFunc        func(*memory.PreMarketWorking) map[string]any
+	ContextArgFunc func(context.Context, *memory.PreMarketWorking) map[string]any
 }
 
 // Args resolves step arguments.
-func (s Step) Args(working *memory.PreMarketWorking) map[string]any {
+func (s Step) Args(ctx context.Context, working *memory.PreMarketWorking) map[string]any {
+	if s.ContextArgFunc != nil {
+		return s.ContextArgFunc(ctx, working)
+	}
 	if s.ArgFunc != nil {
 		return s.ArgFunc(working)
 	}
@@ -47,10 +51,10 @@ func (r RunResult) OK() bool { return r.Status == "completed" }
 
 // Runner executes deterministic workflow steps.
 type Runner struct {
-	executor     *runtime.Executor
-	working      *memory.WorkingStore
-	checkpts     CheckpointSaver
-	synthesizer  SynthesizerProvider
+	executor    *runtime.Executor
+	working     *memory.WorkingStore
+	checkpts    CheckpointSaver
+	synthesizer SynthesizerProvider
 }
 
 // SynthesizerProvider abstracts report.Synthesizer so the workflow package
@@ -140,7 +144,7 @@ func (r *Runner) RunFrom(
 					break
 				}
 				stepCounter++
-				named := Step{Name: code + "/" + step.Name, Tool: step.Tool, ArgFunc: step.ArgFunc, Arguments: step.Arguments}
+				named := Step{Name: code + "/" + step.Name, Tool: step.Tool, ArgFunc: step.ArgFunc, ContextArgFunc: step.ContextArgFunc, Arguments: step.Arguments}
 				key := stepKey(named.Name, named.Tool)
 				if isStepComplete(working, key) {
 					continue
@@ -209,7 +213,11 @@ func (r *Runner) processStep(
 	working *memory.PreMarketWorking,
 	stepIndex int,
 ) (*memory.PreMarketWorking, *RunResult) {
-	result := r.executor.Execute(tools.CallRequest{Name: step.Tool, Arguments: step.Args(working)}, ctx)
+	goCtx := ctx.GoContext()
+	if err := goCtx.Err(); err != nil {
+		return working, &RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: err.Error()}
+	}
+	result := r.executor.Execute(tools.CallRequest{Name: step.Tool, Arguments: step.Args(goCtx, working)}, ctx)
 	var err error
 	working, err = r.working.Apply(working, step.Tool, result)
 	if err != nil {
@@ -231,7 +239,10 @@ func (r *Runner) processStep(
 		kind := classifyError(step.Tool, result.Summary)
 		if kind == ErrorRecoverable {
 			// One retry for transient errors before giving up.
-			result2 := r.executor.Execute(tools.CallRequest{Name: step.Tool, Arguments: step.Args(working)}, ctx)
+			if err := goCtx.Err(); err != nil {
+				return working, &RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: err.Error()}
+			}
+			result2 := r.executor.Execute(tools.CallRequest{Name: step.Tool, Arguments: step.Args(goCtx, working)}, ctx)
 			working, _ = r.working.Apply(working, step.Tool, result2)
 			if result2.Status != tools.StatusError {
 				markStepComplete(working, stepKey(step.Name, step.Tool))
@@ -276,9 +287,11 @@ func markStepComplete(working *memory.PreMarketWorking, key string) {
 }
 
 // Test-only accessors for idempotency helpers.
-func IsStepCompleteForTest(w *memory.PreMarketWorking, key string) bool { return isStepComplete(w, key) }
-func MarkStepCompleteForTest(w *memory.PreMarketWorking, key string)    { markStepComplete(w, key) }
-func StepKeyForTest(name, tool string) string                            { return stepKey(name, tool) }
+func IsStepCompleteForTest(w *memory.PreMarketWorking, key string) bool {
+	return isStepComplete(w, key)
+}
+func MarkStepCompleteForTest(w *memory.PreMarketWorking, key string) { markStepComplete(w, key) }
+func StepKeyForTest(name, tool string) string                        { return stepKey(name, tool) }
 
 // CheckpointAdapter bridges infra checkpoint manager.
 type CheckpointAdapter struct {

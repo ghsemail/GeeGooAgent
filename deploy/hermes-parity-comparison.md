@@ -10,7 +10,7 @@
 |---|---|---|
 | `run_agent.py` AIAgent | `internal/agent/agent.go` `Agent.Run` | ✅ 对齐（门面） |
 | `agent/prompt_builder.py` | `internal/chatprompt/prompt.go` + `chatsession.RuntimeMessages` 注入动态 context | ⚠️ 部分（分层 builder 未拆，但稳定性已修） |
-| `agent/context_compressor.py` | — | ❌ 未做（后置） |
+| `agent/context_compressor.py` | `internal/prompt/compressor.go` + `summary.go` | ✅ 对齐（Hermes-style 四阶段） |
 | `agent/prompt_caching.py` | 隐式（system 稳定即可命中 DeepSeek 前缀缓存） | ⚠️ 无显式断点 |
 | `hermes_cli/runtime_provider.py` (18+ provider) | `internal/llm/presets.go` (DeepSeek/OpenAI/Minimax) + `BuildProviderFromLLMFields` | ✅ 按需精简 |
 | `tools/registry.py` (70+/28 toolset) | `internal/tools/registry.go` + `catalog/` + `bespoke.go` + `domains.go` | ✅ 对齐 |
@@ -34,7 +34,7 @@
 |---|---|---|---|
 | Agent 循环 | AIAgent 单一入口 | `Agent.Run(ctx,sess,input)` | ✅ |
 | Prompt 稳定性 | ✅ system 不变 | ✅ P2a 修复 | ✅ |
-| 上下文压缩 | ✅ 有损摘要 | ❌ 未做 | ⚠️ |
+| 上下文压缩 | ✅ 有损摘要 | ✅ `internal/prompt` 四阶段 + 辅助摘要 | ✅ |
 | Prompt 缓存断点 | ✅ Anthropic 显式 | ⚠️ 隐式（前缀稳定） | ⚠️ |
 | Provider 数量 | 18+ | 3 (DeepSeek/OpenAI/Minimax) | 按需精简 |
 | API mode | 3 种 (chat/codex/anthropic) | 1 种 (chat_completions) | 按需精简 |
@@ -82,12 +82,11 @@
 
 ## 五、GeeGooAgent 仍弱于 Hermes 的地方
 
-1. **上下文压缩**：长对话超阈值时无摘要，token 会涨（Hermes 有 compressor）
-2. **显式 prompt 缓存断点**：靠前缀稳定隐式命中，无 Anthropic cache_control
-3. **会话血缘**：压缩后 parent/child 关系未做
-4. **工具自注册**：仍集中 `RegisterAll`，非导入时自发现
-5. **toolset 分组**：有 domains.go 但未升格为正式 toolset 概念
-6. **Profile 隔离**：单 profile，多租户不支持（YAGNI）
+1. **显式 prompt 缓存断点**：靠前缀稳定隐式命中，无 Anthropic cache_control
+2. **会话血缘**：压缩后 parent/child 关系未做
+3. **工具自注册**：仍集中 `RegisterAll`，非导入时自发现
+4. **toolset 分组**：有 domains.go 但未升格为正式 toolset 概念
+5. **Profile 隔离**：单 profile，多租户不支持（YAGNI）
 
 ## 六、结论
 
@@ -95,10 +94,9 @@
 
 **GeeGoo 在质检/审计/防失控/验收上超越 Hermes**，因为这些是金融场景特有需求。
 
-**仍待补的 3 项（建议优先级）**：
-1. 上下文压缩（P2 后置，长对话必需）
-2. 工具自注册 + toolset 正式化（P6 后置）
-3. 会话血缘（P1 后置，压缩后追溯）
+**仍待补的 2 项（建议优先级）**：
+1. 工具自注册 + toolset 正式化（P6 后置）
+2. 会话血缘（P1 后置，压缩后追溯）
 
 这些不阻塞当前 cutover——`geegoo verify` 通过即可切换。
 

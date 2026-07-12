@@ -91,3 +91,46 @@ func asConfigError(err error, target **ConfigError) bool {
 	}
 	return false
 }
+
+func TestEffectiveCompressionDefaults(t *testing.T) {
+	cfg := &AppConfig{}
+	c := cfg.EffectiveCompression()
+	if !c.Enabled {
+		t.Fatal("enabled default true")
+	}
+	if c.Threshold != 0.5 || c.TargetRatio != 0.2 || c.ProtectLastN != 20 {
+		t.Fatalf("defaults: %+v", c)
+	}
+	if c.ProtectFirstN != 3 || c.ContextLength != 128000 || c.ClearToolMinChars != 200 {
+		t.Fatalf("defaults: %+v", c)
+	}
+}
+
+func TestLoadCompressionJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	content := `{
+		"base_url": "http://127.0.0.1:3120",
+		"api_key": "sk",
+		"compression": {"enabled": false, "threshold": 0.6, "context_length": 64000},
+		"auxiliary": {"compression": {"provider": "deepseek", "model": "deepseek-chat"}}
+	}`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Compression.Enabled == nil || *cfg.Compression.Enabled {
+		t.Fatal("want enabled=false")
+	}
+	c := cfg.EffectiveCompression()
+	if c.Enabled || c.Threshold != 0.6 || c.ContextLength != 64000 {
+		t.Fatalf("got %+v", c)
+	}
+	aux := cfg.EffectiveAuxiliaryCompression()
+	if aux.Provider != "deepseek" || aux.Model != "deepseek-chat" {
+		t.Fatalf("aux %+v", aux)
+	}
+}

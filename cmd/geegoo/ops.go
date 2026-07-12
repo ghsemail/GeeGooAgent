@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 
@@ -88,7 +90,9 @@ func runResume(args []string) {
 		fmt.Fprintf(os.Stderr, "resume: %v\n", err)
 		os.Exit(2)
 	}
-	result, err := application.ResumePreMarket(*sessionID)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	result, err := application.ResumePreMarketContext(ctx, *sessionID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "resume: %v\n", err)
 		os.Exit(1)

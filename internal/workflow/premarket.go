@@ -89,8 +89,8 @@ func PerStockSteps() []Step {
 				"code": w.CurrentStock, "content": BuildReportContent(w, w.CurrentStock), "report_type": "premarket",
 			}
 		}},
-		{Name: "create_pre_market_report", Tool: "create_pre_market_report", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
-			return BuildCreateReportArgs(w, w.CurrentStock)
+		{Name: "create_pre_market_report", Tool: "create_pre_market_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
+			return BuildCreateReportArgsContext(ctx, w, w.CurrentStock)
 		}},
 		{Name: "stock_complete", Tool: "write_execution_log", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			ws := w.Stocks[w.CurrentStock]
@@ -155,6 +155,12 @@ func SetDefaultSynthesizer(s SynthesizerProvider) { defaultSynthesizer = s }
 // synthesizer when configured and successful; otherwise the rule-based view
 // is used. The LLM never decides result/confidence.
 func BuildCreateReportArgs(w *memory.PreMarketWorking, code string) map[string]any {
+	return BuildCreateReportArgsContext(context.Background(), w, code)
+}
+
+// BuildCreateReportArgsContext builds MCP createPreMarketReport body using ctx
+// for optional LLM synthesis cancellation.
+func BuildCreateReportArgsContext(ctx context.Context, w *memory.PreMarketWorking, code string) map[string]any {
 	ws := w.Stocks[code]
 	var bot memory.BotStock
 	for _, b := range w.BotCodes {
@@ -174,7 +180,10 @@ func BuildCreateReportArgs(w *memory.PreMarketWorking, code string) map[string]a
 	suggestion := view.Suggestion
 	summary := plainSummary(report, 200)
 	if defaultSynthesizer != nil {
-		if r, s, sm, err := defaultSynthesizer.Synthesize(context.Background(), ws, evidence, w.MarketContext); err == nil && strings.TrimSpace(r) != "" {
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		if r, s, sm, err := defaultSynthesizer.Synthesize(ctx, ws, evidence, w.MarketContext); err == nil && strings.TrimSpace(r) != "" {
 			reason = r
 			if strings.TrimSpace(s) != "" {
 				suggestion = s

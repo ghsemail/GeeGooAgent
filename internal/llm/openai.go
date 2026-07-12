@@ -176,7 +176,10 @@ func parseOpenAIResponse(raw []byte, model string) (*Response, error) {
 	msg := envelope.Choices[0].Message
 	calls := make([]ToolCall, 0, len(msg.ToolCalls))
 	for _, tc := range msg.ToolCalls {
-		args, _ := ParseToolArguments(tc.Function.Arguments)
+		args, err := ParseToolArguments(tc.Function.Arguments)
+		if err != nil {
+			return nil, fmt.Errorf("invalid arguments for tool %q: %w", tc.Function.Name, err)
+		}
 		calls = append(calls, ToolCall{
 			ID:        tc.ID,
 			Name:      tc.Function.Name,
@@ -204,17 +207,19 @@ func truncate(s string, n int) string {
 
 // BuildProviderFromConfig creates a provider from config fields (no thinking).
 func BuildProviderFromConfig(providerName, tokenKey, model string) (Provider, error) {
-	return BuildProviderFromLLMFields(providerName, tokenKey, model, nil, "")
+	return BuildProviderFromLLMFields(providerName, tokenKey, model, nil, "", "")
 }
 
 // BuildProviderFromLLMFields creates a provider with optional thinking settings.
+// baseURLOverride, when non-empty, replaces the provider preset BaseURL (ops configured).
 func BuildProviderFromLLMFields(
 	providerName, tokenKey, model string,
 	thinking *bool,
 	reasoningEffort string,
+	baseURLOverride string,
 ) (Provider, error) {
 	if tokenKey == "" {
-		return nil, fmt.Errorf("LLM 未配置：请填写 llm.token_key")
+		return nil, fmt.Errorf("LLM 未配置：请填写 llm.token_key 或运营配置 token")
 	}
 	name := ProviderName(providerName)
 	if name == "" {
@@ -222,18 +227,41 @@ func BuildProviderFromLLMFields(
 	}
 	preset, ok := Presets[name]
 	if !ok {
-		return nil, fmt.Errorf("unknown llm provider: %s", providerName)
+		// Unknown provider name (e.g. skimtoken display) → OpenAI-compatible HTTP
+		name = ProviderOpenAI
+		preset = Presets[ProviderOpenAI]
 	}
 	resolved := ResolveModel(name, model)
+	if strings.TrimSpace(model) != "" {
+		// Prefer exact ops model id even if not in preset list
+		resolved = strings.TrimSpace(model)
+	}
 	effort := strings.TrimSpace(reasoningEffort)
 	if effort == "" {
 		effort = "high"
 	}
+	baseURL := strings.TrimRight(strings.TrimSpace(baseURLOverride), "/")
+	if baseURL == "" {
+		baseURL = preset.BaseURL
+	}
 	return NewOpenAIProvider(OpenAIOptions{
 		Model:           resolved,
 		APIKey:          tokenKey,
-		BaseURL:         preset.BaseURL,
+		BaseURL:         baseURL,
 		ThinkingEnabled: ResolveThinkingEnabled(name, resolved, thinking),
 		ReasoningEffort: effort,
 	}), nil
+}
+
+// InferProviderFromNames maps ops display_name/name to a preset provider key.
+func InferProviderFromNames(displayName, name string) string {
+	text := strings.ToLower(strings.TrimSpace(displayName + " " + name))
+	switch {
+	case strings.Contains(text, "deepseek"):
+		return string(ProviderDeepSeek)
+	case strings.Contains(text, "minimax"):
+		return string(ProviderMinimax)
+	default:
+		return string(ProviderOpenAI)
+	}
 }
