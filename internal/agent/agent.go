@@ -71,3 +71,17 @@ func (a *Agent) SetProgress(fn runtime.ProgressFunc) {
 		a.Loop.SetProgress(fn)
 	}
 }
+
+// SetMaxToolRounds sets the per-turn LLM↔tool iteration cap (config max_steps).
+func (a *Agent) SetMaxToolRounds(n int) {
+	if a.Loop != nil {
+		a.Loop.SetMaxToolRounds(n)
+	}
+}
+
+// SetApproval wires interactive confirmation for mutating tools.
+func (a *Agent) SetApproval(fn runtime.ApprovalFunc) {
+	if a.Loop != nil {
+		a.Loop.SetApproval(fn)
+	}
+}

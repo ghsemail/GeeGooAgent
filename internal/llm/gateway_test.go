@@ -41,3 +41,22 @@ func TestMalformedToolCallResponse(t *testing.T) {
 		t.Fatal("expected ok")
 	}
 }
+
+func TestGatewayFailoverOnRateLimit(t *testing.T) {
+	t.Parallel()
+	primary := &llm.MockProvider{Err: &llm.HTTPError{StatusCode: 429, Body: "rate limit"}}
+	fallback := &llm.MockProvider{
+		ModelName: "fallback-model",
+		Responses: []*llm.Response{{Content: "fallback ok"}},
+	}
+	gw := llm.NewGateway(primary, llm.GatewayConfig{MaxRetries: 1, RetryWait: time.Millisecond})
+	gw.SetSleep(func(time.Duration) {})
+	gw.SetFallbacks([]llm.Provider{fallback})
+	resp, err := gw.Chat(context.Background(), nil, nil, "s", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Content != "fallback ok" {
+		t.Fatalf("got %q", resp.Content)
+	}
+}

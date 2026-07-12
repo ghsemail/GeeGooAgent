@@ -12,6 +12,7 @@ func BuildHelpText() string {
   /quit              退出并保存会话
   /session           当前会话 ID 与消息数
   /tools             列出可用 Tool
+  /toolsets          列出或切换 toolset 分组
   /trace             最近执行步骤（可加数量）
   /flow              最近事件总线记录（可加数量）
   /run pre_market    运行盘前 workflow
@@ -36,6 +37,7 @@ var SlashCommands = []struct {
 	{"/quit", "退出并保存会话"},
 	{"/session", "当前会话 ID 与消息数"},
 	{"/tools", "列出可用 Tool"},
+	{"/toolsets", "列出或切换 toolset"},
 	{"/trace", "最近执行步骤"},
 	{"/flow", "最近事件总线记录"},
 	{"/run pre_market", "运行盘前 workflow"},

@@ -196,6 +196,42 @@ func (c *ChatSession) SyncFromRuntime(messages []llm.Message, stepCounter int, n
 	}
 }
 
+// SyncLineageFromRuntime persists Hermes-style compaction bloodline into Metadata.
+func (c *ChatSession) SyncLineageFromRuntime(parentID, lineageRoot string, generation int) {
+	if c.Metadata == nil {
+		c.Metadata = map[string]any{}
+	}
+	if lineageRoot != "" {
+		c.Metadata["lineage_root"] = lineageRoot
+	}
+	if parentID != "" {
+		c.Metadata["parent_id"] = parentID
+	}
+	if generation > 0 {
+		c.Metadata["compaction_generation"] = generation
+	}
+}
+
+// LineageFromMetadata reads compaction bloodline fields from Metadata.
+func (c *ChatSession) LineageFromMetadata() (parentID, lineageRoot string, generation int) {
+	if c == nil || c.Metadata == nil {
+		return "", "", 0
+	}
+	parentID, _ = c.Metadata["parent_id"].(string)
+	lineageRoot, _ = c.Metadata["lineage_root"].(string)
+	switch v := c.Metadata["compaction_generation"].(type) {
+	case int:
+		generation = v
+	case float64:
+		generation = int(v)
+	case json.Number:
+		if n, err := v.Int64(); err == nil {
+			generation = int(n)
+		}
+	}
+	return parentID, lineageRoot, generation
+}
+
 // RuntimeMessages returns a copy of chat messages for the ReAct loop.
 //
 // To preserve DeepSeek/OpenAI prefix caching, the stored system message stays

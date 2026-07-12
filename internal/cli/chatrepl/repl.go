@@ -34,6 +34,7 @@ type Repl struct {
 	UI           *chatui.ChatUI
 	DryRun       bool
 	Verbose      bool
+	ChatToolsets []string // session override; nil → config defaults
 	StepLog      []runtime.StepRecord
 	InstallDir   string
 	ProjectRoot  string
@@ -79,11 +80,13 @@ func NewWithSession(application *app.App, configPath string, sessionID string, d
 		}
 	}
 	ui := chatui.New(stdout)
+	parentID, lineageRoot, generation := chat.LineageFromMetadata()
 	r := &Repl{
 		App: application, ConfigPath: configPath, Chat: chat, SessionStore: store,
 		Session: &runtime.Session{
 			ID: chat.ID, Messages: chat.RuntimeMessages(),
 			StepCounter: chat.StepCounter, CreatedAt: chat.CreatedAt,
+			ParentID: parentID, LineageRoot: lineageRoot, CompactionGeneration: generation,
 		},
 		Registry: application.Registry, Loop: application.Loop, UI: ui,
 		DryRun: dryRun || application.Config.DryRun, Verbose: true,
@@ -96,6 +99,7 @@ func NewWithSession(application *app.App, configPath string, sessionID string, d
 		})
 	}
 	r.attachProgress()
+	r.attachApproval()
 	return r, nil
 }
 
@@ -116,10 +120,56 @@ func findProjectRoot() string {
 
 func (r *Repl) attachProgress() {
 	r.App.Agent.SetProgress(func(event string, data map[string]any) {
+		switch event {
+		case "stream_delta", "turn_start", "reply_start":
+			r.UI.EmitProgress(event, data)
+			return
+		case "llm_tools", "tool_start", "error":
+			// Abort typewriter even when verbose is off; optionally show tool lines.
+			if r.Verbose {
+				r.UI.EmitProgress(event, data)
+			} else {
+				r.UI.AbortStreamReply()
+				if event == "error" {
+					if msg, _ := data["message"].(string); msg != "" {
+						r.UI.PrintError(msg)
+					}
+				}
+			}
+			return
+		}
 		if r.Verbose {
 			r.UI.EmitProgress(event, data)
 		}
 	})
+}
+
+func (r *Repl) attachApproval() {
+	r.App.Agent.SetApproval(r.promptToolApproval)
+}
+
+func (r *Repl) promptToolApproval(toolName string, args map[string]any) bool {
+	restoreTTY(r.tty)
+	argsJSON, _ := json.Marshal(args)
+	summary := string(argsJSON)
+	if len(summary) > 240 {
+		summary = summary[:237] + "..."
+	}
+	r.UI.PrintInfo(fmt.Sprintf(
+		"写操作确认: %s\n参数: %s\n输入 y/yes 执行，其他键跳过",
+		toolName, summary,
+	))
+	reader := bufio.NewReader(r.stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "y", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 // RunSingle handles one --message turn with full UI.
@@ -127,7 +177,7 @@ func (r *Repl) RunSingle(message string) int {
 	r.printBanner()
 	r.UI.PrintUser(message)
 	result := r.runTurn(message)
-	r.UI.PrintAssistant(result.AssistantText)
+	r.finishAssistant(result)
 	r.printFooter(result)
 	if result.Failed {
 		return 1
@@ -164,9 +214,19 @@ func (r *Repl) Run() int {
 		}
 		r.UI.PrintUser(text)
 		result := r.runTurn(text)
-		r.UI.PrintAssistant(result.AssistantText)
+		r.finishAssistant(result)
 		r.printFooter(result)
 	}
+}
+
+func (r *Repl) finishAssistant(result runtime.TurnResult) {
+	if r.UI.FinishAssistantStream() {
+		return
+	}
+	if strings.TrimSpace(result.AssistantText) == "" {
+		return
+	}
+	r.UI.PrintAssistant(result.AssistantText)
 }
 
 // turnCtx returns a per-turn context that is cancelled on SIGINT (Ctrl+C).
@@ -189,7 +249,7 @@ func (r *Repl) printBanner() {
 	workspace, _ := cfg.ResolveOutputDir()
 	r.UI.PrintBanner(chatui.BannerOptions{
 		SessionID: r.Chat.ID, Provider: preset.Label, Model: model,
-		Registry: r.Registry, ToolNames: tools.RegisteredChatToolNames(r.Registry),
+		Registry: r.Registry, ToolNames: r.chatToolNames(),
 		Thinking: llm.ResolveThinkingEnabled(provider, model, cfg.LLM.Thinking),
 		DryRun:   r.DryRun, Workspace: workspace, InstallDir: r.InstallDir,
 		ProjectRoot: r.ProjectRoot,
@@ -214,7 +274,7 @@ func (r *Repl) printFooter(result runtime.TurnResult) {
 func (r *Repl) runTurn(text string) runtime.TurnResult {
 	r.Chat.SyncChatSystemPrompt()
 	r.Session.Messages = r.Chat.RuntimeMessages()
-	schemas := r.Registry.Schemas(tools.RegisteredChatToolNames(r.Registry))
+	schemas := r.Registry.Schemas(r.chatToolNames())
 	ctx := r.App.ToolContext(r.Session.ID)
 	ctx.DryRun = r.DryRun
 	// Chat is an interactive, user-facing entry point.  Mutating tools must
@@ -239,6 +299,7 @@ func (r *Repl) runTurn(text string) runtime.TurnResult {
 		})
 	}
 	r.Chat.SyncFromRuntime(r.Session.Messages, r.Session.StepCounter, newRecords)
+	r.Chat.SyncLineageFromRuntime(r.Session.ParentID, r.Session.LineageRoot, r.Session.CompactionGeneration)
 	_ = r.SessionStore.Save(r.Chat)
 	return result
 }
@@ -342,6 +403,8 @@ func (r *Repl) handleSlash(line string) bool {
 		))
 	case "/tools":
 		r.printTools()
+	case "/toolsets":
+		r.handleToolsets(args)
 	case "/trace":
 		limit := 10
 		if len(args) > 0 {
@@ -393,8 +456,30 @@ func (r *Repl) handleSlash(line string) bool {
 	return false
 }
 
+func (r *Repl) chatToolNames() []string {
+	ids := r.ChatToolsets
+	if ids == nil && r.App != nil && r.App.Config != nil {
+		ids = r.App.Config.EffectiveChatToolsets()
+	}
+	return tools.RegisteredChatToolNamesFor(r.Registry, ids)
+}
+
+func (r *Repl) activeToolsetIDs() []string {
+	if r.ChatToolsets != nil {
+		normalized, err := tools.NormalizeToolsetIDs(r.ChatToolsets)
+		if err == nil {
+			return normalized
+		}
+	}
+	if r.App != nil && r.App.Config != nil {
+		normalized, _ := tools.NormalizeToolsetIDs(r.App.Config.EffectiveChatToolsets())
+		return normalized
+	}
+	return tools.DefaultChatToolsetIDs()
+}
+
 func (r *Repl) printTools() {
-	names := tools.RegisteredChatToolNames(r.Registry)
+	names := r.chatToolNames()
 	descriptions := map[string]string{}
 	for _, name := range names {
 		if t, ok := r.Registry.Get(name); ok {
@@ -402,6 +487,64 @@ func (r *Repl) printTools() {
 		}
 	}
 	fmt.Fprintf(r.stdout, "%s\n", tools.FormatToolsListing(names, descriptions))
+}
+
+func (r *Repl) handleToolsets(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintf(r.stdout, "%s\n", tools.FormatToolsetsListing(r.activeToolsetIDs()))
+		return
+	}
+	raw := strings.Join(args, ",")
+	raw = strings.ReplaceAll(raw, " ", "")
+	if strings.EqualFold(raw, "default") || strings.EqualFold(raw, "all") {
+		r.ChatToolsets = nil
+		if r.App != nil && r.App.Config != nil {
+			r.App.Config.ChatToolsets = nil
+		}
+		r.persistChatToolsets(nil)
+		fmt.Fprintf(r.stdout, "已恢复默认 toolsets（%d tools）\n", len(r.chatToolNames()))
+		return
+	}
+	parts := strings.Split(raw, ",")
+	ids, err := tools.NormalizeToolsetIDs(parts)
+	if err != nil {
+		fmt.Fprintf(r.stdout, "切换失败: %v\n", err)
+		return
+	}
+	r.ChatToolsets = ids
+	if r.App != nil && r.App.Config != nil {
+		r.App.Config.ChatToolsets = append([]string(nil), ids...)
+	}
+	r.persistChatToolsets(ids)
+	fmt.Fprintf(r.stdout, "已切换 toolsets: %s（%d tools）\n", strings.Join(ids, ","), len(r.chatToolNames()))
+}
+
+func (r *Repl) persistChatToolsets(ids []string) {
+	if r.ConfigPath == "" {
+		return
+	}
+	raw, err := os.ReadFile(r.ConfigPath)
+	if err != nil {
+		return
+	}
+	var doc map[string]any
+	if json.Unmarshal(raw, &doc) != nil {
+		return
+	}
+	if len(ids) == 0 {
+		delete(doc, "chat_toolsets")
+	} else {
+		arr := make([]any, len(ids))
+		for i, id := range ids {
+			arr[i] = id
+		}
+		doc["chat_toolsets"] = arr
+	}
+	out, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(r.ConfigPath, append(out, '\n'), 0o600)
 }
 
 func (r *Repl) printTrace(limit int) {

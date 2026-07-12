@@ -10,17 +10,16 @@ import (
 
 // LLMConfig mirrors Python llm section.
 type LLMConfig struct {
-	Provider        string  `json:"provider"`
-	TokenKey        string  `json:"token_key"`
-	Model           string  `json:"model"`
-	BaseURL         string  `json:"base_url,omitempty"` // optional local override; ops configured wins when use_ops_model
-	Temperature     float64 `json:"temperature"`
-	MaxTokens       int     `json:"max_tokens"`
-	Thinking        *bool   `json:"thinking"`
-	ReasoningEffort string  `json:"reasoning_effort"`
-	// UseOpsModel when true/nil: pull configured model from Signal catalog/admin.
-	// Set false to force local provider/token_key/model/base_url only.
-	UseOpsModel *bool `json:"use_ops_model,omitempty"`
+	Provider        string      `json:"provider"`
+	TokenKey        string      `json:"token_key"`
+	Model           string      `json:"model"`
+	BaseURL         string      `json:"base_url,omitempty"` // optional local override; ops configured wins when use_ops_model
+	Temperature     float64     `json:"temperature"`
+	MaxTokens       int         `json:"max_tokens"`
+	Thinking        *bool       `json:"thinking"`
+	ReasoningEffort string      `json:"reasoning_effort"`
+	UseOpsModel     *bool       `json:"use_ops_model,omitempty"`
+	Fallbacks       []LLMConfig `json:"fallbacks,omitempty"`
 }
 
 // OpsModelEnabled reports whether RebuildGateway should query ops configured model.
@@ -109,6 +108,7 @@ type AppConfig struct {
 	Sandbox          SandboxConfig     `json:"sandbox"`
 	Compression      CompressionConfig `json:"compression"`
 	Auxiliary        AuxiliaryConfig   `json:"auxiliary"`
+	ChatToolsets     []string          `json:"chat_toolsets,omitempty"`
 }
 
 // ConfigError indicates invalid or missing configuration.
@@ -226,6 +226,27 @@ func (c *AppConfig) EffectiveAuxiliaryCompression() AuxiliaryLLMConfig {
 		aux.BaseURL = c.LLM.BaseURL
 	}
 	return aux
+}
+
+// EffectiveMaxSteps returns the per-turn ReAct tool-round limit (config max_steps).
+// Zero or negative in config falls back to 80 (matches config.example.json and docs).
+func (c *AppConfig) EffectiveMaxSteps() int {
+	const defaultMax = 80
+	if c == nil || c.MaxSteps <= 0 {
+		return defaultMax
+	}
+	if c.MaxSteps > 90 {
+		return 90
+	}
+	return c.MaxSteps
+}
+
+// EffectiveChatToolsets returns enabled chat toolset ids (empty config → defaults).
+func (c *AppConfig) EffectiveChatToolsets() []string {
+	if c == nil {
+		return nil
+	}
+	return c.ChatToolsets
 }
 
 // EffectiveSearch returns search settings with defaults (duckduckgo, max 5).

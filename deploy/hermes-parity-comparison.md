@@ -39,11 +39,11 @@
 | Provider 数量 | 18+ | 3 (DeepSeek/OpenAI/Minimax) | 按需精简 |
 | API mode | 3 种 (chat/codex/anthropic) | 1 种 (chat_completions) | 按需精简 |
 | 工具数 | 70+ | ~82 (catalog+bespoke) | ✅ |
-| 工具自注册 | ✅ 导入时 | ❌ 集中 RegisterAll | ⚠️ |
-| toolset 分组 | ✅ 28 toolset | ⚠️ domains.go 按域分组 | ⚠️ |
+| 工具自注册 | ✅ 导入时 | ⚠️ `AddRegistrar` 可扩展；主路径仍 RegisterAll | ⚠️ |
+| toolset 分组 | ✅ 28 toolset | ✅ `tools/toolset.go` + `chat_toolsets` + `/toolsets` | ✅ |
 | 危险操作审批 | ✅ approval.py | ✅ approval.go | ✅ |
 | 工具契约/schema | ✅ | ⚠️ Meta + 空成功检测，无 jsonschema | ⚠️ |
-| 会话持久化 | SQLite+FTS5+血缘 | SQLite+FTS5（无血缘） | ⚠️ |
+| 会话持久化 | SQLite+FTS5+血缘 | SQLite+FTS5+压缩血缘（metadata） | ✅ |
 | 可中断 | ✅ | ✅ P2b ctx 贯穿 | ✅ |
 | 平台无关核心 | ✅ | ✅ P2c | ✅ |
 | 松耦合 | ✅ 注册表+check_fn | ⚠️ Deps 硬编 | ⚠️ |
@@ -83,22 +83,19 @@
 ## 五、GeeGooAgent 仍弱于 Hermes 的地方
 
 1. **显式 prompt 缓存断点**：靠前缀稳定隐式命中，无 Anthropic cache_control
-2. **会话血缘**：压缩后 parent/child 关系未做
-3. **工具自注册**：仍集中 `RegisterAll`，非导入时自发现
-4. **toolset 分组**：有 domains.go 但未升格为正式 toolset 概念
-5. **Profile 隔离**：单 profile，多租户不支持（YAGNI）
+2. **工具自注册**：主路径仍 `RegisterAll`，但已支持 `AddRegistrar` 扩展
+3. **Profile 隔离**：单 profile，多租户不支持（YAGNI）
+4. **CLI 打字机**：`stream_delta` 已在 TTY 边生成边显示；markdown 框仅用于非流式回退
 
 ## 六、结论
 
-**核心 Agent 能力已对齐 Hermes**：平台无关核心、稳定 prompt、可中断、SQLite 持久化、cron 调度、技能化、报告合成、工具审批、cutover 验收。
+**核心 Agent 能力已对齐 Hermes**：平台无关核心、稳定 prompt、可中断、SQLite 持久化、cron 调度、技能化、报告合成、工具审批、toolset 分组、cutover 验收。
 
 **GeeGoo 在质检/审计/防失控/验收上超越 Hermes**，因为这些是金融场景特有需求。
 
-**仍待补的 2 项（建议优先级）**：
-1. 工具自注册 + toolset 正式化（P6 后置）
-2. 会话血缘（P1 后置，压缩后追溯）
-
-这些不阻塞当前 cutover——`geegoo verify` 通过即可切换。
+**仍待补（不阻塞 cutover）**：
+1. 导入时工具自发现（Go 侧用 `AddRegistrar` 已够用）
+2. Profile 多租户（YAGNI）
 
 ## 七、P1–P8 交付索引
 

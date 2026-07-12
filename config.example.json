@@ -10,6 +10,7 @@
   "feishu_webhook_url": null,
   "dry_run": false,
   "max_steps": 80,
+  "chat_toolsets": [],
   "llm": {
     "provider": "deepseek",
     "token_key": "",
@@ -17,7 +18,24 @@
     "temperature": 0.2,
     "max_tokens": 4096,
     "thinking": null,
-    "reasoning_effort": "high"
+    "reasoning_effort": "high",
+    "fallbacks": []
+  },
+  "compression": {
+    "enabled": true,
+    "threshold": 0.5,
+    "hygiene_threshold": 0.85,
+    "protect_last_n": 20,
+    "protect_first_n": 3,
+    "context_length": 0
+  },
+  "auxiliary": {
+    "compression": {
+      "provider": "",
+      "model": "",
+      "token_key": "",
+      "base_url": ""
+    }
   },
   "search": {
     "provider": "duckduckgo",

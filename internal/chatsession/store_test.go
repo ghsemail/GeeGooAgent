@@ -189,3 +189,25 @@ func TestChatSessionStoreRebuildsIndex(t *testing.T) {
 		t.Fatalf("rebuilt metadata: tools=%#v tags=%#v", entries[0].ToolNames, entries[0].Tags)
 	}
 }
+
+func TestChatSessionLineageMetadataRoundTrip(t *testing.T) {
+	root := t.TempDir()
+	store := infra.NewStateStore(filepath.Join(root, "state"))
+	sessions := chatsession.NewChatSessionStore(store)
+	session, err := sessions.Create()
+	if err != nil {
+		t.Fatal(err)
+	}
+	session.SyncLineageFromRuntime(session.ID, session.ID, 2)
+	if err := sessions.Save(session); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := sessions.Load(session.ID)
+	if err != nil || loaded == nil {
+		t.Fatalf("load: %v %#v", err, loaded)
+	}
+	parent, rootID, gen := loaded.LineageFromMetadata()
+	if parent != session.ID || rootID != session.ID || gen != 2 {
+		t.Fatalf("lineage parent=%q root=%q gen=%d", parent, rootID, gen)
+	}
+}

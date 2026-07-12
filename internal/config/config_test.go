@@ -148,3 +148,15 @@ func TestEffectiveMaxTokensThinkingFloor(t *testing.T) {
 		t.Fatalf("respect higher: got %d", got)
 	}
 }
+
+func TestEffectiveMaxSteps(t *testing.T) {
+	if got := (&AppConfig{}).EffectiveMaxSteps(); got != 80 {
+		t.Fatalf("default EffectiveMaxSteps = %d, want 80", got)
+	}
+	if got := (&AppConfig{MaxSteps: 12}).EffectiveMaxSteps(); got != 12 {
+		t.Fatalf("EffectiveMaxSteps(12) = %d, want 12", got)
+	}
+	if got := (&AppConfig{MaxSteps: 200}).EffectiveMaxSteps(); got != 90 {
+		t.Fatalf("EffectiveMaxSteps capped = %d, want 90", got)
+	}
+}

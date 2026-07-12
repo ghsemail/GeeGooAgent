@@ -3,6 +3,7 @@ package tools
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
@@ -115,9 +116,40 @@ func normalizeHTTPResponse(name string, payload any) (map[string]any, string) {
 }
 
 // RegisterAll registers HTTP catalog + bespoke tools (~82 total).
+// Registrars can be extended via AddRegistrar (Go-side toolset self-registration).
 func RegisterAll(r *Registry, deps Deps) {
-	RegisterHTTPFromCatalog(r, deps)
-	RegisterBespokeTools(r, deps)
+	for _, reg := range registrarsSnapshot() {
+		reg(r, deps)
+	}
+}
+
+// Registrar registers one batch of tools (catalog, bespoke, or a future toolset).
+type Registrar func(*Registry, Deps)
+
+var (
+	registrarMu sync.RWMutex
+	registrars  = []Registrar{
+		RegisterHTTPFromCatalog,
+		RegisterBespokeTools,
+	}
+)
+
+// AddRegistrar appends a tool registrar (for tests or optional tool packs).
+func AddRegistrar(reg Registrar) {
+	if reg == nil {
+		return
+	}
+	registrarMu.Lock()
+	registrars = append(registrars, reg)
+	registrarMu.Unlock()
+}
+
+func registrarsSnapshot() []Registrar {
+	registrarMu.RLock()
+	defer registrarMu.RUnlock()
+	out := make([]Registrar, len(registrars))
+	copy(out, registrars)
+	return out
 }
 
 // Names returns sorted registered tool names.

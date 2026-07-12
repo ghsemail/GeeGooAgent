@@ -2,11 +2,16 @@ package runtimeapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ghsemail/GeeGooAgent/internal/app"
+	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
@@ -57,6 +62,20 @@ type chatChoice struct {
 	FinishReason string      `json:"finish_reason"`
 }
 
+type streamChunk struct {
+	ID      string              `json:"id"`
+	Object  string              `json:"object"`
+	Created int64               `json:"created"`
+	Model   string              `json:"model"`
+	Choices []streamChunkChoice `json:"choices"`
+}
+
+type streamChunkChoice struct {
+	Index        int         `json:"index"`
+	Delta        chatMessage `json:"delta"`
+	FinishReason *string     `json:"finish_reason"`
+}
+
 type modelsResponse struct {
 	Object string      `json:"object"`
 	Data   []modelItem `json:"data"`
@@ -78,10 +97,6 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
-	if req.Stream {
-		writeError(w, http.StatusNotImplemented, "stream=true not implemented in A4; use stream=false")
-		return
-	}
 	if len(req.Messages) == 0 {
 		writeError(w, http.StatusBadRequest, "messages required")
 		return
@@ -91,10 +106,10 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	sessionID := "api-" + time.Now().Format("150405")
 	ctx := h.App.ToolContext(sessionID)
 	ctx.MCPToken = mcpToken
-	// An OpenAI-compatible request is an ad-hoc user interaction, not a
-	// pre-authorized deterministic workflow. Keep write tools behind the
-	// approval gate until this API exposes an explicit approval protocol.
 	ctx.Interactive = true
+	if approveWrites(r) {
+		ctx.Approved = true
+	}
 
 	upstream := make([]runtime.UpstreamMessage, 0, len(req.Messages))
 	for _, m := range req.Messages {
@@ -106,32 +121,129 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	schemas := h.App.Registry.Schemas(tools.RegisteredChatToolNames(h.App.Registry))
-	result := h.App.Agent.Run(r.Context(), session, lastUser, ctx, schemas)
 	model := req.Model
 	if model == "" {
 		model = defaultModel
 	}
-	status := http.StatusOK
-	content := result.AssistantText
+	id := "chatcmpl-" + sessionID
+	created := time.Now().Unix()
+	schemas := h.App.Registry.Schemas(h.App.ChatToolNames())
+
+	if req.Stream {
+		h.streamChat(w, r, session, lastUser, ctx, schemas, id, model, created)
+		return
+	}
+
+	result := h.App.Agent.Run(r.Context(), session, lastUser, ctx, schemas)
 	finish := "stop"
 	if result.Failed {
 		finish = "error"
 	}
 	resp := chatResponse{
-		ID:      "chatcmpl-" + sessionID,
-		Object:  "chat.completion",
-		Created: time.Now().Unix(),
-		Model:   model,
+		ID: id, Object: "chat.completion", Created: created, Model: model,
 		Choices: []chatChoice{{
-			Index:        0,
-			Message:      chatMessage{Role: "assistant", Content: content},
-			FinishReason: finish,
+			Index: 0, Message: chatMessage{Role: "assistant", Content: result.AssistantText}, FinishReason: finish,
 		}},
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
+	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func (h *Handler) streamChat(
+	w http.ResponseWriter,
+	r *http.Request,
+	session *runtime.Session,
+	lastUser string,
+	toolCtx tools.Context,
+	schemas []llm.ToolSchema,
+	id, model string,
+	created int64,
+) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming unsupported")
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	var (
+		mu       sync.Mutex
+		streamed atomic.Bool
+	)
+	writeChunk := func(delta chatMessage, finish *string) {
+		mu.Lock()
+		defer mu.Unlock()
+		writeSSE(w, flusher, streamChunk{
+			ID: id, Object: "chat.completion.chunk", Created: created, Model: model,
+			Choices: []streamChunkChoice{{Index: 0, Delta: delta, FinishReason: finish}},
+		})
+	}
+
+	writeChunk(chatMessage{Role: "assistant"}, nil)
+
+	runCtx := llm.WithStreamHandler(r.Context(), func(delta llm.StreamDelta) {
+		if delta.Content == "" {
+			return
+		}
+		streamed.Store(true)
+		writeChunk(chatMessage{Content: delta.Content}, nil)
+	})
+
+	result := h.App.Agent.Run(runCtx, session, lastUser, toolCtx, schemas)
+	if !streamed.Load() && result.AssistantText != "" {
+		for _, piece := range chunkText(result.AssistantText, 24) {
+			writeChunk(chatMessage{Content: piece}, nil)
+		}
+	}
+	finish := "stop"
+	if result.Failed {
+		finish = "error"
+	}
+	writeChunk(chatMessage{}, &finish)
+	mu.Lock()
+	_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
+	flusher.Flush()
+	mu.Unlock()
+}
+
+func writeSSE(w http.ResponseWriter, flusher http.Flusher, chunk streamChunk) {
+	raw, err := json.Marshal(chunk)
+	if err != nil {
+		return
+	}
+	_, _ = fmt.Fprintf(w, "data: %s\n\n", raw)
+	flusher.Flush()
+}
+
+func chunkText(s string, maxRunes int) []string {
+	if s == "" {
+		return nil
+	}
+	if maxRunes <= 0 {
+		maxRunes = 24
+	}
+	var out []string
+	var b strings.Builder
+	n := 0
+	for len(s) > 0 {
+		r, size := utf8.DecodeRuneInString(s)
+		s = s[size:]
+		b.WriteRune(r)
+		n++
+		if n >= maxRunes {
+			out = append(out, b.String())
+			b.Reset()
+			n = 0
+		}
+	}
+	if b.Len() > 0 {
+		out = append(out, b.String())
+	}
+	return out
 }
 
 func (h *Handler) listModels(w http.ResponseWriter, r *http.Request) {
@@ -153,6 +265,11 @@ func resolveMCPToken(r *http.Request, req chatRequest, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func approveWrites(r *http.Request) bool {
+	v := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Approve-Writes")))
+	return v == "1" || v == "true" || v == "yes"
 }
 
 func writeError(w http.ResponseWriter, code int, msg string) {

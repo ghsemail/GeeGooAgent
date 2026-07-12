@@ -87,6 +87,15 @@ func TestRunTurnCompressesBeforeChat(t *testing.T) {
 	if !strings.Contains(joinMessageContent(session.Messages), "## Goal") {
 		t.Fatalf("session did not keep summary: %+v", session.Messages)
 	}
+	if session.CompactionGeneration < 1 {
+		t.Fatalf("expected lineage generation >= 1, got %d", session.CompactionGeneration)
+	}
+	if session.LineageRoot != session.ID {
+		t.Fatalf("lineage_root=%q want %q", session.LineageRoot, session.ID)
+	}
+	if session.ParentID == "" {
+		t.Fatal("expected parent_id after compression")
+	}
 }
 
 func TestRunTurnHygieneAtEightyFivePercent(t *testing.T) {

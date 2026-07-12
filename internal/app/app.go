@@ -102,7 +102,9 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 		fmt.Fprintf(os.Stderr, "警告: LLM 未就绪: %v\n", err)
 	}
 	app.Loop = runtime.NewReActLoop(app.Gateway, executor)
+	app.Loop.SetMaxToolRounds(cfg.EffectiveMaxSteps())
 	app.Agent = agent.New(app.Gateway, executor, registry)
+	app.Agent.SetMaxToolRounds(cfg.EffectiveMaxSteps())
 	app.wireCompressor()
 	if adapter := newSynthesizerAdapter(app.Gateway, app.Config.LLM.Model); adapter != nil {
 		workflow.SetDefaultSynthesizer(adapter)
@@ -181,6 +183,7 @@ func (a *App) RebuildGateway() error {
 		MaxRetries: 3, RetryWait: time.Second, Temperature: a.Config.LLM.Temperature,
 		MaxTokens: a.Config.LLM.EffectiveMaxTokens(thinkingOn),
 	})
+	a.Gateway.SetFallbacks(a.buildFallbackProviders())
 	if a.Loop != nil {
 		a.Loop.SetGateway(a.Gateway)
 	}
@@ -189,6 +192,28 @@ func (a *App) RebuildGateway() error {
 	}
 	a.wireCompressor()
 	return nil
+}
+
+func (a *App) buildFallbackProviders() []llm.Provider {
+	if a == nil || a.Config == nil {
+		return nil
+	}
+	var out []llm.Provider
+	for _, fb := range a.Config.LLM.Fallbacks {
+		if strings.TrimSpace(fb.TokenKey) == "" {
+			continue
+		}
+		p, err := llm.BuildProviderFromLLMFields(
+			fb.Provider, fb.TokenKey, fb.Model,
+			fb.Thinking, fb.ReasoningEffort, fb.BaseURL,
+		)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "警告: fallback LLM 跳过 (%s): %v\n", fb.Provider, err)
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
 }
 
 func (a *App) wireCompressor() {
@@ -315,6 +340,19 @@ func (a *App) ToolContextWithContext(ctx context.Context, sessionID string) tool
 		Ctx: ctx, SessionID: sessionID, MCPToken: a.Config.MCPToken(), DryRun: a.Config.DryRun,
 		WorkspaceRoot: a.Workspace, EventBus: a.EventBus, StateStore: a.State,
 	}
+}
+
+// ChatToolNames returns registry tools enabled for interactive chat
+// (filtered by config chat_toolsets).
+func (a *App) ChatToolNames() []string {
+	if a == nil {
+		return nil
+	}
+	var ids []string
+	if a.Config != nil {
+		ids = a.Config.EffectiveChatToolsets()
+	}
+	return tools.RegisteredChatToolNamesFor(a.Registry, ids)
 }
 
 // EndpointSummary prints GeeGoo service endpoints.

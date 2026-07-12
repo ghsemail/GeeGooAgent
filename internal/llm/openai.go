@@ -91,7 +91,7 @@ func (p *OpenAIProvider) Chat(ctx context.Context, messages []Message, tools []T
 		return nil, err
 	}
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("LLM HTTP %d: %s", resp.StatusCode, truncate(string(respBody), 200))
+		return nil, &HTTPError{StatusCode: resp.StatusCode, Body: string(respBody)}
 	}
 	return parseOpenAIResponse(respBody, p.model)
 }

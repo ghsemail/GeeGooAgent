@@ -21,6 +21,11 @@ type ChatUI struct {
 
 	toolStarts map[string]time.Time
 	toolArgs   map[string]string
+
+	streamActive   bool
+	streamBuf      strings.Builder
+	replyStreamed  bool
+	streamRoundHad bool // content streamed in current LLM round (before tools)
 }
 
 // New creates a ChatUI; plain when not a TTY or GEEGOO_CHAT_PLAIN=1.
@@ -197,6 +202,70 @@ func (u *ChatUI) PrintAssistant(text string) {
 	u.println(box)
 }
 
+// ResetStream clears typewriter state at the start of a user turn.
+func (u *ChatUI) ResetStream() {
+	u.streamActive = false
+	u.streamBuf.Reset()
+	u.replyStreamed = false
+	u.streamRoundHad = false
+}
+
+// WriteStreamDelta appends live assistant text (typewriter).
+func (u *ChatUI) WriteStreamDelta(text string) {
+	if text == "" {
+		return
+	}
+	if !u.streamActive {
+		u.streamActive = true
+		u.streamBuf.Reset()
+		u.println("")
+		if u.plain {
+			u.write("GeeGoo> ")
+		} else {
+			u.println(styleGold.Render("⚕ GeeGoo"))
+		}
+	}
+	u.streamBuf.WriteString(text)
+	u.streamRoundHad = true
+	u.write(text)
+}
+
+// AbortStreamReply discards in-progress streamed text when tool calls follow
+// (that content was plan/thinking, not the final user-facing reply).
+func (u *ChatUI) AbortStreamReply() {
+	if !u.streamActive {
+		u.streamRoundHad = false
+		return
+	}
+	u.write("\n")
+	if !u.plain {
+		u.println(styleDim.Render("  ↳ （计划文本，继续调用工具…）"))
+	}
+	u.streamActive = false
+	u.streamBuf.Reset()
+	u.streamRoundHad = false
+}
+
+// FinishAssistantStream closes a live reply stream. Returns true when the
+// final answer was already printed (caller should skip PrintAssistant).
+func (u *ChatUI) FinishAssistantStream() bool {
+	if u.streamActive {
+		u.write("\n")
+		u.println("")
+		u.streamActive = false
+		if u.streamBuf.Len() > 0 {
+			u.replyStreamed = true
+		}
+	}
+	return u.replyStreamed
+}
+
+// StreamRoundHadContent reports whether the current LLM round already streamed
+// visible content (used to avoid duplicating llm_plan text).
+func (u *ChatUI) StreamRoundHadContent() bool {
+	return u.streamRoundHad
+}
+
 func (u *ChatUI) PrintHelp(text string) {
 	if u.plain {
 		u.write(text)
@@ -229,6 +298,7 @@ func (u *ChatUI) toolKey(data map[string]any) string {
 func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 	switch event {
 	case "turn_start":
+		u.ResetStream()
 		if u.plain {
 			u.println("────────────────")
 			u.println("Initializing agent...")
@@ -237,13 +307,21 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 		u.printRule()
 		u.println(styleDim.Render("Initializing agent..."))
 	case "round_start":
+		u.streamRoundHad = false
 		if u.plain {
 			u.println(fmt.Sprintf("⋯ step %v", data["step"]))
+		}
+	case "stream_delta":
+		if content, _ := data["content"].(string); content != "" {
+			u.WriteStreamDelta(content)
 		}
 	case "llm_plan":
 		reasoning, _ := data["reasoning"].(string)
 		content, _ := data["content"].(string)
 		toolNames, _ := data["tool_names"].([]string)
+		if u.StreamRoundHadContent() {
+			content = "" // already shown via typewriter
+		}
 		if u.plain {
 			if strings.TrimSpace(reasoning) != "" {
 				u.println(fmt.Sprintf("  [思考] %s", truncate(reasoning, 500)))
@@ -272,6 +350,7 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 			u.println("  " + styleDim.Render("→ 调用: "+strings.Join(toolNames, ", ")))
 		}
 	case "llm_tools":
+		u.AbortStreamReply()
 		if u.plain {
 			if names, ok := data["tool_names"].([]string); ok {
 				u.println(fmt.Sprintf("  ⋯ 计划调用: %s", strings.Join(names, ", ")))
@@ -282,6 +361,7 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 			u.println("  " + styleDim.Render("⋯ 执行: "+strings.Join(names, ", ")))
 		}
 	case "tool_start":
+		u.AbortStreamReply()
 		name, _ := data["name"].(string)
 		key := u.toolKey(data)
 		u.toolStarts[key] = time.Now()
@@ -332,8 +412,11 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 			styleDim.Render(fmt.Sprintf("%.1fs", duration)),
 		))
 	case "error":
+		u.AbortStreamReply()
 		msg, _ := data["message"].(string)
 		u.PrintError(msg)
+	case "reply_start":
+		// Final reply may already be streaming; nothing else to do.
 	}
 }
 

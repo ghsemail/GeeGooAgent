@@ -23,6 +23,12 @@ type Session struct {
 	LastPromptTokens int
 	StepCounter      int
 	CreatedAt        time.Time
+	// Lineage tracks Hermes-style compaction bloodline without forking the
+	// user-facing session id. ParentID is the previous generation node;
+	// LineageRoot is the original session id before any compaction.
+	ParentID             string
+	LineageRoot          string
+	CompactionGeneration int
 }
 
 // NewSession creates a chat session with system prompt.

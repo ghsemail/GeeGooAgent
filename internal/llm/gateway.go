@@ -15,11 +15,12 @@ type GatewayConfig struct {
 	MaxTokens         int
 }
 
-// Gateway wraps a primary LLM provider with retries.
+// Gateway wraps a primary LLM provider with retries and optional fallbacks.
 type Gateway struct {
-	primary Provider
-	config  GatewayConfig
-	sleep   func(time.Duration)
+	primary   Provider
+	fallbacks []Provider
+	config    GatewayConfig
+	sleep     func(time.Duration)
 }
 
 // NewGateway creates a model gateway.
@@ -43,6 +44,14 @@ func NewGateway(primary Provider, cfg GatewayConfig) *Gateway {
 	}
 }
 
+// SetFallbacks wires ordered backup providers (Hermes fallback_providers parity).
+func (g *Gateway) SetFallbacks(fallbacks []Provider) {
+	if g == nil {
+		return
+	}
+	g.fallbacks = fallbacks
+}
+
 // SetSleep replaces sleep for tests.
 func (g *Gateway) SetSleep(fn func(time.Duration)) {
 	g.sleep = fn
@@ -56,19 +65,70 @@ func (g *Gateway) Model() string {
 	return g.primary.Model()
 }
 
-// Chat invokes the provider with retries.
+// Chat invokes providers with retries; fails over on 401/403/429/5xx.
 func (g *Gateway) Chat(ctx context.Context, messages []Message, tools []ToolSchema, sessionID string, step int) (*Response, error) {
+	return g.ChatStream(ctx, messages, tools, sessionID, step, StreamHandlerFrom(ctx))
+}
+
+// ChatStream is like Chat but forwards token deltas when the provider supports SSE.
+// If onDelta is nil and ctx carries a StreamHandler, that handler is used.
+func (g *Gateway) ChatStream(
+	ctx context.Context,
+	messages []Message,
+	tools []ToolSchema,
+	sessionID string,
+	step int,
+	onDelta StreamHandler,
+) (*Response, error) {
 	_ = sessionID
 	_ = step
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if onDelta == nil {
+		onDelta = StreamHandlerFrom(ctx)
+	}
+	providers := g.providers()
+	var lastErr error
+	for i, provider := range providers {
+		resp, err := g.chatStreamWithRetries(ctx, provider, messages, tools, onDelta)
+		if err == nil {
+			return resp, nil
+		}
+		lastErr = err
+		if i < len(providers)-1 && FailoverEligible(err) {
+			continue
+		}
+		break
+	}
+	return nil, fmt.Errorf("LLM gateway failed: %w", lastErr)
+}
+
+func (g *Gateway) providers() []Provider {
+	if g == nil {
+		return nil
+	}
+	out := make([]Provider, 0, 1+len(g.fallbacks))
+	if g.primary != nil {
+		out = append(out, g.primary)
+	}
+	out = append(out, g.fallbacks...)
+	return out
+}
+
+func (g *Gateway) chatStreamWithRetries(
+	ctx context.Context,
+	provider Provider,
+	messages []Message,
+	tools []ToolSchema,
+	onDelta StreamHandler,
+) (*Response, error) {
 	var lastErr error
 	for attempt := 0; attempt < g.config.MaxRetries; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		resp, err := g.primary.Chat(ctx, messages, tools, g.config.Temperature, g.config.MaxTokens)
+		resp, err := invokeProvider(ctx, provider, messages, tools, g.config.Temperature, g.config.MaxTokens, onDelta)
 		if err == nil {
 			if MalformedToolCallResponse(resp) {
 				lastErr = fmt.Errorf("malformed tool_calls response (finish_reason=%q, tools=%d)", resp.FinishReason, len(resp.ToolCalls))
@@ -76,17 +136,41 @@ func (g *Gateway) Chat(ctx context.Context, messages []Message, tools []ToolSche
 					g.sleep(g.config.RetryWait)
 					continue
 				}
-				// Final attempt still malformed: return response so caller can surface a clear message.
 				return resp, nil
 			}
 			return resp, nil
 		}
 		lastErr = err
-		if attempt < g.config.MaxRetries-1 {
+		if attempt < g.config.MaxRetries-1 && !FailoverEligible(err) {
 			g.sleep(g.config.RetryWait)
 		}
 	}
-	return nil, fmt.Errorf("LLM gateway failed: %w", lastErr)
+	return nil, lastErr
+}
+
+func invokeProvider(
+	ctx context.Context,
+	provider Provider,
+	messages []Message,
+	tools []ToolSchema,
+	temperature float64,
+	maxTokens int,
+	onDelta StreamHandler,
+) (*Response, error) {
+	if onDelta != nil {
+		if s, ok := provider.(Streamer); ok {
+			return s.ChatStream(ctx, messages, tools, temperature, maxTokens, onDelta)
+		}
+	}
+	resp, err := provider.Chat(ctx, messages, tools, temperature, maxTokens)
+	if err != nil {
+		return nil, err
+	}
+	// Non-streaming provider: deliver the full content once so callers still see a delta.
+	if onDelta != nil && resp != nil && resp.Content != "" && len(resp.ToolCalls) == 0 {
+		onDelta(StreamDelta{Content: resp.Content})
+	}
+	return resp, nil
 }
 
 // MalformedToolCallResponse detects finish_reason=tool_calls without any tool_calls payload
