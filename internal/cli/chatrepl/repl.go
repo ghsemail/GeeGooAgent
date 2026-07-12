@@ -40,6 +40,7 @@ type Repl struct {
 	curCancel    context.CancelFunc
 	stdin        io.Reader
 	stdout       io.Writer
+	tty          *ttyState
 }
 
 // New builds a chat REPL.
@@ -136,6 +137,14 @@ func (r *Repl) RunSingle(message string) int {
 
 // Run interactive loop.
 func (r *Repl) Run() int {
+	r.tty = saveTTY()
+	defer restoreTTY(r.tty)
+	defer func() {
+		if r.App != nil {
+			_ = r.App.Close()
+		}
+	}()
+
 	r.printBanner()
 	for {
 		line, err := r.readLine()
@@ -264,12 +273,32 @@ func (r *Repl) readLine() (string, error) {
 		}
 		return out
 	})
-	line := prompt.Input("", completer,
+	line := prompt.Input("", completer, slashPromptOptions()...)
+	// go-prompt TearDown often leaves the tty in a bad state; restore before next UI write.
+	restoreTTY(r.tty)
+	return line, nil
+}
+
+func slashPromptOptions() []prompt.Option {
+	// Default go-prompt uses Cyan/Turquoise which renders as muddy brown-yellow
+	// on many Windows/SSH terminals and fights our gold theme. Prefer dark panels.
+	return []prompt.Option{
 		prompt.OptionTitle("geegoo chat"),
 		prompt.OptionPrefix(""),
 		prompt.OptionShowCompletionAtStart(),
-	)
-	return line, nil
+		prompt.OptionSuggestionBGColor(prompt.DarkGray),
+		prompt.OptionSuggestionTextColor(prompt.White),
+		prompt.OptionDescriptionBGColor(prompt.Black),
+		prompt.OptionDescriptionTextColor(prompt.LightGray),
+		prompt.OptionSelectedSuggestionBGColor(prompt.Blue),
+		prompt.OptionSelectedSuggestionTextColor(prompt.White),
+		prompt.OptionSelectedDescriptionBGColor(prompt.Blue),
+		prompt.OptionSelectedDescriptionTextColor(prompt.White),
+		prompt.OptionPreviewSuggestionBGColor(prompt.DefaultColor),
+		prompt.OptionPreviewSuggestionTextColor(prompt.Cyan),
+		prompt.OptionScrollbarBGColor(prompt.DarkGray),
+		prompt.OptionScrollbarThumbColor(prompt.LightGray),
+	}
 }
 
 func (r *Repl) handleSlash(line string) bool {
@@ -283,7 +312,14 @@ func (r *Repl) handleSlash(line string) bool {
 	switch cmd {
 	case "/exit", "/quit":
 		r.saveSessionClosed()
-		r.UI.PrintInfo("会话已保存。")
+		r.UI.PrintInfo("会话已保存。再见。")
+		restoreTTY(r.tty)
+		if r.App != nil {
+			_ = r.App.Close()
+		}
+		// Force-exit: go-prompt can leave goroutines/tty in a state where a
+		// normal return appears to hang the SSH session.
+		os.Exit(0)
 		return true
 	case "/help":
 		r.UI.PrintHelp(chatui.BuildHelpText())
