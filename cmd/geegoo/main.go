@@ -67,7 +67,7 @@ Usage:
   %s update [--dir PATH]
   %s resume --session ID [--config PATH] [--dry-run]
   %s doctor [--config PATH]
-  %s chat [--config PATH] [--dry-run] [--message TEXT]
+  %s chat [--config PATH] [--dry-run] [--message TEXT] [--session ID] [--tui|--cli]
   %s run <skill> [--config PATH] [--dry-run]
   %s migrate [--config PATH] [--dry-run]
   %s skills list

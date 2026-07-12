@@ -16,6 +16,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/app"
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/cli/chatui"
+	"github.com/ghsemail/GeeGooAgent/internal/cli/progress"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
@@ -32,6 +33,7 @@ type Repl struct {
 	Registry     *tools.Registry
 	Loop         *runtime.ReActLoop
 	UI           *chatui.ChatUI
+	Progress     progress.Sink // optional override; default UI
 	DryRun       bool
 	Verbose      bool
 	ChatToolsets []string // session override; nil → config defaults
@@ -119,29 +121,63 @@ func findProjectRoot() string {
 }
 
 func (r *Repl) attachProgress() {
+	sink := r.Progress
+	if sink == nil {
+		sink = r.UI
+	}
 	r.App.Agent.SetProgress(func(event string, data map[string]any) {
 		switch event {
 		case "stream_delta", "turn_start", "reply_start":
-			r.UI.EmitProgress(event, data)
+			sink.EmitProgress(event, data)
 			return
 		case "llm_tools", "tool_start", "error":
 			// Abort typewriter even when verbose is off; optionally show tool lines.
 			if r.Verbose {
-				r.UI.EmitProgress(event, data)
-			} else {
-				r.UI.AbortStreamReply()
+				sink.EmitProgress(event, data)
+			} else if ui, ok := sink.(*chatui.ChatUI); ok {
+				ui.AbortStreamReply()
 				if event == "error" {
 					if msg, _ := data["message"].(string); msg != "" {
-						r.UI.PrintError(msg)
+						ui.PrintError(msg)
 					}
 				}
+			} else if event == "error" {
+				sink.EmitProgress(event, data)
 			}
 			return
 		}
 		if r.Verbose {
-			r.UI.EmitProgress(event, data)
+			sink.EmitProgress(event, data)
 		}
 	})
+}
+
+// SetApprovalFn replaces the write-tool approval prompt (used by TUI modal).
+func (r *Repl) SetApprovalFn(fn runtime.ApprovalFunc) {
+	r.App.Agent.SetApproval(fn)
+}
+
+// SetProgressSink replaces the live progress target and re-wires the agent.
+func (r *Repl) SetProgressSink(sink progress.Sink) {
+	r.Progress = sink
+	r.attachProgress()
+}
+
+// RunTurn executes one user message (exported for TUI host).
+func (r *Repl) RunTurn(text string) runtime.TurnResult {
+	return r.runTurn(text)
+}
+
+// CancelTurn cancels the in-flight turn context, if any.
+func (r *Repl) CancelTurn() {
+	if r.curCancel != nil {
+		r.curCancel()
+	}
+}
+
+// CloseSession marks the chat closed and persists.
+func (r *Repl) CloseSession() {
+	r.saveSessionClosed()
 }
 
 func (r *Repl) attachApproval() {
