@@ -107,10 +107,39 @@ type Compressor struct {
 }
 
 func NewCompressor(cfg config.ResolvedCompression, sum Summarizer) *Compressor {
+	if cfg.Threshold <= 0 {
+		cfg.Threshold = 0.5
+	}
+	if cfg.HygieneThreshold <= 0 {
+		cfg.HygieneThreshold = 0.85
+	}
+	if cfg.HygieneThreshold < cfg.Threshold {
+		cfg.HygieneThreshold = cfg.Threshold
+	}
+	if cfg.ContextLength <= 0 {
+		cfg.ContextLength = 128000
+	}
 	return &Compressor{cfg: cfg, summarizer: sum}
 }
 
 func (c *Compressor) ShouldCompress(tokenEstimate, messageCount int) bool {
+	if c == nil {
+		return false
+	}
+	return c.shouldAt(c.cfg.Threshold, tokenEstimate, messageCount)
+}
+
+// ShouldHygiene reports whether the Hermes-style session hygiene threshold is hit
+// (default 85% of context). Used once at turn start as a safety net above the
+// normal in-loop threshold.
+func (c *Compressor) ShouldHygiene(tokenEstimate, messageCount int) bool {
+	if c == nil {
+		return false
+	}
+	return c.shouldAt(c.cfg.HygieneThreshold, tokenEstimate, messageCount)
+}
+
+func (c *Compressor) shouldAt(threshold float64, tokenEstimate, messageCount int) bool {
 	if c == nil || !c.cfg.Enabled {
 		return false
 	}
@@ -118,14 +147,32 @@ func (c *Compressor) ShouldCompress(tokenEstimate, messageCount int) bool {
 	if messageCount < minMsgs {
 		return false
 	}
-	thresholdTokens := int(float64(c.cfg.ContextLength) * c.cfg.Threshold)
+	if threshold <= 0 {
+		threshold = c.cfg.Threshold
+	}
+	thresholdTokens := int(float64(c.cfg.ContextLength) * threshold)
 	return tokenEstimate >= thresholdTokens
 }
 
 // Compress returns (messages, didCompress, newSummary, err).
 // On summarizer failure: returns original messages, did=false, err=nil.
 func (c *Compressor) Compress(ctx context.Context, messages []llm.Message, previousSummary string, tokenEstimate int) ([]llm.Message, bool, string, error) {
-	if c == nil || !c.ShouldCompress(tokenEstimate, len(messages)) {
+	return c.compressAt(ctx, messages, previousSummary, tokenEstimate, c.cfg.Threshold)
+}
+
+// CompressHygiene runs compression using the hygiene threshold (session safety net).
+func (c *Compressor) CompressHygiene(ctx context.Context, messages []llm.Message, previousSummary string, tokenEstimate int) ([]llm.Message, bool, string, error) {
+	return c.compressAt(ctx, messages, previousSummary, tokenEstimate, c.cfg.HygieneThreshold)
+}
+
+func (c *Compressor) compressAt(
+	ctx context.Context,
+	messages []llm.Message,
+	previousSummary string,
+	tokenEstimate int,
+	threshold float64,
+) ([]llm.Message, bool, string, error) {
+	if c == nil || !c.shouldAt(threshold, tokenEstimate, len(messages)) {
 		return messages, false, previousSummary, nil
 	}
 	headEnd, cut := determineCut(messages, c.cfg)

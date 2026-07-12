@@ -232,7 +232,7 @@ POST /v1/chat/completions（Bearer + X-MCP-Token）
 
 `internal/chatprompt/prompt.go` 提供稳定 system prompt（人格 + Tool 路由规则 + 记忆规则）。`ChatSession.RuntimeMessages()` 在最后一条 user message 前注入动态 Tool 活动 context（user 角色），**system message 跨轮字节不变**，保 DeepSeek/OpenAI 前缀缓存命中率。DeepSeek thinking 模式通过 `llm/openai.go` 的 `thinking`/`reasoning_effort`/`reasoning_content` 解析接入。
 
-`internal/prompt/compressor.go` 在每轮 LLM 调用前按 token 阈值（`threshold × context_length`）触发 Hermes-style 四阶段压缩：清旧 tool 结果 → 头/中/尾边界 → 辅助 LLM 摘要 → 组装写回会话。详见 [`layers/L3-memory/compaction.md`](layers/L3-memory/compaction.md)。
+`internal/prompt/compressor.go` 在回合开始（默认 85% hygiene）与每轮 LLM 调用前（默认 50%）按 token 阈值触发 Hermes-style 四阶段压缩；`context_length` 可按当前模型自动解析。详见 [`layers/L3-memory/compaction.md`](layers/L3-memory/compaction.md)。
 
 ### Provider 解析
 

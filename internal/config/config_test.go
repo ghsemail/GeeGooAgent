@@ -98,7 +98,7 @@ func TestEffectiveCompressionDefaults(t *testing.T) {
 	if !c.Enabled {
 		t.Fatal("enabled default true")
 	}
-	if c.Threshold != 0.5 || c.TargetRatio != 0.2 || c.ProtectLastN != 20 {
+	if c.Threshold != 0.5 || c.HygieneThreshold != 0.85 || c.TargetRatio != 0.2 || c.ProtectLastN != 20 {
 		t.Fatalf("defaults: %+v", c)
 	}
 	if c.ProtectFirstN != 3 || c.ContextLength != 128000 || c.ClearToolMinChars != 200 {

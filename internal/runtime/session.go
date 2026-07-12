@@ -17,11 +17,12 @@ type UpstreamMessage struct {
 
 // Session holds in-memory chat state for one conversation.
 type Session struct {
-	ID              string
-	Messages        []llm.Message
-	PreviousSummary string
-	StepCounter     int
-	CreatedAt       time.Time
+	ID               string
+	Messages         []llm.Message
+	PreviousSummary  string
+	LastPromptTokens int
+	StepCounter      int
+	CreatedAt        time.Time
 }
 
 // NewSession creates a chat session with system prompt.

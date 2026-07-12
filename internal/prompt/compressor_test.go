@@ -33,7 +33,7 @@ func TestEstimateTokensRough(t *testing.T) {
 
 func TestShouldCompress(t *testing.T) {
 	cfg := config.ResolvedCompression{
-		Enabled: true, Threshold: 0.5, ContextLength: 1000,
+		Enabled: true, Threshold: 0.5, HygieneThreshold: 0.85, ContextLength: 1000,
 		ProtectFirstN: 3, ProtectLastN: 2,
 	}
 	c := NewCompressor(cfg, nil)
@@ -46,6 +46,12 @@ func TestShouldCompress(t *testing.T) {
 	}
 	if c.ShouldCompress(400, len(msgs)) {
 		t.Fatal("below threshold")
+	}
+	if c.ShouldHygiene(600, len(msgs)) {
+		t.Fatal("600 < 85% of 1000")
+	}
+	if !c.ShouldHygiene(900, len(msgs)) {
+		t.Fatal("want hygiene at 90%")
 	}
 	cfg.Enabled = false
 	c = NewCompressor(cfg, nil)

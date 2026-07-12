@@ -48,6 +48,14 @@ func (g *Gateway) SetSleep(fn func(time.Duration)) {
 	g.sleep = fn
 }
 
+// Model returns the primary provider model id.
+func (g *Gateway) Model() string {
+	if g == nil || g.primary == nil {
+		return ""
+	}
+	return g.primary.Model()
+}
+
 // Chat invokes the provider with retries.
 func (g *Gateway) Chat(ctx context.Context, messages []Message, tools []ToolSchema, sessionID string, step int) (*Response, error) {
 	_ = sessionID

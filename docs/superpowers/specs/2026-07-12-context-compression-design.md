@@ -16,12 +16,14 @@
 
 ### 非目标（本阶段不做）
 
-- Gateway 85% 会话清理层（无 20 IM 平台）。
+- IM Gateway / 多平台会话清理进程（无 Telegram/Discord）。
 - Anthropic prompt caching 断点。
 - `ContextEngine` 插件 ABC / 无损 LCM。
 - 压缩中间轮次另存 archive 表（已选方案 A：直接写回，不保留完整中间原文）。
 - 确定性 `workflow` / `pre_market` 路径改造（不受影响）。
 - 盘中 / 盘后 skill、scheduler 常驻（后续子项目）。
+
+> 对齐更新（2026-07-12）：在 **无 IM Gateway** 前提下，于每轮 `RunTurn` 开头增加 Hermes 同语义的 **85% session hygiene**（`hygiene_threshold`）；`context_length` 可按当前模型自动解析。
 
 ## 2. 已确认决策
 
@@ -36,20 +38,16 @@
 ## 3. 架构与数据流
 
 ```text
-ReActLoop.RunTurn / 每轮 gateway.Chat 之前
+ReActLoop.RunTurn
   │
-  ├─ tokenEstimate = lastPromptTokens 或 EstimateTokens(messages)
-  ├─ if !ShouldCompress(tokenEstimate) → 直接 Chat
+  ├─ turn-start hygiene（默认 85%）：粗估/上次 prompt_tokens ≥ hygiene_threshold × context_length
+  │     └─ 同四阶段 CompressHygiene → emit context_hygiene
   │
-  ├─ Phase1 ClearOldToolResults（无 LLM）
-  ├─ Phase2 DetermineBoundaries（头/中/尾，对齐 tool 组）
-  ├─ Phase3 GenerateSummary（auxiliary LLM，结构化模板）
-  │     └─ 失败 → 放弃压缩，用原 messages 继续
-  ├─ Phase4 Assemble + SanitizeToolPairs
-  ├─ session.Messages = compressed
-  ├─ 记住 previous_summary；emit progress "context_compressed"
-  └─ gateway.Chat(compressed…)
-         └─ 记下 resp.Usage.PromptTokens → lastPromptTokens
+  └─ 每轮 gateway.Chat 之前
+        ├─ tokenEstimate = lastPromptTokens 或 EstimateTokens(messages)
+        ├─ if !ShouldCompress（默认 50%）→ 直接 Chat
+        ├─ Phase1…4 Compress → emit context_compressed
+        └─ gateway.Chat…
 ```
 
 回合结束后仍走现有 `SyncFromRuntime` + `SessionStore.Save`，压缩后的消息自然落盘。
@@ -63,10 +61,11 @@ ReActLoop.RunTurn / 每轮 gateway.Chat 之前
   "compression": {
     "enabled": true,
     "threshold": 0.5,
+    "hygiene_threshold": 0.85,
     "target_ratio": 0.2,
     "protect_last_n": 20,
     "protect_first_n": 3,
-    "context_length": 128000,
+    "context_length": 0,
     "clear_tool_min_chars": 200
   },
   "auxiliary": {
@@ -83,11 +82,12 @@ ReActLoop.RunTurn / 每轮 gateway.Chat 之前
 | 字段 | 默认 | 含义 |
 |---|---|---|
 | `enabled` | `true` | 总开关 |
-| `threshold` | `0.5` | 触发比例：`threshold × context_length` |
+| `threshold` | `0.5` | 环内触发比例：`threshold × context_length` |
+| `hygiene_threshold` | `0.85` | 回合开始安全网（对齐 Hermes Gateway 85%）；须 ≥ threshold |
 | `target_ratio` | `0.2` | 尾部 token 预算 = `threshold_tokens × target_ratio` |
 | `protect_last_n` | `20` | 尾部至少保留的消息条数 |
 | `protect_first_n` | `3` | 头部保留（system + 首轮交互）；硬编码默认 3，可配置 |
-| `context_length` | `128000` | 模型上下文窗；后续可按 model 目录细化 |
+| `context_length` | `0`（自动） | `>0` 显式覆盖；否则按当前模型解析（`llm.ResolveContextWindow`） |
 | `clear_tool_min_chars` | `200` | Phase1 清除阈值 |
 | `auxiliary.compression.*` | 空 | 空字段回退 `cfg.LLM` 对应项 |
 

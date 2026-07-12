@@ -197,6 +197,15 @@ func (a *App) wireCompressor() {
 		a.setCompressor(nil)
 		return
 	}
+	model := ""
+	if a.Gateway != nil {
+		model = a.Gateway.Model()
+	}
+	if model == "" {
+		model = a.Config.LLM.Model
+	}
+	// Explicit config.compression.context_length wins; otherwise resolve from model.
+	cfg.ContextLength = llm.ResolveContextWindow(model, a.Config.Compression.ContextLength)
 	aux := a.Config.EffectiveAuxiliaryCompression()
 	provider, err := llm.BuildProviderFromLLMFields(aux.Provider, aux.TokenKey, aux.Model, nil, "", aux.BaseURL)
 	if err != nil {

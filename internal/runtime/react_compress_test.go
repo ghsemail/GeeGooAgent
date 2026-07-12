@@ -26,8 +26,11 @@ type sessionRecordingSummarizer struct {
 
 func (s *sessionRecordingSummarizer) Summarize(ctx context.Context, middle []llm.Message, previousSummary string, maxTokens int) (string, error) {
 	s.previous = append(s.previous, previousSummary)
-	summary := s.next[len(s.previous)-1]
-	return summary, nil
+	idx := len(s.previous) - 1
+	if idx < len(s.next) {
+		return s.next[idx], nil
+	}
+	return "fallback-summary", nil
 }
 
 type recordingProvider struct {
@@ -54,8 +57,8 @@ func TestRunTurnCompressesBeforeChat(t *testing.T) {
 	registry := tools.NewRegistry()
 	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
 	loop.SetCompressor(prompt.NewCompressor(config.ResolvedCompression{
-		Enabled: true, Threshold: 0.01, TargetRatio: 0.2,
-		ProtectFirstN: 1, ProtectLastN: 1, ContextLength: 100, ClearToolMinChars: 50,
+		Enabled: true, Threshold: 0.01, HygieneThreshold: 0.85, TargetRatio: 0.2,
+		ProtectFirstN: 1, ProtectLastN: 1, ContextLength: 10000, ClearToolMinChars: 50,
 	}, compressionSummarizer{}))
 
 	session := runtime.NewSession()
@@ -86,6 +89,37 @@ func TestRunTurnCompressesBeforeChat(t *testing.T) {
 	}
 }
 
+func TestRunTurnHygieneAtEightyFivePercent(t *testing.T) {
+	provider := &recordingProvider{}
+	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
+	gateway.SetSleep(func(time.Duration) {})
+
+	registry := tools.NewRegistry()
+	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
+	sum := &sessionRecordingSummarizer{next: []string{"hygiene-summary", "loop-summary"}}
+	// Equal thresholds: turn-start hygiene runs first; in-loop may no-op if tokens drop.
+	loop.SetCompressor(prompt.NewCompressor(config.ResolvedCompression{
+		Enabled: true, Threshold: 0.5, HygieneThreshold: 0.5, TargetRatio: 0.2,
+		ProtectFirstN: 1, ProtectLastN: 1, ContextLength: 100, ClearToolMinChars: 50,
+	}, sum))
+
+	session := newCompressibleSession()
+	result := loop.RunTurn(context.Background(), session, "latest", tools.Context{}, nil)
+	if result.Failed {
+		t.Fatalf("failed: %s", result.Error)
+	}
+	if !strings.Contains(session.PreviousSummary, "summary") {
+		t.Fatalf("PreviousSummary=%q", session.PreviousSummary)
+	}
+	if len(sum.previous) < 1 {
+		t.Fatalf("summarizer calls=%d want >=1", len(sum.previous))
+	}
+	joined := joinMessageContent(provider.messages)
+	if !strings.Contains(joined, "CONTEXT COMPACTION") && !strings.Contains(joined, "summary") {
+		t.Fatalf("provider did not see compaction: %q", joined)
+	}
+}
+
 func TestCompressionSummaryIsPerSession(t *testing.T) {
 	provider := &recordingProvider{}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
@@ -97,8 +131,8 @@ func TestCompressionSummaryIsPerSession(t *testing.T) {
 		next: []string{"first-summary", "second-summary"},
 	}
 	loop.SetCompressor(prompt.NewCompressor(config.ResolvedCompression{
-		Enabled: true, Threshold: 0.01, TargetRatio: 0.2,
-		ProtectFirstN: 1, ProtectLastN: 1, ContextLength: 100, ClearToolMinChars: 50,
+		Enabled: true, Threshold: 0.01, HygieneThreshold: 0.85, TargetRatio: 0.2,
+		ProtectFirstN: 1, ProtectLastN: 1, ContextLength: 10000, ClearToolMinChars: 50,
 	}, summarizer))
 
 	first := newCompressibleSession()

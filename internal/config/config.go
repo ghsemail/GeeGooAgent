@@ -59,6 +59,7 @@ type SandboxConfig struct {
 type CompressionConfig struct {
 	Enabled           *bool   `json:"enabled,omitempty"`
 	Threshold         float64 `json:"threshold,omitempty"`
+	HygieneThreshold  float64 `json:"hygiene_threshold,omitempty"`
 	TargetRatio       float64 `json:"target_ratio,omitempty"`
 	ProtectLastN      int     `json:"protect_last_n,omitempty"`
 	ProtectFirstN     int     `json:"protect_first_n,omitempty"`
@@ -82,6 +83,7 @@ type AuxiliaryConfig struct {
 type ResolvedCompression struct {
 	Enabled           bool
 	Threshold         float64
+	HygieneThreshold  float64
 	TargetRatio       float64
 	ProtectLastN      int
 	ProtectFirstN     int
@@ -155,7 +157,7 @@ func applyEnv(cfg *AppConfig) {
 
 func (c *AppConfig) EffectiveCompression() ResolvedCompression {
 	out := ResolvedCompression{
-		Enabled: true, Threshold: 0.5, TargetRatio: 0.2,
+		Enabled: true, Threshold: 0.5, HygieneThreshold: 0.85, TargetRatio: 0.2,
 		ProtectLastN: 20, ProtectFirstN: 3, ContextLength: 128000, ClearToolMinChars: 200,
 	}
 	if c == nil {
@@ -167,6 +169,9 @@ func (c *AppConfig) EffectiveCompression() ResolvedCompression {
 	}
 	if src.Threshold > 0 {
 		out.Threshold = src.Threshold
+	}
+	if src.HygieneThreshold > 0 {
+		out.HygieneThreshold = src.HygieneThreshold
 	}
 	if src.TargetRatio > 0 {
 		out.TargetRatio = src.TargetRatio
@@ -185,6 +190,12 @@ func (c *AppConfig) EffectiveCompression() ResolvedCompression {
 	}
 	if out.Threshold > 1 {
 		out.Threshold = 1
+	}
+	if out.HygieneThreshold > 1 {
+		out.HygieneThreshold = 1
+	}
+	if out.HygieneThreshold < out.Threshold {
+		out.HygieneThreshold = out.Threshold
 	}
 	if out.TargetRatio < 0.1 {
 		out.TargetRatio = 0.1

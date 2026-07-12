@@ -25,12 +25,11 @@ type TurnResult struct {
 
 // ReActLoop runs plan → act → observe for one chat turn.
 type ReActLoop struct {
-	gateway          *llm.Gateway
-	executor         *Executor
-	maxToolRounds    int
-	onProgress       ProgressFunc
-	compressor       *prompt.Compressor
-	lastPromptTokens int
+	gateway       *llm.Gateway
+	executor      *Executor
+	maxToolRounds int
+	onProgress    ProgressFunc
+	compressor    *prompt.Compressor
 }
 
 // NewReActLoop creates a ReAct loop.
@@ -81,6 +80,7 @@ func (l *ReActLoop) RunTurn(
 	records := []StepRecord{}
 
 	l.emit("turn_start", map[string]any{"user_text": userText})
+	messages = l.applyHygiene(ctx, session, messages)
 
 	for round := 0; round < l.maxToolRounds; round++ {
 		if err := ctx.Err(); err != nil {
@@ -112,7 +112,7 @@ func (l *ReActLoop) RunTurn(
 			}
 		}
 		if resp.Usage.PromptTokens > 0 {
-			l.lastPromptTokens = resp.Usage.PromptTokens
+			session.LastPromptTokens = resp.Usage.PromptTokens
 		}
 
 		toolNames := make([]string, 0, len(resp.ToolCalls))
@@ -197,28 +197,55 @@ func (l *ReActLoop) RunTurn(
 }
 
 func (l *ReActLoop) applyCompression(ctx context.Context, session *Session, messages []llm.Message) []llm.Message {
+	return l.runCompression(ctx, session, messages, false)
+}
+
+func (l *ReActLoop) applyHygiene(ctx context.Context, session *Session, messages []llm.Message) []llm.Message {
+	return l.runCompression(ctx, session, messages, true)
+}
+
+func (l *ReActLoop) runCompression(ctx context.Context, session *Session, messages []llm.Message, hygiene bool) []llm.Message {
 	if l.compressor == nil {
 		return messages
 	}
-	est := l.lastPromptTokens
+	est := session.LastPromptTokens
 	if est <= 0 {
 		est = prompt.EstimateTokens(session.Messages)
 	}
-	if !l.compressor.ShouldCompress(est, len(session.Messages)) {
-		return messages
+	var (
+		out        []llm.Message
+		did        bool
+		newSummary string
+		err        error
+	)
+	if hygiene {
+		if !l.compressor.ShouldHygiene(est, len(session.Messages)) {
+			return messages
+		}
+		out, did, newSummary, err = l.compressor.CompressHygiene(ctx, session.Messages, session.PreviousSummary, est)
+	} else {
+		if !l.compressor.ShouldCompress(est, len(session.Messages)) {
+			return messages
+		}
+		out, did, newSummary, err = l.compressor.Compress(ctx, session.Messages, session.PreviousSummary, est)
 	}
-	before := len(session.Messages)
-	out, did, newSummary, err := l.compressor.Compress(ctx, session.Messages, session.PreviousSummary, est)
 	if err != nil || !did {
 		return messages
 	}
+	before := len(session.Messages)
 	session.Messages = out
 	session.PreviousSummary = newSummary
-	l.emit("context_compressed", map[string]any{
+	session.LastPromptTokens = prompt.EstimateTokens(out)
+	event := "context_compressed"
+	if hygiene {
+		event = "context_hygiene"
+	}
+	l.emit(event, map[string]any{
 		"before_msgs":             before,
 		"after_msgs":              len(out),
 		"estimated_tokens_before": est,
 		"summary_chars":           len(session.PreviousSummary),
+		"hygiene":                 hygiene,
 	})
 	return session.LLMMessages()
 }

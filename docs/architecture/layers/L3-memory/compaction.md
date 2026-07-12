@@ -6,13 +6,23 @@
 
 ## 实现
 
-GeeGooAgent 采用 **Hermes-style 单层 Agent 压缩器**（`internal/prompt/compressor.go`），挂在 ReAct / `Agent.Run` 每轮 `gateway.Chat` 之前。chat CLI 与 HTTP `agent-runtime` 共用同一路径。
+GeeGooAgent 采用 **Hermes-style 双阈值压缩**（`internal/prompt/compressor.go`）：
+
+1. **回合开始 hygiene**（默认 85%）：对齐 Hermes Gateway Session Hygiene，无 IM 进程。
+2. **环内压缩**（默认 50%）：每轮 `gateway.Chat` 之前。
+
+chat CLI 与 HTTP `agent-runtime` 共用同一路径。
 
 完整设计见 [`../../../superpowers/specs/2026-07-12-context-compression-design.md`](../../../superpowers/specs/2026-07-12-context-compression-design.md)。
 
 ### 触发
 
-`prompt_tokens ≥ threshold × context_length`（默认 threshold=0.5，context_length=128000）。优先用上一轮 API 返回的 `prompt_tokens`，否则 `EstimateTokens`（chars/4）粗估。
+| 层 | 条件 | 事件 |
+| --- | --- | --- |
+| Hygiene | `tokens ≥ hygiene_threshold × context_length`（默认 0.85） | `context_hygiene` |
+| 环内 | `tokens ≥ threshold × context_length`（默认 0.50） | `context_compressed` |
+
+优先用上一轮 API `prompt_tokens`，否则 `EstimateTokens`（chars/4）。`context_length`：配置显式值优先，否则 `llm.ResolveContextWindow(model)`（如 `gpt-5.5`→400k，`deepseek-v4-*`→128k）。
 
 ### 四阶段
 

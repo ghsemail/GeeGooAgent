@@ -34,7 +34,7 @@
 |---|---|---|---|
 | Agent 循环 | AIAgent 单一入口 | `Agent.Run(ctx,sess,input)` | ✅ |
 | Prompt 稳定性 | ✅ system 不变 | ✅ P2a 修复 | ✅ |
-| 上下文压缩 | ✅ 有损摘要 | ✅ `internal/prompt` 四阶段 + 辅助摘要 | ✅ |
+| 上下文压缩 | ✅ 有损摘要 + Gateway 85% hygiene | ✅ 四阶段 + 回合前 85% hygiene + 按模型 context_length | ✅ |
 | Prompt 缓存断点 | ✅ Anthropic 显式 | ⚠️ 隐式（前缀稳定） | ⚠️ |
 | Provider 数量 | 18+ | 3 (DeepSeek/OpenAI/Minimax) | 按需精简 |
 | API mode | 3 种 (chat/codex/anthropic) | 1 种 (chat_completions) | 按需精简 |

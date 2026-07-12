@@ -73,8 +73,8 @@ func TestAgentSetCompressorUpdatesLoop(t *testing.T) {
 	registry := tools.NewRegistry()
 	a := agent.New(gateway, runtime.NewExecutor(registry), registry)
 	a.SetCompressor(prompt.NewCompressor(config.ResolvedCompression{
-		Enabled: true, Threshold: 0.01, TargetRatio: 0.2,
-		ProtectFirstN: 1, ProtectLastN: 1, ContextLength: 100, ClearToolMinChars: 50,
+		Enabled: true, Threshold: 0.01, HygieneThreshold: 0.85, TargetRatio: 0.2,
+		ProtectFirstN: 1, ProtectLastN: 1, ContextLength: 10000, ClearToolMinChars: 50,
 	}, agentSummary{}))
 
 	session := runtime.NewSession()
