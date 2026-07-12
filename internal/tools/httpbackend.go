@@ -7,6 +7,7 @@ type HTTPBackends struct {
 	MCP           *mcp.Client // GeeGooBot mcp-api :3120
 	SignalAPI     *mcp.Client // GeeGooSignal signal-api :3200
 	SignalCatalog *mcp.Client // GeeGooSignal catalog-api :3210
+	SignalAnalyze *mcp.Client // GeeGooSignal analyze-api :3230
 }
 
 // ForTool picks the Go backend for a catalog HTTP tool.
@@ -19,6 +20,10 @@ func (b HTTPBackends) ForTool(name string) *mcp.Client {
 	case "get_index_signals", "get_signal_combinations":
 		if b.SignalCatalog != nil {
 			return b.SignalCatalog
+		}
+	case "get_mcp_analysis":
+		if b.MCP != nil {
+			return b.MCP
 		}
 	}
 	if b.MCP != nil {

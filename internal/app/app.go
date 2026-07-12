@@ -72,10 +72,13 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	eventBus := infra.NewEventBus()
 
 	mcpOpts := mcp.Options{AllowedHosts: cfg.ResolvedAllowedHosts()}
+	analysisOpts := mcpOpts
+	analysisOpts.Timeout = 180 * time.Second
 	httpBackends := tools.HTTPBackends{
-		MCP: mcp.NewClient(cfg.EffectiveMCPURL(), cfg.MCPAPIKey(), mcpOpts),
-		SignalAPI: mcp.NewClient(cfg.SignalAPIURL(), cfg.SignalAPIKey(), mcpOpts),
+		MCP:           mcp.NewClient(cfg.EffectiveMCPURL(), cfg.MCPAPIKey(), analysisOpts),
+		SignalAPI:     mcp.NewClient(cfg.SignalAPIURL(), cfg.SignalAPIKey(), mcpOpts),
 		SignalCatalog: mcp.NewClient(cfg.SignalCatalogURL(), cfg.SignalCatalogAPIKey(), mcpOpts),
+		SignalAnalyze: mcp.NewClient(cfg.SignalAnalyzeURL(), cfg.SignalAnalyzeAPIKey(), analysisOpts),
 	}
 
 	registry := tools.NewRegistry()

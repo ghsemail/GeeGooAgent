@@ -43,6 +43,7 @@ def main() -> None:
     bot_key = read_key(bot, "/home/ubuntu/apps/GeeGooBot/.env", "GEEGOO_BOT_MCP_API_KEY")
     sig_key = read_key(sig, "/root/apps/GeeGooSignal/.env", "GEEGOO_SIGNAL_SIGNAL_API_KEY")
     cat_key = read_key(sig, "/root/apps/GeeGooSignal/.env", "GEEGOO_SIGNAL_CATALOG_API_KEY")
+    ana_key = read_key(sig, "/root/apps/GeeGooSignal/.env", "GEEGOO_SIGNAL_ANALYZE_API_KEY")
 
     patch = {
         "base_url": "http://118.195.135.97:3120",
@@ -53,6 +54,8 @@ def main() -> None:
         "signal_api_url": "http://146.56.225.252:3200",
         "signal_api_key": sig_key,
         "signal_catalog_api_key": cat_key,
+        "signal_analyze_api_url": "http://146.56.225.252:3230",
+        "signal_analyze_api_key": ana_key,
         "data_base_url": "http://47.80.14.120:3300",
     }
 
@@ -61,8 +64,10 @@ def main() -> None:
         f"export GEEGOO_BOT_MCP_API_KEY={bot_key}",
         "export GEEGOO_SIGNAL_CATALOG_API_URL=http://146.56.225.252:3210",
         "export GEEGOO_SIGNAL_SIGNAL_API_URL=http://146.56.225.252:3200",
+        "export GEEGOO_SIGNAL_ANALYZE_API_URL=http://146.56.225.252:3230",
         f"export GEEGOO_SIGNAL_SIGNAL_API_KEY={sig_key}",
         f"export GEEGOO_SIGNAL_CATALOG_API_KEY={cat_key}",
+        f"export GEEGOO_SIGNAL_ANALYZE_API_KEY={ana_key}",
         "export GEEGOO_DATA_HTTP_URL=http://47.80.14.120:3300",
         "export GEEGOO_CONFIG=/home/ubuntu/.geegoo/config.json",
         "export PATH=/home/ubuntu/.geegoo/bin:/usr/local/go/bin:$PATH",

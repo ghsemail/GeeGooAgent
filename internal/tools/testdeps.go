@@ -7,5 +7,5 @@ func TestHTTPBackends(client *mcp.Client) HTTPBackends {
 	if client == nil {
 		return HTTPBackends{}
 	}
-	return HTTPBackends{MCP: client, SignalAPI: client, SignalCatalog: client}
+	return HTTPBackends{MCP: client, SignalAPI: client, SignalCatalog: client, SignalAnalyze: client}
 }

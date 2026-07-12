@@ -11,7 +11,7 @@ func TestHTTPBackendsForTool(t *testing.T) {
 	mcpC := mcp.NewClient("http://mcp", "k", opts)
 	sigC := mcp.NewClient("http://signal", "k", opts)
 	catC := mcp.NewClient("http://catalog", "k", opts)
-	b := HTTPBackends{MCP: mcpC, SignalAPI: sigC, SignalCatalog: catC}
+	b := HTTPBackends{MCP: mcpC, SignalAPI: sigC, SignalCatalog: catC, SignalAnalyze: mcpC}
 
 	if b.ForTool("search_code") != sigC {
 		t.Fatal("search_code should use signal-api")

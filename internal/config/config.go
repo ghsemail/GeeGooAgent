@@ -101,6 +101,8 @@ type AppConfig struct {
 	SignalAPIURLField        string `json:"signal_api_url,omitempty"`
 	SignalAPIKeyField        string `json:"signal_api_key,omitempty"`
 	SignalCatalogAPIKeyField string `json:"signal_catalog_api_key,omitempty"`
+	SignalAnalyzeURLField    string `json:"signal_analyze_api_url,omitempty"`
+	SignalAnalyzeAPIKeyField string `json:"signal_analyze_api_key,omitempty"`
 	DataBaseURL              string `json:"data_base_url"`
 	OutputDir        string            `json:"output_dir"`
 	DryRun           bool              `json:"dry_run"`

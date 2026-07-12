@@ -158,10 +158,24 @@ func uniqueNonEmpty(in []string) []string {
 	return out
 }
 
+// SignalAnalyzeAPIKey returns Bearer for GeeGooSignal analyze-api (:3230).
+func (c *AppConfig) SignalAnalyzeAPIKey() string {
+	if v := os.Getenv("GEEGOO_SIGNAL_ANALYZE_API_KEY"); v != "" {
+		return v
+	}
+	if c.SignalAnalyzeAPIKeyField != "" {
+		return c.SignalAnalyzeAPIKeyField
+	}
+	return c.SignalCatalogAPIKey()
+}
+
 // SignalAnalyzeURL returns GeeGooSignal analyze-api (:3230).
 func (c *AppConfig) SignalAnalyzeURL() string {
 	if v := os.Getenv("GEEGOO_SIGNAL_ANALYZE_API_URL"); v != "" {
 		return trimSlash(v)
+	}
+	if c.SignalAnalyzeURLField != "" {
+		return trimSlash(c.SignalAnalyzeURLField)
 	}
 	return DefaultSignalAnalyzeURL
 }
