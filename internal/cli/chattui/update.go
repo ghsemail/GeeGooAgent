@@ -63,9 +63,39 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.display.Normalize()
 		return m, nil
 
+	case approvalTickMsg:
+		if m.host != nil && !m.approvalPending {
+			if tool, args, ok := m.host.PollApproval(); ok {
+				m.approvalPending = true
+				m.approvalTool = tool
+				m.approvalArgs = args
+				m.info = fmt.Sprintf("写操作确认: %s — 输入 y 执行 / n 跳过", tool)
+			}
+		}
+		return m, tickApproval()
+
 	case tea.KeyMsg:
 		if m.quitting {
 			return m, tea.Quit
+		}
+		if m.approvalPending {
+			switch strings.ToLower(msg.String()) {
+			case "y", "yes":
+				if m.host != nil {
+					m.host.AnswerApproval(true)
+				}
+				m.approvalPending = false
+				m.info = "已批准"
+				return m, nil
+			case "n", "no", "esc":
+				if m.host != nil {
+					m.host.AnswerApproval(false)
+				}
+				m.approvalPending = false
+				m.info = "已跳过"
+				return m, nil
+			}
+			return m, nil
 		}
 		switch msg.Type {
 		case tea.KeyCtrlC:
@@ -198,11 +228,48 @@ func (m Model) handleSlash(text string) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
+	case "/verbose":
+		on, ok := parseOnOff(args)
+		if !ok {
+			m.info = "用法: /verbose on|off"
+			return m, nil
+		}
+		if m.host != nil {
+			m.info = m.host.SetVerbose(on)
+		}
+		ApplyVerboseToDisplay(&m.display, on)
+		cp := m.configPath
+		disp := m.display
+		return m, func() tea.Msg {
+			if cp != "" {
+				_ = PersistDisplay(cp, disp)
+			}
+			return DisplayUpdatedMsg{Display: disp}
+		}
+	case "/dry-run":
+		on, ok := parseOnOff(args)
+		if !ok {
+			m.info = "用法: /dry-run on|off"
+			return m, nil
+		}
+		if m.host != nil {
+			m.info = m.host.SetDryRun(on)
+		} else {
+			m.info = fmt.Sprintf("dry_run=%v", on)
+		}
+		return m, nil
+	case "/session":
+		if m.host != nil {
+			m.info = m.host.SessionInfo()
+		} else {
+			m.info = "no session"
+		}
+		return m, nil
 	case "/help":
-		m.info = "Space 折叠焦点块 · ↑/↓ 选块 · /details · /exit · Esc 中断"
+		m.info = "Space 折叠 · ↑/↓ 选块 · /details · /verbose · /session · /dry-run · /exit · Esc 中断 · y/n 审批"
 		return m, nil
 	default:
-		m.info = "TUI Phase A 支持: /help /details /exit（其余命令请用 geegoo chat --cli）"
+		m.info = "未知命令（TUI）: " + cmd + " — 试 /help；完整命令可用 geegoo chat --cli"
 		return m, nil
 	}
 }
@@ -211,7 +278,23 @@ func (m Model) View() string {
 	var b strings.Builder
 	title := styleAccent.Render("⚕ GeeGoo Chat TUI")
 	b.WriteString(title)
-	b.WriteString(styleDim.Render("  "+m.status))
+	modelName := ""
+	think := ""
+	dry := ""
+	if m.host != nil {
+		modelName = m.host.ModelLine()
+		think = m.host.ThinkStatus()
+		if m.host.Repl != nil && m.host.Repl.DryRun {
+			dry = " dry-run"
+		}
+	}
+	status := fmt.Sprintf("  %s · %s · think=%s%s · details=%s",
+		m.status, modelName, think, dry, m.display.DetailsMode)
+	b.WriteString(styleDim.Render(status))
+	if m.approvalPending {
+		b.WriteString("\n")
+		b.WriteString(styleErr.Render(fmt.Sprintf("⚠ 确认写操作 %s: %s  [y/n]", m.approvalTool, m.approvalArgs)))
+	}
 	if m.info != "" {
 		b.WriteString("\n")
 		b.WriteString(styleDim.Render(m.info))
@@ -253,8 +336,10 @@ func (m Model) View() string {
 
 	b.WriteString(styleDim.Render(strings.Repeat("─", max(20, m.width-1))))
 	b.WriteString("\n")
-	b.WriteString(m.input.View())
-	b.WriteString("\n")
+	if !m.approvalPending {
+		b.WriteString(m.input.View())
+		b.WriteString("\n")
+	}
 	return b.String()
 }
 

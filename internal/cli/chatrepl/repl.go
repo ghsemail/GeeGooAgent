@@ -152,6 +152,11 @@ func (r *Repl) attachProgress() {
 	})
 }
 
+// SetApprovalFn replaces the write-tool approval prompt (used by TUI modal).
+func (r *Repl) SetApprovalFn(fn runtime.ApprovalFunc) {
+	r.App.Agent.SetApproval(fn)
+}
+
 // SetProgressSink replaces the live progress target and re-wires the agent.
 func (r *Repl) SetProgressSink(sink progress.Sink) {
 	r.Progress = sink

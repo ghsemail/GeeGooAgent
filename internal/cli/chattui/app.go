@@ -83,6 +83,12 @@ func Run(opts RunOpts) int {
 	program := tea.NewProgram(model, tea.WithAltScreen())
 	sink := &programSink{program: program}
 	repl.SetProgressSink(sink)
+	host := NewReplHost(repl, opts.ConfigPath)
+	// Re-inject host into model via Send after start — set before Run:
+	model.host = host
+	program = tea.NewProgram(model, tea.WithAltScreen())
+	sink.program = program
+	repl.SetProgressSink(sink)
 
 	go runTurnHost(repl, program, submitCh, cancelCh)
 

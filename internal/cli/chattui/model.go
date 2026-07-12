@@ -38,6 +38,11 @@ type Model struct {
 	cancelCh chan struct{}
 
 	configPath string
+	host       *ReplHost
+
+	approvalPending bool
+	approvalTool    string
+	approvalArgs    string
 }
 
 // NewModel builds the initial TUI model.
@@ -59,8 +64,16 @@ func NewModel(display config.DisplayConfig, submitCh chan string, cancelCh chan 
 }
 
 func (m Model) Init() tea.Cmd {
-	return textinput.Blink
+	return tea.Batch(textinput.Blink, tickApproval())
 }
+
+func tickApproval() tea.Cmd {
+	return tea.Tick(200*time.Millisecond, func(t time.Time) tea.Msg {
+		return approvalTickMsg(t)
+	})
+}
+
+type approvalTickMsg time.Time
 
 // TurnDoneMsg is sent when an agent turn finishes.
 type TurnDoneMsg struct {
