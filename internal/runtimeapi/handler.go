@@ -20,7 +20,8 @@ const defaultModel = "geegoo-agent"
 
 // Handler serves OpenAI-compatible endpoints for GeeGooBot agent-api (:3110).
 type Handler struct {
-	App *app.App
+	App    *app.App
+	chatMu sync.Mutex // serializes SetProgress wiring for chat SSE turns
 }
 
 // NewHandler creates runtime API handlers.
@@ -33,6 +34,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/chat/completions", h.chatCompletions)
 	mux.HandleFunc("GET /v1/models", h.listModels)
 	h.registerSessionRoutes(mux)
+	h.registerChatStreamRoutes(mux)
 }
 
 type chatRequest struct {
