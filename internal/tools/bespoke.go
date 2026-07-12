@@ -160,9 +160,23 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "get_current_price", Description: "Get latest price via GeeGooBot MCP.",
+		Name:        "get_current_price",
+		Description: "获取股票最新现价。须先 search_code 得到 code（如 00700.HK），再传入 code。",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"code": map[string]any{
+					"type":        "string",
+					"description": "股票代码，如 00700.HK、AAPL.US",
+				},
+			},
+			"required": []any{"code"},
+		},
 		Handle: func(ctx Context, args map[string]any) Result {
-			code := strArg(args, "code", "")
+			code := firstStringArg(args, "code", "symbol", "stock_code", "ticker")
+			if code == "" {
+				return Result{Status: StatusError, Summary: "get_current_price 需要参数 code（如 00700.HK）", ExitCode: 1}
+			}
 			if ctx.DryRun {
 				return okDryRun("get_current_price", map[string]any{"code": code, "price": nil})
 			}
@@ -518,6 +532,15 @@ func strArg(args map[string]any, key, def string) string {
 		return v
 	}
 	return def
+}
+
+func firstStringArg(args map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if v := strArg(args, key, ""); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func intArg(args map[string]any, key string, def int) int {
