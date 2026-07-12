@@ -39,6 +39,11 @@ coverage.xml
 # Local deploy helpers (credentials via deploy.json)
 scripts/_*
 
+# Local test / probe output
+*_test_out.txt
+bot_test_out.txt
+signal_test_out.txt
+
 # Git worktrees
 .worktrees/
 
