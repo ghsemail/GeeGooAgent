@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"time"
 
 	prompt "github.com/c-bata/go-prompt"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/cli/chatui"
 	"github.com/ghsemail/GeeGooAgent/internal/cli/progress"
+	"github.com/ghsemail/GeeGooAgent/internal/clients/admin"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
@@ -504,6 +506,22 @@ func (r *Repl) handleSlash(line string) bool {
 	return false
 }
 
+// HandleSlashCommand runs a slash command and captures stdout/UI output (TUI).
+// Do not use for /exit — handleSlash may call os.Exit.
+func (r *Repl) HandleSlashCommand(line string) (quit bool, output string) {
+	if r == nil || r.UI == nil {
+		return false, ""
+	}
+	var buf strings.Builder
+	r.UI.WithPlainWriter(&buf, func() {
+		oldStdout := r.stdout
+		r.stdout = &buf
+		quit = r.handleSlash(line)
+		r.stdout = oldStdout
+	})
+	return quit, strings.TrimSpace(buf.String())
+}
+
 func (r *Repl) chatToolNames() []string {
 	ids := r.ChatToolsets
 	if ids == nil && r.App != nil && r.App.Config != nil {
@@ -639,29 +657,111 @@ func truncateText(s string, n int) string {
 }
 
 func (r *Repl) printModels() {
+	models, err := r.fetchCatalogModels()
+	if err != nil {
+		fmt.Fprintf(r.stdout, "无法拉取模型管理列表: %v\n", err)
+		r.printProviderModelsFallback()
+		return
+	}
+	if len(models) == 0 {
+		fmt.Fprintf(r.stdout, "模型管理列表为空\n")
+		return
+	}
+	activeID := llm.ActiveCatalogModelID(r.App.Config.LLM.CatalogModelID, models)
+	activeName := ""
+	for _, m := range models {
+		if m.ModelID == activeID {
+			activeName = llm.CatalogModelLabel(m)
+			break
+		}
+	}
+	if activeName == "" {
+		activeName = activeID
+	}
+	if strings.TrimSpace(r.App.Config.LLM.CatalogModelID) == "" {
+		fmt.Fprintf(r.stdout, "当前: %s（trading_operation 运营默认）\n", activeName)
+	} else {
+		fmt.Fprintf(r.stdout, "当前: %s\n", activeName)
+	}
+	for i, m := range models {
+		mark := ""
+		if m.ModelID == activeID {
+			mark = " *"
+		}
+		fmt.Fprintf(r.stdout, "  %d. %s%s\n", i+1, llm.CatalogModelLabel(m), mark)
+	}
+	fmt.Fprintf(r.stdout, "切换: /model <序号> | /model <model_id> | /model default 恢复运营默认\n")
+}
+
+func (r *Repl) printProviderModelsFallback() {
 	provider := llm.ProviderName(r.App.Config.LLM.Provider)
 	if provider == "" {
 		provider = llm.ProviderDeepSeek
 	}
 	preset := llm.Presets[provider]
 	active := llm.ResolveModel(provider, r.App.Config.LLM.Model)
-	fmt.Fprintf(r.stdout, "当前: %s / %s\n", preset.Label, active)
-	models := llm.ListProviderModels(provider)
-	if len(models) == 0 {
-		fmt.Fprintf(r.stdout, "（该提供商无预设列表，可用 /model <model_id> 手动指定）\n")
-		return
-	}
-	for i, m := range models {
+	fmt.Fprintf(r.stdout, "回退列表 — 当前: %s / %s\n", preset.Label, active)
+	for i, m := range llm.ListProviderModels(provider) {
 		mark := ""
 		if m.ID == active {
 			mark = " *"
 		}
 		fmt.Fprintf(r.stdout, "  %d. %s — %s%s\n", i+1, m.ID, m.Description, mark)
 	}
-	fmt.Fprintf(r.stdout, "切换: /model <序号> 或 /model <model_id>\n")
+}
+
+func (r *Repl) fetchCatalogModels() ([]admin.ConfiguredModel, error) {
+	if r.App == nil || r.App.Config == nil {
+		return nil, fmt.Errorf("app not configured")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	targets := make([]admin.QueryTarget, 0, len(r.App.Config.AdminModelQueryTargets()))
+	for _, t := range r.App.Config.AdminModelQueryTargets() {
+		targets = append(targets, admin.QueryTarget{BaseURL: t.BaseURL, Bearer: t.Bearer})
+	}
+	docs, _, err := admin.ListModelsFromTargets(ctx, targets)
+	return docs, err
 }
 
 func (r *Repl) setModel(choice string) {
+	models, err := r.fetchCatalogModels()
+	if err == nil && len(models) > 0 {
+		r.setCatalogModel(choice, models)
+		return
+	}
+	r.setProviderModel(choice)
+}
+
+func (r *Repl) setCatalogModel(choice string, models []admin.ConfiguredModel) {
+	modelID, err := llm.PickCatalogModel(choice, models, r.App.Config.LLM.CatalogModelID)
+	if err != nil {
+		fmt.Fprintf(r.stdout, "切换失败: %v\n", err)
+		return
+	}
+	r.App.Config.LLM.CatalogModelID = modelID
+	useOps := true
+	r.App.Config.LLM.UseOpsModel = &useOps
+	r.persistLLMConfig()
+	if err := r.App.RebuildGateway(); err != nil {
+		fmt.Fprintf(r.stdout, "警告: 重建 LLM 失败: %v\n", err)
+	}
+	activeID := llm.ActiveCatalogModelID(modelID, models)
+	label := activeID
+	for _, m := range models {
+		if m.ModelID == activeID {
+			label = llm.CatalogModelLabel(m)
+			break
+		}
+	}
+	if modelID == "" {
+		fmt.Fprintf(r.stdout, "已恢复运营默认模型: %s\n", label)
+	} else {
+		fmt.Fprintf(r.stdout, "已切换模型: %s\n", label)
+	}
+}
+
+func (r *Repl) setProviderModel(choice string) {
 	provider := llm.ProviderName(r.App.Config.LLM.Provider)
 	if provider == "" {
 		provider = llm.ProviderDeepSeek
@@ -672,13 +772,20 @@ func (r *Repl) setModel(choice string) {
 		return
 	}
 	r.App.Config.LLM.Model = resolved
-	r.persistConfigField(func(llmCfg *config.LLMConfig) {
-		llmCfg.Model = resolved
-	})
+	r.App.Config.LLM.CatalogModelID = ""
+	useOps := false
+	r.App.Config.LLM.UseOpsModel = &useOps
+	r.persistLLMConfig()
 	if err := r.App.RebuildGateway(); err != nil {
 		fmt.Fprintf(r.stdout, "警告: 重建 LLM 失败: %v\n", err)
 	}
 	fmt.Fprintf(r.stdout, "已切换模型: %s / %s\n", llm.Presets[provider].Label, resolved)
+}
+
+func (r *Repl) persistLLMConfig() {
+	r.persistConfigField(func(llmCfg *config.LLMConfig) {
+		*llmCfg = r.App.Config.LLM
+	})
 }
 
 func (r *Repl) handleThink(args []string) {
@@ -755,6 +862,14 @@ func (r *Repl) persistConfigField(mutate func(*config.LLMConfig)) {
 	mutate(&cfg)
 	if cfg.Model != "" {
 		llmRaw["model"] = cfg.Model
+	}
+	if cfg.CatalogModelID != "" {
+		llmRaw["catalog_model_id"] = cfg.CatalogModelID
+	} else {
+		delete(llmRaw, "catalog_model_id")
+	}
+	if cfg.UseOpsModel != nil {
+		llmRaw["use_ops_model"] = *cfg.UseOpsModel
 	}
 	if cfg.Thinking == nil {
 		delete(llmRaw, "thinking")

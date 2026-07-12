@@ -18,7 +18,7 @@ func BuildHelpText() string {
   /run pre_market    运行盘前 workflow
   /dry-run on        开启 dry-run（跳过写 API）
   /dry-run off       关闭 dry-run
-  /model             列出或切换 LLM 模型
+  /model             列出或切换模型管理中的模型（默认 trading_operation 运营配置）
   /verbose on        显示思考与 Tool 过程
   /verbose off       隐藏思考与 Tool 过程
   /think on          开启 DeepSeek 思考模式（写入 config）

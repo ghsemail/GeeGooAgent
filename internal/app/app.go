@@ -152,7 +152,7 @@ func (a *App) RebuildGateway() error {
 	model := a.Config.LLM.Model
 	baseURL := strings.TrimSpace(a.Config.LLM.BaseURL)
 
-	if a.Config.LLM.OpsModelEnabled() {
+	if a.Config.LLM.OpsModelEnabled() && strings.TrimSpace(a.Config.LLM.CatalogModelID) == "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		targets := make([]admin.QueryTarget, 0, len(a.Config.AdminModelQueryTargets()))
@@ -163,21 +163,22 @@ func (a *App) RebuildGateway() error {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "警告: 拉取运营配置模型失败（回退本地 llm）: %v\n", err)
 		} else {
-			name := strings.TrimSpace(doc.Name)
-			if name == "" {
-				name = strings.TrimSpace(doc.DisplayName)
-			}
-			if tok := strings.TrimSpace(doc.Token); tok != "" {
-				tokenKey = tok
-			}
-			if name != "" {
-				model = name
-			}
-			if bu := strings.TrimSpace(doc.BaseURL); bu != "" {
-				baseURL = bu
-			}
-			providerName = llm.InferProviderFromNames(doc.DisplayName, doc.Name)
+			a.applyCatalogModelDoc(&doc, &providerName, &tokenKey, &model, &baseURL)
 			fmt.Fprintf(os.Stderr, "LLM: 使用运营配置 model=%s base_url=%s from %s\n", model, baseURL, src)
+		}
+	} else if id := strings.TrimSpace(a.Config.LLM.CatalogModelID); id != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		targets := make([]admin.QueryTarget, 0, len(a.Config.AdminModelQueryTargets()))
+		for _, t := range a.Config.AdminModelQueryTargets() {
+			targets = append(targets, admin.QueryTarget{BaseURL: t.BaseURL, Bearer: t.Bearer})
+		}
+		doc, src, err := admin.QueryModelFromTargets(ctx, targets, id, false)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "警告: 拉取 catalog 模型失败（回退本地 llm）: %v\n", err)
+		} else {
+			a.applyCatalogModelDoc(&doc, &providerName, &tokenKey, &model, &baseURL)
+			fmt.Fprintf(os.Stderr, "LLM: 使用 catalog 模型 model=%s base_url=%s from %s\n", model, baseURL, src)
 		}
 	}
 
@@ -202,6 +203,30 @@ func (a *App) RebuildGateway() error {
 	}
 	a.wireCompressor()
 	return nil
+}
+
+func (a *App) applyCatalogModelDoc(doc *admin.ConfiguredModel, providerName, tokenKey, model, baseURL *string) {
+	if doc == nil {
+		return
+	}
+	name := strings.TrimSpace(doc.Name)
+	if name == "" {
+		name = strings.TrimSpace(doc.DisplayName)
+	}
+	if tok := strings.TrimSpace(doc.Token); tok != "" {
+		*tokenKey = tok
+	}
+	if name != "" {
+		*model = name
+	}
+	if bu := strings.TrimSpace(doc.BaseURL); bu != "" {
+		*baseURL = bu
+	}
+	if p := strings.TrimSpace(doc.Provider); p != "" {
+		*providerName = p
+	} else {
+		*providerName = llm.InferProviderFromNames(doc.DisplayName, doc.Name)
+	}
 }
 
 func (a *App) buildFallbackProviders() []llm.Provider {

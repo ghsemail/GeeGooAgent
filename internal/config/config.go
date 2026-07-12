@@ -19,6 +19,7 @@ type LLMConfig struct {
 	Thinking        *bool       `json:"thinking"`
 	ReasoningEffort string      `json:"reasoning_effort"`
 	UseOpsModel     *bool       `json:"use_ops_model,omitempty"`
+	CatalogModelID  string      `json:"catalog_model_id,omitempty"` // empty = trading_operation configured model
 	Fallbacks       []LLMConfig `json:"fallbacks,omitempty"`
 }
 

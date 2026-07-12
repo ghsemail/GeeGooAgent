@@ -338,6 +338,34 @@ func (u *ChatUI) StreamRoundHadContent() bool {
 	return u.streamRoundHad
 }
 
+func (u *ChatUI) swapWriter(w io.Writer) func() {
+	old := u.out
+	u.out = w
+	return func() { u.out = old }
+}
+
+func (u *ChatUI) setPlain(v bool) bool {
+	old := u.plain
+	u.plain = v
+	return old
+}
+
+// WithPlainWriter temporarily sends Print* output to w as plain text.
+func (u *ChatUI) WithPlainWriter(w io.Writer, fn func()) {
+	restore := u.swapWriter(w)
+	wasPlain := u.setPlain(true)
+	fn()
+	u.setPlain(wasPlain)
+	restore()
+}
+
+// RunPlainCapture redirects UI output to a plain-text buffer while fn runs.
+func (u *ChatUI) RunPlainCapture(fn func()) string {
+	var buf strings.Builder
+	u.WithPlainWriter(&buf, fn)
+	return strings.TrimSpace(buf.String())
+}
+
 func (u *ChatUI) PrintHelp(text string) {
 	if u.plain {
 		u.write(text)

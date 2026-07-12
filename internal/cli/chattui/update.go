@@ -497,13 +497,53 @@ func (m Model) handleSlash(text string) (tea.Model, tea.Cmd) {
 			m.info = "no session"
 		}
 		return m, nil
-	case "/help":
-		m.info = "Space 折叠 · ↑/↓ 选块 · PgUp/Dn 滚动 · Ctrl+X 会话 · /mouse · /details · /verbose · Esc 中断 · y/n 审批"
-		return m, nil
 	default:
-		m.info = "未知命令（TUI）: " + cmd + " — 试 /help；完整命令可用 geegoo chat --cli"
+		host := m.activeHost()
+		if host == nil {
+			m.info = "无活动会话"
+			return m, nil
+		}
+		quit, output := host.HandleSlash(text)
+		if quit {
+			m.quitting = true
+			return m, tea.Quit
+		}
+		m.showSlashOutput(output)
+		if cmd == "/model" || cmd == "/think" {
+			if host.Repl != nil {
+				m.bannerOpts = bannerOptsFromRepl(host.Repl)
+				m.rebuildBanner()
+			}
+		}
+		m.refreshViewport()
 		return m, nil
 	}
+}
+
+func (m *Model) showSlashOutput(output string) {
+	output = strings.TrimSpace(output)
+	if output == "" {
+		return
+	}
+	if !strings.Contains(output, "\n") && len(output) < 120 {
+		m.info = output
+		return
+	}
+	s := m.activeSlot()
+	if s == nil {
+		m.info = TruncateRunes(output, 120)
+		return
+	}
+	expanded := true
+	s.Blocks = append(s.Blocks, Block{
+		ID:           fmt.Sprintf("slash-%d", s.Seq),
+		Kind:         KindActivity,
+		Title:        "命令输出",
+		Body:         output,
+		UserExpanded: &expanded,
+	})
+	s.Seq++
+	m.scrollFollow = true
 }
 
 func (m *Model) layoutViewport() {

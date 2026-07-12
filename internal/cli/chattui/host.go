@@ -97,6 +97,14 @@ func (h *ReplHost) ModelLine() string {
 	return llm.ResolveModel(provider, cfg.LLM.Model)
 }
 
+// HandleSlash runs a REPL slash command and returns captured output for the TUI.
+func (h *ReplHost) HandleSlash(line string) (quit bool, output string) {
+	if h == nil || h.Repl == nil {
+		return false, "无活动会话"
+	}
+	return h.Repl.HandleSlashCommand(line)
+}
+
 func (h *ReplHost) ThinkStatus() string {
 	cfg := h.Repl.App.Config.LLM
 	if cfg.Thinking == nil {
