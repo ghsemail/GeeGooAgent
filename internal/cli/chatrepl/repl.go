@@ -292,7 +292,7 @@ func (r *Repl) BannerOptions() chatui.BannerOptions {
 		provider = llm.ProviderDeepSeek
 	}
 	preset := llm.Presets[provider]
-	model := llm.ResolveModel(provider, cfg.LLM.Model)
+	model := r.App.EffectiveLLMModel()
 	workspace, _ := cfg.ResolveOutputDir()
 	return chatui.BannerOptions{
 		SessionID: r.Chat.ID, Provider: preset.Label, Model: model,
@@ -313,7 +313,7 @@ func (r *Repl) printFooter(result runtime.TurnResult) {
 	if provider == "" {
 		provider = llm.ProviderDeepSeek
 	}
-	model := llm.ResolveModel(provider, cfg.LLM.Model)
+	model := r.App.EffectiveLLMModel()
 	thinking := llm.ResolveThinkingEnabled(provider, model, cfg.LLM.Thinking)
 	r.UI.PrintTurnFooter(model, thinking, r.DryRun, len(r.StepLog))
 }
@@ -440,7 +440,7 @@ func (r *Repl) handleSlash(line string) bool {
 		if provider == "" {
 			provider = llm.ProviderDeepSeek
 		}
-		model := llm.ResolveModel(provider, cfg.LLM.Model)
+		model := r.App.EffectiveLLMModel()
 		preset := llm.Presets[provider]
 		think := "off"
 		if llm.ResolveThinkingEnabled(provider, model, cfg.LLM.Thinking) {
@@ -742,10 +742,10 @@ func (r *Repl) setCatalogModel(choice string, models []admin.ConfiguredModel) {
 	r.App.Config.LLM.CatalogModelID = modelID
 	useOps := true
 	r.App.Config.LLM.UseOpsModel = &useOps
-	r.persistLLMConfig()
 	if err := r.App.RebuildGateway(); err != nil {
 		fmt.Fprintf(r.stdout, "警告: 重建 LLM 失败: %v\n", err)
 	}
+	r.persistLLMConfig()
 	activeID := llm.ActiveCatalogModelID(modelID, models)
 	label := activeID
 	for _, m := range models {

@@ -164,6 +164,7 @@ func (a *App) RebuildGateway() error {
 			fmt.Fprintf(os.Stderr, "警告: 拉取运营配置模型失败（回退本地 llm）: %v\n", err)
 		} else {
 			a.applyCatalogModelDoc(&doc, &providerName, &tokenKey, &model, &baseURL)
+			a.syncLLMConfigFromResolved(providerName, tokenKey, model, baseURL)
 			fmt.Fprintf(os.Stderr, "LLM: 使用运营配置 model=%s base_url=%s from %s\n", model, baseURL, src)
 		}
 	} else if id := strings.TrimSpace(a.Config.LLM.CatalogModelID); id != "" {
@@ -178,6 +179,7 @@ func (a *App) RebuildGateway() error {
 			fmt.Fprintf(os.Stderr, "警告: 拉取 catalog 模型失败（回退本地 llm）: %v\n", err)
 		} else {
 			a.applyCatalogModelDoc(&doc, &providerName, &tokenKey, &model, &baseURL)
+			a.syncLLMConfigFromResolved(providerName, tokenKey, model, baseURL)
 			fmt.Fprintf(os.Stderr, "LLM: 使用 catalog 模型 model=%s base_url=%s from %s\n", model, baseURL, src)
 		}
 	}
@@ -227,6 +229,38 @@ func (a *App) applyCatalogModelDoc(doc *admin.ConfiguredModel, providerName, tok
 	} else {
 		*providerName = llm.InferProviderFromNames(doc.DisplayName, doc.Name)
 	}
+}
+
+func (a *App) syncLLMConfigFromResolved(providerName, tokenKey, model, baseURL string) {
+	if a == nil || a.Config == nil {
+		return
+	}
+	if m := strings.TrimSpace(model); m != "" {
+		a.Config.LLM.Model = m
+	}
+	if p := strings.TrimSpace(providerName); p != "" {
+		a.Config.LLM.Provider = p
+	}
+	if bu := strings.TrimSpace(baseURL); bu != "" {
+		a.Config.LLM.BaseURL = bu
+	}
+	if tok := strings.TrimSpace(tokenKey); tok != "" {
+		a.Config.LLM.TokenKey = tok
+	}
+}
+
+// EffectiveLLMModel returns the active chat model (gateway wins over config).
+func (a *App) EffectiveLLMModel() string {
+	if a != nil && a.Gateway != nil {
+		if m := strings.TrimSpace(a.Gateway.Model()); m != "" {
+			return m
+		}
+	}
+	if a == nil || a.Config == nil {
+		return ""
+	}
+	cfg := a.Config.LLM
+	return llm.ResolveModel(llm.ProviderName(cfg.Provider), cfg.Model)
 }
 
 func (a *App) buildFallbackProviders() []llm.Provider {

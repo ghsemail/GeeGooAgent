@@ -6,7 +6,6 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/cli/chatrepl"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
-	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
 // ReplHost adapts chatrepl.Repl for TUI slash commands and approval.
@@ -66,9 +65,7 @@ func (h *ReplHost) AnswerApproval(yes bool) {
 
 func (h *ReplHost) SessionInfo() string {
 	r := h.Repl
-	cfg := r.App.Config
-	provider := llm.ProviderName(cfg.LLM.Provider)
-	model := llm.ResolveModel(provider, cfg.LLM.Model)
+	model := r.App.EffectiveLLMModel()
 	return fmt.Sprintf("session=%s messages=%d dry_run=%v model=%s verbose=%v",
 		r.Chat.ID, len(r.Chat.Messages), r.DryRun, model, r.Verbose)
 }
@@ -89,12 +86,10 @@ func (h *ReplHost) SetDryRun(on bool) string {
 }
 
 func (h *ReplHost) ModelLine() string {
-	cfg := h.Repl.App.Config
-	provider := llm.ProviderName(cfg.LLM.Provider)
-	if provider == "" {
-		provider = llm.ProviderDeepSeek
+	if h.Repl == nil || h.Repl.App == nil {
+		return ""
 	}
-	return llm.ResolveModel(provider, cfg.LLM.Model)
+	return h.Repl.App.EffectiveLLMModel()
 }
 
 // HandleSlash runs a REPL slash command and returns captured output for the TUI.
