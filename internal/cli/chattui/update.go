@@ -3,21 +3,20 @@ package chattui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/ghsemail/GeeGooAgent/internal/cli/chatcmd"
+	"github.com/ghsemail/GeeGooAgent/internal/cli/chatui"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 )
 
 var (
-	styleDim    = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	styleAccent = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
-	styleErr    = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
-	styleOK     = lipgloss.NewStyle().Foreground(lipgloss.Color("78"))
-	styleUser   = lipgloss.NewStyle().Foreground(lipgloss.Color("81")).Bold(true)
+	styleDim = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	styleErr = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -28,8 +27,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Width > 4 {
 			m.input.Width = msg.Width - 4
 		}
+		m.rebuildBanner()
 		m.layoutViewport()
 		m.refreshViewport()
+		return m, nil
+
+	case statusTickMsg:
+		if slotBusy(m.slots) {
+			return m, tickStatus()
+		}
 		return m, nil
 
 	case ProgressMsg:
@@ -88,6 +94,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.active = len(m.slots) - 1
 			m.sessionPicker = false
 			m.info = "已新建会话 " + msg.Slot.shortTitle()
+			m.bannerOpts = bannerOptsFromRepl(msg.Slot.Repl)
+			m.rebuildBanner()
 			m.refreshViewport()
 		}
 		return m, nil
@@ -276,6 +284,8 @@ func (m Model) handlePickerKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.active = m.pickerFocus
 		m.sessionPicker = false
 		m.info = "切换到 " + m.slots[m.active].shortTitle()
+		m.bannerOpts = bannerOptsFromRepl(m.slots[m.active].Repl)
+		m.rebuildBanner()
 		m.refreshViewport()
 		return m, nil
 	}
@@ -382,6 +392,8 @@ func (m Model) handleSubmit(text string) (tea.Model, tea.Cmd) {
 	}
 	s.Busy = true
 	s.Status = "thinking…"
+	s.TurnStartedAt = time.Now()
+	s.TurnEndedAt = time.Time{}
 	m.scrollFollow = true
 	m.refreshViewport()
 	go func() { s.SubmitCh <- text }()
@@ -495,12 +507,12 @@ func (m Model) handleSlash(text string) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) layoutViewport() {
-	// header ~4 lines + footer input ~2 + chrome
-	h := m.height - 8
-	if h < 5 {
-		h = 5
+	// status bar + input + separators ≈ 5 lines
+	h := m.height - 5
+	if h < 8 {
+		h = 8
 	}
-	w := m.width - 1
+	w := m.width
 	if w < 20 {
 		w = 20
 	}
@@ -516,93 +528,42 @@ func (m *Model) refreshViewport() {
 	}
 }
 
-func (m Model) renderTranscript() string {
-	s := m.activeSlot()
-	if s == nil {
-		return ""
-	}
-	var b strings.Builder
-	for i, block := range s.Blocks {
-		if !block.IsVisible(m.display) {
-			continue
-		}
-		prefix := "  "
-		if i == s.Focus {
-			prefix = styleOK.Render("› ")
-		}
-		switch block.Kind {
-		case KindUser:
-			b.WriteString(prefix + styleUser.Render("你") + " " + block.Body + "\n")
-		case KindReply:
-			b.WriteString(prefix + styleAccent.Render("助手") + "\n")
-			for _, line := range strings.Split(block.Body, "\n") {
-				b.WriteString("    " + line + "\n")
-			}
-		default:
-			b.WriteString(prefix + headerLabel(block, m.display) + "\n")
-			if block.IsExpanded(m.display) {
-				body := strings.TrimRight(block.Body, "\n")
-				for _, line := range strings.Split(body, "\n") {
-					b.WriteString(styleDim.Render("    "+line) + "\n")
-				}
-			}
-		}
-	}
-	_ = EstimateTranscriptHeight(s.Blocks, func(block Block) (bool, bool) {
-		return block.IsVisible(m.display), block.IsExpanded(m.display)
-	})
-	return b.String()
-}
-
 func (m Model) View() string {
-	var b strings.Builder
-	title := styleAccent.Render("⚕ GeeGoo Chat TUI")
-	b.WriteString(title)
-	s := m.activeSlot()
-	modelName, think, dry, status := "", "", "", "ready"
-	if s != nil {
-		status = s.Status
-		if s.Host != nil {
-			modelName = s.Host.ModelLine()
-			think = s.Host.ThinkStatus()
-			if s.Host.Repl != nil && s.Host.Repl.DryRun {
-				dry = " dry-run"
-			}
-		}
-	}
-	liveBadge := fmt.Sprintf(" · ▶ %d", len(m.slots))
-	statusLine := fmt.Sprintf("  %s · %s · think=%s%s · details=%s · mouse=%s%s",
-		status, modelName, think, dry, m.display.DetailsMode, NormalizeMouseMode(m.display.MouseTracking), liveBadge)
-	b.WriteString(styleDim.Render(statusLine))
 	if m.sessionPicker {
-		b.WriteString("\n")
+		var b strings.Builder
 		b.WriteString(formatSessionList(m.slots, m.active, m.pickerFocus))
 		return b.String()
 	}
-	if m.approvalPending {
-		b.WriteString("\n")
-		b.WriteString(styleErr.Render(fmt.Sprintf("⚠ 确认写操作 %s: %s  [y/n]", m.approvalTool, m.approvalArgs)))
-	}
-	if m.info != "" {
-		b.WriteString("\n")
-		b.WriteString(styleDim.Render(m.info))
-	}
-	if s != nil && s.Err != "" {
-		b.WriteString("\n")
-		b.WriteString(styleErr.Render(s.Err))
-	}
-	b.WriteString("\n")
-	b.WriteString(styleDim.Render(strings.Repeat("─", max(20, m.width-1))))
-	b.WriteString("\n")
+
+	var b strings.Builder
 	b.WriteString(m.vp.View())
-	b.WriteString("\n")
-	b.WriteString(styleDim.Render(strings.Repeat("─", max(20, m.width-1))))
-	b.WriteString("\n")
+	b.WriteByte('\n')
+	b.WriteString(chatui.RenderRule(m.width))
+	b.WriteByte('\n')
+
+	if m.approvalPending {
+		b.WriteString(styleErr.Render(fmt.Sprintf("⚠ 确认写操作 %s: %s  [y/n]", m.approvalTool, m.approvalArgs)))
+		b.WriteByte('\n')
+	} else if m.info != "" {
+		b.WriteString(styleDim.Render(m.info))
+		b.WriteByte('\n')
+	}
+
+	b.WriteString(chatui.RenderHermesStatusBar(m.statusBarOpts(), m.width))
+	b.WriteByte('\n')
 	if !m.approvalPending {
-		b.WriteString(m.input.View())
-		b.WriteString("\n")
+		b.WriteString(renderInputLine(m.input))
 	}
 	return b.String()
+}
+
+func slotBusy(slots []*LiveSlot) bool {
+	for _, s := range slots {
+		if s != nil && s.Busy {
+			return true
+		}
+	}
+	return false
 }
 
 func findLastKind(blocks []Block, kind SectionKind) int {

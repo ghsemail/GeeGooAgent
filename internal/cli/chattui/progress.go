@@ -27,6 +27,8 @@ func (s *LiveSlot) ApplyProgress(event string, data map[string]any) {
 	case "turn_start":
 		s.Busy = true
 		s.Status = "thinking…"
+		s.TurnStartedAt = time.Now()
+		s.TurnEndedAt = time.Time{}
 		s.LiveThinkingID = ""
 		s.LiveToolsID = ""
 		s.LiveReplyID = ""
@@ -140,6 +142,9 @@ func (s *LiveSlot) finalizeLiveSections() {
 	s.LiveThinkingID, s.LiveToolsID, s.LiveReplyID = "", "", ""
 	s.Busy = false
 	s.Status = "ready"
+	if !s.TurnStartedAt.IsZero() {
+		s.TurnEndedAt = time.Now()
+	}
 }
 
 func (s *LiveSlot) blockIndex(id string) int {

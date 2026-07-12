@@ -3,6 +3,7 @@ package chattui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/cli/chatrepl"
 )
@@ -26,6 +27,9 @@ type LiveSlot struct {
 	LiveThinkingID string
 	LiveToolsID    string
 	LiveReplyID    string
+
+	TurnStartedAt time.Time
+	TurnEndedAt   time.Time
 }
 
 func (s *LiveSlot) shortTitle() string {

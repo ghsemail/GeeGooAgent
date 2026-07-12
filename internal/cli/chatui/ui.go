@@ -90,24 +90,49 @@ func (u *ChatUI) ruleWidth() int {
 }
 
 func (u *ChatUI) printRule() {
-	u.println(styleDim.Render(strings.Repeat("─", u.ruleWidth())))
+	u.println(RenderRule(u.width))
+}
+
+// RenderRule returns a Hermes-style horizontal rule.
+func RenderRule(width int) string {
+	w := width
+	if w < 40 {
+		w = 40
+	}
+	if w > 80 {
+		w = 80
+	}
+	return styleDim.Render(strings.Repeat("─", w))
+}
+
+// RenderInitializing returns the turn-start status line.
+func RenderInitializing() string {
+	return styleDim.Render("Initializing agent...")
 }
 
 // PrintBanner shows Hermes-style two-column welcome panel.
 func (u *ChatUI) PrintBanner(opts BannerOptions) {
-	if u.plain {
-		u.println("")
-		u.write(BuildPlainBanner(opts))
-		return
+	u.write(RenderBanner(opts, u.width, u.plain))
+}
+
+// RenderBanner returns the Hermes-style welcome panel as a string (CLI and TUI).
+func RenderBanner(opts BannerOptions, width int, plain bool) string {
+	if width <= 0 {
+		width = 80
+	}
+	if plain {
+		return "\n" + BuildPlainBanner(opts)
 	}
 	rev := opts.Revision
 	if rev == "" {
 		rev = ResolveRevision(opts.InstallDir)
 	}
-	u.println("")
-	if u.width >= 95 {
-		u.println(renderWideLogo())
-		u.println("")
+	var b strings.Builder
+	b.WriteByte('\n')
+	if width >= 95 {
+		b.WriteString(renderWideLogo())
+		b.WriteByte('\n')
+		b.WriteByte('\n')
 	}
 	left := buildBannerLeft(opts)
 	right := buildBannerRight(opts)
@@ -115,16 +140,62 @@ func (u *ChatUI) PrintBanner(opts BannerOptions) {
 		lipgloss.NewStyle().Padding(0, 2).Align(lipgloss.Center).Render(left),
 		lipgloss.NewStyle().Padding(0, 1).Render(right),
 	)
-	u.println(styleGold.Render(formatVersionLabel(rev)))
-	u.println(stylePanel.Render(cols))
-	u.println("")
-	u.println(styleText.Render("Welcome to GeeGoo Agent! ") + styleDim.Render("Type your message or /help for commands."))
-	u.println(
+	b.WriteString(styleGold.Render(formatVersionLabel(rev)))
+	b.WriteByte('\n')
+	b.WriteString(stylePanel.Render(cols))
+	b.WriteByte('\n')
+	b.WriteByte('\n')
+	b.WriteString(styleText.Render("Welcome to GeeGoo Agent! ") + styleDim.Render("Type your message or /help for commands."))
+	b.WriteByte('\n')
+	b.WriteString(
 		styleDim.Render("✦ Tip: ") +
 			styleDim.Render("/think on") + styleDim.Render(" shows DeepSeek reasoning; ") +
-			styleDim.Render("/verbose off") + styleDim.Render(" hides live steps."),
+			styleDim.Render("/details collapsed") + styleDim.Render(" folds thinking/tools; ") +
+			styleDim.Render("Ctrl+X") + styleDim.Render(" switches sessions."),
 	)
-	u.println("")
+	b.WriteByte('\n')
+	b.WriteByte('\n')
+	return b.String()
+}
+
+// RenderAssistantBox returns a Hermes-style rounded reply panel.
+func RenderAssistantBox(text string, width int) string {
+	if width <= 0 {
+		width = 80
+	}
+	contentW := width - 6
+	if contentW < 40 {
+		contentW = 40
+	}
+	if contentW > 100 {
+		contentW = 100
+	}
+	body := text
+	if r, err := newMarkdownRenderer(contentW); err == nil {
+		if rendered, err := r.Render(text); err == nil {
+			body = strings.TrimRight(rendered, "\n")
+		}
+	}
+	title := styleGold.Render("⚕ GeeGoo")
+	inner := title + "\n" + body
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(colorBorder)).
+		Padding(0, 1).
+		Width(min(width-2, contentW+4)).
+		Render(inner)
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// RenderUserLine returns Hermes-style user message bullet.
+func RenderUserLine(text string) string {
+	return styleGold.Render("● ") + styleText.Render(text)
 }
 
 func (u *ChatUI) PrintStatusBar(model string, thinking, dryRun bool, steps int) {
@@ -177,7 +248,7 @@ func (u *ChatUI) PrintUser(text string) {
 		return
 	}
 	u.println("")
-	u.println(styleGold.Render("● ") + styleText.Render(text))
+	u.println(RenderUserLine(text))
 }
 
 func (u *ChatUI) PrintAssistant(text string) {
@@ -187,20 +258,7 @@ func (u *ChatUI) PrintAssistant(text string) {
 		u.println("")
 		return
 	}
-	body := text
-	if r, err := newMarkdownRenderer(u.contentWidth()); err == nil {
-		if rendered, err := r.Render(text); err == nil {
-			body = strings.TrimRight(rendered, "\n")
-		}
-	}
-	title := styleGold.Render("⚕ GeeGoo")
-	inner := title + "\n" + body
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(colorBorder)).
-		Padding(0, 1).
-		Render(inner)
-	u.println(box)
+	u.println(RenderAssistantBox(text, u.width))
 }
 
 // ResetStream clears typewriter state at the start of a user turn.

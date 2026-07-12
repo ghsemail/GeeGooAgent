@@ -275,6 +275,11 @@ func (r *Repl) turnCtx() context.Context {
 }
 
 func (r *Repl) printBanner() {
+	r.UI.PrintBanner(r.BannerOptions())
+}
+
+// BannerOptions builds Hermes-style welcome panel metadata.
+func (r *Repl) BannerOptions() chatui.BannerOptions {
 	cfg := r.App.Config
 	provider := llm.ProviderName(cfg.LLM.Provider)
 	if provider == "" {
@@ -283,7 +288,7 @@ func (r *Repl) printBanner() {
 	preset := llm.Presets[provider]
 	model := llm.ResolveModel(provider, cfg.LLM.Model)
 	workspace, _ := cfg.ResolveOutputDir()
-	r.UI.PrintBanner(chatui.BannerOptions{
+	return chatui.BannerOptions{
 		SessionID: r.Chat.ID, Provider: preset.Label, Model: model,
 		Registry: r.Registry, ToolNames: r.chatToolNames(),
 		Thinking: llm.ResolveThinkingEnabled(provider, model, cfg.LLM.Thinking),
@@ -293,7 +298,7 @@ func (r *Repl) printBanner() {
 			cfg.EffectiveMCPURL(), cfg.SignalCatalogURL(), cfg.DataHTTPURL(),
 		),
 		Revision: chatui.ResolveRevision(r.InstallDir),
-	})
+	}
 }
 
 func (r *Repl) printFooter(result runtime.TurnResult) {

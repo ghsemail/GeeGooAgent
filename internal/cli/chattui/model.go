@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/ghsemail/GeeGooAgent/internal/cli/chatui"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 )
 
@@ -21,6 +22,9 @@ type Model struct {
 
 	slots  []*LiveSlot
 	active int
+
+	banner     string
+	bannerOpts chatui.BannerOptions
 
 	info string
 
@@ -46,7 +50,8 @@ type SessionFactory func(sessionID string) (*LiveSlot, error)
 func NewModel(display config.DisplayConfig, first *LiveSlot, factory SessionFactory) Model {
 	display.Normalize()
 	ti := textinput.New()
-	ti.Placeholder = "输入问题，或 /details /sessions /exit …"
+	ti.Placeholder = "Type your message or /help for commands."
+	ti.Prompt = ""
 	ti.Focus()
 	ti.CharLimit = 0
 	ti.Width = 60
@@ -83,8 +88,16 @@ func (m *Model) activeHost() *ReplHost {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(textinput.Blink, tickApproval())
+	return tea.Batch(textinput.Blink, tickApproval(), tickStatus())
 }
+
+func tickStatus() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+		return statusTickMsg(t)
+	})
+}
+
+type statusTickMsg time.Time
 
 func tickApproval() tea.Cmd {
 	return tea.Tick(200*time.Millisecond, func(t time.Time) tea.Msg {

@@ -102,6 +102,12 @@ func Run(opts RunOpts) int {
 	first.Index = 0
 
 	model := NewModel(display, first, makeSlot)
+	model.bannerOpts = bannerOptsFromRepl(first.Repl)
+	if model.width <= 0 {
+		model.width = 80
+	}
+	model.rebuildBanner()
+	model.refreshViewport()
 	model.configPath = opts.ConfigPath
 	program = tea.NewProgram(model, ProgramOptions(display.MouseTracking)...)
 	// Re-bind sink program pointer (created before program existed)
