@@ -1,10 +1,10 @@
-# geegoo mcp 三层架构
+# GeeGooBot mcp-api 三层架构
 
 ## 总览
 
 ```mermaid
 flowchart TB
-    subgraph TB_Server["TradingBot · mcpAPIServer.py :5700"]
+    subgraph TB_Server["GeeGooBot · mcp-api :3120"]
         HTTP["73 个 POST 路由"]
     end
 

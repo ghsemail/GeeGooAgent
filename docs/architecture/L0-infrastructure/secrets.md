@@ -28,15 +28,13 @@ class FileSecrets(SecretsProvider):
 
 ## 密钥清单
 
-
 | Key                           | 用途          |
 | ----------------------------- | ----------- |
 | `api_key` / `SK_API_KEY`      | 5900        |
-| `geegoo_api_key` / `SK_API_KEY` | 5700        |
+| `geegoo_api_key` / `SK_API_KEY` | 3120        |
 | `mcp_token`                   | GeeGoo 用户     |
 | `OPENAI_API_KEY`              | L1          |
 | `ANTHROPIC_API_KEY`           | L1 fallback |
-
 
 ## 后期
 

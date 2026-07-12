@@ -4,7 +4,7 @@
 
 本文档描述通过 MCP（Skills）对 **SmartTrade 交易机器人**（`bot_type: SmartTrade`）的**创建、修改、删除、列表与运行日志**接口。分类与命名见 [`common.md`](common.md)「机器人分类与命名」。调用方不传 `user_id`，改为传入 `mcp_token`，由服务端根据 `mcp_token` 解析出对应用户后再调用 Bot 服务对应逻辑（列表与日志在 MCP 进程内直读数据库）。
 
-- **基础路径**：geegoo mcp 根地址（默认示例：`http://0.0.0.0:5700`）
+- **基础路径**：GeeGooBot mcp-api 根地址（默认示例：`http://127.0.0.1:3120`）
 - **认证方式**：请求头 `Authorization: Bearer <API_KEY>`；缺少或错误的 API Key 时 HTTP **401**（响应体为 `error` 字段说明，非下文 `code` 体系）。
 - **缺少 `mcp_token` 或必填业务 ID**：未传 `mcp_token`，或更新/删除时未传 `bot_id`，HTTP 为 **400**，响应 JSON 中 **`code` 为 401**（`message` 提示缺少的字段）。这与 **无效 `mcp_token`**（找不到用户）时的 **`code` 102**、HTTP **401** 不同，调用方需区分。
 
@@ -163,7 +163,7 @@ SmartTrade 在持仓过程中按配置监测价格，触发止盈或止损条件
 ### 请求示例
 
 ```bash
-curl -X POST "http://localhost:5700/createSmartTrade" \
+curl -X POST "http://localhost:3120/createSmartTrade" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d "{\"mcp_token\":\"mcp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"botname\":\"腾讯SmartTrade\",\"stock_name\":\"腾讯控股\",\"code\":\"00700.HK\",\"frequency\":\"60m\",\"trade_mode\":\"sell_only\",\"order_size\":{\"base_order_size\":100},\"tp\":{\"tp_switch\":true,\"tp_mode\":\"fix\",\"fix_tp\":5,\"profit_trailing\":true,\"profit_trailing_deviation\":1},\"sl\":{\"sl_switch\":true,\"sl_mode\":\"fix\",\"fix_sl\":3}}"
@@ -429,7 +429,7 @@ MCP 将 `user_id` 与参数转发至 **`POST /createBot`**，`bot_type` 为 **`S
 ### 请求示例
 
 ```bash
-curl -X POST "http://localhost:5700/getSmartTradeLog" \
+curl -X POST "http://localhost:3120/getSmartTradeLog" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token": "mcp_xxx", "bot_id": "<BOT_ID>"}'

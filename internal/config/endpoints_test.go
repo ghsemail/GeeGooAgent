@@ -1,7 +1,6 @@
 package config_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/config"
@@ -37,20 +36,11 @@ func TestAdminModelQueryTargets(t *testing.T) {
 		SignalCatalogAPIKeyField: "cat-key",
 	}
 	targets := cfg.AdminModelQueryTargets()
-	if len(targets) < 2 {
-		t.Fatalf("expected catalog + fallback, got %v", targets)
+	if len(targets) != 1 {
+		t.Fatalf("expected catalog only, got %v", targets)
 	}
 	if targets[0].BaseURL != "http://146.56.225.252:3210" || targets[0].Bearer != "cat-key" {
 		t.Fatalf("catalog target = %+v", targets[0])
-	}
-	found5800 := false
-	for _, t := range targets[1:] {
-		if strings.Contains(t.BaseURL, ":5800") {
-			found5800 = true
-		}
-	}
-	if !found5800 {
-		t.Fatalf("missing :5800 ops fallback: %v", targets)
 	}
 }
 

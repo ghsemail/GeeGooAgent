@@ -34,7 +34,6 @@
 
 **交付物**
 
-
 | 类别     | 文件                                                                           |
 | ------ | ---------------------------------------------------------------------------- |
 | 打包     | `pyproject.toml`                                                             |
@@ -45,14 +44,11 @@
 | 空包     | `infra/`, `llm/`, `clients/`, `tools/`, `memory/`, `runtime/`, `supervisor/` |
 | 测试     | `tests/conftest.py`, `tests/fixtures/geegoo/.gitkeep`                          |
 
-
 **测试**（testing-standards §5）
-
 
 | 文件                            | 用例数 | 场景                                 |
 | ----------------------------- | --- | ---------------------------------- |
 | `tests/unit/test_scaffold.py` | 4   | 版本号、CLI help、run/resume 参数、fixture |
-
 
 **验收命令**
 
@@ -70,7 +66,6 @@ ruff check src tests
 
 **交付物**
 
-
 | 类别         | 文件                                    | 说明                                                     |
 | ---------- | ------------------------------------- | ------------------------------------------------------ |
 | 异常基类       | `src/geegoo/exceptions.py`        | `GeeGooAgentError` 及 State/Checkpoint 子类                 |
@@ -79,16 +74,13 @@ ruff check src tests
 | Checkpoint | `src/geegoo/infra/checkpoint.py`  | `CheckpointManager`：save/load_latest/list/load_working |
 | 包导出        | `src/geegoo/infra/__init__.py`    | 导出上述公开类型                                               |
 
-
 **测试**（testing-standards §5，要求各 ≥3 用例）
-
 
 | 文件                               | 用例数 | 覆盖场景                                                     |
 | -------------------------------- | --- | -------------------------------------------------------- |
 | `tests/unit/test_event_bus.py`   | 3   | handler 调用、history 记录、异常不阻断其他 handler                    |
 | `tests/unit/test_state_store.py` | 6   | 往返读写、缺 key、前缀列表、删除、非法 key、损坏 JSON                        |
 | `tests/unit/test_checkpoint.py`  | 5   | save/load_latest、未知 session、list 排序、最新 step、working 缺失抛错 |
-
 
 **未做（属 Step 2+）**
 
@@ -110,7 +102,6 @@ ruff check src tests
 
 **交付物**
 
-
 | 类别  | 文件                                | 说明                                                |
 | --- | --------------------------------- | ------------------------------------------------- |
 | 配置  | `src/geegoo/config.py`        | `AppConfig` + `load_config()`（Pydantic）           |
@@ -119,16 +110,13 @@ ruff check src tests
 | 异常  | `exceptions.py`                   | 新增 `SandboxError`                                 |
 | 导出  | `infra/__init__.py`               | 导出 Secrets / Sandbox 类型                           |
 
-
 **测试**（testing-standards §5，各 ≥4 用例）
-
 
 | 文件                           | 用例数 | 覆盖场景                                             |
 | ---------------------------- | --- | ------------------------------------------------ |
 | `tests/unit/test_config.py`  | 5   | 加载成功、缺文件、坏 JSON、缺字段、默认值                          |
 | `tests/unit/test_sandbox.py` | 6   | 合法相对路径、`../` 越界、绝对路径、host 白名单/拒绝、Manager         |
 | `tests/unit/test_secrets.py` | 5   | 读 config、env 覆盖、LLM key、placeholder 拒绝、masked 脱敏 |
-
 
 **未做（属 Step 3+）**
 
@@ -150,7 +138,6 @@ ruff check src tests
 
 **交付物**
 
-
 | 类别        | 文件                          | 说明                                                           |
 | --------- | --------------------------- | ------------------------------------------------------------ |
 | 类型        | `llm/types.py`              | `Message`、`ToolSchema`、`ToolCall`、`LLMResponse`、`TokenUsage` |
@@ -162,9 +149,7 @@ ruff check src tests
 | 异常        | `exceptions.py`             | `ModelGatewayError`                                          |
 | 导出        | `llm/__init__.py`           | 公开 API                                                       |
 
-
 **测试**（testing-standards §5）
-
 
 | 文件                                      | 用例数 | 覆盖场景                        |
 | --------------------------------------- | --- | --------------------------- |
@@ -172,7 +157,6 @@ ruff check src tests
 | `tests/unit/test_anthropic_provider.py` | 2   | tool_use 解析、system 提取       |
 | `tests/unit/test_gateway.py`            | 5   | 成功、重试、fallback、全失败、cost 记录  |
 | `tests/unit/test_cost.py`               | 2   | session 汇总、未知 session       |
-
 
 **未做（属 Step 4+）**
 
@@ -194,7 +178,6 @@ ruff check src tests
 
 **交付物**
 
-
 | 类别       | 文件                           | 说明                                                          |
 | -------- | ---------------------------- | ----------------------------------------------------------- |
 | 基类       | `clients/base.py`            | httpx POST、Bearer、重试 3×、NetworkPolicy、业务码校验                 |
@@ -203,14 +186,11 @@ ruff check src tests
 | 异常       | `exceptions.py`              | `ClientError`（api_code / http_status）                       |
 | Fixtures | `tests/fixtures/geegoo/*.json` | 三个 API 成功响应样例                                               |
 
-
 **测试**（testing-standards §5，≥6 用例）
-
 
 | 文件                                        | 用例数 | 覆盖场景                                              |
 | ----------------------------------------- | --- | ------------------------------------------------- |
 | `tests/integration/test_market_client.py` | 7   | 3 API happy；code 102；401 API Key；500 重试失败；host 拒绝 |
-
 
 **验收命令**
 
@@ -227,7 +207,6 @@ ruff check src tests
 
 **交付物**
 
-
 | 类别  | 文件                         | 说明                                           |
 | --- | -------------------------- | -------------------------------------------- |
 | 类型  | `tools/types.py`           | `ToolContext`、`ToolResult`、`ToolCallRequest` |
@@ -239,15 +218,12 @@ ruff check src tests
 | 引导  | `tools/bootstrap.py`       | `register_mvp_tools()`                       |
 | 执行器 | `runtime/executor.py`      | 委派 Registry + EventBus                       |
 
-
 **测试**（testing-standards §5）
-
 
 | 文件                                  | 用例数 | 覆盖场景                                |
 | ----------------------------------- | --- | ----------------------------------- |
 | `tests/unit/test_tool_registry.py`  | 5   | 注册列表、未知 tool、schema 过滤、事件、scheduled |
 | `tests/unit/test_tools_perceive.py` | 5   | 交易日、dry-run、bot 列表、写日志、Executor     |
-
 
 **验收命令**
 
@@ -264,13 +240,11 @@ ruff check src tests
 
 **交付物**
 
-
 | 类别  | 文件                   | 说明                                                             |
 | --- | -------------------- | -------------------------------------------------------------- |
 | 模型  | `memory/models.py`   | `PreMarketWorking`、`BotStock`、`StockWorkspace`、`MarketContext` |
 | 存储  | `memory/working.py`  | `WorkingMemoryStore`：create/load/save/apply/summary            |
 | 导出  | `memory/__init__.py` | 公开类型                                                           |
-
 
 **apply 逻辑（MVP）**
 
@@ -280,11 +254,9 @@ ruff check src tests
 
 **测试**（testing-standards §5，≥4 用例）
 
-
 | 文件                                  | 用例数 | 覆盖场景                             |
 | ----------------------------------- | --- | -------------------------------- |
 | `tests/unit/test_working_memory.py` | 5   | 往返、交易日、bot 初始化、summary、非交易日 done |
-
 
 **验收命令**
 
@@ -301,7 +273,6 @@ ruff check src tests
 
 **交付物**
 
-
 | 类别       | 文件                    | 说明                                                             |
 | -------- | --------------------- | -------------------------------------------------------------- |
 | 会话       | `runtime/session.py`  | `Session`、`SessionManager`（create/load/save）                   |
@@ -309,7 +280,6 @@ ruff check src tests
 | 组装       | `runtime/app.py`      | `GeeGooApp.from_config`；`run_skill` / `resume_session`           |
 | CLI      | `cli.py`              | `run pre_market [--dry-run]`、`resume --session`                |
 | Fixtures | `tests/conftest.py`   | `sample_config`、`sample_config_file`                           |
-
 
 **MVP 工作流（stub）**
 
@@ -319,12 +289,10 @@ ruff check src tests
 
 **测试**（testing-standards §5，≥5 用例）
 
-
 | 文件                                   | 用例数 | 覆盖场景                                               |
 | ------------------------------------ | --- | -------------------------------------------------- |
 | `tests/unit/test_workflow_runner.py` | 5   | Session；全流程；非交易日短路；未知 tool 失败；resume               |
 | `tests/unit/test_cli.py`             | 7   | help；dry-run；缺 config；resume 缺失/成功；不支持 skill；失败退出码 |
-
 
 **验收命令**
 
@@ -342,14 +310,13 @@ geegoo-agent run pre_market --dry-run --config config.json
 
 **交付物**
 
-
 | 类别      | 路径                                              | 说明                                                   |
 | ------- | ----------------------------------------------- | ---------------------------------------------------- |
 | 工作流     | `skills/pre_market/workflow.md`                 | 自 `pre-market-workflow.md` 迁入，路径改为 `skills/bundled/` |
 | 模板      | `skills/pre_market/template.md`                 | 自 `pre-market-template.md` 迁入，注明 RSI/MACD 限制         |
 | Skill   | `skills/pre_market/SKILL.md`                    | 盘前 Skill Pack 说明                                     |
 | 清单      | `skills/pre_market/manifest.yaml`               | 16 Tool 白名单 + 3 LLM 任务 + 步骤表                         |
-| Rules   | `rules/api-routing.md`                          | 5700 路由（含 2026-05-20 修复说明）                      |
+| Rules   | `rules/api-routing.md`                          | 3120 路由（含 2026-05-20 修复说明）                      |
 | Rules   | `rules/attitude-mapping.md`                     | attitude→result、404 处理                               |
 | Rules   | `rules/report-format.md`                        | create_pre_market_report 必填字段、九章结构                   |
 | Bundled | `skills/bundled/finance-news/`                  | `fetch_news.py`                                      |
@@ -358,14 +325,11 @@ geegoo-agent run pre_market --dry-run --config config.json
 | 加载器     | `runtime/skill_loader.py`                       | 读取/校验 manifest 与资产路径                                 |
 | 依赖      | `pyproject.toml`                                | 新增 `pyyaml`                                          |
 
-
 **测试**（testing-standards §5，≥2 用例）
-
 
 | 文件                                | 用例数 | 覆盖场景                                                 |
 | --------------------------------- | --- | ---------------------------------------------------- |
 | `tests/unit/test_skill_loader.py` | 5   | manifest 加载；MVP tools 齐全；资产路径存在；未知 skill；workflow 阶段 |
-
 
 **验收命令**
 
@@ -382,10 +346,9 @@ ruff check src tests
 
 **交付物**
 
-
 | 类别     | 文件                     | 说明                                                                                                                    |
 | ------ | ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Client | `clients/geegoo_bot.py`  | `get_mcp_analysis`、`get_stock_daily_reports`（5700）                                                                    |
+| Client | `clients/geegoo_bot.py`  | `get_mcp_analysis`、`get_stock_daily_reports`（3120）                                                                    |
 | Client | `clients/market.py`    | 扩展：`get_capital_distribution`、`get_bot_yesterday_attitude`（404→neutral）、`get_mcp_analysis`、`create_pre_market_report` |
 | 校验     | `tools/schemas.py`     | `PreMarketReportCreate` 必填字段 + 枚举                                                                                     |
 | 映射     | `tools/mappings.py`    | `attitude_to_result`、资金分布格式化                                                                                          |
@@ -398,9 +361,7 @@ ruff check src tests
 | 上下文    | `tools/types.py`       | ToolContext 扩展 geegoo_bot / working_store / project_root                                                                |
 | 应用     | `runtime/app.py`       | 注入 GeeGooBotClient + 全量 Tool                                                                                            |
 
-
 **测试**（testing-standards §5，≥20 累计新增）
-
 
 | 文件                                          | 用例数 | 覆盖场景                                                |
 | ------------------------------------------- | --- | --------------------------------------------------- |
@@ -413,7 +374,6 @@ ruff check src tests
 | `tests/unit/test_report_schema.py`          | 4   | PreMarketReportCreate 校验                            |
 | `tests/unit/test_mappings.py`               | 4   | attitude 映射、资金分布格式                                  |
 | `tests/unit/test_bootstrap.py`              | 2   | manifest 与注册表对齐                                     |
-
 
 **验收命令**
 

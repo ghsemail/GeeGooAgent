@@ -36,13 +36,11 @@ class Scheduler(Protocol):
 
 ## 与 Timer 区别
 
-
 |     | Scheduler    | Timer           |
 | --- | ------------ | --------------- |
 | 职责  | 任务队列、重试、取消   | 延迟/睡眠/轮询        |
 | MVP | systemd 触发   | stub            |
 | 例子  | 08:00 盘前任务入队 | 等 webhook 30min |
-
 
 ## Phase 3
 

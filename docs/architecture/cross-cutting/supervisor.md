@@ -23,10 +23,7 @@ flowchart TD
   Retry --> Done
 ```
 
-
-
 ## checks.yaml 类型
-
 
 | type                     | 说明                      |
 | ------------------------ | ----------------------- |
@@ -34,7 +31,6 @@ flowchart TD
 | `stocks_status`          | WorkingMemory 每股 status |
 | `api_response`           | create_report 字段        |
 | `file_exists`            | 本地 md 存在                |
-
 
 ## 盘前示例
 

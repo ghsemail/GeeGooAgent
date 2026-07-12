@@ -25,8 +25,8 @@
 
 | 端口 | 用途 | Client |
 |------|------|--------|
-| **5700** | geegoo mcp（全部 HTTP） | `GeeGooBotClient` / `MarketClient` 别名 |
-| **5800** | 信号服务（可选 `signal_base_url`） | `SignalClient` |
+| **3120** | GeeGooBot mcp-api（全部 HTTP） | `GeeGooBotClient` / `MarketClient` 别名 |
+| **3210** | 信号服务（可选 `signal_base_url`） | `SignalClient` |
 
 HTTP ↔ Tool 总表：[interface-map.md](../../reference/geegoo-mcp/interface-map.md)
 

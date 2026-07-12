@@ -107,9 +107,9 @@ GeeGooAgent/
 
 ```json
 {
-  "base_url": "http://118.195.135.97:5700",
+  "base_url": "http://118.195.135.97:3120",
   "api_key": "mk-REPLACE",
-  "geegoo_url": "http://118.195.135.97:5700",
+  "geegoo_url": "http://118.195.135.97:3120",
   "geegoo_api_key": "sk-REPLACE",
   "mcp_token": "REPLACE",
   "output_dir": "./data",
@@ -178,18 +178,18 @@ GeeGooAgent/
 
 | Tool | 端口 | 备注 |
 |------|------|------|
-| check_trading_day | 5700 | 非交易日终止 |
-| get_report_bot_codes | 5700 | 动态股票列表 |
+| check_trading_day | 3120 | 非交易日终止 |
+| get_report_bot_codes | 3120 | 动态股票列表 |
 | fetch_market_news | 本地脚本 | US/CN/HK |
 | fetch_stock_news | 本地脚本 | 每股 |
-| get_mcp_analysis | 5700 | period 必填；指数 prompt_id 固定 |
-| get_stock_daily_reports / list_today_reports | 5700 | 幂等 |
-| get_capital_flow | 5700 | period=DAY |
-| get_capital_distribution | 5700 | 与上同时调用 |
-| get_bot_yesterday_attitude | 5700 | 404→neutral |
+| get_mcp_analysis | 3120 | period 必填；指数 prompt_id 固定 |
+| get_stock_daily_reports / list_today_reports | 3120 | 幂等 |
+| get_capital_flow | 3120 | period=DAY |
+| get_capital_distribution | 3120 | 与上同时调用 |
+| get_bot_yesterday_attitude | 3120 | 404→neutral |
 | recall_yesterday_summary | 本地 | Episodic |
 | read_working_state | Working | — |
-| create_pre_market_report | 5700 | §8 必填 |
+| create_pre_market_report | 3120 | §8 必填 |
 | save_local_report | 本地 | 工作区内 |
 | write_execution_log | 本地 | — |
 

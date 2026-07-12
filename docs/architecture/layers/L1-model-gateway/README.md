@@ -8,14 +8,12 @@ L1 是 Agent 与**大模型供应商**之间的唯一网关。把「选哪个模
 
 **核心设计决策**
 
-
 | 决策                            | 理由                                                           |
 | ----------------------------- | ------------------------------------------------------------ |
 | 统一 `chat(messages, tools)` 接口 | Planner 只关心 Message + ToolSchema，不关心 OpenAI/Anthropic SDK 差异 |
 | 主模型 + 可选 Fallback             | 盘前长任务怕单点故障；主模型 3 次重试后再切备用                                    |
 | CostManager 旁路记账              | 按 session/step 累计 token，为后续限流与成本告警预留                         |
 | 轻量限流（MVP）                     | 指数分析 × 多股并行时防止 burst 打满 quota                                |
-
 
 **调用链**
 
@@ -40,13 +38,11 @@ Planner (L4)
 
 ## 模块索引
 
-
 | 模块           | 文档                                   |
 | ------------ | ------------------------------------ |
 | Gateway      | [gateway.md](./gateway.md)           |
 | Cost Manager | [cost-manager.md](./cost-manager.md) |
 | Providers    | [providers.md](./providers.md)       |
-
 
 ## 代码
 

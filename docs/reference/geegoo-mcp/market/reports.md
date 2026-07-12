@@ -2,7 +2,7 @@
 
 ## 概述
 
-本文档描述 geegoo mcp 中与**盘前 / 盘中 / 盘后报告 Workflow**相关的接口，包括：
+本文档描述 GeeGooBot mcp-api 中与**盘前 / 盘中 / 盘后报告 Workflow**相关的接口，包括：
 
 - **待分析标的列表**（`getReportBotCodes`，原 `getUserBotCodes`）  
 - 三类报告 CRUD + 按日聚合查询  
@@ -23,7 +23,7 @@
 | **bot_name** | 机器人名称（与对应 bot 集合中的 `botname` 含义一致，便于列表展示与筛选）。 |
 | **bot_type** | 机器人类型（如 `DCA`、`GRID`、`DCAReminder`、`GRIDReminder` 等）。 |
 
-**基础路径**：`http://<host>:5700`
+**基础路径**：`http://<host>:3120`
 
 ---
 
@@ -56,7 +56,7 @@ HTTP **200**，`data` 为对象数组，每项含 `code`、`stock_name`、`bot_i
 ### 请求示例
 
 ```bash
-curl -X POST "http://<host>:5700/getReportBotCodes" \
+curl -X POST "http://<host>:3120/getReportBotCodes" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token":"your_mcp_token"}'

@@ -111,7 +111,7 @@ def test_attitude_bullish_maps_to_long():
 ```python
 def test_check_trading_day_ok(httpx_mock, market_client):
     httpx_mock.add_response(
-        url="http://test:5700/checkTradingDay",
+        url="http://test:3120/checkTradingDay",
         json={"code": 100, "data": {"is_trading_day": True}},
     )
     r = market_client.check_trading_day("token", "00700.HK")
@@ -179,7 +179,7 @@ E2E 断言清单：
 
 ### 6.1 HTTP
 
-- 使用 `pytest-httpx`；`base_url` 测试中用 `http://test:5700`
+- 使用 `pytest-httpx`；`base_url` 测试中用 `http://test:3120`
 - 每个接口至少 2 个 fixture：`ok` + `error`
 
 ### 6.2 LLM

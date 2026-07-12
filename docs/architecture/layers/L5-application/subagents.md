@@ -6,14 +6,12 @@
 
 ## Subagent 清单
 
-
 | 名称              | 工具子集                | Phase | MVP |
 | --------------- | ------------------- | ----- | --- |
 | NewsCollector   | fetch_*_news        | 1     | 可选  |
 | StockAnalyst    | analysis + report   | 1-2   | 可选  |
 | StrategyAdvisor | strategy + loopback | 5     | 否   |
 | BotManager      | bot + reminder      | 6     | 否   |
-
 
 ## spawn_subagent Tool
 

@@ -1,12 +1,12 @@
-# geegoo mcp 接口分布总表
+# GeeGooBot mcp-api 接口分布总表
 
-> **单一事实来源（SSOT）**：TradingBot `mcpAPIServer.py` @ **5700**。
+> **单一事实来源（SSOT）**：GeeGooBot `mcp-api` @ **3120**。
 > geegoo Skill 与 GeeGoo Agent 的文档/Tool 命名应与此表对齐。
 
 ## 三层关系
 
 ```
-TradingBot mcpAPIServer.py  (HTTP POST /path)
+GeeGooBot mcp-api.py  (HTTP POST /path)
         ↓
 geegoo Skill (SKILL.md / ROUTING.md — 用户指令 → 调哪个 API)
         ↓

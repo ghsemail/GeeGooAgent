@@ -1,6 +1,5 @@
 # geegoo skill 迁移映射
 
-
 | 原资产                                 | 目标                              |
 | ----------------------------------- | ------------------------------- |
 | `references/pre-market-workflow.md` | `skills/pre_market/workflow.md` |
@@ -11,7 +10,6 @@
 | `cron/*.json`                       | **废弃** → systemd timer          |
 | `SKILL.md` 经验                       | `rules/`                        |
 | `docs/geegoo-mcp/`（SSOT 镜像） | `docs/reference/geegoo-mcp/` + `domains/` |
-
 
 ## MVP
 

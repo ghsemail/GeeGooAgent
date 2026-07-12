@@ -64,10 +64,7 @@ func (c *AppConfig) SignalCatalogAPIKey() string {
 	return c.SignalAPIKey()
 }
 
-// DefaultPythonAdminURL is TradingSignal adminServer (ops LLM credentials until catalog-api returns token).
-const DefaultPythonAdminURL = "http://146.56.225.252:5800"
-
-// AdminModelURLs returns candidate bases for POST /queryModel (legacy helper).
+// AdminModelURLs returns candidate bases for POST /queryModel.
 func (c *AppConfig) AdminModelURLs() []string {
 	out := make([]string, 0, len(c.AdminModelQueryTargets()))
 	for _, t := range c.AdminModelQueryTargets() {
@@ -82,7 +79,7 @@ type AdminModelQueryTarget struct {
 	Bearer  string
 }
 
-// AdminModelQueryTargets lists ops model sources: catalog :3210 (Bearer), then Python admin :5800 fallback.
+// AdminModelQueryTargets lists ops LLM sources: GeeGooSignal catalog-api :3210 only.
 func (c *AppConfig) AdminModelQueryTargets() []AdminModelQueryTarget {
 	var out []AdminModelQueryTarget
 	if v := os.Getenv("GEEGOO_ADMIN_URL"); v != "" {
@@ -92,13 +89,6 @@ func (c *AppConfig) AdminModelQueryTargets() []AdminModelQueryTarget {
 		BaseURL: c.SignalCatalogURL(),
 		Bearer:  c.SignalCatalogAPIKey(),
 	})
-	catalog := c.SignalCatalogURL()
-	if u := replacePort(catalog, "5800"); u != "" && u != catalog {
-		out = append(out, AdminModelQueryTarget{BaseURL: u})
-	}
-	if !strings.Contains(catalog, ":5800") {
-		out = append(out, AdminModelQueryTarget{BaseURL: DefaultPythonAdminURL})
-	}
 	return uniqueQueryTargets(out)
 }
 

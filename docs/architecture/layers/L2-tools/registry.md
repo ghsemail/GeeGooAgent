@@ -42,7 +42,6 @@ def schemas(self, skill: LoadedSkill) -> list[ToolSchema]:
 
 ## 模块文件（与 catalog §九 对齐）
 
-
 | 文件                    | Tool 组                                                     |
 | --------------------- | ---------------------------------------------------------- |
 | `perceive.py`         | check_trading_day, search_code, get_position, fetch_*_news |
@@ -54,5 +53,4 @@ def schemas(self, skill: LoadedSkill) -> list[ToolSchema]:
 | `act_reminders.py`    | dca/grid/smart reminder CRUD                               |
 | `act_bots.py`         | dca/grid/smart/hdg bot CRUD                                |
 | `meta.py`             | write_execution_log, spawn_subagent, wait_for_human        |
-
 

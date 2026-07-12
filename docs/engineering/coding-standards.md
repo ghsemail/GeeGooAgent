@@ -144,7 +144,7 @@ class MarketClient:
 | Body | `mcp_token` 由调用方传入，Client 不读 config |
 | 重试 | `tenacity`：最多 3 次，间隔 5s，仅对超时/5xx |
 | 响应 | 解析为 Pydantic；`code != 100` 抛 `ClientError` |
-| 测试 | **禁止**单测访问真实 5700；用 `pytest-httpx` |
+| 测试 | **禁止**单测访问真实 5xxx 老端口；用 `httptest` / mock |
 
 ---
 

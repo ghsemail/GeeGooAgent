@@ -7,7 +7,6 @@
 
 ## 1. 总原则
 
-
 | 原则             | 说明                                                                                                |
 | -------------- | ------------------------------------------------------------------------------------------------- |
 | **一步一会话**      | 每个 Step 开一个 Cursor Agent 会话（或干净上下文），避免上下文污染                                                       |
@@ -16,7 +15,6 @@
 | **小 PR 心态**    | 每步 diff 控制在 ~300–500 行；过大则拆 Step                                                                  |
 | **dry-run 优先** | Phase 1 完成前，默认 `dry_run=true`                                                                     |
 | **不扩 scope**   | Agent 请求里写清「本步不做什么」                                                                               |
-
 
 **不推荐**：一个会话里「帮我把整个 Agent 写完」——极易漏测、漏字段、乱引框架。
 
@@ -65,14 +63,12 @@ Step 15 deploy systemd + 真机冒烟
 
 ### 3.2 模式选择
 
-
 | 阶段         | 模式                                 |
 | ---------- | ---------------------------------- |
 | Step 0–2   | **Agent**（写代码）                     |
 | 架构疑问       | **Ask** 或读 `docs/architecture`     |
 | 大范围方案变更    | **Plan** 先对齐再 Agent                |
 | Step 14–15 | **Agent** + 你在终端跑 pytest / systemd |
-
 
 ### 3.3 分支策略
 
@@ -175,7 +171,7 @@ config.py 加载 config.json、Secrets 从 env 读 LLM key。
 
 实现 Step 4：clients/base.py（Bearer、重试、timeout 60s）、
 clients/market.py：check_trading_day、get_report_bot_codes、get_capital_flow。
-集成测 pytest-httpx mock 5700。不要硬编码 mcp_token。
+集成测 pytest-httpx mock 3120。不要硬编码 mcp_token。
 本步不做 Tool 封装。
 ```
 
@@ -346,7 +342,6 @@ ruff format --check src tests
 geegoo-agent run pre_market --dry-run   # Step 7 起
 ```
 
-
 | 检查                   | 通过标准                   |
 | -------------------- | ---------------------- |
 | testing-standards §5 | 本 Step 行全部打勾           |
@@ -356,11 +351,9 @@ geegoo-agent run pre_market --dry-run   # Step 7 起
 | 依赖                   | 无 langchain            |
 | Agent 交付说明           | 含测试文件列表 + 用例数          |
 
-
 ---
 
 ## 6. Agent 跑偏时怎么办
-
 
 | 症状           | 处理                                                    |
 | ------------ | ----------------------------------------------------- |
@@ -370,7 +363,6 @@ geegoo-agent run pre_market --dry-run   # Step 7 起
 | 纯 ReAct 盘前   | 强调 WorkflowRunner；ReAct 仅 Phase 2                     |
 | 无测试          | 拒绝合并；补「本步验收：pytest xxx 绿」                             |
 | 87 Tool 全注册  | 仅 manifest 中的 19 个                                    |
-
 
 **恢复口令**（新会话首条）：
 
@@ -383,7 +375,6 @@ geegoo-agent run pre_market --dry-run   # Step 7 起
 
 ## 7. 推荐日程（单人 + Cursor）
 
-
 | 天   | Step  | 产出                          |
 | --- | ----- | --------------------------- |
 | D1  | 0–2   | 脚手架 + L0 + Sandbox          |
@@ -393,7 +384,6 @@ geegoo-agent run pre_market --dry-run   # Step 7 起
 | D5  | 11–12 | 阶段 B + LLM                  |
 | D6  | 13–14 | Supervisor + E2E            |
 | D7  | 15    | 部署 + 真机对比 Hermes            |
-
 
 ---
 

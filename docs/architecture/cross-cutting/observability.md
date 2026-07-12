@@ -2,7 +2,6 @@
 
 ## 产物一览
 
-
 | 产物               | 路径             | 模块             |
 | ---------------- | -------------- | -------------- |
 | execution-log.md | `{date}/`      | Logging + Tool |
@@ -10,7 +9,6 @@
 | checkpoint       | `checkpoints/` | Checkpoint     |
 | metrics.json     | `{date}/`      | Cost + Tracing |
 | journald         | systemd        | Logging        |
-
 
 ## 排障路径
 

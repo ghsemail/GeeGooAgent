@@ -38,12 +38,10 @@ class PlanResult:
 
 ## 与 L2 GeeGoo Analysis LLM 分工
 
-
 |     | L1 Planner 用的 Gateway | GeeGoo getMCPAnalysis     |
 | --- | --------------------- | ----------------------- |
 | 用途  | 编排、综合、写报告             | 技术面深度分析                 |
 | 调用方 | Planner               | `get_mcp_analysis` Tool |
-
 
 Planner **不应**在文本里重复生成完整技术分析，应读 Tool 返回的 `analysis_result`。
 

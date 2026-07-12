@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Migrate GeeGooAgent server config from 5xxx to 3xxx Go endpoints."""
+"""Patch GeeGooAgent server config to GeeGoo Go 3xxx endpoints."""
 from __future__ import annotations
 
 import json
