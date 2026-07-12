@@ -150,8 +150,9 @@ func toOpenAITools(tools []ToolSchema) []map[string]any {
 func parseOpenAIResponse(raw []byte, model string) (*Response, error) {
 	var envelope struct {
 		Choices []struct {
-			Message struct {
-				Content          string `json:"content"`
+			FinishReason string `json:"finish_reason"`
+			Message      struct {
+				Content          any    `json:"content"`
 				ReasoningContent string `json:"reasoning_content"`
 				ToolCalls        []struct {
 					ID       string `json:"id"`
@@ -173,7 +174,8 @@ func parseOpenAIResponse(raw []byte, model string) (*Response, error) {
 	if len(envelope.Choices) == 0 {
 		return nil, fmt.Errorf("LLM returned no choices")
 	}
-	msg := envelope.Choices[0].Message
+	choice := envelope.Choices[0]
+	msg := choice.Message
 	calls := make([]ToolCall, 0, len(msg.ToolCalls))
 	for _, tc := range msg.ToolCalls {
 		args, err := ParseToolArguments(tc.Function.Arguments)
@@ -187,15 +189,40 @@ func parseOpenAIResponse(raw []byte, model string) (*Response, error) {
 		})
 	}
 	return &Response{
-		Content:          msg.Content,
+		Content:          coerceMessageContent(msg.Content),
 		ReasoningContent: msg.ReasoningContent,
 		ToolCalls:        calls,
+		FinishReason:     choice.FinishReason,
 		Usage: TokenUsage{
 			PromptTokens:     envelope.Usage.PromptTokens,
 			CompletionTokens: envelope.Usage.CompletionTokens,
 			Model:            model,
 		},
 	}, nil
+}
+
+// coerceMessageContent accepts string content or OpenAI-style multipart arrays.
+func coerceMessageContent(raw any) string {
+	switch v := raw.(type) {
+	case nil:
+		return ""
+	case string:
+		return v
+	case []any:
+		var b strings.Builder
+		for _, part := range v {
+			m, ok := part.(map[string]any)
+			if !ok {
+				continue
+			}
+			if t, _ := m["text"].(string); t != "" {
+				b.WriteString(t)
+			}
+		}
+		return b.String()
+	default:
+		return fmt.Sprint(v)
+	}
 }
 
 func truncate(s string, n int) string {

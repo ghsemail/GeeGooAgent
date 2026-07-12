@@ -52,6 +52,7 @@ type Response struct {
 	ToolCalls        []ToolCall
 	Usage            TokenUsage
 	ReasoningContent string
+	FinishReason     string
 }
 
 // Provider calls an LLM backend.

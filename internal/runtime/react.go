@@ -129,7 +129,10 @@ func (l *ReActLoop) RunTurn(
 		if len(resp.ToolCalls) == 0 {
 			text := strings.TrimSpace(resp.Content)
 			if text == "" {
-				text = "（无文本回复）"
+				text = strings.TrimSpace(resp.ReasoningContent)
+			}
+			if text == "" {
+				text = emptyReplyMessage(resp)
 			}
 			l.emit("reply_start", map[string]any{"step": step})
 			session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: text})
@@ -227,4 +230,11 @@ func toolResultContent(result tools.Result) string {
 		return text[:6000]
 	}
 	return text
+}
+
+func emptyReplyMessage(resp *llm.Response) string {
+	if resp != nil && strings.EqualFold(resp.FinishReason, "length") {
+		return "模型输出被 max_tokens 截断（thinking 可能占满预算）。请提高 config.json 的 llm.max_tokens（建议 ≥8192），或 /think off / 降低 reasoning_effort 后重试。"
+	}
+	return "模型未返回可读内容。若开启了 thinking，请提高 llm.max_tokens 或执行 /think off 后重试。"
 }

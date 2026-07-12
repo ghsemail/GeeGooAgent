@@ -2,6 +2,7 @@ package runtime_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -96,6 +97,34 @@ func TestReActLoopToolRoundTripWithMCPMock(t *testing.T) {
 	session := runtime.NewSession()
 	result := loop.RunTurn(context.Background(), session, "腾讯多少钱", tools.Context{}, registry.Schemas([]string{"get_current_price"}))
 	if result.AssistantText != "腾讯现价 99.5 港元。" {
+		t.Fatalf("got %q", result.AssistantText)
+	}
+}
+
+func TestReActLoopEmptyContentFallsBackToReasoning(t *testing.T) {
+	provider := &llm.MockProvider{
+		Responses: []*llm.Response{{
+			Content: "", ReasoningContent: "结论：腾讯约 380 港元", FinishReason: "stop",
+		}},
+	}
+	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
+	gateway.SetSleep(func(time.Duration) {})
+	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
+	result := loop.RunTurn(context.Background(), runtime.NewSession(), "腾讯价格", tools.Context{}, nil)
+	if result.AssistantText != "结论：腾讯约 380 港元" {
+		t.Fatalf("got %q", result.AssistantText)
+	}
+}
+
+func TestReActLoopEmptyContentLengthHint(t *testing.T) {
+	provider := &llm.MockProvider{
+		Responses: []*llm.Response{{Content: "", FinishReason: "length"}},
+	}
+	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
+	gateway.SetSleep(func(time.Duration) {})
+	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
+	result := loop.RunTurn(context.Background(), runtime.NewSession(), "hi", tools.Context{}, nil)
+	if !strings.Contains(result.AssistantText, "max_tokens") {
 		t.Fatalf("got %q", result.AssistantText)
 	}
 }

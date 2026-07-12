@@ -31,6 +31,19 @@ func (c *LLMConfig) OpsModelEnabled() bool {
 	return *c.UseOpsModel
 }
 
+// EffectiveMaxTokens returns the chat completion max_tokens.
+// Thinking mode needs headroom for reasoning_content; values below 8192 are raised.
+func (c *LLMConfig) EffectiveMaxTokens(thinkingEnabled bool) int {
+	max := 4096
+	if c != nil && c.MaxTokens > 0 {
+		max = c.MaxTokens
+	}
+	if thinkingEnabled && max < 8192 {
+		return 8192
+	}
+	return max
+}
+
 // SearchConfig controls free web search (DuckDuckGo by default).
 type SearchConfig struct {
 	Provider   string `json:"provider"`

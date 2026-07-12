@@ -134,3 +134,17 @@ func TestLoadCompressionJSON(t *testing.T) {
 		t.Fatalf("aux %+v", aux)
 	}
 }
+
+func TestEffectiveMaxTokensThinkingFloor(t *testing.T) {
+	cfg := &LLMConfig{MaxTokens: 4096}
+	if got := cfg.EffectiveMaxTokens(true); got != 8192 {
+		t.Fatalf("thinking floor: got %d", got)
+	}
+	if got := cfg.EffectiveMaxTokens(false); got != 4096 {
+		t.Fatalf("non-thinking: got %d", got)
+	}
+	cfg.MaxTokens = 16000
+	if got := cfg.EffectiveMaxTokens(true); got != 16000 {
+		t.Fatalf("respect higher: got %d", got)
+	}
+}
