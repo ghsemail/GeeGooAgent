@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -103,7 +104,12 @@ func toOpenAIMessages(messages []Message) []map[string]any {
 			item["reasoning_content"] = m.ReasoningContent
 		}
 		if m.Role == RoleAssistant && len(m.ToolCalls) > 0 {
-			item["content"] = m.Content
+			content := scrubSIDTokens(m.Content)
+			if content == "" {
+				item["content"] = nil
+			} else {
+				item["content"] = content
+			}
 			calls := make([]map[string]any, 0, len(m.ToolCalls))
 			for _, c := range m.ToolCalls {
 				argsJSON, _ := json.Marshal(c.Arguments)
@@ -230,6 +236,12 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n]
+}
+
+var sidTokenRE = regexp.MustCompile(`(?i)\[SID=[^\]]+\]`)
+
+func scrubSIDTokens(s string) string {
+	return strings.TrimSpace(sidTokenRE.ReplaceAllString(s, ""))
 }
 
 // BuildProviderFromConfig creates a provider from config fields (no thinking).

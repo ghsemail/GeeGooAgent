@@ -187,3 +187,42 @@ func TestReActLoopEmptyAfterToolErrorSurfacesTool(t *testing.T) {
 		t.Fatalf("got %q", result.AssistantText)
 	}
 }
+
+func TestReActLoopSlimRetryAfterMalformedToolCalls(t *testing.T) {
+	registry := tools.NewRegistry()
+	registry.Register(tools.Tool{
+		Name: "search_code",
+		Handle: func(ctx tools.Context, args map[string]any) tools.Result {
+			return tools.Result{Status: tools.StatusOK, Summary: "search_code: 1 item(s); top: 腾讯控股 (00700.HK)",
+				Data: map[string]any{"items": []any{map[string]any{"code": "00700.HK", "name": "腾讯控股"}}}}
+		},
+	})
+	registry.Register(tools.Tool{
+		Name: "get_current_price",
+		Handle: func(ctx tools.Context, args map[string]any) tools.Result {
+			return tools.Result{Status: tools.StatusOK, Summary: "00700.HK = 380",
+				Data: map[string]any{"code": "00700.HK", "price": 380}}
+		},
+	})
+	// Extra unused schemas to trigger slim path (len(slim) < len(schemas)).
+	extra := []llm.ToolSchema{{
+		Name: "create_smart_trade", Description: "create",
+		Parameters: map[string]any{"type": "object", "properties": map[string]any{}},
+	}}
+	schemas := append(registry.Schemas([]string{"search_code", "get_current_price"}), extra...)
+	provider := &llm.MockProvider{
+		Responses: []*llm.Response{
+			{ToolCalls: []llm.ToolCall{{ID: "c1", Name: "search_code", Arguments: map[string]any{"regex": "腾讯"}}}},
+			{Content: "", FinishReason: "tool_calls"}, // malformed → slim retry
+			{ToolCalls: []llm.ToolCall{{ID: "c2", Name: "get_current_price", Arguments: map[string]any{"code": "00700.HK"}}}},
+			{Content: "腾讯现价约 380 港元。", FinishReason: "stop"},
+		},
+	}
+	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
+	gateway.SetSleep(func(time.Duration) {})
+	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
+	result := loop.RunTurn(context.Background(), runtime.NewSession(), "腾讯价格", tools.Context{}, schemas)
+	if !strings.Contains(result.AssistantText, "380") {
+		t.Fatalf("got %q", result.AssistantText)
+	}
+}

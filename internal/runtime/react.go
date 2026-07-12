@@ -99,6 +99,18 @@ func (l *ReActLoop) RunTurn(
 			l.emit("error", map[string]any{"message": msg})
 			return TurnResult{AssistantText: msg, Failed: true, Error: err.Error(), StepRecords: records}
 		}
+		if llm.MalformedToolCallResponse(resp) {
+			if slim := slimSchemasForRetry(schemas, records); len(slim) > 0 && len(slim) < len(schemas) {
+				l.emit("llm_tools_slim_retry", map[string]any{"from": len(schemas), "to": len(slim)})
+				resp2, err2 := l.gateway.Chat(ctx, messages, slim, session.ID, step)
+				if err2 != nil {
+					msg := fmt.Sprintf("模型调用失败: %v", err2)
+					l.emit("error", map[string]any{"message": msg})
+					return TurnResult{AssistantText: msg, Failed: true, Error: err2.Error(), StepRecords: records}
+				}
+				resp = resp2
+			}
+		}
 		if resp.Usage.PromptTokens > 0 {
 			l.lastPromptTokens = resp.Usage.PromptTokens
 		}
@@ -276,4 +288,32 @@ func stripProviderNoise(s string) string {
 		return ""
 	}
 	return strings.TrimSpace(sidTokenRE.ReplaceAllString(s, ""))
+}
+
+// coreSlimTools is the fallback allowlist when the provider returns
+// finish_reason=tool_calls without a tool_calls payload under a large catalog.
+var coreSlimTools = []string{
+	"search_code", "get_current_price", "get_ticker", "web_search",
+	"get_mcp_analysis", "check_trading_day",
+	"list_smart_trades", "list_dca_bots", "list_grid_bots", "list_hdg_bots",
+	"fetch_market_news", "fetch_stock_news", "recall",
+}
+
+func slimSchemasForRetry(all []llm.ToolSchema, records []StepRecord) []llm.ToolSchema {
+	want := make(map[string]struct{}, len(coreSlimTools)+4)
+	for _, name := range coreSlimTools {
+		want[name] = struct{}{}
+	}
+	for _, r := range records {
+		if r.Kind == "tool" && strings.TrimSpace(r.ToolName) != "" {
+			want[r.ToolName] = struct{}{}
+		}
+	}
+	out := make([]llm.ToolSchema, 0, len(want))
+	for _, schema := range all {
+		if _, ok := want[schema.Name]; ok {
+			out = append(out, schema)
+		}
+	}
+	return out
 }

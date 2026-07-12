@@ -178,7 +178,7 @@ func (a *App) RebuildGateway() error {
 	}
 	thinkingOn := llm.ResolveThinkingEnabled(llm.ProviderName(providerName), model, a.Config.LLM.Thinking)
 	a.Gateway = llm.NewGateway(provider, llm.GatewayConfig{
-		MaxRetries: 3, Temperature: a.Config.LLM.Temperature,
+		MaxRetries: 3, RetryWait: time.Second, Temperature: a.Config.LLM.Temperature,
 		MaxTokens: a.Config.LLM.EffectiveMaxTokens(thinkingOn),
 	})
 	if a.Loop != nil {
