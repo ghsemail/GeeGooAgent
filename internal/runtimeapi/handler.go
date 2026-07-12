@@ -32,6 +32,7 @@ func NewHandler(application *app.App) *Handler {
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/chat/completions", h.chatCompletions)
 	mux.HandleFunc("GET /v1/models", h.listModels)
+	h.registerSessionRoutes(mux)
 }
 
 type chatRequest struct {

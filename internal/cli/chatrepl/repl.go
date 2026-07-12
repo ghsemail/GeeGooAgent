@@ -125,7 +125,11 @@ func (r *Repl) attachProgress() {
 	if sink == nil {
 		sink = r.UI
 	}
+	live := chatsession.NewLivePublisher(r.App.State, r.Chat.ID)
 	r.App.Agent.SetProgress(func(event string, data map[string]any) {
+		if live != nil {
+			live.Emit(event, data)
+		}
 		switch event {
 		case "stream_delta", "turn_start", "reply_start":
 			sink.EmitProgress(event, data)
@@ -342,6 +346,9 @@ func (r *Repl) runTurn(text string) runtime.TurnResult {
 	r.Chat.SyncFromRuntime(r.Session.Messages, r.Session.StepCounter, newRecords)
 	r.Chat.SyncLineageFromRuntime(r.Session.ParentID, r.Session.LineageRoot, r.Session.CompactionGeneration)
 	_ = r.SessionStore.Save(r.Chat)
+	if pub := chatsession.NewLivePublisher(r.App.State, r.Chat.ID); pub != nil {
+		pub.EndTurn()
+	}
 	return result
 }
 
