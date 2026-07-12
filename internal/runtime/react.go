@@ -251,6 +251,9 @@ func emptyReplyMessage(resp *llm.Response, records []StepRecord) string {
 		}
 		return b.String()
 	}
+	if resp != nil && llm.MalformedToolCallResponse(resp) {
+		return "模型声称要调用工具但未返回 tool_calls（网关异常）。请重试；若反复出现，可更换模型或减少启用工具。"
+	}
 	if resp != nil && strings.EqualFold(resp.FinishReason, "length") {
 		return "模型输出被 max_tokens 截断（thinking 可能占满预算）。请提高 config.json 的 llm.max_tokens（建议 ≥8192），或 /think off / 降低 reasoning_effort 后重试。"
 	}

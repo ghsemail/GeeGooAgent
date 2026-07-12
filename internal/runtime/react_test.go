@@ -144,6 +144,19 @@ func TestReActLoopStripsSIDOnlyContent(t *testing.T) {
 	}
 }
 
+func TestReActLoopMalformedToolCallsMessage(t *testing.T) {
+	provider := &llm.MockProvider{
+		Responses: []*llm.Response{{Content: "", FinishReason: "tool_calls"}},
+	}
+	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
+	gateway.SetSleep(func(time.Duration) {})
+	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
+	result := loop.RunTurn(context.Background(), runtime.NewSession(), "hi", tools.Context{}, nil)
+	if !strings.Contains(result.AssistantText, "tool_calls") {
+		t.Fatalf("got %q", result.AssistantText)
+	}
+}
+
 func TestReActLoopEmptyAfterToolErrorSurfacesTool(t *testing.T) {
 	registry := tools.NewRegistry()
 	registry.Register(tools.Tool{

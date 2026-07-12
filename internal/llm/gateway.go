@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -61,6 +62,15 @@ func (g *Gateway) Chat(ctx context.Context, messages []Message, tools []ToolSche
 		}
 		resp, err := g.primary.Chat(ctx, messages, tools, g.config.Temperature, g.config.MaxTokens)
 		if err == nil {
+			if MalformedToolCallResponse(resp) {
+				lastErr = fmt.Errorf("malformed tool_calls response (finish_reason=%q, tools=%d)", resp.FinishReason, len(resp.ToolCalls))
+				if attempt < g.config.MaxRetries-1 {
+					g.sleep(g.config.RetryWait)
+					continue
+				}
+				// Final attempt still malformed: return response so caller can surface a clear message.
+				return resp, nil
+			}
 			return resp, nil
 		}
 		lastErr = err
@@ -69,6 +79,18 @@ func (g *Gateway) Chat(ctx context.Context, messages []Message, tools []ToolSche
 		}
 	}
 	return nil, fmt.Errorf("LLM gateway failed: %w", lastErr)
+}
+
+// MalformedToolCallResponse detects finish_reason=tool_calls without any tool_calls payload
+// (seen with some OpenAI-compatible gateways when the tool list is large).
+func MalformedToolCallResponse(resp *Response) bool {
+	if resp == nil {
+		return false
+	}
+	if len(resp.ToolCalls) > 0 {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(resp.FinishReason), "tool_calls")
 }
 
 // GatewayError is returned when all retries fail.
