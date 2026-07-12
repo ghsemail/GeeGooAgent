@@ -109,6 +109,7 @@ type AppConfig struct {
 	Compression      CompressionConfig `json:"compression"`
 	Auxiliary        AuxiliaryConfig   `json:"auxiliary"`
 	ChatToolsets     []string          `json:"chat_toolsets,omitempty"`
+	Display          DisplayConfig     `json:"display,omitempty"`
 }
 
 // ConfigError indicates invalid or missing configuration.

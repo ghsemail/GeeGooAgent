@@ -1,7 +1,7 @@
 # GeeGooAgent Chat TUI（Hermes 全套对标）设计
 
 > 日期：2026-07-12  
-> 状态：待用户审阅  
+> 状态：已批准；Phase A 实施中（feat/chattui-hermes-parity）  
 > 参考：[Hermes TUI](https://hermes-agent.nousresearch.com/docs/user-guide/tui)、Hermes `display.details_mode` / `/details`  
 > 原则：对齐 Hermes **交互语义与信息架构**；用 Go + Bubble Tea 自研，**不**引入 Node `ui-tui`、**不**照搬 Hermes 源码。
 

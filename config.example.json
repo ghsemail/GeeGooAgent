@@ -46,5 +46,17 @@
       "127.0.0.1",
       "localhost"
     ]
+  },
+  "display": {
+    "interface": "tui",
+    "details_mode": "collapsed",
+    "sections": {
+      "thinking": "",
+      "tools": "",
+      "activity": "hidden"
+    },
+    "mouse_tracking": "wheel",
+    "status_indicator": "emoji",
+    "show_reasoning": true
   }
 }
