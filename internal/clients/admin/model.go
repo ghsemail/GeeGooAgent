@@ -23,6 +23,11 @@ type ConfiguredModel struct {
 
 // QueryConfigured posts {"type":"configured"} to baseURL/queryModel.
 func QueryConfigured(ctx context.Context, baseURL string) (ConfiguredModel, error) {
+	return QueryConfiguredWithBearer(ctx, baseURL, "")
+}
+
+// QueryConfiguredWithBearer posts queryModel with optional catalog-api Bearer.
+func QueryConfiguredWithBearer(ctx context.Context, baseURL, bearer string) (ConfiguredModel, error) {
 	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if base == "" {
 		return ConfiguredModel{}, fmt.Errorf("empty admin/catalog base url")
@@ -33,6 +38,9 @@ func QueryConfigured(ctx context.Context, baseURL string) (ConfiguredModel, erro
 		return ConfiguredModel{}, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if strings.TrimSpace(bearer) != "" {
+		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(bearer))
+	}
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -53,19 +61,39 @@ func QueryConfigured(ctx context.Context, baseURL string) (ConfiguredModel, erro
 	return doc, nil
 }
 
-// QueryConfiguredFromCandidates tries each base URL until one succeeds.
+// QueryTarget is one queryModel endpoint with optional Bearer (catalog-api :3210).
+type QueryTarget struct {
+	BaseURL string
+	Bearer  string
+}
+
+// QueryConfiguredFromCandidates tries each base URL until one succeeds with a non-empty token.
 func QueryConfiguredFromCandidates(ctx context.Context, bases ...string) (ConfiguredModel, string, error) {
-	var last error
+	targets := make([]QueryTarget, 0, len(bases))
 	for _, b := range bases {
-		b = strings.TrimSpace(b)
-		if b == "" {
+		targets = append(targets, QueryTarget{BaseURL: b})
+	}
+	return QueryConfiguredFromTargets(ctx, targets...)
+}
+
+// QueryConfiguredFromTargets tries each target; skips responses missing token (incomplete catalog rows).
+func QueryConfiguredFromTargets(ctx context.Context, targets ...QueryTarget) (ConfiguredModel, string, error) {
+	var last error
+	for _, t := range targets {
+		base := strings.TrimSpace(t.BaseURL)
+		if base == "" {
 			continue
 		}
-		doc, err := QueryConfigured(ctx, b)
-		if err == nil {
-			return doc, b, nil
+		doc, err := QueryConfiguredWithBearer(ctx, base, t.Bearer)
+		if err != nil {
+			last = err
+			continue
 		}
-		last = err
+		if strings.TrimSpace(doc.Token) == "" {
+			last = fmt.Errorf("queryModel at %s returned empty token", base)
+			continue
+		}
+		return doc, base, nil
 	}
 	if last == nil {
 		last = fmt.Errorf("no queryModel endpoints configured")

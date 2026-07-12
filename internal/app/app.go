@@ -152,7 +152,11 @@ func (a *App) RebuildGateway() error {
 	if a.Config.LLM.OpsModelEnabled() {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		doc, src, err := admin.QueryConfiguredFromCandidates(ctx, a.Config.AdminModelURLs()...)
+		targets := make([]admin.QueryTarget, 0, len(a.Config.AdminModelQueryTargets()))
+		for _, t := range a.Config.AdminModelQueryTargets() {
+			targets = append(targets, admin.QueryTarget{BaseURL: t.BaseURL, Bearer: t.Bearer})
+		}
+		doc, src, err := admin.QueryConfiguredFromTargets(ctx, targets...)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "警告: 拉取运营配置模型失败（回退本地 llm）: %v\n", err)
 		} else {

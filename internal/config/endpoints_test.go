@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/config"
@@ -30,11 +31,26 @@ func TestLegacyPortWarning(t *testing.T) {
 	}
 }
 
-func TestAdminModelURLsUsesCatalogOnly(t *testing.T) {
-	cfg := &config.AppConfig{SignalBaseURL: "http://146.56.225.252:3210"}
-	urls := cfg.AdminModelURLs()
-	if len(urls) != 1 || urls[0] != "http://146.56.225.252:3210" {
-		t.Fatalf("admin URLs = %v", urls)
+func TestAdminModelQueryTargets(t *testing.T) {
+	cfg := &config.AppConfig{
+		SignalBaseURL:            "http://146.56.225.252:3210",
+		SignalCatalogAPIKeyField: "cat-key",
+	}
+	targets := cfg.AdminModelQueryTargets()
+	if len(targets) < 2 {
+		t.Fatalf("expected catalog + fallback, got %v", targets)
+	}
+	if targets[0].BaseURL != "http://146.56.225.252:3210" || targets[0].Bearer != "cat-key" {
+		t.Fatalf("catalog target = %+v", targets[0])
+	}
+	found5800 := false
+	for _, t := range targets[1:] {
+		if strings.Contains(t.BaseURL, ":5800") {
+			found5800 = true
+		}
+	}
+	if !found5800 {
+		t.Fatalf("missing :5800 ops fallback: %v", targets)
 	}
 }
 

@@ -64,14 +64,59 @@ func (c *AppConfig) SignalCatalogAPIKey() string {
 	return c.SignalAPIKey()
 }
 
-// AdminModelURLs returns candidate bases for POST /queryModel (GeeGooSignal catalog :3210).
+// DefaultPythonAdminURL is TradingSignal adminServer (ops LLM credentials until catalog-api returns token).
+const DefaultPythonAdminURL = "http://146.56.225.252:5800"
+
+// AdminModelURLs returns candidate bases for POST /queryModel (legacy helper).
 func (c *AppConfig) AdminModelURLs() []string {
-	var out []string
-	if v := os.Getenv("GEEGOO_ADMIN_URL"); v != "" {
-		out = append(out, trimSlash(v))
+	out := make([]string, 0, len(c.AdminModelQueryTargets()))
+	for _, t := range c.AdminModelQueryTargets() {
+		out = append(out, t.BaseURL)
 	}
-	out = append(out, c.SignalCatalogURL())
-	return uniqueNonEmpty(out)
+	return out
+}
+
+// AdminModelQueryTarget pairs a queryModel base with optional Bearer.
+type AdminModelQueryTarget struct {
+	BaseURL string
+	Bearer  string
+}
+
+// AdminModelQueryTargets lists ops model sources: catalog :3210 (Bearer), then Python admin :5800 fallback.
+func (c *AppConfig) AdminModelQueryTargets() []AdminModelQueryTarget {
+	var out []AdminModelQueryTarget
+	if v := os.Getenv("GEEGOO_ADMIN_URL"); v != "" {
+		out = append(out, AdminModelQueryTarget{BaseURL: trimSlash(v)})
+	}
+	out = append(out, AdminModelQueryTarget{
+		BaseURL: c.SignalCatalogURL(),
+		Bearer:  c.SignalCatalogAPIKey(),
+	})
+	catalog := c.SignalCatalogURL()
+	if u := replacePort(catalog, "5800"); u != "" && u != catalog {
+		out = append(out, AdminModelQueryTarget{BaseURL: u})
+	}
+	if !strings.Contains(catalog, ":5800") {
+		out = append(out, AdminModelQueryTarget{BaseURL: DefaultPythonAdminURL})
+	}
+	return uniqueQueryTargets(out)
+}
+
+func uniqueQueryTargets(in []AdminModelQueryTarget) []AdminModelQueryTarget {
+	seen := map[string]struct{}{}
+	var out []AdminModelQueryTarget
+	for _, t := range in {
+		base := strings.TrimSpace(t.BaseURL)
+		if base == "" {
+			continue
+		}
+		if _, ok := seen[base]; ok {
+			continue
+		}
+		seen[base] = struct{}{}
+		out = append(out, AdminModelQueryTarget{BaseURL: base, Bearer: t.Bearer})
+	}
+	return out
 }
 
 func replacePort(raw, port string) string {
