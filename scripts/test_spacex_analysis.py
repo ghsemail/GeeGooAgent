@@ -81,19 +81,37 @@ def probe_mcp(mcp_key: str) -> None:
 def run_chat_stream() -> str:
     py = f"""
 import json, urllib.request
+
+def load_env(path):
+    env = {{}}
+    for line in open(path):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:]
+        if "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        env[k] = v.strip().strip('"').strip("'")
+    return env
+
 cfg = json.load(open("/home/ubuntu/.geegoo/config.json"))
-key = cfg.get("runtime_api_key", "")
+env = load_env("/home/ubuntu/.geegoo/agent.env")
+key = env.get("GEEGOO_AGENT_RUNTIME_API_KEY", "").strip()
 mcp = cfg.get("mcp_token", "")
 body = json.dumps({{"message": {MESSAGE!r}, "session_id": {SESSION_ID!r}}}).encode()
+headers = {{
+    "Content-Type": "application/json",
+    "X-MCP-Token": mcp,
+    "X-Approve-Writes": "true",
+}}
+if key:
+    headers["Authorization"] = f"Bearer {{key}}"
 req = urllib.request.Request(
     "http://127.0.0.1:3400/v1/chat/stream",
     data=body,
-    headers={{
-        "Authorization": f"Bearer {{key}}",
-        "Content-Type": "application/json",
-        "X-MCP-Token": mcp,
-        "X-Approve-Writes": "true",
-    }},
+    headers=headers,
     method="POST",
 )
 with urllib.request.urlopen(req, timeout=600) as resp:

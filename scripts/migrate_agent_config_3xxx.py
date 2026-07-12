@@ -77,7 +77,9 @@ def main() -> None:
     patch_json = json.dumps(patch, ensure_ascii=False)
     remote_py = f"""python3 - <<'PY'
 import json
+import urllib.request
 from pathlib import Path
+
 p = Path.home() / '.geegoo' / 'config.json'
 cfg = json.loads(p.read_text(encoding='utf-8'))
 patch = json.loads({patch_json!r})
@@ -85,6 +87,35 @@ cfg.update(patch)
 hosts = set(cfg.get('sandbox', {{}}).get('allowed_hosts', []))
 hosts.update(['118.195.135.97', '146.56.225.252', '47.80.14.120'])
 cfg.setdefault('sandbox', {{}})['allowed_hosts'] = sorted(hosts)
+
+cat_key = (cfg.get('signal_catalog_api_key') or '').strip()
+cat_url = (cfg.get('signal_base_url') or 'http://146.56.225.252:3210').rstrip('/')
+if cat_key:
+    req = urllib.request.Request(
+        cat_url + '/queryModel',
+        data=json.dumps({{'type': 'configured'}}).encode(),
+        headers={{
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {{cat_key}}',
+        }},
+        method='POST',
+    )
+    doc = json.loads(urllib.request.urlopen(req, timeout=15).read().decode())
+    token = (doc.get('token') or '').strip()
+    base = (doc.get('base_url') or '').strip().rstrip('/')
+    model = (doc.get('name') or doc.get('display_name') or 'gpt-5.5').strip()
+    if token and base:
+        llm = cfg.setdefault('llm', {{}})
+        llm['token_key'] = token
+        llm['base_url'] = base
+        llm['model'] = model
+        llm['provider'] = 'openai'
+        llm['use_ops_model'] = True
+        cfg['llm'] = llm
+        print('llm synced from queryModel', 'model', model, 'token_suffix', token[-4:])
+    else:
+        print('warn: queryModel missing token/base_url; llm block unchanged')
+
 p.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + '\\n', encoding='utf-8')
 print('updated', p)
 for k in ['base_url','geegoo_url','signal_base_url','signal_api_url','data_base_url']:
