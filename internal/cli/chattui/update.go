@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/ghsemail/GeeGooAgent/internal/cli/chatcmd"
+	"github.com/ghsemail/GeeGooAgent/internal/config"
 )
 
 var (
@@ -27,31 +28,47 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Width > 4 {
 			m.input.Width = msg.Width - 4
 		}
+		m.layoutViewport()
+		m.refreshViewport()
 		return m, nil
 
 	case ProgressMsg:
-		m.ApplyProgress(msg.Event, msg.Data)
+		if msg.Slot >= 0 && msg.Slot < len(m.slots) {
+			m.slots[msg.Slot].ApplyProgress(msg.Event, msg.Data)
+			if msg.Slot == m.active {
+				m.scrollFollow = true
+				m.refreshViewport()
+			}
+		}
 		return m, nil
 
 	case TurnDoneMsg:
+		if msg.Slot < 0 || msg.Slot >= len(m.slots) {
+			return m, nil
+		}
+		s := m.slots[msg.Slot]
 		reply := strings.TrimSpace(msg.Reply)
 		if msg.Err != "" {
-			m.err = msg.Err
+			s.Err = msg.Err
 		}
 		if reply != "" {
-			if idx := findLastKind(m.blocks, KindReply); idx >= 0 {
-				if strings.TrimSpace(m.blocks[idx].Body) == "" {
-					m.blocks[idx].Body = reply
+			if idx := findLastKind(s.Blocks, KindReply); idx >= 0 {
+				if strings.TrimSpace(s.Blocks[idx].Body) == "" {
+					s.Blocks[idx].Body = reply
 				}
 			} else {
-				m.blocks = append(m.blocks, Block{
-					ID: fmt.Sprintf("reply-%d", m.seq), Kind: KindReply, Title: "助手", Body: reply,
+				s.Blocks = append(s.Blocks, Block{
+					ID: fmt.Sprintf("reply-%d", s.Seq), Kind: KindReply, Title: "助手", Body: reply,
 				})
-				m.seq++
+				s.Seq++
 			}
 		}
-		m.finalizeLiveSections()
-		m.input.Focus()
+		s.finalizeLiveSections()
+		if msg.Slot == m.active {
+			m.input.Focus()
+			m.scrollFollow = true
+			m.refreshViewport()
+		}
 		return m, nil
 
 	case InfoMsg:
@@ -61,11 +78,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case DisplayUpdatedMsg:
 		m.display = msg.Display
 		m.display.Normalize()
+		m.refreshViewport()
+		return m, nil
+
+	case NewSessionMsg:
+		if msg.Slot != nil {
+			msg.Slot.Index = len(m.slots)
+			m.slots = append(m.slots, msg.Slot)
+			m.active = len(m.slots) - 1
+			m.sessionPicker = false
+			m.info = "已新建会话 " + msg.Slot.shortTitle()
+			m.refreshViewport()
+		}
 		return m, nil
 
 	case approvalTickMsg:
-		if m.host != nil && !m.approvalPending {
-			if tool, args, ok := m.host.PollApproval(); ok {
+		host := m.activeHost()
+		if host != nil && !m.approvalPending {
+			if tool, args, ok := host.PollApproval(); ok {
 				m.approvalPending = true
 				m.approvalTool = tool
 				m.approvalArgs = args
@@ -74,22 +104,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tickApproval()
 
+	case tea.MouseMsg:
+		return m.handleMouse(msg)
+
 	case tea.KeyMsg:
 		if m.quitting {
 			return m, tea.Quit
 		}
+		if m.sessionPicker {
+			return m.handlePickerKeys(msg)
+		}
 		if m.approvalPending {
 			switch strings.ToLower(msg.String()) {
 			case "y", "yes":
-				if m.host != nil {
-					m.host.AnswerApproval(true)
+				if h := m.activeHost(); h != nil {
+					h.AnswerApproval(true)
 				}
 				m.approvalPending = false
 				m.info = "已批准"
 				return m, nil
-			case "n", "no", "esc":
-				if m.host != nil {
-					m.host.AnswerApproval(false)
+			case "n", "no":
+				if h := m.activeHost(); h != nil {
+					h.AnswerApproval(false)
+				}
+				m.approvalPending = false
+				m.info = "已跳过"
+				return m, nil
+			}
+			if msg.Type == tea.KeyEsc {
+				if h := m.activeHost(); h != nil {
+					h.AnswerApproval(false)
 				}
 				m.approvalPending = false
 				m.info = "已跳过"
@@ -99,9 +143,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		switch msg.Type {
 		case tea.KeyCtrlC:
-			if m.busy && m.cancelCh != nil {
+			s := m.activeSlot()
+			if s != nil && s.Busy {
 				select {
-				case m.cancelCh <- struct{}{}:
+				case s.CancelCh <- struct{}{}:
 				default:
 				}
 				m.info = "正在中断…"
@@ -109,24 +154,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.quitting = true
 			return m, tea.Quit
+		case tea.KeyCtrlX:
+			m.sessionPicker = true
+			m.pickerFocus = m.active
+			m.info = ""
+			return m, nil
+		case tea.KeyCtrlN:
+			return m, m.cmdNewSession()
 		case tea.KeyEsc:
-			if m.busy && m.cancelCh != nil {
+			s := m.activeSlot()
+			if s != nil && s.Busy {
 				select {
-				case m.cancelCh <- struct{}{}:
+				case s.CancelCh <- struct{}{}:
 				default:
 				}
 				return m, nil
 			}
 			return m, nil
+		case tea.KeyPgUp:
+			m.scrollFollow = false
+			m.vp.ScrollUp(5)
+			return m, nil
+		case tea.KeyPgDown:
+			m.vp.ScrollDown(5)
+			if m.vp.AtBottom() {
+				m.scrollFollow = true
+			}
+			return m, nil
 		case tea.KeyUp:
 			m.moveFocus(-1)
+			m.refreshViewport()
 			return m, nil
 		case tea.KeyDown:
 			m.moveFocus(1)
+			m.refreshViewport()
 			return m, nil
 		case tea.KeyEnter:
 			if msg.Alt {
-				// Alt+Enter: insert newline later; Phase A ignores
 				return m, nil
 			}
 			text := strings.TrimSpace(m.input.Value())
@@ -136,15 +200,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.input.SetValue("")
 			return m.handleSubmit(text)
 		case tea.KeySpace:
-			// Toggle focused block when input empty
-			if strings.TrimSpace(m.input.Value()) == "" && m.focus >= 0 && m.focus < len(m.blocks) {
-				m.blocks[m.focus].ToggleExpand(m.display)
+			s := m.activeSlot()
+			if s != nil && strings.TrimSpace(m.input.Value()) == "" && s.Focus >= 0 && s.Focus < len(s.Blocks) {
+				s.Blocks[s.Focus].ToggleExpand(m.display)
+				m.refreshViewport()
 				return m, nil
 			}
 		}
 	}
 
-	if !m.busy {
+	s := m.activeSlot()
+	if s == nil || !s.Busy {
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)
 		return m, cmd
@@ -152,25 +218,144 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.sessionPicker || m.approvalPending {
+		return m, nil
+	}
+	switch msg.Action {
+	case tea.MouseActionPress:
+		if msg.Button == tea.MouseButtonLeft {
+			// Click in transcript region toggles nearest focused expandable block
+			s := m.activeSlot()
+			if s != nil && s.Focus >= 0 && s.Focus < len(s.Blocks) {
+				k := s.Blocks[s.Focus].Kind
+				if k == KindThinking || k == KindTools {
+					s.Blocks[s.Focus].ToggleExpand(m.display)
+					m.refreshViewport()
+				}
+			}
+		}
+	case tea.MouseActionMotion:
+		// wheel via viewport
+	}
+	var cmd tea.Cmd
+	m.vp, cmd = m.vp.Update(msg)
+	if !m.vp.AtBottom() {
+		m.scrollFollow = false
+	} else {
+		m.scrollFollow = true
+	}
+	return m, cmd
+}
+
+func (m Model) handlePickerKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.sessionPicker = false
+		return m, nil
+	case tea.KeyUp:
+		if m.pickerFocus > 0 {
+			m.pickerFocus--
+		}
+		return m, nil
+	case tea.KeyDown:
+		if m.pickerFocus < len(m.slots) { // include "+ new"
+			m.pickerFocus++
+		}
+		return m, nil
+	case tea.KeyCtrlN:
+		m.sessionPicker = false
+		return m, m.cmdNewSession()
+	case tea.KeyCtrlD:
+		return m.closePickerSession()
+	case tea.KeyEnter:
+		if m.pickerFocus >= len(m.slots) {
+			m.sessionPicker = false
+			return m, m.cmdNewSession()
+		}
+		m.active = m.pickerFocus
+		m.sessionPicker = false
+		m.info = "切换到 " + m.slots[m.active].shortTitle()
+		m.refreshViewport()
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m Model) closePickerSession() (tea.Model, tea.Cmd) {
+	if len(m.slots) <= 1 {
+		m.info = "至少保留一个 live session"
+		return m, nil
+	}
+	idx := m.pickerFocus
+	if idx < 0 || idx >= len(m.slots) {
+		idx = m.active
+	}
+	s := m.slots[idx]
+	if s.Busy {
+		m.info = "会话仍在运行，先中断再关闭"
+		return m, nil
+	}
+	wasActive := m.active
+	s.Repl.CloseSession()
+	if s.SubmitCh != nil {
+		close(s.SubmitCh)
+		s.SubmitCh = nil
+	}
+	m.slots = append(m.slots[:idx], m.slots[idx+1:]...)
+	for i := range m.slots {
+		m.slots[i].Index = i
+	}
+	if wasActive == idx {
+		if wasActive >= len(m.slots) {
+			m.active = len(m.slots) - 1
+		} else {
+			m.active = wasActive
+		}
+	} else if wasActive > idx {
+		m.active = wasActive - 1
+	}
+	if m.pickerFocus >= len(m.slots) {
+		m.pickerFocus = len(m.slots) - 1
+	}
+	m.info = "已关闭会话"
+	m.refreshViewport()
+	return m, nil
+}
+
+func (m Model) cmdNewSession() tea.Cmd {
+	factory := m.appFactory
+	return func() tea.Msg {
+		if factory == nil {
+			return InfoMsg{Text: "无法新建会话"}
+		}
+		slot, err := factory("")
+		if err != nil {
+			return InfoMsg{Text: "新建失败: " + err.Error()}
+		}
+		return NewSessionMsg{Slot: slot}
+	}
+}
+
 func (m *Model) moveFocus(delta int) {
-	if len(m.blocks) == 0 {
-		m.focus = -1
+	s := m.activeSlot()
+	if s == nil || len(s.Blocks) == 0 {
 		return
 	}
-	if m.focus < 0 {
+	if s.Focus < 0 {
 		if delta > 0 {
-			m.focus = 0
+			s.Focus = 0
 		} else {
-			m.focus = len(m.blocks) - 1
+			s.Focus = len(s.Blocks) - 1
 		}
 		return
 	}
-	m.focus += delta
-	if m.focus < 0 {
-		m.focus = 0
+	s.Focus += delta
+	if s.Focus < 0 {
+		s.Focus = 0
 	}
-	if m.focus >= len(m.blocks) {
-		m.focus = len(m.blocks) - 1
+	if s.Focus >= len(s.Blocks) {
+		s.Focus = len(s.Blocks) - 1
 	}
 }
 
@@ -178,21 +363,28 @@ func (m Model) handleSubmit(text string) (tea.Model, tea.Cmd) {
 	if strings.HasPrefix(text, "/") {
 		return m.handleSlash(text)
 	}
-	if m.busy {
+	s := m.activeSlot()
+	if s == nil {
+		return m, nil
+	}
+	if s.Busy {
 		m.info = "请等待当前回合结束，或 Esc 中断"
 		return m, nil
 	}
-	m.err = ""
+	s.Err = ""
 	m.info = ""
-	m.blocks = append(m.blocks, Block{
-		ID: fmt.Sprintf("user-%d", m.seq), Kind: KindUser, Title: "你", Body: text,
+	s.Blocks = append(s.Blocks, Block{
+		ID: fmt.Sprintf("user-%d", s.Seq), Kind: KindUser, Title: "你", Body: text,
 	})
-	m.seq++
-	m.busy = true
-	m.status = "thinking…"
-	if m.submitCh != nil {
-		go func() { m.submitCh <- text }()
+	s.Seq++
+	if s.Title == "" || s.Title == s.ID {
+		s.Title = TruncateRunes(text, 32)
 	}
+	s.Busy = true
+	s.Status = "thinking…"
+	m.scrollFollow = true
+	m.refreshViewport()
+	go func() { s.SubmitCh <- text }()
 	return m, nil
 }
 
@@ -204,6 +396,30 @@ func (m Model) handleSlash(text string) (tea.Model, tea.Cmd) {
 	case "/exit", "/quit":
 		m.quitting = true
 		return m, tea.Quit
+	case "/sessions", "/switch":
+		m.sessionPicker = true
+		m.pickerFocus = m.active
+		return m, nil
+	case "/mouse":
+		mode := "toggle"
+		if len(args) > 0 {
+			mode = args[0]
+		}
+		cur := m.display.MouseTracking
+		if NormalizeMouseMode(mode) == "toggle" {
+			m.display.MouseTracking = CycleMouseMode(cur)
+		} else {
+			m.display.MouseTracking = NormalizeMouseMode(mode)
+		}
+		m.info = "mouse=" + m.display.MouseTracking + "（下次启动或重启 chat 生效完整 tracking）"
+		cp := m.configPath
+		disp := m.display
+		return m, func() tea.Msg {
+			if cp != "" {
+				_ = PersistDisplay(cp, disp)
+			}
+			return DisplayUpdatedMsg{Display: disp}
+		}
 	case "/details":
 		res := chatcmd.ApplyDetails(&m.display, args)
 		if !res.OK {
@@ -214,9 +430,12 @@ func (m Model) handleSlash(text string) (tea.Model, tea.Cmd) {
 			m.display = *res.Display
 		}
 		if res.ShowLast {
-			m.expandLastDetails()
+			if s := m.activeSlot(); s != nil {
+				s.expandLastDetails()
+			}
 		}
 		m.info = res.Message
+		m.refreshViewport()
 		if res.Persist {
 			cp := m.configPath
 			disp := m.display
@@ -234,12 +453,13 @@ func (m Model) handleSlash(text string) (tea.Model, tea.Cmd) {
 			m.info = "用法: /verbose on|off"
 			return m, nil
 		}
-		if m.host != nil {
-			m.info = m.host.SetVerbose(on)
+		if h := m.activeHost(); h != nil {
+			m.info = h.SetVerbose(on)
 		}
 		ApplyVerboseToDisplay(&m.display, on)
 		cp := m.configPath
 		disp := m.display
+		m.refreshViewport()
 		return m, func() tea.Msg {
 			if cp != "" {
 				_ = PersistDisplay(cp, disp)
@@ -252,21 +472,21 @@ func (m Model) handleSlash(text string) (tea.Model, tea.Cmd) {
 			m.info = "用法: /dry-run on|off"
 			return m, nil
 		}
-		if m.host != nil {
-			m.info = m.host.SetDryRun(on)
+		if h := m.activeHost(); h != nil {
+			m.info = h.SetDryRun(on)
 		} else {
 			m.info = fmt.Sprintf("dry_run=%v", on)
 		}
 		return m, nil
 	case "/session":
-		if m.host != nil {
-			m.info = m.host.SessionInfo()
+		if h := m.activeHost(); h != nil {
+			m.info = h.SessionInfo() + fmt.Sprintf(" · live=%d/%d", m.active+1, len(m.slots))
 		} else {
 			m.info = "no session"
 		}
 		return m, nil
 	case "/help":
-		m.info = "Space 折叠 · ↑/↓ 选块 · /details · /verbose · /session · /dry-run · /exit · Esc 中断 · y/n 审批"
+		m.info = "Space 折叠 · ↑/↓ 选块 · PgUp/Dn 滚动 · Ctrl+X 会话 · /mouse · /details · /verbose · Esc 中断 · y/n 审批"
 		return m, nil
 	default:
 		m.info = "未知命令（TUI）: " + cmd + " — 试 /help；完整命令可用 geegoo chat --cli"
@@ -274,45 +494,40 @@ func (m Model) handleSlash(text string) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m Model) View() string {
-	var b strings.Builder
-	title := styleAccent.Render("⚕ GeeGoo Chat TUI")
-	b.WriteString(title)
-	modelName := ""
-	think := ""
-	dry := ""
-	if m.host != nil {
-		modelName = m.host.ModelLine()
-		think = m.host.ThinkStatus()
-		if m.host.Repl != nil && m.host.Repl.DryRun {
-			dry = " dry-run"
-		}
+func (m *Model) layoutViewport() {
+	// header ~4 lines + footer input ~2 + chrome
+	h := m.height - 8
+	if h < 5 {
+		h = 5
 	}
-	status := fmt.Sprintf("  %s · %s · think=%s%s · details=%s",
-		m.status, modelName, think, dry, m.display.DetailsMode)
-	b.WriteString(styleDim.Render(status))
-	if m.approvalPending {
-		b.WriteString("\n")
-		b.WriteString(styleErr.Render(fmt.Sprintf("⚠ 确认写操作 %s: %s  [y/n]", m.approvalTool, m.approvalArgs)))
+	w := m.width - 1
+	if w < 20 {
+		w = 20
 	}
-	if m.info != "" {
-		b.WriteString("\n")
-		b.WriteString(styleDim.Render(m.info))
-	}
-	if m.err != "" {
-		b.WriteString("\n")
-		b.WriteString(styleErr.Render(m.err))
-	}
-	b.WriteString("\n")
-	b.WriteString(styleDim.Render(strings.Repeat("─", max(20, m.width-1))))
-	b.WriteString("\n")
+	m.vp.Width = w
+	m.vp.Height = h
+}
 
-	for i, block := range m.blocks {
+func (m *Model) refreshViewport() {
+	content := m.renderTranscript()
+	m.vp.SetContent(content)
+	if m.scrollFollow {
+		m.vp.GotoBottom()
+	}
+}
+
+func (m Model) renderTranscript() string {
+	s := m.activeSlot()
+	if s == nil {
+		return ""
+	}
+	var b strings.Builder
+	for i, block := range s.Blocks {
 		if !block.IsVisible(m.display) {
 			continue
 		}
 		prefix := "  "
-		if i == m.focus {
+		if i == s.Focus {
 			prefix = styleOK.Render("› ")
 		}
 		switch block.Kind {
@@ -333,7 +548,54 @@ func (m Model) View() string {
 			}
 		}
 	}
+	_ = EstimateTranscriptHeight(s.Blocks, func(block Block) (bool, bool) {
+		return block.IsVisible(m.display), block.IsExpanded(m.display)
+	})
+	return b.String()
+}
 
+func (m Model) View() string {
+	var b strings.Builder
+	title := styleAccent.Render("⚕ GeeGoo Chat TUI")
+	b.WriteString(title)
+	s := m.activeSlot()
+	modelName, think, dry, status := "", "", "", "ready"
+	if s != nil {
+		status = s.Status
+		if s.Host != nil {
+			modelName = s.Host.ModelLine()
+			think = s.Host.ThinkStatus()
+			if s.Host.Repl != nil && s.Host.Repl.DryRun {
+				dry = " dry-run"
+			}
+		}
+	}
+	liveBadge := fmt.Sprintf(" · ▶ %d", len(m.slots))
+	statusLine := fmt.Sprintf("  %s · %s · think=%s%s · details=%s · mouse=%s%s",
+		status, modelName, think, dry, m.display.DetailsMode, NormalizeMouseMode(m.display.MouseTracking), liveBadge)
+	b.WriteString(styleDim.Render(statusLine))
+	if m.sessionPicker {
+		b.WriteString("\n")
+		b.WriteString(formatSessionList(m.slots, m.active, m.pickerFocus))
+		return b.String()
+	}
+	if m.approvalPending {
+		b.WriteString("\n")
+		b.WriteString(styleErr.Render(fmt.Sprintf("⚠ 确认写操作 %s: %s  [y/n]", m.approvalTool, m.approvalArgs)))
+	}
+	if m.info != "" {
+		b.WriteString("\n")
+		b.WriteString(styleDim.Render(m.info))
+	}
+	if s != nil && s.Err != "" {
+		b.WriteString("\n")
+		b.WriteString(styleErr.Render(s.Err))
+	}
+	b.WriteString("\n")
+	b.WriteString(styleDim.Render(strings.Repeat("─", max(20, m.width-1))))
+	b.WriteString("\n")
+	b.WriteString(m.vp.View())
+	b.WriteString("\n")
 	b.WriteString(styleDim.Render(strings.Repeat("─", max(20, m.width-1))))
 	b.WriteString("\n")
 	if !m.approvalPending {
@@ -359,5 +621,5 @@ func max(a, b int) int {
 	return b
 }
 
-// Ensure textinput import used when Blink etc.
 var _ = textinput.New
+var _ = config.ModeCollapsed

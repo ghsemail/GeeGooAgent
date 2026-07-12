@@ -7,16 +7,17 @@ import (
 )
 
 func TestApplyProgressLLMPlanCreatesThinking(t *testing.T) {
-	m := NewModel(config.DisplayConfig{DetailsMode: config.ModeCollapsed}, nil, nil)
-	m.ApplyProgress("llm_plan", map[string]any{"reasoning": "find ticker first"})
-	if len(m.blocks) != 1 || m.blocks[0].Kind != KindThinking {
-		t.Fatalf("blocks=%+v", m.blocks)
+	s := &LiveSlot{Status: "ready", Focus: -1}
+	s.ApplyProgress("llm_plan", map[string]any{"reasoning": "find ticker first"})
+	if len(s.Blocks) != 1 || s.Blocks[0].Kind != KindThinking {
+		t.Fatalf("blocks=%+v", s.Blocks)
 	}
-	if !m.blocks[0].Live || !m.blocks[0].IsExpanded(m.display) {
+	cfg := config.DisplayConfig{DetailsMode: config.ModeCollapsed}
+	if !s.Blocks[0].Live || !s.Blocks[0].IsExpanded(cfg) {
 		t.Fatal("live thinking should expand")
 	}
-	m.finalizeLiveSections()
-	if m.blocks[0].Live || m.blocks[0].IsExpanded(m.display) {
+	s.finalizeLiveSections()
+	if s.Blocks[0].Live || s.Blocks[0].IsExpanded(cfg) {
 		t.Fatal("after finalize, collapsed mode should hide body")
 	}
 }

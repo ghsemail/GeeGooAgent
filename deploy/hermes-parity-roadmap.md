@@ -18,7 +18,7 @@
 | 插件 | `plugins/memory/` `plugins/context_engine/` | 无 | 单租户，YAGNI，后置 |
 | ACP | `acp_adapter/` | 无 | 不需要 |
 | Skills | `skills/` `optional-skills/` | `skills/pre_market/` + 2 bundled | 有雏形，缺 Go 加载器，steps 硬编码 |
-| CLI | `cli.py` HermesCLI | `internal/cli/chatrepl/` + `chatui/` | UI 已对齐 Hermes 风格 |
+| CLI | `cli.py` HermesCLI | `internal/cli/chatrepl/` + `chatui/` + **`chattui/` Bubble Tea** | TUI 折叠/details/多 session 已对齐 |
 | 轨迹 | `agent/trajectory.py` ShareGPT | 无 | 可选，后置 |
 
 ## 二、Hermes 设计原则 vs GeeGooAgent

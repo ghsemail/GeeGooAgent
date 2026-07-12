@@ -10,47 +10,51 @@ import (
 
 // ProgressMsg is sent from Agent progress callbacks into the Bubble Tea loop.
 type ProgressMsg struct {
+	Slot  int
 	Event string
 	Data  map[string]any
 }
 
-// ApplyProgress mutates the model transcript from a progress event.
-func (m *Model) ApplyProgress(event string, data map[string]any) {
+// ApplyProgress mutates a live slot transcript from a progress event.
+func (s *LiveSlot) ApplyProgress(event string, data map[string]any) {
+	if s == nil {
+		return
+	}
 	if data == nil {
 		data = map[string]any{}
 	}
 	switch event {
 	case "turn_start":
-		m.busy = true
-		m.status = "thinking…"
-		m.liveThinkingID = ""
-		m.liveToolsID = ""
-		m.liveReplyID = ""
+		s.Busy = true
+		s.Status = "thinking…"
+		s.LiveThinkingID = ""
+		s.LiveToolsID = ""
+		s.LiveReplyID = ""
 	case "stream_delta":
 		content, _ := data["content"].(string)
 		if strings.TrimSpace(content) == "" {
 			return
 		}
-		m.ensureLiveReply()
-		idx := m.blockIndex(m.liveReplyID)
+		s.ensureLiveReply()
+		idx := s.blockIndex(s.LiveReplyID)
 		if idx >= 0 {
-			m.blocks[idx].Body += content
-			m.blocks[idx].Live = true
+			s.Blocks[idx].Body += content
+			s.Blocks[idx].Live = true
 		}
 	case "llm_plan":
 		reasoning, _ := data["reasoning"].(string)
 		if strings.TrimSpace(reasoning) == "" {
 			return
 		}
-		m.finalizeLiveThinking()
-		id := fmt.Sprintf("think-%d", m.seq)
-		m.seq++
-		m.blocks = append(m.blocks, Block{
+		s.finalizeLiveThinking()
+		id := fmt.Sprintf("think-%d", s.Seq)
+		s.Seq++
+		s.Blocks = append(s.Blocks, Block{
 			ID: id, Kind: KindThinking, Title: "💭 思考",
 			Body: reasoning, Live: true,
 		})
-		m.liveThinkingID = id
-		m.focus = len(m.blocks) - 1
+		s.LiveThinkingID = id
+		s.Focus = len(s.Blocks) - 1
 	case "llm_tools", "tool_start":
 		name, _ := data["name"].(string)
 		if name == "" {
@@ -61,104 +65,103 @@ func (m *Model) ApplyProgress(event string, data map[string]any) {
 		if name == "" {
 			return
 		}
-		m.ensureLiveTools()
-		idx := m.blockIndex(m.liveToolsID)
+		s.ensureLiveTools()
+		idx := s.blockIndex(s.LiveToolsID)
 		if idx >= 0 {
 			line := "→ " + name
-			if m.blocks[idx].Body != "" {
-				m.blocks[idx].Body += "\n" + line
+			if s.Blocks[idx].Body != "" {
+				s.Blocks[idx].Body += "\n" + line
 			} else {
-				m.blocks[idx].Body = line
+				s.Blocks[idx].Body = line
 			}
-			m.blocks[idx].Live = true
-			m.blocks[idx].Title = "🔧 工具"
+			s.Blocks[idx].Live = true
+			s.Blocks[idx].Title = "🔧 工具"
 		}
-		m.status = "running…"
+		s.Status = "running…"
 	case "tool_done":
 		name, _ := data["name"].(string)
 		status, _ := data["status"].(string)
 		summary, _ := data["summary"].(string)
-		m.ensureLiveTools()
-		idx := m.blockIndex(m.liveToolsID)
+		s.ensureLiveTools()
+		idx := s.blockIndex(s.LiveToolsID)
 		if idx >= 0 {
 			line := fmt.Sprintf("✓ %s [%s] %s", name, status, TruncateRunes(summary, 120))
-			if m.blocks[idx].Body != "" {
-				m.blocks[idx].Body += "\n" + line
+			if s.Blocks[idx].Body != "" {
+				s.Blocks[idx].Body += "\n" + line
 			} else {
-				m.blocks[idx].Body = line
+				s.Blocks[idx].Body = line
 			}
 		}
 	case "error":
 		msg, _ := data["message"].(string)
-		m.info = msg
-		m.busy = false
-		m.status = "error"
+		s.Err = msg
+		s.Busy = false
+		s.Status = "error"
 	}
 }
 
-func (m *Model) ensureLiveReply() {
-	if m.liveReplyID != "" {
+func (s *LiveSlot) ensureLiveReply() {
+	if s.LiveReplyID != "" {
 		return
 	}
-	id := fmt.Sprintf("reply-%d", m.seq)
-	m.seq++
-	m.blocks = append(m.blocks, Block{ID: id, Kind: KindReply, Title: "助手", Live: true})
-	m.liveReplyID = id
+	id := fmt.Sprintf("reply-%d", s.Seq)
+	s.Seq++
+	s.Blocks = append(s.Blocks, Block{ID: id, Kind: KindReply, Title: "助手", Live: true})
+	s.LiveReplyID = id
 }
 
-func (m *Model) ensureLiveTools() {
-	if m.liveToolsID != "" {
+func (s *LiveSlot) ensureLiveTools() {
+	if s.LiveToolsID != "" {
 		return
 	}
-	id := fmt.Sprintf("tools-%d", m.seq)
-	m.seq++
-	m.blocks = append(m.blocks, Block{ID: id, Kind: KindTools, Title: "🔧 工具", Live: true})
-	m.liveToolsID = id
-	m.focus = len(m.blocks) - 1
+	id := fmt.Sprintf("tools-%d", s.Seq)
+	s.Seq++
+	s.Blocks = append(s.Blocks, Block{ID: id, Kind: KindTools, Title: "🔧 工具", Live: true})
+	s.LiveToolsID = id
+	s.Focus = len(s.Blocks) - 1
 }
 
-func (m *Model) finalizeLiveThinking() {
-	if m.liveThinkingID == "" {
+func (s *LiveSlot) finalizeLiveThinking() {
+	if s.LiveThinkingID == "" {
 		return
 	}
-	if idx := m.blockIndex(m.liveThinkingID); idx >= 0 {
-		m.blocks[idx].Live = false
+	if idx := s.blockIndex(s.LiveThinkingID); idx >= 0 {
+		s.Blocks[idx].Live = false
 	}
-	m.liveThinkingID = ""
+	s.LiveThinkingID = ""
 }
 
-func (m *Model) finalizeLiveSections() {
-	for _, id := range []string{m.liveThinkingID, m.liveToolsID, m.liveReplyID} {
-		if idx := m.blockIndex(id); idx >= 0 {
-			m.blocks[idx].Live = false
+func (s *LiveSlot) finalizeLiveSections() {
+	for _, id := range []string{s.LiveThinkingID, s.LiveToolsID, s.LiveReplyID} {
+		if idx := s.blockIndex(id); idx >= 0 {
+			s.Blocks[idx].Live = false
 		}
 	}
-	m.liveThinkingID, m.liveToolsID, m.liveReplyID = "", "", ""
-	m.busy = false
-	m.status = "ready"
-	m.turnEnded = time.Now()
+	s.LiveThinkingID, s.LiveToolsID, s.LiveReplyID = "", "", ""
+	s.Busy = false
+	s.Status = "ready"
 }
 
-func (m *Model) blockIndex(id string) int {
+func (s *LiveSlot) blockIndex(id string) int {
 	if id == "" {
 		return -1
 	}
-	for i := range m.blocks {
-		if m.blocks[i].ID == id {
+	for i := range s.Blocks {
+		if s.Blocks[i].ID == id {
 			return i
 		}
 	}
 	return -1
 }
 
-func (m *Model) expandLastDetails() {
-	for i := len(m.blocks) - 1; i >= 0; i-- {
-		k := m.blocks[i].Kind
+func (s *LiveSlot) expandLastDetails() {
+	for i := len(s.Blocks) - 1; i >= 0; i-- {
+		k := s.Blocks[i].Kind
 		if k == KindThinking || k == KindTools {
 			yes := true
-			m.blocks[i].UserExpanded = &yes
-			m.blocks[i].Live = false
-			m.focus = i
+			s.Blocks[i].UserExpanded = &yes
+			s.Blocks[i].Live = false
+			s.Focus = i
 			if k == KindThinking {
 				break
 			}
@@ -177,3 +180,6 @@ func headerLabel(b Block, cfg config.DisplayConfig) string {
 	}
 	return fmt.Sprintf("%s %s%s", b.Chevron(cfg), b.Title, extra)
 }
+
+// keep time import used for turn metadata elsewhere
+var _ = time.Time{}

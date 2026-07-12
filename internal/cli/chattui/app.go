@@ -14,16 +14,17 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 )
 
-// programSink forwards Agent progress into a running tea.Program.
+// programSink forwards Agent progress for a specific live slot.
 type programSink struct {
 	program *tea.Program
+	slot    *LiveSlot
 }
 
 func (s *programSink) EmitProgress(event string, data map[string]any) {
-	if s == nil || s.program == nil {
+	if s == nil || s.program == nil || s.slot == nil {
 		return
 	}
-	s.program.Send(ProgressMsg{Event: event, Data: data})
+	s.program.Send(ProgressMsg{Slot: s.slot.Index, Event: event, Data: data})
 }
 
 var _ progress.Sink = (*programSink)(nil)
@@ -67,45 +68,86 @@ type RunOpts struct {
 
 // Run starts the Bubble Tea chat UI. Returns process exit code.
 func Run(opts RunOpts) int {
-	repl, err := chatrepl.NewWithSession(opts.App, opts.ConfigPath, opts.SessionID, opts.DryRun, os.Stdout)
+	display := opts.App.Config.Display
+	display.Normalize()
+
+	var program *tea.Program
+
+	makeSlot := func(sessionID string) (*LiveSlot, error) {
+		repl, err := chatrepl.NewWithSession(opts.App, opts.ConfigPath, sessionID, opts.DryRun, os.Stdout)
+		if err != nil {
+			return nil, err
+		}
+		slot := &LiveSlot{
+			ID:       repl.Chat.ID,
+			Title:    repl.Chat.Title,
+			Repl:     repl,
+			SubmitCh: make(chan string, 1),
+			CancelCh: make(chan struct{}, 1),
+			Status:   "ready",
+			Focus:    -1,
+		}
+		slot.Host = NewReplHost(repl, opts.ConfigPath)
+		sink := &programSink{program: program, slot: slot}
+		repl.SetProgressSink(sink)
+		go runTurnHostSlot(slot, func() *tea.Program { return program })
+		return slot, nil
+	}
+
+	first, err := makeSlot(opts.SessionID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "chat tui: %v\n", err)
 		return 2
 	}
+	first.Index = 0
 
-	submitCh := make(chan string, 1)
-	cancelCh := make(chan struct{}, 1)
-	display := opts.App.Config.Display
-	display.Normalize()
-
-	model := NewModel(display, submitCh, cancelCh)
+	model := NewModel(display, first, makeSlot)
 	model.configPath = opts.ConfigPath
-	program := tea.NewProgram(model, tea.WithAltScreen())
-	sink := &programSink{program: program}
-	repl.SetProgressSink(sink)
-	host := NewReplHost(repl, opts.ConfigPath)
-	// Re-inject host into model via Send after start — set before Run:
-	model.host = host
-	program = tea.NewProgram(model, tea.WithAltScreen())
-	sink.program = program
-	repl.SetProgressSink(sink)
+	program = tea.NewProgram(model, ProgramOptions(display.MouseTracking)...)
+	// Re-bind sink program pointer (created before program existed)
+	if sink, ok := first.Repl.Progress.(*programSink); ok {
+		sink.program = program
+	} else {
+		first.Repl.SetProgressSink(&programSink{program: program, slot: first})
+	}
 
-	go runTurnHost(repl, program, submitCh, cancelCh)
-
-	if _, err := program.Run(); err != nil {
+	finalModel, err := program.Run()
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "chat tui: %v\n", err)
-		repl.CloseSession()
+		closeAllSlots([]*LiveSlot{first})
 		return 1
 	}
-	repl.CloseSession()
+	if fm, ok := finalModel.(Model); ok {
+		closeAllSlots(fm.slots)
+	} else {
+		closeAllSlots([]*LiveSlot{first})
+	}
 	return 0
 }
 
-func runTurnHost(repl *chatrepl.Repl, program *tea.Program, submitCh <-chan string, cancelCh <-chan struct{}) {
-	for text := range submitCh {
+func closeAllSlots(slots []*LiveSlot) {
+	for _, s := range slots {
+		if s == nil {
+			continue
+		}
+		if s.SubmitCh != nil {
+			close(s.SubmitCh)
+		}
+		if s.Repl != nil {
+			s.Repl.CloseSession()
+		}
+	}
+}
+
+func runTurnHostSlot(slot *LiveSlot, programFn func() *tea.Program) {
+	for text := range slot.SubmitCh {
+		program := programFn()
+		if program == nil {
+			continue
+		}
 		done := make(chan TurnDoneMsg, 1)
 		go func(t string) {
-			result := repl.RunTurn(t)
+			result := slot.Repl.RunTurn(t)
 			errText := ""
 			if result.Failed {
 				errText = result.Error
@@ -113,14 +155,14 @@ func runTurnHost(repl *chatrepl.Repl, program *tea.Program, submitCh <-chan stri
 					errText = "turn failed"
 				}
 			}
-			done <- TurnDoneMsg{Reply: result.AssistantText, Err: errText}
+			done <- TurnDoneMsg{Slot: slot.Index, Reply: result.AssistantText, Err: errText}
 		}(text)
 
 		select {
 		case msg := <-done:
 			program.Send(msg)
-		case <-cancelCh:
-			repl.CancelTurn()
+		case <-slot.CancelCh:
+			slot.Repl.CancelTurn()
 			program.Send(<-done)
 		}
 	}

@@ -24,6 +24,9 @@ func BuildHelpText() string {
   /think on          开启 DeepSeek 思考模式（写入 config）
   /think off         关闭 DeepSeek 思考模式
   /think auto        恢复模型默认思考策略
+  /details           折叠模式（Hermes 风格：hidden|collapsed|expanded|cycle）
+  /sessions          TUI：切换/新建 live session（Ctrl+X）
+  /mouse             TUI：鼠标 tracking（off|wheel|buttons|all）
 `
 }
 
@@ -49,4 +52,7 @@ var SlashCommands = []struct {
 	{"/think on", "开启思考模式"},
 	{"/think off", "关闭思考模式"},
 	{"/think auto", "恢复默认思考策略"},
+	{"/details", "折叠模式 details_mode"},
+	{"/sessions", "TUI live session 切换"},
+	{"/mouse", "TUI 鼠标 tracking"},
 }

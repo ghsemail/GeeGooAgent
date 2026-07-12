@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/ghsemail/GeeGooAgent/internal/config"
@@ -15,52 +16,70 @@ type Model struct {
 	height int
 
 	display config.DisplayConfig
-	blocks  []Block
-	focus   int
 	input   textinput.Model
+	vp      viewport.Model
 
-	busy   bool
-	status string
-	info   string
-	err    string
+	slots  []*LiveSlot
+	active int
 
-	seq            int
-	liveThinkingID string
-	liveToolsID    string
-	liveReplyID    string
-	turnEnded      time.Time
+	info string
 
 	quitting bool
-	ready    bool
-
-	// submitCh receives user prompts; host goroutine runs agent turns.
-	submitCh chan string
-	cancelCh chan struct{}
 
 	configPath string
-	host       *ReplHost
+	appFactory SessionFactory
 
 	approvalPending bool
 	approvalTool    string
 	approvalArgs    string
+
+	sessionPicker bool
+	pickerFocus   int
+
+	scrollFollow bool
 }
 
-// NewModel builds the initial TUI model.
-func NewModel(display config.DisplayConfig, submitCh chan string, cancelCh chan struct{}) Model {
+// SessionFactory creates a new live Repl slot (injected by Run).
+type SessionFactory func(sessionID string) (*LiveSlot, error)
+
+// NewModel builds the initial TUI model with one slot.
+func NewModel(display config.DisplayConfig, first *LiveSlot, factory SessionFactory) Model {
 	display.Normalize()
 	ti := textinput.New()
-	ti.Placeholder = "输入问题，或 /details /exit …"
+	ti.Placeholder = "输入问题，或 /details /sessions /exit …"
 	ti.Focus()
 	ti.CharLimit = 0
 	ti.Width = 60
-	return Model{
-		display:  display,
-		input:    ti,
-		status:   "ready",
-		submitCh: submitCh,
-		cancelCh: cancelCh,
-		focus:    -1,
+	vp := viewport.New(80, 20)
+	vp.MouseWheelEnabled = true
+	m := Model{
+		display:      display,
+		input:        ti,
+		vp:           vp,
+		slots:        []*LiveSlot{first},
+		active:       0,
+		appFactory:   factory,
+		scrollFollow: true,
 	}
+	if first != nil && first.Status == "" {
+		first.Status = "ready"
+	}
+	return m
+}
+
+func (m *Model) activeSlot() *LiveSlot {
+	if m.active < 0 || m.active >= len(m.slots) {
+		return nil
+	}
+	return m.slots[m.active]
+}
+
+func (m *Model) activeHost() *ReplHost {
+	s := m.activeSlot()
+	if s == nil {
+		return nil
+	}
+	return s.Host
 }
 
 func (m Model) Init() tea.Cmd {
@@ -77,6 +96,7 @@ type approvalTickMsg time.Time
 
 // TurnDoneMsg is sent when an agent turn finishes.
 type TurnDoneMsg struct {
+	Slot  int
 	Reply string
 	Err   string
 }
@@ -86,3 +106,6 @@ type InfoMsg struct{ Text string }
 
 // DisplayUpdatedMsg replaces display config (e.g. after /details persist).
 type DisplayUpdatedMsg struct{ Display config.DisplayConfig }
+
+// NewSessionMsg adds a live slot.
+type NewSessionMsg struct{ Slot *LiveSlot }
