@@ -15,10 +15,45 @@ func TestParseOpenAIResponseRejectsInvalidToolArguments(t *testing.T) {
 	}
 }
 
-func TestParseToolArgumentsRejectsNonObject(t *testing.T) {
-	_, err := ParseToolArguments([]any{"unexpected"})
-	if err == nil {
-		t.Fatal("expected non-object tool arguments to be rejected")
+func TestParseToolArgumentsConcatenatedObjects(t *testing.T) {
+	got, err := ParseToolArguments(`{"code":"TSLA","period":"daily"}{"code":"TSLA","period":"daily"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["code"] != "TSLA" || got["period"] != "daily" {
+		t.Fatalf("got %#v", got)
+	}
+}
+
+func TestStreamToolAccResetsOnResentObject(t *testing.T) {
+	acc := &streamToolAcc{}
+	acc.appendArgs(`{"code":"TSLA"}`)
+	acc.appendArgs(`{"code":"TSLA","period":"daily"}`)
+	got, err := ParseToolArguments(acc.Arguments.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["period"] != "daily" {
+		t.Fatalf("got %#v from %q", got, acc.Arguments.String())
+	}
+}
+
+func TestParseOpenAIStreamResentToolArguments(t *testing.T) {
+	sse := strings.Join([]string{
+		`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"get_mcp_analysis","arguments":"{\"code\":\"TSLA\"}"}}]}}]}`,
+		`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"code\":\"TSLA\",\"period\":\"daily\"}"}}]},"finish_reason":"tool_calls"}]}`,
+		`data: [DONE]`,
+		"",
+	}, "\n")
+	resp, err := parseOpenAIStream(strings.NewReader(sse), "m", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.ToolCalls) != 1 || resp.ToolCalls[0].Name != "get_mcp_analysis" {
+		t.Fatalf("tools=%+v", resp.ToolCalls)
+	}
+	if resp.ToolCalls[0].Arguments["period"] != "daily" {
+		t.Fatalf("args=%v", resp.ToolCalls[0].Arguments)
 	}
 }
 

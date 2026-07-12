@@ -159,7 +159,23 @@ func invokeProvider(
 ) (*Response, error) {
 	if onDelta != nil {
 		if s, ok := provider.(Streamer); ok {
-			return s.ChatStream(ctx, messages, tools, temperature, maxTokens, onDelta)
+			resp, err := s.ChatStream(ctx, messages, tools, temperature, maxTokens, onDelta)
+			if err == nil {
+				return resp, nil
+			}
+			// DeepSeek thinking+stream can corrupt tool argument JSON; retry once
+			// without streaming so the turn can continue.
+			if isToolArgParseError(err) {
+				resp2, err2 := provider.Chat(ctx, messages, tools, temperature, maxTokens)
+				if err2 != nil {
+					return nil, fmt.Errorf("%v (non-stream fallback: %w)", err, err2)
+				}
+				if onDelta != nil && resp2 != nil && resp2.Content != "" && len(resp2.ToolCalls) == 0 {
+					onDelta(StreamDelta{Content: scrubSIDTokens(resp2.Content)})
+				}
+				return resp2, nil
+			}
+			return nil, err
 		}
 	}
 	resp, err := provider.Chat(ctx, messages, tools, temperature, maxTokens)
@@ -168,9 +184,16 @@ func invokeProvider(
 	}
 	// Non-streaming provider: deliver the full content once so callers still see a delta.
 	if onDelta != nil && resp != nil && resp.Content != "" && len(resp.ToolCalls) == 0 {
-		onDelta(StreamDelta{Content: resp.Content})
+		onDelta(StreamDelta{Content: scrubSIDTokens(resp.Content)})
 	}
 	return resp, nil
+}
+
+func isToolArgParseError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "invalid arguments for tool")
 }
 
 // MalformedToolCallResponse detects finish_reason=tool_calls without any tool_calls payload

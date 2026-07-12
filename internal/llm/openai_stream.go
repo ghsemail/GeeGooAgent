@@ -70,6 +70,43 @@ type streamToolAcc struct {
 	Arguments strings.Builder
 }
 
+func (acc *streamToolAcc) appendArgs(frag string) {
+	if acc == nil || frag == "" {
+		return
+	}
+	cur := acc.Arguments.String()
+	// Some providers (notably DeepSeek thinking+stream) occasionally resend a
+	// complete JSON object instead of a delta fragment. Appending would yield
+	// `{"a":1}{"a":1}` and break json.Unmarshal.
+	if cur != "" && looksLikeJSONObjectStart(frag) && isCompleteJSONObject(cur) {
+		acc.Arguments.Reset()
+	}
+	acc.Arguments.WriteString(frag)
+}
+
+func looksLikeJSONObjectStart(s string) bool {
+	for _, r := range s {
+		switch r {
+		case ' ', '\t', '\n', '\r':
+			continue
+		case '{':
+			return true
+		default:
+			return false
+		}
+	}
+	return false
+}
+
+func isCompleteJSONObject(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" || s[0] != '{' {
+		return false
+	}
+	var v any
+	return json.Unmarshal([]byte(s), &v) == nil
+}
+
 func parseOpenAIStream(r io.Reader, model string, onDelta StreamHandler) (*Response, error) {
 	scanner := bufio.NewScanner(r)
 	// Tool argument fragments can be large; raise the token limit.
@@ -133,7 +170,7 @@ func parseOpenAIStream(r io.Reader, model string, onDelta StreamHandler) (*Respo
 			finish = choice.FinishReason
 		}
 		delta := choice.Delta
-		text := coerceMessageContent(delta.Content)
+		text := scrubSIDTokens(coerceMessageContent(delta.Content))
 		if text != "" {
 			content.WriteString(text)
 			if onDelta != nil {
@@ -158,9 +195,7 @@ func parseOpenAIStream(r io.Reader, model string, onDelta StreamHandler) (*Respo
 			if tc.Function.Name != "" {
 				acc.Name = tc.Function.Name
 			}
-			if tc.Function.Arguments != "" {
-				acc.Arguments.WriteString(tc.Function.Arguments)
-			}
+			acc.appendArgs(tc.Function.Arguments)
 		}
 	}
 	if err := scanner.Err(); err != nil {

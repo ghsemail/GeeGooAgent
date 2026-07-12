@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // Role is a chat message role.
@@ -62,17 +63,27 @@ type Provider interface {
 }
 
 // ParseToolArguments decodes tool arguments from JSON string or map.
+// Streaming providers sometimes concatenate multiple JSON objects; we accept
+// the first valid object in that case.
 func ParseToolArguments(raw any) (map[string]any, error) {
 	switch v := raw.(type) {
 	case map[string]any:
 		return v, nil
 	case string:
-		if v == "" {
+		s := strings.TrimSpace(v)
+		if s == "" {
 			return map[string]any{}, nil
 		}
 		var out map[string]any
-		if err := json.Unmarshal([]byte(v), &out); err != nil {
-			return nil, err
+		if err := json.Unmarshal([]byte(s), &out); err == nil {
+			return out, nil
+		}
+		dec := json.NewDecoder(strings.NewReader(s))
+		if err := dec.Decode(&out); err != nil {
+			return nil, fmt.Errorf("%w (raw=%q)", err, truncate(s, 180))
+		}
+		if out == nil {
+			out = map[string]any{}
 		}
 		return out, nil
 	default:

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -212,7 +213,8 @@ func (u *ChatUI) ResetStream() {
 
 // WriteStreamDelta appends live assistant text (typewriter).
 func (u *ChatUI) WriteStreamDelta(text string) {
-	if text == "" {
+	text = stripStreamNoise(text)
+	if strings.TrimSpace(text) == "" {
 		return
 	}
 	if !u.streamActive {
@@ -237,13 +239,20 @@ func (u *ChatUI) AbortStreamReply() {
 		u.streamRoundHad = false
 		return
 	}
+	hadVisible := strings.TrimSpace(u.streamBuf.String()) != ""
 	u.write("\n")
-	if !u.plain {
+	if hadVisible && !u.plain {
 		u.println(styleDim.Render("  ↳ （计划文本，继续调用工具…）"))
 	}
 	u.streamActive = false
 	u.streamBuf.Reset()
 	u.streamRoundHad = false
+}
+
+var streamSIDRE = regexp.MustCompile(`(?i)\[SID=[^\]]+\]`)
+
+func stripStreamNoise(s string) string {
+	return streamSIDRE.ReplaceAllString(s, "")
 }
 
 // FinishAssistantStream closes a live reply stream. Returns true when the
