@@ -2,12 +2,76 @@ package chatui
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
+
+var (
+	reGlueHeading   = regexp.MustCompile(`([^\n])(#{2,6}\s)`)
+	reGlueCard      = regexp.MustCompile(`([^\n])(\*\*[0-9]+\.)`)
+	reGlueHR        = regexp.MustCompile(`([^\n-])\s*---\s*`)
+	reGlueSummary   = regexp.MustCompile(`([^\n])(小结[:：])`)
+)
+
+// NormalizeAssistantLayout inserts line breaks when the model glues markdown blocks
+// onto one line (common with streaming / Chinese punctuation).
+func NormalizeAssistantLayout(text string) string {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
+	var out []string
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimRight(line, " ")
+		trim := strings.TrimSpace(line)
+		if trim == "" {
+			if len(out) > 0 && out[len(out)-1] != "" {
+				out = append(out, "")
+			}
+			continue
+		}
+		if strings.HasPrefix(trim, "|") || isTableSeparator(trim) {
+			out = append(out, line)
+			continue
+		}
+		line = reGlueHeading.ReplaceAllString(line, "$1\n$2")
+		line = reGlueCard.ReplaceAllString(line, "$1\n$2")
+		line = reGlueHR.ReplaceAllString(line, "$1\n---\n")
+		line = reGlueSummary.ReplaceAllString(line, "$1\n$2")
+		for _, sub := range strings.Split(line, "\n") {
+			sub = strings.TrimRight(sub, " ")
+			if strings.TrimSpace(sub) == "" {
+				continue
+			}
+			out = append(out, sub)
+		}
+	}
+	text = strings.Join(out, "\n")
+	return breakInlinePipeFields(text)
+}
+
+func breakInlinePipeFields(text string) string {
+	var out []string
+	for _, line := range strings.Split(text, "\n") {
+		trim := strings.TrimSpace(line)
+		if strings.Count(trim, " | ") >= 2 && !strings.HasPrefix(trim, "|") {
+			parts := strings.Split(trim, " | ")
+			out = append(out, strings.TrimSpace(parts[0]))
+			for _, p := range parts[1:] {
+				p = strings.TrimSpace(p)
+				if p != "" {
+					out = append(out, "- "+p)
+				}
+			}
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
 
 // PreprocessTerminalMarkdown adapts assistant markdown for narrow terminals:
 // wide pipe tables become card-style bullet blocks that glamour can wrap cleanly.
 func PreprocessTerminalMarkdown(text string) string {
+	text = NormalizeAssistantLayout(text)
 	if !strings.Contains(text, "|") {
 		return text
 	}
@@ -188,4 +252,38 @@ func isNumericIndex(s string) bool {
 		}
 	}
 	return true
+}
+
+// RenderPlainAssistantBody renders assistant text line-by-line when glamour is unavailable
+// or during live preview (preserves newlines; avoids lipgloss width reflow on whole blocks).
+func RenderPlainAssistantBody(text string) string {
+	text = PreprocessTerminalMarkdown(text)
+	if strings.TrimSpace(text) == "" {
+		return styleDim.Render("⋯ 正在生成回复…")
+	}
+	var b strings.Builder
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimRight(line, " ")
+		if line == "" {
+			b.WriteByte('\n')
+			continue
+		}
+		trim := strings.TrimLeft(line, " ")
+		indent := line[:len(line)-len(trim)]
+		switch {
+		case strings.HasPrefix(trim, "## "):
+			b.WriteString(indent + styleGold.Render(trim) + "\n")
+		case strings.HasPrefix(trim, "### "):
+			b.WriteString(indent + styleAmber.Render(trim) + "\n")
+		case strings.HasPrefix(trim, "---"):
+			b.WriteString(indent + styleDim.Render(strings.Repeat("─", 40)) + "\n")
+		case strings.HasPrefix(trim, "- "), strings.HasPrefix(trim, "• "):
+			b.WriteString(indent + "  " + styleText.Render(trim) + "\n")
+		case strings.HasPrefix(trim, "**") && strings.Contains(trim, "**"):
+			b.WriteString(indent + styleGold.Render(trim) + "\n")
+		default:
+			b.WriteString(indent + styleText.Render(trim) + "\n")
+		}
+	}
+	return strings.TrimRight(b.String(), "\n")
 }

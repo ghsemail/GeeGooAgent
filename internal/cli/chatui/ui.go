@@ -180,21 +180,18 @@ func renderAssistantPanel(text string, width int, live bool) string {
 	contentW := assistantContentWidth(width)
 	body := strings.TrimRight(text, "\n")
 	if live {
-		if strings.TrimSpace(body) == "" {
-			body = styleDim.Render("⋯ 正在生成回复…")
-		} else {
-			body = styleText.Render(body)
-		}
+		body = RenderPlainAssistantBody(body)
 	} else {
 		body = renderAssistantMarkdown(body, contentW)
 	}
 	title := styleGold.Render("⚕ GeeGoo")
 	inner := title + "\n" + body
+	// Do not set Width() here: lipgloss reflow would collapse glamour/plain newlines into one paragraph.
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(colorBorder)).
 		Padding(0, 1).
-		Width(min(width-2, contentW+4)).
+		MaxWidth(width - 2).
 		Render(inner)
 }
 
@@ -210,13 +207,8 @@ func assistantContentWidth(width int) int {
 }
 
 func renderAssistantMarkdown(text string, contentW int) string {
-	text = PreprocessTerminalMarkdown(text)
-	if r, err := newMarkdownRenderer(contentW); err == nil {
-		if rendered, err := r.Render(text); err == nil {
-			return strings.TrimRight(rendered, "\n")
-		}
-	}
-	return text
+	_ = contentW
+	return RenderPlainAssistantBody(text)
 }
 
 func min(a, b int) int {

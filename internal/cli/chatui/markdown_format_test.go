@@ -34,3 +34,20 @@ func TestPreprocessTerminalMarkdown_PreservesNonTable(t *testing.T) {
 		t.Fatalf("unexpected change: %q", got)
 	}
 }
+
+func TestNormalizeAssistantLayout_GluedHeaders(t *testing.T) {
+	in := "数据如下：## 🔴 腾讯控股机器人 | ID: abc | 状态: 运行中---## ⚪ 未命名"
+	out := NormalizeAssistantLayout(in)
+	if !strings.Contains(out, "\n## 🔴 腾讯控股机器人") {
+		t.Fatalf("missing header break: %q", out)
+	}
+	if !strings.Contains(out, "\n---\n") {
+		t.Fatalf("missing hr break: %q", out)
+	}
+	if !strings.Contains(out, "\n## ⚪ 未命名") {
+		t.Fatalf("missing second header: %q", out)
+	}
+	if !strings.Contains(out, "- ID: abc") {
+		t.Fatalf("missing pipe field bullets: %q", out)
+	}
+}
