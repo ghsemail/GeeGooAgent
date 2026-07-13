@@ -13,7 +13,9 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
-var styleFocus = lipgloss.NewStyle().Foreground(lipgloss.Color("78"))
+var (
+	styleFocus = lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorGold))
+)
 
 func (m *Model) rebuildBanner() {
 	if m.width <= 0 {
@@ -119,7 +121,7 @@ func (m *Model) renderTranscript() string {
 	if s.Err != "" {
 		b.WriteString(chatui.RenderRule(width))
 		b.WriteByte('\n')
-		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true).Render("✗ " + s.Err))
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorErr)).Bold(true).Render("✗ " + s.Err))
 		b.WriteByte('\n')
 	}
 
@@ -142,11 +144,11 @@ func renderSectionHeader(b Block, cfg config.DisplayConfig) string {
 	if title == "" {
 		title = string(b.Kind)
 	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true).Render(
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorAmber)).Bold(true).Render(
 		fmt.Sprintf("%s %s%s", b.Chevron(cfg), title, extra),
 	)
 }
 
 func renderInputLine(ti textinput.Model) string {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("#FFD700")).Bold(true).Render("❯ ") + ti.View()
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorGold)).Bold(true).Render("❯ ") + ti.View()
 }

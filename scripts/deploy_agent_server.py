@@ -9,7 +9,12 @@ from pathlib import Path
 import paramiko
 
 DEPLOY = Path(r"C:\Users\ghsemail\.cursor\skills\remote-deploy\deploy.json")
-EXPECTED_HEAD = "f4944955"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+EXPECTED_HEAD = (
+    __import__("subprocess")
+    .check_output(["git", "rev-parse", "--short", "HEAD"], cwd=REPO_ROOT, text=True)
+    .strip()
+)
 
 
 def ssh_run(host_cfg: dict, cmd: str, timeout: int = 300) -> str:

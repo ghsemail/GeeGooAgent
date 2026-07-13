@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	styleDim = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	styleErr = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
+	styleDim = lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorDim))
+	styleErr = lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorErr)).Bold(true)
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
