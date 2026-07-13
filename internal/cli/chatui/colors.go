@@ -1,16 +1,17 @@
 package chatui
 
 // Hermes / Claude Code inspired palette (matches Python chat_ui.py + chat_banner.py).
+// ANSI-256 indices are used for lipgloss so SSH / Windows terminals avoid violet fallbacks.
 const (
-	ColorGold   = "#FFD700"
-	ColorAmber  = "#FFBF00"
-	ColorAccent = "#FFD700"
-	ColorText     = "#E5E7EB" // main body — white / light gray
-	ColorThinking = "#E5E7EB"
-	ColorDim      = "#9CA3AF" // secondary — bright gray
-	ColorBorder   = "#CD7F32"
-	ColorErr      = "#F08080"
-	ColorOK       = "#8FBC8F"
+	ColorGold   = "220" // yellow
+	ColorAmber  = "214" // light gold
+	ColorAccent = "220"
+	ColorText     = "252" // white / light gray
+	ColorThinking = "252"
+	ColorDim      = "245" // bright gray
+	ColorBorder   = "214"
+	ColorErr      = "203"
+	ColorOK       = "114"
 )
 
 // Back-compat aliases for chatui internals.

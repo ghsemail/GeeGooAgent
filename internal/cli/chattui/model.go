@@ -6,7 +6,6 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/ghsemail/GeeGooAgent/internal/cli/chatui"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
@@ -56,10 +55,7 @@ func NewModel(display config.DisplayConfig, first *LiveSlot, factory SessionFact
 	ti.Focus()
 	ti.CharLimit = 0
 	ti.Width = 60
-	// Bubbles defaults use adaptive violet on many terminals; force gold/gray palette.
-	ti.TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorText))
-	ti.PlaceholderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorDim))
-	ti.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorGold))
+	chatui.ConfigureTextInput(&ti)
 	vp := viewport.New(80, 20)
 	vp.MouseWheelEnabled = true
 	m := Model{

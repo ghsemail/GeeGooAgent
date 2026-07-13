@@ -397,6 +397,8 @@ func slashPromptOptions() []prompt.Option {
 		prompt.OptionTitle("geegoo chat"),
 		prompt.OptionPrefix(""),
 		prompt.OptionShowCompletionAtStart(),
+		prompt.OptionInputTextColor(prompt.White),
+		prompt.OptionPrefixTextColor(prompt.Yellow),
 		prompt.OptionSuggestionBGColor(prompt.DarkGray),
 		prompt.OptionSuggestionTextColor(prompt.White),
 		prompt.OptionDescriptionBGColor(prompt.Black),

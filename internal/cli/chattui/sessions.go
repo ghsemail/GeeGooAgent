@@ -5,7 +5,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+
+	"github.com/ghsemail/GeeGooAgent/internal/cli/chatui"
 	"github.com/ghsemail/GeeGooAgent/internal/cli/chatrepl"
+)
+
+var (
+	styleSessionTitle = lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorText))
+	styleSessionDim   = lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorDim))
+	styleSessionFocus = lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorGold)).Bold(true)
+	styleSessionMark  = lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorGold))
 )
 
 // LiveSlot is one in-process chat attachment (Hermes live session).
@@ -54,22 +64,30 @@ func (s *LiveSlot) statusGlyph() string {
 
 func formatSessionList(slots []*LiveSlot, active, pickerFocus int) string {
 	var b strings.Builder
-	b.WriteString("Live sessions (Enter 切换 · Ctrl+N 新建 · Ctrl+D 关闭 · Esc 取消)\n")
+	b.WriteString(styleSessionDim.Render("Live sessions (Enter 切换 · Ctrl+N 新建 · Ctrl+D 关闭 · Esc 取消)"))
+	b.WriteByte('\n')
 	for i, s := range slots {
 		mark := "  "
 		if i == pickerFocus {
-			mark = "› "
+			mark = styleSessionMark.Render("› ")
 		}
 		cur := ""
 		if i == active {
-			cur = " [active]"
+			cur = styleSessionFocus.Render(" [active]")
 		}
 		busy := ""
 		if s.Busy {
-			busy = " running"
+			busy = styleSessionDim.Render(" running")
 		}
-		b.WriteString(fmt.Sprintf("%s%s %s%s%s\n", mark, s.statusGlyph(), s.shortTitle(), cur, busy))
+		glyph := styleSessionDim.Render(s.statusGlyph())
+		title := styleSessionTitle.Render(s.shortTitle())
+		if i == pickerFocus {
+			title = styleSessionFocus.Render(s.shortTitle())
+			glyph = styleSessionFocus.Render(s.statusGlyph())
+		}
+		b.WriteString(fmt.Sprintf("%s%s %s%s%s\n", mark, glyph, title, cur, busy))
 	}
-	b.WriteString("  + new session\n")
+	b.WriteString(styleSessionDim.Render("  + new session"))
+	b.WriteByte('\n')
 	return b.String()
 }
