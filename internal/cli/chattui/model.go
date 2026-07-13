@@ -40,6 +40,8 @@ type Model struct {
 	sessionPicker bool
 	pickerFocus   int
 
+	slashPick int
+
 	scrollFollow bool
 }
 

@@ -190,13 +190,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		case tea.KeyUp:
+			if m.slashMenuOpen() {
+				if m.slashPick > 0 {
+					m.slashPick--
+				}
+				return m, nil
+			}
 			m.moveFocus(-1)
 			m.refreshViewport()
 			return m, nil
 		case tea.KeyDown:
+			if m.slashMenuOpen() {
+				if m.slashPick < len(m.slashMatches())-1 {
+					m.slashPick++
+				}
+				return m, nil
+			}
 			m.moveFocus(1)
 			m.refreshViewport()
 			return m, nil
+		case tea.KeyTab:
+			if m.slashMenuOpen() {
+				return m.acceptSlashSuggestion()
+			}
 		case tea.KeyEnter:
 			if msg.Alt {
 				return m, nil
@@ -221,6 +237,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if s == nil || !s.Busy {
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)
+		m.clampSlashPick()
 		return m, cmd
 	}
 	return m, nil
@@ -591,6 +608,10 @@ func (m Model) View() string {
 
 	b.WriteString(chatui.RenderHermesStatusBar(m.statusBarOpts(), m.width))
 	b.WriteByte('\n')
+	if matches := m.slashMatches(); m.slashMenuOpen() {
+		b.WriteString(renderSlashMenu(matches, m.slashPick, m.width))
+		b.WriteByte('\n')
+	}
 	if !m.approvalPending {
 		b.WriteString(renderInputLine(m.input))
 	}

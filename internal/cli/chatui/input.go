@@ -21,4 +21,6 @@ func ConfigureTextInput(ti *textinput.Model) {
 	ti.PromptStyle = goldStyle
 	ti.Cursor.Style = goldStyle
 	ti.Cursor.TextStyle = textStyle
+	ti.ShowSuggestions = true
+	ti.SetSuggestions(SlashCommandStrings())
 }

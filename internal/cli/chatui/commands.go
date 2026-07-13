@@ -1,5 +1,13 @@
 package chatui
 
+import "strings"
+
+// SlashCommand is one slash command entry for help and completion.
+type SlashCommand struct {
+	Command     string
+	Description string
+}
+
 // BuildHelpText returns slash command help (Python chat_commands.py).
 func BuildHelpText() string {
 	return `geegoo chat — 与 GeeGoo Agent 对话，并查看 Tool / workflow 轨迹
@@ -30,11 +38,8 @@ func BuildHelpText() string {
 `
 }
 
-// SlashCommands for go-prompt completion.
-var SlashCommands = []struct {
-	Command     string
-	Description string
-}{
+// SlashCommands for go-prompt and TUI completion.
+var SlashCommands = []SlashCommand{
 	{"/help", "显示帮助"},
 	{"/exit", "退出并保存会话"},
 	{"/quit", "退出并保存会话"},
@@ -55,4 +60,28 @@ var SlashCommands = []struct {
 	{"/details", "折叠模式 details_mode"},
 	{"/sessions", "TUI live session 切换"},
 	{"/mouse", "TUI 鼠标 tracking"},
+}
+
+// SlashCommandStrings returns command strings for bubbles textinput suggestions.
+func SlashCommandStrings() []string {
+	out := make([]string, len(SlashCommands))
+	for i, c := range SlashCommands {
+		out[i] = c.Command
+	}
+	return out
+}
+
+// MatchSlashCommands returns commands whose text starts with prefix (e.g. "/h", "/dry").
+func MatchSlashCommands(prefix string) []SlashCommand {
+	prefix = strings.TrimLeft(prefix, " ")
+	if !strings.HasPrefix(prefix, "/") {
+		return nil
+	}
+	var out []SlashCommand
+	for _, item := range SlashCommands {
+		if strings.HasPrefix(item.Command, prefix) {
+			out = append(out, item)
+		}
+	}
+	return out
 }
