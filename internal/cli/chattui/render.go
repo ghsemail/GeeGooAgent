@@ -93,7 +93,11 @@ func (m *Model) renderTranscript() string {
 				b.WriteString(chatui.RenderRule(width))
 				b.WriteByte('\n')
 			}
-			b.WriteString(chatui.RenderAssistantBox(body, width))
+			if block.Live {
+				b.WriteString(chatui.RenderAssistantBoxLive(body, width))
+			} else {
+				b.WriteString(chatui.RenderAssistantBox(body, width))
+			}
 			b.WriteByte('\n')
 			wroteContent = true
 		default:

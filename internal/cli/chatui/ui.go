@@ -163,23 +163,30 @@ func RenderBanner(opts BannerOptions, width int, plain bool) string {
 	return b.String()
 }
 
-// RenderAssistantBox returns a Hermes-style rounded reply panel.
+// RenderAssistantBox returns a Hermes-style rounded reply panel with glamour markdown.
 func RenderAssistantBox(text string, width int) string {
+	return renderAssistantPanel(text, width, false)
+}
+
+// RenderAssistantBoxLive shows a streaming preview without glamour (avoids broken partial tables).
+func RenderAssistantBoxLive(text string, width int) string {
+	return renderAssistantPanel(text, width, true)
+}
+
+func renderAssistantPanel(text string, width int, live bool) string {
 	if width <= 0 {
 		width = 80
 	}
-	contentW := width - 6
-	if contentW < 40 {
-		contentW = 40
-	}
-	if contentW > 100 {
-		contentW = 100
-	}
-	body := text
-	if r, err := newMarkdownRenderer(contentW); err == nil {
-		if rendered, err := r.Render(text); err == nil {
-			body = strings.TrimRight(rendered, "\n")
+	contentW := assistantContentWidth(width)
+	body := strings.TrimRight(text, "\n")
+	if live {
+		if strings.TrimSpace(body) == "" {
+			body = styleDim.Render("⋯ 正在生成回复…")
+		} else {
+			body = styleText.Render(body)
 		}
+	} else {
+		body = renderAssistantMarkdown(body, contentW)
 	}
 	title := styleGold.Render("⚕ GeeGoo")
 	inner := title + "\n" + body
@@ -189,6 +196,27 @@ func RenderAssistantBox(text string, width int) string {
 		Padding(0, 1).
 		Width(min(width-2, contentW+4)).
 		Render(inner)
+}
+
+func assistantContentWidth(width int) int {
+	contentW := width - 6
+	if contentW < 40 {
+		return 40
+	}
+	if contentW > 120 {
+		return 120
+	}
+	return contentW
+}
+
+func renderAssistantMarkdown(text string, contentW int) string {
+	text = PreprocessTerminalMarkdown(text)
+	if r, err := newMarkdownRenderer(contentW); err == nil {
+		if rendered, err := r.Render(text); err == nil {
+			return strings.TrimRight(rendered, "\n")
+		}
+	}
+	return text
 }
 
 func min(a, b int) int {
@@ -286,13 +314,13 @@ func (u *ChatUI) WriteStreamDelta(text string) {
 		u.println("")
 		if u.plain {
 			u.write("GeeGoo> ")
-		} else {
-			u.println(styleGold.Render("⚕ GeeGoo"))
 		}
 	}
 	u.streamBuf.WriteString(text)
 	u.streamRoundHad = true
-	u.write(text)
+	if u.plain {
+		u.write(text)
+	}
 }
 
 // AbortStreamReply discards in-progress streamed text when tool calls follow
@@ -322,11 +350,18 @@ func stripStreamNoise(s string) string {
 // final answer was already printed (caller should skip PrintAssistant).
 func (u *ChatUI) FinishAssistantStream() bool {
 	if u.streamActive {
-		u.write("\n")
-		u.println("")
 		u.streamActive = false
 		if u.streamBuf.Len() > 0 {
+			final := strings.TrimRight(u.streamBuf.String(), "\n")
+			if u.plain {
+				u.write("\n")
+				u.println("")
+			} else {
+				u.println(RenderAssistantBox(final, u.width))
+			}
 			u.replyStreamed = true
+		} else if !u.plain {
+			u.println("")
 		}
 	}
 	return u.replyStreamed
