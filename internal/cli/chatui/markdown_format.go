@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/muesli/reflow/wordwrap"
 )
 
 var (
@@ -11,6 +13,7 @@ var (
 	reGlueCard    = regexp.MustCompile(`([^\n])(\*\*[0-9]+\.)`)
 	reGlueSummary = regexp.MustCompile(`([^\n])(小结[:：])`)
 	reGlueHR      = regexp.MustCompile(`\s*---+\s*`)
+	rePipeField   = regexp.MustCompile(`\s\|\s*((?:ID|Bot ID|bot_id|状态|网格区间|网格范围|档数|当前档|持仓|成本价|当前价|浮盈亏|盈亏|操作|触发)[：:])`)
 )
 
 // NormalizeAssistantLayout inserts line breaks when the model glues markdown blocks
@@ -33,6 +36,8 @@ func NormalizeAssistantLayout(text string) string {
 		line = reGlueCard.ReplaceAllString(line, "$1\n$2")
 		line = reGlueHR.ReplaceAllString(line, "\n")
 		line = reGlueSummary.ReplaceAllString(line, "$1\n$2")
+		line = rePipeField.ReplaceAllString(line, "\n  $1")
+		line = breakAfterPunctuation(line)
 		for _, sub := range strings.Split(line, "\n") {
 			sub = strings.TrimRight(sub, " ")
 			if strings.TrimSpace(sub) == "" {
@@ -42,6 +47,21 @@ func NormalizeAssistantLayout(text string) string {
 		}
 	}
 	return breakInlinePipeFields(strings.Join(out, "\n"))
+}
+
+func breakAfterPunctuation(line string) string {
+	runes := []rune(line)
+	if len(runes) == 0 {
+		return line
+	}
+	var b strings.Builder
+	for i, r := range runes {
+		b.WriteRune(r)
+		if (r == '。' || r == '！' || r == '？') && i+1 < len(runes) && runes[i+1] != '\n' {
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
 }
 
 func breakInlinePipeFields(text string) string {
@@ -271,10 +291,15 @@ func isNumericIndex(s string) bool {
 }
 
 // RenderPlainAssistantBody renders assistant text line-by-line for the terminal.
-func RenderPlainAssistantBody(text string) string {
+// width is the outer terminal width; long lines are hard-wrapped (viewport does not soft-wrap).
+func RenderPlainAssistantBody(text string, width int) string {
 	text = PreprocessTerminalMarkdown(text)
 	if strings.TrimSpace(text) == "" {
 		return styleDim.Render("⋯ 正在生成回复…")
+	}
+	wrapW := width - 8
+	if wrapW < 32 {
+		wrapW = 32
 	}
 	var b strings.Builder
 	for _, line := range strings.Split(text, "\n") {
@@ -284,24 +309,61 @@ func RenderPlainAssistantBody(text string) string {
 			continue
 		}
 		trim := strings.TrimLeft(line, " ")
-		indent := line[:len(line)-len(trim)]
-		if len(indent) >= 2 && !strings.HasPrefix(trim, "##") && !strings.HasPrefix(trim, "**") {
-			b.WriteString("  " + styleText.Render(trim) + "\n")
-			continue
+		indent := len(line) - len(trim)
+		lineW := wrapW - indent
+		if lineW < 24 {
+			lineW = 24
 		}
-		switch {
-		case strings.HasPrefix(trim, "## "):
-			b.WriteString(styleGold.Render(strings.TrimPrefix(trim, "## ")) + "\n")
-		case strings.HasPrefix(trim, "### "):
-			b.WriteString(styleAmber.Render(strings.TrimPrefix(trim, "### ")) + "\n")
-		case strings.HasPrefix(trim, "- "), strings.HasPrefix(trim, "• "):
-			body := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(trim, "• "), "- "))
-			b.WriteString("  " + styleText.Render(body) + "\n")
-		case strings.HasPrefix(trim, "**") && strings.Contains(trim, "**"):
-			b.WriteString(styleGold.Render(trim) + "\n")
-		default:
-			b.WriteString(styleText.Render(trim) + "\n")
+		plain, style := classifyAssistantLine(trim)
+		for i, wl := range strings.Split(hardWrapLine(plain, lineW), "\n") {
+			if i > 0 {
+				wl = strings.Repeat(" ", indent) + wl
+			} else if indent > 0 {
+				wl = strings.Repeat(" ", indent) + wl
+			}
+			b.WriteString(style(wl))
+			b.WriteByte('\n')
 		}
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+func classifyAssistantLine(trim string) (plain string, style func(string) string) {
+	switch {
+	case strings.HasPrefix(trim, "## "):
+		return strings.TrimPrefix(trim, "## "), func(s string) string { return styleGold.Render(s) }
+	case strings.HasPrefix(trim, "### "):
+		return strings.TrimPrefix(trim, "### "), func(s string) string { return styleAmber.Render(s) }
+	case strings.HasPrefix(trim, "- "), strings.HasPrefix(trim, "• "):
+		body := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(trim, "• "), "- "))
+		return body, func(s string) string { return styleText.Render(s) }
+	case strings.HasPrefix(trim, "**") && strings.Contains(trim, "**"):
+		return trim, func(s string) string { return styleGold.Render(s) }
+	default:
+		return trim, func(s string) string { return styleText.Render(s) }
+	}
+}
+
+func hardWrapLine(s string, width int) string {
+	if width <= 0 || s == "" {
+		return s
+	}
+	if strings.Contains(s, " ") {
+		return strings.TrimRight(wordwrap.String(s, width), "\n")
+	}
+	runes := []rune(s)
+	if len(runes) <= width {
+		return s
+	}
+	var b strings.Builder
+	col := 0
+	for _, r := range runes {
+		if col >= width {
+			b.WriteByte('\n')
+			col = 0
+		}
+		b.WriteRune(r)
+		col++
+	}
+	return b.String()
 }

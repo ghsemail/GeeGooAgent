@@ -60,3 +60,11 @@ func TestTightenParagraphSpacing_SectionGaps(t *testing.T) {
 		t.Fatalf("want blank before section: %q", out)
 	}
 }
+
+func TestHardWrapLine_Chinese(t *testing.T) {
+	in := "这是一段很长的中文说明文字用于测试在终端里是否会强制折行显示而不是挤成一行"
+	out := hardWrapLine(in, 20)
+	if !strings.Contains(out, "\n") {
+		t.Fatalf("expected hard wrap newlines: %q", out)
+	}
+}
