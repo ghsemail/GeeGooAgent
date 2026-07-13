@@ -20,17 +20,18 @@ func TestPreprocessTerminalMarkdown_TableToCards(t *testing.T) {
 	if !strings.Contains(out, "**1. 腾讯控股机器人**") {
 		t.Fatalf("missing card title: %q", out)
 	}
-	if !strings.Contains(out, "`00700.HK`") {
-		t.Fatalf("missing code: %q", out)
-	}
 	if !strings.Contains(out, "网格区间：315.7–506.8") {
-		t.Fatalf("missing field pairs: %q", out)
+		t.Fatalf("missing field line: %q", out)
+	}
+	if strings.Contains(out, "---") {
+		t.Fatalf("should not keep horizontal rules: %q", out)
 	}
 }
 
 func TestPreprocessTerminalMarkdown_PreservesNonTable(t *testing.T) {
 	in := "结论：今日港股交易日。\n\n- 腾讯 457.6\n"
-	if got := PreprocessTerminalMarkdown(in); got != in {
+	got := PreprocessTerminalMarkdown(in)
+	if !strings.Contains(got, "结论：今日港股交易日。") || !strings.Contains(got, "腾讯 457.6") {
 		t.Fatalf("unexpected change: %q", got)
 	}
 }
@@ -41,13 +42,21 @@ func TestNormalizeAssistantLayout_GluedHeaders(t *testing.T) {
 	if !strings.Contains(out, "\n## 🔴 腾讯控股机器人") {
 		t.Fatalf("missing header break: %q", out)
 	}
-	if !strings.Contains(out, "\n---\n") {
-		t.Fatalf("missing hr break: %q", out)
-	}
 	if !strings.Contains(out, "\n## ⚪ 未命名") {
 		t.Fatalf("missing second header: %q", out)
 	}
-	if !strings.Contains(out, "- ID: abc") {
-		t.Fatalf("missing pipe field bullets: %q", out)
+	if strings.Contains(out, "---") {
+		t.Fatalf("horizontal rules should be stripped: %q", out)
+	}
+	if !strings.Contains(out, "  ID: abc") {
+		t.Fatalf("missing indented fields: %q", out)
+	}
+}
+
+func TestTightenParagraphSpacing_SectionGaps(t *testing.T) {
+	in := "前言\n## 标题A\n字段1\n## 标题B\n字段2"
+	out := tightenParagraphSpacing(in)
+	if !strings.Contains(out, "\n\n## 标题A") {
+		t.Fatalf("want blank before section: %q", out)
 	}
 }

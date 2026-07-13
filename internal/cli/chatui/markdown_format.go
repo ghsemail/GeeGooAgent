@@ -7,10 +7,10 @@ import (
 )
 
 var (
-	reGlueHeading   = regexp.MustCompile(`([^\n])(#{2,6}\s)`)
-	reGlueCard      = regexp.MustCompile(`([^\n])(\*\*[0-9]+\.)`)
-	reGlueHR        = regexp.MustCompile(`([^\n-])\s*---\s*`)
-	reGlueSummary   = regexp.MustCompile(`([^\n])(小结[:：])`)
+	reGlueHeading = regexp.MustCompile(`([^\n])(#{2,6}\s)`)
+	reGlueCard    = regexp.MustCompile(`([^\n])(\*\*[0-9]+\.)`)
+	reGlueSummary = regexp.MustCompile(`([^\n])(小结[:：])`)
+	reGlueHR      = regexp.MustCompile(`\s*---+\s*`)
 )
 
 // NormalizeAssistantLayout inserts line breaks when the model glues markdown blocks
@@ -23,9 +23,6 @@ func NormalizeAssistantLayout(text string) string {
 		line = strings.TrimRight(line, " ")
 		trim := strings.TrimSpace(line)
 		if trim == "" {
-			if len(out) > 0 && out[len(out)-1] != "" {
-				out = append(out, "")
-			}
 			continue
 		}
 		if strings.HasPrefix(trim, "|") || isTableSeparator(trim) {
@@ -34,7 +31,7 @@ func NormalizeAssistantLayout(text string) string {
 		}
 		line = reGlueHeading.ReplaceAllString(line, "$1\n$2")
 		line = reGlueCard.ReplaceAllString(line, "$1\n$2")
-		line = reGlueHR.ReplaceAllString(line, "$1\n---\n")
+		line = reGlueHR.ReplaceAllString(line, "\n")
 		line = reGlueSummary.ReplaceAllString(line, "$1\n$2")
 		for _, sub := range strings.Split(line, "\n") {
 			sub = strings.TrimRight(sub, " ")
@@ -44,8 +41,7 @@ func NormalizeAssistantLayout(text string) string {
 			out = append(out, sub)
 		}
 	}
-	text = strings.Join(out, "\n")
-	return breakInlinePipeFields(text)
+	return breakInlinePipeFields(strings.Join(out, "\n"))
 }
 
 func breakInlinePipeFields(text string) string {
@@ -58,7 +54,7 @@ func breakInlinePipeFields(text string) string {
 			for _, p := range parts[1:] {
 				p = strings.TrimSpace(p)
 				if p != "" {
-					out = append(out, "- "+p)
+					out = append(out, "  "+p)
 				}
 			}
 			continue
@@ -68,13 +64,16 @@ func breakInlinePipeFields(text string) string {
 	return strings.Join(out, "\n")
 }
 
-// PreprocessTerminalMarkdown adapts assistant markdown for narrow terminals:
-// wide pipe tables become card-style bullet blocks that glamour can wrap cleanly.
+// PreprocessTerminalMarkdown adapts assistant markdown for narrow terminals.
 func PreprocessTerminalMarkdown(text string) string {
 	text = NormalizeAssistantLayout(text)
-	if !strings.Contains(text, "|") {
-		return text
+	if strings.Contains(text, "|") {
+		text = convertMarkdownTables(text)
 	}
+	return tightenParagraphSpacing(text)
+}
+
+func convertMarkdownTables(text string) string {
 	lines := strings.Split(text, "\n")
 	var out []string
 	for i := 0; i < len(lines); {
@@ -99,7 +98,6 @@ func PreprocessTerminalMarkdown(text string) string {
 					out = append(out, "")
 				}
 				out = append(out, formatted)
-				out = append(out, "")
 			} else {
 				out = append(out, tableLines...)
 			}
@@ -109,6 +107,31 @@ func PreprocessTerminalMarkdown(text string) string {
 		i++
 	}
 	return strings.Join(out, "\n")
+}
+
+func tightenParagraphSpacing(text string) string {
+	lines := strings.Split(text, "\n")
+	var out []string
+	for _, line := range lines {
+		trim := strings.TrimSpace(line)
+		if trim == "" || trim == "---" || trim == "***" || strings.Trim(trim, "-*") == "" {
+			if len(out) > 0 && out[len(out)-1] != "" {
+				out = append(out, "")
+			}
+			continue
+		}
+		if isSectionStart(trim) && len(out) > 0 && out[len(out)-1] != "" {
+			out = append(out, "")
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
+func isSectionStart(line string) bool {
+	return strings.HasPrefix(line, "##") ||
+		strings.HasPrefix(line, "**") ||
+		strings.HasPrefix(line, "小结")
 }
 
 func parseTableRow(line string) []string {
@@ -180,7 +203,7 @@ func formatTableRowCard(fallbackNum int, headers, cells []string) string {
 	title := ""
 	code := ""
 	num := fallbackNum
-	var pairs []string
+	var fields []string
 
 	for i, h := range headers {
 		if i >= len(cells) {
@@ -197,14 +220,14 @@ func formatTableRowCard(fallbackNum int, headers, cells []string) string {
 			if n, err := fmt.Sscanf(v, "%d", &num); n == 1 && err == nil {
 				continue
 			}
-		case strings.Contains(h, "名称") || hl == "name" || hl == "botname" || h == "名称":
+		case strings.Contains(h, "名称") || hl == "name" || hl == "botname":
 			title = v
 			continue
-		case strings.Contains(h, "代码") || hl == "code" || h == "代码":
+		case strings.Contains(h, "代码") || hl == "code":
 			code = v
 			continue
 		}
-		pairs = append(pairs, h+"："+v)
+		fields = append(fields, h+"："+v)
 	}
 	if title == "" {
 		for _, c := range cells {
@@ -226,17 +249,10 @@ func formatTableRowCard(fallbackNum int, headers, cells []string) string {
 		b.WriteString(code)
 		b.WriteString("`")
 	}
-	if len(pairs) == 0 {
-		return b.String()
-	}
-	b.WriteByte('\n')
-	mid := (len(pairs) + 1) / 2
-	b.WriteString("- ")
-	b.WriteString(strings.Join(pairs[:mid], "  "))
-	if mid < len(pairs) {
+	for _, f := range fields {
 		b.WriteByte('\n')
-		b.WriteString("- ")
-		b.WriteString(strings.Join(pairs[mid:], "  "))
+		b.WriteString("  ")
+		b.WriteString(f)
 	}
 	return b.String()
 }
@@ -254,8 +270,7 @@ func isNumericIndex(s string) bool {
 	return true
 }
 
-// RenderPlainAssistantBody renders assistant text line-by-line when glamour is unavailable
-// or during live preview (preserves newlines; avoids lipgloss width reflow on whole blocks).
+// RenderPlainAssistantBody renders assistant text line-by-line for the terminal.
 func RenderPlainAssistantBody(text string) string {
 	text = PreprocessTerminalMarkdown(text)
 	if strings.TrimSpace(text) == "" {
@@ -270,19 +285,22 @@ func RenderPlainAssistantBody(text string) string {
 		}
 		trim := strings.TrimLeft(line, " ")
 		indent := line[:len(line)-len(trim)]
+		if len(indent) >= 2 && !strings.HasPrefix(trim, "##") && !strings.HasPrefix(trim, "**") {
+			b.WriteString("  " + styleText.Render(trim) + "\n")
+			continue
+		}
 		switch {
 		case strings.HasPrefix(trim, "## "):
-			b.WriteString(indent + styleGold.Render(trim) + "\n")
+			b.WriteString(styleGold.Render(strings.TrimPrefix(trim, "## ")) + "\n")
 		case strings.HasPrefix(trim, "### "):
-			b.WriteString(indent + styleAmber.Render(trim) + "\n")
-		case strings.HasPrefix(trim, "---"):
-			b.WriteString(indent + styleDim.Render(strings.Repeat("─", 40)) + "\n")
+			b.WriteString(styleAmber.Render(strings.TrimPrefix(trim, "### ")) + "\n")
 		case strings.HasPrefix(trim, "- "), strings.HasPrefix(trim, "• "):
-			b.WriteString(indent + "  " + styleText.Render(trim) + "\n")
+			body := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(trim, "• "), "- "))
+			b.WriteString("  " + styleText.Render(body) + "\n")
 		case strings.HasPrefix(trim, "**") && strings.Contains(trim, "**"):
-			b.WriteString(indent + styleGold.Render(trim) + "\n")
+			b.WriteString(styleGold.Render(trim) + "\n")
 		default:
-			b.WriteString(indent + styleText.Render(trim) + "\n")
+			b.WriteString(styleText.Render(trim) + "\n")
 		}
 	}
 	return strings.TrimRight(b.String(), "\n")
