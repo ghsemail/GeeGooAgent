@@ -44,6 +44,8 @@ def main() -> int:
     for endpoint, body in [
         ("getSinglePromptTemplate", {"mcp_token": token, "type": "tech", "period": "daily"}),
         ("getCurrentPrice", {"mcp_token": token, "code": "00700.HK"}),
+        ("getCapitalFlow", {"mcp_token": token, "code": "00700.HK", "period": "DAY"}),
+        ("getCapitalDistribution", {"mcp_token": token, "code": "00700.HK"}),
     ]:
         payload = json.dumps(body)
         cmd = (
