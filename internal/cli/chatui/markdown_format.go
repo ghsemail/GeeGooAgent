@@ -10,10 +10,12 @@ import (
 
 var (
 	reGlueHeading = regexp.MustCompile(`([^\n])(#{2,6}\s)`)
+	reGlueH3Num   = regexp.MustCompile(`([^\n#])(#{3,6}\s*\d+\.\s)`)
 	reGlueCard    = regexp.MustCompile(`([^\n])(\*\*[0-9]+\.)`)
 	reGlueSummary = regexp.MustCompile(`([^\n])(小结[:：])`)
 	reGlueHR      = regexp.MustCompile(`\s*---+\s*`)
 	rePipeField   = regexp.MustCompile(`\s\|\s*((?:ID|Bot ID|bot_id|状态|网格区间|网格范围|档数|当前档|持仓|成本价|当前价|浮盈亏|盈亏|操作|触发)[：:])`)
+	reGlueField   = regexp.MustCompile(`\s+-\s+((?:代码|类型|状态|网格|持仓|盈亏|频率|成本|当前|对冲)[：:])`)
 )
 
 // NormalizeAssistantLayout inserts line breaks when the model glues markdown blocks
@@ -32,11 +34,14 @@ func NormalizeAssistantLayout(text string) string {
 			out = append(out, line)
 			continue
 		}
+		line = strings.ReplaceAll(line, " ### ", "\n### ")
 		line = reGlueHeading.ReplaceAllString(line, "$1\n$2")
+		line = reGlueH3Num.ReplaceAllString(line, "$1\n$2")
 		line = reGlueCard.ReplaceAllString(line, "$1\n$2")
 		line = reGlueHR.ReplaceAllString(line, "\n")
 		line = reGlueSummary.ReplaceAllString(line, "$1\n$2")
 		line = rePipeField.ReplaceAllString(line, "\n  $1")
+		line = reGlueField.ReplaceAllString(line, "\n  - $1")
 		line = breakAfterPunctuation(line)
 		for _, sub := range strings.Split(line, "\n") {
 			sub = strings.TrimRight(sub, " ")
@@ -329,19 +334,48 @@ func RenderPlainAssistantBody(text string, wrapW int) string {
 }
 
 func classifyAssistantLine(trim string) (plain string, style func(string) string) {
+	isHeading := strings.HasPrefix(strings.TrimSpace(trim), "#")
+	plain = cleanMarkdownHeadingPrefix(trim)
 	switch {
-	case strings.HasPrefix(trim, "## "):
-		return strings.TrimPrefix(trim, "## "), func(s string) string { return styleGold.Render(s) }
-	case strings.HasPrefix(trim, "### "):
-		return strings.TrimPrefix(trim, "### "), func(s string) string { return styleAmber.Render(s) }
-	case strings.HasPrefix(trim, "- "), strings.HasPrefix(trim, "• "):
-		body := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(trim, "• "), "- "))
+	case strings.HasPrefix(plain, "- "), strings.HasPrefix(plain, "• "):
+		body := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(plain, "• "), "- "))
 		return body, func(s string) string { return styleText.Render(s) }
-	case strings.HasPrefix(trim, "**") && strings.Contains(trim, "**"):
-		return trim, func(s string) string { return styleGold.Render(s) }
+	case strings.HasPrefix(plain, "**") && strings.Contains(plain, "**"):
+		return plain, func(s string) string { return styleGold.Render(s) }
+	case isHeading || looksNumberedSection(plain):
+		if looksNumberedSection(plain) {
+			return plain, func(s string) string { return styleAmber.Render(s) }
+		}
+		return plain, func(s string) string { return styleGold.Render(s) }
 	default:
-		return trim, func(s string) string { return styleText.Render(s) }
+		return plain, func(s string) string { return styleText.Render(s) }
 	}
+}
+
+func cleanMarkdownHeadingPrefix(s string) string {
+	s = strings.TrimSpace(s)
+	for strings.HasPrefix(s, "#") {
+		i := 0
+		for i < len(s) && s[i] == '#' {
+			i++
+		}
+		s = strings.TrimSpace(s[i:])
+	}
+	return s
+}
+
+func looksNumberedSection(s string) bool {
+	s = strings.TrimSpace(s)
+	dot := strings.IndexByte(s, '.')
+	if dot <= 0 || dot > 3 {
+		return false
+	}
+	for _, r := range s[:dot] {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return dot+1 < len(s)
 }
 
 // stripInlineMarkdown removes lightweight markdown markers the plain renderer does not parse.

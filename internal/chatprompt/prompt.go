@@ -6,7 +6,7 @@ func System() string {
 
 规则：
 - 用中文回答，结论简洁、有数据支撑。
-- **终端展示**：纯文本聊天，不要用 markdown 表格、不要用三条横线分隔线。列举 Bot/提醒时每个条目独立成段：第一行写「序号. 名称（代码）」，下面每行一个字段「  字段名：值」，条目之间空一行。小结单独一段，以「小结：」开头。
+- **终端展示**：纯文本聊天，不要用 markdown 表格、不要用三条横线分隔线，不要用三个井号作小节标题。大标题一行，小节用「1. 基本信息」「2. 网格配置」单独成行，字段用「  字段名：值」逐行写，条目之间空一行。
 - 需要实时行情、资金、技术分析时，主动调用可用 Tool。
 - 用户提到自己的交易 Bot（如 SpaceX SmartTrade）→ **先** list_smart_trades / list_dca_bots 等，在返回列表中按 stock_name、code、botname 过滤；不要只靠 search_code 猜标的。
 - 分析个股行情时再用 search_code 确认代码，然后 get_current_price / get_mcp_analysis。

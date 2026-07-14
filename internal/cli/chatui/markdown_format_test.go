@@ -72,6 +72,17 @@ func TestStripInlineMarkdown(t *testing.T) {
 	}
 }
 
+func TestNormalizeAssistantLayout_InlineH3Sections(t *testing.T) {
+	in := "## 腾讯控股机器人 (00700.HK) — GRID 网络 Bot ### 1. 基本信息 - 代码: 00700.HK ### 2. 网格配置"
+	out := NormalizeAssistantLayout(in)
+	if strings.Contains(out, "###") {
+		t.Fatalf("hash markers should be split/stripped: %q", out)
+	}
+	if !strings.Contains(out, "1. 基本信息") || !strings.Contains(out, "2. 网格配置") {
+		t.Fatalf("sections missing: %q", out)
+	}
+}
+
 func TestHardWrapLine_Chinese(t *testing.T) {
 	in := "这是一段很长的中文说明文字用于测试在终端里是否会强制折行显示而不是挤成一行"
 	out := hardWrapLine(in, 20)
