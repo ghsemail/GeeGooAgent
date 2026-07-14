@@ -1,65 +1,55 @@
 # L5 — Application Layer
 
-应用层定义「跑什么任务」：Skill 包、触发方式、Prompt/Rules、Subagent 委派。
+应用层定义「**跑什么任务**」：Skill 包、CLI 入口、触发方式、Rules/Prompts。
 
-## 模块设计说明
-
-L5 是用户与运维**直接感知**的一层：定时盘前、cron 替代、聊天按需分析、Bot 创建确认——都通过本层的 Skill Pack 与触发模式表达。L4 Runtime 是通用引擎；L5 注入领域知识（GeeGoo workflow、报告模板、API 路由规则）。
-
-**核心设计决策**
-
-| 决策 | 理由 |
-|------|------|
-| Skill = 目录包（SKILL.md + workflow + tools 清单） | 对齐 Cursor/Hermes skill 习惯；便于从 `geegoo` skill 迁移 |
-| Rules 与 Skill 分离 | Rules 常驻（禁止硬编码代码、attitude 映射）；Skill 按任务切换 |
-| 三触发模式 | Scheduled 无 Bot 写权限；Interactive 全量 Tool + `wait_for_human` |
-| 双 Skill 来源合一 | `geegoo`→盘前/盘后 workflow；`geegoo`→分析/Bot/策略，由 L2 路由到正确端口 |
-| Subagent 受限委派 | StockAnalyst 并行个股分析；禁止嵌套 spawn，max_steps 更低 |
-
-**Skill Pack 结构（约定）**
-
-```text
-skills/pre_market/
-├── SKILL.md           # 目标、工具子集、约束
-├── workflow.md        # 阶段 A/B 业务说明（给 Planner 的软指南）
-└── manifest.yaml      # tools[], rules[], max_steps（可选）
-```
-
-**触发 → Runtime 映射**
-
-```text
-systemd timer ──▶ CLI run pre_market ──▶ mode=scheduled ──▶ tools 子集
-webhook       ──▶ CLI run intraday   ──▶ mode=signal
-geegoo-agent chat ──▶ 意图路由 skill    ──▶ mode=interactive
-```
-
-**边界**
-
-- **提供**：业务任务定义、Prompt/Rules 文本、入口 CLI、Subagent 规格
-- **不提供**：循环实现、API 客户端、记忆存储（归 L4/L2/L3）
-- **迁移来源**：`~/.cursor/skills/geegoo` 的 workflow、template、api-routing
-
-**MVP 范围**
-
-仅 `skills/pre_market/` + `CLI run pre_market` + Scheduled 模式 + 全套 rules（`bot-creation` 可 stub）。
+> Go 实现：`cmd/geegoo`、`internal/skills`、`skills/`、`rules/`、`internal/chatprompt`
 
 ## 模块索引
 
-| 模块 | 文档 | 代码 |
-|------|------|------|
-| Skill 系统 | [skills.md](./skills.md) | `runtime/skill_loader.py`, `skills/` |
-| 触发入口 | [triggers.md](./triggers.md) | `cli.py`, `runtime/triggers.py` |
-| Rules & Prompts | [rules-prompts.md](./rules-prompts.md) | `prompts/`, `rules/` |
-| Subagent | [subagents.md](./subagents.md) | `subagents/` |
+| 模块 | 文档 | Go 代码 | 状态 |
+|------|------|---------|------|
+| **Skills** | [skills.md](./skills.md) | `internal/skills`, `skills/` | pre_market ✅ |
+| **Tools 与 Skills** | [tools-and-skills.md](../../tools-and-skills.md) | — | — |
+| 入口点 | [entrypoints.md](../../entrypoints.md) | `cmd/geegoo` | ✅ |
+| 触发 | [triggers.md](./triggers.md) | scheduler + CLI | ✅ |
+| Rules & Prompts | [rules-prompts.md](./rules-prompts.md) | `chatprompt`, `rules/` | ✅ |
+| Subagent | [subagents.md](./subagents.md) | — | 📋 规划 |
 
 ## 运行模式
 
-| 模式 | 入口 | 加载 Skill | Tool 集 |
-|------|------|------------|---------|
-| Scheduled | systemd timer | pre_market / post_market | 感知+分析+报告 |
-| Signal | webhook | intraday | +持仓+信号 |
-| Interactive | `geegoo-agent chat` | 意图路由 | 全量（Bot 需确认） |
+| 模式 | 入口 | 编排 | Tool 集 |
+|------|------|------|---------|
+| **Interactive** | `geegoo chat` | ReAct | 默认 5 toolset |
+| **Scheduled** | `geegoo scheduler` → `run pre_market` | Workflow | manifest 白名单 |
+| **HTTP** | `:3400` chat/completions | ReAct | 配置 toolset |
+| Signal | webhook（规划） | Workflow intraday | +持仓 |
 
-## MVP
+## Skill Pack 结构
 
-仅实现 `skills/pre_market/` + CLI `run pre_market` + Scheduled 模式。
+```text
+skills/pre_market/
+├── SKILL.md
+├── manifest.yaml
+├── workflow.md
+├── template.md
+└── supervisor_checks.yaml
+```
+
+## 双能力来源
+
+| 来源 | 用途 | 实现 |
+|------|------|------|
+| **Skill**（工作流） | 盘前/盘后定时任务 | `geegoo run` + workflow |
+| **Toolset**（对话） | 按需分析、策略、Bot | `geegoo chat` + LLM |
+
+外部 Cursor Skills（`geegoo`、`finance-news`）映射见 [domains/](../../domains/)。
+
+## 边界
+
+- **提供**：任务定义、CLI、Rules 文本、报告模板路径
+- **不提供**：ReAct 循环（L4）、HTTP 客户端（L2）、SQLite（L0）
+
+## 延伸阅读
+
+- [../../overview.md](../../overview.md)
+- [skills.md](./skills.md)

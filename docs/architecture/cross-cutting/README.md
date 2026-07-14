@@ -1,40 +1,60 @@
 # Cross-Cutting — 横切能力
 
-部署、质检、可观测性——**贯穿六层**、不属于单一层的工程能力。
+部署、质检、可观测性——贯穿各层、不属于单一层的工程约定。
 
-## 模块设计说明
+## 模块索引
 
-横切文档描述「如何让 Agent 在生产环境**跑得稳、查得到、交得出**」。它们不实现业务 Tool，也不替代 L0/L4，而是定义各层在上线时必须满足的**共用约定**。
+| 主题 | 文档 | 实现 |
+|------|------|------|
+| **Supervisor** | [supervisor.md](./supervisor.md) | `workflow/supervisor.go` |
+| **验收** | — | `verify/verify.go`, `geegoo verify` |
+| **可观测性** | [observability.md](./observability.md) | EventBus、execution_log、tool Meta |
+| **部署** | [deployment.md](./deployment.md) | `install.sh`, `deploy_agent_server.py` |
 
-**三大主题**
+## Supervisor 与 Verify
 
-| 主题 | 文档 | 设计要点 |
-|------|------|----------|
-| Supervisor | [supervisor.md](./supervisor.md) | 跑后质检：每股是否有 report_id、必填字段、态度映射是否正确 |
-| Observability | [observability.md](./observability.md) | 双轨日志（业务 execution log + 技术 trace）、EventBus 订阅、告警钩子 |
-| Deployment | [deployment.md](./deployment.md) | systemd timer、Linux 路径、config 布局、与 Hermes cron 切换 |
+| 阶段 | 组件 | 输出 |
+|------|------|------|
+| Workflow 结束 | `Supervisor.Verify` | verdict: pass / recoverable / terminal |
+| 人工 cutover | `geegoo verify` | 字段完整率矩阵，exit 1 |
 
-**与各层关系**
+Recoverable：列 missing steps，可 `geegoo resume`。  
+Terminal：scheduler 退避后告警。
+
+## 可观测性双轨
+
+| 轨道 | 内容 | 位置 |
+|------|------|------|
+| 业务 | `write_execution_log` | `reports/<date>/execution-log.md` |
+| 技术 | tool `Meta`（api_code, duration_ms） | chat 进度 / 日志 |
+| 审计 | evidence_records | SQLite |
+
+## 部署（GeeGooAgent 特化）
+
+主机：**119.45.16.112**（`geegoo-agent`）
 
 ```text
-L4 Runtime ──emit──▶ EventBus ──▶ Observability（Logging/Tracing）
-L5 Skill   ──▶ Supervisor（跑完检查 Working + 本地 md）
-L0 Scheduler + Deployment ──▶ 触发 CLI，不内嵌 cron
-L2 Tools   ──▶ execution_log 格式（rules/execution-log.md）
+本机 git push → 服务器 git reset --hard → start.sh build → restart-runtime
 ```
 
-**设计原则**
+一键：`python scripts/deploy_agent_server.py`
 
-- **可观测默认开启**：每次 Tool 调用有 `ToolCalled`/`ToolCompleted` 事件，MVP 即写 JSONL
-- **Supervisor 不阻塞 Loop**：盘前允许「单股失败继续下一只」；Supervisor 汇总失败列表发告警
-- **部署与代码分离**：`deploy/` 放 unit 文件；密钥走 L0 Secrets，不进仓库
+验证：`geegoo doctor`、`:3400/health`
 
-**MVP 范围**
+详见 [deployment.md](./deployment.md) 与 `~/.cursor/skills/remote-deploy/SKILL.md` §3.5。
 
-`execution_log` 规范 + 文件日志 + systemd 盘前 timer + 基础 Supervisor checklist（每股 report 存在）。
+## 与各层关系
 
-## 文档索引
+```text
+L4 workflow ──▶ Supervisor verdict
+L2 tools    ──▶ execution_log + Result.Meta
+L0 scheduler ──▶ 按 verdict 退避重试
+L5 rules/   ──▶ 报告格式、attitude 映射
+```
 
-- [supervisor.md](./supervisor.md)
-- [observability.md](./observability.md)
-- [deployment.md](./deployment.md)
+## MVP 范围
+
+- execution_log 规范 ✅
+- Supervisor checklist ✅
+- systemd / 内置 scheduler ✅
+- 分布式 tracing 📋

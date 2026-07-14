@@ -1,10 +1,13 @@
 # L4 — ReAct Loop
 
+> **Go 实现**：[agent-loop.md](./agent-loop.md) · `internal/runtime/react.go`  
+> 下文伪代码保留设计意图说明；代码以 Go 为准。
+
 ## 职责
 
 显式 **Observe → Plan → Act → Update** 循环，直到完成或 `max_steps`。
 
-## 伪代码
+## 伪代码（概念）
 
 ```python
 class ReActLoop:

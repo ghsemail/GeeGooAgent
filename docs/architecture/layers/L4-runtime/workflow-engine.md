@@ -1,52 +1,107 @@
-# L4 — WorkflowEngine
+# L4 — Workflow Engine
+
+确定性工作流编排：**非** LLM 选步，按 Skill 注册的 Phase A / PerStock 步骤顺序执行。
+
+> Go 实现：`internal/workflow/runner.go`、`premarket.go`、`supervisor.go`
 
 ## 职责
 
-Run 级编排：加载 Skill → 启动 Loop → 触发 Supervisor → 处理补跑。
+| 能力 | 说明 |
+|------|------|
+| 步骤执行 | 每步 `Registry.Execute` + `Working.Apply` |
+| 幂等 resume | 按 `CompletedStepKeys` 跳过已完成步骤 |
+| Checkpoint | 每步落盘，支持 `geegoo resume` |
+| Supervisor | 跑后 verdict → scheduler 退避 |
+| 报告合成 | `report.Synthesizer` → `create_pre_market_report` |
 
 ## 入口
 
-**路径**：`src/geegoo/runtime/agent_runtime.py`
-
-```python
-class AgentRuntime:
-    def __init__(
-        self,
-        skill_loader: SkillLoader,
-        loop: ReActLoop,
-        supervisor: SupervisorEngine,
-        bus: EventBus,
-        state_store: StateStore,
-    ): ...
-
-    def run(self, ctx: RunContext) -> RunResult:
-        skill = self.skill_loader.load(ctx.skill_name, ctx.mode)
-        session = self._init_or_resume_session(ctx)
-        self.bus.emit("RunStarted", {"session_id": session.id, "skill": skill.name})
-
-        loop_result = self.loop.run(session, skill)
-        sup_result = self.supervisor.verify(session, loop_result.working, skill.checks)
-
-        if sup_result.needs_retry:
-            return self._retry_missing(session, skill, sup_result)
-        if not sup_result.passed:
-            session.fail(sup_result.summary)
-            self.bus.emit("RunFailed", {"session_id": session.id})
-            return RunResult.failed(sup_result)
-
-        session.finalize("completed")
-        self.bus.emit("RunFinished", {"session_id": session.id, "status": "completed"})
-        return RunResult.ok(session)
+```text
+geegoo run pre_market
+  → internal/app.App.RunSkill(name)
+  → skills.Registry.Get(name)
+  → workflow.Runner.Run(spec)
 ```
 
-## 与 Supervisor 协作
+## Runner 核心流程
 
-见 [cross-cutting/supervisor.md](../../cross-cutting/supervisor.md)。
+```text
+Run(skill Spec):
+  PhaseA = skill.PhaseA()
+  for step in PhaseA:
+      processStep(step)   // 可 skip 若 key 已在 CompletedStepKeys
 
-## 非交易日短路
+  bots = Working.ReportBots
+  for bot in bots:
+      steps = skill.PerStock()
+      for step in steps:
+          processStep(step)
 
-由 Agent 调 `check_trading_day` Tool；WorkflowEngine 不硬编码——但若 Session 在 step 0 已标记 `is_trading_day=false`，Supervisor 应接受「无报告」为合法完成。
+  finishWithSupervisor()
+  synthesizeAndSubmitReports()
+```
 
-## MVP
+### processStep
 
-`run(pre_market)` + Supervisor + 单次补跑 resume。
+1. 若 `DryRun` → 跳过写操作
+2. `tools.Execute(step.Tool, args)`
+3. `memory.Working.Apply(result)`
+4. `write_execution_log`
+5. `checkpoint.Save` + 记录 `CompletedStepKeys`
+
+### 错误分类
+
+`workflow/errors.go`：
+
+| 类型 | 行为 |
+|------|------|
+| Recoverable | 自动重试 1 次 |
+| Terminal | 立即 fail run |
+
+## 与 ReAct 对比
+
+| | Workflow | ReAct |
+|---|----------|-------|
+| 编排 | Go 硬编码 | LLM tool_calls |
+| 用于 | pre_market | geegoo chat |
+| 可预测性 | 高 | 灵活 |
+| resume | step key 幂等 | 会话历史 |
+
+## pre_market 步骤
+
+定义：`internal/workflow/premarket.go`  
+文档对齐：`skills/pre_market/manifest.yaml`  
+领域映射：[domains/geegoo-agent-skill-mapping.md](../../domains/geegoo-agent-skill-mapping.md)
+
+## Supervisor
+
+`finishWithSupervisor` → `Supervisor.Verify`：
+
+| Verdict | 含义 |
+|---------|------|
+| `pass` | 完成 |
+| `recoverable` | 缺步可补跑 |
+| `terminal` | 失败停手 |
+
+非交易日直接 `pass`。
+
+## 报告合成
+
+`internal/report/synthesis.go`：
+
+- LLM 只写 reason / suggestion / summary（evidence-only）
+- `result` / `confidence` 规则锁定
+- LLM 失败 → 规则回退，不阻塞 workflow
+
+## 测试
+
+- `premarket_test.go`
+- `resume_test.go`
+- `supervisor_test.go`
+- `synthesis_fallback_test.go`
+
+## 延伸阅读
+
+- [agent-loop.md](./agent-loop.md) — ReAct 路径
+- [../../tools-and-skills.md](../../tools-and-skills.md) — Skill 与 Tool
+- [../../cross-cutting/supervisor.md](../../cross-cutting/supervisor.md)

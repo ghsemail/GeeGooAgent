@@ -240,7 +240,7 @@ POST /v1/chat/completions（Bearer + X-MCP-Token）
 
 ### 工具系统
 
-`internal/tools/registry.go` 中央注册表，~82 个工具（catalog HTTP 转发 + bespoke 手写）。关键能力：
+`internal/tools/registry.go` 中央注册表，**82** 个工具（catalog HTTP 转发 + bespoke 手写）。完整树形图：[geegoo-agent-tools-tree.md](../reference/geegoo-agent-tools-tree.md)。关键能力：
 - `ApprovalGate`：`create_/update_/delete_/switch_` 工具在交互式 chat 且未确认时 Skip；workflow 路径不受影响
 - `ClassifyHTTPPayload`：API 返回 code=100 但 data 空 → `StatusSkip` + 数据缺口 note（避免「看似成功但数据不可用」）
 - `Result.Meta`：每次 HTTP 工具带 `api_code/duration_ms`
@@ -265,6 +265,8 @@ POST /v1/chat/completions（Bearer + X-MCP-Token）
 ### Skills
 
 `internal/skills/registry.go` + `loader.go`：`geegoo run <skill>` 从 registry 查 Spec（PhaseA/PerStock 函数 + template 路径）。pre_market 实步注册；intraday/post_market 占位。新增 skill 只在 RegisterBuiltins 加一项 + 实现步骤函数，无需改 cmd/app。
+
+详见 [`tools-and-skills.md`](./tools-and-skills.md)。
 
 ### Scheduler
 
@@ -309,13 +311,34 @@ cmd/geegoo/* + cmd/agent-runtime/*  （入口）
 
 工具注册发生在 `app.LoadFromConfigPath` 调用 `tools.RegisterAll` 时，早于任何 agent 实例创建。
 
+## Tools 与 Skills（速览）
+
+GeeGooAgent 能力由 **Skill（任务包）** 与 **Tool（原子 API）** 两层协作：
+
+| 层 | 数量 | 文档 |
+|----|------|------|
+| 已注册 Tool | **82** | [`../reference/geegoo-agent-tools-tree.md`](../reference/geegoo-agent-tools-tree.md) |
+| 内置 Skill | 3（pre_market 完整） | [`tools-and-skills.md`](./tools-and-skills.md) |
+| Chat toolset | 6 组 | `internal/tools/toolset.go` |
+
+- **Chat**：LLM 经 ReAct 调用 toolset 白名单内 Tool  
+- **Workflow**：`geegoo run pre_market` 硬编码步骤，不依赖 LLM 编排顺序  
+- **常踩坑**：新闻 Tool skipped、富途三接口 Noop、`switch_bot` 未注册
+
+综合导读 → **[tools-and-skills.md](./tools-and-skills.md)**
+
 ## 推荐阅读顺序
 
-1. 本页 — 整体定位
-2. [`../../deploy/hermes-parity-roadmap.md`](../../deploy/hermes-parity-roadmap.md) — P1–P8 路线图与交付
-3. [`../../deploy/hermes-parity-comparison.md`](../../deploy/hermes-parity-comparison.md) — 与 Hermes 对比
-4. [`../../deploy/hermes-migration-checklist.md`](../../deploy/hermes-migration-checklist.md) — cutover runbook
-5. `internal/agent/agent.go` — 核心循环
-6. `internal/workflow/runner.go` + `supervisor.go` — 工作流与质检
-7. `internal/report/synthesis.go` — 报告综合
-8. `internal/infra/db.go` + `schema.sql` — SQLite 地基
+如果你是第一次接触代码库：
+
+1. **本页** — 整体定位
+2. [`README.md`](./README.md) — 文档书籍目录
+3. [`entrypoints.md`](./entrypoints.md) — CLI / HTTP / Scheduler
+4. [`tools-and-skills.md`](./tools-and-skills.md) — Tool + Skill 体系
+5. [`layers/L4-runtime/agent-loop.md`](./layers/L4-runtime/agent-loop.md) — ReAct 循环
+6. [`layers/L3-memory/compaction.md`](./layers/L3-memory/compaction.md) — 上下文压缩
+7. [`../reference/geegoo-agent-tools-tree.md`](../reference/geegoo-agent-tools-tree.md) — 哪些 Tool 能用
+8. [`domains/README.md`](./domains/README.md) — GeeGoo API 映射
+9. [`../../deploy/hermes-parity-roadmap.md`](../../deploy/hermes-parity-roadmap.md) — P1–P8 交付记录
+
+深入代码：`internal/agent/agent.go` → `workflow/runner.go` → `infra/schema.sql`

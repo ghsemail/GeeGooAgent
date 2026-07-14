@@ -1,113 +1,93 @@
 # L3 — Context / Memory
 
-Agent 的记忆系统，分四层热→冷。
+Agent 的记忆系统：会话历史、工作进度、证据链、上下文压缩。
 
-## 模块设计说明
+> Go 实现：`internal/chatsession`、`internal/memory`、`internal/prompt`
 
-L3 回答「Agent 记得什么、记多久、怎么塞进 LLM 上下文」。与 L0 StateStore 分工：**L3 定义语义与 API，L0 负责落盘**；Memory 模块不直接操作文件路径，而通过 StateStore 抽象持久化。
+## 四层模型（热 → 冷）
 
-**四层模型（热 → 冷）**
-
-| 层              | 生命周期       | 内容                   | MVP  |
-| -------------- | ---------- | -------------------- | ---- |
-| SessionMemory  | 单次 run     | 消息历史、tool 结果、step 计数 | ✓    |
-| WorkingMemory  | 单次 run，结构化 | 阶段 A/B 进度、每股中间态、幂等键  | ✓    |
-| EpisodicMemory | 跨日         | 昨日报告摘要、态度轨迹 jsonl    | ✓    |
-| SemanticMemory | 长期         | 向量检索相似盘面（Phase 4+）   | stub |
-
-**核心设计决策**
-
-| 决策                            | 理由                                              |
-| ----------------------------- | ----------------------------------------------- |
-| WorkingMemory 与 Session 分离    | LLM 上下文是「叙事」；Working 是「程序状态」，供 Supervisor 与幂等检查 |
-| Compaction 在步间/阶段末            | 指数分析 5 份 + 新闻易超长；压缩保留结论、丢弃 raw JSON             |
-| Episodic 文件型（MVP）             | 盘前只需「昨日同股摘要」；不上向量库降低 Phase 1 复杂度                |
-| `read_working_state` 暴露为 Tool | Planner 可显式查询进度，避免重复拉取已完成的指数                    |
-
-**与 Runtime 协作**
-
-```text
-ContextBuilder (L4)
-    ├── SessionMemory.messages  → 拼 LLM messages
-    ├── WorkingMemory.snapshot  → 系统提示中的进度块
-    └── EpisodicMemory.recall    → 「昨日预判」段落
-
-Executor 每步 ──▶ WorkingMemory.apply(tool_result)
-Checkpoint ──▶ StateStore 持久化 session + working
-```
-
-**边界**
-
-- **提供**：读写 API、压缩策略、召回接口
-- **不提供**：Checkpoint 格式（L0）、报告全文存储路径（L2 `save_local_report` + L5 模板）
-
-**MVP 范围**
-
-Session + Working + Episodic（文件）；Semantic 返回空；Compaction 仅截断超长 tool 结果。
+| 层 | 生命周期 | Go 实现 | 状态 |
+|----|----------|---------|------|
+| **SessionMemory** | 单次 chat turn / workflow run | `chatsession` messages | ✅ SQLite |
+| **WorkingMemory** | 单次 workflow，结构化 | `memory/working.go` | ✅ |
+| **Evidence** | 可审计工具结果 | `memory/evidence.go` | ✅ SQLite |
+| **Episodic** | 跨日摘要 | 本地 md + jsonl（规划） | ⚠️ stub |
+| **Semantic** | 向量相似检索 | — | ❌ Phase 4+ |
 
 ## 模块索引
 
-| 层              | 文档                                         | 代码                     |
-| -------------- | ------------------------------------------ | ---------------------- |
-| SessionMemory  | [session-memory.md](./session-memory.md)   | `memory/session.py`    |
-| WorkingMemory  | [working-memory.md](./working-memory.md)   | `memory/working.py`    |
-| EpisodicMemory | [episodic-memory.md](./episodic-memory.md) | `memory/episodic.py`   |
-| SemanticMemory | [semantic-memory.md](./semantic-memory.md) | Phase 4+               |
-| Compaction     | [compaction.md](./compaction.md)           | `memory/compaction.py` |
+| 文档 | 内容 | 代码 |
+|------|------|------|
+| [session-memory.md](./session-memory.md) | 对话持久化、FTS5 | `chatsession/sqlite.go` |
+| [working-memory.md](./working-memory.md) | 盘前进度、幂等键 | `memory/working.go` |
+| [compaction.md](./compaction.md) | **Hermes 风格压缩** | `prompt/compressor.go` |
+| [episodic-memory.md](./episodic-memory.md) | 昨日摘要 | `recall_yesterday_summary` stub |
+| [semantic-memory.md](./semantic-memory.md) | 向量检索 | 未实现 |
 
-## 与 StateStore 关系
+## SQLite Schema（L0 地基）
 
-- Memory 层定义**语义**与读写 API
-- **持久化**统一走 L0 `StateStore`（FileStateStore → SQLite）
+`internal/infra/schema.sql`：
+
+| 表 | 用途 |
+|----|------|
+| `chat_sessions` | 会话元数据 |
+| `session_events` | 消息与 tool 事件 |
+| `evidence_records` | 工具结果审计链 |
+| `working_state` | workflow 进度 |
+| `checkpoints` | 步骤恢复点 |
+| `execution_events` | 执行审计 |
+
+FTS5 索引支持 `recall` 跨会话搜索。
+
+迁移：`geegoo migrate`（文件 JSON → SQLite）。
+
+## Prompt 稳定性（与 Hermes 对齐）
+
+| 机制 | 实现 |
+|------|------|
+| 稳定 system | `chatprompt.Build()` 跨轮不变 |
+| 动态 context | `RuntimeMessages()` 作 **user** 注入 |
+| 压缩 | 四阶段：工具结果截断 → 摘要 → … |
+
+详见 [compaction.md](./compaction.md)。
+
+## Evidence 链（GeeGoo 差异化）
+
+每条 workflow 工具结果写入 `evidence_records`（payload + hash）。
+
+报告 `create_pre_market_report` 只存 evidence ID；`geegoo verify` 校验引用完整。
+
+## 与 StateStore 分工
+
+- **L3**：语义 API（Working、Evidence、Session 接口）
+- **L0**：`infra/db.go` 句柄、WAL、迁移
+
+## 外部依赖
+
+**MVP 不需要** Agent 侧 PostgreSQL / 向量库。业务数据经 L2 调 GeeGoo HTTP。
+
+完整决策表见下文「外部依赖决策」章节（原 README 保留）。
 
 ## 外部依赖决策（数据库 / 向量库 / Embedding）
 
-**结论：盘前 MVP 不需要自建业务数据库、向量库或 embedding 模型。** Agent 是「无状态编排器 + 本地工件归档」；重数据经 L2 调 GeeGoo HTTP API（其服务端自有 MongoDB 等，Agent **不直连**）。
+**结论：盘前 MVP 不需要自建业务数据库、向量库或 embedding 模型。**
 
-### 分阶段需要什么
-
-| 能力              | Phase 0–1（MVP）         | Phase 2–3 | Phase 4+                 | 由谁提供               |
-| --------------- | ---------------------- | --------- | ------------------------ | ------------------ |
-| 会话 / 进度持久化      | `FileStateStore`（JSON） | 同上        | 可换 `SQLiteStateStore`    | L0 StateStore      |
-| 跨日情节记忆          | 本地 `md` + `jsonl`      | 同上        | 同上                       | L3 Episodic        |
-| 业务数据（报告、Bot、行情） | GeeGoo API               | GeeGoo API  | GeeGoo API                 | 远端 GeeGoo 服务         |
-| 语义检索            | **不实现**（stub 返回 `[]`）  | 仍可不实现     | `SemanticMemory`         | L3，可选              |
-| 向量库             | **不需要**                | **不需要**   | 可选 Chroma / sqlite-vss 等 | Agent 侧，仅 Phase 4+ |
-| Embedding 模型    | **不需要**                | **不需要**   | 本地 bge / 托管 API          | 仅给归档报告建索引          |
-
-### 盘前实际用到的「记忆」路径
-
-```text
-昨日报告摘要   → Episodic 读本地 {date}/{code}-premarket.md
-当日进度       → WorkingMemory + L0 Checkpoint
-幂等 / 查报告  → L2 get_stock_daily_reports（3120，GeeGoo 服务端库）
-```
+| 能力 | Phase 0–1 | Phase 4+ |
+|------|-----------|----------|
+| 会话持久化 | SQLite | 同上 |
+| 跨日记忆 | 本地 md + jsonl | 同上 |
+| 业务数据 | GeeGoo API | GeeGoo API |
+| 语义检索 | stub | 可选 Chroma / sqlite-vss |
 
 ### 与 Hermes / Claude Code 对照
 
-| 维度         | Hermes        | Claude Code       | GeeGoo Agent              |
-| ---------- | ------------- | ----------------- | ----------------------- |
-| 会话状态       | 隐式 / 日志       | IDE 会话            | StateStore + Checkpoint |
-| 跨日记忆       | 本地 md、执行日志    | 规则文件（CLAUDE.md 等） | Episodic（文件）            |
-| 语义检索       | 无             | 无（Grep/Read 文本搜索） | Semantic（Phase 4+，可选）   |
-| Agent 侧数据库 | 无             | 无                 | MVP 无；后期 SQLite 可选      |
-| 向量库        | 无             | 无                 | MVP 无                   |
-| 业务数据       | GeeGoo MCP HTTP | 用户仓库文件            | GeeGoo API（远端库）           |
+| 维度 | Hermes | GeeGooAgent |
+|------|--------|-------------|
+| 会话 | SQLite + FTS5 | SQLite + FTS5 ✅ |
+| 跨 run 记忆 | 文件 + 日志 | Episodic 规划中 |
+| 向量库 | 无 | MVP 无 |
 
-**Hermes**：Skill + cron prompt + 对话上下文；跨 run 靠日志与报告文件，无向量层。  
-**Claude Code**：上下文即记忆；跨会话靠显式文档 + Grep，不做 embedding。  
-**GeeGoo Agent**：MVP 与二者同级——**文件 + API 即可**；Semantic 层为后期「相似盘面召回」预留，避免 Phase 1 过度工程化。
+## 延伸阅读
 
-### Phase 4+ 向量方案（仅当需要 `recall_similar_setup`）
-
-| 方案      | 组件                                     | 适用         |
-| ------- | -------------------------------------- | ---------- |
-| A. 最轻   | 本地 md + 关键词 / Grep（仿 Claude Code）      | 归档报告 < 数百份 |
-| B. 轻量向量 | sqlite-vss 或单机 Chroma + 本地 `bge-small` | 单机、隐私      |
-| C. 托管   | Embedding API + pgvector               | 多机 / 云端    |
-
-Embedding **只索引自家归档报告**，不对全市场行情建向量库——行情继续走 GeeGoo API。详见 [semantic-memory.md](./semantic-memory.md)。
-
-## MVP
-
-Session + Working + Episodic（文件型）；Semantic stub。
+- [../layers/L1-model-gateway/gateway.md](../layers/L1-model-gateway/gateway.md) — LLM 上下文预算
+- [../../tools-and-skills.md](../../tools-and-skills.md) — `recall` Tool

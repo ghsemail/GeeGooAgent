@@ -1,91 +1,127 @@
-# GeeGoo Agent 架构蓝图
+# GeeGooAgent 架构文档
 
-> **Canonical 设计文档目录**。实现时以本目录为准；Cursor Plan 文件仅作任务跟踪。
+> 本目录是 GeeGooAgent 的**权威设计文档**。实现以 `internal/` Go 代码为准；文档描述「为什么这样分层」与「各模块如何协作」。
 
-## 当前实现总览
+## 从哪里开始
 
-👉 **[`overview.md`](overview.md)** — P1–P8 完成后的当前架构（Go 实现）：系统概览图、目录结构、数据流、主要子系统、设计原则、文件依赖链。**新读者从这里开始。**
+| 你是… | 先读 |
+|--------|------|
+| 第一次接触代码库 | **[overview.md](./overview.md)** — 系统概览、目录结构、数据流、子系统索引 |
+| 要查 Tool 能不能用 | **[../reference/geegoo-agent-tools-tree.md](../reference/geegoo-agent-tools-tree.md)** + [tools-and-skills.md](./tools-and-skills.md) |
+| 要改 Agent 核心循环 | [layers/L4-runtime/agent-loop.md](./layers/L4-runtime/agent-loop.md) |
+| 要加 Tool / 接 MCP | [layers/L2-tools/README.md](./layers/L2-tools/README.md) |
+| 要加 Skill / 工作流 | [layers/L5-application/skills.md](./layers/L5-application/skills.md) |
+| 要 fork 新领域 Agent | [platform-blueprint/README.md](./platform-blueprint/README.md) |
 
-> 下面的「模块设计说明」是早期 Python 时代的分层蓝图（L0–L5），保留作历史参考；当前 Go 实现以 `overview.md` 为准。
-
-## 模块设计说明（早期蓝图，历史参考）
-
-本目录是 GeeGoo Agent 的**唯一权威设计源**，将「自托管股票分析 Agent」拆为可实现的工程六层 + 横切能力 + 领域映射 + 分期路线。
-
-**设计目标**
-
-- 用 **Tool-Calling Agent**（非 pipeline）替代 Hermes cron：LLM 编排、Typed Tool 执行、显式 ReAct 循环
-- 用 **L0 Infrastructure** 支撑长时运行：事件驱动、可恢复、可调度、可观测
-- 用 **Skill Pack** 表达业务：盘前/盘后/盘中、按需分析、策略、Bot 管理分装加载
-
-**文档组织原则**
-
-| 类型  | 目录               | 回答的问题                            |
-| --- | ---------------- | -------------------------------- |
-| 总览  | `00-overview.md` | 为什么这样分层、与 Hermes/Claude Code 的差异 |
-| 分层  | `layers/L5`…`L0` | 每层职责、接口、代码包、MVP 边界               |
-| 横切  | `cross-cutting/` | 部署、质检、可观测性如何贯穿各层                 |
-| 领域  | `domains/`       | GeeGoo 双端口 API、Skill → Tool 映射     |
-| 交付  | `phases/`        | 先做什么、后做什么                        |
-
-**依赖方向（实现时不得违反）**
-
-```text
-L5 → L4 → L3 → L2 → L1 → L0
-```
-
-- 下层不知道上层业务；`infra` 不依赖 `runtime` / `tools`
-- Runtime 不直连 LLM、不手写 HTTP；一切外部 IO 经 L2 ToolRegistry
-
-**与代码的关系**
-
-`repo-layout.md` 定义 `src/geegoo/` 与六层一一对应。文档先行、实现跟随时以本目录 diff 为准更新蓝图。
-
-## 通用自托管 Agent 蓝图
-
-若要**从零生成任意领域的自托管 Agent**（不限 GeeGoo 股票场景），以通用蓝图为准：
-
-→ **[platform-blueprint/README.md](./platform-blueprint/README.md)** — 六层接口、Skill 规范、15 Step 智能体构建指南
-
-GeeGoo 专用实现叠加本目录 `domains/` 与 [../engineering/](../engineering/)。
+对照参考：[Hermes Agent 架构](https://hermes-agent.nousresearch.com/docs/zh-Hans/developer-guide/architecture)（GeeGoo 借鉴目录与模块划分，但不实现 IM Gateway / ACP / 插件市场等无关部分）。
 
 ---
 
-## 阅读顺序
+## 文档结构（像一本书）
 
-**若要开始写代码**，请先读 [../engineering/requirements.md](../engineering/requirements.md) 与 [../engineering/cursor-workflow.md](../engineering/cursor-workflow.md)。  
-**若要 fork 新 Agent 平台**，请先读 [platform-blueprint/agent-build-guide.md](./platform-blueprint/agent-build-guide.md)。
+### 第一篇 · 总览
 
-1. [00-overview.md](./00-overview.md) — 定位、工程六层、核心原则
-2. 按层深入（L5 → L0）：
-3. [cross-cutting/](./cross-cutting/) — Supervisor、部署、可观测性
-4. [domains/](./domains/) — GeeGoo API、双 Skill 映射
-5. [phases/](./phases/) — MVP 与分期交付（[roadmap.md](./phases/roadmap.md)）
+| 章 | 文档 | 内容 |
+|----|------|------|
+| 1 | [overview.md](./overview.md) | **主架构页**：入口、Agent 核心、数据流、设计原则、依赖链 |
+| 2 | [00-overview.md](./00-overview.md) | 设计哲学：六层模型、与 Hermes/Claude Code 对照、核心原则 |
+| 3 | [repo-layout.md](./repo-layout.md) | 仓库目录与 `internal/` 包对照 |
+| 4 | [entrypoints.md](./entrypoints.md) | CLI、HTTP Runtime、Scheduler 入口详解 |
 
-## 六层索引
+### 第二篇 · 核心子系统（按代码模块）
 
-| 层                     | 目录                                                     | 职责                                                                        |
-| --------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------- |
-| **L5 Application**    | [layers/L5-application/](./layers/L5-application/)     | Skill、触发入口、Rules/Prompts                                                  |
-| **L4 Agent Runtime**  | [layers/L4-runtime/](./layers/L4-runtime/)             | Planner、Executor、StateMachine、WorkflowEngine                              |
-| **L3 Memory**         | [layers/L3-memory/](./layers/L3-memory/)               | 四层记忆与压缩                                                                   |
-| **L2 Tools**          | [layers/L2-tools/](./layers/L2-tools/)                 | **~87 Tool**（MVP 19）；[tool-catalog.md](./layers/L2-tools/tool-catalog.md) |
-| **L1 Model Gateway**  | [layers/L1-model-gateway/](./layers/L1-model-gateway/) | 模型路由、Fallback、Cost                                                        |
-| **L0 Infrastructure** | [L0-infrastructure/](./L0-infrastructure/)             | EventBus、Checkpoint、Scheduler 等                                           |
+与 Hermes「主要子系统」章节对应，按**数据流顺序**阅读：
 
-## 代码包对照
+| 序 | 子系统 | 文档 | Go 包 |
+|----|--------|------|-------|
+| 1 | 入口点 | [entrypoints.md](./entrypoints.md) | `cmd/geegoo`, `cmd/agent-runtime` |
+| 2 | Agent 循环 | [layers/L4-runtime/agent-loop.md](./layers/L4-runtime/agent-loop.md) | `internal/agent`, `internal/runtime` |
+| 3 | Prompt 系统 | [layers/L3-memory/compaction.md](./layers/L3-memory/compaction.md) + [layers/L5-application/rules-prompts.md](./layers/L5-application/rules-prompts.md) | `internal/chatprompt`, `internal/prompt` |
+| 4 | Provider 网关 | [layers/L1-model-gateway/README.md](./layers/L1-model-gateway/README.md) | `internal/llm` |
+| 5 | **Tools** | [tools-and-skills.md](./tools-and-skills.md) · [layers/L2-tools/README.md](./layers/L2-tools/README.md) | `internal/tools` |
+| 6 | **Skills** | [tools-and-skills.md](./tools-and-skills.md) · [layers/L5-application/skills.md](./layers/L5-application/skills.md) | `internal/skills`, `skills/` |
+| 7 | 会话与记忆 | [layers/L3-memory/README.md](./layers/L3-memory/README.md) | `internal/chatsession`, `internal/memory` |
+| 8 | Workflow + 质检 | [layers/L4-runtime/workflow-engine.md](./layers/L4-runtime/workflow-engine.md) | `internal/workflow`, `internal/verify` |
+| 9 | Scheduler | [L0-infrastructure/scheduler.md](./L0-infrastructure/scheduler.md) | `internal/scheduler` |
+| 10 | 基础设施 | [L0-infrastructure/README.md](./L0-infrastructure/README.md) | `internal/infra` |
 
-见 [repo-layout.md](./repo-layout.md)。
+### 第三篇 · GeeGoo 领域集成
 
-## MVP 范围（不变）
+| 章 | 文档 | 内容 |
+|----|------|------|
+| — | [domains/README.md](./domains/README.md) | Skill ↔ Tool ↔ GeeGoo API 映射索引 |
+| — | [domains/geegoo-api-routing.md](./domains/geegoo-api-routing.md) | 3120/3200/3210/3230 路由 |
+| — | [domains/geegoo-agent-skill-mapping.md](./domains/geegoo-agent-skill-mapping.md) | 盘前 workflow 步骤 → Tool |
+| — | [../reference/geegoo-mcp/interface-map.md](../reference/geegoo-mcp/interface-map.md) | MCP HTTP SSOT（73 路由） |
 
-- **Phase 1**：仅 `skills/pre_market` 盘前端到端
-- **Phase 0**：L0 四件套 + L4 Runtime + L1 Gateway 轻量版
+### 第四篇 · 横切与交付
 
-## 设计公式
+| 章 | 文档 | 内容 |
+|----|------|------|
+| — | [cross-cutting/README.md](./cross-cutting/README.md) | Supervisor、可观测性、部署 |
+| — | [phases/README.md](./phases/README.md) | 分期路线图与当前完成度 |
+| — | [../../deploy/hermes-parity-roadmap.md](../../deploy/hermes-parity-roadmap.md) | P1–P8 Hermes 对齐交付记录 |
+
+### 附录 · 通用 Agent 平台蓝图
+
+若要**从零 fork 任意领域的自托管 Agent**（不限股票）：
+
+→ [platform-blueprint/README.md](./platform-blueprint/README.md)
+
+---
+
+## 六层模型（概念地图）
+
+早期蓝图用 L0–L5 描述依赖方向；**当前 Go 实现**将多层合并在 `internal/` 包中，但概念仍有效：
 
 ```text
-Agent = Agent Runtime (L4) + Infrastructure (L0)
+L5 Application    Skill、CLI、触发、Rules
+       ↓
+L4 Agent Runtime  ReAct Loop、Workflow、Supervisor
+       ↓
+L3 Memory         Session、Working、Evidence、Compaction
+       ↓
+L2 Tools          Registry、MCP Clients、Toolsets
+       ↓
+L1 Model Gateway  Provider、重试、Fallback
+       ↓
+L0 Infrastructure SQLite、EventBus、Scheduler、Sandbox
 ```
 
-实现优先级：**EventBus → StateStore → Checkpoint → Scheduler**（见 [L0-infrastructure/README.md](./L0-infrastructure/README.md)）。
+**依赖规则**：下层不知上层业务；`infra` 不依赖 `runtime` / `tools`。
+
+各层索引：
+
+| 层 | 目录 |
+|----|------|
+| L5 | [layers/L5-application/](./layers/L5-application/) |
+| L4 | [layers/L4-runtime/](./layers/L4-runtime/) |
+| L3 | [layers/L3-memory/](./layers/L3-memory/) |
+| L2 | [layers/L2-tools/](./layers/L2-tools/) |
+| L1 | [layers/L1-model-gateway/](./layers/L1-model-gateway/) |
+| L0 | [L0-infrastructure/](./L0-infrastructure/) |
+
+---
+
+## 实现状态速览（2026-07）
+
+| 能力 | 状态 |
+|------|------|
+| CLI chat + Hermes 风格 UI | ✅ |
+| HTTP Runtime `:3400` | ✅ |
+| ReAct + 上下文压缩 | ✅ |
+| SQLite 会话 + FTS5 + Evidence | ✅ |
+| pre_market 确定性 Workflow | ✅ |
+| ~82 Tools 注册 | ✅（部分 Stub/Noop，见 tools-tree） |
+| 内置 Scheduler（cron） | ✅ |
+| intraday / post_market Skill | 📋 占位 |
+| `switch_bot` / `wait_for_human` | ❌ 未注册 |
+| 新闻 Script runner | ⚠️ skipped |
+
+---
+
+## 与工程文档的关系
+
+- 编码规范：[../engineering/coding-standards.md](../engineering/coding-standards.md)
+- 需求与验收：[../engineering/requirements.md](../engineering/requirements.md)
+- Cursor 工作流：[../engineering/cursor-workflow.md](../engineering/cursor-workflow.md)

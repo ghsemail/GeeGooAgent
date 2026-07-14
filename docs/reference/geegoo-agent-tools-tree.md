@@ -3,7 +3,8 @@
 > **用途**：与 GeeGooAgent 对话时，快速判断某个能力是否已注册、默认 chat 能否调用、后端是否真正可用。  
 > **代码 SSOT**：`internal/tools/catalog/catalog.go`（HTTP 转发）+ `internal/tools/bespoke.go`（本地/定制）+ `internal/tools/domains.go`（分组）  
 > **后端 SSOT**：GeeGooBot [`implemented-routes.md`](../../../GeeGooBot/docs/api/implemented-routes.md) · GeeGooSignal analyze/signal/catalog  
-> **生成基准**：2026-07-14（本地仓库状态）
+> **生成基准**：2026-07-14（本地仓库状态）  
+> **架构导读**：[../architecture/README.md](../architecture/README.md) · [tools-and-skills.md](../architecture/tools-and-skills.md)
 
 ---
 

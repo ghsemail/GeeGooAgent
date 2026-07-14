@@ -1,56 +1,112 @@
 # L2 — ToolRegistry
 
+> Go 实现：`internal/tools/registry.go`、`bootstrap.go`、`bespoke.go`
+
 ## 职责
 
-- 注册全部 Tool
-- 按 Skill/模式过滤
+- 注册全部 Tool（当前 **82**）
+- 按 toolset / chat 白名单过滤 Schema
 - 导出 JSON Schema 供 LLM function calling
-- 调度执行
+- 执行 Tool 并返回统一 `Result`
 
-## 接口
+## 核心类型
 
-```python
-class ToolRegistry:
-    def register(self, tool: BaseTool) -> None: ...
-    def schemas(self, skill: LoadedSkill) -> list[ToolSchema]: ...
-    def get(self, name: str) -> BaseTool: ...
-    def execute(self, call: ToolCall, ctx: ToolContext) -> ToolResult: ...
+```go
+// internal/tools/registry.go
 
-class BaseTool(ABC):
-    name: str
-    category: ToolCategory
-    description: str
-    Input: type[BaseModel]
-    Output: type[BaseModel]
+type Tool struct {
+    Name        string
+    Description string
+    Parameters  map[string]any  // JSON Schema
+    Handle      Handler
+}
 
-    def run(self, input: BaseModel, ctx: ToolContext) -> BaseModel: ...
+type Handler func(ctx Context, args map[string]any) Result
+
+type Result struct {
+    Status   Status   // ok | error | dry_run | skipped
+    Summary  string
+    Data     map[string]any
+    ExitCode int
+    Meta     map[string]any  // api_code, duration_ms, ...
+}
+
+type Registry struct { /* map[string]Tool */ }
+
+func (r *Registry) Register(t Tool)
+func (r *Registry) Schemas(filter []string) []llm.ToolSchema
+func (r *Registry) Execute(req CallRequest, ctx Context) Result
 ```
 
-## 过滤逻辑
+## 注册流程
 
-```python
-def schemas(self, skill: LoadedSkill) -> list[ToolSchema]:
-    tools = self._all_tools
-    if skill.mode == "scheduled":
-        tools = [t for t in tools if t.name not in BOT_MUTATION_TOOLS]
-    return [t.to_schema() for t in tools if t.name in skill.tool_filter]
+```text
+tools.RegisterAll(r, deps)
+  ├── RegisterHTTPFromCatalog   // catalog.AllHTTP()，排除 BespokeNames
+  └── RegisterBespokeTools
+        ├── registerPerceptionTools
+        ├── registerAnalysisTools
+        └── registerReportTools + registerMetaTools
 ```
 
-## MVP 注册清单
+`catalog.BespokeNames` 中的 Tool **不**走通用 HTTP 转发，避免双注册逻辑冲突（`search_code` 在 catalog 有定义但由 bespoke 覆盖）。
 
-见 [tool-catalog.md](./tool-catalog.md) — MVP 约 **19** 个 Tool；目标态 **~87** 个（含 geegoo 全量 Bot/Reminder/策略 + geegoo 实时/报告）。
+## HTTP 转发路径
 
-## 模块文件（与 catalog §九 对齐）
+`bootstrap.go` 中每个 `HTTPSpec` 包装为：
 
-| 文件                    | Tool 组                                                     |
-| --------------------- | ---------------------------------------------------------- |
-| `perceive.py`         | check_trading_day, search_code, get_position, fetch_*_news |
-| `analyze.py`          | get_mcp_analysis, capital, attitude, reports, bot_log      |
-| `analyze_strategy.py` | signals, generate_*, loopback                              |
-| `analyze_logs.py`     | get_**bot_log, get**_reminder_log                          |
-| `decide.py`           | recall_*, read_working_state                               |
-| `act_reports.py`      | create/update_*_report, save_local, feishu                 |
-| `act_reminders.py`    | dca/grid/smart reminder CRUD                               |
-| `act_bots.py`         | dca/grid/smart/hdg bot CRUD                                |
-| `meta.py`             | write_execution_log, spawn_subagent, wait_for_human        |
+1. `ApprovalGate(spec.Name, handler)` — 写操作门控
+2. `buildHTTPBody` — 支持 `MergePayload`（Bot CRUD）
+3. `catalog.NeedsMCPToken` → 注入 `mcp_token`
+4. `deps.HTTP.ForTool(name).Post` 或 `PostDirect`
+5. `ClassifyHTTPPayload` — 空 data → skipped
 
+## Toolset 过滤
+
+Chat 白名单：`ChatToolNamesForToolsets(ids)`（`domains.go` + `toolset.go`）
+
+```go
+// 默认：5 个 ChatDefault toolset，排除 report_workflow 工具
+RegisteredChatToolNamesFor(registry, nil)
+```
+
+Workflow 路径不使用 toolset 过滤——步骤在 `workflow/premarket.go` 硬编码 Tool 名。
+
+## ApprovalGate
+
+`create_` / `update_` / `delete_` / `switch_` 前缀：
+
+| 条件 | 行为 |
+|------|------|
+| `DryRun` | dry_run |
+| `Interactive && !Approved` | skipped + 提示确认 |
+| workflow / 非 interactive | 正常执行 |
+
+## 与 Python 蓝图差异
+
+早期设计的 `perceive.py` / `analyze.py` 等分文件 → 现为：
+
+| 原规划 | 现实现 |
+|--------|--------|
+| `perceive.py` | `bespoke.go` perception 段 + catalog HTTP |
+| `analyze.py` | `bespoke.go` analysis 段 + catalog |
+| `act_*.py` | catalog HTTP（Bot/报告 CRUD） |
+| `meta.py` | `bespoke.go` meta + `approval.go` |
+
+## MVP vs 当前
+
+| 指标 | MVP 目标 | 当前 |
+|------|----------|------|
+| Tool 数 | ~19（盘前） | 82 注册 |
+| 盘前子集 | manifest.yaml 列出 | workflow 硬编码 |
+| Bash | 禁止 | 禁止 |
+
+全量设计目录：[tool-catalog.md](./tool-catalog.md)  
+可用性树：[geegoo-agent-tools-tree.md](../../../reference/geegoo-agent-tools-tree.md)
+
+## 测试
+
+- `bootstrap_test.go` — 注册数量、dry-run 全工具
+- `approval_test.go` — 门控
+- `contract_test.go` — 空成功分类
+- `fixture_replay_test.go` — HTTP 回放

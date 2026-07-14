@@ -1,50 +1,60 @@
-# Domains — 领域映射
+# Domains — GeeGoo 领域映射
 
-GeeGoo 生态相关的**端口路由、Skill 能力对照**——连接外部 MCP 世界与内部 L2 Tool 命名。
+连接 **外部 GeeGoo 生态**（MCP API、Cursor Skills）与 **Agent 内部**（L2 Tool 名、L5 Workflow 步骤）。
 
-## 模块设计说明
+本目录不是运行时 Go 包，而是**领域知识 SSOT**。
 
-`domains/` 不是运行时模块，而是**领域知识层**：把 `geegoo` / `geegoo` 两个 Cursor Skill 里的隐含约定（哪个接口走 GeeGooBot mcp-api :3120、哪些字段必填）提炼为 Agent 实现可引用的规范，避免散落在 L2/L5 文档里重复且不一致。
-
-**文档分工**
-
-| 文档 | 回答的问题 |
-|------|------------|
-| [skills-and-tools-taxonomy.md](./skills-and-tools-taxonomy.md) | **Skill vs Tool 怎么分**（盘前/盘中/盘后 = Skill，其余 = Tool 池） |
-| [tradingbot-tools-index.md](./tradingbot-tools-index.md) | Tool 分类（详见 SSOT interface-map） |
-| [../reference/geegoo-mcp/interface-map.md](../reference/geegoo-mcp/interface-map.md) | **GeeGooBot SSOT 镜像** |
-| [geegoo-api-routing.md](./geegoo-api-routing.md) | 双端口路由表、报告查询优先级、历史 bug 修复后的正确用法 |
-| [geegoo-skill-mapping.md](./geegoo-skill-mapping.md) | `geegoo` SKILL 章节 → L2 Tool 名、Phase 归属 |
-| [geegoo-agent-skill-mapping.md](./geegoo-agent-skill-mapping.md) | `geegoo` workflow 步骤 → Tool 调用顺序与 MVP 对齐 |
-
-**设计原则**
-
-| 原则 | 说明 |
-|------|------|
-| 单一事实来源 | API 路由以本目录为准；`clients.md` / `tool-catalog.md` 引用而非复制矛盾版本 |
-| Skill 是规范上游 | Cursor Skill 更新（如 2026-05-20 修复 getCapitalFlow）时先改 domains，再同步 L2 |
-| Tool 名稳定 | HTTP 路径 camelCase → Tool snake_case，映射表固定，减少 Planner 幻觉 |
-
-**数据流（概念）**
+## 在架构中的位置
 
 ```text
-geegoo Skill（外部）
+外部 Cursor Skills（geegoo、finance-news…）
         ↓ 提炼
 domains/*.md（本目录）
         ↓ 实现
-L2 clients.py + tools/*.py
-        ↓ 加载
-L5 skill manifest tools[]
+internal/tools + internal/workflow + skills/
+        ↓ 调用
+GeeGooBot :3120 / GeeGooSignal :3200-3230 / GeeGooData :3300
 ```
 
-**MVP 范围**
-
-完整维护 `geegoo-api-routing` + `geegoo-agent-skill-mapping`（盘前路径）；`geegoo-skill-mapping` 全量对照供 Phase 6 Bot 实现时查阅。
+> **架构原则**：GeeGoo 栈纯 Go 原生，**禁止** HTTP 转发旧 Trading Python（5600/5700）。
 
 ## 文档索引
 
-- [skills-and-tools-taxonomy.md](./skills-and-tools-taxonomy.md)
-- [tradingbot-tools-index.md](./tradingbot-tools-index.md)
-- [geegoo-api-routing.md](./geegoo-api-routing.md)
-- [geegoo-skill-mapping.md](./geegoo-skill-mapping.md)
-- [geegoo-agent-skill-mapping.md](./geegoo-agent-skill-mapping.md)
+| 文档 | 回答的问题 |
+|------|------------|
+| [skills-and-tools-taxonomy.md](./skills-and-tools-taxonomy.md) | Skill vs Tool 怎么分 |
+| [geegoo-api-routing.md](./geegoo-api-routing.md) | 多端口路由、报告查询优先级 |
+| [geegoo-agent-skill-mapping.md](./geegoo-agent-skill-mapping.md) | 盘前 workflow 步骤 → Tool 顺序 |
+| [geegoo-skill-mapping.md](./geegoo-skill-mapping.md) | geegoo Skill 章节 → Tool 名 |
+| [tradingbot-tools-index.md](./tradingbot-tools-index.md) | Tool 分类索引 |
+
+## 外部 SSOT
+
+| 资源 | 路径 |
+|------|------|
+| MCP HTTP 73 路由 | [../reference/geegoo-mcp/interface-map.md](../reference/geegoo-mcp/interface-map.md) |
+| Agent Tool 可用性树 | [../reference/geegoo-agent-tools-tree.md](../reference/geegoo-agent-tools-tree.md) |
+| GeeGooBot 已实现路由 | GeeGooBot `docs/api/implemented-routes.md` |
+
+## 设计原则
+
+| 原则 | 说明 |
+|------|------|
+| 单一事实来源 | API 路由以 interface-map 为准；domains 解释「怎么用」 |
+| Tool 名稳定 | HTTP camelCase → snake_case，减少 LLM 幻觉 |
+| Skill 是规范上游 | Cursor Skill 更新时先改 domains，再同步 L2/L5 |
+
+## 与 Tools & Skills 文档
+
+综合导读 → [../tools-and-skills.md](../tools-and-skills.md)
+
+## 服务端口速查
+
+| 服务 | 端口 | Agent 用途 |
+|------|------|------------|
+| GeeGooBot mcp-api | 3120 | 报告、Bot、资金、策略转发 |
+| GeeGooSignal signal-api | 3200 | search_code、loopback |
+| GeeGooSignal catalog-api | 3210 | 指标/组合信号 |
+| GeeGooSignal analyze-api | 3230 | getMCPAnalysis、generate_* |
+| GeeGooData data-api | 3300 | 现价、资金（经 MCP 间接） |
+| GeeGooAgent runtime | 3400 | HTTP chat 入口 |

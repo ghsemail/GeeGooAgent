@@ -1,63 +1,77 @@
 # L2 — Tool & MCP Layer
 
-Agent 与外部世界的唯一接口（GeeGoo API = MCP 等价物）。
+Agent 与 GeeGoo 生态的**唯一接口**。Runtime 不手写 HTTP；所有外部 IO 经 Tool Registry。
 
-## 模块设计说明
+> **快速查阅**：[tools-and-skills.md](../../tools-and-skills.md) · [geegoo-agent-tools-tree.md](../../../reference/geegoo-agent-tools-tree.md)
 
-L2 把 GeeGoo 生态的 HTTP API、新闻脚本、本地文件操作封装为 **LLM 可调用的 Typed Tool**。对 Runtime 而言，GeeGoo MCP 服务等价于 Claude Code 的 Read/Bash/Grep——但 GeeGoo Agent **刻意不提供 Bash**，所有副作用走白名单 Tool。
+## 实现概览（Go）
 
-**核心设计决策**
+| 模块 | 文件 | 说明 |
+|------|------|------|
+| Registry | `internal/tools/registry.go` | 注册、Schema、Execute |
+| HTTP 转发 | `internal/tools/bootstrap.go` + `catalog/` | 62 个 MCP 转发 Tool |
+| Bespoke | `internal/tools/bespoke.go` | 21 个手写 Tool |
+| Toolset | `internal/tools/toolset.go` | Hermes 风格分组 |
+| 审批门控 | `internal/tools/approval.go` | 危险写操作 |
+| 契约分类 | `internal/tools/contract.go` | 空成功检测 |
+| MCP Client | `internal/clients/mcp/` | Bearer + mcp_token |
 
-| 决策                            | 理由                                                              |
-| ----------------------------- | --------------------------------------------------------------- |
-| ToolRegistry 集中注册             | Skill Pack 按模式加载子集；Scheduled 模式不暴露 Bot create/delete            |
-| 五类分层（Perception→Meta）         | 约束 Planner 先感知再分析再写入，减少跳步                                       |
-| GeeGoo 3xxx HTTP 客户端 | 统一 GeeGooBot mcp-api + 信号服务；Tools 不拼 URL                                 |
-| ToolResult 信封                 | 统一 `status/summary/data`，Executor 写回 WorkingMemory 与 Checkpoint |
-| Schema 硬校验                    | 如 `create_pre_market_report` 缺 `confidence` 则在 L2 拒绝，不浪费 API    |
+**已注册：82**（2026-07）
 
-**数据流**
+## 核心设计决策
+
+| 决策 | 理由 |
+|------|------|
+| 中央 Registry | Skill / toolset 按名过滤；Scheduled 不暴露 Bot 写 |
+| 五类分层 | Perception → Analysis → Decision → Action → Meta |
+| GeeGoo 3xxx 客户端 | 统一出站；**禁止**转发旧 Trading Python |
+| `Result` 信封 | `status/summary/data/meta`；Executor 写 Working + Evidence |
+| 无 Bash Tool | 股票 Agent 不需要任意 shell |
+
+## 数据流
 
 ```text
-Executor (L4)
-    └── ToolRegistry.get(name)
-            └── Tool 实现
-                    ├── GeeGooBot mcp-api (:3120)   workflow / 资金 / 报告
-                    ├── GeeGooBot mcp-api (:3120)  分析 / Bot / 策略
-                    ├── GeeGooSignal catalog-api (:3210)   指标信号
-                    ├── 本地脚本               新闻 / 行情
-                    └── SandboxManager         路径与网络校验
+ReActLoop / workflow.Runner
+    └── Registry.Execute(name, args, toolCtx)
+            ├── bespoke.Handle → 本地 / 直连 Signal
+            └── HTTP catalog → HTTPBackends.ForTool(name)
+                    ├── MCP :3120（默认）
+                    ├── Signal :3200（search_code, loopback）
+                    └── Catalog :3210（signals）
 ```
-
-**边界**
-
-- **提供**：~87 个 Tool（MVP 19）、HTTP Clients、参数校验、结果格式化
-- **不提供**：Workflow 顺序（L4/L5）、报告 Markdown 渲染（L5 模板 + LLM）、记忆语义（L3）
-- **与 Skill 关系**：`pre_market` 只注册 catalog 中对应子集；`bot_manager` 才加载全量 CRUD
-
-**MVP 范围**
-
-盘前 Tool 子集 + `MarketClient`/`GeeGooBotClient` + `fetch_*_news` + `create_pre_market_report` + `get_capital_flow`/`get_capital_distribution`。
 
 ## 模块索引
 
-| 模块           | 文档                                                 |
-| ------------ | -------------------------------------------------- |
-| ToolRegistry | [registry.md](./registry.md)                       |
-| 工具目录         | [tool-catalog.md](./tool-catalog.md)               |
-| HTTP Clients | [clients.md](./clients.md)                         |
-| Sandbox 集成   | [sandbox-integration.md](./sandbox-integration.md) |
+| 文档 | 内容 |
+|------|------|
+| [registry.md](./registry.md) | Registry API、过滤、执行 |
+| [tool-catalog.md](./tool-catalog.md) | 设计态全量 ~87 Tool |
+| [clients.md](./clients.md) | MCP 客户端、鉴权、端点 |
+| [tool-server-mapping.md](./tool-server-mapping.md) | Tool → 服务端口 |
+| [sandbox-integration.md](./sandbox-integration.md) | WorkspaceGuard、路径边界 |
 
-## 五类 Tool
+## Toolset 与 Chat
 
-Perception → Analysis → Decision → Action → Meta
+默认 chat 加载 `market` + `strategy` + `bot_manager` + `reminder_manager` + `report_query`。
 
-## 设计约束
+`report_workflow` 仅 `/toolsets report_workflow` 或跑 `geegoo run` 时启用。
 
-- **无 Bash Tool**
-- 所有 IO 经 Registry
-- Clients 不对 Runtime 暴露
+## 实现状态摘要
 
-## MVP
+| 状态 | 数量 | 示例 |
+|------|------|------|
+| ✅ 可用 | ~68 | search、现价、Bot CRUD、报告 CRUD |
+| ⚠️ 部分 | ~14 | 新闻 skipped、富途三接口 Noop、简化策略/分析 |
+| ❌ 未注册 | 11 | switch_bot、wait_for_human、fetch_global_quote |
 
-盘前 Tool 子集 + 双端口 Clients。
+详见 [tools-tree](../../../reference/geegoo-agent-tools-tree.md)。
+
+## 边界
+
+- **提供**：Tool 注册、执行、Schema、HTTP 客户端
+- **不提供**：Workflow 顺序（L4）、报告模板（L5 `skills/`）
+- **不提供**：LLM Prompt 组装（L4/L5）
+
+## 扩展
+
+见 [tools-and-skills.md §扩展指南](../../tools-and-skills.md#扩展指南)。
