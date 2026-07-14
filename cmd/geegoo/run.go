@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 
 	"github.com/ghsemail/GeeGooAgent/internal/app"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
@@ -31,7 +33,9 @@ func runSkill(args []string) {
 		fmt.Fprintln(os.Stderr, "warning: LLM not configured (workflow stub mode)")
 	}
 
-	result, err := application.RunPreMarket(skill)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	result, err := application.RunSkillContext(ctx, skill)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "run: %v\n", err)
 		os.Exit(2)

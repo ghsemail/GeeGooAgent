@@ -6,14 +6,12 @@
 
 ## 存储实体
 
-
 | Key 空间                   | 内容                 |
 | ------------------------ | ------------------ |
 | `session/{id}`           | Session JSON       |
 | `working/{id}`           | WorkingMemory JSON |
 | `checkpoint/{id}/{step}` | Checkpoint 快照      |
 | `metrics/{id}`           | Cost/tracing 汇总    |
-
 
 ## 接口
 

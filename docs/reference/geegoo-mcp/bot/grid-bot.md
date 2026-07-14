@@ -4,7 +4,7 @@
 
 本文档描述通过 MCP（Skills）对 **GRID 网格交易机器人**（`bot_type: GRID`）的**创建、修改、删除、列表与运行日志**接口。分类与命名见 [`common.md`](common.md)「机器人分类与命名」。调用方不传 `user_id`，改为传入 `mcp_token`，由服务端根据 `mcp_token` 解析出对应用户后再调用 Bot 服务对应逻辑（列表与日志在 MCP 进程内直读数据库）。
 
-- **基础路径**：geegoo mcp 根地址（默认示例：`http://0.0.0.0:5700`）
+- **基础路径**：GeeGooBot mcp-api 根地址（默认示例：`http://127.0.0.1:3120`）
 - **认证方式**：请求头 `Authorization: Bearer <API_KEY>`；缺少或错误的 API Key 时 HTTP **401**（响应体为 `error` 字段说明，非下文 `code` 体系）。
 - **缺少 `mcp_token` 或必填业务 ID**：未传 `mcp_token`，或更新/删除时未传 `bot_id`，HTTP 为 **400**，响应 JSON 中 **`code` 为 401**（`message` 提示缺少的字段）。这与 **无效 `mcp_token`**（找不到用户）时的 **`code` 102**、HTTP **401** 不同，调用方需区分。
 - **选股与仓位**：建议先通过 Signal 的 **`/searchCode`**（或项目内 `Utility.searchCode`）按代码/名称搜索，由用户选定 **唯一标的** 后，将返回的 **`code`、`lot_size`**（及名称等）用于创建请求。若请求中带 **`lot_size`**（见下表），MCP 会按模板生成**完整 `order_size`**（`base_order_size`、`safety_order_size` 与该值一致，其余字段为 Grid 默认模板，并可被请求中的 `order_size` 覆盖）。
@@ -137,7 +137,7 @@
 ### 请求示例
 
 ```bash
-curl -X POST "http://localhost:5700/createGRIDBot" \
+curl -X POST "http://localhost:3120/createGRIDBot" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token":"mcp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","botname":"黄金网格","stock_name":"黄金ETF","code":"518880.SH","lot_size":100,"frequency":"5m","grid":{"upper_limit_price":350,"lower_limit_price":300,"grid_num":6},"attitude":{"analysis_prompt_list":[],"analysis_period":"daily","switch":false,"controll_switch":false}}'
@@ -190,7 +190,7 @@ curl -X POST "http://localhost:5700/createGRIDBot" \
 ### 请求示例
 
 ```bash
-curl -X POST "http://localhost:5700/updateGRIDBot" \
+curl -X POST "http://localhost:3120/updateGRIDBot" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{
@@ -305,7 +305,7 @@ curl -X POST "http://localhost:5700/updateGRIDBot" \
 ### 请求示例
 
 ```bash
-curl -X POST "http://localhost:5700/getAllGRIDBots" \
+curl -X POST "http://localhost:3120/getAllGRIDBots" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token": "mcp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}'
@@ -433,7 +433,7 @@ curl -X POST "http://localhost:5700/getAllGRIDBots" \
 ### 请求示例
 
 ```bash
-curl -X POST "http://localhost:5700/getGRIDBotLog" \
+curl -X POST "http://localhost:3120/getGRIDBotLog" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token": "mcp_xxx", "bot_id": "<BOT_ID>"}'

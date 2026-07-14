@@ -1,18 +1,18 @@
 package tools
 
 import (
-	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
-	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/tools/catalog"
 )
 
 // Deps bundles shared dependencies for tool registration.
 type Deps struct {
-	MCP           *mcp.Client
+	HTTP          HTTPBackends
 	WorkspaceRoot string
 	ProjectRoot   string
 	Working       WorkingLoader
@@ -31,7 +31,7 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 		r.Register(Tool{
 			Name:        spec.Name,
 			Description: spec.Description,
-			Handle: func(ctx Context, args map[string]any) Result {
+			Handle: ApprovalGate(spec.Name, func(ctx Context, args map[string]any) Result {
 				if ctx.DryRun {
 					return Result{
 						Status:  StatusDryRun,
@@ -49,25 +49,31 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 					}
 					body["mcp_token"] = ctx.MCPToken
 				}
+				started := time.Now()
 				var (
-					data any
-					err  error
+					data     any
+					envelope map[string]any
+					err      error
 				)
 				if spec.DirectResponse {
-					data, err = deps.MCP.PostDirect(context.Background(), spec.Path, body)
+					data, err = deps.HTTP.ForTool(spec.Name).PostDirect(ctx.GoContext(), spec.Path, body)
 				} else {
-					var envelope map[string]any
-					envelope, err = deps.MCP.Post(context.Background(), spec.Path, body)
+					envelope, err = deps.HTTP.ForTool(spec.Name).Post(ctx.GoContext(), spec.Path, body)
 					if err == nil {
 						data = envelope["data"]
 					}
 				}
 				if err != nil {
-					return Result{Status: StatusError, Summary: err.Error(), ExitCode: 1}
+					return Result{Status: StatusError, Summary: err.Error(), ExitCode: 1,
+						Meta: MetaFromEnvelope(nil, started)}
 				}
 				normalized, summary := normalizeHTTPResponse(spec.Name, data)
-				return Result{Status: StatusOK, Summary: summary, Data: normalized}
-			},
+				meta := MetaFromEnvelope(envelope, started)
+				if status, note, _ := ClassifyHTTPPayload(spec.Name, normalized, envelope); status != StatusOK {
+					return Result{Status: status, Summary: note, Data: normalized, Meta: meta}
+				}
+				return Result{Status: StatusOK, Summary: summary, Data: normalized, Meta: meta}
+			}),
 		})
 	}
 }
@@ -109,9 +115,40 @@ func normalizeHTTPResponse(name string, payload any) (map[string]any, string) {
 }
 
 // RegisterAll registers HTTP catalog + bespoke tools (~82 total).
+// Registrars can be extended via AddRegistrar (Go-side toolset self-registration).
 func RegisterAll(r *Registry, deps Deps) {
-	RegisterHTTPFromCatalog(r, deps)
-	RegisterBespokeTools(r, deps)
+	for _, reg := range registrarsSnapshot() {
+		reg(r, deps)
+	}
+}
+
+// Registrar registers one batch of tools (catalog, bespoke, or a future toolset).
+type Registrar func(*Registry, Deps)
+
+var (
+	registrarMu sync.RWMutex
+	registrars  = []Registrar{
+		RegisterHTTPFromCatalog,
+		RegisterBespokeTools,
+	}
+)
+
+// AddRegistrar appends a tool registrar (for tests or optional tool packs).
+func AddRegistrar(reg Registrar) {
+	if reg == nil {
+		return
+	}
+	registrarMu.Lock()
+	registrars = append(registrars, reg)
+	registrarMu.Unlock()
+}
+
+func registrarsSnapshot() []Registrar {
+	registrarMu.RLock()
+	defer registrarMu.RUnlock()
+	out := make([]Registrar, len(registrars))
+	copy(out, registrars)
+	return out
 }
 
 // Names returns sorted registered tool names.

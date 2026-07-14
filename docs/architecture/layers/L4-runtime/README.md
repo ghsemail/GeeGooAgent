@@ -12,7 +12,6 @@ L4 是 **Agent 与 Pipeline 的分水岭**：不是写死「先 A 后 B」的脚
 
 **核心组件职责**
 
-
 | 组件             | 职责                                                       |
 | -------------- | -------------------------------------------------------- |
 | WorkflowEngine | 接收触发、加载 Skill、创建 Session、驱动 Loop 启停                      |
@@ -22,9 +21,7 @@ L4 是 **Agent 与 Pipeline 的分水岭**：不是写死「先 A 后 B」的脚
 | StateMachine   | Session 状态：running / agent_done / failed / cancelled     |
 | ContextBuilder | 拼 messages：identity + rules + skill prompt + memory      |
 
-
 **核心设计决策**
-
 
 | 决策                     | 理由                                        |
 | ---------------------- | ----------------------------------------- |
@@ -32,7 +29,6 @@ L4 是 **Agent 与 Pipeline 的分水岭**：不是写死「先 A 后 B」的脚
 | 每步 Checkpoint          | 与 L0 配合；单股失败不拖垮全局（continue 下一只）           |
 | Skill 约束 Tool 集而非步骤    | 业务变更改 Skill/Rules，不改 Loop 代码              |
 | 事件发布而非直接日志             | Loop 只 `emit`；Logging/Tracing 订阅 EventBus |
-
 
 **单次 run 时序**
 
@@ -57,7 +53,6 @@ L5 trigger → WorkflowEngine.run(skill)
 
 ## 模块索引
 
-
 | 模块             | 文档                                         | 代码                         |
 | -------------- | ------------------------------------------ | -------------------------- |
 | ReAct 主循环      | [react-loop.md](./react-loop.md)           | `runtime/loop.py`          |
@@ -65,7 +60,6 @@ L5 trigger → WorkflowEngine.run(skill)
 | Executor       | [executor.md](./executor.md)               | `loop.py` Act 阶段           |
 | StateMachine   | [state-machine.md](./state-machine.md)     | `runtime/session.py`       |
 | WorkflowEngine | [workflow-engine.md](./workflow-engine.md) | `runtime/agent_runtime.py` |
-
 
 ## 依赖
 

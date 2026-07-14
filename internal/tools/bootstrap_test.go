@@ -22,7 +22,7 @@ func TestRegisterAllToolCount(t *testing.T) {
 		AllowedHosts: []string{"127.0.0.1"},
 	})
 	r := tools.NewRegistry()
-	tools.RegisterAll(r, tools.Deps{MCP: client, WorkspaceRoot: t.TempDir()})
+	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: t.TempDir()})
 	names := r.Names()
 	if len(names) < 80 {
 		t.Fatalf("expected >= 80 tools, got %d", len(names))
@@ -35,7 +35,7 @@ func TestAllToolsDryRun(t *testing.T) {
 		AllowedHosts: []string{"127.0.0.1"},
 	})
 	r := tools.NewRegistry()
-	tools.RegisterAll(r, tools.Deps{MCP: client, WorkspaceRoot: root})
+	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: root})
 	state := infra.NewStateStore(filepath.Join(root, "state"))
 	ctx := tools.Context{
 		SessionID: "test", MCPToken: "tok", DryRun: true, WorkspaceRoot: root, StateStore: state,
@@ -55,6 +55,27 @@ func TestAllToolsDryRun(t *testing.T) {
 				t.Fatalf("%s expected dry_run in test", name)
 			}
 			continue
+		}
+	}
+}
+
+func TestNewsToolsSkipWhenScriptRunnerUnavailable(t *testing.T) {
+	root := t.TempDir()
+	client := mcp.NewClient("http://127.0.0.1:3120", "sk-test", mcp.Options{
+		AllowedHosts: []string{"127.0.0.1"},
+	})
+	r := tools.NewRegistry()
+	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: root})
+
+	ctx := tools.Context{SessionID: "test", MCPToken: "tok", WorkspaceRoot: root}
+	cases := []tools.CallRequest{
+		{Name: "fetch_market_news", Arguments: map[string]any{"market": "US"}},
+		{Name: "fetch_stock_news", Arguments: map[string]any{"code": "00700.HK"}},
+	}
+	for _, tc := range cases {
+		result := r.Execute(tc, ctx)
+		if result.Status != tools.StatusSkip {
+			t.Fatalf("%s status=%s summary=%s", tc.Name, result.Status, result.Summary)
 		}
 	}
 }

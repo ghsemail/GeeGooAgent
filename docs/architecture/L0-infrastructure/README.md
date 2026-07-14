@@ -12,7 +12,6 @@ L0 是 Agent 的**操作系统底座**：不承载业务逻辑，但为 L4 Runti
 
 **核心设计决策**
 
-
 | 决策                            | 理由                                                          |
 | ----------------------------- | ----------------------------------------------------------- |
 | 事件驱动（EventBus）                | Runtime、Logging、Supervisor、Scheduler 解耦；Loop 只发事件，不直接调日志/告警 |
@@ -20,7 +19,6 @@ L0 是 Agent 的**操作系统底座**：不承载业务逻辑，但为 L4 Runti
 | 调度外置（Scheduler）               | MVP 用 systemd timer 触发 CLI；Agent 本身不内置 cron 守护              |
 | Sandbox 在 L0 而非 L2            | 工作区边界、网络 allowlist、资源限额是**环境策略**，Tools 只声明需求                |
 | 同步 InProcess EventBus（MVP）    | 单进程盘前任务足够；后期可换 AsyncEventBus                                |
-
 
 **模块协作**
 
@@ -44,7 +42,6 @@ Phase 0 四件套必做：`EventBus` → `StateStore` → `Checkpoint` → `Sche
 
 ## Phase 0 四件套（P0）
 
-
 | 模块         | 文档                                 | MVP             |
 | ---------- | ---------------------------------- | --------------- |
 | EventBus   | [event-bus.md](./event-bus.md)     | 同步 in-process   |
@@ -52,9 +49,7 @@ Phase 0 四件套必做：`EventBus` → `StateStore` → `Checkpoint` → `Sche
 | Checkpoint | [checkpoint.md](./checkpoint.md)   | 每步保存            |
 | Scheduler  | [scheduler.md](./scheduler.md)     | systemd adapter |
 
-
 ## 其余模块
-
 
 | 模块         | 文档                                 | MVP               |
 | ---------- | ---------------------------------- | ----------------- |
@@ -64,7 +59,6 @@ Phase 0 四件套必做：`EventBus` → `StateStore` → `Checkpoint` → `Sche
 | Tracing    | [tracing.md](./tracing.md)         | StepRecord        |
 | Secrets    | [secrets.md](./secrets.md)         | File+Env          |
 | EnvManager | [env-manager.md](./env-manager.md) | profile           |
-
 
 ## 代码包
 

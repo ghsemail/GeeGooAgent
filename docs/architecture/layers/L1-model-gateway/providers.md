@@ -16,12 +16,10 @@ class LLMProvider(Protocol):
 
 ## 实现
 
-
 | 类                 | 文件                      | API 差异            |
 | ----------------- | ----------------------- | ----------------- |
 | OpenAIProvider    | `openai_provider.py`    | `tool_calls[]`    |
 | AnthropicProvider | `anthropic_provider.py` | `tool_use` blocks |
-
 
 Gateway 负责格式统一为内部 `ToolCall` 列表。
 

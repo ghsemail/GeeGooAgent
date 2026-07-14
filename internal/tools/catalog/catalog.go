@@ -14,6 +14,7 @@ type HTTPSpec struct {
 var BespokeNames = map[string]bool{
 	"check_trading_day": true, "get_current_price": true, "get_report_bot_codes": true,
 	"fetch_market_news": true, "fetch_stock_news": true, "get_mcp_analysis": true,
+	"get_single_prompt_template": true,
 	"get_stock_daily_reports": true, "list_today_reports": true, "get_capital_flow": true,
 	"get_capital_distribution": true, "get_bot_yesterday_attitude": true,
 	"recall_yesterday_summary": true, "read_working_state": true, "create_pre_market_report": true,

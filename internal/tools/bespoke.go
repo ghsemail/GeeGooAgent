@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,8 +14,8 @@ import (
 )
 
 const (
-	indexPromptID          = "69ec7035b9ccd3d9befc6c23"
-	aShareCapitalSkip      = "A-share capital flow not available for this account"
+	indexPromptID     = "69ec7035b9ccd3d9befc6c23"
+	aShareCapitalSkip = "A-share capital flow not available for this account"
 )
 
 var dryRunSampleBots = []map[string]string{
@@ -36,7 +35,7 @@ func RegisterBespokeTools(r *Registry, deps Deps) {
 
 func registerPerceptionTools(r *Registry, deps Deps) {
 	r.Register(Tool{
-		Name: "search_code",
+		Name:        "search_code",
 		Description: "在 GeeGoo 股票库中按代码或名称（中/英/繁）模糊搜索，含 SpaceX 等特殊标的。查价/分析/找 Bot 标的时优先使用。",
 		Parameters: map[string]any{
 			"type": "object",
@@ -59,7 +58,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("search_code", map[string]any{"items": []any{}})
 			}
-			items, err := deps.MCP.SearchCode(context.Background(), regex, markets)
+			items, err := deps.HTTP.SignalAPI.SearchCode(ctx.GoContext(), regex, markets)
 			if err != nil {
 				return errResult(err)
 			}
@@ -96,7 +95,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "web_search",
+		Name:        "web_search",
 		Description: "网页搜索（免费 DuckDuckGo）。仅当 search_code 在 GeeGoo 股票库无结果、且需要外部新闻/时事时使用。",
 		Parameters: map[string]any{
 			"type": "object",
@@ -123,7 +122,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if cfg.MaxResults <= 0 {
 				cfg.MaxResults = 5
 			}
-			hits, err := search.Search(context.Background(), search.Config{
+			hits, err := search.Search(ctx.GoContext(), search.Config{
 				Provider: cfg.Provider, MaxResults: cfg.MaxResults,
 			}, query)
 			if err != nil {
@@ -151,7 +150,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("check_trading_day", map[string]any{"is_trading_day": true, "code": code, "market": "HK", "date": today()})
 			}
-			data, err := deps.MCP.CheckTradingDay(context.Background(), ctx.MCPToken, code)
+			data, err := deps.HTTP.MCP.CheckTradingDay(ctx.GoContext(), ctx.MCPToken, code)
 			if err != nil {
 				return errResult(err)
 			}
@@ -161,13 +160,27 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "get_current_price", Description: "Get latest price via GeeGooBot MCP.",
+		Name:        "get_current_price",
+		Description: "获取股票最新现价。须先 search_code 得到 code（如 00700.HK），再传入 code。",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"code": map[string]any{
+					"type":        "string",
+					"description": "股票代码，如 00700.HK、AAPL.US",
+				},
+			},
+			"required": []any{"code"},
+		},
 		Handle: func(ctx Context, args map[string]any) Result {
-			code := strArg(args, "code", "")
+			code := firstStringArg(args, "code", "symbol", "stock_code", "ticker")
+			if code == "" {
+				return Result{Status: StatusError, Summary: "get_current_price 需要参数 code（如 00700.HK）", ExitCode: 1}
+			}
 			if ctx.DryRun {
 				return okDryRun("get_current_price", map[string]any{"code": code, "price": nil})
 			}
-			price, err := deps.MCP.GetCurrentPrice(context.Background(), ctx.MCPToken, code)
+			price, err := deps.HTTP.MCP.GetCurrentPrice(ctx.GoContext(), ctx.MCPToken, code)
 			if err != nil {
 				return errResult(err)
 			}
@@ -185,7 +198,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 				return Result{Status: StatusDryRun, Summary: fmt.Sprintf("dry-run: %d sample bot(s)", len(items)),
 					Data: map[string]any{"bots": toAnySlice(items)}}
 			}
-			bots, err := deps.MCP.GetReportBotCodes(context.Background(), ctx.MCPToken)
+			bots, err := deps.HTTP.MCP.GetReportBotCodes(ctx.GoContext(), ctx.MCPToken)
 			if err != nil {
 				return errResult(err)
 			}
@@ -206,7 +219,11 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("fetch_market_news", map[string]any{"market": market, "text": "", "items": []any{}})
 			}
-			return Result{Status: StatusError, Summary: "fetch_market_news: script runner not implemented in Go A3", ExitCode: 1}
+			return Result{
+				Status:  StatusSkip,
+				Summary: "fetch_market_news: script runner unavailable; continuing without bundled news",
+				Data:    map[string]any{"market": market, "text": "", "items": []any{}, "source": "unavailable"},
+			}
 		},
 	})
 	r.Register(Tool{
@@ -216,32 +233,77 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("fetch_stock_news", map[string]any{"code": code, "text": "", "source": "dry-run"})
 			}
-			return Result{Status: StatusError, Summary: "fetch_stock_news: script runner not implemented in Go A3", ExitCode: 1}
+			return Result{
+				Status:  StatusSkip,
+				Summary: "fetch_stock_news: script runner unavailable; continuing without bundled news",
+				Data:    map[string]any{"code": code, "text": "", "source": "unavailable"},
+			}
 		},
 	})
 }
 
 func registerAnalysisTools(r *Registry, deps Deps) {
+	registerPromptTemplateTools(r, deps)
 	r.Register(Tool{
-		Name: "get_mcp_analysis", Description: "Run MCP technical analysis.",
+		Name:        "get_mcp_analysis",
+		Description: "执行 MCP 技术面/指数 LLM 分析。个股信号趋势：先 get_single_prompt_template(type=tech, period=daily) 取 prompt_id，再传入本工具。",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{
+					"type":        "string",
+					"description": "股票名称（中文或英文名），如 SpaceX",
+				},
+				"code": map[string]any{
+					"type":        "string",
+					"description": "股票代码，如 SPCX.US、00700.HK",
+				},
+				"period": map[string]any{
+					"type":        "string",
+					"enum":        []any{"daily", "weekly", "hourly"},
+					"description": "分析周期",
+				},
+				"prompt_id": map[string]any{
+					"type":        "string",
+					"description": "分析模板 ID，来自 get_single_prompt_template；指数可用默认",
+				},
+				"language": map[string]any{
+					"type":        "string",
+					"description": "输出语言 cn/en/hk，默认 cn",
+				},
+			},
+			"required": []any{"name", "code", "period"},
+		},
 		Handle: func(ctx Context, args map[string]any) Result {
 			name := strArg(args, "name", "")
 			code := strArg(args, "code", "")
-			period := strArg(args, "period", "hourly")
+			period := strArg(args, "period", "daily")
 			promptID := strArg(args, "prompt_id", indexPromptID)
+			language := strArg(args, "language", "cn")
+			if name == "" || code == "" {
+				return Result{
+					Status: StatusError, ExitCode: 1,
+					Summary: "get_mcp_analysis 需要 name 与 code（先 search_code 确认标的）；个股技术面请先 get_single_prompt_template(type=tech) 获取 prompt_id",
+				}
+			}
 			if ctx.DryRun {
 				return okDryRun("get_mcp_analysis", map[string]any{
-					"code": code, "period": period, "analysis_result": fmt.Sprintf("[dry-run] analysis for %s", name),
+					"code": code, "period": period, "prompt_id": promptID,
+					"analysis_result": fmt.Sprintf("[dry-run] analysis for %s", name),
 				})
 			}
-			result, err := deps.MCP.GetMCPAnalysis(context.Background(), ctx.MCPToken, name, code, promptID, period, "cn")
+			result, err := deps.HTTP.MCP.GetMCPAnalysis(ctx.GoContext(), ctx.MCPToken, name, code, promptID, period, language)
 			if err != nil {
 				return errResult(err)
 			}
-			return Result{Status: StatusOK, Summary: fmt.Sprintf("MCP analysis %s (%s)", code, period), Data: map[string]any{
+			data := map[string]any{
 				"code": code, "period": period, "analysis_result": result.AnalysisResult,
 				"model": result.Model, "create_date": result.CreateDate,
-			}}
+			}
+			if status, note, _ := ClassifyHTTPPayload("get_mcp_analysis", data, nil); status != StatusOK {
+				return Result{Status: status, Summary: note, Data: data}
+			}
+			return Result{Status: StatusOK, Summary: fmt.Sprintf("MCP analysis %s (%s)", code, period), Data: data}
 		},
 	})
 	r.Register(Tool{
@@ -257,7 +319,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("get_capital_flow", map[string]any{"code": code, "items": []any{}})
 			}
-			flows, err := deps.MCP.GetCapitalFlow(context.Background(), ctx.MCPToken, code, period, "")
+			flows, err := deps.HTTP.MCP.GetCapitalFlow(ctx.GoContext(), ctx.MCPToken, code, period, "")
 			if err != nil {
 				return errResult(err)
 			}
@@ -279,7 +341,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("get_capital_distribution", map[string]any{"code": code})
 			}
-			dist, err := deps.MCP.GetCapitalDistribution(context.Background(), ctx.MCPToken, code)
+			dist, err := deps.HTTP.MCP.GetCapitalDistribution(ctx.GoContext(), ctx.MCPToken, code)
 			if err != nil {
 				return errResult(err)
 			}
@@ -296,7 +358,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("get_bot_yesterday_attitude", map[string]any{"bot_id": botID, "code": code, "attitude": "neutral"})
 			}
-			att, err := deps.MCP.GetBotYesterdayAttitude(context.Background(), ctx.MCPToken, botID, "cn")
+			att, err := deps.HTTP.MCP.GetBotYesterdayAttitude(ctx.GoContext(), ctx.MCPToken, botID, "cn")
 			if err != nil {
 				return errResult(err)
 			}
@@ -313,7 +375,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("get_stock_daily_reports", map[string]any{"pre_market": []any{}, "intraday": []any{}, "post_market": []any{}})
 			}
-			reports, err := deps.MCP.GetStockDailyReports(context.Background(), ctx.MCPToken, code, reportDate)
+			reports, err := deps.HTTP.MCP.GetStockDailyReports(ctx.GoContext(), ctx.MCPToken, code, reportDate)
 			if err != nil {
 				return errResult(err)
 			}
@@ -331,7 +393,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 				return Result{Status: StatusDryRun, Summary: fmt.Sprintf("dry-run: no existing reports for %s", code),
 					Data: map[string]any{"code": code, "report_date": reportDate, "count": 0, "already_reported": false}}
 			}
-			reports, err := deps.MCP.GetStockDailyReports(context.Background(), ctx.MCPToken, code, reportDate)
+			reports, err := deps.HTTP.MCP.GetStockDailyReports(ctx.GoContext(), ctx.MCPToken, code, reportDate)
 			if err != nil {
 				return errResult(err)
 			}
@@ -347,7 +409,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 		Handle: func(ctx Context, args map[string]any) Result {
 			_ = ctx
 			_ = args
-			return Result{Status: StatusOK, Summary: "recall_yesterday_summary: not implemented", Data: map[string]any{}}
+			return Result{Status: StatusSkip, Summary: "recall_yesterday_summary is not implemented", Data: map[string]any{"implemented": false}}
 		},
 	})
 	r.Register(Tool{
@@ -417,7 +479,7 @@ func registerReportTools(r *Registry, deps Deps) {
 				return Result{Status: StatusDryRun, Summary: fmt.Sprintf("dry-run: skipped create_pre_market_report %s", code),
 					Data: map[string]any{"report_id": "dry-run-id", "code": code}}
 			}
-			result, err := deps.MCP.CreatePreMarketReport(context.Background(), ctx.MCPToken, args)
+			result, err := deps.HTTP.MCP.CreatePreMarketReport(ctx.GoContext(), ctx.MCPToken, args)
 			if err != nil {
 				return errResult(err)
 			}
@@ -509,6 +571,15 @@ func strArg(args map[string]any, key, def string) string {
 	return def
 }
 
+func firstStringArg(args map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if v := strArg(args, key, ""); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 func intArg(args map[string]any, key string, def int) int {
 	switch v := args[key].(type) {
 	case float64:
@@ -555,6 +626,70 @@ func shorten(s string, n int) string {
 		return s
 	}
 	return s[:n-3] + "..."
+}
+
+func registerPromptTemplateTools(r *Registry, deps Deps) {
+	r.Register(Tool{
+		Name:        "get_single_prompt_template",
+		Description: "获取单项分析 Prompt 模板列表。调用 get_mcp_analysis 前必须先取 prompt_id；个股信号/技术面用 type=tech。",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"type": map[string]any{
+					"type":        "string",
+					"enum":        []any{"index", "tech", "fundamental"},
+					"description": "模板类型：个股技术面/信号趋势用 tech，指数用 index，基本面用 fundamental",
+				},
+				"period": map[string]any{
+					"type":        "string",
+					"description": "可选周期过滤，如 daily、weekly、hourly",
+				},
+			},
+			"required": []any{"type"},
+		},
+		Handle: func(ctx Context, args map[string]any) Result {
+			type_ := strings.ToLower(strings.TrimSpace(strArg(args, "type", "")))
+			if type_ == "" {
+				type_ = "tech"
+			}
+			switch type_ {
+			case "index", "tech", "fundamental":
+			default:
+				return Result{
+					Status: StatusError, ExitCode: 1,
+					Summary: "get_single_prompt_template 需要 type=index|tech|fundamental",
+				}
+			}
+			period := strings.TrimSpace(strArg(args, "period", ""))
+			if ctx.DryRun {
+				data := map[string]any{
+					"type": type_, "items": []any{
+						map[string]any{"prompt_id": "dry-run-prompt", "name": "dry-run", "period": period},
+					},
+				}
+				if period != "" {
+					data["period"] = period
+				}
+				return okDryRun("get_single_prompt_template", data)
+			}
+			if strings.TrimSpace(ctx.MCPToken) == "" {
+				return Result{Status: StatusError, Summary: "缺少 mcp_token：请运行 geegoo setup 配置", ExitCode: 1}
+			}
+			body := map[string]any{"mcp_token": ctx.MCPToken, "type": type_}
+			if period != "" {
+				body["period"] = period
+			}
+			data, err := deps.HTTP.MCP.PostDirect(ctx.GoContext(), "/getSinglePromptTemplate", body)
+			if err != nil {
+				return errResult(err)
+			}
+			normalized, summary := normalizeHTTPResponse("get_single_prompt_template", data)
+			if status, note, _ := ClassifyHTTPPayload("get_single_prompt_template", normalized, nil); status != StatusOK {
+				return Result{Status: status, Summary: note, Data: normalized}
+			}
+			return Result{Status: StatusOK, Summary: summary, Data: normalized}
+		},
+	})
 }
 
 func stringSliceArg(raw any) []string {

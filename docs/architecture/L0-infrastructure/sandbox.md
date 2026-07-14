@@ -32,7 +32,6 @@ Agent = 持有 mk-/sk- API Key 的无人值守 Root 机器人
 
 ## 六大职责（对齐通用模型，GeeGoo 落地方式）
 
-
 | 职责       | Coding Agent 典型实现     | GeeGoo Agent 实现                         |
 | -------- | --------------------- | ------------------------------------- |
 | **隔离**   | Docker 容器 / workspace | Tool 白名单 + Session 工作区路径隔离            |
@@ -41,7 +40,6 @@ Agent = 持有 mk-/sk- API Key 的无人值守 Root 机器人
 | **环境管理** | Python3.10/3.12 多镜像   | 单 venv + `EnvManager` profile（非多语言栈）  |
 | **状态管理** | Workspace 文件树         | `output_dir/{date}/` + StateStore 键空间 |
 | **可恢复**  | ZFS/Docker 层快照        | **Checkpoint**（逻辑快照，非文件系统快照）          |
-
 
 ---
 
@@ -63,8 +61,6 @@ flowchart TB
   Executor --> SM
   SM --> Tools["L2 Tools"]
 ```
-
-
 
 ### L1 — Workspace Boundary（文件系统沙箱）
 
@@ -95,14 +91,12 @@ MVP：路径校验函数 `assert_in_workspace(path)`。
 **Coding**：断网 / 白名单 github+pypi。  
 **GeeGoo**：HTTP 只允许访问**业务必需**端点：
 
-
 | 级别          | 策略         | MVP                                                       |
 | ----------- | ---------- | --------------------------------------------------------- |
-| **Level 0** | 仅 GeeGoo API | 5900 + 5700 主机                                            |
+| **Level 0** | 仅 GeeGoo API | GeeGoo 3xxx 主机                                            |
 | **Level 1** | + 新闻源      | eastmoney、sina、CNBC RSS 等（配置 allowlist）                   |
 | **Level 2** | + LLM API  | `api.openai.com`、`api.anthropic.com`（走 Gateway，非 Tool 直连） |
 | **Level 3** | 企业扩展       | 飞书 webhook、内部行情（配置）                                       |
-
 
 实现：`clients/base.py` 内 `AllowedHostHTTPAdapter` 或显式 host 校验；新闻脚本禁止任意 URL 参数。
 
@@ -119,7 +113,6 @@ NETWORK_ALLOWLIST = [
 
 ### L3 — Resource Guard（资源沙箱）
 
-
 | 限制项                  | 默认值     | 说明                        |
 | -------------------- | ------- | ------------------------- |
 | `tool_timeout`       | 120s    | `get_mcp_analysis` 可 180s |
@@ -127,7 +120,6 @@ NETWORK_ALLOWLIST = [
 | `max_steps`          | 80      | Runtime 级，Sandbox 记录      |
 | `max_parallel_tools` | 1（MVP）  | 后期指数并行时 = 5               |
 | `session_disk_quota` | 500MB/日 | 可选                        |
-
 
 防止：新闻脚本死循环、巨型 analysis 撑爆内存、磁盘写满。
 
@@ -174,13 +166,11 @@ Checkpoint step 87  ≈  Snapshot C
 rollback()          ≈  geegoo-agent resume <session_id>
 ```
 
-
 | Coding Snapshot | GeeGoo 等价物                         |
 | --------------- | -------------------------------- |
 | 文件树回滚           | 不适用（无任意写文件）                      |
 | 执行进度回滚          | `Checkpoint` + `StateStore`      |
 | 对话上下文回滚         | `SessionMemory` archive + resume |
-
 
 这是 **Logical Snapshot**，不是 Docker Layer；与 [checkpoint.md](./checkpoint.md) 同一套设施。
 
@@ -216,8 +206,6 @@ flowchart TB
   SM --> PG --> WG --> RG --> TR --> EV
   EV --> EX
 ```
-
-
 
 **代码包**（MVP 可单文件，后期拆分）：
 
@@ -257,20 +245,17 @@ Orchestrator Session
 
 ## 与「不用 Docker」的决策
 
-
 | 论点                   | 回应                                                                  |
 | -------------------- | ------------------------------------------------------------------- |
 | Claude Code 用 Docker | 因为要跑任意 shell；GeeGoo **禁止 shell**                                      |
 | 没有 Docker 就不安全       | 威胁模型是 **API 误用 + HTTP 外泄 + 路径穿越**，用六层逻辑沙箱覆盖                         |
 | 以后要不要 Docker         | Phase 6+ 可选：仅隔离 **news subprocess** 或 **bot_manager 交互式** 会话，非全盘容器化 |
 
-
 **结论**：GeeGoo Sandbox 是 **「Typed-Tool OS」**，不是微型 Docker Desktop；但在架构层级上与 Claude Code Sandbox **同级**。
 
 ---
 
 ## MVP 实现范围（Phase 0-1）
-
 
 | 层              | MVP                             | 后期              |
 | -------------- | ------------------------------- | --------------- |
@@ -281,7 +266,6 @@ Orchestrator Session
 | L5 Environment | 单 venv，固定脚本路径                   | Docker 仅 news   |
 | L6 Snapshot    | 依赖 Checkpoint（已有）               | —               |
 | PolicyGate     | Tool 白名单 + scheduled 禁 Bot CRUD | per-skill 细粒度   |
-
 
 **不实现**：通用 Shell、任意读写文件、全容器 workspace。
 

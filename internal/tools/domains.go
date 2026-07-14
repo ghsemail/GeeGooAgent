@@ -93,33 +93,10 @@ func union(slices ...[]string) map[string]struct{} {
 	return out
 }
 
-// ChatToolNames are on-demand tools for geegoo chat (Python CHAT_ON_DEMAND_TOOLS).
-var ChatToolNames = buildChatToolNames()
+// ChatToolNames are on-demand tools for geegoo chat (default chat toolsets).
+var ChatToolNames = ChatToolNamesForToolsets(nil)
 
-func buildChatToolNames() []string {
-	chat := map[string]struct{}{}
-	add := func(set map[string]struct{}) {
-		for name := range set {
-			if _, workflow := reportWorkflowTools[name]; workflow {
-				continue
-			}
-			chat[name] = struct{}{}
-		}
-	}
-	add(marketTools)
-	add(strategyTools)
-	add(botManagerTools)
-	add(reminderManagerTools)
-	add(reportQueryTools)
-	names := make([]string, 0, len(chat))
-	for name := range chat {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
-}
-
-// ToolDomain groups tools by business purpose.
+// ToolDomain groups tools by business purpose (display alias of toolset).
 type ToolDomain string
 
 const (
@@ -203,20 +180,8 @@ func FormatToolsListing(names []string, descriptions map[string]string) string {
 	return strings.TrimRight(strings.Join(lines, "\n"), "\n")
 }
 
-// RegisteredChatToolNames returns chat allowlist tools present in registry.
+// RegisteredChatToolNames returns chat allowlist tools present in registry
+// using the default chat toolsets.
 func RegisteredChatToolNames(registry *Registry) []string {
-	if registry == nil {
-		return nil
-	}
-	registered := map[string]struct{}{}
-	for _, name := range registry.ListNames() {
-		registered[name] = struct{}{}
-	}
-	var out []string
-	for _, name := range ChatToolNames {
-		if _, ok := registered[name]; ok {
-			out = append(out, name)
-		}
-	}
-	return out
+	return RegisteredChatToolNamesFor(registry, nil)
 }

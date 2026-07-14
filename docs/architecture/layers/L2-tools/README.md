@@ -8,15 +8,13 @@ L2 把 GeeGoo 生态的 HTTP API、新闻脚本、本地文件操作封装为 **
 
 **核心设计决策**
 
-
 | 决策                            | 理由                                                              |
 | ----------------------------- | --------------------------------------------------------------- |
 | ToolRegistry 集中注册             | Skill Pack 按模式加载子集；Scheduled 模式不暴露 Bot create/delete            |
 | 五类分层（Perception→Meta）         | 约束 Planner 先感知再分析再写入，减少跳步                                       |
-| 三 HTTP Client（5700/5800） | 统一 geegoo mcp + 信号服务；Tools 不拼 URL                                 |
+| GeeGoo 3xxx HTTP 客户端 | 统一 GeeGooBot mcp-api + 信号服务；Tools 不拼 URL                                 |
 | ToolResult 信封                 | 统一 `status/summary/data`，Executor 写回 WorkingMemory 与 Checkpoint |
 | Schema 硬校验                    | 如 `create_pre_market_report` 缺 `confidence` 则在 L2 拒绝，不浪费 API    |
-
 
 **数据流**
 
@@ -24,9 +22,9 @@ L2 把 GeeGoo 生态的 HTTP API、新闻脚本、本地文件操作封装为 **
 Executor (L4)
     └── ToolRegistry.get(name)
             └── Tool 实现
-                    ├── MarketClient (:5700)   workflow / 资金 / 报告
-                    ├── GeeGooBotClient (:5700)  分析 / Bot / 策略
-                    ├── SignalClient (:5800)   指标信号
+                    ├── GeeGooBot mcp-api (:3120)   workflow / 资金 / 报告
+                    ├── GeeGooBot mcp-api (:3120)  分析 / Bot / 策略
+                    ├── GeeGooSignal catalog-api (:3210)   指标信号
                     ├── 本地脚本               新闻 / 行情
                     └── SandboxManager         路径与网络校验
 ```
@@ -43,14 +41,12 @@ Executor (L4)
 
 ## 模块索引
 
-
 | 模块           | 文档                                                 |
 | ------------ | -------------------------------------------------- |
 | ToolRegistry | [registry.md](./registry.md)                       |
 | 工具目录         | [tool-catalog.md](./tool-catalog.md)               |
 | HTTP Clients | [clients.md](./clients.md)                         |
 | Sandbox 集成   | [sandbox-integration.md](./sandbox-integration.md) |
-
 
 ## 五类 Tool
 

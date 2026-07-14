@@ -249,6 +249,27 @@ func TestDisallowedHost(t *testing.T) {
 	}
 }
 
+func TestPostDirectPlain404NotInvalidJSON(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte("404 page not found\n"))
+	})
+	_, err := client.SearchCode(context.Background(), "腾讯", nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	ce, ok := err.(*mcp.ClientError)
+	if !ok {
+		t.Fatalf("expected ClientError, got %T: %v", err, err)
+	}
+	if ce.HTTPStatus != 404 {
+		t.Fatalf("HTTPStatus=%d", ce.HTTPStatus)
+	}
+	if !strings.Contains(ce.Error(), "404") || strings.Contains(ce.Error(), "invalid JSON") {
+		t.Fatalf("message=%q", ce.Error())
+	}
+}
+
 func TestBearerHeaderOnRequest(t *testing.T) {
 	var gotAuth string
 	var gotBody map[string]any

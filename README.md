@@ -42,6 +42,17 @@ geegoo update
 geegoo doctor
 ```
 
+## Chat TUI
+
+TTY 下 `geegoo chat` 默认进入 Hermes 风格 Bubble Tea TUI：
+
+- `▸/▾` 折叠思考与工具；历史默认收起，直播展开
+- `/details`、`/verbose`、`/mouse`、`/sessions`（或 `Ctrl+X`）
+- 写操作 `y/n` 审批；`Esc` / `Ctrl+C` 中断当前回合
+- 非 TTY、`GEEGOO_CHAT_PLAIN=1`、`--cli` 走经典 CLI
+
+配置见 `config.example.json` 的 `display` 段。设计说明：`docs/superpowers/specs/2026-07-12-chattui-hermes-parity-design.md`。
+
 ## CLI
 
 | Command | Description |
@@ -49,9 +60,14 @@ geegoo doctor
 | `geegoo setup` | Write a default config for the Go runtime. |
 | `geegoo doctor` | Check config, MCP connectivity, and LLM readiness. |
 | `geegoo update` | Pull the latest code and rebuild the Go binary. |
-| `geegoo chat` | Start the interactive ReAct + tool chat loop. |
-| `geegoo run pre_market` | Run the deterministic pre-market workflow. |
-| `geegoo resume --session <id>` | Resume a checkpointed pre-market session. |
+| `geegoo chat` | Interactive ReAct chat. TTY 默认 Bubble Tea TUI（思考/工具可折叠）；`--cli` 旧界面；`--tui` 强制 TUI。 |
+| `geegoo run <skill>` | Run a skill workflow (e.g. `pre_market`). See `geegoo skills list`. |
+| `geegoo resume --session <id>` | Resume a checkpointed workflow (idempotent by step key). |
+| `geegoo migrate [--dry-run]` | Migrate legacy file-based chat sessions to SQLite. |
+| `geegoo skills list` | List registered skills. |
+| `geegoo scheduler run` | Start the in-process cron scheduler (long-running). |
+| `geegoo scheduler list` | Show scheduled jobs and last verdicts. |
+| `geegoo verify --codes <list> [--date <D>]` | Cutover field-completeness verification of pre-market reports. |
 
 ## Runtime Ports
 
@@ -122,4 +138,42 @@ The timer runs `geegoo run pre_market` at 08:00 Asia/Shanghai on weekdays.
 ```bash
 go test ./...
 go build ./cmd/geegoo
+geegoo verify --codes 00700.HK,000001.SZ --date <YYYY-MM-DD>
 ```
+
+## Architecture (Hermes Parity)
+
+GeeGooAgent is benchmarked against the Hermes Agent architecture and reorganized into a platform-agnostic Go core with entry points (CLI, HTTP runtime) at the edges.
+
+```text
+internal/
+  agent/        platform-agnostic core: Agent.Run(ctx, session, input)
+  provider/     (named llm/ today) gateway + OpenAI-compatible providers
+  tools/        registry, contract, approval, catalog, bespoke
+  session/      (named chatsession/ today) SQLite + FTS5 session store
+  memory/       working memory + EvidenceStore (SQLite)
+  workflow/     runner, pre_market steps, supervisor, errors
+  skills/       manifest-driven skill registry
+  scheduler/    in-process cron + supervisor-driven retry
+  report/       LLM evidence-only synthesis (result/confidence stay rule-based)
+  verify/       cutover field-completeness checks
+  infra/        SQLite handle + schema, state, events, guard
+  cli/          chatrepl + chatui + commands
+  clients/mcp/  GeeGooBot MCP client
+  search/       free web search (DuckDuckGo)
+  config/ doctor/ auth/ httpserver/
+```
+
+Key capabilities delivered in P1–P8:
+
+- **SQLite foundation**: chat sessions, evidence records, working state, checkpoints, execution events in one WAL-enabled DB with FTS5; `geegoo migrate` from legacy JSON.
+- **Prompt stability**: system message stays byte-identical across turns; tool activity injected as dynamic user-side context → DeepSeek prefix cache friendly.
+- **Interruptible**: `context.Context` threaded through provider/gateway/tools/loop; Ctrl+C aborts in-flight LLM + tool calls.
+- **Supervisor + idempotent resume**: post-run verdict (pass/recoverable/terminal); resume skips by step key, not step number; recoverable errors auto-retry once.
+- **Skill registry**: `geegoo run <skill>` dispatches via manifest; intraday/post_market placeholders registered.
+- **LLM report synthesis**: LLM writes reason/suggestion/summary strictly from evidence; result/confidence stay rule-based so it cannot flip a decision.
+- **Tool contracts**: `Result.Meta`, empty-success detection (code=100 but empty → Skip), approval gate for mutating tools, fixture replay tests.
+- **In-process scheduler**: cron-driven skill execution with exponential-backoff retry on non-pass verdicts.
+- **Cutover verification**: `geegoo verify` quantifies bot_id/bot_name/bot_type non-empty rate, enum validity, reason length, evidence_refs presence.
+
+Full roadmap and Hermes comparison: [`deploy/hermes-parity-roadmap.md`](deploy/hermes-parity-roadmap.md). Cutover runbook: [`deploy/hermes-migration-checklist.md`](deploy/hermes-migration-checklist.md).

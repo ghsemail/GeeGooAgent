@@ -17,10 +17,18 @@ type UpstreamMessage struct {
 
 // Session holds in-memory chat state for one conversation.
 type Session struct {
-	ID          string
-	Messages    []llm.Message
-	StepCounter int
-	CreatedAt   time.Time
+	ID               string
+	Messages         []llm.Message
+	PreviousSummary  string
+	LastPromptTokens int
+	StepCounter      int
+	CreatedAt        time.Time
+	// Lineage tracks Hermes-style compaction bloodline without forking the
+	// user-facing session id. ParentID is the previous generation node;
+	// LineageRoot is the original session id before any compaction.
+	ParentID             string
+	LineageRoot          string
+	CompactionGeneration int
 }
 
 // NewSession creates a chat session with system prompt.
@@ -57,14 +65,14 @@ func NewUpstreamSession(messages []UpstreamMessage) (*Session, string) {
 			lastUser = m.Content
 		}
 	}
-	if len(session.Messages) == 0 {
-		session.AppendMessage(llm.Message{Role: llm.RoleSystem, Content: chatprompt.System()})
-	}
 	if len(session.Messages) > 0 {
 		last := session.Messages[len(session.Messages)-1]
 		if last.Role == llm.RoleUser && last.Content == lastUser {
 			session.Messages = session.Messages[:len(session.Messages)-1]
 		}
+	}
+	if len(session.Messages) == 0 || session.Messages[0].Role != llm.RoleSystem {
+		session.Messages = append([]llm.Message{{Role: llm.RoleSystem, Content: chatprompt.System()}}, session.Messages...)
 	}
 	return session, lastUser
 }

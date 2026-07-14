@@ -2,7 +2,13 @@
 
 > **Canonical 设计文档目录**。实现时以本目录为准；Cursor Plan 文件仅作任务跟踪。
 
-## 模块设计说明
+## 当前实现总览
+
+👉 **[`overview.md`](overview.md)** — P1–P8 完成后的当前架构（Go 实现）：系统概览图、目录结构、数据流、主要子系统、设计原则、文件依赖链。**新读者从这里开始。**
+
+> 下面的「模块设计说明」是早期 Python 时代的分层蓝图（L0–L5），保留作历史参考；当前 Go 实现以 `overview.md` 为准。
+
+## 模块设计说明（早期蓝图，历史参考）
 
 本目录是 GeeGoo Agent 的**唯一权威设计源**，将「自托管股票分析 Agent」拆为可实现的工程六层 + 横切能力 + 领域映射 + 分期路线。
 
@@ -14,7 +20,6 @@
 
 **文档组织原则**
 
-
 | 类型  | 目录               | 回答的问题                            |
 | --- | ---------------- | -------------------------------- |
 | 总览  | `00-overview.md` | 为什么这样分层、与 Hermes/Claude Code 的差异 |
@@ -22,7 +27,6 @@
 | 横切  | `cross-cutting/` | 部署、质检、可观测性如何贯穿各层                 |
 | 领域  | `domains/`       | GeeGoo 双端口 API、Skill → Tool 映射     |
 | 交付  | `phases/`        | 先做什么、后做什么                        |
-
 
 **依赖方向（实现时不得违反）**
 
@@ -60,7 +64,6 @@ GeeGoo 专用实现叠加本目录 `domains/` 与 [../engineering/](../engineeri
 
 ## 六层索引
 
-
 | 层                     | 目录                                                     | 职责                                                                        |
 | --------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------- |
 | **L5 Application**    | [layers/L5-application/](./layers/L5-application/)     | Skill、触发入口、Rules/Prompts                                                  |
@@ -69,7 +72,6 @@ GeeGoo 专用实现叠加本目录 `domains/` 与 [../engineering/](../engineeri
 | **L2 Tools**          | [layers/L2-tools/](./layers/L2-tools/)                 | **~87 Tool**（MVP 19）；[tool-catalog.md](./layers/L2-tools/tool-catalog.md) |
 | **L1 Model Gateway**  | [layers/L1-model-gateway/](./layers/L1-model-gateway/) | 模型路由、Fallback、Cost                                                        |
 | **L0 Infrastructure** | [L0-infrastructure/](./L0-infrastructure/)             | EventBus、Checkpoint、Scheduler 等                                           |
-
 
 ## 代码包对照
 

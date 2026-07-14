@@ -4,33 +4,41 @@ import (
 	"github.com/charmbracelet/glamour"
 )
 
-// geegooMarkdownTheme mirrors Python _GEEGOO_CHAT_THEME (gold finance palette).
+// geegooMarkdownTheme mirrors Python _GEEGOO_CHAT_THEME (white body, yellow accents).
+// ANSI-256 indices avoid glamour/chroma defaults that use magenta (e.g. link_text "35").
 const geegooMarkdownTheme = `{
-  "document": { "color": "#E5E7EB", "margin": 0 },
-  "paragraph": { "color": "#E5E7EB" },
-  "block_quote": { "color": "#FFBF00", "italic": true },
-  "heading": { "bold": true, "color": "#FFBF00" },
-  "h1": { "bold": true, "color": "#FFBF00" },
-  "h2": { "bold": true, "color": "#FFBF00" },
-  "h3": { "bold": true, "color": "#FFD700" },
-  "h4": { "color": "#FFD700" },
-  "h5": { "color": "#FFD700" },
-  "h6": { "color": "#FFD700" },
-  "text": { "color": "#E5E7EB" },
-  "strong": { "bold": true, "color": "#FFD700" },
-  "em": { "italic": true, "color": "#E5E7EB" },
-  "codespan": { "bold": true, "color": "#FFBF00" },
-  "code": { "color": "#FFBF00" },
-  "code_block": { "color": "#FFBF00" },
-  "link": { "underline": true, "color": "#FFD700" },
-  "link_text": { "underline": true, "color": "#FFD700" },
-  "link_url": { "underline": true, "color": "#FFBF00" },
-  "list": { "color": "#FFD700" },
-  "list_item": { "color": "#E5E7EB" },
-  "table": { "color": "#E5E7EB" },
-  "table_header": { "bold": true, "color": "#FFD700" },
-  "table_border": { "color": "#FFBF00" },
-  "hr": { "color": "#9CA3AF" }
+  "document": { "color": "252", "margin": 0 },
+  "paragraph": { "color": "252" },
+  "block_quote": { "color": "214", "italic": true },
+  "heading": { "bold": true, "color": "214" },
+  "h1": { "bold": true, "color": "214" },
+  "h2": { "bold": true, "color": "214" },
+  "h3": { "bold": true, "color": "220" },
+  "h4": { "color": "220" },
+  "h5": { "color": "220" },
+  "h6": { "color": "220" },
+  "text": { "color": "252" },
+  "strong": { "bold": true, "color": "220" },
+  "em": { "italic": true, "color": "252" },
+  "strikethrough": { "crossed_out": true, "color": "245" },
+  "del": { "crossed_out": true, "color": "245" },
+  "codespan": { "bold": true, "color": "214" },
+  "code": { "color": "214" },
+  "code_block": { "color": "214", "margin": 0 },
+  "link": { "underline": true, "color": "220" },
+  "link_text": { "underline": true, "color": "220" },
+  "link_url": { "underline": true, "color": "214" },
+  "image": { "color": "220", "underline": true },
+  "image_text": { "color": "245" },
+  "list": { "color": "220" },
+  "list_item": { "color": "252" },
+  "item": { "block_prefix": "• " },
+  "enumeration": { "block_prefix": ". " },
+  "task": { "ticked": "[✓] ", "unticked": "[ ] " },
+  "table": { "color": "252" },
+  "table_header": { "bold": true, "color": "220" },
+  "table_border": { "color": "214" },
+  "hr": { "color": "245" }
 }`
 
 func newMarkdownRenderer(width int) (*glamour.TermRenderer, error) {

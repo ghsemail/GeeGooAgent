@@ -21,7 +21,7 @@
 
 ### 1.1 基础路径与认证
 
-- **基础路径**：geegoo mcp 根地址（默认示例：`http://0.0.0.0:5700`）
+- **基础路径**：GeeGooBot mcp-api 根地址（默认示例：`http://127.0.0.1:3120`）
 - **认证**：请求头 `Authorization: Bearer <API_KEY>`（MCP 的 API Key，见 `mcpAPIServer` 配置）
   - 缺少或格式错误返回 `401`；Key 无效返回 `401`。
 
@@ -137,14 +137,14 @@ MCP 转发至 AIServer 时使用 `Config/APIConnection.py` 中的 `--aidata_serv
 
 ```bash
 # 默认中文（language=cn）
-curl -X POST "http://localhost:5700/generateGridStrategy" \
+curl -X POST "http://localhost:3120/generateGridStrategy" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"code": "00700.HK", "name": "腾讯控股", "months_back": 3}'
 
 # 指定英文或繁体：language=en / language=hk
 # 需要多语言对象时传 language=all
-curl -X POST "http://localhost:5700/generateGridStrategy" \
+curl -X POST "http://localhost:3120/generateGridStrategy" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"code": "00700.HK", "name": "腾讯控股", "months_back": 3, "language": "all"}'
@@ -275,19 +275,19 @@ curl -X POST "http://localhost:5700/generateGridStrategy" \
 
 ```bash
 # 默认仅返回中文（language=cn）
-curl -X POST "http://localhost:5700/generateDCAStrategy" \
+curl -X POST "http://localhost:3120/generateDCAStrategy" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"code": "00700.HK", "name": "腾讯控股", "months_back": 3, "signal_id": "662d0424c4cee7ffb800d0af"}'
 
 # 指定英文返回
-curl -X POST "http://localhost:5700/generateDCAStrategy" \
+curl -X POST "http://localhost:3120/generateDCAStrategy" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"code": "00700.HK", "name": "腾讯控股", "months_back": 3, "signal_id": "662d0424c4cee7ffb800d0af", "language": "en"}'
 
 # 保留多语言对象（language=all）
-curl -X POST "http://localhost:5700/generateDCAStrategy" \
+curl -X POST "http://localhost:3120/generateDCAStrategy" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"code": "00700.HK", "name": "腾讯控股", "months_back": 3, "signal_id": "662d0424c4cee7ffb800d0af", "language": "all"}'
@@ -312,4 +312,4 @@ curl -X POST "http://localhost:5700/generateDCAStrategy" \
 
 | 说明 | 路径 |
 |------|------|
-| MCP 接口定义 | `mcpAPIServer.py`：`/generateGridStrategy`、`/generateDCAStrategy` |
+| MCP 接口定义 | `mcp-api`：`/generateGridStrategy`、`/generateDCAStrategy` |

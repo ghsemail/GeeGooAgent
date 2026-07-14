@@ -43,7 +43,6 @@ prompts/identity.md
 
 ## Skill 全景
 
-
 | Skill                | 来源         | Phase     | 触发          |
 | -------------------- | ---------- | --------- | ----------- |
 | `pre_market`         | geegoo | **1 MVP** | timer 08:00 |
@@ -54,16 +53,13 @@ prompts/identity.md
 | `bot_manager`        | geegoo       | 6         | chat        |
 | `bundled/`*          | 两者         | 0+        | tools 内部调用  |
 
-
 ## Tool 过滤规则
-
 
 | 模式          | 排除                                              |
 | ----------- | ----------------------------------------------- |
 | scheduled   | 所有 `create_*_bot`, `delete`_*, `wait_for_human` |
 | signal      | Bot CRUD                                        |
 | interactive | 无（Bot 创建走 `wait_for_human`）                     |
-
 
 ## MVP 实现清单
 

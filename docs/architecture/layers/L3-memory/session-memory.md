@@ -17,13 +17,11 @@ class Message:
 
 ## 写入规则
 
-
 | 来源          | 写入内容                                    |
 | ----------- | --------------------------------------- |
 | SkillLoader | system（仅初始化一次）                          |
 | Planner     | assistant + tool_calls                  |
 | Executor    | tool role，**摘要**（非 get_mcp_analysis 全文） |
-
 
 ## token 估算
 

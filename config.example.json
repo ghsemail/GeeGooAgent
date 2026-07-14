@@ -5,11 +5,13 @@
   "geegoo_api_key": "sk-REPLACE",
   "mcp_token": "",
   "signal_base_url": "http://127.0.0.1:3210",
+  "signal_api_url": "http://127.0.0.1:3200",
   "data_base_url": "http://127.0.0.1:3300",
   "output_dir": "./data",
   "feishu_webhook_url": null,
   "dry_run": false,
   "max_steps": 80,
+  "chat_toolsets": [],
   "llm": {
     "provider": "deepseek",
     "token_key": "",
@@ -17,7 +19,24 @@
     "temperature": 0.2,
     "max_tokens": 4096,
     "thinking": null,
-    "reasoning_effort": "high"
+    "reasoning_effort": "high",
+    "fallbacks": []
+  },
+  "compression": {
+    "enabled": true,
+    "threshold": 0.5,
+    "hygiene_threshold": 0.85,
+    "protect_last_n": 20,
+    "protect_first_n": 3,
+    "context_length": 0
+  },
+  "auxiliary": {
+    "compression": {
+      "provider": "",
+      "model": "",
+      "token_key": "",
+      "base_url": ""
+    }
   },
   "search": {
     "provider": "duckduckgo",
@@ -28,5 +47,17 @@
       "127.0.0.1",
       "localhost"
     ]
+  },
+  "display": {
+    "interface": "tui",
+    "details_mode": "collapsed",
+    "sections": {
+      "thinking": "",
+      "tools": "",
+      "activity": "hidden"
+    },
+    "mouse_tracking": "wheel",
+    "status_indicator": "emoji",
+    "show_reasoning": true
   }
 }

@@ -20,13 +20,13 @@ func TestListSmartTradesSendsMCPToken(t *testing.T) {
 		}
 		_ = json.NewDecoder(r.Body).Decode(&gotBody)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"code":100,"data":[],"message":"success"}`))
+		_, _ = w.Write([]byte(`{"code":100,"data":[{"bot_id":"b1","botname":"x","code":"00700.HK","stock_name":"腾讯","bot_type":"SmartTrade"}],"message":"success"}`))
 	}))
 	defer srv.Close()
 
 	client := mcp.NewClient(srv.URL, "sk-test", mcp.Options{AllowedHosts: []string{"127.0.0.1"}})
 	r := tools.NewRegistry()
-	tools.RegisterAll(r, tools.Deps{MCP: client, WorkspaceRoot: t.TempDir()})
+	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: t.TempDir()})
 
 	result := r.Execute(tools.CallRequest{Name: "list_smart_trades", Arguments: map[string]any{}}, tools.Context{
 		SessionID: "s1", MCPToken: "mcp-test-user", DryRun: false,

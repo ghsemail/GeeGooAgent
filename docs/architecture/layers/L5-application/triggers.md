@@ -6,7 +6,6 @@
 
 ## 触发器类型
 
-
 | 类型             | 实现                       | Phase | 文档                                                                       |
 | -------------- | ------------------------ | ----- | ------------------------------------------------------------------------ |
 | **CLI**        | `geegoo-agent run <skill>` | 1     | 本文                                                                       |
@@ -15,9 +14,7 @@
 | **Chat**       | `geegoo-agent chat` REPL   | 4     | —                                                                        |
 | **Resume**     | `geegoo-agent resume <id>` | 1     | [L0-infrastructure/checkpoint.md](../../L0-infrastructure/checkpoint.md) |
 
-
 ## CLI 命令表
-
 
 | 命令                                          | 说明              |
 | ------------------------------------------- | --------------- |
@@ -28,7 +25,6 @@
 | `geegoo-agent resume <session_id>`            | 从 Checkpoint 恢复 |
 | `geegoo-agent session list`                   | 列出 Session      |
 | `geegoo-agent tools check`                    | API 冒烟          |
-
 
 ## RunContext
 

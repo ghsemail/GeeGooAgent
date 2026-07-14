@@ -2,7 +2,6 @@
 
 ## Phase 0 — 平台内核
 
-
 | 层   | 交付                                                                                |
 | --- | --------------------------------------------------------------------------------- |
 | L0  | EventBus, StateStore, Checkpoint, Scheduler + Logging/Tracing/Secrets/Env/Sandbox |
@@ -11,7 +10,6 @@
 | L3  | Session/Working Memory + Compaction L1-L2                                         |
 | L2  | ToolRegistry 框架 + Clients 骨架                                                      |
 | L5  | SkillLoader + pre_market stub                                                     |
-
 
 **不含**盘前业务端到端。
 
@@ -41,7 +39,6 @@
 6. 产出与 Hermes 可比（抽检 3 股）
 
 ## 工作量估算
-
 
 | Phase       | 行数约      |
 | ----------- | -------- |

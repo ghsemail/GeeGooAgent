@@ -1,6 +1,8 @@
 package tools
 
 import (
+	"context"
+
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
@@ -22,13 +24,27 @@ const (
 
 // Context carries dependencies for tool handlers.
 type Context struct {
-	SessionID     string
-	MCPToken      string
-	DryRun        bool
-	Step          int
-	WorkspaceRoot string
-	EventBus      EventEmitter
-	StateStore    *infra.StateStore
+	Ctx            context.Context
+	SessionID      string
+	MCPToken       string
+	DryRun         bool
+	Step           int
+	WorkspaceRoot  string
+	EventBus       EventEmitter
+	StateStore     *infra.StateStore
+	// Interactive marks an ad-hoc chat session (vs deterministic workflow).
+	// Mutating tools require approval when Interactive and not Approved.
+	Interactive bool
+	// Approved indicates the user confirmed a mutating tool call.
+	Approved bool
+}
+
+// GoContext returns the embedded context.Context, defaulting to background.
+func (c Context) GoContext() context.Context {
+	if c.Ctx != nil {
+		return c.Ctx
+	}
+	return context.Background()
 }
 
 // Result is returned by a tool handler.
@@ -37,6 +53,9 @@ type Result struct {
 	Summary  string
 	Data     map[string]any
 	ExitCode int
+	// Meta carries observability metadata: api_code, duration_ms, retried,
+	// raw_envelope, etc. Not part of the LLM-facing tool output.
+	Meta map[string]any
 }
 
 // CallRequest is an executor dispatch payload.

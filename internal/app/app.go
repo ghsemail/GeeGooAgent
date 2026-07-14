@@ -1,18 +1,31 @@
 package app
 
 import (
+	"context"
+	cryptorand "crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
+	"sync/atomic"
+	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/agent"
+	"github.com/ghsemail/GeeGooAgent/internal/clients/admin"
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
+	"github.com/ghsemail/GeeGooAgent/internal/skills"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
 )
+
+var fallbackSessionCounter uint64
 
 // App wires config, MCP client, tools, LLM, and workflow.
 type App struct {
@@ -28,6 +41,12 @@ type App struct {
 	Checkpoints *infra.CheckpointManager
 	EventBus    *infra.EventBus
 	Workspace   string
+	// P1 SQLite foundation. DB is nil when disabled via GEEGOO_DB=off or open failure.
+	DB       *infra.DB
+	Evidence *memory.EvidenceStore
+	// P2c platform-agnostic agent core. Owns the ReAct loop; used by chat,
+	// runtime HTTP, and (later) workflow/scheduler.
+	Agent *agent.Agent
 }
 
 // LoadFromConfigPath builds an App from config.json.
@@ -52,14 +71,20 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	checkpoints := infra.NewCheckpointManager(state)
 	eventBus := infra.NewEventBus()
 
-	mcpClient := mcp.NewClient(cfg.EffectiveMCPURL(), cfg.MCPAPIKey(), mcp.Options{
-		AllowedHosts: cfg.ResolvedAllowedHosts(),
-	})
+	mcpOpts := mcp.Options{AllowedHosts: cfg.ResolvedAllowedHosts()}
+	analysisOpts := mcpOpts
+	analysisOpts.Timeout = 180 * time.Second
+	httpBackends := tools.HTTPBackends{
+		MCP:           mcp.NewClient(cfg.EffectiveMCPURL(), cfg.MCPAPIKey(), analysisOpts),
+		SignalAPI:     mcp.NewClient(cfg.SignalAPIURL(), cfg.SignalAPIKey(), mcpOpts),
+		SignalCatalog: mcp.NewClient(cfg.SignalCatalogURL(), cfg.SignalCatalogAPIKey(), mcpOpts),
+		SignalAnalyze: mcp.NewClient(cfg.SignalAnalyzeURL(), cfg.SignalAnalyzeAPIKey(), analysisOpts),
+	}
 
 	registry := tools.NewRegistry()
 	workingLoader := workflow.WorkingLoaderAdapter{Store: working}
 	tools.RegisterAll(registry, tools.Deps{
-		MCP: mcpClient, WorkspaceRoot: workspace, ProjectRoot: findProjectRoot(),
+		HTTP: httpBackends, WorkspaceRoot: workspace, ProjectRoot: findProjectRoot(),
 		Working: workingLoader, Search: cfg.EffectiveSearch(),
 	})
 
@@ -73,39 +98,256 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	wf := workflow.NewRunner(executor, working, cpAdapter)
 
 	app := &App{
-		Config: cfg, MCP: mcpClient, Registry: registry,
+		Config: cfg, MCP: httpBackends.MCP, Registry: registry,
 		Executor: executor, Workflow: wf, Working: working, State: state, Checkpoints: checkpoints, EventBus: eventBus, Workspace: workspace,
+	}
+	if err := app.openDatabase(); err != nil {
+		fmt.Fprintf(os.Stderr, "警告: SQLite 未启用: %v（回退到文件存储）\n", err)
 	}
 	if err := app.RebuildGateway(); err != nil {
 		fmt.Fprintf(os.Stderr, "警告: LLM 未就绪: %v\n", err)
 	}
 	app.Loop = runtime.NewReActLoop(app.Gateway, executor)
+	app.Loop.SetMaxToolRounds(cfg.EffectiveMaxSteps())
+	app.Agent = agent.New(app.Gateway, executor, registry)
+	app.Agent.SetMaxToolRounds(cfg.EffectiveMaxSteps())
+	app.wireCompressor()
+	if adapter := newSynthesizerAdapter(app.Gateway, app.Config.LLM.Model); adapter != nil {
+		workflow.SetDefaultSynthesizer(adapter)
+	}
 
 	return app, nil
 }
 
-// RebuildGateway recreates the LLM gateway from current config (after /think or /model).
-func (a *App) RebuildGateway() error {
-	provider, err := llm.BuildProviderFromLLMFields(
-		a.Config.LLM.Provider, a.Config.LLM.TokenKey, a.Config.LLM.Model,
-		a.Config.LLM.Thinking, a.Config.LLM.ReasoningEffort,
-	)
+// openDatabase opens the SQLite store at workspace/geegoo.db unless
+// GEEGOO_DB=off. On success wires EvidenceStore. Failure is non-fatal:
+// callers fall back to the legacy file StateStore.
+func (a *App) openDatabase() error {
+	if v := strings.ToLower(strings.TrimSpace(os.Getenv("GEEGOO_DB"))); v == "off" || v == "0" || v == "false" {
+		return nil
+	}
+	dbPath := filepath.Join(a.Workspace, "geegoo.db")
+	db, err := infra.OpenSQLite(dbPath)
 	if err != nil {
 		return err
 	}
-	a.Gateway = llm.NewGateway(provider, llm.GatewayConfig{
-		MaxRetries: 3, Temperature: a.Config.LLM.Temperature, MaxTokens: a.Config.LLM.MaxTokens,
-	})
-	if a.Loop != nil {
-		a.Loop.SetGateway(a.Gateway)
+	a.DB = db
+	a.Evidence = memory.NewEvidenceStore(db)
+	return nil
+}
+
+// Close releases resources owned by the App (currently the SQLite handle).
+func (a *App) Close() error {
+	if a.DB != nil {
+		return a.DB.Close()
 	}
 	return nil
 }
 
+// RebuildGateway recreates the LLM gateway from current config (after /think or /model).
+// When llm.use_ops_model is true/nil, prefers ops configured model from Signal catalog/admin.
+func (a *App) RebuildGateway() error {
+	providerName := a.Config.LLM.Provider
+	tokenKey := a.Config.LLM.TokenKey
+	model := a.Config.LLM.Model
+	baseURL := strings.TrimSpace(a.Config.LLM.BaseURL)
+
+	if a.Config.LLM.OpsModelEnabled() && strings.TrimSpace(a.Config.LLM.CatalogModelID) == "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		targets := make([]admin.QueryTarget, 0, len(a.Config.AdminModelQueryTargets()))
+		for _, t := range a.Config.AdminModelQueryTargets() {
+			targets = append(targets, admin.QueryTarget{BaseURL: t.BaseURL, Bearer: t.Bearer})
+		}
+		doc, src, err := admin.QueryConfiguredFromTargets(ctx, targets...)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "警告: 拉取运营配置模型失败（回退本地 llm）: %v\n", err)
+		} else {
+			a.applyCatalogModelDoc(&doc, &providerName, &tokenKey, &model, &baseURL)
+			a.syncLLMConfigFromResolved(providerName, tokenKey, model, baseURL)
+			fmt.Fprintf(os.Stderr, "LLM: 使用运营配置 model=%s base_url=%s from %s\n", model, baseURL, src)
+		}
+	} else if id := strings.TrimSpace(a.Config.LLM.CatalogModelID); id != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		targets := make([]admin.QueryTarget, 0, len(a.Config.AdminModelQueryTargets()))
+		for _, t := range a.Config.AdminModelQueryTargets() {
+			targets = append(targets, admin.QueryTarget{BaseURL: t.BaseURL, Bearer: t.Bearer})
+		}
+		doc, src, err := admin.QueryModelFromTargets(ctx, targets, id, false)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "警告: 拉取 catalog 模型失败（回退本地 llm）: %v\n", err)
+		} else {
+			a.applyCatalogModelDoc(&doc, &providerName, &tokenKey, &model, &baseURL)
+			a.syncLLMConfigFromResolved(providerName, tokenKey, model, baseURL)
+			fmt.Fprintf(os.Stderr, "LLM: 使用 catalog 模型 model=%s base_url=%s from %s\n", model, baseURL, src)
+		}
+	}
+
+	provider, err := llm.BuildProviderFromLLMFields(
+		providerName, tokenKey, model,
+		a.Config.LLM.Thinking, a.Config.LLM.ReasoningEffort, baseURL,
+	)
+	if err != nil {
+		return err
+	}
+	thinkingOn := llm.ResolveThinkingEnabled(llm.ProviderName(providerName), model, a.Config.LLM.Thinking)
+	a.Gateway = llm.NewGateway(provider, llm.GatewayConfig{
+		MaxRetries: 3, RetryWait: time.Second, Temperature: a.Config.LLM.Temperature,
+		MaxTokens: a.Config.LLM.EffectiveMaxTokens(thinkingOn),
+	})
+	a.Gateway.SetFallbacks(a.buildFallbackProviders())
+	if a.Loop != nil {
+		a.Loop.SetGateway(a.Gateway)
+	}
+	if a.Agent != nil {
+		a.Agent.SetGateway(a.Gateway)
+	}
+	a.wireCompressor()
+	return nil
+}
+
+func (a *App) applyCatalogModelDoc(doc *admin.ConfiguredModel, providerName, tokenKey, model, baseURL *string) {
+	if doc == nil {
+		return
+	}
+	name := strings.TrimSpace(doc.Name)
+	if name == "" {
+		name = strings.TrimSpace(doc.DisplayName)
+	}
+	if tok := strings.TrimSpace(doc.Token); tok != "" {
+		*tokenKey = tok
+	}
+	if name != "" {
+		*model = name
+	}
+	if bu := strings.TrimSpace(doc.BaseURL); bu != "" {
+		*baseURL = bu
+	}
+	if p := strings.TrimSpace(doc.Provider); p != "" {
+		*providerName = p
+	} else {
+		*providerName = llm.InferProviderFromNames(doc.DisplayName, doc.Name)
+	}
+}
+
+func (a *App) syncLLMConfigFromResolved(providerName, tokenKey, model, baseURL string) {
+	if a == nil || a.Config == nil {
+		return
+	}
+	if m := strings.TrimSpace(model); m != "" {
+		a.Config.LLM.Model = m
+	}
+	if p := strings.TrimSpace(providerName); p != "" {
+		a.Config.LLM.Provider = p
+	}
+	if bu := strings.TrimSpace(baseURL); bu != "" {
+		a.Config.LLM.BaseURL = bu
+	}
+	if tok := strings.TrimSpace(tokenKey); tok != "" {
+		a.Config.LLM.TokenKey = tok
+	}
+}
+
+// EffectiveLLMModel returns the active chat model (gateway wins over config).
+func (a *App) EffectiveLLMModel() string {
+	if a != nil && a.Gateway != nil {
+		if m := strings.TrimSpace(a.Gateway.Model()); m != "" {
+			return m
+		}
+	}
+	if a == nil || a.Config == nil {
+		return ""
+	}
+	cfg := a.Config.LLM
+	return llm.ResolveModel(llm.ProviderName(cfg.Provider), cfg.Model)
+}
+
+func (a *App) buildFallbackProviders() []llm.Provider {
+	if a == nil || a.Config == nil {
+		return nil
+	}
+	var out []llm.Provider
+	for _, fb := range a.Config.LLM.Fallbacks {
+		if strings.TrimSpace(fb.TokenKey) == "" {
+			continue
+		}
+		p, err := llm.BuildProviderFromLLMFields(
+			fb.Provider, fb.TokenKey, fb.Model,
+			fb.Thinking, fb.ReasoningEffort, fb.BaseURL,
+		)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "警告: fallback LLM 跳过 (%s): %v\n", fb.Provider, err)
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+func (a *App) wireCompressor() {
+	cfg := a.Config.EffectiveCompression()
+	if !cfg.Enabled {
+		a.setCompressor(nil)
+		return
+	}
+	model := ""
+	if a.Gateway != nil {
+		model = a.Gateway.Model()
+	}
+	if model == "" {
+		model = a.Config.LLM.Model
+	}
+	// Explicit config.compression.context_length wins; otherwise resolve from model.
+	cfg.ContextLength = llm.ResolveContextWindow(model, a.Config.Compression.ContextLength)
+	aux := a.Config.EffectiveAuxiliaryCompression()
+	provider, err := llm.BuildProviderFromLLMFields(aux.Provider, aux.TokenKey, aux.Model, nil, "", aux.BaseURL)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "警告: 上下文压缩未启用: %v\n", err)
+		a.setCompressor(nil)
+		return
+	}
+	a.setCompressor(prompt.NewCompressor(cfg, &prompt.ProviderSummarizer{Provider: provider}))
+}
+
+func (a *App) setCompressor(c *prompt.Compressor) {
+	if a.Agent != nil {
+		a.Agent.SetCompressor(c)
+	}
+	if a.Loop != nil {
+		a.Loop.SetCompressor(c)
+	}
+}
+
+// Skills is the registry of runnable skills (built-in + any registered at runtime).
+var DefaultSkills = skills.Default()
+
 // RunPreMarket executes the pre_market skill workflow.
+// Kept for backward compatibility; new callers should use RunSkill.
 func (a *App) RunPreMarket(skill string) (workflow.RunResult, error) {
-	if skill != "pre_market" {
-		return workflow.RunResult{}, fmt.Errorf("unsupported skill: %s", skill)
+	return a.RunSkill(skill)
+}
+
+// RunSkill executes a named skill workflow looked up in the skill registry.
+// Returns an error if the skill is not registered.
+func (a *App) RunSkill(skill string) (workflow.RunResult, error) {
+	return a.RunSkillContext(context.Background(), skill)
+}
+
+// RunSkillContext executes a named skill with cancellation propagated to tools
+// and optional LLM synthesis.
+func (a *App) RunSkillContext(ctx context.Context, skill string) (workflow.RunResult, error) {
+	spec, ok := DefaultSkills.Get(skill)
+	if !ok {
+		return workflow.RunResult{}, fmt.Errorf("unknown skill: %s (run 'geegoo skills list')", skill)
+	}
+	if spec.PhaseA == nil || spec.PerStock == nil {
+		return workflow.RunResult{}, fmt.Errorf("skill %s has no step functions defined", skill)
+	}
+	phaseA := spec.PhaseA()
+	perStock := spec.PerStock()
+	if len(phaseA) == 0 && len(perStock) == 0 {
+		return workflow.RunResult{}, fmt.Errorf("skill %s is registered but has no executable steps", skill)
 	}
 	sessionID := newSessionID()
 	a.EventBus.Emit("RunStarted", map[string]any{"session_id": sessionID, "skill": skill})
@@ -113,13 +355,19 @@ func (a *App) RunPreMarket(skill string) (workflow.RunResult, error) {
 	if err != nil {
 		return workflow.RunResult{}, err
 	}
-	ctx := a.ToolContext(sessionID)
-	result := a.Workflow.Run(sessionID, skill, workflow.PhaseASteps(), workflow.PerStockSteps(), ctx, working)
+	toolCtx := a.ToolContextWithContext(ctx, sessionID)
+	result := a.Workflow.Run(sessionID, skill, phaseA, perStock, toolCtx, working)
 	return result, nil
 }
 
-// ResumePreMarket resumes a pre_market workflow from its latest checkpoint.
+// ResumePreMarket resumes a workflow from its latest checkpoint. The checkpoint's
+// skill name drives step lookup via the registry, so resume works for any skill.
 func (a *App) ResumePreMarket(sessionID string) (workflow.RunResult, error) {
+	return a.ResumePreMarketContext(context.Background(), sessionID)
+}
+
+// ResumePreMarketContext resumes a workflow and propagates cancellation to tool calls.
+func (a *App) ResumePreMarketContext(ctx context.Context, sessionID string) (workflow.RunResult, error) {
 	cp, err := a.Checkpoints.LoadLatest(sessionID)
 	if err != nil {
 		return workflow.RunResult{}, err
@@ -127,8 +375,14 @@ func (a *App) ResumePreMarket(sessionID string) (workflow.RunResult, error) {
 	if cp == nil {
 		return workflow.RunResult{}, fmt.Errorf("checkpoint not found for session: %s", sessionID)
 	}
-	if cp.Skill != "pre_market" {
+	spec, ok := DefaultSkills.Get(cp.Skill)
+	if !ok || spec.PhaseA == nil || spec.PerStock == nil {
 		return workflow.RunResult{}, fmt.Errorf("unsupported checkpoint skill: %s", cp.Skill)
+	}
+	phaseA := spec.PhaseA()
+	perStock := spec.PerStock()
+	if len(phaseA) == 0 && len(perStock) == 0 {
+		return workflow.RunResult{}, fmt.Errorf("checkpoint skill %s has no executable steps", cp.Skill)
 	}
 	working, err := a.Working.Load(sessionID)
 	if err != nil {
@@ -140,16 +394,34 @@ func (a *App) ResumePreMarket(sessionID string) (workflow.RunResult, error) {
 	if cp.Status == "completed" || working.Phase == "done" {
 		return workflow.RunResult{SessionID: sessionID, Status: "completed", Working: working}, nil
 	}
-	ctx := a.ToolContext(sessionID)
-	return a.Workflow.RunFrom(sessionID, cp.Skill, workflow.PhaseASteps(), workflow.PerStockSteps(), ctx, working, cp.Step), nil
+	toolCtx := a.ToolContextWithContext(ctx, sessionID)
+	return a.Workflow.RunFrom(sessionID, cp.Skill, phaseA, perStock, toolCtx, working, cp.Step), nil
 }
 
 // ToolContext builds execution context for the current session.
 func (a *App) ToolContext(sessionID string) tools.Context {
+	return a.ToolContextWithContext(context.Background(), sessionID)
+}
+
+// ToolContextWithContext builds execution context for the current session.
+func (a *App) ToolContextWithContext(ctx context.Context, sessionID string) tools.Context {
 	return tools.Context{
-		SessionID: sessionID, MCPToken: a.Config.MCPToken(), DryRun: a.Config.DryRun,
+		Ctx: ctx, SessionID: sessionID, MCPToken: a.Config.MCPToken(), DryRun: a.Config.DryRun,
 		WorkspaceRoot: a.Workspace, EventBus: a.EventBus, StateStore: a.State,
 	}
+}
+
+// ChatToolNames returns registry tools enabled for interactive chat
+// (filtered by config chat_toolsets).
+func (a *App) ChatToolNames() []string {
+	if a == nil {
+		return nil
+	}
+	var ids []string
+	if a.Config != nil {
+		ids = a.Config.EffectiveChatToolsets()
+	}
+	return tools.RegisteredChatToolNamesFor(a.Registry, ids)
 }
 
 // EndpointSummary prints GeeGoo service endpoints.
@@ -169,7 +441,11 @@ func findProjectRoot() string {
 }
 
 func newSessionID() string {
-	return "run-" + fmt.Sprintf("%d", os.Getpid())
+	var suffix [4]byte
+	if _, err := cryptorand.Read(suffix[:]); err == nil {
+		return fmt.Sprintf("run-%s-%d-%s", time.Now().UTC().Format("20060102T150405.000000000Z"), os.Getpid(), hex.EncodeToString(suffix[:]))
+	}
+	return fmt.Sprintf("run-%s-%d-%d", time.Now().UTC().Format("20060102T150405.000000000Z"), os.Getpid(), atomic.AddUint64(&fallbackSessionCounter, 1))
 }
 
 func encodeWorkingMap(w *memory.PreMarketWorking) map[string]any {

@@ -21,7 +21,7 @@
 
 ### 1.1 基础路径与认证
 
-- **基础路径**：geegoo mcp 根地址（默认示例：`http://0.0.0.0:5700`）
+- **基础路径**：GeeGooBot mcp-api 根地址（默认示例：`http://127.0.0.1:3120`）
 - **认证**：请求头 `Authorization: Bearer <API_KEY>`（MCP 的 API Key，见 `mcpAPIServer` 配置）
   - 缺少或格式错误返回 `401`；Key 无效返回 `401`。
 
@@ -212,7 +212,7 @@ MCP 转发至 Signal Server 时使用 `Config/APIConnection.py` 中的 `--signal
 
 ```bash
 # DCA 回测（固定止盈止损）
-curl -X POST "http://localhost:5700/loopBackStrategy" \
+curl -X POST "http://localhost:3120/loopBackStrategy" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{
@@ -226,7 +226,7 @@ curl -X POST "http://localhost:5700/loopBackStrategy" \
   }'
 
 # GRID 回测
-curl -X POST "http://localhost:5700/loopBackStrategy" \
+curl -X POST "http://localhost:3120/loopBackStrategy" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{
@@ -260,5 +260,5 @@ curl -X POST "http://localhost:5700/loopBackStrategy" \
 
 | 说明 | 路径 |
 |------|------|
-| MCP 接口定义 | `mcpAPIServer.py`：`/loopBackStrategy`、`_forward_to_signal_server` |
+| MCP 接口定义 | `mcp-api`：`/loopBackStrategy`、`_forward_to_signal_server` |
 | 上游服务配置 | `Config/APIConnection.py`：`Signal_Server`、`Signal_Server_API_Key` |

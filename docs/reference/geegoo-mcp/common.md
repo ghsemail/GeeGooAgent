@@ -1,6 +1,6 @@
 # MCP API 公共说明
 
-本文档汇总 **geegoo mcp** 的**认证**、**`mcp_token`**、**账户持仓与 Bot 运行日志**、**机器人分类与 `frequency` 枚举**等跨专题约定。
+本文档汇总 **GeeGooBot mcp-api** 的**认证**、**`mcp_token`**、**账户持仓与 Bot 运行日志**、**机器人分类与 `frequency` 枚举**等跨专题约定。
 
 **行情类接口**（搜码、报价、信号列表等）见 [market/trading-data.md](./market/trading-data.md)。**报告 Workflow** 见 [market/reports.md](./market/reports.md)。**分析与 Prompt** 见 [analyst/agent-analyst.md](./analyst/agent-analyst.md)。
 
@@ -36,7 +36,7 @@
 | **SmartTrade 交易机器人** | [bot/smart-trade.md](./bot/smart-trade.md) | `SmartTrade` |
 | **HDG 对冲交易机器人** | [bot/hdg-bot.md](./bot/hdg-bot.md) | `HDG` |
 
-- **基础路径**：geegoo mcp 根地址（部署示例：`http://<host>:5700`）
+- **基础路径**：GeeGooBot mcp-api 根地址（部署示例：`http://<host>:3120`）
 - **标的搜索、报价、信号列表**：见 [market/trading-data.md](./market/trading-data.md)
 
 ---
@@ -138,7 +138,7 @@
 **请求示例**
 
 ```bash
-curl -X POST "http://<host>:5700/getBotLogByType" \
+curl -X POST "http://<host>:3120/getBotLogByType" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token":"your_mcp_token","type":"DCA","bot_id":"66494754fbe37cd6846ebd89"}'

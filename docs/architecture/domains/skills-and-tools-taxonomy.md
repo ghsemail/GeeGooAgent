@@ -1,7 +1,7 @@
 # Skill 与 Tool 分类
 
 > **SSOT**：[interface-map.md](../../reference/geegoo-mcp/interface-map.md)  
-> **背景**：原 `geegoo` + `geegoo_agent` 双 Skill 已合并为 **`~/.cursor/skills/geegoo`**，统一 geegoo mcp :5700。  
+> **背景**：原 `geegoo` + `geegoo_agent` 双 Skill 已合并为 **`~/.cursor/skills/geegoo`**，统一 GeeGooBot mcp-api :3120。  
 > GeeGoo Agent 运行时：**定时报告走 Skill**，**可复用能力走 Tool**。
 
 ## 1. 一句话原则
@@ -30,7 +30,7 @@ bot / reminder ×6             →  Tool 池（bot_manager）
 
 每个 Skill = `skills/<name>/` 目录 + `manifest.yaml` 白名单 + workflow 步骤表。
 
-| Skill | TradingBot 依据 | 触发 | Phase | 状态 |
+| Skill | GeeGooBot 依据 | 触发 | Phase | 状态 |
 |-------|-----------------|------|-------|------|
 | **`pre_market`** | `geegoo-mcp/market/reports.md` §盘前 | timer 08:00 | 1 | ✅ 已实现 |
 | **`intraday`** | `geegoo-mcp/market/reports.md` §盘中交易决策 | webhook / 信号 | 3 | 📋 规划 |
@@ -61,7 +61,7 @@ bot / reminder ×6             →  Tool 池（bot_manager）
 
 ---
 
-## 3. Tool 池（L2）— 按 TradingBot 文档分域
+## 3. Tool 池（L2）— 按 GeeGooBot 文档分域
 
 Tool **不属于某个 Skill 独占**；Skill 通过 `manifest.yaml` 的 `tools:` 白名单订阅子集。
 
@@ -79,7 +79,7 @@ Tool **不属于某个 Skill 独占**；Skill 通过 `manifest.yaml` 的 `tools:
 | `create_pre_market_report` | `/createPreMarketReport` | **pre_market** |
 | `create_intraday_trade_decision_report` | `/createIntradayTradeDecisionReport` | **intraday**（未实现） |
 | `create_post_market_report` | `/createPostMarketReport` | **post_market**（未实现） |
-| `get_pre_market_reports` / update / delete | 5700 | 查询维护（Tool，非 Skill） |
+| `get_pre_market_reports` / update / delete | 3120 | 查询维护（Tool，非 Skill） |
 
 ### 3.2 AgentAnalyst 分析原子 — **Tool，不是 Skill**
 
@@ -94,7 +94,7 @@ Tool **不属于某个 Skill 独占**；Skill 通过 `manifest.yaml` 的 `tools:
 | `get_stock_daily_reports` | 按日聚合三类报告 | 所有报告 Skill（幂等/对照） |
 | `list_today_reports` | 幂等别名 | 报告 Skill |
 
-### 3.3 Common 通用（5700）— **Tool**
+### 3.3 Common 通用（3120）— **Tool**
 
 来源：`geegoo-mcp/common.md`
 
@@ -194,7 +194,7 @@ src/geegoo/tools/    ← 16 个 Tool 全部注册，manifest 白名单过滤
 
 1. **新增 Skill 壳**：`skills/intraday/`、`skills/post_market/`（manifest + workflow 占位 + supervisor 占位）。
 2. **manifest 只列本 Skill 需要的 Tool**，不要复制 16 个全集。
-3. **tool-catalog.md** 表头增加列：`TradingBot 文档` | `默认归属 Skill` | `实现状态`。
+3. **tool-catalog.md** 表头增加列：`GeeGooBot 文档` | `默认归属 Skill` | `实现状态`。
 4. **bundled 保持不在 Skill 列表**，仅在 manifest `bundled:` 声明依赖。
 
 ---

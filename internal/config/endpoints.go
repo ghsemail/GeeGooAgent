@@ -9,6 +9,7 @@ import (
 // GeeGoo 服务默认端口（见 docs/refactor/ports.md）。
 const (
 	DefaultBotMCPURL        = "http://127.0.0.1:3120"
+	DefaultSignalAPIURL     = "http://127.0.0.1:3200"
 	DefaultSignalCatalogURL = "http://127.0.0.1:3210"
 	DefaultSignalAnalyzeURL = "http://127.0.0.1:3230"
 	DefaultDataHTTPURL      = "http://127.0.0.1:3300"
@@ -25,10 +26,146 @@ func (c *AppConfig) SignalCatalogURL() string {
 	return DefaultSignalCatalogURL
 }
 
+// SignalAPIURL returns GeeGooSignal signal-api (:3200).
+func (c *AppConfig) SignalAPIURL() string {
+	if v := os.Getenv("GEEGOO_SIGNAL_SIGNAL_API_URL"); v != "" {
+		return trimSlash(v)
+	}
+	if c.SignalAPIURLField != "" {
+		return trimSlash(c.SignalAPIURLField)
+	}
+	if c.SignalBaseURL != "" {
+		if u := replacePort(c.SignalBaseURL, "3200"); u != "" {
+			return u
+		}
+	}
+	return DefaultSignalAPIURL
+}
+
+// SignalAPIKey returns Bearer for GeeGooSignal signal-api.
+func (c *AppConfig) SignalAPIKey() string {
+	if v := os.Getenv("GEEGOO_SIGNAL_SIGNAL_API_KEY"); v != "" {
+		return v
+	}
+	if c.SignalAPIKeyField != "" {
+		return c.SignalAPIKeyField
+	}
+	return c.MCPAPIKey()
+}
+
+// SignalCatalogAPIKey returns Bearer for GeeGooSignal catalog-api.
+func (c *AppConfig) SignalCatalogAPIKey() string {
+	if v := os.Getenv("GEEGOO_SIGNAL_CATALOG_API_KEY"); v != "" {
+		return v
+	}
+	if c.SignalCatalogAPIKeyField != "" {
+		return c.SignalCatalogAPIKeyField
+	}
+	return c.SignalAPIKey()
+}
+
+// AdminModelURLs returns candidate bases for POST /queryModel.
+func (c *AppConfig) AdminModelURLs() []string {
+	out := make([]string, 0, len(c.AdminModelQueryTargets()))
+	for _, t := range c.AdminModelQueryTargets() {
+		out = append(out, t.BaseURL)
+	}
+	return out
+}
+
+// AdminModelQueryTarget pairs a queryModel base with optional Bearer.
+type AdminModelQueryTarget struct {
+	BaseURL string
+	Bearer  string
+}
+
+// AdminModelQueryTargets lists ops LLM sources: GeeGooSignal catalog-api :3210 only.
+func (c *AppConfig) AdminModelQueryTargets() []AdminModelQueryTarget {
+	var out []AdminModelQueryTarget
+	if v := os.Getenv("GEEGOO_ADMIN_URL"); v != "" {
+		out = append(out, AdminModelQueryTarget{BaseURL: trimSlash(v)})
+	}
+	out = append(out, AdminModelQueryTarget{
+		BaseURL: c.SignalCatalogURL(),
+		Bearer:  c.SignalCatalogAPIKey(),
+	})
+	return uniqueQueryTargets(out)
+}
+
+func uniqueQueryTargets(in []AdminModelQueryTarget) []AdminModelQueryTarget {
+	seen := map[string]struct{}{}
+	var out []AdminModelQueryTarget
+	for _, t := range in {
+		base := strings.TrimSpace(t.BaseURL)
+		if base == "" {
+			continue
+		}
+		if _, ok := seen[base]; ok {
+			continue
+		}
+		seen[base] = struct{}{}
+		out = append(out, AdminModelQueryTarget{BaseURL: base, Bearer: t.Bearer})
+	}
+	return out
+}
+
+func replacePort(raw, port string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	// crude host:port swap for http(s)://host:port
+	schemeSep := "://"
+	i := strings.Index(raw, schemeSep)
+	if i < 0 {
+		return ""
+	}
+	rest := raw[i+len(schemeSep):]
+	host := rest
+	if j := strings.Index(rest, "/"); j >= 0 {
+		host = rest[:j]
+	}
+	if k := strings.LastIndex(host, ":"); k >= 0 {
+		host = host[:k]
+	}
+	return raw[:i+len(schemeSep)] + host + ":" + port
+}
+
+func uniqueNonEmpty(in []string) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	for _, s := range in {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	return out
+}
+
+// SignalAnalyzeAPIKey returns Bearer for GeeGooSignal analyze-api (:3230).
+func (c *AppConfig) SignalAnalyzeAPIKey() string {
+	if v := os.Getenv("GEEGOO_SIGNAL_ANALYZE_API_KEY"); v != "" {
+		return v
+	}
+	if c.SignalAnalyzeAPIKeyField != "" {
+		return c.SignalAnalyzeAPIKeyField
+	}
+	return c.SignalCatalogAPIKey()
+}
+
 // SignalAnalyzeURL returns GeeGooSignal analyze-api (:3230).
 func (c *AppConfig) SignalAnalyzeURL() string {
 	if v := os.Getenv("GEEGOO_SIGNAL_ANALYZE_API_URL"); v != "" {
 		return trimSlash(v)
+	}
+	if c.SignalAnalyzeURLField != "" {
+		return trimSlash(c.SignalAnalyzeURLField)
 	}
 	return DefaultSignalAnalyzeURL
 }

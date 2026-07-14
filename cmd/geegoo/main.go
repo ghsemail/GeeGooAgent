@@ -29,6 +29,14 @@ func main() {
 		runChat(os.Args[2:])
 	case "run":
 		runSkill(os.Args[2:])
+	case "migrate":
+		runMigrate(os.Args[2:])
+	case "skills":
+		runSkills(os.Args[2:])
+	case "scheduler":
+		runScheduler(os.Args[2:])
+	case "verify":
+		runVerify(os.Args[2:])
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -59,8 +67,12 @@ Usage:
   %s update [--dir PATH]
   %s resume --session ID [--config PATH] [--dry-run]
   %s doctor [--config PATH]
-  %s chat [--config PATH] [--dry-run] [--message TEXT]
+  %s chat [--config PATH] [--dry-run] [--message TEXT] [--session ID] [--tui|--cli]
   %s run <skill> [--config PATH] [--dry-run]
+  %s migrate [--config PATH] [--dry-run]
+  %s skills list
+  %s scheduler <run|list> [--config PATH]
+  %s verify --codes CODES [--date YYYY-MM-DD] [--config PATH]
 
-`, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
+`, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
 }

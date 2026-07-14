@@ -21,8 +21,6 @@ stateDiagram-v2
   failed --> [*]
 ```
 
-
-
 ## Session 模型
 
 ```python

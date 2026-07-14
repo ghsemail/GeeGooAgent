@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 
@@ -40,8 +42,9 @@ func runSetup(args []string) {
 		os.Exit(1)
 	}
 	fmt.Printf("config=%s\n", *configPath)
-	fmt.Printf("mcp=%s signal_catalog=%s signal_analyze=%s data=%s\n",
+	fmt.Printf("mcp=%s signal_api=%s signal_catalog=%s signal_analyze=%s data=%s\n",
 		config.DefaultBotMCPURL,
+		config.DefaultSignalAPIURL,
 		config.DefaultSignalCatalogURL,
 		config.DefaultSignalAnalyzeURL,
 		config.DefaultDataHTTPURL,
@@ -88,7 +91,9 @@ func runResume(args []string) {
 		fmt.Fprintf(os.Stderr, "resume: %v\n", err)
 		os.Exit(2)
 	}
-	result, err := application.ResumePreMarket(*sessionID)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	result, err := application.ResumePreMarketContext(ctx, *sessionID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "resume: %v\n", err)
 		os.Exit(1)

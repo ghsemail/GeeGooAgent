@@ -3,6 +3,7 @@ package memory
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -52,6 +53,7 @@ func (s *WorkingStore) Save(w *PreMarketWorking) error {
 // Apply updates working memory after a tool result.
 func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.Result) (*PreMarketWorking, error) {
 	updated := cloneWorking(w)
+	observedAt := time.Now()
 	stepKey := fmt.Sprintf("%s:%s", toolName, result.Status)
 	if !contains(updated.StepsCompleted, stepKey) {
 		updated.StepsCompleted = append(updated.StepsCompleted, stepKey)
@@ -94,6 +96,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 		analysis, _ := data["analysis_result"].(string)
 		if _, isIndex := preMarketIndexCodes[code]; isIndex {
 			updated.MarketContext.IndexAnalysisRefs[code] = truncate(analysis, 2000)
+			addEvidence(updated, toolName, "market.index."+code, analysis, data, observedAt)
 			if !contains(updated.MarketContext.IndexCodesDone, code) {
 				updated.MarketContext.IndexCodesDone = append(updated.MarketContext.IndexCodesDone, code)
 			}
@@ -103,6 +106,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 		} else if ws, ok := updated.Stocks[code]; ok && period == "weekly" {
 			ws.WeeklyAnalysisRef = truncate(analysis, 2000)
 			updated.Stocks[code] = ws
+			addEvidence(updated, toolName, "stock."+code+".weekly_analysis", analysis, data, observedAt)
 		}
 	case "fetch_stock_news":
 		code, _ := data["code"].(string)
@@ -110,6 +114,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 		if ws, ok := updated.Stocks[code]; ok {
 			ws.StockNewsSummary = truncate(text, 2000)
 			updated.Stocks[code] = ws
+			addEvidence(updated, toolName, "stock."+code+".news", text, data, observedAt)
 		}
 	case "get_capital_flow":
 		code, _ := data["code"].(string)
@@ -123,6 +128,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 				ws.CapitalFlowSummary = fmt.Sprintf("main_in_flow=%v", latest["main_in_flow"])
 			}
 			updated.Stocks[code] = ws
+			addEvidence(updated, toolName, "stock."+code+".capital_flow", ws.CapitalFlowSummary, data, observedAt)
 		}
 	case "get_capital_distribution":
 		code, _ := data["code"].(string)
@@ -137,6 +143,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 				}
 			}
 			updated.Stocks[code] = ws
+			addEvidence(updated, toolName, "stock."+code+".capital_distribution", ws.CapitalDistributionSummary, data, observedAt)
 		}
 	case "get_bot_yesterday_attitude":
 		code, _ := data["code"].(string)
@@ -147,6 +154,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 			att, _ := data["attitude"].(string)
 			ws.Attitude = att
 			updated.Stocks[code] = ws
+			addEvidence(updated, toolName, "stock."+code+".bot_yesterday_attitude", att, data, observedAt)
 		}
 	case "list_today_reports":
 		code, _ := data["code"].(string)
@@ -177,6 +185,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 		text, _ := data["text"].(string)
 		if market != "" {
 			updated.MarketContext.MarketNews[market] = truncate(text, 2000)
+			addEvidence(updated, toolName, "market.news."+market, text, data, observedAt)
 		}
 		if hasAllMarkets(updated.MarketContext.MarketNews) {
 			updated.MarketContext.MarketNewsDone = true
@@ -222,6 +231,21 @@ func contains(list []string, v string) bool {
 	return false
 }
 
+func addEvidence(w *PreMarketWorking, toolName, source, summary string, payload any, observedAt time.Time) {
+	summary = strings.TrimSpace(summary)
+	if summary == "" {
+		return
+	}
+	ref := NewEvidenceRef(w.SessionID, toolName, source, summary, payload, observedAt)
+	for i, existing := range w.EvidenceRefs {
+		if existing.ID == ref.ID {
+			w.EvidenceRefs[i] = ref
+			return
+		}
+	}
+	w.EvidenceRefs = append(w.EvidenceRefs, ref)
+}
+
 func botFromMap(m map[string]any) BotStock {
 	return BotStock{
 		Code:      str(m, "code"),
@@ -243,6 +267,7 @@ func cloneWorking(w *PreMarketWorking) *PreMarketWorking {
 	c := *w
 	c.BotCodes = append([]BotStock(nil), w.BotCodes...)
 	c.StepsCompleted = append([]string(nil), w.StepsCompleted...)
+	c.CompletedStepKeys = append([]string(nil), w.CompletedStepKeys...)
 	c.MarketContext.IndexCodesDone = append([]string(nil), w.MarketContext.IndexCodesDone...)
 	c.MarketContext.IndexAnalysisRefs = map[string]string{}
 	for k, v := range w.MarketContext.IndexAnalysisRefs {
@@ -260,6 +285,7 @@ func cloneWorking(w *PreMarketWorking) *PreMarketWorking {
 	for k, v := range w.Artifacts {
 		c.Artifacts[k] = v
 	}
+	c.EvidenceRefs = append([]EvidenceRef(nil), w.EvidenceRefs...)
 	return &c
 }
 
@@ -268,7 +294,9 @@ func encodeWorking(w *PreMarketWorking) map[string]any {
 	m := map[string]any{
 		"session_id": w.SessionID, "skill": w.Skill, "phase": w.Phase,
 		"current_stock_code": w.CurrentStock,
-		"steps_completed": w.StepsCompleted, "artifacts": w.Artifacts,
+		"steps_completed":    w.StepsCompleted, "artifacts": w.Artifacts,
+		"completed_step_keys": w.CompletedStepKeys,
+		"evidence_refs": encodeEvidenceRefs(w.EvidenceRefs),
 	}
 	if w.IsTradingDay != nil {
 		m["is_trading_day"] = *w.IsTradingDay
@@ -284,7 +312,7 @@ func encodeWorking(w *PreMarketWorking) map[string]any {
 	m["market_context"] = map[string]any{
 		"indices_done": w.MarketContext.IndicesDone, "market_news_done": w.MarketContext.MarketNewsDone,
 		"index_analysis_refs": w.MarketContext.IndexAnalysisRefs,
-		"index_codes_done": w.MarketContext.IndexCodesDone, "market_news": w.MarketContext.MarketNews,
+		"index_codes_done":    w.MarketContext.IndexCodesDone, "market_news": w.MarketContext.MarketNews,
 	}
 	stocks := map[string]any{}
 	for k, v := range w.Stocks {
@@ -292,14 +320,25 @@ func encodeWorking(w *PreMarketWorking) map[string]any {
 			"code": v.Code, "stock_name": v.StockName, "bot_id": v.BotID,
 			"bot_name": v.BotName, "bot_type": v.BotType, "status": v.Status,
 			"weekly_analysis_ref": v.WeeklyAnalysisRef, "attitude": v.Attitude,
-			"capital_flow_summary": v.CapitalFlowSummary,
+			"capital_flow_summary":         v.CapitalFlowSummary,
 			"capital_distribution_summary": v.CapitalDistributionSummary,
-			"report_ref": v.ReportRef, "report_id": v.ReportID,
+			"report_ref":                   v.ReportRef, "report_id": v.ReportID,
 			"stock_news_summary": v.StockNewsSummary,
 		}
 	}
 	m["stocks"] = stocks
 	return m
+}
+
+func encodeEvidenceRefs(refs []EvidenceRef) []map[string]any {
+	out := make([]map[string]any, 0, len(refs))
+	for _, ref := range refs {
+		out = append(out, map[string]any{
+			"id": ref.ID, "run_id": ref.RunID, "tool": ref.Tool, "source": ref.Source,
+			"observed_at": ref.ObservedAt, "payload_hash": ref.PayloadHash, "summary": ref.Summary,
+		})
+	}
+	return out
 }
 
 func decodeWorking(data map[string]any) (*PreMarketWorking, error) {
@@ -316,10 +355,27 @@ func decodeWorking(data map[string]any) (*PreMarketWorking, error) {
 			}
 		}
 	}
+	if keys, ok := data["completed_step_keys"].([]any); ok {
+		for _, s := range keys {
+			if str, ok := s.(string); ok {
+				w.CompletedStepKeys = append(w.CompletedStepKeys, str)
+			}
+		}
+	}
 	if arts, ok := data["artifacts"].(map[string]any); ok {
 		for k, v := range arts {
 			if s, ok := v.(string); ok {
 				w.Artifacts[k] = s
+			}
+		}
+	}
+	if refs, ok := data["evidence_refs"].([]any); ok {
+		for _, raw := range refs {
+			if m, ok := raw.(map[string]any); ok {
+				ref := evidenceRefFromMap(m)
+				if ref.ID != "" {
+					w.EvidenceRefs = append(w.EvidenceRefs, ref)
+				}
 			}
 		}
 	}
@@ -365,17 +421,29 @@ func decodeWorking(data map[string]any) (*PreMarketWorking, error) {
 				w.Stocks[code] = StockWorkspace{
 					Code: code, StockName: str(m, "stock_name"), BotID: str(m, "bot_id"),
 					BotName: str(m, "bot_name"), BotType: str(m, "bot_type"),
-					Status: strDefault(m, "status", "pending"),
+					Status:            strDefault(m, "status", "pending"),
 					WeeklyAnalysisRef: str(m, "weekly_analysis_ref"), Attitude: str(m, "attitude"),
-					CapitalFlowSummary: str(m, "capital_flow_summary"),
+					CapitalFlowSummary:         str(m, "capital_flow_summary"),
 					CapitalDistributionSummary: str(m, "capital_distribution_summary"),
-					ReportRef: str(m, "report_ref"), ReportID: str(m, "report_id"),
+					ReportRef:                  str(m, "report_ref"), ReportID: str(m, "report_id"),
 					StockNewsSummary: str(m, "stock_news_summary"),
 				}
 			}
 		}
 	}
 	return w, nil
+}
+
+func evidenceRefFromMap(m map[string]any) EvidenceRef {
+	return EvidenceRef{
+		ID:          str(m, "id"),
+		RunID:       str(m, "run_id"),
+		Tool:        str(m, "tool"),
+		Source:      str(m, "source"),
+		ObservedAt:  str(m, "observed_at"),
+		PayloadHash: str(m, "payload_hash"),
+		Summary:     str(m, "summary"),
+	}
 }
 
 func stringField(m map[string]any, k string) string {

@@ -4,7 +4,7 @@
 
 本文档描述通过 MCP（Skills）对 **Smart 交易提醒机器人**（`bot_type: SmartReminder`）的**创建、修改、删除、获取列表与运行日志**接口；与 **SmartTrade 交易机器人**（`SmartTrade`）为不同产品线。分类与命名见 `[common.md](./common.md)`「机器人分类与命名」。调用方不传 `user_id`，改为传入 `mcp_token`，由服务端根据 `mcp_token` 解析出对应用户后再调用 Bot 服务对应逻辑。
 
-- **基础路径**：geegoo mcp 根地址（默认示例：`http://0.0.0.0:5700`）
+- **基础路径**：GeeGooBot mcp-api 根地址（默认示例：`http://127.0.0.1:3120`）
 - **认证方式**：请求头 `Authorization: Bearer <API_KEY>`
 
 **公共约定**：`**mcp_token`**、`**frequency**` 共用枚举、信号与技术分析索引等，见 `[common.md](./common.md)`。
@@ -42,7 +42,6 @@ SmartReminder 在持仓过程中按配置持续监测价格，达到止盈或止
 
 ### 接口定义
 
-
 | 项目               | 说明                                               |
 | ---------------- | ------------------------------------------------ |
 | **URL**          | `/createSmartReminder`                           |
@@ -50,11 +49,9 @@ SmartReminder 在持仓过程中按配置持续监测价格，达到止盈或止
 | **Content-Type** | `application/json`                               |
 | **认证**           | 需要在 Header 中携带 `Authorization: Bearer <API_KEY>` |
 
-
 ### 请求体参数
 
 请求体为 JSON，字段说明如下（与 `Constants/Basic_reminder.py` 中 **Smart_Reminder** 结构一致）：
-
 
 | 参数名                  | 类型      | 必填  | Basic_reminder 对应                 | 说明                                                                           |
 | -------------------- | ------- | --- | --------------------------------- | ---------------------------------------------------------------------------- |
@@ -70,7 +67,6 @@ SmartReminder 在持仓过程中按配置持续监测价格，达到止盈或止
 | **binding_bot_name** | string  | 否   | `Smart_Reminder.binding_bot_name` | 关联的 Bot 名称。                                                                  |
 | **price**            | number  | 是   | —（创建时必填）                          | 成本价（持仓成本），必须大于 0。                                                            |
 | **qty**              | integer | 是   | —（创建时必填）                          | 头寸（持仓数量），必须大于 0。                                                             |
-
 
 **说明**：创建接口仅接受上表参数。`type`（固定为 `SmartReminder`）、`reminder_id`（即 `_id`）、`user_id` 由服务端生成或填充，请勿在请求体中传入。**创建时必须提供 `price` 和 `qty`**，否则返回 101 业务错误。**SmartReminder 默认检查频率为 60 分钟**（`frequency` 未传时使用 `60m`）。
 
@@ -90,7 +86,6 @@ SmartReminder 在持仓过程中按配置持续监测价格，达到止盈或止
 }
 ```
 
-
 | 字段                            | 类型      | 说明                                                                                                 |
 | ----------------------------- | ------- | -------------------------------------------------------------------------------------------------- |
 | **tp_switch**                 | boolean | **止盈开关**。为 `true` 时开启止盈，达到止盈条件后触发止盈（自动卖出或提醒）。                                                      |
@@ -100,7 +95,6 @@ SmartReminder 在持仓过程中按配置持续监测价格，达到止盈或止
 | **fix_tp**                    | number  | **固定止盈**涨幅百分比。例如 5 表示买入后上涨 5% 即触发止盈。                                                               |
 | **profit_trailing**           | boolean | **止盈跟踪**开关。为 `true` 时（默认开启），触发止盈后不立即卖出，持续持有直至价格自「触发后的最高点」回落达到 `profit_trailing_deviation` 所设幅度再卖出。 |
 | **profit_trailing_deviation** | number  | **止盈跟踪幅度**（百分比）。默认 `1`，表示自最高点回落 1% 时卖出。                                                            |
-
 
 #### sl 结构说明（止损）
 
@@ -118,7 +112,6 @@ SmartReminder 在持仓过程中按配置持续监测价格，达到止盈或止
 }
 ```
 
-
 | 字段                               | 类型      | 说明                                                                                                            |
 | -------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------- |
 | **sl_switch**                    | boolean | **止损开关**。为 `true` 时开启止损，达到止损条件后触发止损（自动卖出或提醒）。                                                                 |
@@ -128,7 +121,6 @@ SmartReminder 在持仓过程中按配置持续监测价格，达到止盈或止
 | **stop_loss_trailing**           | boolean | **止损跟踪**开关。为 `true` 时（默认开启），触发止损后不立即卖出，持续持有直至价格自「触发后的最高点」回落达到 `stop_loss_trailing_deviation` 所设幅度再卖出，以保留反弹空间。 |
 | **stop_loss_trailing_deviation** | number  | **止损跟踪幅度**（百分比）。默认 `1`，表示自最高点回落 1% 时卖出。                                                                       |
 | **stop_loss_action**             | string  | **止损后动作**。触发止损并卖出后的行为（如仅关闭当前交易或关闭当前机器人），具体取值以服务端约定为准，可为空字符串。                                                  |
-
 
 #### 完整 SmartReminder 示例（创建后 / 获取列表单条结构参考）
 
@@ -241,7 +233,7 @@ SmartReminder 在持仓过程中按配置持续监测价格，达到止盈或止
 ### 请求示例
 
 ```bash
-curl -X POST "http://localhost:5700/createSmartReminder" \
+curl -X POST "http://localhost:3120/createSmartReminder" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token":"mcp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","botname":"黄金ETF止盈止损提醒","stock_name":"黄金ETF","code":"518880.SH","frequency":"5m","price":4.5,"qty":1000,"tp":{"tp_switch":true,"tp_mode":"fix","fix_tp":5,"profit_trailing":true,"profit_trailing_deviation":1},"sl":{"sl_switch":true,"sl_mode":"fix","fix_sl":2,"stop_loss_trailing":false,"stop_loss_trailing_deviation":1}}'
@@ -253,14 +245,13 @@ curl -X POST "http://localhost:5700/createSmartReminder" \
 
 - 本接口只做两件事：用 `mcp_token` 解析 `user_id`，并将请求参数转发至 Bot 服务的 `POST /createBot`（`bot_type: "SmartReminder"`）。
 - 创建逻辑、数量与权限校验、持仓初始化（price/qty）、调度与通知等均在 Bot 服务（botAPIServer）中完成。
-- 默认 Bot 服务地址由 `Config/APIConnection.py` 中 `--bot_server_ip`、`--bot_server_port` 决定（默认 `http://127.0.0.1:5600`）。
+- 默认 Bot 服务地址由 `Config/APIConnection.py` 中 `--bot_server_ip`、`--bot_server_port` 决定（默认 `http://127.0.0.1:3230`）。
 
 ---
 
 ## 修改 SmartReminder
 
 ### 接口定义
-
 
 | 项目               | 说明                                               |
 | ---------------- | ------------------------------------------------ |
@@ -269,9 +260,7 @@ curl -X POST "http://localhost:5700/createSmartReminder" \
 | **Content-Type** | `application/json`                               |
 | **认证**           | 需要在 Header 中携带 `Authorization: Bearer <API_KEY>` |
 
-
 ### 请求体参数
-
 
 | 参数名                  | 类型             | 必填  | 说明                                                                                                 |
 | -------------------- | -------------- | --- | -------------------------------------------------------------------------------------------------- |
@@ -289,7 +278,6 @@ curl -X POST "http://localhost:5700/createSmartReminder" \
 | **price**            | number         | 否   | 成本价；传入则更新持仓成本。                                                                                     |
 | **qty**              | integer        | 否   | 头寸；传入则更新持仓数量。                                                                                      |
 | **switch**           | boolean/string | 否   | 提醒总开关，如 `true` / `"True"`；写入库时为 `smart_reminder_info.switch`。                                      |
-
 
 **说明**：仅传需要修改的字段即可，未传字段保持原值。
 
@@ -312,7 +300,7 @@ curl -X POST "http://localhost:5700/createSmartReminder" \
 ### 请求示例
 
 ```bash
-curl -X POST "http://localhost:5700/updateSmartReminder" \
+curl -X POST "http://localhost:3120/updateSmartReminder" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{
@@ -334,7 +322,6 @@ curl -X POST "http://localhost:5700/updateSmartReminder" \
 
 ### 接口定义
 
-
 | 项目               | 说明                                               |
 | ---------------- | ------------------------------------------------ |
 | **URL**          | `/deleteSmartReminder`                           |
@@ -342,15 +329,12 @@ curl -X POST "http://localhost:5700/updateSmartReminder" \
 | **Content-Type** | `application/json`                               |
 | **认证**           | 需要在 Header 中携带 `Authorization: Bearer <API_KEY>` |
 
-
 ### 请求体参数
-
 
 | 参数名             | 类型     | 必填  | 说明                                        |
 | --------------- | ------ | --- | ----------------------------------------- |
 | **mcp_token**   | string | 是   | 用户 MCP 令牌。                                |
 | **reminder_id** | string | 是   | 要删除的 Smart Reminder ID（即 Bot 侧 `bot_id`）。 |
-
 
 ### 响应说明
 
@@ -371,7 +355,7 @@ curl -X POST "http://localhost:5700/updateSmartReminder" \
 ### 请求示例
 
 ```bash
-curl -X POST "http://localhost:5700/deleteSmartReminder" \
+curl -X POST "http://localhost:3120/deleteSmartReminder" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{
@@ -391,7 +375,6 @@ curl -X POST "http://localhost:5700/deleteSmartReminder" \
 
 ### 接口定义
 
-
 | 项目               | 说明                                               |
 | ---------------- | ------------------------------------------------ |
 | **URL**          | `/getAllSmartReminders`                          |
@@ -399,15 +382,12 @@ curl -X POST "http://localhost:5700/deleteSmartReminder" \
 | **Content-Type** | `application/json`                               |
 | **认证**           | 需要在 Header 中携带 `Authorization: Bearer <API_KEY>` |
 
-
 ### 请求体参数
-
 
 | 参数名           | 类型     | 必填  | 说明                                  |
 | ------------- | ------ | --- | ----------------------------------- |
 | **mcp_token** | string | 是   | 用户 MCP 令牌。                          |
 | **code**      | string | 否   | 按标的代码筛选；不传则返回该用户下全部 Smart Reminder。 |
-
 
 ### 响应说明
 
@@ -479,13 +459,13 @@ curl -X POST "http://localhost:5700/deleteSmartReminder" \
 
 ```bash
 # 获取该用户全部 Smart Reminder
-curl -X POST "http://localhost:5700/getAllSmartReminders" \
+curl -X POST "http://localhost:3120/getAllSmartReminders" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token": "mcp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}'
 
 # 仅获取指定标的的 Smart Reminder
-curl -X POST "http://localhost:5700/getAllSmartReminders" \
+curl -X POST "http://localhost:3120/getAllSmartReminders" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token": "mcp_xxx", "code": "518880.SH"}'
@@ -504,7 +484,6 @@ curl -X POST "http://localhost:5700/getAllSmartReminders" \
 
 ### 接口定义
 
-
 | 项目               | 说明                                |
 | ---------------- | --------------------------------- |
 | **URL**          | `/getSmartReminderLog`            |
@@ -512,15 +491,12 @@ curl -X POST "http://localhost:5700/getAllSmartReminders" \
 | **Content-Type** | `application/json`                |
 | **认证**           | `Authorization: Bearer <API_KEY>` |
 
-
 ### 请求体参数
-
 
 | 参数名             | 类型     | 必填  | 说明                                                                                       |
 | --------------- | ------ | --- | ---------------------------------------------------------------------------------------- |
 | **mcp_token**   | string | 是   | 用户 MCP 令牌。                                                                               |
 | **reminder_id** | string | 是   | 提醒 ID，即 `smart_reminder._id`，与 `getAllSmartReminders` 返回列表中每条记录的 `**reminder_id`** 字段一致。 |
-
 
 ### 响应说明
 
@@ -530,7 +506,6 @@ curl -X POST "http://localhost:5700/getAllSmartReminders" \
 
 来自**当前** `smart_reminder_info.position` 的摘要，表示**拉取接口时**的持仓状态（不是历史某一时刻；与 `log` 里每条里的 `position` 可能因时间不同而不完全一致）。
 
-
 | 字段           | 类型     | 说明                                |
 | ------------ | ------ | --------------------------------- |
 | **qty**      | number | 头寸数量（股）。                          |
@@ -538,12 +513,10 @@ curl -X POST "http://localhost:5700/getAllSmartReminders" \
 | **pl_val**   | number | 浮动盈亏金额。                           |
 | **pl_ratio** | number | 浮动盈亏比例（百分比数值，如 `-3.7` 表示约 -3.7%）。 |
 
-
 #### `log`（调度快照列表）
 
 - **条数与顺序**：最多 **100** 条；按 `**time` 从新到旧** 排列。
 - **每条记录**含以下字段：
-
 
 | 字段             | 类型     | 说明                                                                                                                                                                      |
 | -------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -553,9 +526,7 @@ curl -X POST "http://localhost:5700/getAllSmartReminders" \
 | **tp_sl**      | object | 止盈止损与现价参考，常见含 `**current_price`**（当时市价）、`**tp_price**`（止盈参考价）、`**sl_price**`（止损参考价）。                                                                                    |
 | `**trailing**` | object | 跟踪止盈/止损等扩展状态；**无数据时多为空对象 `{}`**；开启跟踪后可能含 `**trailing_active**`、`**trailing_type**`、`**trailing_high_price**`、`**trailing_deviation**`、`**trailing_deviation_value**` 等。 |
 
-
 `**next_opt` 常见取值**（与调度里止盈止损、跟踪开关组合有关，无持仓时取值常为 `**"hold"`** 字符串）：
-
 
 | 取值                    | 含义（概要）                                                                                                                     |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -566,9 +537,7 @@ curl -X POST "http://localhost:5700/getAllSmartReminders" \
 | **sl_trailing_start** | 价格跌破止损参考后，准备进入止损跟踪（`**stop_loss_trailing`** 开启且此前未处于跟踪）。                                                                   |
 | **{type}_trailing**   | 已在跟踪过程中，回撤超过允许偏差时触发提醒；`**type`** 与当前 `**trailing_type**` 一致，常见为 `**tp**` → `**tp_trailing**`、`**sl**` → `**sl_trailing**`。 |
 
-
 `**position` 常见子字段**：
-
 
 | 子字段                             | 类型     | 说明                                                                                                                                                                                                                               |
 | ------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -579,7 +548,6 @@ curl -X POST "http://localhost:5700/getAllSmartReminders" \
 | **opt**                         | string | 与 `Basic_reminder.Smart_Reminder_Info.position` 一致，表示**持仓结构中的订单/操作类型**字段（与交易类 Bot 的 `position` 同源）。**SmartReminder 仅提醒、不下单**，初始化持仓时写入 `**"hold"`**，正常运行时日志里 `**opt` 一般为 `"hold"**`；**多种策略含义请看同条记录的 `next_opt`**，勿与 `**opt**` 混淆。 |
 | **order_id** / **order_status** | string | 委托编号与状态；无委托时常为空字符串。                                                                                                                                                                                                              |
 | **order_time**                  | string | **订单时间**（若有）。                                                                                                                                                                                                                    |
-
 
 **错误码**：`401` 缺参（未传 `mcp_token` 或 `reminder_id`）；`102` 无效令牌（HTTP 401）；`101` 非法 `reminder_id`；`103` 无权限或提醒不存在。
 
@@ -622,7 +590,7 @@ curl -X POST "http://localhost:5700/getAllSmartReminders" \
 ### 请求示例
 
 ```bash
-curl -X POST "http://localhost:5700/getSmartReminderLog" \
+curl -X POST "http://localhost:3120/getSmartReminderLog" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{

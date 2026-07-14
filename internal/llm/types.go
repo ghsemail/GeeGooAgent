@@ -1,6 +1,11 @@
 package llm
 
-import "encoding/json"
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+)
 
 // Role is a chat message role.
 type Role string
@@ -48,29 +53,40 @@ type Response struct {
 	ToolCalls        []ToolCall
 	Usage            TokenUsage
 	ReasoningContent string
+	FinishReason     string
 }
 
 // Provider calls an LLM backend.
 type Provider interface {
 	Model() string
-	Chat(messages []Message, tools []ToolSchema, temperature float64, maxTokens int) (*Response, error)
+	Chat(ctx context.Context, messages []Message, tools []ToolSchema, temperature float64, maxTokens int) (*Response, error)
 }
 
 // ParseToolArguments decodes tool arguments from JSON string or map.
+// Streaming providers sometimes concatenate multiple JSON objects; we accept
+// the first valid object in that case.
 func ParseToolArguments(raw any) (map[string]any, error) {
 	switch v := raw.(type) {
 	case map[string]any:
 		return v, nil
 	case string:
-		if v == "" {
+		s := strings.TrimSpace(v)
+		if s == "" {
 			return map[string]any{}, nil
 		}
 		var out map[string]any
-		if err := json.Unmarshal([]byte(v), &out); err != nil {
-			return nil, err
+		if err := json.Unmarshal([]byte(s), &out); err == nil {
+			return out, nil
+		}
+		dec := json.NewDecoder(strings.NewReader(s))
+		if err := dec.Decode(&out); err != nil {
+			return nil, fmt.Errorf("%w (raw=%q)", err, truncate(s, 180))
+		}
+		if out == nil {
+			out = map[string]any{}
 		}
 		return out, nil
 	default:
-		return map[string]any{}, nil
+		return nil, fmt.Errorf("tool arguments must be a JSON object or string, got %T", raw)
 	}
 }

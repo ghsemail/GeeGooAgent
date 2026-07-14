@@ -30,6 +30,27 @@ func TestLegacyPortWarning(t *testing.T) {
 	}
 }
 
+func TestAdminModelQueryTargets(t *testing.T) {
+	cfg := &config.AppConfig{
+		SignalBaseURL:            "http://146.56.225.252:3210",
+		SignalCatalogAPIKeyField: "cat-key",
+	}
+	targets := cfg.AdminModelQueryTargets()
+	if len(targets) != 1 {
+		t.Fatalf("expected catalog only, got %v", targets)
+	}
+	if targets[0].BaseURL != "http://146.56.225.252:3210" || targets[0].Bearer != "cat-key" {
+		t.Fatalf("catalog target = %+v", targets[0])
+	}
+}
+
+func TestSignalAPIURLFromCatalogHost(t *testing.T) {
+	cfg := &config.AppConfig{SignalBaseURL: "http://146.56.225.252:3210"}
+	if got := cfg.SignalAPIURL(); got != "http://146.56.225.252:3200" {
+		t.Fatalf("signal api = %q", got)
+	}
+}
+
 func TestEnvOverridesSignalAndData(t *testing.T) {
 	t.Setenv("GEEGOO_SIGNAL_CATALOG_API_URL", "http://signal.local:3210")
 	t.Setenv("GEEGOO_DATA_HTTP_URL", "http://data.local:3300")

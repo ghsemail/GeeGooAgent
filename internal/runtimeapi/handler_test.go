@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/app"
 	"github.com/ghsemail/GeeGooAgent/internal/auth"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
@@ -67,6 +69,7 @@ func TestChatCompletionsWithMockLLM(t *testing.T) {
 		Registry: registry,
 		Gateway:  gateway,
 		Loop:     runtime.NewReActLoop(gateway, runtime.NewExecutor(registry)),
+		Agent:    agent.New(gateway, runtime.NewExecutor(registry), registry),
 	}
 
 	mux := httpserver.NewMux("agent-runtime")
@@ -106,6 +109,77 @@ func TestChatCompletionsWithMockLLM(t *testing.T) {
 	}
 	if resp.Choices[0].Message.Content != "腾讯控股代码 00700.HK。" {
 		t.Fatalf("content=%q", resp.Choices[0].Message.Content)
+	}
+}
+
+func TestChatCompletionsStream(t *testing.T) {
+	registry := tools.NewRegistry()
+	provider := &llm.MockProvider{
+		Stream: true,
+		Responses: []*llm.Response{
+			{Content: "流式回复内容足够长以便分块。", Usage: llm.TokenUsage{Model: "mock"}},
+		},
+	}
+	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
+	gateway.SetSleep(func(time.Duration) {})
+	application := &app.App{
+		Config:   &config.AppConfig{},
+		Registry: registry,
+		Gateway:  gateway,
+		Loop:     runtime.NewReActLoop(gateway, runtime.NewExecutor(registry)),
+		Agent:    agent.New(gateway, runtime.NewExecutor(registry), registry),
+	}
+	mux := httpserver.NewMux("agent-runtime")
+	runtimeapi.NewHandler(application).Register(mux)
+	handler := auth.SkipPaths(map[string]struct{}{"/health": {}}, auth.BearerAPIKey("test-runtime-key"))(mux)
+
+	payload := map[string]any{
+		"model": "geegoo-agent",
+		"messages": []map[string]string{
+			{"role": "user", "content": "hi"},
+		},
+		"stream": true,
+	}
+	raw, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(raw))
+	req.Header.Set("Authorization", "Bearer test-runtime-key")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	ct := rec.Header().Get("Content-Type")
+	if !strings.Contains(ct, "text/event-stream") {
+		t.Fatalf("content-type=%q", ct)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "data: ") || !strings.Contains(body, "[DONE]") {
+		t.Fatalf("unexpected sse body: %s", body)
+	}
+	var rebuilt strings.Builder
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "data: ") || line == "data: [DONE]" {
+			continue
+		}
+		var chunk struct {
+			Choices []struct {
+				Delta struct {
+					Content string `json:"content"`
+				} `json:"delta"`
+			} `json:"choices"`
+		}
+		if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &chunk); err != nil {
+			continue
+		}
+		if len(chunk.Choices) > 0 {
+			rebuilt.WriteString(chunk.Choices[0].Delta.Content)
+		}
+	}
+	if rebuilt.String() != "流式回复内容足够长以便分块。" {
+		t.Fatalf("rebuilt=%q body=%s", rebuilt.String(), body)
 	}
 }
 

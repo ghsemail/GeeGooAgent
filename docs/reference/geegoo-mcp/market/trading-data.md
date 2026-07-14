@@ -2,7 +2,7 @@
 
 ## 概述
 
-本文档描述 geegoo mcp 上与**行情、资金、信号列表**相关的接口，包括：
+本文档描述 GeeGooBot mcp-api 上与**行情、资金、信号列表**相关的接口，包括：
 
 - 标的搜索、最新价、逐笔、经纪队列  
 - 指标 / 组合信号列表（Admin 转发）  
@@ -10,7 +10,7 @@
 
 **账户持仓**、**Bot 运行日志**（`/getPosition`、`/getBotLogByType`）见 [common.md](../common.md)。**报告 Workflow**（待分析标的列表、三类报告 CRUD）见 [reports.md](./reports.md)。
 
-**基础路径**：`http://<host>:5700`
+**基础路径**：`http://<host>:3120`
 
 ---
 
@@ -18,7 +18,7 @@
 
 | 项目 | 说明 |
 |------|------|
-| **HTTP Header** | `Authorization: Bearer <API_KEY>`，与 geegoo mcp 进程内配置的 API Key 一致。缺少、格式错误或 Key 不匹配时返回 HTTP **401**，响应体为 JSON，含 **`error`** 字段，**不使用**下文业务码 `code`。 |
+| **HTTP Header** | `Authorization: Bearer <API_KEY>`，与 GeeGooBot mcp-api 进程内配置的 API Key 一致。缺少、格式错误或 Key 不匹配时返回 HTTP **401**，响应体为 JSON，含 **`error`** 字段，**不使用**下文业务码 `code`。 |
 | **Content-Type** | `application/json` |
 | **方法** | `POST` |
 
@@ -57,7 +57,7 @@ HTTP **200**，body 为 **JSON 数组**；每项可含 `code`、`name`、`lot_si
 ### 请求示例
 
 ```bash
-curl -X POST "http://<host>:5700/searchCode" \
+curl -X POST "http://<host>:3120/searchCode" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"regex":"腾讯","market":["HK","US"]}'
@@ -190,7 +190,7 @@ HTTP **200**，JSON 示例：
 ### 请求示例
 
 ```bash
-curl -X POST "http://<host>:5700/getCapitalFlow" \
+curl -X POST "http://<host>:3120/getCapitalFlow" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token":"your_mcp_token","code":"00700.HK","period":"DAY","start":"2026-01-01"}'
@@ -254,7 +254,7 @@ HTTP **200**，JSON 示例：
 ### 请求示例
 
 ```bash
-curl -X POST "http://<host>:5700/getCapitalDistribution" \
+curl -X POST "http://<host>:3120/getCapitalDistribution" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token":"your_mcp_token","code":"00700.HK"}'
@@ -321,7 +321,7 @@ HTTP **200**，JSON 示例：
 ### 请求示例
 
 ```bash
-curl -X POST "http://<host>:5700/getTicker" \
+curl -X POST "http://<host>:3120/getTicker" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token":"your_mcp_token","code":"00700.HK","num":200}'
@@ -398,7 +398,7 @@ HTTP **200**，JSON 示例：
 ### 请求示例
 
 ```bash
-curl -X POST "http://<host>:5700/getBroker" \
+curl -X POST "http://<host>:3120/getBroker" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token":"your_mcp_token","code":"00700.HK"}'
@@ -473,7 +473,7 @@ HTTP **200**，JSON 示例：
 ### 请求示例
 
 ```bash
-curl -X POST "http://<host>:5700/getBotYesterdayAttitude" \
+curl -X POST "http://<host>:3120/getBotYesterdayAttitude" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token":"your_mcp_token","bot_id":"662f3e12ab45cd7890ef1234","language":"en"}'
@@ -514,7 +514,7 @@ curl -X POST "http://<host>:5700/getBotYesterdayAttitude" \
 ### 请求示例
 
 ```bash
-curl -X POST "http://<host>:5700/getSinglePromptTemplate" \
+curl -X POST "http://<host>:3120/getSinglePromptTemplate" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token":"your_mcp_token","type":"tech","period":"monthly"}'
@@ -558,7 +558,7 @@ curl -X POST "http://<host>:5700/getSinglePromptTemplate" \
 ### 请求示例
 
 ```bash
-curl -X POST "http://<host>:5700/getMCPAnalysis" \
+curl -X POST "http://<host>:3120/getMCPAnalysis" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token":"your_mcp_token","name":"腾讯控股","code":"00700.HK","prompt_id":"66494754fbe37cd6846ebd89","period":"monthly"}'

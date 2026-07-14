@@ -2,18 +2,23 @@ package chatrepl
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"time"
 
 	prompt "github.com/c-bata/go-prompt"
 
 	"github.com/ghsemail/GeeGooAgent/internal/app"
-	"github.com/ghsemail/GeeGooAgent/internal/cli/chatui"
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
+	"github.com/ghsemail/GeeGooAgent/internal/cli/chatui"
+	"github.com/ghsemail/GeeGooAgent/internal/cli/progress"
+	"github.com/ghsemail/GeeGooAgent/internal/clients/admin"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
@@ -25,18 +30,22 @@ type Repl struct {
 	App          *app.App
 	ConfigPath   string
 	Chat         *chatsession.ChatSession
-	SessionStore *chatsession.ChatSessionStore
+	SessionStore chatsession.SessionStore
 	Session      *runtime.Session
 	Registry     *tools.Registry
 	Loop         *runtime.ReActLoop
 	UI           *chatui.ChatUI
+	Progress     progress.Sink // optional override; default UI
 	DryRun       bool
 	Verbose      bool
+	ChatToolsets []string // session override; nil → config defaults
 	StepLog      []runtime.StepRecord
 	InstallDir   string
 	ProjectRoot  string
+	curCancel    context.CancelFunc
 	stdin        io.Reader
 	stdout       io.Writer
+	tty          *ttyState
 }
 
 // New builds a chat REPL.
@@ -49,10 +58,15 @@ func NewWithSession(application *app.App, configPath string, sessionID string, d
 	if stdout == nil {
 		stdout = os.Stdout
 	}
-	if application.State == nil {
-		return nil, fmt.Errorf("state store not configured")
+	if application.State == nil && application.DB == nil {
+		return nil, fmt.Errorf("no state store or database configured")
 	}
-	store := chatsession.NewChatSessionStore(application.State)
+	var store chatsession.SessionStore
+	if application.DB != nil {
+		store = chatsession.NewSQLiteSessionStore(application.DB)
+	} else {
+		store = chatsession.NewChatSessionStore(application.State)
+	}
 	var chat *chatsession.ChatSession
 	var err error
 	if sessionID != "" {
@@ -70,11 +84,13 @@ func NewWithSession(application *app.App, configPath string, sessionID string, d
 		}
 	}
 	ui := chatui.New(stdout)
+	parentID, lineageRoot, generation := chat.LineageFromMetadata()
 	r := &Repl{
 		App: application, ConfigPath: configPath, Chat: chat, SessionStore: store,
 		Session: &runtime.Session{
 			ID: chat.ID, Messages: chat.RuntimeMessages(),
 			StepCounter: chat.StepCounter, CreatedAt: chat.CreatedAt,
+			ParentID: parentID, LineageRoot: lineageRoot, CompactionGeneration: generation,
 		},
 		Registry: application.Registry, Loop: application.Loop, UI: ui,
 		DryRun: dryRun || application.Config.DryRun, Verbose: true,
@@ -87,6 +103,7 @@ func NewWithSession(application *app.App, configPath string, sessionID string, d
 		})
 	}
 	r.attachProgress()
+	r.attachApproval()
 	return r, nil
 }
 
@@ -106,11 +123,95 @@ func findProjectRoot() string {
 }
 
 func (r *Repl) attachProgress() {
-	r.Loop.SetProgress(func(event string, data map[string]any) {
+	sink := r.Progress
+	if sink == nil {
+		sink = r.UI
+	}
+	live := chatsession.NewLivePublisher(r.App.State, r.Chat.ID)
+	r.App.Agent.SetProgress(func(event string, data map[string]any) {
+		if live != nil {
+			live.Emit(event, data)
+		}
+		switch event {
+		case "stream_delta", "turn_start", "reply_start":
+			sink.EmitProgress(event, data)
+			return
+		case "llm_tools", "tool_start", "error":
+			// Abort typewriter even when verbose is off; optionally show tool lines.
+			if r.Verbose {
+				sink.EmitProgress(event, data)
+			} else if ui, ok := sink.(*chatui.ChatUI); ok {
+				ui.AbortStreamReply()
+				if event == "error" {
+					if msg, _ := data["message"].(string); msg != "" {
+						ui.PrintError(msg)
+					}
+				}
+			} else if event == "error" {
+				sink.EmitProgress(event, data)
+			}
+			return
+		}
 		if r.Verbose {
-			r.UI.EmitProgress(event, data)
+			sink.EmitProgress(event, data)
 		}
 	})
+}
+
+// SetApprovalFn replaces the write-tool approval prompt (used by TUI modal).
+func (r *Repl) SetApprovalFn(fn runtime.ApprovalFunc) {
+	r.App.Agent.SetApproval(fn)
+}
+
+// SetProgressSink replaces the live progress target and re-wires the agent.
+func (r *Repl) SetProgressSink(sink progress.Sink) {
+	r.Progress = sink
+	r.attachProgress()
+}
+
+// RunTurn executes one user message (exported for TUI host).
+func (r *Repl) RunTurn(text string) runtime.TurnResult {
+	return r.runTurn(text)
+}
+
+// CancelTurn cancels the in-flight turn context, if any.
+func (r *Repl) CancelTurn() {
+	if r.curCancel != nil {
+		r.curCancel()
+	}
+}
+
+// CloseSession marks the chat closed and persists.
+func (r *Repl) CloseSession() {
+	r.saveSessionClosed()
+}
+
+func (r *Repl) attachApproval() {
+	r.App.Agent.SetApproval(r.promptToolApproval)
+}
+
+func (r *Repl) promptToolApproval(toolName string, args map[string]any) bool {
+	restoreTTY(r.tty)
+	argsJSON, _ := json.Marshal(args)
+	summary := string(argsJSON)
+	if len(summary) > 240 {
+		summary = summary[:237] + "..."
+	}
+	r.UI.PrintInfo(fmt.Sprintf(
+		"写操作确认: %s\n参数: %s\n输入 y/yes 执行，其他键跳过",
+		toolName, summary,
+	))
+	reader := bufio.NewReader(r.stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "y", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 // RunSingle handles one --message turn with full UI.
@@ -118,7 +219,7 @@ func (r *Repl) RunSingle(message string) int {
 	r.printBanner()
 	r.UI.PrintUser(message)
 	result := r.runTurn(message)
-	r.UI.PrintAssistant(result.AssistantText)
+	r.finishAssistant(result)
 	r.printFooter(result)
 	if result.Failed {
 		return 1
@@ -128,6 +229,14 @@ func (r *Repl) RunSingle(message string) int {
 
 // Run interactive loop.
 func (r *Repl) Run() int {
+	r.tty = saveTTY()
+	defer restoreTTY(r.tty)
+	defer func() {
+		if r.App != nil {
+			_ = r.App.Close()
+		}
+	}()
+
 	r.printBanner()
 	for {
 		line, err := r.readLine()
@@ -147,31 +256,55 @@ func (r *Repl) Run() int {
 		}
 		r.UI.PrintUser(text)
 		result := r.runTurn(text)
-		r.UI.PrintAssistant(result.AssistantText)
+		r.finishAssistant(result)
 		r.printFooter(result)
 	}
 }
 
+func (r *Repl) finishAssistant(result runtime.TurnResult) {
+	if r.UI.FinishAssistantStream() {
+		return
+	}
+	if strings.TrimSpace(result.AssistantText) == "" {
+		return
+	}
+	r.UI.PrintAssistant(result.AssistantText)
+}
+
+// turnCtx returns a per-turn context that is cancelled on SIGINT (Ctrl+C).
+// Cancelling mid-turn aborts in-flight LLM and tool calls; the next turn
+// gets a fresh context so the user can continue chatting afterwards.
+func (r *Repl) turnCtx() context.Context {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	r.curCancel = stop
+	return ctx
+}
+
 func (r *Repl) printBanner() {
+	r.UI.PrintBanner(r.BannerOptions())
+}
+
+// BannerOptions builds Hermes-style welcome panel metadata.
+func (r *Repl) BannerOptions() chatui.BannerOptions {
 	cfg := r.App.Config
 	provider := llm.ProviderName(cfg.LLM.Provider)
 	if provider == "" {
 		provider = llm.ProviderDeepSeek
 	}
 	preset := llm.Presets[provider]
-	model := llm.ResolveModel(provider, cfg.LLM.Model)
+	model := r.App.EffectiveLLMModel()
 	workspace, _ := cfg.ResolveOutputDir()
-	r.UI.PrintBanner(chatui.BannerOptions{
+	return chatui.BannerOptions{
 		SessionID: r.Chat.ID, Provider: preset.Label, Model: model,
-		Registry: r.Registry, ToolNames: tools.RegisteredChatToolNames(r.Registry),
+		Registry: r.Registry, ToolNames: r.chatToolNames(),
 		Thinking: llm.ResolveThinkingEnabled(provider, model, cfg.LLM.Thinking),
-		DryRun: r.DryRun, Workspace: workspace, InstallDir: r.InstallDir,
+		DryRun:   r.DryRun, Workspace: workspace, InstallDir: r.InstallDir,
 		ProjectRoot: r.ProjectRoot,
 		APIHosts: chatui.APIHostsFromConfig(
 			cfg.EffectiveMCPURL(), cfg.SignalCatalogURL(), cfg.DataHTTPURL(),
 		),
 		Revision: chatui.ResolveRevision(r.InstallDir),
-	})
+	}
 }
 
 func (r *Repl) printFooter(result runtime.TurnResult) {
@@ -180,7 +313,7 @@ func (r *Repl) printFooter(result runtime.TurnResult) {
 	if provider == "" {
 		provider = llm.ProviderDeepSeek
 	}
-	model := llm.ResolveModel(provider, cfg.LLM.Model)
+	model := r.App.EffectiveLLMModel()
 	thinking := llm.ResolveThinkingEnabled(provider, model, cfg.LLM.Thinking)
 	r.UI.PrintTurnFooter(model, thinking, r.DryRun, len(r.StepLog))
 }
@@ -188,10 +321,22 @@ func (r *Repl) printFooter(result runtime.TurnResult) {
 func (r *Repl) runTurn(text string) runtime.TurnResult {
 	r.Chat.SyncChatSystemPrompt()
 	r.Session.Messages = r.Chat.RuntimeMessages()
-	schemas := r.Registry.Schemas(tools.RegisteredChatToolNames(r.Registry))
+	schemas := r.Registry.Schemas(r.chatToolNames())
 	ctx := r.App.ToolContext(r.Session.ID)
 	ctx.DryRun = r.DryRun
-	result := r.Loop.RunTurn(r.Session, text, ctx, schemas)
+	// Chat is an interactive, user-facing entry point.  Mutating tools must
+	// therefore pass through ApprovalGate instead of inheriting the workflow
+	// default (non-interactive) policy from App.ToolContext.
+	ctx.Interactive = true
+	turnCtx := r.turnCtx()
+	result := r.App.Agent.Run(turnCtx, r.Session, text, ctx, schemas)
+	if r.curCancel != nil {
+		r.curCancel()
+		r.curCancel = nil
+	}
+	if result.Failed && (turnCtx.Err() != nil) {
+		r.UI.PrintInfo("（本回合已中断，可继续输入下一句）")
+	}
 	r.StepLog = append(r.StepLog, result.StepRecords...)
 	newRecords := make([]chatsession.ChatStepRecord, 0, len(result.StepRecords))
 	for _, rec := range result.StepRecords {
@@ -201,7 +346,11 @@ func (r *Repl) runTurn(text string) runtime.TurnResult {
 		})
 	}
 	r.Chat.SyncFromRuntime(r.Session.Messages, r.Session.StepCounter, newRecords)
+	r.Chat.SyncLineageFromRuntime(r.Session.ParentID, r.Session.LineageRoot, r.Session.CompactionGeneration)
 	_ = r.SessionStore.Save(r.Chat)
+	if pub := chatsession.NewLivePublisher(r.App.State, r.Chat.ID); pub != nil {
+		pub.EndTurn()
+	}
 	return result
 }
 
@@ -235,12 +384,34 @@ func (r *Repl) readLine() (string, error) {
 		}
 		return out
 	})
-	line := prompt.Input("", completer,
+	line := prompt.Input("", completer, slashPromptOptions()...)
+	// go-prompt TearDown often leaves the tty in a bad state; restore before next UI write.
+	restoreTTY(r.tty)
+	return line, nil
+}
+
+func slashPromptOptions() []prompt.Option {
+	// Default go-prompt uses Cyan/Turquoise which renders as muddy brown-yellow
+	// on many Windows/SSH terminals and fights our gold theme. Prefer dark panels.
+	return []prompt.Option{
 		prompt.OptionTitle("geegoo chat"),
 		prompt.OptionPrefix(""),
 		prompt.OptionShowCompletionAtStart(),
-	)
-	return line, nil
+		prompt.OptionInputTextColor(prompt.White),
+		prompt.OptionPrefixTextColor(prompt.Yellow),
+		prompt.OptionSuggestionBGColor(prompt.DarkGray),
+		prompt.OptionSuggestionTextColor(prompt.White),
+		prompt.OptionDescriptionBGColor(prompt.Black),
+		prompt.OptionDescriptionTextColor(prompt.LightGray),
+		prompt.OptionSelectedSuggestionBGColor(prompt.DarkGray),
+		prompt.OptionSelectedSuggestionTextColor(prompt.Yellow),
+		prompt.OptionSelectedDescriptionBGColor(prompt.DarkGray),
+		prompt.OptionSelectedDescriptionTextColor(prompt.LightGray),
+		prompt.OptionPreviewSuggestionBGColor(prompt.DarkGray),
+		prompt.OptionPreviewSuggestionTextColor(prompt.LightGray),
+		prompt.OptionScrollbarBGColor(prompt.DarkGray),
+		prompt.OptionScrollbarThumbColor(prompt.LightGray),
+	}
 }
 
 func (r *Repl) handleSlash(line string) bool {
@@ -254,7 +425,14 @@ func (r *Repl) handleSlash(line string) bool {
 	switch cmd {
 	case "/exit", "/quit":
 		r.saveSessionClosed()
-		r.UI.PrintInfo("会话已保存。")
+		r.UI.PrintInfo("会话已保存。再见。")
+		restoreTTY(r.tty)
+		if r.App != nil {
+			_ = r.App.Close()
+		}
+		// Force-exit: go-prompt can leave goroutines/tty in a state where a
+		// normal return appears to hang the SSH session.
+		os.Exit(0)
 		return true
 	case "/help":
 		r.UI.PrintHelp(chatui.BuildHelpText())
@@ -264,7 +442,7 @@ func (r *Repl) handleSlash(line string) bool {
 		if provider == "" {
 			provider = llm.ProviderDeepSeek
 		}
-		model := llm.ResolveModel(provider, cfg.LLM.Model)
+		model := r.App.EffectiveLLMModel()
 		preset := llm.Presets[provider]
 		think := "off"
 		if llm.ResolveThinkingEnabled(provider, model, cfg.LLM.Thinking) {
@@ -277,6 +455,8 @@ func (r *Repl) handleSlash(line string) bool {
 		))
 	case "/tools":
 		r.printTools()
+	case "/toolsets":
+		r.handleToolsets(args)
 	case "/trace":
 		limit := 10
 		if len(args) > 0 {
@@ -328,8 +508,46 @@ func (r *Repl) handleSlash(line string) bool {
 	return false
 }
 
+// HandleSlashCommand runs a slash command and captures stdout/UI output (TUI).
+// Do not use for /exit — handleSlash may call os.Exit.
+func (r *Repl) HandleSlashCommand(line string) (quit bool, output string) {
+	if r == nil || r.UI == nil {
+		return false, ""
+	}
+	var buf strings.Builder
+	r.UI.WithPlainWriter(&buf, func() {
+		oldStdout := r.stdout
+		r.stdout = &buf
+		quit = r.handleSlash(line)
+		r.stdout = oldStdout
+	})
+	return quit, strings.TrimSpace(buf.String())
+}
+
+func (r *Repl) chatToolNames() []string {
+	ids := r.ChatToolsets
+	if ids == nil && r.App != nil && r.App.Config != nil {
+		ids = r.App.Config.EffectiveChatToolsets()
+	}
+	return tools.RegisteredChatToolNamesFor(r.Registry, ids)
+}
+
+func (r *Repl) activeToolsetIDs() []string {
+	if r.ChatToolsets != nil {
+		normalized, err := tools.NormalizeToolsetIDs(r.ChatToolsets)
+		if err == nil {
+			return normalized
+		}
+	}
+	if r.App != nil && r.App.Config != nil {
+		normalized, _ := tools.NormalizeToolsetIDs(r.App.Config.EffectiveChatToolsets())
+		return normalized
+	}
+	return tools.DefaultChatToolsetIDs()
+}
+
 func (r *Repl) printTools() {
-	names := tools.RegisteredChatToolNames(r.Registry)
+	names := r.chatToolNames()
 	descriptions := map[string]string{}
 	for _, name := range names {
 		if t, ok := r.Registry.Get(name); ok {
@@ -337,6 +555,64 @@ func (r *Repl) printTools() {
 		}
 	}
 	fmt.Fprintf(r.stdout, "%s\n", tools.FormatToolsListing(names, descriptions))
+}
+
+func (r *Repl) handleToolsets(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintf(r.stdout, "%s\n", tools.FormatToolsetsListing(r.activeToolsetIDs()))
+		return
+	}
+	raw := strings.Join(args, ",")
+	raw = strings.ReplaceAll(raw, " ", "")
+	if strings.EqualFold(raw, "default") || strings.EqualFold(raw, "all") {
+		r.ChatToolsets = nil
+		if r.App != nil && r.App.Config != nil {
+			r.App.Config.ChatToolsets = nil
+		}
+		r.persistChatToolsets(nil)
+		fmt.Fprintf(r.stdout, "已恢复默认 toolsets（%d tools）\n", len(r.chatToolNames()))
+		return
+	}
+	parts := strings.Split(raw, ",")
+	ids, err := tools.NormalizeToolsetIDs(parts)
+	if err != nil {
+		fmt.Fprintf(r.stdout, "切换失败: %v\n", err)
+		return
+	}
+	r.ChatToolsets = ids
+	if r.App != nil && r.App.Config != nil {
+		r.App.Config.ChatToolsets = append([]string(nil), ids...)
+	}
+	r.persistChatToolsets(ids)
+	fmt.Fprintf(r.stdout, "已切换 toolsets: %s（%d tools）\n", strings.Join(ids, ","), len(r.chatToolNames()))
+}
+
+func (r *Repl) persistChatToolsets(ids []string) {
+	if r.ConfigPath == "" {
+		return
+	}
+	raw, err := os.ReadFile(r.ConfigPath)
+	if err != nil {
+		return
+	}
+	var doc map[string]any
+	if json.Unmarshal(raw, &doc) != nil {
+		return
+	}
+	if len(ids) == 0 {
+		delete(doc, "chat_toolsets")
+	} else {
+		arr := make([]any, len(ids))
+		for i, id := range ids {
+			arr[i] = id
+		}
+		doc["chat_toolsets"] = arr
+	}
+	out, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(r.ConfigPath, append(out, '\n'), 0o600)
 }
 
 func (r *Repl) printTrace(limit int) {
@@ -383,29 +659,111 @@ func truncateText(s string, n int) string {
 }
 
 func (r *Repl) printModels() {
+	models, err := r.fetchCatalogModels()
+	if err != nil {
+		fmt.Fprintf(r.stdout, "无法拉取模型管理列表: %v\n", err)
+		r.printProviderModelsFallback()
+		return
+	}
+	if len(models) == 0 {
+		fmt.Fprintf(r.stdout, "模型管理列表为空\n")
+		return
+	}
+	activeID := llm.ActiveCatalogModelID(r.App.Config.LLM.CatalogModelID, models)
+	activeName := ""
+	for _, m := range models {
+		if m.ModelID == activeID {
+			activeName = llm.CatalogModelLabel(m)
+			break
+		}
+	}
+	if activeName == "" {
+		activeName = activeID
+	}
+	if strings.TrimSpace(r.App.Config.LLM.CatalogModelID) == "" {
+		fmt.Fprintf(r.stdout, "当前: %s（trading_operation 运营默认）\n", activeName)
+	} else {
+		fmt.Fprintf(r.stdout, "当前: %s\n", activeName)
+	}
+	for i, m := range models {
+		mark := ""
+		if m.ModelID == activeID {
+			mark = " *"
+		}
+		fmt.Fprintf(r.stdout, "  %d. %s%s\n", i+1, llm.CatalogModelLabel(m), mark)
+	}
+	fmt.Fprintf(r.stdout, "切换: /model <序号> | /model <model_id> | /model default 恢复运营默认\n")
+}
+
+func (r *Repl) printProviderModelsFallback() {
 	provider := llm.ProviderName(r.App.Config.LLM.Provider)
 	if provider == "" {
 		provider = llm.ProviderDeepSeek
 	}
 	preset := llm.Presets[provider]
 	active := llm.ResolveModel(provider, r.App.Config.LLM.Model)
-	fmt.Fprintf(r.stdout, "当前: %s / %s\n", preset.Label, active)
-	models := llm.ListProviderModels(provider)
-	if len(models) == 0 {
-		fmt.Fprintf(r.stdout, "（该提供商无预设列表，可用 /model <model_id> 手动指定）\n")
-		return
-	}
-	for i, m := range models {
+	fmt.Fprintf(r.stdout, "回退列表 — 当前: %s / %s\n", preset.Label, active)
+	for i, m := range llm.ListProviderModels(provider) {
 		mark := ""
 		if m.ID == active {
 			mark = " *"
 		}
 		fmt.Fprintf(r.stdout, "  %d. %s — %s%s\n", i+1, m.ID, m.Description, mark)
 	}
-	fmt.Fprintf(r.stdout, "切换: /model <序号> 或 /model <model_id>\n")
+}
+
+func (r *Repl) fetchCatalogModels() ([]admin.ConfiguredModel, error) {
+	if r.App == nil || r.App.Config == nil {
+		return nil, fmt.Errorf("app not configured")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	targets := make([]admin.QueryTarget, 0, len(r.App.Config.AdminModelQueryTargets()))
+	for _, t := range r.App.Config.AdminModelQueryTargets() {
+		targets = append(targets, admin.QueryTarget{BaseURL: t.BaseURL, Bearer: t.Bearer})
+	}
+	docs, _, err := admin.ListModelsFromTargets(ctx, targets)
+	return docs, err
 }
 
 func (r *Repl) setModel(choice string) {
+	models, err := r.fetchCatalogModels()
+	if err == nil && len(models) > 0 {
+		r.setCatalogModel(choice, models)
+		return
+	}
+	r.setProviderModel(choice)
+}
+
+func (r *Repl) setCatalogModel(choice string, models []admin.ConfiguredModel) {
+	modelID, err := llm.PickCatalogModel(choice, models, r.App.Config.LLM.CatalogModelID)
+	if err != nil {
+		fmt.Fprintf(r.stdout, "切换失败: %v\n", err)
+		return
+	}
+	r.App.Config.LLM.CatalogModelID = modelID
+	useOps := true
+	r.App.Config.LLM.UseOpsModel = &useOps
+	if err := r.App.RebuildGateway(); err != nil {
+		fmt.Fprintf(r.stdout, "警告: 重建 LLM 失败: %v\n", err)
+	}
+	r.persistLLMConfig()
+	activeID := llm.ActiveCatalogModelID(modelID, models)
+	label := activeID
+	for _, m := range models {
+		if m.ModelID == activeID {
+			label = llm.CatalogModelLabel(m)
+			break
+		}
+	}
+	if modelID == "" {
+		fmt.Fprintf(r.stdout, "已恢复运营默认模型: %s\n", label)
+	} else {
+		fmt.Fprintf(r.stdout, "已切换模型: %s\n", label)
+	}
+}
+
+func (r *Repl) setProviderModel(choice string) {
 	provider := llm.ProviderName(r.App.Config.LLM.Provider)
 	if provider == "" {
 		provider = llm.ProviderDeepSeek
@@ -416,13 +774,20 @@ func (r *Repl) setModel(choice string) {
 		return
 	}
 	r.App.Config.LLM.Model = resolved
-	r.persistConfigField(func(llmCfg *config.LLMConfig) {
-		llmCfg.Model = resolved
-	})
+	r.App.Config.LLM.CatalogModelID = ""
+	useOps := false
+	r.App.Config.LLM.UseOpsModel = &useOps
+	r.persistLLMConfig()
 	if err := r.App.RebuildGateway(); err != nil {
 		fmt.Fprintf(r.stdout, "警告: 重建 LLM 失败: %v\n", err)
 	}
 	fmt.Fprintf(r.stdout, "已切换模型: %s / %s\n", llm.Presets[provider].Label, resolved)
+}
+
+func (r *Repl) persistLLMConfig() {
+	r.persistConfigField(func(llmCfg *config.LLMConfig) {
+		*llmCfg = r.App.Config.LLM
+	})
 }
 
 func (r *Repl) handleThink(args []string) {
@@ -499,6 +864,14 @@ func (r *Repl) persistConfigField(mutate func(*config.LLMConfig)) {
 	mutate(&cfg)
 	if cfg.Model != "" {
 		llmRaw["model"] = cfg.Model
+	}
+	if cfg.CatalogModelID != "" {
+		llmRaw["catalog_model_id"] = cfg.CatalogModelID
+	} else {
+		delete(llmRaw, "catalog_model_id")
+	}
+	if cfg.UseOpsModel != nil {
+		llmRaw["use_ops_model"] = *cfg.UseOpsModel
 	}
 	if cfg.Thinking == nil {
 		delete(llmRaw, "thinking")

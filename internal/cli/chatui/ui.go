@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -21,6 +22,11 @@ type ChatUI struct {
 
 	toolStarts map[string]time.Time
 	toolArgs   map[string]string
+
+	streamActive   bool
+	streamBuf      strings.Builder
+	replyStreamed  bool
+	streamRoundHad bool // content streamed in current LLM round (before tools)
 }
 
 // New creates a ChatUI; plain when not a TTY or GEEGOO_CHAT_PLAIN=1.
@@ -84,24 +90,59 @@ func (u *ChatUI) ruleWidth() int {
 }
 
 func (u *ChatUI) printRule() {
-	u.println(styleDim.Render(strings.Repeat("─", u.ruleWidth())))
+	u.println(RenderRule(u.width))
+}
+
+// RenderRule returns a Hermes-style horizontal rule.
+func RenderRule(width int) string {
+	w := width
+	if w < 40 {
+		w = 40
+	}
+	if w > 80 {
+		w = 80
+	}
+	return styleDim.Render(strings.Repeat("─", w))
+}
+
+// RenderInitializing returns the turn-start status line.
+func RenderInitializing() string {
+	return styleDim.Render("Initializing agent...")
+}
+
+// RenderThinkingLine returns body text for expanded reasoning sections.
+func RenderThinkingLine(line string) string {
+	return styleText.Render("    " + line)
+}
+
+// RenderDetailLine returns body text for tool/activity detail sections.
+func RenderDetailLine(line string) string {
+	return styleText.Render("    " + line)
 }
 
 // PrintBanner shows Hermes-style two-column welcome panel.
 func (u *ChatUI) PrintBanner(opts BannerOptions) {
-	if u.plain {
-		u.println("")
-		u.write(BuildPlainBanner(opts))
-		return
+	u.write(RenderBanner(opts, u.width, u.plain))
+}
+
+// RenderBanner returns the Hermes-style welcome panel as a string (CLI and TUI).
+func RenderBanner(opts BannerOptions, width int, plain bool) string {
+	if width <= 0 {
+		width = 80
+	}
+	if plain {
+		return "\n" + BuildPlainBanner(opts)
 	}
 	rev := opts.Revision
 	if rev == "" {
 		rev = ResolveRevision(opts.InstallDir)
 	}
-	u.println("")
-	if u.width >= 95 {
-		u.println(renderWideLogo())
-		u.println("")
+	var b strings.Builder
+	b.WriteByte('\n')
+	if width >= 95 {
+		b.WriteString(renderWideLogo())
+		b.WriteByte('\n')
+		b.WriteByte('\n')
 	}
 	left := buildBannerLeft(opts)
 	right := buildBannerRight(opts)
@@ -109,16 +150,97 @@ func (u *ChatUI) PrintBanner(opts BannerOptions) {
 		lipgloss.NewStyle().Padding(0, 2).Align(lipgloss.Center).Render(left),
 		lipgloss.NewStyle().Padding(0, 1).Render(right),
 	)
-	u.println(styleGold.Render(formatVersionLabel(rev)))
-	u.println(stylePanel.Render(cols))
-	u.println("")
-	u.println(styleText.Render("Welcome to GeeGoo Agent! ") + styleDim.Render("Type your message or /help for commands."))
-	u.println(
-		styleDim.Render("✦ Tip: ") +
-			styleDim.Render("/think on") + styleDim.Render(" shows DeepSeek reasoning; ") +
-			styleDim.Render("/verbose off") + styleDim.Render(" hides live steps."),
-	)
-	u.println("")
+	b.WriteString(styleGold.Render(formatVersionLabel(rev)))
+	b.WriteByte('\n')
+	b.WriteString(stylePanel.Render(cols))
+	b.WriteByte('\n')
+	b.WriteByte('\n')
+	b.WriteString(styleText.Render("Welcome to GeeGoo Agent! ") + styleDim.Render("Type your message or /help for commands."))
+	b.WriteByte('\n')
+	b.WriteString(RenderWelcomeTips())
+	b.WriteByte('\n')
+	b.WriteByte('\n')
+	return b.String()
+}
+
+const (
+	// assistantBoxInnerWidth is the fixed text column inside the reply panel.
+	assistantBoxInnerWidth = 144
+)
+
+// RenderAssistantBox returns a Hermes-style rounded reply panel with glamour markdown.
+func RenderAssistantBox(text string, width int) string {
+	return renderAssistantPanel(text, width, false)
+}
+
+// RenderAssistantBoxLive shows a streaming preview without glamour (avoids broken partial tables).
+func RenderAssistantBoxLive(text string, width int) string {
+	return renderAssistantPanel(text, width, true)
+}
+
+func renderAssistantPanel(text string, width int, live bool) string {
+	if width <= 0 {
+		width = 80
+	}
+	innerW := assistantWrapWidth(width)
+	body := strings.TrimRight(text, "\n")
+	body = RenderPlainAssistantBody(body, innerW)
+	title := styleGold.Render("⚕ GeeGoo")
+	return title + "\n" + body
+}
+
+// assistantWrapWidth returns the content wrap width (capped, narrow on small terminals).
+func assistantWrapWidth(terminalWidth int) int {
+	w := assistantBoxInnerWidth
+	if terminalWidth > 0 {
+		if max := terminalWidth - 10; max < w {
+			w = max
+		}
+	}
+	if w < 32 {
+		return 32
+	}
+	return w
+}
+
+// assistantBoxOuterWidth is the lipgloss panel width (border + padding + inner text).
+func assistantBoxOuterWidth(terminalWidth int) int {
+	outer := assistantBoxInnerWidth + 4
+	if terminalWidth > 0 && terminalWidth-2 < outer {
+		outer = terminalWidth - 2
+	}
+	if outer < 40 {
+		return 40
+	}
+	return outer
+}
+
+func assistantContentWidth(width int) int {
+	contentW := width - 6
+	if contentW < 40 {
+		return 40
+	}
+	if contentW > 120 {
+		return 120
+	}
+	return contentW
+}
+
+func renderAssistantMarkdown(text string, contentW int, width int) string {
+	_ = contentW
+	return RenderPlainAssistantBody(text, assistantWrapWidth(width))
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// RenderUserLine returns Hermes-style user message bullet.
+func RenderUserLine(text string) string {
+	return styleGold.Render("● ") + styleText.Render(text)
 }
 
 func (u *ChatUI) PrintStatusBar(model string, thinking, dryRun bool, steps int) {
@@ -171,7 +293,7 @@ func (u *ChatUI) PrintUser(text string) {
 		return
 	}
 	u.println("")
-	u.println(styleGold.Render("● ") + styleText.Render(text))
+	u.println(RenderUserLine(text))
 }
 
 func (u *ChatUI) PrintAssistant(text string) {
@@ -181,20 +303,114 @@ func (u *ChatUI) PrintAssistant(text string) {
 		u.println("")
 		return
 	}
-	body := text
-	if r, err := newMarkdownRenderer(u.contentWidth()); err == nil {
-		if rendered, err := r.Render(text); err == nil {
-			body = strings.TrimRight(rendered, "\n")
+	u.println(RenderAssistantBox(text, u.width))
+}
+
+// ResetStream clears typewriter state at the start of a user turn.
+func (u *ChatUI) ResetStream() {
+	u.streamActive = false
+	u.streamBuf.Reset()
+	u.replyStreamed = false
+	u.streamRoundHad = false
+}
+
+// WriteStreamDelta appends live assistant text (typewriter).
+func (u *ChatUI) WriteStreamDelta(text string) {
+	text = stripStreamNoise(text)
+	if strings.TrimSpace(text) == "" {
+		return
+	}
+	if !u.streamActive {
+		u.streamActive = true
+		u.streamBuf.Reset()
+		u.println("")
+		if u.plain {
+			u.write("GeeGoo> ")
 		}
 	}
-	title := styleGold.Render("⚕ GeeGoo")
-	inner := title + "\n" + body
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(colorBorder)).
-		Padding(0, 1).
-		Render(inner)
-	u.println(box)
+	u.streamBuf.WriteString(text)
+	u.streamRoundHad = true
+	if u.plain {
+		u.write(text)
+	}
+}
+
+// AbortStreamReply discards in-progress streamed text when tool calls follow
+// (that content was plan/thinking, not the final user-facing reply).
+func (u *ChatUI) AbortStreamReply() {
+	if !u.streamActive {
+		u.streamRoundHad = false
+		return
+	}
+	hadVisible := strings.TrimSpace(u.streamBuf.String()) != ""
+	u.write("\n")
+	if hadVisible && !u.plain {
+		u.println(styleText.Render("  ↳ （计划文本，继续调用工具…）"))
+	}
+	u.streamActive = false
+	u.streamBuf.Reset()
+	u.streamRoundHad = false
+}
+
+var streamSIDRE = regexp.MustCompile(`(?i)\[SID=[^\]]+\]`)
+
+func stripStreamNoise(s string) string {
+	return streamSIDRE.ReplaceAllString(s, "")
+}
+
+// FinishAssistantStream closes a live reply stream. Returns true when the
+// final answer was already printed (caller should skip PrintAssistant).
+func (u *ChatUI) FinishAssistantStream() bool {
+	if u.streamActive {
+		u.streamActive = false
+		if u.streamBuf.Len() > 0 {
+			final := strings.TrimRight(u.streamBuf.String(), "\n")
+			if u.plain {
+				u.write("\n")
+				u.println("")
+			} else {
+				u.println(RenderAssistantBox(final, u.width))
+			}
+			u.replyStreamed = true
+		} else if !u.plain {
+			u.println("")
+		}
+	}
+	return u.replyStreamed
+}
+
+// StreamRoundHadContent reports whether the current LLM round already streamed
+// visible content (used to avoid duplicating llm_plan text).
+func (u *ChatUI) StreamRoundHadContent() bool {
+	return u.streamRoundHad
+}
+
+func (u *ChatUI) swapWriter(w io.Writer) func() {
+	old := u.out
+	u.out = w
+	return func() { u.out = old }
+}
+
+func (u *ChatUI) setPlain(v bool) bool {
+	old := u.plain
+	u.plain = v
+	return old
+}
+
+// WithPlainWriter temporarily sends Print* output to w as plain text.
+func (u *ChatUI) WithPlainWriter(w io.Writer, fn func()) {
+	restore := u.swapWriter(w)
+	wasPlain := u.setPlain(true)
+	fn()
+	u.setPlain(wasPlain)
+	restore()
+}
+
+// RunPlainCapture redirects UI output to a plain-text buffer while fn runs.
+func (u *ChatUI) RunPlainCapture(fn func()) string {
+	var buf strings.Builder
+	u.WithPlainWriter(&buf, fn)
+	return strings.TrimSpace(buf.String())
 }
 
 func (u *ChatUI) PrintHelp(text string) {
@@ -229,6 +445,7 @@ func (u *ChatUI) toolKey(data map[string]any) string {
 func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 	switch event {
 	case "turn_start":
+		u.ResetStream()
 		if u.plain {
 			u.println("────────────────")
 			u.println("Initializing agent...")
@@ -237,13 +454,21 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 		u.printRule()
 		u.println(styleDim.Render("Initializing agent..."))
 	case "round_start":
+		u.streamRoundHad = false
 		if u.plain {
 			u.println(fmt.Sprintf("⋯ step %v", data["step"]))
+		}
+	case "stream_delta":
+		if content, _ := data["content"].(string); content != "" {
+			u.WriteStreamDelta(content)
 		}
 	case "llm_plan":
 		reasoning, _ := data["reasoning"].(string)
 		content, _ := data["content"].(string)
 		toolNames, _ := data["tool_names"].([]string)
+		if u.StreamRoundHadContent() {
+			content = "" // already shown via typewriter
+		}
 		if u.plain {
 			if strings.TrimSpace(reasoning) != "" {
 				u.println(fmt.Sprintf("  [思考] %s", truncate(reasoning, 500)))
@@ -261,7 +486,7 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 			for _, line := range strings.Split(truncate(reasoning, 600), "\n") {
 				line = strings.TrimSpace(line)
 				if line != "" {
-					u.println("    " + styleDim.Render(line))
+					u.println("    " + styleText.Render(line))
 				}
 			}
 		}
@@ -269,9 +494,10 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 			u.println("  " + styleAmber.Render("📋 计划") + " " + styleText.Render(truncate(content, 280)))
 		}
 		if len(toolNames) > 0 {
-			u.println("  " + styleDim.Render("→ 调用: "+strings.Join(toolNames, ", ")))
+			u.println("  " + styleText.Render("→ 调用: "+strings.Join(toolNames, ", ")))
 		}
 	case "llm_tools":
+		u.AbortStreamReply()
 		if u.plain {
 			if names, ok := data["tool_names"].([]string); ok {
 				u.println(fmt.Sprintf("  ⋯ 计划调用: %s", strings.Join(names, ", ")))
@@ -279,9 +505,10 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 			return
 		}
 		if names, ok := data["tool_names"].([]string); ok && len(names) > 0 {
-			u.println("  " + styleDim.Render("⋯ 执行: "+strings.Join(names, ", ")))
+			u.println("  " + styleText.Render("⋯ 执行: "+strings.Join(names, ", ")))
 		}
 	case "tool_start":
+		u.AbortStreamReply()
 		name, _ := data["name"].(string)
 		key := u.toolKey(data)
 		u.toolStarts[key] = time.Now()
@@ -328,12 +555,15 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 		u.println(fmt.Sprintf("  ┊ %s %s%s %s",
 			toolEmoji(name),
 			color.Render(fmt.Sprintf("%-22s", label)),
-			styleDim.Render(argsPart),
-			styleDim.Render(fmt.Sprintf("%.1fs", duration)),
+			styleText.Render(argsPart),
+			styleThinking.Render(fmt.Sprintf("%.1fs", duration)),
 		))
 	case "error":
+		u.AbortStreamReply()
 		msg, _ := data["message"].(string)
 		u.PrintError(msg)
+	case "reply_start":
+		// Final reply may already be streaming; nothing else to do.
 	}
 }
 

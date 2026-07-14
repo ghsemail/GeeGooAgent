@@ -24,13 +24,11 @@ class EnvManager:
 
 ## profile 差异
 
-
 |            | dev             | prod                          |
 | ---------- | --------------- | ----------------------------- |
 | output_dir | `./var/reports` | `/var/lib/geegoo-agent/reports` |
 | log json   | false           | true                          |
 | dry_run 默认 | 可 true          | false                         |
-
 
 ## 与 geegoo skill Env 差异
 

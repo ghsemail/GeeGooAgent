@@ -4,7 +4,7 @@
 
 本文档描述通过 MCP（Skills）对 **DCA 信号提醒机器人**（`bot_type: DCAReminder`）的**创建、修改、删除、获取列表与运行日志**接口。分类与命名见 [`common.md`](common.md)「机器人分类与命名」。调用方不传 `user_id`，改为传入 `mcp_token`，由服务端根据 `mcp_token` 解析出对应用户后再调用 Bot 服务对应逻辑。
 
-- **基础路径**：geegoo mcp 根地址（默认示例：`http://0.0.0.0:5700`）
+- **基础路径**：GeeGooBot mcp-api 根地址（默认示例：`http://127.0.0.1:3120`）
 - **认证方式**：请求头 `Authorization: Bearer <API_KEY>`
 
 **公共约定**：**`mcp_token`**、**`frequency`**、信号与 **`signal`** 见 [`common.md`](common.md)；技术分析 **`prompt_id` / `period`**、**`attitude`** 见 [`agent-analyst.md`](../analyst/agent-analyst.md)。
@@ -160,7 +160,7 @@
 ### 请求示例
 
 ```bash
-curl -X POST "http://localhost:5700/createDCAReminder" \
+curl -X POST "http://localhost:3120/createDCAReminder" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token":"mcp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","botname":"黄金ETF提醒器","stock_name":"黄金ETF","code":"518880.SH","frequency":"60m","reminder_switch":"True","signal":{"buy_signal":[{"index":"SAR","type":"signal","param":{"acceleration":"0.02","maximum":"0.2"}},{"index":"MACD","type":"flag","param":{"fastPeriod":"12","signalPeriod":"9","slowPeriod":"26"}}],"sell_signal":[{"index":"nosignal","type":"","param":{}}]},"attitude":{"analysis_prompt_list":[],"analysis_period":"daily","switch":false,"controll_switch":false}}'
@@ -172,7 +172,7 @@ curl -X POST "http://localhost:5700/createDCAReminder" \
 
 - 本接口只做两件事：用 `mcp_token` 解析 `user_id`，并将请求参数转发至 Bot 服务的 `POST /createBot`（`bot_type: "DCAReminder"`）。
 - 创建逻辑、数量与权限校验、调度与通知等均在 Bot 服务（botAPIServer）中完成。
-- 默认 Bot 服务地址由 `Config/APIConnection.py` 中 `--bot_server_ip`、`--bot_server_port` 决定（默认 `http://127.0.0.1:5600`）。
+- 默认 Bot 服务地址由 `Config/APIConnection.py` 中 `--bot_server_ip`、`--bot_server_port` 决定（默认 `http://127.0.0.1:3230`）。
 
 ---
 
@@ -222,7 +222,7 @@ curl -X POST "http://localhost:5700/createDCAReminder" \
 ### 请求示例
 
 ```bash
-curl -X POST "http://localhost:5700/updateDCAReminder" \
+curl -X POST "http://localhost:3120/updateDCAReminder" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{
@@ -277,7 +277,7 @@ curl -X POST "http://localhost:5700/updateDCAReminder" \
 ### 请求示例
 
 ```bash
-curl -X POST "http://localhost:5700/deleteDCAReminder" \
+curl -X POST "http://localhost:3120/deleteDCAReminder" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{
@@ -343,13 +343,13 @@ curl -X POST "http://localhost:5700/deleteDCAReminder" \
 
 ```bash
 # 获取该用户全部 DCA Reminder
-curl -X POST "http://localhost:5700/getAllDCAReminders" \
+curl -X POST "http://localhost:3120/getAllDCAReminders" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token": "mcp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}'
 
 # 仅获取指定标的的 DCA Reminder
-curl -X POST "http://localhost:5700/getAllDCAReminders" \
+curl -X POST "http://localhost:3120/getAllDCAReminders" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token": "mcp_xxx", "code": "518880.SH"}'
@@ -450,7 +450,7 @@ curl -X POST "http://localhost:5700/getAllDCAReminders" \
 ### 请求示例
 
 ```bash
-curl -X POST "http://localhost:5700/getDCAReminderLog" \
+curl -X POST "http://localhost:3120/getDCAReminderLog" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{

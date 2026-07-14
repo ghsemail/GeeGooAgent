@@ -6,7 +6,6 @@
 
 ## 事件类型
 
-
 | 事件                | 发布者            | 订阅者                | Payload 要点               |
 | ----------------- | -------------- | ------------------ | ------------------------ |
 | `RunRequested`    | CLI/Scheduler  | Runtime            | skill, mode              |
@@ -18,7 +17,6 @@
 | `CheckpointSaved` | Checkpoint     | Logging            | step                     |
 | `RunFinished`     | WorkflowEngine | Scheduler, Logging | status                   |
 | `RunFailed`       | Runtime        | Scheduler, Alert   | error                    |
-
 
 ## 接口
 

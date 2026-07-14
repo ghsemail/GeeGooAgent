@@ -11,7 +11,7 @@ prompts/
 └── identity.md              # Agent 身份与核心约束
 
 rules/
-├── api-routing.md           # 5700；资金流向/报告查询路由
+├── api-routing.md           # 3120；资金流向/报告查询路由
 ├── attitude-mapping.md      # bullish→long 等
 ├── report-format.md         # 九章盘前模板约束
 ├── execution-log.md         # 日志规范
@@ -30,13 +30,11 @@ rules/
 
 ## Rules 与 Tool Schema 分工
 
-
 | 层级          | 约束方式       | 示例                     |
 | ----------- | ---------- | ---------------------- |
 | Rules       | Prompt 软约束 | 「盘前同时调 getCapitalFlow + getCapitalDistribution」 |
 | Tool Schema | 硬拒绝        | 缺 `confidence` 不发给 API |
 | Supervisor  | 跑后检查       | 每股都有 report_id         |
-
 
 ## MVP
 

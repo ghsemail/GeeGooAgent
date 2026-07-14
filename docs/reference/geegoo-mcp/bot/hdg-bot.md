@@ -6,7 +6,7 @@
 
 HDG 用于在独立标的上对冲已绑定的**主策略交易机器人**；**`binding` 可指向 DCA 信号交易机器人、GRID 网格交易机器人或 SmartTrade 交易机器人**（见 `binding`、`direction`，代码侧对应 **`DCA` / `GRID` / `SmartTrade`**）。主策略信息通过 MCP 获取：**`POST /getAllDCABots`**、**`POST /getAllGRIDBots`**、**`POST /getAllSmartTrades`**，从响应 **`data`** 中取得 **`bot_id`**、`botname`、`code` 等再填入 `binding`。
 
-- **基础路径**：geegoo mcp 根地址（默认示例：`http://0.0.0.0:5700`）
+- **基础路径**：GeeGooBot mcp-api 根地址（默认示例：`http://127.0.0.1:3120`）
 - **认证方式**：请求头 `Authorization: Bearer <API_KEY>`；缺少或错误的 API Key 时 HTTP **401**（响应体为 `error` 字段说明，非下文 `code` 体系）。
 - **缺少 `mcp_token` 或必填业务 ID**：未传 `mcp_token`，或更新/删除时未传 `bot_id`，HTTP 为 **400**，响应 JSON 中 **`code` 为 401**（`message` 提示缺少的字段）。这与 **无效 `mcp_token`**（找不到用户）时的 **`code` 102**、HTTP **401** 不同。
 
@@ -138,7 +138,7 @@ HDG 在对冲标的上持仓后，由调度按持仓**成本价**计算止盈价
 ### 请求示例
 
 ```bash
-curl -X POST "http://localhost:5700/createHDGBot" \
+curl -X POST "http://localhost:3120/createHDGBot" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{
@@ -392,7 +392,7 @@ MCP 将请求转发至 Bot 服务的 `POST /createBot`，请求体中带 `bot_ty
 ### 请求示例
 
 ```bash
-curl -X POST "http://localhost:5700/getHDGBotLog" \
+curl -X POST "http://localhost:3120/getHDGBotLog" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{"mcp_token": "mcp_xxx", "bot_id": "<BOT_ID>"}'

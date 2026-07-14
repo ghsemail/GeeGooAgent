@@ -1,8 +1,8 @@
-# geegoo mcp API 路由（5700）
+# GeeGooBot mcp-api API 路由（3120）
 
-> **SSOT**：[TradingBot docs/geegoo-mcp/interface-map.md](D:/Geegoo/TradingBot/docs/geegoo-mcp/interface-map.md)
+> **SSOT**：[GeeGooBot docs/geegoo-mcp/interface-map.md](D:/Geegoo/GeeGooBot/docs/geegoo-mcp/interface-map.md)
 
-原 geegoo mcp（5700）已合并入 **geegoo mcp :5700**。GeeGoo Agent 单一 `GeeGooBotClient` / `MarketClient` 别名。
+原 GeeGooBot mcp-api（3120）已合并入 **GeeGooBot mcp-api :3120**。GeeGoo Agent 单一 `GeeGooBotClient` / `MarketClient` 别名。
 
 ## 认证
 

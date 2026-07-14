@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"sort"
 	"strings"
 	"time"
 
@@ -24,13 +25,50 @@ type ChatStepRecord struct {
 
 // ChatSession is a persisted interactive chat session.
 type ChatSession struct {
-	ID          string        `json:"id"`
-	Status      string        `json:"status"`
-	CreatedAt   time.Time     `json:"created_at"`
-	UpdatedAt   time.Time     `json:"updated_at"`
-	Messages    []llm.Message `json:"messages"`
+	ID          string           `json:"id"`
+	Title       string           `json:"title,omitempty"`
+	Tags        []string         `json:"tags,omitempty"`
+	Summary     string           `json:"summary,omitempty"`
+	ToolNames   []string         `json:"tool_names,omitempty"`
+	Metadata    map[string]any   `json:"metadata,omitempty"`
+	Status      string           `json:"status"`
+	CreatedAt   time.Time        `json:"created_at"`
+	UpdatedAt   time.Time        `json:"updated_at"`
+	Messages    []llm.Message    `json:"messages"`
 	StepRecords []ChatStepRecord `json:"step_records"`
-	StepCounter int           `json:"step_counter"`
+	StepCounter int              `json:"step_counter"`
+}
+
+// ChatSessionIndexEntry is a compact manifest row for session lookup.
+type ChatSessionIndexEntry struct {
+	ID           string
+	Title        string
+	Tags         []string
+	Summary      string
+	ToolNames    []string
+	Status       string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	MessageCount int
+	StepCount    int
+	Metadata     map[string]any
+}
+
+// ChatSessionIndex stores searchable session metadata.
+type ChatSessionIndex struct {
+	Version   int
+	UpdatedAt time.Time
+	Sessions  []ChatSessionIndexEntry
+}
+
+// SessionStore is the persistence abstraction for chat sessions.
+// Both the legacy file-backed store and the SQLite store implement it.
+type SessionStore interface {
+	Create() (*ChatSession, error)
+	Load(sessionID string) (*ChatSession, error)
+	Save(session *ChatSession) error
+	ListIndexedSessions() ([]ChatSessionIndexEntry, error)
+	ListSessionIDs() ([]string, error)
 }
 
 // ChatSessionStore persists chat sessions under state/chat/{id}.
@@ -45,6 +83,10 @@ func NewChatSessionStore(store *infra.StateStore) *ChatSessionStore {
 
 func (s *ChatSessionStore) key(sessionID string) string {
 	return "chat/" + sessionID
+}
+
+func (s *ChatSessionStore) indexKey() string {
+	return "chat_index"
 }
 
 // Create allocates and saves a new active session with system prompt.
@@ -70,26 +112,47 @@ func (s *ChatSessionStore) Load(sessionID string) (*ChatSession, error) {
 	if err != nil || data == nil {
 		return nil, err
 	}
-	return chatSessionFromMap(data)
+	session, err := chatSessionFromMap(data)
+	if err != nil {
+		return nil, err
+	}
+	session.RefreshMetadata()
+	return session, nil
 }
 
 // Save persists session state.
 func (s *ChatSessionStore) Save(session *ChatSession) error {
+	session.RefreshMetadata()
 	session.UpdatedAt = time.Now().UTC()
-	return s.store.Save(s.key(session.ID), session.toMap())
+	if err := s.store.Save(s.key(session.ID), session.toMap()); err != nil {
+		return err
+	}
+	return s.upsertIndexEntry(session)
 }
 
-// SyncChatSystemPrompt refreshes system message with tool activity summary.
-func (c *ChatSession) SyncChatSystemPrompt() {
-	content := chatprompt.System()
-	if activity := c.ToolActivitySummary(); activity != "" {
-		content = chatprompt.System() + "\n\n本会话 Tool 活动：\n" + activity
+// ListIndexedSessions returns compact session metadata from the manifest.
+func (s *ChatSessionStore) ListIndexedSessions() ([]ChatSessionIndexEntry, error) {
+	idx, err := s.loadIndex()
+	if err != nil {
+		return nil, err
 	}
+	entries := append([]ChatSessionIndexEntry(nil), idx.Sessions...)
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].UpdatedAt.After(entries[j].UpdatedAt)
+	})
+	return entries, nil
+}
+
+// SyncChatSystemPrompt ensures the leading system message is the stable system
+// prompt. It no longer mutates the system content with tool activity — that
+// would break DeepSeek/OpenAI prefix caching. Dynamic context is injected by
+// RuntimeMessages at LLM-call time instead.
+func (c *ChatSession) SyncChatSystemPrompt() {
 	if len(c.Messages) > 0 && c.Messages[0].Role == llm.RoleSystem {
-		c.Messages[0].Content = content
+		c.Messages[0].Content = chatprompt.System()
 		return
 	}
-	c.Messages = append([]llm.Message{{Role: llm.RoleSystem, Content: content}}, c.Messages...)
+	c.Messages = append([]llm.Message{{Role: llm.RoleSystem, Content: chatprompt.System()}}, c.Messages...)
 }
 
 // ToolActivitySummary lists market-related tools already called in this chat.
@@ -133,11 +196,83 @@ func (c *ChatSession) SyncFromRuntime(messages []llm.Message, stepCounter int, n
 	}
 }
 
+// SyncLineageFromRuntime persists Hermes-style compaction bloodline into Metadata.
+func (c *ChatSession) SyncLineageFromRuntime(parentID, lineageRoot string, generation int) {
+	if c.Metadata == nil {
+		c.Metadata = map[string]any{}
+	}
+	if lineageRoot != "" {
+		c.Metadata["lineage_root"] = lineageRoot
+	}
+	if parentID != "" {
+		c.Metadata["parent_id"] = parentID
+	}
+	if generation > 0 {
+		c.Metadata["compaction_generation"] = generation
+	}
+}
+
+// LineageFromMetadata reads compaction bloodline fields from Metadata.
+func (c *ChatSession) LineageFromMetadata() (parentID, lineageRoot string, generation int) {
+	if c == nil || c.Metadata == nil {
+		return "", "", 0
+	}
+	parentID, _ = c.Metadata["parent_id"].(string)
+	lineageRoot, _ = c.Metadata["lineage_root"].(string)
+	switch v := c.Metadata["compaction_generation"].(type) {
+	case int:
+		generation = v
+	case float64:
+		generation = int(v)
+	case json.Number:
+		if n, err := v.Int64(); err == nil {
+			generation = int(n)
+		}
+	}
+	return parentID, lineageRoot, generation
+}
+
 // RuntimeMessages returns a copy of chat messages for the ReAct loop.
+//
+// To preserve DeepSeek/OpenAI prefix caching, the stored system message stays
+// byte-identical across turns. Dynamic per-turn context (tool activity summary)
+// is injected here as a short user-side context message immediately before the
+// last user message, so the stable prefix (system + prior turns) remains
+// cacheable.
 func (c *ChatSession) RuntimeMessages() []llm.Message {
 	out := make([]llm.Message, len(c.Messages))
 	copy(out, c.Messages)
+	activity := strings.TrimSpace(c.ToolActivitySummary())
+	if activity == "" || len(out) == 0 {
+		return out
+	}
+	lastIdx := len(out) - 1
+	if out[lastIdx].Role != llm.RoleUser {
+		return out
+	}
+	ctxMsg := llm.Message{
+		Role:    llm.RoleUser,
+		Content: "本会话 Tool 活动（供参考，勿重复调用）：\n" + activity,
+	}
+	out = append(out[:lastIdx], append([]llm.Message{ctxMsg}, out[lastIdx:]...)...)
 	return out
+}
+
+// RefreshMetadata derives searchable fields from persisted chat content.
+func (c *ChatSession) RefreshMetadata() {
+	if strings.TrimSpace(c.Title) == "" || c.Title == c.ID {
+		c.Title = deriveSessionTitle(c)
+	}
+	c.ToolNames = uniqueSortedStrings(append(c.ToolNames, deriveToolNames(c)...))
+	c.Tags = uniqueSortedStrings(append(c.Tags, deriveSessionTags(c)...))
+	if strings.TrimSpace(c.Summary) == "" {
+		c.Summary = deriveSessionSummary(c)
+	}
+	if c.Metadata == nil {
+		c.Metadata = map[string]any{}
+	}
+	c.Metadata["message_count"] = len(c.Messages)
+	c.Metadata["step_count"] = len(c.StepRecords)
 }
 
 func newChatSessionID() string {
@@ -176,17 +311,24 @@ func (c *ChatSession) toMap() map[string]any {
 		})
 	}
 	return map[string]any{
-		"id": c.ID, "status": c.Status,
+		"id": c.ID, "title": c.Title, "tags": c.Tags, "summary": c.Summary,
+		"tool_names": c.ToolNames, "metadata": c.Metadata, "status": c.Status,
 		"created_at": c.CreatedAt.Format(time.RFC3339),
 		"updated_at": c.UpdatedAt.Format(time.RFC3339),
-		"messages": msgs, "step_records": records, "step_counter": c.StepCounter,
+		"messages":   msgs, "step_records": records, "step_counter": c.StepCounter,
 	}
 }
 
 func chatSessionFromMap(data map[string]any) (*ChatSession, error) {
 	session := &ChatSession{
-		ID: stringField(data, "id"), Status: stringField(data, "status"),
+		ID: stringField(data, "id"), Title: stringField(data, "title"), Summary: stringField(data, "summary"),
+		Status:      stringField(data, "status"),
 		StepCounter: intField(data, "step_counter"),
+	}
+	session.Tags = stringSliceField(data, "tags")
+	session.ToolNames = stringSliceField(data, "tool_names")
+	if metadata, ok := data["metadata"].(map[string]any); ok {
+		session.Metadata = metadata
 	}
 	if t, err := time.Parse(time.RFC3339, stringField(data, "created_at")); err == nil {
 		session.CreatedAt = t
@@ -257,6 +399,240 @@ func intField(m map[string]any, k string) int {
 	default:
 		return 0
 	}
+}
+
+func stringSliceField(m map[string]any, k string) []string {
+	raw, ok := m[k].([]any)
+	if !ok {
+		return nil
+	}
+	items := make([]string, 0, len(raw))
+	for _, item := range raw {
+		if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+			items = append(items, s)
+		}
+	}
+	return uniqueSortedStrings(items)
+}
+
+func (s *ChatSessionStore) loadIndex() (*ChatSessionIndex, error) {
+	data, err := s.store.Load(s.indexKey())
+	if err != nil {
+		if strings.Contains(err.Error(), "corrupt state file") {
+			return s.rebuildIndex()
+		}
+		return nil, err
+	}
+	if data == nil {
+		return &ChatSessionIndex{Version: 1}, nil
+	}
+	return chatSessionIndexFromMap(data), nil
+}
+
+func (s *ChatSessionStore) rebuildIndex() (*ChatSessionIndex, error) {
+	ids, err := s.ListSessionIDs()
+	if err != nil {
+		return nil, err
+	}
+	idx := &ChatSessionIndex{Version: 1}
+	for _, id := range ids {
+		session, err := s.Load(id)
+		if err != nil {
+			return nil, err
+		}
+		if session == nil {
+			continue
+		}
+		idx.Sessions = append(idx.Sessions, indexEntryFromSession(session))
+	}
+	sort.Slice(idx.Sessions, func(i, j int) bool {
+		return idx.Sessions[i].UpdatedAt.After(idx.Sessions[j].UpdatedAt)
+	})
+	if err := s.saveIndex(idx); err != nil {
+		return nil, err
+	}
+	return idx, nil
+}
+
+func (s *ChatSessionStore) saveIndex(index *ChatSessionIndex) error {
+	index.Version = 1
+	index.UpdatedAt = time.Now().UTC()
+	return s.store.Save(s.indexKey(), index.toMap())
+}
+
+func (s *ChatSessionStore) upsertIndexEntry(session *ChatSession) error {
+	idx, err := s.loadIndex()
+	if err != nil {
+		return err
+	}
+	entry := indexEntryFromSession(session)
+	replaced := false
+	for i := range idx.Sessions {
+		if idx.Sessions[i].ID == session.ID {
+			idx.Sessions[i] = entry
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		idx.Sessions = append(idx.Sessions, entry)
+	}
+	sort.Slice(idx.Sessions, func(i, j int) bool {
+		return idx.Sessions[i].UpdatedAt.After(idx.Sessions[j].UpdatedAt)
+	})
+	return s.saveIndex(idx)
+}
+
+func indexEntryFromSession(session *ChatSession) ChatSessionIndexEntry {
+	return ChatSessionIndexEntry{
+		ID: session.ID, Title: session.Title, Tags: append([]string(nil), session.Tags...),
+		Summary: session.Summary, ToolNames: append([]string(nil), session.ToolNames...), Status: session.Status,
+		CreatedAt: session.CreatedAt, UpdatedAt: session.UpdatedAt, MessageCount: len(session.Messages),
+		StepCount: len(session.StepRecords), Metadata: cloneMetadata(session.Metadata),
+	}
+}
+
+func chatSessionIndexFromMap(data map[string]any) *ChatSessionIndex {
+	idx := &ChatSessionIndex{Version: intField(data, "version")}
+	if idx.Version == 0 {
+		idx.Version = 1
+	}
+	if t, err := time.Parse(time.RFC3339, stringField(data, "updated_at")); err == nil {
+		idx.UpdatedAt = t
+	}
+	if rawSessions, ok := data["sessions"].([]any); ok {
+		for _, item := range rawSessions {
+			m, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			entry := ChatSessionIndexEntry{
+				ID: stringField(m, "id"), Title: stringField(m, "title"), Tags: stringSliceField(m, "tags"),
+				Summary: stringField(m, "summary"), ToolNames: stringSliceField(m, "tool_names"),
+				Status: stringField(m, "status"), MessageCount: intField(m, "message_count"), StepCount: intField(m, "step_count"),
+			}
+			if t, err := time.Parse(time.RFC3339, stringField(m, "created_at")); err == nil {
+				entry.CreatedAt = t
+			}
+			if t, err := time.Parse(time.RFC3339, stringField(m, "updated_at")); err == nil {
+				entry.UpdatedAt = t
+			}
+			if metadata, ok := m["metadata"].(map[string]any); ok {
+				entry.Metadata = metadata
+			}
+			if entry.ID != "" {
+				idx.Sessions = append(idx.Sessions, entry)
+			}
+		}
+	}
+	return idx
+}
+
+func (idx *ChatSessionIndex) toMap() map[string]any {
+	sessions := make([]map[string]any, 0, len(idx.Sessions))
+	for _, entry := range idx.Sessions {
+		sessions = append(sessions, map[string]any{
+			"id": entry.ID, "title": entry.Title, "tags": entry.Tags, "summary": entry.Summary,
+			"tool_names": entry.ToolNames, "status": entry.Status,
+			"created_at": entry.CreatedAt.Format(time.RFC3339), "updated_at": entry.UpdatedAt.Format(time.RFC3339),
+			"message_count": entry.MessageCount, "step_count": entry.StepCount, "metadata": entry.Metadata,
+		})
+	}
+	return map[string]any{"version": idx.Version, "updated_at": idx.UpdatedAt.Format(time.RFC3339), "sessions": sessions}
+}
+
+func deriveSessionTitle(session *ChatSession) string {
+	for _, msg := range session.Messages {
+		if msg.Role == llm.RoleUser && strings.TrimSpace(msg.Content) != "" {
+			return truncateRunes(strings.TrimSpace(msg.Content), 80)
+		}
+	}
+	return session.ID
+}
+
+func deriveSessionSummary(session *ChatSession) string {
+	for i := len(session.StepRecords) - 1; i >= 0; i-- {
+		if strings.TrimSpace(session.StepRecords[i].Summary) != "" {
+			return truncateRunes(strings.TrimSpace(session.StepRecords[i].Summary), 240)
+		}
+	}
+	for i := len(session.Messages) - 1; i >= 0; i-- {
+		msg := session.Messages[i]
+		if msg.Role != llm.RoleSystem && strings.TrimSpace(msg.Content) != "" {
+			return truncateRunes(strings.TrimSpace(msg.Content), 240)
+		}
+	}
+	return ""
+}
+
+func deriveToolNames(session *ChatSession) []string {
+	var names []string
+	for _, msg := range session.Messages {
+		for _, call := range msg.ToolCalls {
+			if strings.TrimSpace(call.Name) != "" {
+				names = append(names, call.Name)
+			}
+		}
+	}
+	for _, rec := range session.StepRecords {
+		if strings.TrimSpace(rec.ToolName) != "" {
+			names = append(names, rec.ToolName)
+		}
+	}
+	return names
+}
+
+func deriveSessionTags(session *ChatSession) []string {
+	var tags []string
+	for _, msg := range session.Messages {
+		for _, call := range msg.ToolCalls {
+			for _, key := range []string{"code", "symbol", "ticker"} {
+				if v := strings.TrimSpace(strFromMap(call.Arguments, key)); v != "" {
+					tags = append(tags, strings.ToUpper(v))
+				}
+			}
+		}
+	}
+	return tags
+}
+
+func strFromMap(m map[string]any, key string) string {
+	if m == nil {
+		return ""
+	}
+	if s, ok := m[key].(string); ok {
+		return s
+	}
+	return ""
+}
+
+func uniqueSortedStrings(items []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		out = append(out, item)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func cloneMetadata(in map[string]any) map[string]any {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }
 
 func formatAny(v any) string {

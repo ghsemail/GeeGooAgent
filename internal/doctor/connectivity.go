@@ -28,6 +28,7 @@ func checkConnectivity(cfg *config.AppConfig) []CheckResult {
 		"code":      "00700.HK",
 	}))
 	results = append(results, checkHTTPGet("GeeGooSignal catalog /health", cfg.SignalCatalogURL()+"/health", "", 15))
+	results = append(results, checkHTTPGet("GeeGooSignal analyze /health", cfg.SignalAnalyzeURL()+"/health", "", 15))
 	results = append(results, checkHTTPGet("GeeGooData /health", cfg.DataHTTPURL()+"/health", "", 15))
 
 	runtimeURL := strings.TrimSuffix(runtimeHealthURL(), "/")

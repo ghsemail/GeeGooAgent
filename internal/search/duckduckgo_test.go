@@ -2,6 +2,7 @@ package search_test
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 
@@ -10,6 +11,9 @@ import (
 
 func TestDuckDuckGoReturnsHits(t *testing.T) {
 	t.Parallel()
+	if os.Getenv("GEEGOO_RUN_NETWORK_TESTS") != "1" {
+		t.Skip("set GEEGOO_RUN_NETWORK_TESTS=1 to run live DuckDuckGo integration test")
+	}
 	hits, err := search.DuckDuckGo(context.Background(), "SpaceX IPO 2024", 3)
 	if err != nil {
 		t.Fatalf("search failed: %v", err)

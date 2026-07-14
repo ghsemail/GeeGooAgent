@@ -16,15 +16,12 @@ Executor.execute(call)
 
 ## Executor 与 Sandbox 分工
 
-
 | 组件                 | 职责                               |
 | ------------------ | -------------------------------- |
 | **Executor**       | 解析 call、选 tool、更新 Memory、发 Event |
 | **SandboxManager** | 隔离、权限、资源、统一 ToolResult           |
 
-
 ## ToolResult 与 Runtime 决策
-
 
 | exit_code / status      | Runtime 行为          |
 | ----------------------- | ------------------- |
@@ -33,7 +30,6 @@ Executor.execute(call)
 | `error` 404 attitude    | 工具内已转 neutral，继续    |
 | `dry_run`               | 跳过 HTTP，记日志         |
 | `sandbox_layer=network` | 告警，不泄露内网            |
-
 
 ## 详见
 
