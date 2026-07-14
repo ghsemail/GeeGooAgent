@@ -163,6 +163,11 @@ func RenderBanner(opts BannerOptions, width int, plain bool) string {
 	return b.String()
 }
 
+const (
+	// assistantBoxInnerWidth is the fixed text column inside the reply panel.
+	assistantBoxInnerWidth = 72
+)
+
 // RenderAssistantBox returns a Hermes-style rounded reply panel with glamour markdown.
 func RenderAssistantBox(text string, width int) string {
 	return renderAssistantPanel(text, width, false)
@@ -177,20 +182,44 @@ func renderAssistantPanel(text string, width int, live bool) string {
 	if width <= 0 {
 		width = 80
 	}
-	contentW := assistantContentWidth(width)
+	innerW := assistantWrapWidth(width)
 	body := strings.TrimRight(text, "\n")
-	if live {
-		body = RenderPlainAssistantBody(body, width)
-	} else {
-		body = renderAssistantMarkdown(body, contentW, width)
-	}
+	body = RenderPlainAssistantBody(body, innerW)
 	title := styleGold.Render("⚕ GeeGoo")
 	inner := title + "\n" + body
+	boxW := assistantBoxOuterWidth(width)
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(colorBorder)).
 		Padding(0, 1).
+		Width(boxW).
 		Render(inner)
+}
+
+// assistantWrapWidth returns the content wrap width (capped, narrow on small terminals).
+func assistantWrapWidth(terminalWidth int) int {
+	w := assistantBoxInnerWidth
+	if terminalWidth > 0 {
+		if max := terminalWidth - 10; max < w {
+			w = max
+		}
+	}
+	if w < 32 {
+		return 32
+	}
+	return w
+}
+
+// assistantBoxOuterWidth is the lipgloss panel width (border + padding + inner text).
+func assistantBoxOuterWidth(terminalWidth int) int {
+	outer := assistantBoxInnerWidth + 4
+	if terminalWidth > 0 && terminalWidth-2 < outer {
+		outer = terminalWidth - 2
+	}
+	if outer < 40 {
+		return 40
+	}
+	return outer
 }
 
 func assistantContentWidth(width int) int {
@@ -206,7 +235,7 @@ func assistantContentWidth(width int) int {
 
 func renderAssistantMarkdown(text string, contentW int, width int) string {
 	_ = contentW
-	return RenderPlainAssistantBody(text, width)
+	return RenderPlainAssistantBody(text, assistantWrapWidth(width))
 }
 
 func min(a, b int) int {

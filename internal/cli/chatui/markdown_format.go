@@ -291,13 +291,12 @@ func isNumericIndex(s string) bool {
 }
 
 // RenderPlainAssistantBody renders assistant text line-by-line for the terminal.
-// width is the outer terminal width; long lines are hard-wrapped (viewport does not soft-wrap).
-func RenderPlainAssistantBody(text string, width int) string {
+// wrapW is the max content width in runes (viewport does not soft-wrap).
+func RenderPlainAssistantBody(text string, wrapW int) string {
 	text = PreprocessTerminalMarkdown(text)
 	if strings.TrimSpace(text) == "" {
 		return styleDim.Render("⋯ 正在生成回复…")
 	}
-	wrapW := width - 8
 	if wrapW < 32 {
 		wrapW = 32
 	}
