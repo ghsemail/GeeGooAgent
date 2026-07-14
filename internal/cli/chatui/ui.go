@@ -165,7 +165,7 @@ func RenderBanner(opts BannerOptions, width int, plain bool) string {
 
 const (
 	// assistantBoxInnerWidth is the fixed text column inside the reply panel.
-	assistantBoxInnerWidth = 72
+	assistantBoxInnerWidth = 144
 )
 
 // RenderAssistantBox returns a Hermes-style rounded reply panel with glamour markdown.
