@@ -186,14 +186,7 @@ func renderAssistantPanel(text string, width int, live bool) string {
 	body := strings.TrimRight(text, "\n")
 	body = RenderPlainAssistantBody(body, innerW)
 	title := styleGold.Render("⚕ GeeGoo")
-	inner := title + "\n" + body
-	boxW := assistantBoxOuterWidth(width)
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(colorBorder)).
-		Padding(0, 1).
-		Width(boxW).
-		Render(inner)
+	return title + "\n" + body
 }
 
 // assistantWrapWidth returns the content wrap width (capped, narrow on small terminals).

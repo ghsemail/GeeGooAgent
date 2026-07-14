@@ -314,6 +314,7 @@ func RenderPlainAssistantBody(text string, wrapW int) string {
 			lineW = 24
 		}
 		plain, style := classifyAssistantLine(trim)
+		plain = stripInlineMarkdown(plain)
 		for i, wl := range strings.Split(hardWrapLine(plain, lineW), "\n") {
 			if i > 0 {
 				wl = strings.Repeat(" ", indent) + wl
@@ -341,6 +342,35 @@ func classifyAssistantLine(trim string) (plain string, style func(string) string
 	default:
 		return trim, func(s string) string { return styleText.Render(s) }
 	}
+}
+
+// stripInlineMarkdown removes lightweight markdown markers the plain renderer does not parse.
+func stripInlineMarkdown(s string) string {
+	for {
+		i := strings.Index(s, "`")
+		if i < 0 {
+			break
+		}
+		rest := s[i+1:]
+		j := strings.Index(rest, "`")
+		if j < 0 {
+			break
+		}
+		s = s[:i] + rest[:j] + rest[j+1:]
+	}
+	for {
+		i := strings.Index(s, "**")
+		if i < 0 {
+			break
+		}
+		rest := s[i+2:]
+		j := strings.Index(rest, "**")
+		if j < 0 {
+			break
+		}
+		s = s[:i] + rest[:j] + rest[j+2:]
+	}
+	return s
 }
 
 func hardWrapLine(s string, width int) string {

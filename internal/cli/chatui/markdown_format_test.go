@@ -61,6 +61,17 @@ func TestTightenParagraphSpacing_SectionGaps(t *testing.T) {
 	}
 }
 
+func TestStripInlineMarkdown(t *testing.T) {
+	in := "**1. 腾讯控股** · `00700.HK`"
+	got := stripInlineMarkdown(in)
+	if strings.Contains(got, "*") || strings.Contains(got, "`") {
+		t.Fatalf("markers should be stripped: %q", got)
+	}
+	if !strings.Contains(got, "腾讯控股") || !strings.Contains(got, "00700.HK") {
+		t.Fatalf("content lost: %q", got)
+	}
+}
+
 func TestHardWrapLine_Chinese(t *testing.T) {
 	in := "这是一段很长的中文说明文字用于测试在终端里是否会强制折行显示而不是挤成一行"
 	out := hardWrapLine(in, 20)
