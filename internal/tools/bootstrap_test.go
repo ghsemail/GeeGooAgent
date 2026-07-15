@@ -45,7 +45,7 @@ func TestAllToolsDryRun(t *testing.T) {
 			continue
 		}
 		result := r.Execute(tools.CallRequest{Name: name, Arguments: map[string]any{
-			"code": "00700.HK", "regex": "00700", "query": "SpaceX IPO",
+			"code": "00700.HK", "name": "腾讯控股", "regex": "00700", "query": "SpaceX IPO", "period": "daily",
 		}}, ctx)
 		if result.Status == tools.StatusError {
 			t.Fatalf("%s dry-run failed: %s", name, result.Summary)
@@ -61,11 +61,14 @@ func TestAllToolsDryRun(t *testing.T) {
 
 func TestNewsToolsSkipWhenScriptRunnerUnavailable(t *testing.T) {
 	root := t.TempDir()
+	t.Setenv("HOME", root)
+	t.Setenv("USERPROFILE", root)
+	t.Setenv("GEEGOO_NEWS_DISABLE_GO", "1")
 	client := mcp.NewClient("http://127.0.0.1:3120", "sk-test", mcp.Options{
 		AllowedHosts: []string{"127.0.0.1"},
 	})
 	r := tools.NewRegistry()
-	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: root})
+	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: root, ProjectRoot: root})
 
 	ctx := tools.Context{SessionID: "test", MCPToken: "tok", WorkspaceRoot: root}
 	cases := []tools.CallRequest{

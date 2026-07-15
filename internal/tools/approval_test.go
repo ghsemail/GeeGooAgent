@@ -8,7 +8,7 @@ import (
 
 func TestApprovalRequiredForMutatingTools(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{"create_dca_bot", "update_grid_bot", "delete_smart_trade", "switch_bot", "create_pre_market_report"} {
+	for _, name := range []string{"create_dca_bot", "update_grid_bot", "delete_smart_trade", "create_pre_market_report"} {
 		if !tools.ApprovalRequired(name) {
 			t.Fatalf("%s should require approval", name)
 		}

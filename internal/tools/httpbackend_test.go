@@ -25,6 +25,17 @@ func TestHTTPBackendsForTool(t *testing.T) {
 	if b.ForTool("get_signal_combinations") != catC {
 		t.Fatal("get_signal_combinations should use catalog-api")
 	}
+	analyzeC := mcp.NewClient("http://analyze", "k", opts)
+	b2 := HTTPBackends{MCP: mcpC, SignalAPI: sigC, SignalCatalog: catC, SignalAnalyze: analyzeC}
+	if b2.ForTool("generate_grid_strategy") != analyzeC {
+		t.Fatal("generate_grid_strategy should use analyze-api")
+	}
+	if b2.ForTool("generate_dca_strategy") != analyzeC {
+		t.Fatal("generate_dca_strategy should use analyze-api")
+	}
+	if b2.ForTool("get_mcp_analysis") != analyzeC {
+		t.Fatal("get_mcp_analysis should use analyze-api when configured")
+	}
 	if b.ForTool("get_position") != mcpC {
 		t.Fatal("bot tools should use mcp-api")
 	}

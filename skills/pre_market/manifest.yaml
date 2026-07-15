@@ -20,7 +20,6 @@ tools:
   - read_working_state
   - create_pre_market_report
   - save_local_report
-  - send_feishu_summary
   - write_execution_log
 
 # Step 12 实现的 LLM 任务（非 Tool Registry 条目，列于此供文档对齐）
@@ -80,8 +79,6 @@ workflow:
           - synthesize_pre_market_report
           - create_pre_market_report
           - save_local_report
-        optional_tools:
-          - send_feishu_summary
   meta:
     - id: execution_log
       tool: write_execution_log

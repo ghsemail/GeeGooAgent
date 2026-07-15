@@ -34,7 +34,6 @@ var (
 		botCRUD("grid_bot"),
 		botCRUD("smart_trade"),
 		botCRUD("hdg_bot"),
-		[]string{"switch_bot"},
 	)
 	reminderManagerTools = union(
 		botCRUD("dca_reminder"),

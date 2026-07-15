@@ -7,6 +7,8 @@
   "signal_base_url": "http://127.0.0.1:3210",
   "signal_api_url": "http://127.0.0.1:3200",
   "data_base_url": "http://127.0.0.1:3300",
+  "signal_analyze_api_url": "http://127.0.0.1:3230",
+  "signal_analyze_api_key": "",
   "output_dir": "./data",
   "feishu_webhook_url": null,
   "dry_run": false,

@@ -2,6 +2,7 @@ package tools
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,12 +12,11 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/search"
+	"github.com/ghsemail/GeeGooAgent/internal/tools/capitalflow"
+	"github.com/ghsemail/GeeGooAgent/internal/tools/newsrunner"
 )
 
-const (
-	indexPromptID     = "69ec7035b9ccd3d9befc6c23"
-	aShareCapitalSkip = "A-share capital flow not available for this account"
-)
+const indexPromptID = "69ec7035b9ccd3d9befc6c23"
 
 var dryRunSampleBots = []map[string]string{
 	{
@@ -213,31 +213,48 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "fetch_market_news", Description: "Fetch market news (bundled scripts when not dry-run).",
+		Name: "fetch_market_news", Description: "Fetch market news (bundled finance-news script).",
 		Handle: func(ctx Context, args map[string]any) Result {
 			market := strArg(args, "market", "US")
+			limit := intArg(args, "limit", 8)
 			if ctx.DryRun {
 				return okDryRun("fetch_market_news", map[string]any{"market": market, "text": "", "items": []any{}})
 			}
-			return Result{
-				Status:  StatusSkip,
-				Summary: "fetch_market_news: script runner unavailable; continuing without bundled news",
-				Data:    map[string]any{"market": market, "text": "", "items": []any{}, "source": "unavailable"},
+			text, err := newsrunner.MarketNews(ctx.GoContext(), newsrunner.Options{ProjectRoot: deps.ProjectRoot}, market, limit)
+			if err != nil {
+				return newsUnavailableResult("fetch_market_news", market, "", err)
 			}
+			summary := fmt.Sprintf("fetch_market_news %s: %d chars", market, len(text))
+			if text == "" {
+				summary = fmt.Sprintf("fetch_market_news %s: no items", market)
+			}
+			return Result{Status: StatusOK, Summary: summary, Data: map[string]any{
+				"market": market, "text": text, "items": []any{}, "source": "finance-news",
+			}}
 		},
 	})
 	r.Register(Tool{
 		Name: "fetch_stock_news", Description: "Fetch stock-specific news.",
 		Handle: func(ctx Context, args map[string]any) Result {
 			code := strArg(args, "code", "")
+			limit := intArg(args, "limit", 8)
+			if code == "" {
+				return Result{Status: StatusError, Summary: "fetch_stock_news: code required", ExitCode: 1}
+			}
 			if ctx.DryRun {
 				return okDryRun("fetch_stock_news", map[string]any{"code": code, "text": "", "source": "dry-run"})
 			}
-			return Result{
-				Status:  StatusSkip,
-				Summary: "fetch_stock_news: script runner unavailable; continuing without bundled news",
-				Data:    map[string]any{"code": code, "text": "", "source": "unavailable"},
+			text, err := newsrunner.StockNews(ctx.GoContext(), newsrunner.Options{ProjectRoot: deps.ProjectRoot}, code, limit)
+			if err != nil {
+				return newsUnavailableResult("fetch_stock_news", "", code, err)
 			}
+			summary := fmt.Sprintf("fetch_stock_news %s: %d chars", code, len(text))
+			if text == "" {
+				summary = fmt.Sprintf("fetch_stock_news %s: no items", code)
+			}
+			return Result{Status: StatusOK, Summary: summary, Data: map[string]any{
+				"code": code, "text": text, "source": "finance-news",
+			}}
 		},
 	})
 }
@@ -292,7 +309,10 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 					"analysis_result": fmt.Sprintf("[dry-run] analysis for %s", name),
 				})
 			}
-			result, err := deps.HTTP.MCP.GetMCPAnalysis(ctx.GoContext(), ctx.MCPToken, name, code, promptID, period, language)
+			result, err := deps.HTTP.AnalysisClient().GetMCPAnalysis(ctx.GoContext(), ctx.MCPToken, name, code, promptID, period, language)
+			if err != nil && deps.HTTP.SignalAnalyze != nil && deps.HTTP.MCP != nil && deps.HTTP.AnalysisClient() != deps.HTTP.MCP {
+				result, err = deps.HTTP.MCP.GetMCPAnalysis(ctx.GoContext(), ctx.MCPToken, name, code, promptID, period, language)
+			}
 			if err != nil {
 				return errResult(err)
 			}
@@ -311,11 +331,6 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 		Handle: func(ctx Context, args map[string]any) Result {
 			code := strArg(args, "code", "")
 			period := strArg(args, "period", "DAY")
-			if isAShare(code) {
-				return Result{Status: StatusSkip, Summary: aShareCapitalSkip, Data: map[string]any{
-					"code": code, "skip_reason": aShareCapitalSkip, "items": []any{}, "latest": map[string]any{},
-				}}
-			}
 			if ctx.DryRun {
 				return okDryRun("get_capital_flow", map[string]any{"code": code, "items": []any{}})
 			}
@@ -324,20 +339,29 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 				return errResult(err)
 			}
 			latest := map[string]any{}
+			source := "GeeGooBot-mcp-api"
 			if len(flows) > 0 {
 				latest = map[string]any{"main_in_flow": flows[len(flows)-1].MainInFlow}
+			} else if capitalflow.SupportsAShare(code) {
+				if snap, emErr := capitalflow.FetchAShareSnapshot(ctx.GoContext(), code); emErr == nil {
+					latest = map[string]any{"main_in_flow": snap.MainInFlow}
+					source = snap.Source
+				}
+			}
+			if len(latest) == 0 {
+				note := emptyDataNote("get_capital_flow", code)
+				return Result{Status: StatusSkip, Summary: note, Data: map[string]any{
+					"code": code, "latest": latest, "items": []any{}, "source": source,
+				}}
 			}
 			return Result{Status: StatusOK, Summary: fmt.Sprintf("capital flow %s", code),
-				Data: map[string]any{"code": code, "latest": latest}}
+				Data: map[string]any{"code": code, "latest": latest, "source": source}}
 		},
 	})
 	r.Register(Tool{
 		Name: "get_capital_distribution", Description: "Fetch capital distribution.",
 		Handle: func(ctx Context, args map[string]any) Result {
 			code := strArg(args, "code", "")
-			if isAShare(code) {
-				return Result{Status: StatusSkip, Summary: aShareCapitalSkip, Data: map[string]any{"code": code}}
-			}
 			if ctx.DryRun {
 				return okDryRun("get_capital_distribution", map[string]any{"code": code})
 			}
@@ -345,8 +369,20 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if err != nil {
 				return errResult(err)
 			}
+			formatted := fmt.Sprintf("super_in=%v", dist.CapitalInSuper)
+			source := "GeeGooBot-mcp-api"
+			if dist.CapitalInSuper == 0 && dist.CapitalInBig == 0 && capitalflow.SupportsAShare(code) {
+				if em, emErr := capitalflow.FetchAShareDistribution(ctx.GoContext(), code); emErr == nil {
+					formatted = fmt.Sprintf("super_in=%v big_in=%v mid_in=%v small_in=%v", em.SuperIn, em.BigIn, em.MidIn, em.SmallIn)
+					source = em.Source
+				}
+			}
+			if strings.TrimSpace(formatted) == "super_in=0" || strings.TrimSpace(formatted) == "super_in=<nil>" {
+				note := emptyDataNote("get_capital_distribution", code)
+				return Result{Status: StatusSkip, Summary: note, Data: map[string]any{"code": code, "formatted": formatted, "source": source}}
+			}
 			return Result{Status: StatusOK, Summary: fmt.Sprintf("capital distribution %s", code), Data: map[string]any{
-				"code": code, "formatted": fmt.Sprintf("super_in=%v", dist.CapitalInSuper),
+				"code": code, "formatted": formatted, "source": source,
 			}}
 		},
 	})
@@ -405,11 +441,49 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "recall_yesterday_summary", Description: "Recall yesterday summary (stub).",
+		Name: "recall_yesterday_summary", Description: "Recall yesterday pre-market report summary from workspace.",
 		Handle: func(ctx Context, args map[string]any) Result {
-			_ = ctx
-			_ = args
-			return Result{Status: StatusSkip, Summary: "recall_yesterday_summary is not implemented", Data: map[string]any{"implemented": false}}
+			code := strArg(args, "code", "")
+			if code == "" {
+				return Result{Status: StatusError, Summary: "recall_yesterday_summary: code required", ExitCode: 1}
+			}
+			reportDate := strArg(args, "report_date", yesterday())
+			if ctx.DryRun {
+				return okDryRun("recall_yesterday_summary", map[string]any{
+					"code": code, "report_date": reportDate, "summary": "", "found": false,
+				})
+			}
+			summary, path, found, err := readYesterdayReport(deps.WorkspaceRoot, reportDate, code)
+			if err != nil {
+				return errResult(err)
+			}
+			if !found && strings.TrimSpace(ctx.MCPToken) != "" {
+				reports, mcpErr := deps.HTTP.MCP.GetStockDailyReports(ctx.GoContext(), ctx.MCPToken, code, reportDate)
+				if mcpErr == nil && len(reports.PreMarket) > 0 {
+					if text := firstPreMarketText(reports.PreMarket); text != "" {
+						summary = truncateRecall(text, 4000)
+						found = true
+						path = "mcp:get_stock_daily_reports"
+					}
+				}
+			}
+			if !found {
+				return Result{
+					Status: StatusSkip,
+					Summary: fmt.Sprintf("recall_yesterday_summary: no report for %s on %s", code, reportDate),
+					Data: map[string]any{
+						"code": code, "report_date": reportDate, "summary": "", "found": false, "implemented": true,
+					},
+				}
+			}
+			return Result{
+				Status: StatusOK,
+				Summary: fmt.Sprintf("recall_yesterday_summary %s (%s): %d chars", code, reportDate, len(summary)),
+				Data: map[string]any{
+					"code": code, "report_date": reportDate, "summary": summary, "path": path,
+					"found": true, "implemented": true,
+				},
+			}
 		},
 	})
 	r.Register(Tool{
@@ -518,13 +592,41 @@ func registerReportTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "send_feishu_summary", Description: "Send Feishu webhook summary (stub).",
+		Name: "send_feishu_summary", Description: "Send Feishu webhook summary.",
 		Handle: func(ctx Context, args map[string]any) Result {
-			_ = args
 			if ctx.DryRun {
 				return okDryRun("send_feishu_summary", map[string]any{})
 			}
-			return Result{Status: StatusSkip, Summary: "feishu webhook not configured"}
+			webhook := strings.TrimSpace(deps.FeishuWebhookURL)
+			if webhook == "" {
+				return Result{Status: StatusSkip, Summary: "feishu webhook not configured"}
+			}
+			content := strArg(args, "content", "")
+			if content == "" {
+				content = strArg(args, "text", "")
+			}
+			if content == "" {
+				content = strArg(args, "summary", "")
+			}
+			title := strArg(args, "title", "GeeGoo 盘前摘要")
+			code := strArg(args, "code", "")
+			message := content
+			if title != "" {
+				message = title
+				if content != "" {
+					message += "\n\n" + content
+				}
+			}
+			if code != "" && !strings.Contains(message, code) {
+				message = fmt.Sprintf("[%s]\n%s", code, message)
+			}
+			if strings.TrimSpace(message) == "" {
+				return Result{Status: StatusError, Summary: "send_feishu_summary: content required", ExitCode: 1}
+			}
+			if err := postFeishuText(ctx.GoContext(), webhook, message); err != nil {
+				return errResult(err)
+			}
+			return Result{Status: StatusOK, Summary: "feishu summary sent", Data: map[string]any{"sent": true}}
 		},
 	})
 }
@@ -595,6 +697,90 @@ func intArg(args map[string]any, key string, def int) int {
 }
 
 func today() string { return time.Now().Format("2006-01-02") }
+
+func yesterday() string { return time.Now().AddDate(0, 0, -1).Format("2006-01-02") }
+
+func readYesterdayReport(workspaceRoot, reportDate, code string) (summary, path string, found bool, err error) {
+	guard, err := infra.NewWorkspaceGuard(workspaceRoot)
+	if err != nil {
+		return "", "", false, err
+	}
+	rel := fmt.Sprintf("reports/%s/%s-premarket.md", reportDate, code)
+	path, err = guard.Resolve(rel)
+	if err != nil {
+		return "", "", false, err
+	}
+	raw, readErr := os.ReadFile(path)
+	if readErr != nil {
+		if os.IsNotExist(readErr) {
+			return "", rel, false, nil
+		}
+		return "", "", false, readErr
+	}
+	text := strings.TrimSpace(string(raw))
+	if text == "" {
+		return "", rel, false, nil
+	}
+	return truncateRecall(text, 4000), path, true, nil
+}
+
+func firstPreMarketText(items []map[string]any) string {
+	for _, m := range items {
+		for _, key := range []string{"content", "report_content", "summary", "text"} {
+			if s, ok := m[key].(string); ok && strings.TrimSpace(s) != "" {
+				return strings.TrimSpace(s)
+			}
+		}
+	}
+	return ""
+}
+
+func truncateRecall(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= n {
+		return s
+	}
+	return s[:n]
+}
+
+func emptyDataNote(tool, code string) string {
+	base := fmt.Sprintf("%s: 无可用数据", tool)
+	switch tool {
+	case "get_position":
+		return base + "（富途账户未配置或该标的无持仓；盘中逐笔请用 get_ticker）"
+	case "get_ticker", "get_broker":
+		return base + "（富途 OpenD 未配置或非交易时段；现价请用 get_current_price）"
+	case "get_capital_flow", "get_capital_distribution":
+		if isAShare(code) {
+			return base + "（MCP 与东财回退均无数据）"
+		}
+		return base + "（MCP 数据源无记录）"
+	default:
+		if code != "" {
+			return fmt.Sprintf("%s %s: API 返回成功但数据为空", tool, code)
+		}
+		return base
+	}
+}
+
+func newsUnavailableResult(tool, market, code string, err error) Result {
+	if errors.Is(err, newsrunner.ErrUnavailable) {
+		data := map[string]any{"text": "", "source": "unavailable"}
+		if market != "" {
+			data["market"] = market
+			data["items"] = []any{}
+		}
+		if code != "" {
+			data["code"] = code
+		}
+		return Result{
+			Status:  StatusSkip,
+			Summary: tool + ": 新闻获取失败（Python 脚本与 Go 回退均不可用）",
+			Data:    data,
+		}
+	}
+	return errResult(err)
+}
 
 func isAShare(code string) bool {
 	return strings.HasSuffix(code, ".SH") || strings.HasSuffix(code, ".SZ")

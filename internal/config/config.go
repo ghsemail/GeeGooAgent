@@ -160,6 +160,17 @@ func applyEnv(cfg *AppConfig) {
 	if v := os.Getenv("GEEGOO_WEB_SEARCH"); v != "" {
 		cfg.Search.Provider = v
 	}
+	if v := os.Getenv("GEEGOO_FEISHU_WEBHOOK_URL"); v != "" {
+		cfg.FeishuWebhookURL = &v
+	}
+}
+
+// EffectiveFeishuWebhookURL returns configured Feishu bot webhook URL.
+func (c *AppConfig) EffectiveFeishuWebhookURL() string {
+	if c == nil || c.FeishuWebhookURL == nil {
+		return ""
+	}
+	return strings.TrimSpace(*c.FeishuWebhookURL)
 }
 
 func (c *AppConfig) EffectiveCompression() ResolvedCompression {

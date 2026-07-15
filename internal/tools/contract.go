@@ -24,6 +24,8 @@ var EmptyResultTools = map[string]bool{
 	"list_smart_reminders":  true,
 	"get_mcp_analysis":      true,
 	"get_position":          true,
+	"get_ticker":            true,
+	"get_broker":            true,
 	"get_capital_flow":      true,
 	"get_capital_distribution": true,
 	"get_bot_yesterday_attitude": true,
@@ -36,7 +38,7 @@ func ClassifyHTTPPayload(toolName string, normalized map[string]any, rawEnvelope
 		return StatusOK, "", false
 	}
 	if isEmptyPayload(normalized) {
-		note := fmt.Sprintf("%s: API 返回成功但数据为空（可能无此标的/无记录）", toolName)
+		note := emptyDataNoteForTool(toolName, normalized)
 		return StatusSkip, note, true
 	}
 	return StatusOK, "", false
@@ -59,6 +61,25 @@ func isEmptyPayload(normalized map[string]any) bool {
 		return true
 	}
 	return false
+}
+
+func emptyDataNoteForTool(toolName string, normalized map[string]any) string {
+	code, _ := normalized["code"].(string)
+	switch toolName {
+	case "get_position":
+		return fmt.Sprintf("get_position: 无持仓数据（富途未配置或空仓；code=%s）", code)
+	case "get_ticker":
+		return fmt.Sprintf("get_ticker: 无逐笔数据（富途 OpenD 未配置或非交易时段；code=%s）", code)
+	case "get_broker":
+		return fmt.Sprintf("get_broker: 无经纪分布（富途未配置；code=%s）", code)
+	case "get_mcp_analysis":
+		return fmt.Sprintf("get_mcp_analysis: 分析结果为空（analyze-api 与 mcp-api 均无内容；code=%s）", code)
+	default:
+		if code != "" {
+			return fmt.Sprintf("%s: API 返回成功但数据为空（code=%s）", toolName, code)
+		}
+		return fmt.Sprintf("%s: API 返回成功但数据为空（可能无此标的/无记录）", toolName)
+	}
 }
 
 // MetaFromEnvelope extracts business metadata from a GeeGoo envelope for Result.Meta.

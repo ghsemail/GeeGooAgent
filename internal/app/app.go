@@ -86,6 +86,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	tools.RegisterAll(registry, tools.Deps{
 		HTTP: httpBackends, WorkspaceRoot: workspace, ProjectRoot: findProjectRoot(),
 		Working: workingLoader, Search: cfg.EffectiveSearch(),
+		FeishuWebhookURL: cfg.EffectiveFeishuWebhookURL(),
 	})
 
 	executor := runtime.NewExecutor(registry)

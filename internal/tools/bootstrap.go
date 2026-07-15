@@ -12,11 +12,12 @@ import (
 
 // Deps bundles shared dependencies for tool registration.
 type Deps struct {
-	HTTP          HTTPBackends
-	WorkspaceRoot string
-	ProjectRoot   string
-	Working       WorkingLoader
-	Search        config.SearchConfig
+	HTTP             HTTPBackends
+	WorkspaceRoot    string
+	ProjectRoot      string
+	Working          WorkingLoader
+	Search           config.SearchConfig
+	FeishuWebhookURL string
 }
 
 // WorkingLoader loads working memory for meta tools.
@@ -50,17 +51,29 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 					body["mcp_token"] = ctx.MCPToken
 				}
 				started := time.Now()
+				client := deps.HTTP.ForTool(spec.Name)
 				var (
 					data     any
 					envelope map[string]any
 					err      error
 				)
 				if spec.DirectResponse {
-					data, err = deps.HTTP.ForTool(spec.Name).PostDirect(ctx.GoContext(), spec.Path, body)
+					data, err = client.PostDirect(ctx.GoContext(), spec.Path, body)
 				} else {
-					envelope, err = deps.HTTP.ForTool(spec.Name).Post(ctx.GoContext(), spec.Path, body)
+					envelope, err = client.Post(ctx.GoContext(), spec.Path, body)
 					if err == nil {
 						data = envelope["data"]
+					}
+				}
+				if err != nil && deps.HTTP.HasMCPFallback(spec.Name) {
+					fallback := deps.HTTP.MCP
+					if spec.DirectResponse {
+						data, err = fallback.PostDirect(ctx.GoContext(), spec.Path, body)
+					} else {
+						envelope, err = fallback.Post(ctx.GoContext(), spec.Path, body)
+						if err == nil {
+							data = envelope["data"]
+						}
 					}
 				}
 				if err != nil {

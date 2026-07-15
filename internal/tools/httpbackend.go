@@ -10,7 +10,23 @@ type HTTPBackends struct {
 	SignalAnalyze *mcp.Client // GeeGooSignal analyze-api :3230
 }
 
-// ForTool picks the Go backend for a catalog HTTP tool.
+// AnalysisClient prefers analyze-api (:3230) when configured.
+func (b HTTPBackends) AnalysisClient() *mcp.Client {
+	if b.SignalAnalyze != nil {
+		return b.SignalAnalyze
+	}
+	return b.MCP
+}
+
+// HasMCPFallback reports whether analyze-api tools can retry mcp-api :3120.
+func (b HTTPBackends) HasMCPFallback(name string) bool {
+	switch name {
+	case "generate_grid_strategy", "generate_dca_strategy":
+		return b.SignalAnalyze != nil && b.MCP != nil && b.ForTool(name) != b.MCP
+	default:
+		return false
+	}
+}
 func (b HTTPBackends) ForTool(name string) *mcp.Client {
 	switch name {
 	case "search_code", "loopback_strategy":
@@ -21,9 +37,9 @@ func (b HTTPBackends) ForTool(name string) *mcp.Client {
 		if b.SignalCatalog != nil {
 			return b.SignalCatalog
 		}
-	case "get_mcp_analysis":
-		if b.MCP != nil {
-			return b.MCP
+	case "get_mcp_analysis", "generate_grid_strategy", "generate_dca_strategy":
+		if c := b.AnalysisClient(); c != nil {
+			return c
 		}
 	}
 	if b.MCP != nil {
