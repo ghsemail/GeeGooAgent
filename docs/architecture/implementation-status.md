@@ -77,13 +77,13 @@
 
 | Tool | 现象 | 根因 |
 |------|------|------|
-| `fetch_market_news` / `fetch_stock_news` | 无 Python/脚本时 skip | 需 `skills/bundled/finance-news` + Python |
-| `recall_yesterday_summary` | 无昨日报告时 skip | 正常；读 `reports/{date}/{code}-premarket.md` |
-| `get_ticker` / `get_broker` / `get_position` | 空/Skip | MCP 富途未配置 |
-| `get_mcp_analysis` | 输出质量因后端而异 | 优先 analyze-api :3230 |
-| `generate_grid_strategy` / `generate_dca_strategy` | 502/404 | analyze-api 未部署时回退 Bot:3120 |
-| `loopback_strategy` | 确定性简化回测 | Signal/Go 非完整回测引擎 |
-| `send_feishu_summary` | 未配 webhook 时 skip | 配置 `feishu_webhook_url` 或 `GEEGOO_FEISHU_WEBHOOK_URL` |
+| `fetch_market_news` / `fetch_stock_news` | 极少 skip | Go RSS/东财回退已实现 |
+| `get_ticker` / `get_broker` / `get_position` | — | **已接通** futu_bridge（2026-07-15） |
+| `get_mcp_analysis` | 输出为规则化分析 | analyze-api :3230 可用，非旧 LLM 长文 |
+| `generate_grid_strategy` | — | analyze-api :3230 ✅ |
+| `generate_dca_strategy` | 缺 signal_id | 先问用户选单指标或组合，再 `get_index_signals` / `get_signal_combinations` 取 `signal_id` |
+| `loopback_strategy` | 缺 grid_param | K 线回测引擎已部署，grid 需参数 |
+| `send_feishu_summary` | 未配 webhook 时 skip | 配置 `feishu_webhook_url` |
 
 ---
 

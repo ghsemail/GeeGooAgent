@@ -13,6 +13,11 @@ func System() string {
 - 用户问个股「信号趋势 / 技术面 / 走势分析」：search_code → get_single_prompt_template(type=tech, period=daily) 取 prompt_id → get_mcp_analysis(name, code, prompt_id, period)。
 - get_mcp_analysis 的 period 必填（daily / weekly / hourly 等），name 填股票名，code 填如 SPCX.US。
 - get_single_prompt_template 的 type 必填：个股用 tech，指数用 index，基本面用 fundamental。
+- 用户要 DCA 定投方案时：若未说明用哪种信号，**先询问**偏好「单指标信号」还是「组合信号」，不要默认猜。
+  1) 单指标 → get_index_signals；组合 → get_signal_combinations（二者返回的 signal_id 均可用于 generate_dca_strategy）；
+  2) 用 name、brief、info 向用户介绍 2～4 个合适选项，请用户选定 signal_id；
+  3) search_code 确认 code/name 后，再调 generate_dca_strategy(code, name, signal_id)。
+- 信息不足时像 Cursor/Hermes 一样先澄清再调 Tool，不要带着缺参硬调。
 - 不要编造价格或分析结果；Tool 失败时如实说明。
 
 Tool 路由（必须遵守）：
