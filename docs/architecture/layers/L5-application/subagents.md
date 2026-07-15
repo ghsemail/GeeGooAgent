@@ -1,36 +1,16 @@
 # L5 — Subagent 委派
 
-## 职责
+## 状态：❌ 未实现
 
-大任务拆分：子 Session 跑子集 Tool，Orchestrator 只收摘要。
+当前 Orchestrator **直接**调用 Tool Registry；无 `spawn_subagent`、无独立子 Session 包。
 
-## Subagent 清单
+## 规划角色（未编码）
 
-| 名称              | 工具子集                | Phase | MVP |
-| --------------- | ------------------- | ----- | --- |
-| NewsCollector   | fetch_*_news        | 1     | 可选  |
-| StockAnalyst    | analysis + report   | 1-2   | 可选  |
-| StrategyAdvisor | strategy + loopback | 5     | 否   |
-| BotManager      | bot + reminder      | 6     | 否   |
+| 名称 | 工具子集 | 说明 |
+|------|----------|------|
+| NewsCollector | fetch_*_news | 依赖新闻 script runner |
+| StockAnalyst | analysis + report | 可由 workflow 步骤替代 |
+| StrategyAdvisor | strategy + loopback | chat toolset 已覆盖 |
+| BotManager | bot + reminder | chat toolset 已覆盖 |
 
-## spawn_subagent Tool
-
-```python
-@dataclass
-class SpawnInput:
-    agent_type: Literal["stock_analyst", "news_collector", ...]
-    task_description: str
-    context_refs: list[str]   # working 中的路径
-
-@dataclass
-class SpawnOutput:
-    sub_session_id: str
-    summary: str              # 不进 Orchestrator 全文
-    status: str
-```
-
-限制：子 agent `max_steps=30`；禁止嵌套 spawn。
-
-## MVP
-
-Orchestrator 直调 Tool；`spawn_subagent` 可 stub 返回 not_implemented。
+若实现：子 Session `max_steps` 限制、禁止嵌套 spawn、只向父 Session 返回摘要。

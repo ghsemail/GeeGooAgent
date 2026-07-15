@@ -122,9 +122,9 @@ src/geegoo/__init__.py、config.example.json、.gitignore（含 config.json、da
 
 ```markdown
 @docs/engineering/requirements.md
-@docs/architecture/L0-infrastructure/event-bus.md
-@docs/architecture/L0-infrastructure/state-store.md
-@docs/architecture/L0-infrastructure/checkpoint.md
+@docs/architecture/layers/L0-infrastructure/event-bus.md
+@docs/architecture/layers/L0-infrastructure/state-store.md
+@docs/architecture/layers/L0-infrastructure/checkpoint.md
 
 实现 Step 1：L0 EventBus（InProcess 同步）、FileStateStore、Checkpoint。
 代码：src/geegoo/infra/events.py、state_store.py、checkpoint.py。
@@ -137,8 +137,8 @@ src/geegoo/__init__.py、config.example.json、.gitignore（含 config.json、da
 ### Step 2 — Sandbox + Config
 
 ```markdown
-@docs/architecture/L0-infrastructure/sandbox.md
-@docs/architecture/L0-infrastructure/secrets.md
+@docs/architecture/layers/L0-infrastructure/sandbox.md
+@docs/architecture/layers/L0-infrastructure/secrets.md
 @docs/engineering/requirements.md
 
 实现 Step 2：SandboxManager 简版（工作区路径校验、HTTP host allowlist）、
@@ -222,7 +222,7 @@ stocks、per_stock 子结构；memory/working.py 读写 StateStore。
 ```markdown
 @C:\Users\ghsemail\.cursor\skills\geegoo\references\
 @C:\Users\ghsemail\.cursor\skills\geegoo\SKILL.md
-@docs/architecture/domains/geegoo-agent-skill-mapping.md
+@docs/architecture/domains/geegoo-skill-mapping.md
 
 实现 Step 8：复制并整理 references/（pre-market-workflow、template、api-routing）、
 rules/（attitude-mapping、api-routing、report-format）、

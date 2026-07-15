@@ -44,7 +44,7 @@ def ok(http: str, body: str) -> bool:
         return True
     if body.startswith("[") and len(body) > 2:
         return True
-    if '"price"' in body or '"analysis_result"' in body:
+    if '"price"' in body or '"analysis_result"' in body or '"finalValue"' in body:
         return True
     return False
 
@@ -82,9 +82,10 @@ def main() -> int:
         }),
         ("loopback@signal", sig, "http://127.0.0.1:3200/loopBackStrategy", sig_key, {
             "type": "grid", "code": "00700.HK", "frequency": "daily", "fund": 100000, "months_back": 3,
+            "grid_param": {"upper_limit_price": 520, "lower_limit_price": 420, "grid_num": 5},
         }),
         ("get_capital_flow", bot, "http://127.0.0.1:3120/getCapitalFlow", bot_key, {
-            "mcp_token": token, "code": "600519.SH", "period": "DAY",
+            "mcp_token": token, "code": "00700.HK", "period": "DAY",
         }),
     ]
 

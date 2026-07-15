@@ -41,7 +41,7 @@ pending: 00700.HK(collecting), AAPL.US(pending)
 ## Tools
 
 - `read_working_state(path)` — LLM 按需读字段
-- `update_working_state` — 一般不由 LLM 直接调，由 Executor 在 tool 成功后更新
+- WorkingMemory 由 Executor 在 tool 成功后更新，**不暴露为 LLM Tool**
 
 ## 原始数据存储
 

@@ -1,32 +1,28 @@
 # L3 — EpisodicMemory
 
-## 职责
+## 状态：❌ 未实现
 
-跨 Run 的**情节记忆**：历史日志、报告、态度轨迹。
+`recall_yesterday_summary` Tool 已注册，但 `bespoke.go` 固定返回 `StatusSkip`（`not implemented`）。无读取本地 `md` / `jsonl` 的逻辑。
 
-## 数据源
+## 目标职责（待做）
 
-| 路径 | 用途 |
-|------|------|
-| `{date}/execution-log.md` | 排错、审计 |
-| `{date}/{code}-premarket.md` | 昨日报告召回 |
+跨 Run **情节记忆**：历史 execution-log、昨日盘前 md、态度轨迹。
+
+| 数据源（规划） | 用途 |
+|----------------|------|
+| `reports/{date}/execution-log.md` | 排错、审计 |
+| `reports/{date}/{code}-premarket.md` | 昨日报告摘要 |
 | `attitude_history.jsonl` | 态度趋势 |
 
-## recall Tools
+## 与 Session `recall` 的区别
 
-| Tool | Phase |
-|------|-------|
-| `recall_yesterday_summary(code)` | MVP |
-| `recall_past_attitude(code, days)` | Phase 2 |
+| | `recall`（✅） | `recall_yesterday_summary`（❌） |
+|--|----------------|----------------------------------|
+| 范围 | 跨 **chat 会话** FTS | 跨 **自然日** 报告文件 |
+| 实现 | `chatsession/recall.go` | 未实现 |
 
-## 接口
+## 实现时建议
 
-```python
-class EpisodicMemory:
-    def get_yesterday_report_summary(self, code: str, date: date) -> str: ...
-    def append_attitude(self, bot_id: str, attitude: str, date: date) -> None: ...
-```
-
-## MVP
-
-`recall_yesterday_summary` 读本地归档；无向量检索。
+1. 只读工作区 `reports/` 下归档，不写 GeeGoo API
+2. Workflow `pre_market` 可选步骤；失败应 Skip 而非 Terminal
+3. 状态变更后更新 [implementation-status.md](../../implementation-status.md)

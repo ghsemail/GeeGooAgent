@@ -1,67 +1,45 @@
-# Phases — 分期交付与当前状态
+# 业务能力分期
 
-架构文档描述**终态**；本目录描述**到达路径**与**当前完成度**。
+> **实现细节与缺口清单** → [implementation-status.md](../implementation-status.md)（优先读）。  
+> **平台内核交付（P1–P8）** → [deploy/hermes-parity-roadmap.md](../../../deploy/hermes-parity-roadmap.md)。
 
-## Hermes 对齐（P1–P8）✅ 已完成
+## Phase 路线图
 
-详见 [../../deploy/hermes-parity-roadmap.md](../../deploy/hermes-parity-roadmap.md)：
+| Phase | 主题 | 状态 | 交付物 |
+|-------|------|------|--------|
+| 0 | 平台内核 | ✅ | Agent、Tool、SQLite、Workflow 框架 |
+| 1 | 盘前 MVP | ✅ | `geegoo run pre_market` 端到端 |
+| 2 | 盘后 | 📋 | `post_market` 已注册，无步骤与资源 |
+| 3 | 盘中 | 📋 | `intraday` 已注册，无步骤；富途 Tool ⚠️ |
+| 4 | Chat 按需分析 | ⚠️ | `geegoo chat` + `market` toolset |
+| 5 | 策略 | ⚠️ | `strategy` toolset；后端简化 |
+| 6 | Bot 管理 | ⚠️ | CRUD Tool；ApprovalGate |
+| 7 | Prompt 模板 | ⚠️ | 六个 CRUD Tool 已注册 |
 
-| 阶段 | 交付 |
-|------|------|
-| P1–P3 | Agent 核心、Tool 注册、MCP 客户端 |
-| P4–P5 | SQLite、Evidence、Workflow、Supervisor |
-| P6–P7 | Chat UI、压缩、Scheduler |
-| P8 | Cutover verify、文档 |
+## 当前优先缺口
 
-## 业务能力 Phase（路线图）
+| 项 | 状态 | 说明 |
+|----|------|------|
+| `post_market` / `intraday` workflow | 📋 | 需 `skills/*` + `workflow/*.go` 步骤 |
+| `fetch_*_news` | ❌ | 无 script runner |
+| `recall_yesterday_summary` | ❌ | Episodic 未做 |
+| 富途 `get_position` 等 | ⚠️ | 依赖 MCP 配置 |
+| Bot 侧 scheduler | ❌ | Agent 不自动下单 |
 
-| Phase | 主题 | 状态 | 主要交付 |
-|-------|------|------|----------|
-| 0 | 地基 | ✅ | infra、Gateway、最小 Loop |
-| 1 | 盘前 MVP | ✅ | pre_market、workflow、~19 Tool 路径 |
-| 2 | 盘后 | 📋 | post_market Skill 占位 |
-| 3 | 盘中 | 📋 | intraday、富途三接口 |
-| 4 | 按需分析 | ⚠️ | chat + market toolset（无独立 Skill pack） |
-| 5 | 策略 | ⚠️ | 82 Tool 含 strategy toolset；Analyze/Go 简化版 |
-| 6 | Bot 管理 | ⚠️ | CRUD 可用；无 switch_bot / wait_for_human / scheduler |
-| 7 | Prompt 高级 | ⚠️ | 模板 CRUD 已注册；catalog-api 原生 |
+Tool 明细 → [layers/L2-tools/tools-reference.md](../layers/L2-tools/tools-reference.md)
 
-## 当前缺口（对话相关）
+## 原则
 
-| 能力 | 状态 |
-|------|------|
-| `switch_bot` | ❌ |
-| `wait_for_human` | ❌ |
-| `fetch_*_news` script runner | ⚠️ skipped |
-| `get_ticker` / `get_position` | ⚠️ Noop |
-| intraday / post_market workflow | 📋 占位 |
+- Phase 1（盘前）为不可退让的 MVP 基线
+- 基础设施先于业务自动化（SQLite、Checkpoint 先于 intraday）
+- Bot 写操作必须 ApprovalGate；scheduler 不触发交易
 
-完整 Tool 状态 → [../reference/geegoo-agent-tools-tree.md](../reference/geegoo-agent-tools-tree.md)
-
-## 分期哲学
-
-| 原则 | 说明 |
-|------|------|
-| MVP 不变 | Phase 1 = pre_market 端到端 |
-| 基础设施先行 | SQLite + Workflow 先于 Bot 全自动 |
-| 风险递增 | Bot 写操作需审批门控；scheduler 不自动交易 |
-| 文档随代码 | 架构 README 与 tools-tree 同步更新 |
-
-## 依赖关系
+## 依赖
 
 ```text
-Phase 0 ──▶ Phase 1（必达）
-Phase 1 ──▶ Phase 2 / 3（可并行）
-Phase 4+ ──▶ 依赖 Runtime + Clients 稳定
-Phase 6 ──▶ wait_for_human + switch_bot + Bot scheduler
+Phase 0 → Phase 1（必达）
+Phase 1 → Phase 2 / 3（可并行）
+Phase 4+ 依赖 Runtime + L2 Clients 稳定
 ```
 
-## 文档索引
-
-- [roadmap.md](./roadmap.md) — 历史任务清单
-- [../README.md](../README.md) — 架构总索引
-- [../phases/README.md](./README.md) — 本文件
-
-## 与 Cursor Plan 的关系
-
-Cursor Plan 仅作任务勾选；**分期边界以本目录 + roadmap 为准**。
+历史任务清单（归档）→ [archive/phases-roadmap.md](../../archive/phases-roadmap.md)

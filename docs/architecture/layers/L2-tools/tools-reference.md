@@ -9,6 +9,7 @@
 | 状态 | 含义 |
 |------|------|
 | ✅ | 已注册，正常环境端到端可用 |
+| 💬 | 接口正常，需引导用户选择参数后再调（非故障） |
 | ⚠️ | 已注册，但降级 / 依赖未配 / 后端简化 |
 | ❌ | Agent 侧未实现（调用即 `skipped`） |
 
@@ -20,21 +21,32 @@
 
 ## 未实现 / 有问题（优先看）
 
+### 需引导用户选择（💬）
+
+| Tool | 状态 | 作用 | 说明 |
+|------|------|------|------|
+| `generate_dca_strategy` | 💬 | DCA 参数建议 | 先问单指标/组合，用户选 `signal_id` 后再调 |
+| `loopback_strategy` | 💬 | 策略回测 | grid 需 `grid_param`；dca 需 `signal` + `sl_tp` |
+| `get_mcp_analysis` | 💬 | 技术面分析 | `period` 必填；可先 `get_single_prompt_template` |
+| `get_bot_yesterday_attitude` | 💬 | 昨日态度 | 需 `bot_id`；先 list Bot |
+| `get_stock_daily_reports` | 💬 | 按日聚合报告 | 需 `report_date` |
+| `create_pre_market_report` 等 | 💬 | 写盘前报告 | workflow 🔒；需 `stock_name` 等 |
+
+### 降级 / 环境依赖（⚠️）
+
 | Tool | 状态 | 作用 | 来源 | 接口 | 问题 |
 |------|------|------|------|------|------|
 | `fetch_market_news` | ✅ | 市场新闻 US/CN/HK | Local 脚本 | subprocess `skills/bundled/finance-news` | 无 Python/脚本时 skip |
 | `fetch_stock_news` | ✅ | 个股新闻 | Local 脚本 | subprocess | 同上 |
 | `recall_yesterday_summary` | ✅ | 昨日盘前摘要 | Local 文件 | 读 `reports/{date}/{code}-premarket.md` | 无昨日文件时 skip；可回退 MCP |
-| `get_ticker` | ⚠️ | 逐笔行情 | Bot:3120 | `POST /getTicker` | 富途/MCP 未配时常空 |
-| `get_broker` | ⚠️ | 经纪席位分布 | Bot:3120 | `POST /getBroker` | 同上 |
-| `get_position` | ⚠️ | 账户持仓 | Bot:3120 | `POST /getPosition` | 富途未配；空 data → skip |
-| `get_capital_flow` | ⚠️ | 资金流向 | Bot:3120 | `POST /getCapitalFlow` | 依赖 MCP 数据源；空结果可能 skip |
+| `get_ticker` | ✅ | 逐笔行情 | Bot:3120 | `POST /getTicker` | futu_bridge |
+| `get_broker` | ✅ | 经纪席位分布 | Bot:3120 | `POST /getBroker` | futu_bridge |
+| `get_position` | ✅ | 账户持仓 | Bot:3120 | `POST /getPosition` | futu_bridge；空仓 → skip |
+| `get_capital_flow` | ⚠️ | 资金流向 | Bot:3120 | `POST /getCapitalFlow` | A 股 MCP 空→东财回退 |
 | `get_capital_distribution` | ⚠️ | 资金分布 | Bot:3120 | `POST /getCapitalDistribution` | 同上 |
-| `get_mcp_analysis` | ⚠️ | 技术面/指数分析 | Analyze:3230 → Bot:3120 | `POST /getMCPAnalysis` | 优先 analyze-api；质量取决于后端 |
-| `generate_grid_strategy` | ⚠️ | 网格参数建议 | Analyze:3230 | `POST /generateGridStrategy` | analyze-api 未部署时回退 Bot:3120 |
-| `generate_dca_strategy` | ⚠️ | DCA 参数建议 | Analyze:3230 | `POST /generateDCAStrategy` | 同上 |
-| `loopback_strategy` | ⚠️ | 策略回测 | Sig:3200 | `POST /loopBackStrategy` | Signal/Go **简化**确定性回测 |
-| `send_feishu_summary` | ⚠️ | 飞书推送摘要 | Web | webhook URL | 已实现 POST；未配 `feishu_webhook_url` → skip |
+| `get_mcp_analysis` | ⚠️ | 技术面/指数分析 | Analyze:3230 | `POST /getMCPAnalysis` | 规则化输出，非旧 LLM 长文 |
+| `generate_grid_strategy` | ✅ | 网格参数建议 | Analyze:3230 | `POST /generateGridStrategy` | |
+| `send_feishu_summary` | ⚠️ | 飞书推送摘要 | Web | webhook URL | 未配 `feishu_webhook_url` → skip |
 
 **说明**：Registry 中 **82 个 Tool 均已注册**，没有「未注册」的幽灵 Tool。上表是**运行态不可用或降级**的项；其余默认可用（仍受 MCP 鉴权、网络、参数约束）。
 
@@ -48,9 +60,9 @@
 | `search_code` | 标的搜索 | bespoke | Sig:3200 | `POST /searchCode` | ✅ | 直连 signal-api |
 | `web_search` | 网页搜索 | bespoke | Web | DuckDuckGo HTML | ✅ | 非 MCP |
 | `get_current_price` | 最新价快照 | bespoke | Bot:3120 | `POST /getCurrentPrice` | ✅ | 失败可回退 `/getTicker` |
-| `get_ticker` | 逐笔行情 | http | Bot:3120 | `POST /getTicker` | ⚠️ | 见上表 |
-| `get_broker` | 经纪分布 | http | Bot:3120 | `POST /getBroker` | ⚠️ | |
-| `get_position` | 持仓 | http | Bot:3120 | `POST /getPosition` | ⚠️ | mcp_token |
+| `get_ticker` | 逐笔行情 | http | Bot:3120 | `POST /getTicker` | ✅ | futu_bridge |
+| `get_broker` | 经纪分布 | http | Bot:3120 | `POST /getBroker` | ✅ | |
+| `get_position` | 持仓 | http | Bot:3120 | `POST /getPosition` | ✅ | mcp_token |
 | `get_report_bot_codes` | 报告待分析标的 | bespoke | Bot:3120 | `POST /getReportBotCodes` | ✅ | workflow |
 | `fetch_market_news` | 市场新闻 | bespoke | Local | 脚本 | ❌ | 见上表 |
 | `fetch_stock_news` | 个股新闻 | bespoke | Local | 脚本 | ❌ | 见上表 |
@@ -61,19 +73,19 @@
 
 | Tool | 作用 | 类型 | 来源 | HTTP / 实现 | 状态 | 备注 |
 |------|------|------|------|-------------|------|------|
-| `get_mcp_analysis` | MCP 技术分析 | bespoke | Bot:3120 | `POST /getMCPAnalysis` | ⚠️ | `period` 必填 |
+| `get_mcp_analysis` | MCP 技术分析 | bespoke | Bot:3120 | `POST /getMCPAnalysis` | 💬/⚠️ | 💬 缺 `period`；⚠️ 规则化 |
 | `get_single_prompt_template` | Prompt 模板列表 | bespoke | Bot:3120 | `POST /getSinglePromptTemplate` | ✅ | type: index/tech/fundamental |
 | `get_capital_flow` | 资金流向 | bespoke | Bot:3120 | `POST /getCapitalFlow` | ⚠️ | A 股 skip |
 | `get_capital_distribution` | 资金分布 T-1 | bespoke | Bot:3120 | `POST /getCapitalDistribution` | ⚠️ | A 股 skip |
-| `get_bot_yesterday_attitude` | 昨日态度 | bespoke | Bot:3120 | `POST /getBotYesterdayAttitude` | ✅ | 404→neutral |
+| `get_bot_yesterday_attitude` | 昨日态度 | bespoke | Bot:3120 | `POST /getBotYesterdayAttitude` | 💬 | 需 `bot_id` |
 | `get_bot_log_by_type` | Bot 运行日志 | http | Bot:3120 | `POST /getBotLogByType` | ✅ | |
-| `get_stock_daily_reports` | 按日聚合报告 | bespoke | Bot:3120 | `POST /getStockDailyReports` | ✅ | |
+| `get_stock_daily_reports` | 按日聚合报告 | bespoke | Bot:3120 | `POST /getStockDailyReports` | 💬 | 需 `report_date` |
 | `list_today_reports` | 同日幂等检查 | bespoke | Bot:3120 | `POST /getStockDailyReports` | ✅ | 别名 |
 | `get_index_signals` | 指标信号列表 | http | Cat:3210 | `POST /getIndexSignalForSkill` | ✅ | |
 | `get_signal_combinations` | 组合信号 | http | Cat:3210 | `POST /getSignalCombinationForSkill` | ✅ | |
-| `generate_grid_strategy` | 网格策略建议 | http | Bot:3120 | `POST /generateGridStrategy` | ⚠️ | |
-| `generate_dca_strategy` | DCA 策略建议 | http | Bot:3120 | `POST /generateDCAStrategy` | ⚠️ | |
-| `loopback_strategy` | 策略回测 | http | Sig:3200 | `POST /loopBackStrategy` | ⚠️ | 直连 signal-api |
+| `generate_grid_strategy` | 网格策略建议 | http | Bot:3120 | `POST /generateGridStrategy` | ✅ | |
+| `generate_dca_strategy` | DCA 策略建议 | http | Bot:3120 | `POST /generateDCAStrategy` | 💬 | 先选 `signal_id` |
+| `loopback_strategy` | 策略回测 | http | Sig:3200 | `POST /loopBackStrategy` | 💬 | 见上表 |
 | `create_competitor_prompt_template` | 建竞品模板 | http | Bot:3120 | `POST /createCompetitorPromptTemplate` | ✅ | Phase 7 |
 | `edit_competitor_prompt_template` | 改竞品模板 | http | Bot:3120 | `POST /editCompetitorPromptTemplate` | ✅ | |
 | `delete_competitor_prompt_template` | 删竞品模板 | http | Bot:3120 | `POST /deleteCompetitorPromptTemplate` | ✅ | |

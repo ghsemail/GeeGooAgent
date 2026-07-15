@@ -307,11 +307,12 @@ GeeGooAgent/
 
 | 主题 | 路径 |
 |------|------|
-| 架构总览 | [architecture/00-overview.md](../architecture/00-overview.md) |
+| 架构总览 | [architecture/overview.md](../architecture/overview.md) |
+| 实现状态 | [architecture/implementation-status.md](../architecture/implementation-status.md) |
 | 盘前步骤 | 迁入 `references/pre-market-workflow.md` |
 | API 路由 | [architecture/domains/geegoo-api-routing.md](../architecture/domains/geegoo-api-routing.md) |
 | Clients | [architecture/layers/L2-tools/clients.md](../architecture/layers/L2-tools/clients.md) |
-| Sandbox | [architecture/L0-infrastructure/sandbox.md](../architecture/L0-infrastructure/sandbox.md) |
+| Sandbox | [architecture/layers/L0-infrastructure/sandbox.md](../architecture/layers/L0-infrastructure/sandbox.md) |
 | 外部依赖 | [architecture/layers/L3-memory/README.md](../architecture/layers/L3-memory/README.md) |
 
 ---

@@ -33,7 +33,7 @@ Executor.execute(call)
 
 ## 详见
 
-[L0-infrastructure/sandbox.md](../../L0-infrastructure/sandbox.md) — 六层模型与 SandboxManager 完整设计。
+[L0 sandbox](../L0-infrastructure/sandbox.md) — 六层模型与 SandboxManager 完整设计。
 
 ## MVP
 

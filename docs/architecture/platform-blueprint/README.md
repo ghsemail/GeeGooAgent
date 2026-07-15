@@ -10,7 +10,7 @@
 
 | 问题 | 文档 |
 |------|------|
-| 要建什么、不建什么？ | [00-overview.md](./00-overview.md) |
+| 要建什么、不建什么？ | [../overview.md](../overview.md) |
 | 目录与包怎么划？ | [repo-layout.md](./repo-layout.md) |
 | 六层各自接口与边界？ | [layers.md](./layers.md) |
 | Skill 怎么扩展业务？ | [skill-pack.md](./skill-pack.md) |
@@ -54,7 +54,7 @@ L0 Infra        →  持久化 / 事件 / 调度 / 沙箱
 
 ## 智能体阅读顺序（生成新 Agent 前必读）
 
-1. [00-overview.md](./00-overview.md) — 定位、双 Runtime、外部依赖决策
+1. [../overview.md](../overview.md) — 定位、六层、外部依赖
 2. [repo-layout.md](./repo-layout.md) — 必须创建的文件树
 3. [layers.md](./layers.md) — 每层接口伪代码 + MVP 边界
 4. [skill-pack.md](./skill-pack.md) — manifest / supervisor_checks 规范

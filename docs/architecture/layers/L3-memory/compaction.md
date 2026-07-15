@@ -11,9 +11,7 @@ GeeGooAgent 采用 **Hermes-style 双阈值压缩**（`internal/prompt/compresso
 1. **回合开始 hygiene**（默认 85%）：对齐 Hermes Gateway Session Hygiene，无 IM 进程。
 2. **环内压缩**（默认 50%）：每轮 `gateway.Chat` 之前。
 
-chat CLI 与 HTTP `agent-runtime` 共用同一路径。
-
-完整设计见 [`../../../superpowers/specs/2026-07-12-context-compression-design.md`](../../../superpowers/specs/2026-07-12-context-compression-design.md)。
+chat CLI 与 HTTP `agent-runtime` 共用同一路径。实现见 `internal/prompt/compressor.go`；早期设计稿见 [archive/superpowers/specs/2026-07-12-context-compression-design.md](../../../archive/superpowers/specs/2026-07-12-context-compression-design.md)。
 
 ### 触发
 

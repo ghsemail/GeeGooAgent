@@ -97,7 +97,17 @@ func (a *Agent) Run(
 
 ## 延伸阅读
 
-- [react-loop.md](./react-loop.md) — 设计伪代码与 StepRecord
 - [workflow-engine.md](./workflow-engine.md) — 确定性工作流
-- [../entrypoints.md](../entrypoints.md) — CLI / HTTP 如何调用 Agent
-- [../layers/L1-model-gateway/gateway.md](../layers/L1-model-gateway/gateway.md) — LLM 调用链
+- [../../entrypoints.md](../../entrypoints.md) — CLI / HTTP 如何调用 Agent
+- [../L1-model-gateway/gateway.md](../L1-model-gateway/gateway.md) — LLM 调用链
+
+## 设计意图（Observe → Plan → Act → Update）
+
+循环直到无 `tool_calls` 或 `max_steps`：
+
+1. **Observe** — `RuntimeMessages` + Working 状态组装上下文；必要时压缩（`internal/prompt`）
+2. **Plan** — `gateway.Chat` + tool schemas
+3. **Act** — `Executor` 调 `tools.Registry`；写 session tool 消息
+4. **Update** — Working/Evidence；workflow 路径另写 checkpoint
+
+配置项见 `config.json` 的 `agent.max_tool_rounds`、`prompt` 压缩阈值。

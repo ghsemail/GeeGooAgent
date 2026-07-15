@@ -84,10 +84,11 @@ FTS5 索引支持 `recall` 跨会话搜索。
 | 维度 | Hermes | GeeGooAgent |
 |------|--------|-------------|
 | 会话 | SQLite + FTS5 | SQLite + FTS5 ✅ |
-| 跨 run 记忆 | 文件 + 日志 | Episodic 规划中 |
+| 跨 run 记忆 | 文件 + 日志 | `recall_yesterday_summary` ❌ stub |
 | 向量库 | 无 | MVP 无 |
 
 ## 延伸阅读
 
-- [../layers/L1-model-gateway/gateway.md](../layers/L1-model-gateway/gateway.md) — LLM 上下文预算
-- [../../tools-and-skills.md](../../tools-and-skills.md) — `recall` Tool
+- [../L1-model-gateway/gateway.md](../L1-model-gateway/gateway.md) — LLM 上下文预算
+- [../L2-tools/README.md](../L2-tools/README.md) — `recall` Tool
+- [../../implementation-status.md](../../implementation-status.md) — 记忆层实现状态

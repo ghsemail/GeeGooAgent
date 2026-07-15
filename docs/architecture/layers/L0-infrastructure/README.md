@@ -65,5 +65,5 @@ tools ──▶ WorkspaceGuard ──▶ save_local_report 路径校验
 
 ## 延伸阅读
 
-- [../entrypoints.md](../entrypoints.md) §Scheduler
-- [../repo-layout.md](../repo-layout.md)
+- [../../entrypoints.md](../../entrypoints.md) §Scheduler
+- [../../repo-layout.md](../../repo-layout.md)

@@ -8,7 +8,7 @@ GeeGooAgent 与 Hermes 一样，**平台差异在入口点，不在 Agent 核心
 |------|---------------|------|------|
 | **CLI Chat** | `geegoo chat` | 交互式对话、按需分析、Bot 管理 | 本文 §CLI |
 | **CLI Workflow** | `geegoo run <skill>` | 确定性盘前/盘后工作流 | [workflow-engine.md](./layers/L4-runtime/workflow-engine.md) |
-| **CLI Scheduler** | `geegoo scheduler run` | 长驻 cron，按 skill 定时跑 | [scheduler.md](./L0-infrastructure/scheduler.md) |
+| **CLI Scheduler** | `geegoo scheduler run` | 长驻 cron，按 skill 定时跑 | [scheduler.md](./layers/L0-infrastructure/scheduler.md) |
 | **HTTP Runtime** | `agentRuntimeServer` `:3400` | OpenAI 兼容 `/v1/chat/completions` | 本文 §HTTP |
 | **运维** | `geegoo doctor` / `setup` / `migrate` / `verify` | 健康检查、配置、迁移、验收 | 本文 §运维 |
 
@@ -73,7 +73,7 @@ GeeGooAgent 与 Hermes 一样，**平台差异在入口点，不在 Agent 核心
 
 ### Toolset 白名单
 
-默认 chat 加载 5 个 toolset（不含 `report_workflow`）。详见 [tools-and-skills.md](./tools-and-skills.md)。
+默认 chat 加载 5 个 toolset（不含 `report_workflow`）。详见 [layers/L2-tools/toolsets.md](./layers/L2-tools/toolsets.md)。
 
 ---
 

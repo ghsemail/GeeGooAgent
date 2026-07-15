@@ -150,12 +150,12 @@ def main() -> int:
     print(f"  search_code                  {status:12} HTTP {http}  {raw.replace(chr(10), ' ')[:120]}")
 
     local_tools = [
-        ("fetch_market_news", "SKIP", "script runner unavailable on agent"),
-        ("fetch_stock_news", "SKIP", "script runner unavailable on agent"),
-        ("recall_yesterday_summary", "STUB", "returns stub/empty by design"),
+        ("fetch_market_news", "OK", "newsrunner Go fallback (see go test on agent)"),
+        ("fetch_stock_news", "OK", "newsrunner Go fallback"),
+        ("recall_yesterday_summary", "OK", "reads workspace reports or MCP fallback; skip if no yesterday file"),
         ("read_working_state", "LOCAL", "in-process memory"),
         ("save_local_report", "LOCAL", "writes workspace file"),
-        ("send_feishu_summary", "STUB", "webhook stub unless configured"),
+        ("send_feishu_summary", "SKIP", "needs feishu_webhook_url in config"),
         ("write_execution_log", "LOCAL", "appends local log"),
     ]
     print("\n" + "=" * 72)

@@ -123,7 +123,7 @@ ToolRegistry:
 
 | mode | 排除 |
 |------|------|
-| `scheduled` | `create_*`, `delete_*`, `wait_for_human` |
+| `scheduled` | `create_*`, `delete_*` |
 | `interactive` | 无（危险操作 Tool 内二次确认） |
 | `signal` | CRUD 类 |
 

@@ -13,7 +13,7 @@ Agent Runtime = ReAct Loop + Workflow Runner + Supervisor
 | 模块 | 文档 | Go 代码 | 状态 |
 |------|------|---------|------|
 | **Agent 循环** | [agent-loop.md](./agent-loop.md) | `internal/agent`, `internal/runtime/react.go` | ✅ |
-| ReAct 设计细节 | [react-loop.md](./react-loop.md) | 同上 | ✅ |
+| ReAct 设计细节 | 合并在 [agent-loop.md](./agent-loop.md) §设计意图 | 同上 | ✅ |
 | Executor | [executor.md](./executor.md) | `internal/runtime/executor.go` | ✅ |
 | Workflow | [workflow-engine.md](./workflow-engine.md) | `internal/workflow/runner.go` | ✅ pre_market |
 | Supervisor | `workflow/supervisor.go` | `internal/workflow/supervisor.go` | ✅ |
@@ -67,5 +67,5 @@ geegoo run pre_market → App.RunSkill → workflow.Runner
 
 ## 延伸阅读
 
-- [../entrypoints.md](../entrypoints.md)
+- [../../entrypoints.md](../../entrypoints.md)
 - [agent-loop.md](./agent-loop.md)

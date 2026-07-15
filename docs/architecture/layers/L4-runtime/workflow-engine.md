@@ -71,7 +71,7 @@ Run(skill Spec):
 
 定义：`internal/workflow/premarket.go`  
 文档对齐：`skills/pre_market/manifest.yaml`  
-领域映射：[domains/geegoo-agent-skill-mapping.md](../../domains/geegoo-agent-skill-mapping.md)
+领域映射：[domains/geegoo-skill-mapping.md](../../domains/geegoo-skill-mapping.md)
 
 ## Supervisor
 
@@ -103,5 +103,5 @@ Run(skill Spec):
 ## 延伸阅读
 
 - [agent-loop.md](./agent-loop.md) — ReAct 路径
-- [../../tools-and-skills.md](../../tools-and-skills.md) — Skill 与 Tool
+- [../L2-tools/README.md](../L2-tools/README.md) — Tool 与 Skill 分工
 - [../../cross-cutting/supervisor.md](../../cross-cutting/supervisor.md)

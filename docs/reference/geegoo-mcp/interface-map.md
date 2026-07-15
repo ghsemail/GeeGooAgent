@@ -211,12 +211,6 @@ GeeGoo Agent (Tool snake_case — 自动化 workflow / chat 编排)
 | `recall_yesterday_summary` | local | Workflow · 记忆 | pre_market |
 | `read_working_state` | local | Workflow · 状态 | pre_market |
 
-## 已知缺口
-
-| HTTP（预期） | Agent Tool | 说明 |
-| --- | --- | --- |
-| `/switchBot` | `switch_bot` | catalog 已注册，mcpAPIServer 尚无此路由 |
-
 ---
 
 由 `scripts/generate_interface_map.py` 生成；修改映射后重新运行该脚本。

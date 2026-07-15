@@ -1,8 +1,9 @@
-# L2 — 工具目录（完整版）
+# L2 — 工具目录（设计全集）
 
-> **SSOT**：[interface-map.md](../../reference/geegoo-mcp/interface-map.md)  
-> 命名：`snake_case` Tool → GeeGooBot mcp-api :3120 HTTP 路径。  
-> **MVP 加粗**。历史 bug 接口见 [clients.md §接口路由说明](./clients.md)。
+> **运行态 SSOT**（已注册 / 可用性）：[tools-tree.md](./tools-tree.md)  
+> **MCP HTTP SSOT**：[interface-map.md](../../../reference/geegoo-mcp/interface-map.md)  
+> 命名：`snake_case` Tool → HTTP 路径；**MVP 加粗**。  
+> 表内无「注册」列时，默认 ✅ 已注册；运行态见 [tools-tree.md](./tools-tree.md)。
 
 ## 端口与 Client
 
@@ -21,11 +22,12 @@
 |------|-----|-----------|-------|-----|------|
 | **check_trading_day** | 3120 `/checkTradingDay` | 是 | 1 | **✓** | 是否交易日 |
 | **get_report_bot_codes** | 3120 `/getReportBotCodes` | 是 | 1 | **✓** | 报告待分析标的，含 bot_id |
-| **search_code** | 3200 `/searchCode` | 否 | 4 | | regex + market[]；GeeGooSignal signal-api |
-| **get_position** | 3120 `/getPosition` | 是 | 3/6 | | 富途持仓；SmartTrade sell_only 前置 |
-| **get_current_price** | 3120 `/getCurrentPrice` | 否 | 4 | | 最新价 |
-| get_ticker | 3120 `/getTicker` | 是 | 3 | | 实时逐笔（盘中） |
-| get_broker | 3120 `/getBroker` | 是 | 3 | | 实时经纪队列（盘中） |
+| **search_code** | 3200 `/searchCode` | 否 | 4 | | bespoke；Signal signal-api |
+| **web_search** | Agent 本地 DuckDuckGo | — | 4 | | 已注册；非 MCP |
+| **get_position** | 3120 `/getPosition` | 是 | 3/6 | | ⚠️ 富途 Noop |
+| **get_current_price** | 3120 `/getCurrentPrice` | 是* | 4 | | bespoke → Data |
+| get_ticker | 3120 `/getTicker` | 是 | 3 | | ⚠️ Noop |
+| get_broker | 3120 `/getBroker` | 是 | 3 | | ⚠️ Noop |
 
 ### 1.2 新闻与行情（本地脚本 / bundled）
 
@@ -33,7 +35,6 @@
 |------|------|-------|-----|------|
 | **fetch_market_news** | finance-news US/CN/HK | 1 | **✓** | 市场新闻，内置降级 |
 | **fetch_stock_news** | eastmoney + 备选 | 1 | **✓** | 个股新闻 |
-| **fetch_global_quote** | global-quotes scripts | 5 | | 免费行情补充 |
 
 ---
 
@@ -45,7 +46,6 @@
 |------|-----|-------|-----|------|
 | **get_mcp_analysis** | 3120 `/getMCPAnalysis` | 1 | **✓** | period 必填；name=股票名；读 `analysis_result`；盘前 workflow 常用 3120 |
 | **get_single_prompt_template** | 3120 `/getSinglePromptTemplate` | 4 | | type: index/tech/fundamental；可选 period |
-| get_tech_prompt_list | 3120 `/getTechPromptList` | 4 | | SKILL 遗留名；优先用上一行 |
 | get_stock_daily_reports | 3120 `/getStockDailyReports` | 1 | **✓** | 聚合 pre/intraday/post；**查询报告用此接口** |
 | **list_today_reports** | 3120 `/getStockDailyReports` | 1 | **✓** | 幂等检查别名（同日 code） |
 
@@ -66,7 +66,7 @@
 | **get_signal_combinations** | 3210 `/getSignalCombinationForSkill` | 5 | 推荐组合信号 |
 | **generate_grid_strategy** | 3120 `/generateGridStrategy` | 5 | 网格参数建议 |
 | **generate_dca_strategy** | 3120 `/generateDCAStrategy` | 5 | DCA+信号+止盈止损建议 |
-| **loopback_strategy** | 3120 `/loopBackStrategy` | 5 | type=dca/grid 回测 |
+| **loopback_strategy** | 3200 `/loopBackStrategy` | 5 | ⚠️ Signal 简化回测 |
 
 ### 2.4 Prompt 模板管理（geegoo AgentAnalyst — 高级）
 
@@ -89,6 +89,7 @@
 | get_dca_reminder_log | 3120 `/getDCAReminderLog` | 6 | |
 | get_grid_reminder_log | 3120 `/getGRIDReminderLog` | 6 | |
 | get_smart_reminder_log | 3120 `/getSmartReminderLog` | 6 | |
+| get_hdg_bot_log | 3120 `/getHDGBotLog` | 6 | HDG 对冲 Bot 日志 |
 
 ---
 
@@ -96,10 +97,8 @@
 
 | Tool | 实现 | Phase | MVP | 说明 |
 |------|------|-------|-----|------|
-| **recall_yesterday_summary** | 本地 Episodic | 1 | **✓** | 昨日同股报告摘要 |
-| recall_past_attitude | attitude_history.jsonl | 2 | | 态度轨迹 |
-| recall_similar_setup | SemanticMemory | 4+ | | 向量检索 |
-| compare_daily_reports | get_stock_daily_reports 差分 | 3 | | 盘前 vs 盘中 vs 盘后 |
+| **recall** | chatsession FTS | 4 | | 跨会话检索；已注册 |
+| **recall_yesterday_summary** | 本地 Episodic | 1 | **✓** | ⚠️ Stub skipped |
 | **read_working_state** | WorkingMemory | 1 | **✓** | 读结构化进度 |
 
 ---
@@ -122,7 +121,6 @@
 | update_intraday_report | 3120 `/updateIntradayTradeDecisionReport` | 3 | | |
 | delete_intraday_report | 3120 `/deleteIntradayTradeDecisionReport` | 3 | | |
 | get_intraday_reports | 3120 `/getIntradayTradeDecisionReports` | 3 | | |
-| get_daily_reports_unified | 6100 `/reports/daily` | 4 | | reportServer；user_id 鉴权，非 mcp_token |
 | **save_local_report** | 本地 FS | 1 | **✓** | 工作区内路径 |
 | **send_feishu_summary** | webhook | 1 | 可选 | |
 
@@ -130,7 +128,7 @@
 
 | Tool | API | Phase | Sandbox |
 |------|-----|-------|---------|
-| create_dca_reminder | 3120 `/createDCAReminder` | 6 | interactive + **wait_for_human** |
+| create_dca_reminder | 3120 `/createDCAReminder` | 6 | interactive + ApprovalGate |
 | update_dca_reminder | 3120 `/updateDCAReminder` | 6 | 同上 |
 | delete_dca_reminder | 3120 `/deleteDCAReminder` | 6 | 同上 |
 | list_dca_reminders | 3120 `/getAllDCAReminders` | 6 | 可读 scheduled |
@@ -189,24 +187,11 @@
 | delete_hdg_bot | 3120 `/deleteHDGBot` | 6 | |
 | list_hdg_bots | 3120 `/getAllHDGBots` | 6 | |
 
-### 4.9 Bot 开关（Bot 服务经 MCP 转发）
-
-| Tool | API | Phase | 说明 |
-|------|-----|-------|------|
-| switch_bot | Bot `/switchBot` | 6 | bot_type + bot_id + switch；提醒类常用 |
-
----
-
 ## 五、Meta（元操作）
 
 | Tool | Phase | MVP | 说明 |
 |------|-------|-----|------|
 | **write_execution_log** | 1 | **✓** | 业务日志 |
-| **read_working_state** | 1 | **✓** | |
-| update_working_state | 2 | | 一般不由 LLM 直调 |
-| spawn_subagent | 2+ | | StockAnalyst / NewsCollector |
-| wait_for_human | 6 | | Bot 创建前确认方案 |
-| emit_event | 0 | | 调试；正常由 Runtime 发 EventBus |
 
 ---
 
@@ -219,9 +204,9 @@
 | `intraday` | get_stock_daily_reports + get_position + create_intraday | 3 |
 | `on_demand_analysis` | search_code + get_single_prompt_template + get_mcp_analysis + get_current_price | 4 |
 | `strategy` | §2.3 全部 + loopback | 5 |
-| `bot_manager` | §4.2–4.9 全部 + §2.5 日志 + search_code + get_position + wait_for_human | 6 |
+| `bot_manager` | §4.2–4.8 全部 + §2.5 日志 + search_code + get_position | 6 |
 
-**Scheduled 模式排除**：§4.2–4.9 所有 `create_*` / `delete_*` / `update_*`（除 report 类 MVP 已控）。
+**Scheduled 模式排除**：§4.2–4.8 所有 `create_*` / `delete_*` / `update_*`（除 report 类 MVP 已控）。
 
 ---
 
@@ -250,32 +235,27 @@
 
 ## 八、工具数量统计
 
-| 分类 | 总数 | MVP 实现 |
-|------|------|----------|
-| Perception | 10 | 5 |
-| Analysis | 22 | 7 |
-| Decision | 5 | 2 |
-| Action | 44 | 3 |
-| Meta | 6 | 2 |
-| **合计** | **~87** | **~19** |
+| 分类 | 已注册 (2026-07) |
+|------|------------------|
+| Perception | 10 |
+| Analysis | 22 |
+| Decision | 3 |
+| Action | 42 |
+| Meta | 1 |
+| **合计** | **82** |
+
+运行态明细 → [tools-tree.md](./tools-tree.md)
 
 ---
 
-## 九、代码包建议
+## 九、代码包（Go）
 
 ```text
-src/geegoo/tools/
-├── perceive.py      # §1
-├── analyze.py       # §2.1–2.2
-├── analyze_strategy.py  # §2.3 Phase 5
-├── analyze_prompts.py # §2.4 Phase 7
-├── analyze_logs.py    # §2.5 Phase 6
-├── decide.py        # §3
-├── act_reports.py   # §4.1
-├── act_reminders.py # §4.2–4.4
-├── act_bots.py      # §4.5–4.8
-├── act_switch.py    # §4.9
-└── meta.py          # §5
+internal/tools/
+├── registry.go, bootstrap.go, bespoke.go
+├── catalog/catalog.go    # HTTP 规格
+├── toolset.go, domains.go
+└── approval.go, contract.go, httpbackend.go
 ```
 
-详见 [registry.md](./registry.md)、[clients.md](./clients.md)。
+详见 [registry.md](./registry.md)、[toolsets.md](./toolsets.md)、[clients.md](./clients.md)。

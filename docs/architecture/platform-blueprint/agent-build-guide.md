@@ -307,7 +307,7 @@ structured output 或 markdown 解析。
 | `base_url` | |
 | systemd 触发时间 | |
 
-GeeGoo 映射示例见 [00-overview.md](./00-overview.md)（Review 文档 §七）。
+GeeGoo 映射示例见 [../overview.md](../overview.md)。
 
 ---
 

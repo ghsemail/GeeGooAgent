@@ -4,14 +4,15 @@ GeeGoo Agent is a Go-native workflow agent for market analysis and pre-market re
 
 The project now builds and runs as a single Go binary named `geegoo`. Configuration and local runtime data default to `~/.geegoo/`, and can be overridden with `GEEGOO_HOME` and `GEEGOO_CONFIG`.
 
-## Platform Blueprint
+## Documentation
 
-To **generate a new self-hosted agent** (any domain, not only stock analysis), use the canonical blueprint:
+- [docs/README.md](docs/README.md) — documentation index
+- [docs/architecture/overview.md](docs/architecture/overview.md) — system architecture
+- [docs/architecture/implementation-status.md](docs/architecture/implementation-status.md) — what's implemented
+- [docs/architecture/platform-blueprint/README.md](docs/architecture/platform-blueprint/README.md) — generic agent blueprint
+- [docs/architecture/layers/L2-tools/tools-tree.md](docs/architecture/layers/L2-tools/tools-tree.md) — registered tools
 
-- [docs/architecture/platform-blueprint/README.md](docs/architecture/platform-blueprint/README.md) — six-layer architecture, Skill Pack spec, 15-step agent build guide
-- [docs/architecture/platform-blueprint/agent-build-guide.md](docs/architecture/platform-blueprint/agent-build-guide.md) — copy-paste Cursor prompts per step
-
-GeeGoo-specific API mapping remains in [docs/architecture/domains/](docs/architecture/domains/).
+Development plans (archived): [docs/archive/](docs/archive/).
 
 ## Quick Start
 
@@ -51,7 +52,7 @@ TTY 下 `geegoo chat` 默认进入 Hermes 风格 Bubble Tea TUI：
 - 写操作 `y/n` 审批；`Esc` / `Ctrl+C` 中断当前回合
 - 非 TTY、`GEEGOO_CHAT_PLAIN=1`、`--cli` 走经典 CLI
 
-配置见 `config.example.json` 的 `display` 段。设计说明：`docs/superpowers/specs/2026-07-12-chattui-hermes-parity-design.md`。
+配置见 `config.example.json` 的 `display` 段。TUI 设计稿见 [docs/archive/superpowers/specs/2026-07-12-chattui-hermes-parity-design.md](docs/archive/superpowers/specs/2026-07-12-chattui-hermes-parity-design.md)。
 
 ## CLI
 

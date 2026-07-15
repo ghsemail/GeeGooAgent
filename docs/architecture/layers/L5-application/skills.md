@@ -22,7 +22,7 @@ internal/workflow/premarket.go      ← PhaseASteps / PerStockSteps
 workflow.Runner.Run(skill)
 ```
 
-详见 [tools-and-skills.md](../../tools-and-skills.md)。
+Tool 体系（toolset、注册、可用性）→ [L2-tools/README.md](../L2-tools/README.md)
 
 ## Spec 结构（Go）
 
@@ -116,7 +116,7 @@ Verdict 驱动 scheduler 退避重试。
 | finance-news | `skills/bundled/finance-news` |
 | geegoo 按需分析 | chat + `market` toolset |
 
-→ [domains/geegoo-agent-skill-mapping.md](../../domains/geegoo-agent-skill-mapping.md)
+→ [domains/geegoo-skill-mapping.md](../../domains/geegoo-skill-mapping.md)
 
 ## 延伸阅读
 

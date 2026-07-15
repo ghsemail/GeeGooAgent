@@ -52,12 +52,6 @@ Tools
 | get_post_market_reports    | /getPostMarketReports              |                |
 | get_intraday_reports       | /getIntradayTradeDecisionReports   |                |
 
-## ReportClient（6100）— reportServer（可选）
-
-| 方法                        | 路径             | 说明                                       |
-| ------------------------- | -------------- | ---------------------------------------- |
-| get_daily_reports_unified | /reports/daily | Bearer `REPORT_SERVER_API_KEY` + user_id |
-
 ## GeeGooBotClient（3120）— geegoo
 
 ### 分析 & 报告
@@ -66,7 +60,6 @@ Tools
 | -------------------------- | ------------------------ |
 | get_mcp_analysis           | /getMCPAnalysis          |
 | get_single_prompt_template | /getSinglePromptTemplate |
-| get_tech_prompt_list       | /getTechPromptList       |
 | get_stock_daily_reports    | /getStockDailyReports    |
 
 ### 市场数据

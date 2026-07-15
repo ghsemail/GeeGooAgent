@@ -1,8 +1,7 @@
 # Tool 服务器与接口对照表
 
-> 维护说明：本文档供人工编辑。Tool 注册以 `src/geegoo/tools/catalog.py` 与 bespoke 实现为准；改 API 路由时同步更新此表。
->
-> 生成基准：`geegoo` 全量 82 个 Tool（`bootstrap.all_tool_instances()`）。
+> 维护：Tool 注册以 `internal/tools/catalog/catalog.go` 与 `bespoke.go` 为准；改 API 时同步本表与 [interface-map.md](../../../reference/geegoo-mcp/interface-map.md)。  
+> 运行态可用性：[tools-tree.md](./tools-tree.md)
 
 ## 服务器别名（GeeGoo Go 3xxx）
 
@@ -203,9 +202,7 @@
 
 ### 5.5 其他
 
-| Tool | 直连服务器 | 间接服务器 | 接口服务 | 接口方法 |
-|------|-----------|-----------|----------|----------|
-| `switch_bot` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /switchBot` |
+（无额外 HTTP Tool；`write_execution_log` 等为本地 bespoke。）
 
 ---
 
