@@ -8,6 +8,7 @@
 | 标记 | 含义 |
 |------|------|
 | ✅ | 已实现且生产可用 |
+| 💬 | 接口正常，需引导用户选择参数后再调（非故障） |
 | ⚠️ | 已注册/已接线，但能力降级、依赖外部环境或仅为占位 |
 | 📋 | 已登记名称，无业务步骤或目录 |
 | ❌ | 未实现 |
@@ -43,9 +44,9 @@
 | 0 | 平台内核 | ✅ | 见上表 |
 | 1 | 盘前 `pre_market` | ✅ | `workflow/premarket.go` + `skills/pre_market/` |
 | 2 | 盘后 `post_market` | 📋 | `loader.go` 注册名，**无步骤**、无 `skills/post_market/` |
-| 3 | 盘中 `intraday` | 📋 | 同上；富途三接口见 Tool ⚠️ |
+| 3 | 盘中 `intraday` | 📋 | 同上；富途三接口已接通 ✅ |
 | 4 | 按需分析（chat） | ⚠️ | `market` toolset + ReAct；无独立 Skill 包 |
-| 5 | 策略 | ⚠️ | Tool 已注册；Analyze/Signal 为简化实现 |
+| 5 | 策略 | ⚠️ | Grid/DCA：配 `GEEGOO_PROMPT_API_URL` 走 LLM；未配为 K 线启发式；loopback 仍简化 |
 | 6 | Bot / Reminder 管理 | ⚠️ | CRUD Tool ✅；GeeGooBot 侧无 Bot scheduler |
 | 7 | Prompt 模板高级 CRUD | ⚠️ | Tool 已注册；依赖 catalog-api |
 
@@ -67,22 +68,31 @@
 
 | 类别 | 已注册 | 端到端可用 | 主要 ⚠️ |
 |------|--------|------------|---------|
-| Perception | 10 | 大部分 | 富途三接口 Noop；无 Python 时新闻 skip |
+| Perception | 10 | 大部分 | 无 Python 时新闻极少 skip |
 | Analysis | 22 | 大部分 | `get_mcp_analysis` 质量取决于后端 |
 | Decision | 3 | 3 | — |
 | Action | 42 | 大部分 | `generate_*` 依赖 analyze-api 部署 |
 | Meta | 1 | 1 | — |
 
-### 已知降级 Tool
+### 需引导用户选择（💬）
+
+| Tool | 现象 | Agent 应做 |
+|------|------|------------|
+| `generate_dca_strategy` | 无 `signal_id` → 101 | 先问单指标/组合 → 列 brief → 用户选 `signal_id` |
+| `loopback_strategy` | grid 缺 `grid_param`；dca 缺 `signal` | 先 `generate_*` 或让用户确认参数 |
+| `get_mcp_analysis` | 缺 `period` → 400 | 先 `get_single_prompt_template`，确认 `period` |
+| `get_bot_yesterday_attitude` | 缺 `bot_id` | 先 list 对应 Bot，让用户指定 |
+| `get_stock_daily_reports` | 缺 `report_date` | 向用户确认日期 |
+| `create_pre_market_report` 等 | 缺 `stock_name` 等 | report_workflow 🔒；逐项向用户确认 |
+
+### 已知降级（⚠️）
 
 | Tool | 现象 | 根因 |
 |------|------|------|
 | `fetch_market_news` / `fetch_stock_news` | 极少 skip | Go RSS/东财回退已实现 |
 | `get_ticker` / `get_broker` / `get_position` | — | **已接通** futu_bridge（2026-07-15） |
 | `get_mcp_analysis` | 输出为规则化分析 | analyze-api :3230 可用，非旧 LLM 长文 |
-| `generate_grid_strategy` | — | analyze-api :3230 ✅ |
-| `generate_dca_strategy` | 缺 signal_id | 先问用户选单指标或组合，再 `get_index_signals` / `get_signal_combinations` 取 `signal_id` |
-| `loopback_strategy` | 缺 grid_param | K 线回测引擎已部署，grid 需参数 |
+| `generate_grid_strategy` / `generate_dca_strategy` | 未配 prompt 时为 K 线启发式 | 配 `GEEGOO_PROMPT_API_URL` + Mongo `ai_model_db` type=configured → LLM（port AIServer） |
 | `send_feishu_summary` | 未配 webhook 时 skip | 配置 `feishu_webhook_url` |
 
 ---
