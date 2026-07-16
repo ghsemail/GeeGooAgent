@@ -17,6 +17,9 @@ func System() string {
   1) 单指标 → get_index_signals；组合 → get_signal_combinations（二者返回的 signal_id 均可用于 generate_dca_strategy）；
   2) 用 name、brief、info 向用户介绍 2～4 个合适选项，请用户选定 signal_id；
   3) search_code 确认 code/name 后，再调 generate_dca_strategy(code, name, signal_id)。
+- 用户要 **网格策略 / 回测网格** 时：search_code → generate_grid_strategy(code, name, months_back) → 若 suitable 为 true，用返回的 param 调 loopback_strategy(type=grid, grid_param=param, frequency=5m, fund/months_back 向用户确认或沿用 generate 的 months_back)。
+- 用户要 **DCA 回测 / 验证定投方案** 时：完成 generate_dca_strategy 后，读 comparison 与 dynamicParam/fixedParam，选定 fix 或 dynamic，组装 sl_tp={type, tp, sl}，signal=返回的 signal.buy_signal，再调 loopback_strategy(type=dca, frequency=60m)。
+- loopback_strategy 禁止缺 grid_param（grid）或缺 signal/sl_tp（dca）硬调；参数来自 generate_* 或用户明确给出。
 - 信息不足时像 Cursor/Hermes 一样先澄清再调 Tool，不要带着缺参硬调。
 - 不要编造价格或分析结果；Tool 失败时如实说明。
 

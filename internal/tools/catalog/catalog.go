@@ -8,6 +8,7 @@ type HTTPSpec struct {
 	RequiresMCPToken bool
 	DirectResponse   bool
 	MergePayload     bool
+	Parameters       map[string]any
 }
 
 // BespokeNames are implemented as dedicated handlers, not generic HTTP tools.
@@ -59,9 +60,9 @@ func AllHTTP() []HTTPSpec {
 		{Name: "get_signal_combinations", Description: "列出 DCA 可用的组合信号（buy_signal/sell_signal 指标链）；每项含 signal_id、name、brief、info。适合多指标共振；用户未指定时先问「单指标还是组合」，再展示 brief 供选择。", Path: "/getSignalCombinationForSkill", RequiresMCPToken: false, DirectResponse: true},
 		{Name: "get_single_prompt_template", Description: "List prompt templates.", Path: "/getSinglePromptTemplate", DirectResponse: true},
 		{Name: "get_bot_log_by_type", Description: "Query bot log by type.", Path: "/getBotLogByType"},
-		{Name: "generate_grid_strategy", Description: "Generate GRID strategy.", Path: "/generateGridStrategy"},
-		{Name: "generate_dca_strategy", Description: "生成 DCA 定投方案（趋势评估、信号适用性、动态/固定止盈止损）。必填 code、name、signal_id；signal_id 来自 get_index_signals 或 get_signal_combinations 的某一 signal_id。用户未选定信号时勿直接调用——先问单指标还是组合，列出 brief 让用户选。", Path: "/generateDCAStrategy"},
-		{Name: "loopback_strategy", Description: "Backtest strategy.", Path: "/loopBackStrategy", MergePayload: true},
+		{Name: "generate_grid_strategy", Description: "生成 GRID 网格策略建议（LLM 分析 + 推荐上下限与网格数）。必填 code、name。返回 param 可直接作为 loopback_strategy 的 grid_param；回测前再调 loopback_strategy(type=grid)。", Path: "/generateGridStrategy", Parameters: generateGridStrategyParameters()},
+		{Name: "generate_dca_strategy", Description: "生成 DCA 定投方案（趋势评估、信号适用性、动态/固定止盈止损）。必填 code、name、signal_id；signal_id 来自 get_index_signals 或 get_signal_combinations。返回 signal.buy_signal + dynamicParam/fixedParam 可组装 loopback_strategy(type=dca) 的 signal 与 sl_tp。", Path: "/generateDCAStrategy", Parameters: generateDCAStrategyParameters()},
+		{Name: "loopback_strategy", Description: "策略历史回测（GeeGooSignal :3200）。勿裸调：grid 须先有 grid_param（generate_grid_strategy 的 param）；dca 须 signal（generate_dca_strategy 的 signal.buy_signal）与 sl_tp（按 comparison 选 dynamicParam 或 fixedParam 组装）。缺 fund/months_back 时先问用户。", Path: "/loopBackStrategy", MergePayload: true, Parameters: loopbackStrategyParameters()},
 		{Name: "create_competitor_prompt_template", Description: "Create competitor prompt template.", Path: "/createCompetitorPromptTemplate", MergePayload: true},
 		{Name: "edit_competitor_prompt_template", Description: "Edit competitor prompt template.", Path: "/editCompetitorPromptTemplate", MergePayload: true},
 		{Name: "delete_competitor_prompt_template", Description: "Delete competitor prompt template.", Path: "/deleteCompetitorPromptTemplate", MergePayload: true},

@@ -32,6 +32,7 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 		r.Register(Tool{
 			Name:        spec.Name,
 			Description: spec.Description,
+			Parameters:  spec.Parameters,
 			Handle: ApprovalGate(spec.Name, func(ctx Context, args map[string]any) Result {
 				if ctx.DryRun {
 					return Result{
@@ -81,6 +82,12 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 						Meta: MetaFromEnvelope(nil, started)}
 				}
 				normalized, summary := normalizeHTTPResponse(spec.Name, data)
+				if spec.Name == "generate_grid_strategy" {
+					summary = appendLoopbackHint(summary, "grid", normalized)
+				}
+				if spec.Name == "generate_dca_strategy" {
+					summary = appendLoopbackHint(summary, "dca", normalized)
+				}
 				meta := MetaFromEnvelope(envelope, started)
 				if status, note, _ := ClassifyHTTPPayload(spec.Name, normalized, envelope); status != StatusOK {
 					return Result{Status: status, Summary: note, Data: normalized, Meta: meta}
@@ -125,6 +132,25 @@ func normalizeHTTPResponse(name string, payload any) (map[string]any, string) {
 	default:
 		return map[string]any{"value": payload}, fmt.Sprintf("%s succeeded", name)
 	}
+}
+
+func appendLoopbackHint(summary, strategyType string, data map[string]any) string {
+	if data == nil {
+		return summary
+	}
+	switch strategyType {
+	case "grid":
+		if param, ok := data["param"].(map[string]any); ok && len(param) > 0 {
+			return summary + "；可 loopback_strategy(type=grid, grid_param=param, frequency=5m)"
+		}
+	case "dca":
+		if signal, ok := data["signal"].(map[string]any); ok {
+			if _, ok := signal["buy_signal"]; ok {
+				return summary + "；可 loopback_strategy(type=dca, signal=signal.buy_signal, sl_tp 由 dynamicParam 或 fixedParam 组装, frequency=60m)"
+			}
+		}
+	}
+	return summary
 }
 
 // RegisterAll registers HTTP catalog + bespoke tools (~82 total).
