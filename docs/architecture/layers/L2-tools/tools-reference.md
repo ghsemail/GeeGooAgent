@@ -43,8 +43,8 @@
 | `get_ticker` | ✅ | 逐笔行情 | Bot:3120 | `POST /getTicker` | futu_bridge |
 | `get_broker` | ✅ | 经纪席位分布 | Bot:3120 | `POST /getBroker` | futu_bridge |
 | `get_position` | ✅ | 账户持仓 | Bot:3120 | `POST /getPosition` | futu_bridge；空仓 → skip |
-| `get_capital_flow` | ⚠️ | 资金流向 | Bot:3120 | `POST /getCapitalFlow` | A 股 MCP 空→东财回退 |
-| `get_capital_distribution` | ⚠️ | 资金分布 | Bot:3120 | `POST /getCapitalDistribution` | HK/US 常 skip；A 股东财回退 |
+| `get_capital_flow` | ⚠️ | 资金流向 | Bot:3120 | `POST /getCapitalFlow` | A 股→CN Data 节点 |
+| `get_capital_distribution` | ⚠️ | 资金分布 | Bot:3120 | `POST /getCapitalDistribution` | 港/美→HK/US Data 节点 |
 | `get_mcp_analysis` | ✅ | LLM 分析 | Bot:3120 | `POST /getMCPAnalysis` | 经 mcp-api；缺 period 时 💬 |
 | `generate_grid_strategy` | ✅ | 网格参数建议 | Analyze:3230 | `POST /generateGridStrategy` | LLM 较慢 |
 | `create_*_bot` | 💬 | 创建 Bot | Bot:3120 | `POST /create*Bot` | 先 generate_*；无 scheduler ⚠️ |

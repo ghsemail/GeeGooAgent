@@ -94,9 +94,21 @@
 | `get_ticker` / `get_broker` / `get_position` | — | **已接通** futu_bridge（2026-07-15） |
 | `get_mcp_analysis` | — | 经 mcp-api→analyze-api LLM |
 | `generate_grid_strategy` / `generate_dca_strategy` | LLM 较慢（60–180s） | analyze-api + promptServer |
-| `get_capital_*` | HK/US 常 skip | A 股东财回退；Agent 已说明 |
-| `send_feishu_summary` | 未配 webhook 时 skip | 配置 `feishu_webhook_url` |
+| `get_capital_*` | HK/US 常 skip | A 股→GeeGooData CN 节点；港/美→47.80 节点 |
 | Bot scheduler | 创建后不自动跑 | GeeGooBot 架构缺口，非 Agent bug |
+
+### 已从 Tool Registry 移除（待 Notify Gateway）
+
+| 原 Tool | 处置 | 说明 |
+|---------|------|------|
+| `send_feishu_summary` | **待办，非 L2 Tool** | 当前实现为 Agent 本地直连 webhook，未走 GeeGooBot；`pre_market` manifest 未纳入；Notify Gateway（GeeGooBot `internal/notify`）就绪后以 `send_notification` 或 workflow 固定步骤恢复 |
+
+**Notify Gateway 待办（与 scheduler 并列，整体切换前实现）：**
+
+- 落点：GeeGooBot `internal/notify` + HTTP/MCP 出口
+- 路由：按 `user.notice`（webhook / FCM / Jpush），非 Agent 全局 `feishu_webhook_url`
+- 模板：对齐 TradingBot `BotNotice`（notice_type 0–5）
+- Agent 侧：薄转发或 Skill workflow 后置步骤；Supervisor 硬失败告警走 L0，不经 LLM 自由选 tool
 
 ---
 

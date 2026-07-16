@@ -50,7 +50,6 @@ var (
 		"get_report_bot_codes":       {},
 		"create_pre_market_report":   {},
 		"save_local_report":          {},
-		"send_feishu_summary":        {},
 		"write_execution_log":        {},
 		"read_working_state":         {},
 		"recall_yesterday_summary":   {},

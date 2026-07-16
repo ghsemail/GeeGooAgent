@@ -47,7 +47,7 @@
 | `fetch_market_news` / `fetch_stock_news` | 极少 skip | Go RSS/东财回退（无 Python 也可用） |
 | `generate_grid_strategy` | 未配 prompt/LLM 时 503 | 需 `GEEGOO_PROMPT_API_URL` + configured LLM |
 | `get_mcp_analysis` | 同上 | 同上 |
-| `get_capital_*` | A 股 MCP 空时 | Agent 东财回退；HK 走 GeeGooData |
+| `get_capital_*` | A 股 MCP 空时 | Bot 路由至 GeeGooData CN/HK/US 分节点 |
 | `send_feishu_summary` | skip | 未配 `feishu_webhook_url` |
 
 ### 默认 chat toolset
@@ -73,7 +73,7 @@ GeeGooAgent Tools
 │  ├─ search_code, web_search                    ✅
 │  ├─ check_trading_day, get_current_price       ✅
 │  ├─ get_ticker, get_broker, get_position       ✅ futu_bridge
-│  ├─ get_capital_flow, get_capital_distribution ⚠️ A股 MCP 空→Agent 东财
+│  ├─ get_capital_flow, get_capital_distribution ⚠️ Bot→GeeGooData 分节点
 │  ├─ get_bot_yesterday_attitude                 💬 需 bot_id
 │  ├─ get_index_signals, get_signal_combinations ✅ :3210
 │  ├─ get_single_prompt_template                 ✅
@@ -123,7 +123,7 @@ GeeGooAgent Tools
 | `fetch_*_news`, `recall_yesterday_summary` | ✅ | 新闻 Go 回退；昨日摘要无文件时 skip |
 | `send_feishu_summary` | ⚠️ | 需 `feishu_webhook_url` |
 | `get_mcp_analysis` | 💬/✅ | 💬 缺 `period`；配 prompt+LLM 为长文分析 |
-| `get_capital_*` | ⚠️ | A 股东财回退 |
+| `get_capital_*` | ⚠️ | Bot 分节点路由 GeeGooData |
 | `recall` | ✅ | ✅ |
 
 ---

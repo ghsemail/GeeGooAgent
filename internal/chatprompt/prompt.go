@@ -26,8 +26,7 @@ func System() string {
   - 创建前 list_*_bots 查重名；103=未绑交易账号，105=Bot 配额不足。
 - **提醒 Bot**：create_grid_reminder / create_dca_reminder，参数类似但不实盘下单。
 - get_mcp_analysis 经 GeeGooBot mcp-api（mcp_token→user_id→analyze-api LLM），勿直连 :3230。
-- 资金流向 get_capital_*：A 股有东财回退；港股/美股常无数据，改用 web_search。
-- send_feishu_summary 需配置 feishu_webhook_url，否则 skip。
+- 资金流向 get_capital_*：经 GeeGooBot → GeeGooData（A 股 CN 节点，港/美 HK/US 节点）；无数据时 skip，勿编造。
 - 信息不足时像 Cursor/Hermes 一样先澄清再调 Tool，不要带着缺参硬调。
 - 不要编造价格或分析结果；Tool 失败时如实说明。
 

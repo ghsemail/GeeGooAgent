@@ -12,7 +12,6 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/search"
-	"github.com/ghsemail/GeeGooAgent/internal/tools/capitalflow"
 	"github.com/ghsemail/GeeGooAgent/internal/tools/newsrunner"
 )
 
@@ -338,7 +337,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "get_capital_flow", Description: "查询主力资金流向。A 股在 MCP 无数据时自动东财回退；港股/美股常无数据→skip，勿编造。",
+		Name: "get_capital_flow", Description: "查询主力资金流向。A 股走 GeeGooData CN 节点，港股/美股走 HK/US 节点；无数据→skip，勿编造。",
 		Parameters: map[string]any{
 			"type": "object", "required": []string{"code"},
 			"properties": map[string]any{
@@ -356,28 +355,19 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if err != nil {
 				return errResult(err)
 			}
-			latest := map[string]any{}
-			source := "GeeGooBot-mcp-api"
-			if len(flows) > 0 {
-				latest = map[string]any{"main_in_flow": flows[len(flows)-1].MainInFlow}
-			} else if capitalflow.SupportsAShare(code) {
-				if snap, emErr := capitalflow.FetchAShareSnapshot(ctx.GoContext(), code); emErr == nil {
-					latest = map[string]any{"main_in_flow": snap.MainInFlow}
-					source = snap.Source
-				}
-			}
-			if len(latest) == 0 {
+			if len(flows) == 0 {
 				note := emptyDataNote("get_capital_flow", code)
 				return Result{Status: StatusSkip, Summary: note, Data: map[string]any{
-					"code": code, "latest": latest, "items": []any{}, "source": source,
+					"code": code, "latest": map[string]any{}, "items": []any{}, "source": "GeeGooBot-mcp-api",
 				}}
 			}
+			latest := map[string]any{"main_in_flow": flows[len(flows)-1].MainInFlow}
 			return Result{Status: StatusOK, Summary: fmt.Sprintf("capital flow %s", code),
-				Data: map[string]any{"code": code, "latest": latest, "source": source}}
+				Data: map[string]any{"code": code, "latest": latest, "source": "GeeGooBot-mcp-api"}}
 		},
 	})
 	r.Register(Tool{
-		Name: "get_capital_distribution", Description: "查询资金分布（超大/大/中/小单）。A 股东财回退；港股/美股常 skip。",
+		Name: "get_capital_distribution", Description: "查询资金分布（超大/大/中/小单）。A 股走 GeeGooData CN 节点，港股/美股走 HK/US 节点；无数据→skip。",
 		Parameters: map[string]any{
 			"type": "object", "required": []string{"code"},
 			"properties": map[string]any{
@@ -393,20 +383,16 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if err != nil {
 				return errResult(err)
 			}
-			formatted := fmt.Sprintf("super_in=%v", dist.CapitalInSuper)
-			source := "GeeGooBot-mcp-api"
-			if dist.CapitalInSuper == 0 && dist.CapitalInBig == 0 && capitalflow.SupportsAShare(code) {
-				if em, emErr := capitalflow.FetchAShareDistribution(ctx.GoContext(), code); emErr == nil {
-					formatted = fmt.Sprintf("super_in=%v big_in=%v mid_in=%v small_in=%v", em.SuperIn, em.BigIn, em.MidIn, em.SmallIn)
-					source = em.Source
-				}
-			}
-			if strings.TrimSpace(formatted) == "super_in=0" || strings.TrimSpace(formatted) == "super_in=<nil>" {
+			formatted := fmt.Sprintf("super_in=%v big_in=%v mid_in=%v small_in=%v",
+				dist.CapitalInSuper, dist.CapitalInBig, dist.CapitalInMid, dist.CapitalInSmall)
+			if dist.CapitalInSuper == 0 && dist.CapitalInBig == 0 && dist.CapitalInMid == 0 && dist.CapitalInSmall == 0 {
 				note := emptyDataNote("get_capital_distribution", code)
-				return Result{Status: StatusSkip, Summary: note, Data: map[string]any{"code": code, "formatted": formatted, "source": source}}
+				return Result{Status: StatusSkip, Summary: note, Data: map[string]any{
+					"code": code, "formatted": formatted, "source": "GeeGooBot-mcp-api",
+				}}
 			}
 			return Result{Status: StatusOK, Summary: fmt.Sprintf("capital distribution %s", code), Data: map[string]any{
-				"code": code, "formatted": formatted, "source": source,
+				"code": code, "formatted": formatted, "source": "GeeGooBot-mcp-api",
 			}}
 		},
 	})
@@ -634,44 +620,6 @@ func registerReportTools(r *Registry, deps Deps) {
 			}
 			return Result{Status: StatusOK, Summary: fmt.Sprintf("Saved %s", filepath.Base(path)),
 				Data: map[string]any{"path": path, "code": code}}
-		},
-	})
-	r.Register(Tool{
-		Name: "send_feishu_summary", Description: "通过飞书 webhook 推送摘要。需在配置中设置 feishu_webhook_url，否则 skip。",
-		Handle: func(ctx Context, args map[string]any) Result {
-			if ctx.DryRun {
-				return okDryRun("send_feishu_summary", map[string]any{})
-			}
-			webhook := strings.TrimSpace(deps.FeishuWebhookURL)
-			if webhook == "" {
-				return Result{Status: StatusSkip, Summary: "feishu webhook not configured"}
-			}
-			content := strArg(args, "content", "")
-			if content == "" {
-				content = strArg(args, "text", "")
-			}
-			if content == "" {
-				content = strArg(args, "summary", "")
-			}
-			title := strArg(args, "title", "GeeGoo 盘前摘要")
-			code := strArg(args, "code", "")
-			message := content
-			if title != "" {
-				message = title
-				if content != "" {
-					message += "\n\n" + content
-				}
-			}
-			if code != "" && !strings.Contains(message, code) {
-				message = fmt.Sprintf("[%s]\n%s", code, message)
-			}
-			if strings.TrimSpace(message) == "" {
-				return Result{Status: StatusError, Summary: "send_feishu_summary: content required", ExitCode: 1}
-			}
-			if err := postFeishuText(ctx.GoContext(), webhook, message); err != nil {
-				return errResult(err)
-			}
-			return Result{Status: StatusOK, Summary: "feishu summary sent", Data: map[string]any{"sent": true}}
 		},
 	})
 }

@@ -19,7 +19,7 @@ var BespokeNames = map[string]bool{
 	"get_stock_daily_reports": true, "list_today_reports": true, "get_capital_flow": true,
 	"get_capital_distribution": true, "get_bot_yesterday_attitude": true,
 	"recall_yesterday_summary": true, "read_working_state": true, "create_pre_market_report": true,
-	"save_local_report": true, "send_feishu_summary": true, "write_execution_log": true, "recall": true,
+	"save_local_report": true, "write_execution_log": true, "recall": true,
 }
 
 // AllHTTP returns generic MCP HTTP tool specs (excludes bespoke names).
