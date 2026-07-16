@@ -26,7 +26,8 @@
 | Tool | 状态 | 作用 | 说明 |
 |------|------|------|------|
 | `generate_dca_strategy` | 💬 | DCA 参数建议 | 先问单指标/组合，用户选 `signal_id` 后再调 |
-| `loopback_strategy` | 💬 | 策略回测 | grid 需 `grid_param`；dca 需 `signal` + `sl_tp` |
+| `loopback_strategy` | 💬 | 策略回测 | 先 generate_*；:3200 原生 Go ✅ |
+| `create_*_bot` | 💬 | 创建 Bot | 先 generate_* + 用户确认 |
 | `get_mcp_analysis` | 💬 | 技术面分析 | `period` 必填；可先 `get_single_prompt_template` |
 | `get_bot_yesterday_attitude` | 💬 | 昨日态度 | 需 `bot_id`；先 list Bot |
 | `get_stock_daily_reports` | 💬 | 按日聚合报告 | 需 `report_date` |
@@ -43,9 +44,10 @@
 | `get_broker` | ✅ | 经纪席位分布 | Bot:3120 | `POST /getBroker` | futu_bridge |
 | `get_position` | ✅ | 账户持仓 | Bot:3120 | `POST /getPosition` | futu_bridge；空仓 → skip |
 | `get_capital_flow` | ⚠️ | 资金流向 | Bot:3120 | `POST /getCapitalFlow` | A 股 MCP 空→东财回退 |
-| `get_capital_distribution` | ⚠️ | 资金分布 | Bot:3120 | `POST /getCapitalDistribution` | 同上 |
-| `get_mcp_analysis` | ⚠️ | 技术面/指数分析 | Analyze:3230 | `POST /getMCPAnalysis` | 规则化输出，非旧 LLM 长文 |
-| `generate_grid_strategy` | ✅ | 网格参数建议 | Analyze:3230 | `POST /generateGridStrategy` | |
+| `get_capital_distribution` | ⚠️ | 资金分布 | Bot:3120 | `POST /getCapitalDistribution` | HK/US 常 skip；A 股东财回退 |
+| `get_mcp_analysis` | ✅ | LLM 分析 | Bot:3120 | `POST /getMCPAnalysis` | 经 mcp-api；缺 period 时 💬 |
+| `generate_grid_strategy` | ✅ | 网格参数建议 | Analyze:3230 | `POST /generateGridStrategy` | LLM 较慢 |
+| `create_*_bot` | 💬 | 创建 Bot | Bot:3120 | `POST /create*Bot` | 先 generate_*；无 scheduler ⚠️ |
 | `send_feishu_summary` | ⚠️ | 飞书推送摘要 | Web | webhook URL | 未配 `feishu_webhook_url` → skip |
 
 **说明**：Registry 中 **82 个 Tool 均已注册**，没有「未注册」的幽灵 Tool。上表是**运行态不可用或降级**的项；其余默认可用（仍受 MCP 鉴权、网络、参数约束）。
@@ -73,7 +75,7 @@
 
 | Tool | 作用 | 类型 | 来源 | HTTP / 实现 | 状态 | 备注 |
 |------|------|------|------|-------------|------|------|
-| `get_mcp_analysis` | MCP 技术分析 | bespoke | Bot:3120 | `POST /getMCPAnalysis` | 💬/⚠️ | 💬 缺 `period`；⚠️ 规则化 |
+| `get_mcp_analysis` | MCP 技术分析 | bespoke | Bot:3120 | `POST /getMCPAnalysis` | 💬/✅ | 经 mcp-api LLM |
 | `get_single_prompt_template` | Prompt 模板列表 | bespoke | Bot:3120 | `POST /getSinglePromptTemplate` | ✅ | type: index/tech/fundamental |
 | `get_capital_flow` | 资金流向 | bespoke | Bot:3120 | `POST /getCapitalFlow` | ⚠️ | A 股 skip |
 | `get_capital_distribution` | 资金分布 T-1 | bespoke | Bot:3120 | `POST /getCapitalDistribution` | ⚠️ | A 股 skip |

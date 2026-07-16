@@ -213,7 +213,14 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "fetch_market_news", Description: "Fetch market news (bundled finance-news script).",
+		Name: "fetch_market_news", Description: "拉取市场新闻（US/CN/HK RSS/东财）。失败时改用 web_search。",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"market": map[string]any{"type": "string", "description": "US/CN/HK，默认 US"},
+				"limit":  map[string]any{"type": "integer", "description": "条数，默认 8"},
+			},
+		},
 		Handle: func(ctx Context, args map[string]any) Result {
 			market := strArg(args, "market", "US")
 			limit := intArg(args, "limit", 8)
@@ -234,7 +241,14 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "fetch_stock_news", Description: "Fetch stock-specific news.",
+		Name: "fetch_stock_news", Description: "拉取个股新闻。失败时改用 web_search。",
+		Parameters: map[string]any{
+			"type": "object", "required": []string{"code"},
+			"properties": map[string]any{
+				"code":  map[string]any{"type": "string"},
+				"limit": map[string]any{"type": "integer"},
+			},
+		},
 		Handle: func(ctx Context, args map[string]any) Result {
 			code := strArg(args, "code", "")
 			limit := intArg(args, "limit", 8)
@@ -263,7 +277,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 	registerPromptTemplateTools(r, deps)
 	r.Register(Tool{
 		Name:        "get_mcp_analysis",
-		Description: "执行 MCP 技术面/指数 LLM 分析。个股信号趋势：先 get_single_prompt_template(type=tech, period=daily) 取 prompt_id，再传入本工具。",
+		Description: "执行 MCP 技术面/指数 LLM 分析（经 GeeGooBot :3120，mcp_token 解析用户）。个股：先 get_single_prompt_template(type=tech) 取 prompt_id。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -309,10 +323,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 					"analysis_result": fmt.Sprintf("[dry-run] analysis for %s", name),
 				})
 			}
-			result, err := deps.HTTP.AnalysisClient().GetMCPAnalysis(ctx.GoContext(), ctx.MCPToken, name, code, promptID, period, language)
-			if err != nil && deps.HTTP.SignalAnalyze != nil && deps.HTTP.MCP != nil && deps.HTTP.AnalysisClient() != deps.HTTP.MCP {
-				result, err = deps.HTTP.MCP.GetMCPAnalysis(ctx.GoContext(), ctx.MCPToken, name, code, promptID, period, language)
-			}
+			result, err := deps.HTTP.MCP.GetMCPAnalysis(ctx.GoContext(), ctx.MCPToken, name, code, promptID, period, language)
 			if err != nil {
 				return errResult(err)
 			}
@@ -327,7 +338,14 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "get_capital_flow", Description: "Fetch capital flow for a stock.",
+		Name: "get_capital_flow", Description: "查询主力资金流向。A 股在 MCP 无数据时自动东财回退；港股/美股常无数据→skip，勿编造。",
+		Parameters: map[string]any{
+			"type": "object", "required": []string{"code"},
+			"properties": map[string]any{
+				"code":   map[string]any{"type": "string", "description": "标的代码"},
+				"period": map[string]any{"type": "string", "description": "DAY/WEEK/MONTH，默认 DAY"},
+			},
+		},
 		Handle: func(ctx Context, args map[string]any) Result {
 			code := strArg(args, "code", "")
 			period := strArg(args, "period", "DAY")
@@ -359,7 +377,13 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "get_capital_distribution", Description: "Fetch capital distribution.",
+		Name: "get_capital_distribution", Description: "查询资金分布（超大/大/中/小单）。A 股东财回退；港股/美股常 skip。",
+		Parameters: map[string]any{
+			"type": "object", "required": []string{"code"},
+			"properties": map[string]any{
+				"code": map[string]any{"type": "string", "description": "标的代码"},
+			},
+		},
 		Handle: func(ctx Context, args map[string]any) Result {
 			code := strArg(args, "code", "")
 			if ctx.DryRun {
@@ -387,7 +411,14 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "get_bot_yesterday_attitude", Description: "Get bot yesterday attitude.",
+		Name: "get_bot_yesterday_attitude", Description: "查询 Bot 昨日态度监控结论。必填 bot_id；先 list_*_bots 让用户选定。",
+		Parameters: map[string]any{
+			"type": "object", "required": []string{"bot_id"},
+			"properties": map[string]any{
+				"bot_id": map[string]any{"type": "string", "description": "Bot _id"},
+				"code":   map[string]any{"type": "string", "description": "可选，展示用"},
+			},
+		},
 		Handle: func(ctx Context, args map[string]any) Result {
 			botID := strArg(args, "bot_id", "")
 			code := strArg(args, "code", "")
@@ -404,7 +435,14 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "get_stock_daily_reports", Description: "Query aggregated daily reports.",
+		Name: "get_stock_daily_reports", Description: "按日聚合盘前/盘中/盘后报告。建议传 report_date(YYYY-MM-DD) 与 code。",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"code":        map[string]any{"type": "string", "description": "标的代码"},
+				"report_date": map[string]any{"type": "string", "description": "YYYY-MM-DD，默认今天"},
+			},
+		},
 		Handle: func(ctx Context, args map[string]any) Result {
 			code := strArg(args, "code", "")
 			reportDate := strArg(args, "report_date", today())
@@ -441,7 +479,14 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "recall_yesterday_summary", Description: "Recall yesterday pre-market report summary from workspace.",
+		Name: "recall_yesterday_summary", Description: "读取本地/workspace 昨日盘前摘要；无文件时 skip，可改 get_stock_daily_reports。",
+		Parameters: map[string]any{
+			"type": "object", "required": []string{"code"},
+			"properties": map[string]any{
+				"code":        map[string]any{"type": "string"},
+				"report_date": map[string]any{"type": "string", "description": "YYYY-MM-DD，默认昨天"},
+			},
+		},
 		Handle: func(ctx Context, args map[string]any) Result {
 			code := strArg(args, "code", "")
 			if code == "" {
@@ -592,7 +637,7 @@ func registerReportTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "send_feishu_summary", Description: "Send Feishu webhook summary.",
+		Name: "send_feishu_summary", Description: "通过飞书 webhook 推送摘要。需在配置中设置 feishu_webhook_url，否则 skip。",
 		Handle: func(ctx Context, args map[string]any) Result {
 			if ctx.DryRun {
 				return okDryRun("send_feishu_summary", map[string]any{})

@@ -37,7 +37,7 @@ func (b HTTPBackends) ForTool(name string) *mcp.Client {
 		if b.SignalCatalog != nil {
 			return b.SignalCatalog
 		}
-	case "get_mcp_analysis", "generate_grid_strategy", "generate_dca_strategy":
+	case "generate_grid_strategy", "generate_dca_strategy":
 		if c := b.AnalysisClient(); c != nil {
 			return c
 		}

@@ -33,8 +33,8 @@ func TestHTTPBackendsForTool(t *testing.T) {
 	if b2.ForTool("generate_dca_strategy") != analyzeC {
 		t.Fatal("generate_dca_strategy should use analyze-api")
 	}
-	if b2.ForTool("get_mcp_analysis") != analyzeC {
-		t.Fatal("get_mcp_analysis should use analyze-api when configured")
+	if b2.ForTool("get_mcp_analysis") != mcpC {
+		t.Fatal("get_mcp_analysis is bespoke and routes via mcp-api")
 	}
 	if b.ForTool("get_position") != mcpC {
 		t.Fatal("bot tools should use mcp-api")

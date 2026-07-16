@@ -84,7 +84,7 @@ GeeGooAgent Tools
 ├─ strategy
 │  ├─ generate_grid_strategy                        ✅ LLM
 │  ├─ generate_dca_strategy                           💬 先选 signal_id；LLM
-│  └─ loopback_strategy                               💬 grid 需 grid_param；dca 需 signal
+│  └─ loopback_strategy                               💬 先 generate_*（原生回测 ✅）
 ├─ bot_manager（4×5 CRUD+log）
 ├─ reminder_manager（3×5）
 ├─ report_query（盘前/盘中/盘后 CRUD + 聚合）
@@ -109,7 +109,8 @@ GeeGooAgent Tools
 | `get_position` / `get_ticker` / `get_broker` | ✅ | futu_bridge |
 | `generate_grid_strategy` | ✅ | Analyze/Go；配 prompt+LLM 为 AIServer 级 |
 | `generate_dca_strategy` | 💬 | 先问单指标/组合 → 用户选 `signal_id`；LLM 同 grid |
-| `loopback_strategy` | 💬 | grid 需 `grid_param`；dca 需 `signal` 链（:3200 K 线回测） |
+| `loopback_strategy` | 💬 | grid/dca 需 generate_* 参数链（:3200 原生回测 ✅） |
+| `create_*_bot` | 💬 | 先 generate_*；写操作需确认；无 scheduler ⚠️ |
 | 7× Bot/Reminder ×5 | ✅ | 写 Bot 无 scheduler |
 | 报告 / Prompt CRUD | ✅ | |
 

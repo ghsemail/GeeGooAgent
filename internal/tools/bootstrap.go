@@ -83,10 +83,10 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 				}
 				normalized, summary := normalizeHTTPResponse(spec.Name, data)
 				if spec.Name == "generate_grid_strategy" {
-					summary = appendLoopbackHint(summary, "grid", normalized)
+					summary = appendStrategyFollowUp(summary, "grid", normalized)
 				}
 				if spec.Name == "generate_dca_strategy" {
-					summary = appendLoopbackHint(summary, "dca", normalized)
+					summary = appendStrategyFollowUp(summary, "dca", normalized)
 				}
 				meta := MetaFromEnvelope(envelope, started)
 				if status, note, _ := ClassifyHTTPPayload(spec.Name, normalized, envelope); status != StatusOK {
@@ -134,19 +134,19 @@ func normalizeHTTPResponse(name string, payload any) (map[string]any, string) {
 	}
 }
 
-func appendLoopbackHint(summary, strategyType string, data map[string]any) string {
+func appendStrategyFollowUp(summary, strategyType string, data map[string]any) string {
 	if data == nil {
 		return summary
 	}
 	switch strategyType {
 	case "grid":
 		if param, ok := data["param"].(map[string]any); ok && len(param) > 0 {
-			return summary + "；可 loopback_strategy(type=grid, grid_param=param, frequency=5m)"
+			return summary + "；可 loopback_strategy(type=grid, grid_param=param) 或 create_grid_bot(grid=param)"
 		}
 	case "dca":
 		if signal, ok := data["signal"].(map[string]any); ok {
 			if _, ok := signal["buy_signal"]; ok {
-				return summary + "；可 loopback_strategy(type=dca, signal=signal.buy_signal, sl_tp 由 dynamicParam 或 fixedParam 组装, frequency=60m)"
+				return summary + "；可 loopback_strategy(type=dca, signal=signal.buy_signal, sl_tp 由 dynamicParam/fixedParam 组装) 或 create_dca_bot"
 			}
 		}
 	}

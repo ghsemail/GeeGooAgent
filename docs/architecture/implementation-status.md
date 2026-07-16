@@ -46,8 +46,8 @@
 | 2 | 盘后 `post_market` | 📋 | `loader.go` 注册名，**无步骤**、无 `skills/post_market/` |
 | 3 | 盘中 `intraday` | 📋 | 同上；富途三接口已接通 ✅ |
 | 4 | 按需分析（chat） | ⚠️ | `market` toolset + ReAct；无独立 Skill 包 |
-| 5 | 策略 | ⚠️ | Grid/DCA/MCP 分析均走 LLM；loopback 仍简化 |
-| 6 | Bot / Reminder 管理 | ⚠️ | CRUD Tool ✅；GeeGooBot 侧无 Bot scheduler |
+| 5 | 策略 | ✅ | Grid/DCA/MCP 分析 LLM；loopback 原生 Go 回测 |
+| 6 | Bot / Reminder 管理 | ⚠️ | CRUD ✅ + schema/prompt；GeeGooBot 无 scheduler |
 | 7 | Prompt 模板高级 CRUD | ⚠️ | Tool 已注册；依赖 catalog-api |
 
 ---
@@ -79,7 +79,8 @@
 | Tool | 现象 | Agent 应做 |
 |------|------|------------|
 | `generate_dca_strategy` | 无 `signal_id` → 101 | 先问单指标/组合 → 列 brief → 用户选 `signal_id` |
-| `loopback_strategy` | grid 缺 `grid_param`；dca 缺 `signal` | 先 `generate_*` 或让用户确认参数 |
+| `loopback_strategy` | grid 缺 `grid_param`；dca 缺 `signal` | 先 `generate_*`；567c95c3 已补 schema+prompt |
+| `create_*_bot` | 复杂 payload | 先 `generate_*`；向用户确认后 create；写操作需确认 |
 | `get_mcp_analysis` | 缺 `period` → 400 | 先 `get_single_prompt_template`，确认 `period` |
 | `get_bot_yesterday_attitude` | 缺 `bot_id` | 先 list 对应 Bot，让用户指定 |
 | `get_stock_daily_reports` | 缺 `report_date` | 向用户确认日期 |
@@ -91,9 +92,11 @@
 |------|------|------|
 | `fetch_market_news` / `fetch_stock_news` | 极少 skip | Go RSS/东财回退已实现 |
 | `get_ticker` / `get_broker` / `get_position` | — | **已接通** futu_bridge（2026-07-15） |
-| `get_mcp_analysis` | — | analyze-api LLM（promptServer + configured 模型） |
-| `generate_grid_strategy` / `generate_dca_strategy` | — | 同上 |
+| `get_mcp_analysis` | — | 经 mcp-api→analyze-api LLM |
+| `generate_grid_strategy` / `generate_dca_strategy` | LLM 较慢（60–180s） | analyze-api + promptServer |
+| `get_capital_*` | HK/US 常 skip | A 股东财回退；Agent 已说明 |
 | `send_feishu_summary` | 未配 webhook 时 skip | 配置 `feishu_webhook_url` |
+| Bot scheduler | 创建后不自动跑 | GeeGooBot 架构缺口，非 Agent bug |
 
 ---
 
