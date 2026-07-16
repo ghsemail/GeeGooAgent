@@ -45,8 +45,8 @@
 | Tool | 现象 | 原因 |
 |------|------|------|
 | `fetch_market_news` / `fetch_stock_news` | 极少 skip | Go RSS/东财回退（无 Python 也可用） |
-| `generate_grid_strategy` | 未配 prompt 时为启发式 | 需 `GEEGOO_PROMPT_API_URL` + configured LLM |
-| `get_mcp_analysis` | 非旧 LLM 质量 | Analyze/Go 规则化（可用） |
+| `generate_grid_strategy` | 未配 prompt/LLM 时 503 | 需 `GEEGOO_PROMPT_API_URL` + configured LLM |
+| `get_mcp_analysis` | 同上 | 同上 |
 | `get_capital_*` | A 股 MCP 空时 | Agent 东财回退；HK 走 GeeGooData |
 | `send_feishu_summary` | skip | 未配 `feishu_webhook_url` |
 
@@ -77,13 +77,13 @@ GeeGooAgent Tools
 │  ├─ get_bot_yesterday_attitude                 💬 需 bot_id
 │  ├─ get_index_signals, get_signal_combinations ✅ :3210
 │  ├─ get_single_prompt_template                 ✅
-│  ├─ get_mcp_analysis                           💬 需 period；⚠️ 规则化输出
+│  ├─ get_mcp_analysis                           💬 需 period；✅ LLM（配 prompt）
 │  ├─ fetch_market_news, fetch_stock_news        ✅ Go/Python 回退
 │  ├─ get_bot_log_by_type                        ✅
 │  └─ recall                                     ✅
 ├─ strategy
-│  ├─ generate_grid_strategy                        ✅ LLM（配 prompt）；否则启发式
-│  ├─ generate_dca_strategy                           💬 先选 signal_id；LLM 同 grid
+│  ├─ generate_grid_strategy                        ✅ LLM
+│  ├─ generate_dca_strategy                           💬 先选 signal_id；LLM
 │  └─ loopback_strategy                               💬 grid 需 grid_param；dca 需 signal
 ├─ bot_manager（4×5 CRUD+log）
 ├─ reminder_manager（3×5）
@@ -121,7 +121,7 @@ GeeGooAgent Tools
 | `get_report_bot_codes`, `create_pre_market_report`, … | 💬/🔒 | workflow；缺参时先向用户确认 |
 | `fetch_*_news`, `recall_yesterday_summary` | ✅ | 新闻 Go 回退；昨日摘要无文件时 skip |
 | `send_feishu_summary` | ⚠️ | 需 `feishu_webhook_url` |
-| `get_mcp_analysis` | 💬/⚠️ | 💬 缺 `period`；⚠️ 规则化分析 |
+| `get_mcp_analysis` | 💬/✅ | 💬 缺 `period`；配 prompt+LLM 为长文分析 |
 | `get_capital_*` | ⚠️ | A 股东财回退 |
 | `recall` | ✅ | ✅ |
 

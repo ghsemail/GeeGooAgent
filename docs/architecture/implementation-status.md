@@ -46,7 +46,7 @@
 | 2 | 盘后 `post_market` | 📋 | `loader.go` 注册名，**无步骤**、无 `skills/post_market/` |
 | 3 | 盘中 `intraday` | 📋 | 同上；富途三接口已接通 ✅ |
 | 4 | 按需分析（chat） | ⚠️ | `market` toolset + ReAct；无独立 Skill 包 |
-| 5 | 策略 | ⚠️ | Grid/DCA：配 `GEEGOO_PROMPT_API_URL` 走 LLM；未配为 K 线启发式；loopback 仍简化 |
+| 5 | 策略 | ⚠️ | Grid/DCA/MCP 分析均走 LLM；loopback 仍简化 |
 | 6 | Bot / Reminder 管理 | ⚠️ | CRUD Tool ✅；GeeGooBot 侧无 Bot scheduler |
 | 7 | Prompt 模板高级 CRUD | ⚠️ | Tool 已注册；依赖 catalog-api |
 
@@ -91,8 +91,8 @@
 |------|------|------|
 | `fetch_market_news` / `fetch_stock_news` | 极少 skip | Go RSS/东财回退已实现 |
 | `get_ticker` / `get_broker` / `get_position` | — | **已接通** futu_bridge（2026-07-15） |
-| `get_mcp_analysis` | 输出为规则化分析 | analyze-api :3230 可用，非旧 LLM 长文 |
-| `generate_grid_strategy` / `generate_dca_strategy` | 未配 prompt 时为 K 线启发式 | 配 `GEEGOO_PROMPT_API_URL` + Mongo `ai_model_db` type=configured → LLM（port AIServer） |
+| `get_mcp_analysis` | — | analyze-api LLM（promptServer + configured 模型） |
+| `generate_grid_strategy` / `generate_dca_strategy` | — | 同上 |
 | `send_feishu_summary` | 未配 webhook 时 skip | 配置 `feishu_webhook_url` |
 
 ---
