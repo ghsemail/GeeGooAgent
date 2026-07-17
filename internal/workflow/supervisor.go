@@ -81,6 +81,35 @@ func DefaultPreMarketChecks() []Check {
 	}
 }
 
+// SupervisorChecksForSkill returns acceptance checks for a workflow skill.
+func SupervisorChecksForSkill(skill string) []Check {
+	switch skill {
+	case "intraday":
+		return DefaultIntradayChecks()
+	case "post_market":
+		return DefaultPostMarketChecks()
+	default:
+		return DefaultPreMarketChecks()
+	}
+}
+
+// DefaultIntradayChecks mirrors skills/intraday/supervisor_checks.yaml.
+func DefaultIntradayChecks() []Check {
+	return []Check{
+		{Name: "intraday_reported", Type: "stocks_status", ForStatus: "reported", RequireFields: []string{"report_id"}},
+		{Name: "intraday_local_md", Type: "file_exists", Pattern: "reports/{date}/{code}-intraday.md", ForStatus: "reported"},
+	}
+}
+
+// DefaultPostMarketChecks mirrors skills/post_market/supervisor_checks.yaml.
+func DefaultPostMarketChecks() []Check {
+	return []Check{
+		{Name: "workflow_phase_done", Type: "stocks_status", ExpectPhase: "done"},
+		{Name: "post_market_local_md", Type: "file_exists", Pattern: "reports/{date}/{code}-postmarket.md", ForStatus: "reported"},
+		{Name: "post_market_reported", Type: "stocks_status", ForStatus: "reported", RequireFields: []string{"report_id"}},
+	}
+}
+
 // Engine runs acceptance checks against working memory.
 type Engine struct {
 	checks []Check

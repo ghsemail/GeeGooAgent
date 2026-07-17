@@ -27,6 +27,7 @@ func checkConnectivity(cfg *config.AppConfig) []CheckResult {
 		"mcp_token": cfg.MCPToken(),
 		"code":      "00700.HK",
 	}))
+	results = append(results, checkHTTPGet("GeeGooSignal signal /health", cfg.SignalAPIURL()+"/health", cfg.SignalAPIKey(), 15))
 	results = append(results, checkHTTPGet("GeeGooSignal catalog /health", cfg.SignalCatalogURL()+"/health", "", 15))
 	results = append(results, checkHTTPGet("GeeGooSignal analyze /health", cfg.SignalAnalyzeURL()+"/health", "", 15))
 	results = append(results, checkHTTPGet("GeeGooData /health", cfg.DataHTTPURL()+"/health", "", 15))

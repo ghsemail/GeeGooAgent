@@ -230,17 +230,43 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if err != nil {
 				return newsUnavailableResult("fetch_market_news", market, "", err)
 			}
+			source := "finance-news"
+			if stockNewsNeedsFallback(text) {
+				query := strings.ToUpper(market) + " stock market news today"
+				if market == "CN" || market == "HK" {
+					query = strings.ToUpper(market) + " 股市 新闻"
+				}
+				cfg := deps.Search
+				if strings.TrimSpace(cfg.Provider) == "" {
+					cfg.Provider = search.ProviderDuckDuckGo
+				}
+				if cfg.MaxResults <= 0 {
+					cfg.MaxResults = 8
+				}
+				if hits, err := search.Search(ctx.GoContext(), search.Config{
+					Provider: cfg.Provider, MaxResults: cfg.MaxResults,
+				}, query); err == nil && len(hits) > 0 {
+					items := make([]map[string]any, 0, len(hits))
+					for _, h := range hits {
+						items = append(items, map[string]any{
+							"title": h.Title, "url": h.URL, "snippet": h.Snippet,
+						})
+					}
+					text = mergeStockNewsText(text, formatWebSearchNews(market, query, items))
+					source = "finance-news+web_search"
+				}
+			}
 			summary := fmt.Sprintf("fetch_market_news %s: %d chars", market, len(text))
 			if text == "" {
 				summary = fmt.Sprintf("fetch_market_news %s: no items", market)
 			}
 			return Result{Status: StatusOK, Summary: summary, Data: map[string]any{
-				"market": market, "text": text, "items": []any{}, "source": "finance-news",
+				"market": market, "text": text, "items": []any{}, "source": source,
 			}}
 		},
 	})
 	r.Register(Tool{
-		Name: "fetch_stock_news", Description: "拉取个股新闻。失败时改用 web_search。",
+		Name: "fetch_stock_news", Description: "拉取个股新闻（多源：finance-news → web_search 补充）。",
 		Parameters: map[string]any{
 			"type": "object", "required": []string{"code"},
 			"properties": map[string]any{
@@ -261,12 +287,22 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if err != nil {
 				return newsUnavailableResult("fetch_stock_news", "", code, err)
 			}
+			source := "finance-news"
+			if stockNewsNeedsFallback(text) {
+				if supplement, _ := webSearchNewsFallback(ctx.GoContext(), deps.Search, code); supplement != "" {
+					text = mergeStockNewsText(text, supplement)
+					source = "finance-news+web_search"
+				}
+			}
+			if stockNewsNeedsFallback(text) {
+				return newsUnavailableResult("fetch_stock_news", "", code, fmt.Errorf("no headlines after finance-news and web_search"))
+			}
 			summary := fmt.Sprintf("fetch_stock_news %s: %d chars", code, len(text))
 			if text == "" {
 				summary = fmt.Sprintf("fetch_stock_news %s: no items", code)
 			}
 			return Result{Status: StatusOK, Summary: summary, Data: map[string]any{
-				"code": code, "text": text, "source": "finance-news",
+				"code": code, "text": text, "source": source,
 			}}
 		},
 	})
@@ -322,12 +358,13 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 					"analysis_result": fmt.Sprintf("[dry-run] analysis for %s", name),
 				})
 			}
-			result, err := deps.HTTP.MCP.GetMCPAnalysis(ctx.GoContext(), ctx.MCPToken, name, code, promptID, period, language)
+			result, err := getMCPAnalysisResilient(ctx.GoContext(), deps.HTTP.MCP, ctx.MCPToken, name, code, promptID, period, language)
 			if err != nil {
 				return errResult(err)
 			}
 			data := map[string]any{
-				"code": code, "period": period, "analysis_result": result.AnalysisResult,
+				"code": code, "period": period, "prompt_id": promptID,
+				"analysis_result": result.AnalysisResult,
 				"model": result.Model, "create_date": result.CreateDate,
 			}
 			if status, note, _ := ClassifyHTTPPayload("get_mcp_analysis", data, nil); status != StatusOK {
@@ -337,7 +374,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "get_capital_flow", Description: "查询主力资金流向。A 股走 GeeGooData CN 节点，港股/美股走 HK/US 节点；无数据→skip，勿编造。",
+		Name: "get_capital_flow", Description: "查询主力资金流向（经 GeeGooBot 路由 GeeGooData，DAY 空时自动试 WEEK 并重试）。",
 		Parameters: map[string]any{
 			"type": "object", "required": []string{"code"},
 			"properties": map[string]any{
@@ -351,23 +388,30 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("get_capital_flow", map[string]any{"code": code, "items": []any{}})
 			}
-			flows, err := deps.HTTP.MCP.GetCapitalFlow(ctx.GoContext(), ctx.MCPToken, code, period, "")
+			flows, usedPeriod, err := fetchCapitalFlowResilient(ctx.GoContext(), deps.HTTP.MCP, ctx.MCPToken, code, period)
 			if err != nil {
 				return errResult(err)
 			}
 			if len(flows) == 0 {
 				note := emptyDataNote("get_capital_flow", code)
 				return Result{Status: StatusSkip, Summary: note, Data: map[string]any{
-					"code": code, "latest": map[string]any{}, "items": []any{}, "source": "GeeGooBot-mcp-api",
+					"code": code, "period": usedPeriod, "latest": map[string]any{}, "items": []any{}, "source": "GeeGooBot-mcp-api",
 				}}
 			}
+			items := make([]any, 0, len(flows))
+			for _, f := range flows {
+				items = append(items, map[string]any{
+					"main_in_flow": f.MainInFlow, "in_flow": f.InFlow,
+					"time": f.CapitalFlowItemTime,
+				})
+			}
 			latest := map[string]any{"main_in_flow": flows[len(flows)-1].MainInFlow}
-			return Result{Status: StatusOK, Summary: fmt.Sprintf("capital flow %s", code),
-				Data: map[string]any{"code": code, "latest": latest, "source": "GeeGooBot-mcp-api"}}
+			return Result{Status: StatusOK, Summary: fmt.Sprintf("capital flow %s (%s, %d pts)", code, usedPeriod, len(flows)),
+				Data: map[string]any{"code": code, "period": usedPeriod, "latest": latest, "items": items, "source": "GeeGooBot-mcp-api"}}
 		},
 	})
 	r.Register(Tool{
-		Name: "get_capital_distribution", Description: "查询资金分布（超大/大/中/小单）。A 股走 GeeGooData CN 节点，港股/美股走 HK/US 节点；无数据→skip。",
+		Name: "get_capital_distribution", Description: "查询资金分布（超大/大/中/小单；经 GeeGooBot 路由 GeeGooData，空结果自动重试）。",
 		Parameters: map[string]any{
 			"type": "object", "required": []string{"code"},
 			"properties": map[string]any{
@@ -379,13 +423,13 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("get_capital_distribution", map[string]any{"code": code})
 			}
-			dist, err := deps.HTTP.MCP.GetCapitalDistribution(ctx.GoContext(), ctx.MCPToken, code)
+			dist, err := fetchCapitalDistributionResilient(ctx.GoContext(), deps.HTTP.MCP, ctx.MCPToken, code)
 			if err != nil {
 				return errResult(err)
 			}
-			formatted := fmt.Sprintf("super_in=%v big_in=%v mid_in=%v small_in=%v",
-				dist.CapitalInSuper, dist.CapitalInBig, dist.CapitalInMid, dist.CapitalInSmall)
-			if dist.CapitalInSuper == 0 && dist.CapitalInBig == 0 && dist.CapitalInMid == 0 && dist.CapitalInSmall == 0 {
+			formatted := fmt.Sprintf("super_in=%v big_in=%v mid_in=%v small_in=%v update_time=%v",
+				dist.CapitalInSuper, dist.CapitalInBig, dist.CapitalInMid, dist.CapitalInSmall, dist.UpdateTime)
+			if !capitalDistributionHasData(dist) {
 				note := emptyDataNote("get_capital_distribution", code)
 				return Result{Status: StatusSkip, Summary: note, Data: map[string]any{
 					"code": code, "formatted": formatted, "source": "GeeGooBot-mcp-api",
@@ -465,6 +509,26 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
+		Name: "list_today_post_market_reports", Description: "Idempotency check for today's post_market reports.",
+		Handle: func(ctx Context, args map[string]any) Result {
+			code := strArg(args, "code", "")
+			reportDate := strArg(args, "report_date", today())
+			if ctx.DryRun {
+				return Result{Status: StatusDryRun, Summary: fmt.Sprintf("dry-run: no existing post_market for %s", code),
+					Data: map[string]any{"code": code, "report_date": reportDate, "count": 0, "already_reported": false}}
+			}
+			reports, err := deps.HTTP.MCP.GetStockDailyReports(ctx.GoContext(), ctx.MCPToken, code, reportDate)
+			if err != nil {
+				return errResult(err)
+			}
+			count := len(reports.PostMarket)
+			return Result{Status: StatusOK, Summary: fmt.Sprintf("Found %d post_market report(s)", count), Data: map[string]any{
+				"code": code, "report_date": reportDate, "count": count,
+				"reports": reports.PostMarket, "already_reported": count > 0,
+			}}
+		},
+	})
+	r.Register(Tool{
 		Name: "recall_yesterday_summary", Description: "读取本地/workspace 昨日盘前摘要；无文件时 skip，可改 get_stock_daily_reports。",
 		Parameters: map[string]any{
 			"type": "object", "required": []string{"code"},
@@ -489,13 +553,8 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 				return errResult(err)
 			}
 			if !found && strings.TrimSpace(ctx.MCPToken) != "" {
-				reports, mcpErr := deps.HTTP.MCP.GetStockDailyReports(ctx.GoContext(), ctx.MCPToken, code, reportDate)
-				if mcpErr == nil && len(reports.PreMarket) > 0 {
-					if text := firstPreMarketText(reports.PreMarket); text != "" {
-						summary = truncateRecall(text, 4000)
-						found = true
-						path = "mcp:get_stock_daily_reports"
-					}
+				if s, p, ok := recallFromMCPReports(ctx.GoContext(), deps.HTTP.MCP, ctx.MCPToken, code, reportDate, 5); ok {
+					summary, path, found = s, p, true
 				}
 			}
 			if !found {
@@ -745,9 +804,9 @@ func emptyDataNote(tool, code string) string {
 		return base + "（富途 OpenD 未配置或非交易时段；现价请用 get_current_price）"
 	case "get_capital_flow", "get_capital_distribution":
 		if isAShare(code) {
-			return base + "（MCP 与东财回退均无数据）"
+			return base + "（经 Bot→GeeGooData CN 节点；无数据时检查 FutuOpenD 与 Bot 路由配置）"
 		}
-		return base + "（MCP 数据源无记录）"
+		return base + "（经 Bot→GeeGooData HK/US 节点；非交易时段或数据源无记录）"
 	default:
 		if code != "" {
 			return fmt.Sprintf("%s %s: API 返回成功但数据为空", tool, code)

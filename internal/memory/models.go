@@ -51,7 +51,29 @@ type StockWorkspace struct {
 	CapitalDistributionSummary string `json:"capital_distribution_summary,omitempty"`
 	ReportRef                  string `json:"report_ref,omitempty"`
 	ReportID                   string `json:"report_id,omitempty"`
-	StockNewsSummary           string `json:"stock_news_summary,omitempty"`
+	StockNewsSummary           string  `json:"stock_news_summary,omitempty"`
+	Frequency                  string  `json:"frequency,omitempty"`
+	TradeType                  string  `json:"trade_type,omitempty"`
+	ReportDate                 string  `json:"report_date,omitempty"`
+	PositionSummary            string  `json:"position_summary,omitempty"`
+	HasPosition                bool    `json:"has_position,omitempty"`
+	PreMarketResult            string  `json:"pre_market_result,omitempty"`
+	PreMarketConfidence        string  `json:"pre_market_confidence,omitempty"`
+	PreMarketReason            string  `json:"pre_market_reason,omitempty"`
+	PreMarketSuggestion        string  `json:"pre_market_suggestion,omitempty"`
+	PreMarketReportID          string  `json:"pre_market_report_id,omitempty"`
+	HourlyPriceAnalysis        string  `json:"hourly_price_analysis,omitempty"`
+	HourlySignalAnalysis       string  `json:"hourly_signal_analysis,omitempty"`
+	HourlyKlineAnalysis        string  `json:"hourly_kline_analysis,omitempty"`
+	CurrentPrice               float64 `json:"current_price,omitempty"`
+	PriceSource                string  `json:"price_source,omitempty"`
+	IntradayResult             string  `json:"intraday_result,omitempty"`
+	IntradayConfidence         string  `json:"intraday_confidence,omitempty"`
+	IntradayReason             string  `json:"intraday_reason,omitempty"`
+	BotLogSummary              string  `json:"bot_log_summary,omitempty"`
+	ChangePct                  float64 `json:"change_pct,omitempty"`
+	SessionBias                string  `json:"session_bias,omitempty"`
+	VsPreMarket                string  `json:"vs_pre_market,omitempty"`
 }
 
 // PreMarketWorking is workflow working memory.

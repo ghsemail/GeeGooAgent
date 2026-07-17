@@ -1,0 +1,62 @@
+name: intraday
+version: "1.0.0"
+description: 盘中交易决策 workflow — 信号触发单标的
+phase: 3
+mode: on_demand
+
+tools:
+  - get_position
+  - get_stock_daily_reports
+  - get_capital_distribution
+  - get_mcp_analysis
+  - get_current_price
+  - get_ticker
+  - create_intraday_report
+  - save_local_report
+  - write_execution_log
+
+rules:
+  - rules/api-routing.md
+  - rules/report-format.md
+
+workflow:
+  trigger:
+    required:
+      - code
+      - stock_name
+      - bot_id
+      - bot_name
+      - bot_type
+      - frequency
+      - trade_type
+  per_stock:
+    - id: get_position
+      tool: get_position
+    - id: read_pre_market
+      tool: get_stock_daily_reports
+    - id: capital_distribution
+      tool: get_capital_distribution
+      skip_a_share: true
+    - id: hourly_analysis
+      tool: get_mcp_analysis
+      period: hourly
+      frequency_rules:
+        lte_3m: skip
+        lt_10m: price_only
+        gte_10m: price_signal_kline
+    - id: current_price
+      tool: get_current_price
+      fallback: get_ticker
+    - id: synthesize_and_submit
+      tools:
+        - save_local_report
+        - create_intraday_report
+  meta:
+    - id: execution_log
+      tool: write_execution_log
+      after_each_step: true
+
+prompts:
+  hourly_price: "663e5ac904f98788e502fab7"
+  hourly_signal: "6644cbbdf729b97ea8b59275"
+  hourly_kline: "66475a36fc8d11278ed561ae"

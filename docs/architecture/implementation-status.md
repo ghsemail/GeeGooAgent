@@ -64,7 +64,7 @@
 
 ## Tool 运行态摘要
 
-完整树 → [layers/L2-tools/tools-tree.md](./layers/L2-tools/tools-tree.md)。
+完整树 → [layers/L2-tools/tools-status.md](./layers/L2-tools/tools-status.md)（**推荐**）· [tools-tree.md](./layers/L2-tools/tools-tree.md)。
 
 | 类别 | 已注册 | 端到端可用 | 主要 ⚠️ |
 |------|--------|------------|---------|
@@ -94,7 +94,7 @@
 | `get_ticker` / `get_broker` / `get_position` | — | **已接通** futu_bridge（2026-07-15） |
 | `get_mcp_analysis` | — | 经 mcp-api→analyze-api LLM |
 | `generate_grid_strategy` / `generate_dca_strategy` | LLM 较慢（60–180s） | analyze-api + promptServer |
-| `get_capital_*` | HK/US 常 skip | A 股→GeeGooData CN 节点；港/美→47.80 节点 |
+| `get_capital_*` | A 股/HK/US | Bot :3120 路由 GeeGooData 分节点；空数据 skip |
 | Bot scheduler | 创建后不自动跑 | GeeGooBot 架构缺口，非 Agent bug |
 
 ### 已从 Tool Registry 移除（待 Notify Gateway）

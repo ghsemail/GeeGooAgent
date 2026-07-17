@@ -1,6 +1,6 @@
 # L2 — 工具目录（设计全集）
 
-> **运行态 SSOT**（已注册 / 可用性）：[tools-tree.md](./tools-tree.md)  
+> **运行态 SSOT**（已注册 / 可用性 / 端口 / 后端）：[tools-status.md](./tools-status.md)  
 > **MCP HTTP SSOT**：[interface-map.md](../../../reference/geegoo-mcp/interface-map.md)  
 > 命名：`snake_case` Tool → HTTP 路径；**MVP 加粗**。  
 > 表内无「注册」列时，默认 ✅ 已注册；运行态见 [tools-tree.md](./tools-tree.md)。
@@ -24,10 +24,10 @@
 | **get_report_bot_codes** | 3120 `/getReportBotCodes` | 是 | 1 | **✓** | 报告待分析标的，含 bot_id |
 | **search_code** | 3200 `/searchCode` | 否 | 4 | | bespoke；Signal signal-api |
 | **web_search** | Agent 本地 DuckDuckGo | — | 4 | | 已注册；非 MCP |
-| **get_position** | 3120 `/getPosition` | 是 | 3/6 | | ⚠️ 富途 Noop |
+| **get_position** | 3120 `/getPosition` | 是 | 3/6 | | ⚠️ 富途 OpenD；无持仓 skip |
 | **get_current_price** | 3120 `/getCurrentPrice` | 是* | 4 | | bespoke → Data |
-| get_ticker | 3120 `/getTicker` | 是 | 3 | | ⚠️ Noop |
-| get_broker | 3120 `/getBroker` | 是 | 3 | | ⚠️ Noop |
+| get_ticker | 3120 `/getTicker` | 是 | 3 | | ⚠️ 富途 OpenD；非交易时段常 skip |
+| get_broker | 3120 `/getBroker` | 是 | 3 | | ⚠️ 富途 OpenD |
 
 ### 1.2 新闻与行情（本地脚本 / bundled）
 
@@ -98,7 +98,7 @@
 | Tool | 实现 | Phase | MVP | 说明 |
 |------|------|-------|-----|------|
 | **recall** | chatsession FTS | 4 | | 跨会话检索；已注册 |
-| **recall_yesterday_summary** | 本地 Episodic | 1 | **✓** | ⚠️ Stub skipped |
+| **recall_yesterday_summary** | 本地 Episodic | 1 | **✓** | 无本地/MCP 报告时 skip；见 [tools-status.md](./tools-status.md) |
 | **read_working_state** | WorkingMemory | 1 | **✓** | 读结构化进度 |
 
 ---
@@ -122,7 +122,7 @@
 | delete_intraday_report | 3120 `/deleteIntradayTradeDecisionReport` | 3 | | |
 | get_intraday_reports | 3120 `/getIntradayTradeDecisionReports` | 3 | | |
 | **save_local_report** | 本地 FS | 1 | **✓** | 工作区内路径 |
-| **send_feishu_summary** | webhook | 1 | 可选 | |
+| ~~send_feishu_summary~~ | — | — | ❌ 已移除 | 待 GeeGooBot Notify Gateway |
 
 ### 4.2 DCA 信号提醒机器人（geegoo DCAReminder）
 

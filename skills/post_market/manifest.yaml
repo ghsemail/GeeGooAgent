@@ -1,0 +1,68 @@
+name: post_market
+version: "1.0.0"
+description: 盘后总结 workflow — 交易日 cron
+phase: 2
+mode: scheduled
+
+tools:
+  - check_trading_day
+  - get_report_bot_codes
+  - list_today_post_market_reports
+  - get_mcp_analysis
+  - get_bot_log_by_type
+  - get_stock_daily_reports
+  - get_current_price
+  - create_post_market_report
+  - save_local_report
+  - write_execution_log
+
+rules:
+  - rules/api-routing.md
+  - rules/report-format.md
+
+workflow:
+  prelude:
+    - id: check_trading_day
+      tool: check_trading_day
+      short_circuit_if: "is_trading_day == false"
+    - id: get_report_bot_codes
+      tool: get_report_bot_codes
+  phase_b:
+    per_stock:
+      - id: idempotency_check
+        tool: list_today_post_market_reports
+        optional: true
+      - id: hourly_price
+        tool: get_mcp_analysis
+        params:
+          period: hourly
+          prompt_id: "663e5ac904f98788e502fab7"
+      - id: hourly_signal
+        tool: get_mcp_analysis
+        params:
+          period: hourly
+          prompt_id: "6644cbbdf729b97ea8b59275"
+      - id: hourly_kline
+        tool: get_mcp_analysis
+        params:
+          period: hourly
+          prompt_id: "66475a36fc8d11278ed561ae"
+      - id: bot_log
+        tool: get_bot_log_by_type
+      - id: read_pre_market
+        tool: get_stock_daily_reports
+      - id: current_price
+        tool: get_current_price
+      - id: synthesize_and_submit
+        tools:
+          - save_local_report
+          - create_post_market_report
+  meta:
+    - id: execution_log
+      tool: write_execution_log
+      after_each_step: true
+
+prompts:
+  hourly_price: "663e5ac904f98788e502fab7"
+  hourly_signal: "6644cbbdf729b97ea8b59275"
+  hourly_kline: "66475a36fc8d11278ed561ae"

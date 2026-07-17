@@ -29,7 +29,7 @@ func TestUnknownSkillErrors(t *testing.T) {
 	}
 }
 
-func TestListIncludesBuiltinPlaceholders(t *testing.T) {
+func TestListIncludesBuiltinSkills(t *testing.T) {
 	t.Parallel()
 	r := skills.Default()
 	names := map[string]bool{}
@@ -39,6 +39,20 @@ func TestListIncludesBuiltinPlaceholders(t *testing.T) {
 	for _, want := range []string{"pre_market", "intraday", "post_market"} {
 		if !names[want] {
 			t.Fatalf("missing %s in list", want)
+		}
+	}
+}
+
+func TestIntradayAndPostMarketHaveSteps(t *testing.T) {
+	t.Parallel()
+	r := skills.Default()
+	for _, name := range []string{"intraday", "post_market"} {
+		spec, ok := r.Get(name)
+		if !ok {
+			t.Fatalf("%s not registered", name)
+		}
+		if len(spec.PerStock()) == 0 {
+			t.Fatalf("%s per-stock steps empty", name)
 		}
 	}
 }

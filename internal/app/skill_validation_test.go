@@ -31,11 +31,11 @@ func TestRunSkillRejectsPlaceholderWithoutSteps(t *testing.T) {
 	}
 	defer application.Close()
 
-	_, err = application.RunSkill("intraday")
+	_, err = application.RunSkill("nonexistent_skill")
 	if err == nil {
-		t.Fatal("expected placeholder skill to fail")
+		t.Fatal("expected unknown skill to fail")
 	}
-	if !strings.Contains(err.Error(), "no executable steps") {
+	if !strings.Contains(err.Error(), "unknown skill") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

@@ -14,6 +14,9 @@ var (
 		"^DJI.US": {}, "^IXIC.US": {}, "000001.SH": {}, "399001.SZ": {}, "800000.HK": {},
 	}
 	preMarketNewsMarkets = []string{"US", "CN", "HK"}
+	hourlyPricePromptID  = "663e5ac904f98788e502fab7"
+	hourlySignalPromptID = "6644cbbdf729b97ea8b59275"
+	hourlyKlinePromptID  = "66475a36fc8d11278ed561ae"
 )
 
 // WorkingStore persists and applies working memory updates.
@@ -93,6 +96,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 	case "get_mcp_analysis":
 		code, _ := data["code"].(string)
 		period, _ := data["period"].(string)
+		promptID, _ := data["prompt_id"].(string)
 		analysis, _ := data["analysis_result"].(string)
 		if _, isIndex := preMarketIndexCodes[code]; isIndex {
 			updated.MarketContext.IndexAnalysisRefs[code] = truncate(analysis, 2000)
@@ -103,10 +107,25 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 			if len(updated.MarketContext.IndexCodesDone) >= 5 {
 				updated.MarketContext.IndicesDone = true
 			}
-		} else if ws, ok := updated.Stocks[code]; ok && period == "weekly" {
-			ws.WeeklyAnalysisRef = truncate(analysis, 2000)
+		} else if ws, ok := updated.Stocks[code]; ok {
+			switch {
+			case period == "weekly":
+				ws.WeeklyAnalysisRef = truncate(analysis, 2000)
+				addEvidence(updated, toolName, "stock."+code+".weekly_analysis", analysis, data, observedAt)
+			case period == "hourly":
+				switch promptID {
+				case hourlyPricePromptID:
+					ws.HourlyPriceAnalysis = truncate(analysis, 2000)
+				case hourlySignalPromptID:
+					ws.HourlySignalAnalysis = truncate(analysis, 2000)
+				case hourlyKlinePromptID:
+					ws.HourlyKlineAnalysis = truncate(analysis, 2000)
+				default:
+					ws.HourlyPriceAnalysis = truncate(analysis, 2000)
+				}
+				addEvidence(updated, toolName, "stock."+code+".hourly_"+promptID, analysis, data, observedAt)
+			}
 			updated.Stocks[code] = ws
-			addEvidence(updated, toolName, "stock."+code+".weekly_analysis", analysis, data, observedAt)
 		}
 	case "fetch_stock_news":
 		code, _ := data["code"].(string)
@@ -164,6 +183,69 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 				updated.Stocks[code] = ws
 			}
 		}
+	case "list_today_post_market_reports":
+		code, _ := data["code"].(string)
+		if reported, _ := data["already_reported"].(bool); reported {
+			if ws, ok := updated.Stocks[code]; ok {
+				ws.Status = "skipped"
+				updated.Stocks[code] = ws
+			}
+		}
+	case "get_position":
+		code, _ := data["code"].(string)
+		if code == "" {
+			code = updated.CurrentStock
+		}
+		if ws, ok := updated.Stocks[code]; ok {
+			if result.Status == tools.StatusSkip {
+				ws.HasPosition = false
+				ws.PositionSummary = "无持仓"
+			} else {
+				ws.HasPosition = positionHasData(data)
+				ws.PositionSummary = formatPositionSummary(data)
+			}
+			updated.Stocks[code] = ws
+			addEvidence(updated, toolName, "stock."+code+".position", ws.PositionSummary, data, observedAt)
+		}
+	case "get_current_price":
+		code, _ := data["code"].(string)
+		if code == "" {
+			code = updated.CurrentStock
+		}
+		if ws, ok := updated.Stocks[code]; ok {
+			if price, ok := data["price"].(float64); ok && price > 0 {
+				ws.CurrentPrice = price
+				ws.PriceSource = "get_current_price"
+			}
+			updated.Stocks[code] = ws
+			finalizeDerivedFields(updated, &ws, code)
+		}
+	case "get_ticker":
+		code, _ := data["code"].(string)
+		if code == "" {
+			code = updated.CurrentStock
+		}
+		if ws, ok := updated.Stocks[code]; ok && ws.CurrentPrice <= 0 {
+			if price := tickerPriceFromData(data); price > 0 {
+				ws.CurrentPrice = price
+				ws.PriceSource = "get_ticker"
+				updated.Stocks[code] = ws
+				finalizeDerivedFields(updated, &ws, code)
+			}
+		}
+	case "get_stock_daily_reports":
+		code, _ := data["code"].(string)
+		if code == "" {
+			code = updated.CurrentStock
+		}
+		applyPreMarketFromDaily(updated, code, data)
+	case "get_bot_log_by_type":
+		code := updated.CurrentStock
+		if ws, ok := updated.Stocks[code]; ok {
+			ws.BotLogSummary = truncate(botLogSummary(data), 2000)
+			updated.Stocks[code] = ws
+			addEvidence(updated, toolName, "stock."+code+".bot_log", ws.BotLogSummary, data, observedAt)
+		}
 	case "save_local_report":
 		code, _ := data["code"].(string)
 		path, _ := data["path"].(string)
@@ -177,6 +259,22 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 			ws.Status = "reported"
 			if id, _ := data["report_id"].(string); id != "" {
 				ws.ReportID = id
+			}
+			updated.Stocks[code] = ws
+		}
+	case "create_intraday_report", "create_post_market_report":
+		code, _ := data["code"].(string)
+		if code == "" {
+			code = updated.CurrentStock
+		}
+		if ws, ok := updated.Stocks[code]; ok {
+			if result.Status == tools.StatusOK || result.Status == tools.StatusDryRun {
+				ws.Status = "reported"
+				if id, _ := data["report_id"].(string); id != "" {
+					ws.ReportID = id
+				} else if result.Status == tools.StatusDryRun {
+					ws.ReportID = "dry-run-report-id"
+				}
 			}
 			updated.Stocks[code] = ws
 		}
@@ -322,8 +420,18 @@ func encodeWorking(w *PreMarketWorking) map[string]any {
 			"weekly_analysis_ref": v.WeeklyAnalysisRef, "attitude": v.Attitude,
 			"capital_flow_summary":         v.CapitalFlowSummary,
 			"capital_distribution_summary": v.CapitalDistributionSummary,
-			"report_ref":                   v.ReportRef, "report_id": v.ReportID,
+			"report_ref": v.ReportRef, "report_id": v.ReportID,
 			"stock_news_summary": v.StockNewsSummary,
+			"frequency": v.Frequency, "trade_type": v.TradeType, "report_date": v.ReportDate,
+			"position_summary": v.PositionSummary, "has_position": v.HasPosition,
+			"pre_market_result": v.PreMarketResult, "pre_market_confidence": v.PreMarketConfidence,
+			"pre_market_reason": v.PreMarketReason, "pre_market_report_id": v.PreMarketReportID,
+			"hourly_price_analysis": v.HourlyPriceAnalysis, "hourly_signal_analysis": v.HourlySignalAnalysis,
+			"hourly_kline_analysis": v.HourlyKlineAnalysis,
+			"current_price": v.CurrentPrice, "price_source": v.PriceSource,
+			"intraday_result": v.IntradayResult, "intraday_confidence": v.IntradayConfidence,
+			"bot_log_summary": v.BotLogSummary, "change_pct": v.ChangePct,
+			"session_bias": v.SessionBias, "vs_pre_market": v.VsPreMarket,
 		}
 	}
 	m["stocks"] = stocks
@@ -425,8 +533,18 @@ func decodeWorking(data map[string]any) (*PreMarketWorking, error) {
 					WeeklyAnalysisRef: str(m, "weekly_analysis_ref"), Attitude: str(m, "attitude"),
 					CapitalFlowSummary:         str(m, "capital_flow_summary"),
 					CapitalDistributionSummary: str(m, "capital_distribution_summary"),
-					ReportRef:                  str(m, "report_ref"), ReportID: str(m, "report_id"),
+					ReportRef: str(m, "report_ref"), ReportID: str(m, "report_id"),
 					StockNewsSummary: str(m, "stock_news_summary"),
+					Frequency: str(m, "frequency"), TradeType: str(m, "trade_type"), ReportDate: str(m, "report_date"),
+					PositionSummary: str(m, "position_summary"), HasPosition: boolField(m, "has_position"),
+					PreMarketResult: str(m, "pre_market_result"), PreMarketConfidence: str(m, "pre_market_confidence"),
+					PreMarketReason: str(m, "pre_market_reason"), PreMarketReportID: str(m, "pre_market_report_id"),
+					HourlyPriceAnalysis: str(m, "hourly_price_analysis"), HourlySignalAnalysis: str(m, "hourly_signal_analysis"),
+					HourlyKlineAnalysis: str(m, "hourly_kline_analysis"),
+					PriceSource: str(m, "price_source"), IntradayResult: str(m, "intraday_result"),
+					IntradayConfidence: str(m, "intraday_confidence"), BotLogSummary: str(m, "bot_log_summary"),
+					SessionBias: str(m, "session_bias"), VsPreMarket: str(m, "vs_pre_market"),
+					CurrentPrice: floatField(m, "current_price"), ChangePct: floatField(m, "change_pct"),
 				}
 			}
 		}
@@ -458,4 +576,18 @@ func strDefault(m map[string]any, k, def string) string {
 		return v
 	}
 	return def
+}
+
+func boolField(m map[string]any, k string) bool {
+	if v, ok := m[k].(bool); ok {
+		return v
+	}
+	return false
+}
+
+func floatField(m map[string]any, k string) float64 {
+	if v, ok := m[k].(float64); ok {
+		return v
+	}
+	return 0
 }

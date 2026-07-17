@@ -16,6 +16,7 @@ type Options struct {
 type CheckResult struct {
 	Name   string
 	OK     bool
+	Warn   bool // degraded but does not fail doctor exit code
 	Detail string
 }
 
@@ -47,8 +48,17 @@ func RunWithOptions(configPath string, opts Options) int {
 		connResults := checkConnectivity(cfg)
 		printResults(connResults)
 		if anyFailed(connResults) {
-			fmt.Println("\n部分 GeeGoo 服务不可达；确认 GeeGooBot :3120 / Signal :3210 / Data :3300 / agent-runtime :3400。")
+			fmt.Println("\n部分 GeeGoo 服务不可达；确认 GeeGooBot :3120 / Signal :3200 / :3210 / Data :3300 / agent-runtime :3400。")
 			return 1
+		}
+		probeResults := checkToolProbes(cfg)
+		printResults(probeResults)
+		if anyFailed(probeResults) {
+			fmt.Println("\n部分 tool 探针失败（API 错误或鉴权）；见上方 [FAIL] 行。")
+			return 1
+		}
+		if anyWarned(probeResults) {
+			fmt.Println("\n部分 tool 探针为 [WARN]（多为非交易时段、空仓或新闻源弱）；出站服务可达。")
 		}
 	}
 
@@ -101,6 +111,8 @@ func printResults(results []CheckResult) {
 		mark := "OK"
 		if !row.OK {
 			mark = "FAIL"
+		} else if row.Warn {
+			mark = "WARN"
 		}
 		fmt.Printf("  [%s] %s: %s\n", mark, row.Name, row.Detail)
 	}
@@ -109,6 +121,15 @@ func printResults(results []CheckResult) {
 func anyFailed(results []CheckResult) bool {
 	for _, r := range results {
 		if !r.OK {
+			return true
+		}
+	}
+	return false
+}
+
+func anyWarned(results []CheckResult) bool {
+	for _, r := range results {
+		if r.OK && r.Warn {
 			return true
 		}
 	}

@@ -20,18 +20,18 @@ func RegisterBuiltins(r *Registry) {
 	})
 	r.Register(Spec{
 		Name:         "intraday",
-		Description:  "盘中交易决策报告（占位，待实现步骤）",
-		PhaseA:       emptySteps,
-		PerStock:     emptySteps,
+		Description:  "盘中交易决策：持仓 + 盘前对照 + 小时级分析 + 现价，生成 intraday 报告",
+		PhaseA:       workflow.IntradayPhaseASteps,
+		PerStock:     workflow.IntradayPerStockSteps,
+		TemplatePath: "skills/intraday/template.md",
 		ManifestPath: "skills/intraday/manifest.yaml",
 	})
 	r.Register(Spec{
 		Name:         "post_market",
-		Description:  "盘后总结报告（占位，待实现步骤）",
-		PhaseA:       emptySteps,
-		PerStock:     emptySteps,
+		Description:  "盘后总结：小时级分析 + Bot 日志 + 盘前对照，生成 post_market 报告",
+		PhaseA:       workflow.PostMarketPhaseASteps,
+		PerStock:     workflow.PostMarketPerStockSteps,
+		TemplatePath: "skills/post_market/template.md",
 		ManifestPath: "skills/post_market/manifest.yaml",
 	})
 }
-
-func emptySteps() []workflow.Step { return nil }

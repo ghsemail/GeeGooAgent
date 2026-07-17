@@ -1,0 +1,17 @@
+skill: post_market
+description: Post-run acceptance checks for post-market workflow
+checks:
+  - name: workflow_phase_done
+    type: stocks_status
+    expect_phase: done
+
+  - name: post_market_local_md
+    type: file_exists
+    pattern: "reports/{date}/{code}-postmarket.md"
+    for_status: reported
+
+  - name: post_market_reported
+    type: stocks_status
+    for_status: reported
+    require_fields:
+      - report_id

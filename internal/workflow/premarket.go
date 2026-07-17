@@ -9,8 +9,6 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 )
 
-const indexPromptID = "69ec7035b9ccd3d9befc6c23"
-
 var (
 	indexEntries = []struct{ Name, Code string }{
 		{"道琼斯", "^DJI.US"},

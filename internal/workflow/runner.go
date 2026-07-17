@@ -161,7 +161,7 @@ func (r *Runner) RunFrom(
 					}
 					return *errResult
 				}
-				if step.Tool == "list_today_reports" {
+				if step.Tool == "list_today_reports" || step.Tool == "list_today_post_market_reports" {
 					if working.Stocks[code].Status == "skipped" {
 						skipStock = true
 					}
@@ -194,7 +194,7 @@ func (r *Runner) finishWithSupervisor(result RunResult, ctx tools.Context) RunRe
 	if result.Working == nil {
 		return result
 	}
-	eng := NewEngine(ctx.WorkspaceRoot, DefaultPreMarketChecks())
+	eng := NewEngine(ctx.WorkspaceRoot, SupervisorChecksForSkill(result.Working.Skill))
 	report := eng.Verify(result.Working, time.Now().Format("2006-01-02"))
 	result.Supervisor = &report
 	if ctx.EventBus != nil {

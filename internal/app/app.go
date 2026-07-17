@@ -335,9 +335,18 @@ func (a *App) RunSkill(skill string) (workflow.RunResult, error) {
 	return a.RunSkillContext(context.Background(), skill)
 }
 
+// SkillRunOptions carries per-run inputs for signal-triggered skills.
+type SkillRunOptions struct {
+	Intraday *workflow.IntradayInput
+}
+
 // RunSkillContext executes a named skill with cancellation propagated to tools
 // and optional LLM synthesis.
-func (a *App) RunSkillContext(ctx context.Context, skill string) (workflow.RunResult, error) {
+func (a *App) RunSkillContext(ctx context.Context, skill string, runOpts ...SkillRunOptions) (workflow.RunResult, error) {
+	var opts SkillRunOptions
+	if len(runOpts) > 0 {
+		opts = runOpts[0]
+	}
 	spec, ok := DefaultSkills.Get(skill)
 	if !ok {
 		return workflow.RunResult{}, fmt.Errorf("unknown skill: %s (run 'geegoo skills list')", skill)
@@ -355,6 +364,16 @@ func (a *App) RunSkillContext(ctx context.Context, skill string) (workflow.RunRe
 	working, err := a.Working.Create(sessionID, skill)
 	if err != nil {
 		return workflow.RunResult{}, err
+	}
+	if skill == "intraday" {
+		in := workflow.IntradayInputFromEnv()
+		if opts.Intraday != nil {
+			in = *opts.Intraday
+		}
+		workflow.SeedIntradayWorking(working, in)
+		if err := a.Working.Save(working); err != nil {
+			return workflow.RunResult{}, err
+		}
 	}
 	toolCtx := a.ToolContextWithContext(ctx, sessionID)
 	result := a.Workflow.Run(sessionID, skill, phaseA, perStock, toolCtx, working)

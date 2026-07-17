@@ -1,0 +1,13 @@
+skill: intraday
+description: Post-run acceptance checks for intraday workflow
+checks:
+  - name: intraday_reported
+    type: stocks_status
+    for_status: reported
+    require_fields:
+      - report_id
+
+  - name: intraday_local_md
+    type: file_exists
+    pattern: "reports/{date}/{code}-intraday.md"
+    for_status: reported

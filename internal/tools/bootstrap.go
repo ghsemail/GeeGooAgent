@@ -53,46 +53,61 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 				}
 				started := time.Now()
 				client := deps.HTTP.ForTool(spec.Name)
-				var (
-					data     any
-					envelope map[string]any
-					err      error
-				)
-				if spec.DirectResponse {
-					data, err = client.PostDirect(ctx.GoContext(), spec.Path, body)
-				} else {
-					envelope, err = client.Post(ctx.GoContext(), spec.Path, body)
-					if err == nil {
-						data = envelope["data"]
-					}
-				}
-				if err != nil && deps.HTTP.HasMCPFallback(spec.Name) {
-					fallback := deps.HTTP.MCP
+				var last Result
+				for attempt := 0; attempt < 2; attempt++ {
+					var (
+						data     any
+						envelope map[string]any
+						err      error
+					)
 					if spec.DirectResponse {
-						data, err = fallback.PostDirect(ctx.GoContext(), spec.Path, body)
+						data, err = client.PostDirect(ctx.GoContext(), spec.Path, body)
 					} else {
-						envelope, err = fallback.Post(ctx.GoContext(), spec.Path, body)
+						envelope, err = client.Post(ctx.GoContext(), spec.Path, body)
 						if err == nil {
 							data = envelope["data"]
 						}
 					}
+					if err != nil && deps.HTTP.HasMCPFallback(spec.Name) {
+						fallback := deps.HTTP.MCP
+						if spec.DirectResponse {
+							data, err = fallback.PostDirect(ctx.GoContext(), spec.Path, body)
+						} else {
+							envelope, err = fallback.Post(ctx.GoContext(), spec.Path, body)
+							if err == nil {
+								data = envelope["data"]
+							}
+						}
+					}
+					if err != nil {
+						if attempt == 0 && shouldRetryHTTPEmpty(spec.Name) {
+							if waitRetry(ctx.GoContext()) {
+								continue
+							}
+						}
+						return Result{Status: StatusError, Summary: err.Error(), ExitCode: 1,
+							Meta: MetaFromEnvelope(nil, started)}
+					}
+					normalized, summary := normalizeHTTPResponse(spec.Name, data)
+					if spec.Name == "generate_grid_strategy" {
+						summary = appendStrategyFollowUp(summary, "grid", normalized)
+					}
+					if spec.Name == "generate_dca_strategy" {
+						summary = appendStrategyFollowUp(summary, "dca", normalized)
+					}
+					meta := MetaFromEnvelope(envelope, started)
+					if status, note, _ := ClassifyHTTPPayload(spec.Name, normalized, envelope); status != StatusOK {
+						last = Result{Status: status, Summary: note, Data: normalized, Meta: meta}
+						if attempt == 0 && shouldRetryHTTPEmpty(spec.Name) {
+							if waitRetry(ctx.GoContext()) {
+								continue
+							}
+						}
+						return last
+					}
+					return Result{Status: StatusOK, Summary: summary, Data: normalized, Meta: meta}
 				}
-				if err != nil {
-					return Result{Status: StatusError, Summary: err.Error(), ExitCode: 1,
-						Meta: MetaFromEnvelope(nil, started)}
-				}
-				normalized, summary := normalizeHTTPResponse(spec.Name, data)
-				if spec.Name == "generate_grid_strategy" {
-					summary = appendStrategyFollowUp(summary, "grid", normalized)
-				}
-				if spec.Name == "generate_dca_strategy" {
-					summary = appendStrategyFollowUp(summary, "dca", normalized)
-				}
-				meta := MetaFromEnvelope(envelope, started)
-				if status, note, _ := ClassifyHTTPPayload(spec.Name, normalized, envelope); status != StatusOK {
-					return Result{Status: status, Summary: note, Data: normalized, Meta: meta}
-				}
-				return Result{Status: StatusOK, Summary: summary, Data: normalized, Meta: meta}
+				return last
 			}),
 		})
 	}

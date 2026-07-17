@@ -95,15 +95,10 @@ func StockNewsGo(ctx context.Context, code string, limit int) (string, error) {
 		}
 		lines = append(lines, formatStockItems("美股", items)...)
 	case "HK":
-		adr := hkADR(ticker)
-		items, _ := fetchYahooRSS(ctx, adr, limit)
+		items := fetchHKStockNews(ctx, ticker, limit)
 		lines = append(lines, formatStockItems("港股", items)...)
 	case "CN":
-		annType := "SZA"
-		if strings.HasPrefix(code, "6") {
-			annType = "SHA"
-		}
-		items, _ := fetchEMAnnouncements(ctx, ticker, annType, limit)
+		items := fetchCNStockNews(ctx, ticker, code, limit)
 		lines = append(lines, formatCNAnnouncements(items)...)
 	default:
 		items, _ := fetchYahooRSS(ctx, ticker, limit)
@@ -405,14 +400,126 @@ func parseStockCode(code string) (market, ticker string) {
 	}
 }
 
-func hkADR(ticker string) string {
-	m := map[string]string{
-		"700": "TCEHY", "9988": "BABA", "3690": "MPNGF", "1810": "XRTXF",
+func fetchHKStockNews(ctx context.Context, ticker string, limit int) []newsItem {
+	seen := map[string]bool{}
+	var out []newsItem
+	add := func(batch []newsItem) {
+		for _, it := range batch {
+			title := strings.TrimSpace(it.Title)
+			if title == "" || seen[title] {
+				continue
+			}
+			seen[title] = true
+			out = append(out, it)
+			if len(out) >= limit {
+				return
+			}
+		}
 	}
-	if adr, ok := m[ticker]; ok {
+	padded := padHKTicker(ticker)
+	if batch, _ := fetchYahooRSS(ctx, padded+".HK", limit); len(batch) > 0 {
+		add(batch)
+	}
+	if len(out) < limit {
+		key := strings.TrimLeft(ticker, "0")
+		if adr, ok := hkADRMap[key]; ok {
+			if batch, _ := fetchYahooRSS(ctx, adr, limit); len(batch) > 0 {
+				add(batch)
+			}
+		}
+	}
+	if len(out) < limit {
+		if rows, _ := fetchSinaRoll(ctx, padded, 40, nil); len(rows) > 0 {
+			add(sinaRowsToNews(rows))
+		}
+	}
+	if len(out) < limit {
+		if name := hkStockName(ticker); name != "" {
+			if rows, _ := fetchSinaRoll(ctx, name, 40, nil); len(rows) > 0 {
+				add(sinaRowsToNews(rows))
+			}
+		}
+	}
+	return out
+}
+
+func fetchCNStockNews(ctx context.Context, ticker, code string, limit int) []newsItem {
+	annType := "SZA"
+	if strings.HasPrefix(ticker, "6") || strings.HasPrefix(code, "6") {
+		annType = "SHA"
+	}
+	items, _ := fetchEMAnnouncements(ctx, ticker, annType, limit)
+	if len(items) >= limit {
+		return items
+	}
+	seen := map[string]bool{}
+	for _, it := range items {
+		seen[strings.TrimSpace(it.Title)] = true
+	}
+	if rows, _ := fetchSinaRoll(ctx, ticker, 40, nil); len(rows) > 0 {
+		for _, row := range rows {
+			title := strings.TrimSpace(row.Title)
+			if title == "" || seen[title] {
+				continue
+			}
+			seen[title] = true
+			items = append(items, newsItem{
+				Title: title,
+				Desc:  shorten(row.Intro, 150),
+				URL:   row.URL,
+			})
+			if len(items) >= limit {
+				break
+			}
+		}
+	}
+	return items
+}
+
+func sinaRowsToNews(rows []sinaRow) []newsItem {
+	out := make([]newsItem, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, newsItem{
+			Title: row.Title,
+			Desc:  shorten(row.Intro, 150),
+			URL:   row.URL,
+		})
+	}
+	return out
+}
+
+func padHKTicker(ticker string) string {
+	ticker = strings.TrimLeft(strings.TrimSpace(ticker), "0")
+	if ticker == "" {
+		return "00000"
+	}
+	for len(ticker) < 5 {
+		ticker = "0" + ticker
+	}
+	return ticker
+}
+
+var hkADRMap = map[string]string{
+	"700": "TCEHY", "9988": "BABA", "3690": "MPNGF", "1810": "XIACF",
+	"1211": "BYDDY", "941": "CHL", "388": "HKXCY", "9618": "JD",
+}
+
+var hkNameMap = map[string]string{
+	"700": "腾讯", "9988": "阿里巴巴", "3690": "美团", "1810": "小米",
+	"1211": "比亚迪", "941": "中国移动", "388": "港交所", "9618": "京东",
+}
+
+func hkADR(ticker string) string {
+	key := strings.TrimLeft(ticker, "0")
+	if adr, ok := hkADRMap[key]; ok {
 		return adr
 	}
 	return ticker
+}
+
+func hkStockName(ticker string) string {
+	key := strings.TrimLeft(ticker, "0")
+	return hkNameMap[key]
 }
 
 func isDigits(s string) bool {

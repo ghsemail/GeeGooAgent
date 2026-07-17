@@ -1,8 +1,8 @@
 # Tools 运行态树形图
 
 > **用途**：对话时判断 Tool 是否已注册、默认 chat 能否调用、后端是否真正可用。  
-> **代码 SSOT**：`internal/tools/catalog/catalog.go` + `bespoke.go` + `domains.go`  
-> **设计全集**：[tool-catalog.md](./tool-catalog.md) · **MCP HTTP**：[interface-map.md](../../../reference/geegoo-mcp/interface-map.md)
+> **总览 SSOT**：[tools-status.md](./tools-status.md)（实现状态 · 来源服务 · 端口）  
+> **代码 SSOT**：`internal/tools/catalog/catalog.go` + `bespoke.go` + `domains.go`
 
 ---
 
@@ -26,7 +26,7 @@
 
 | 维度 | 数量 |
 |------|------|
-| Registry 已注册 | **82** |
+| Registry 已注册 | **≥80** |
 | 默认 chat 白名单 | **~73** |
 
 ### 需引导用户选择（💬）
@@ -48,7 +48,7 @@
 | `generate_grid_strategy` | 未配 prompt/LLM 时 503 | 需 `GEEGOO_PROMPT_API_URL` + configured LLM |
 | `get_mcp_analysis` | 同上 | 同上 |
 | `get_capital_*` | A 股 MCP 空时 | Bot 路由至 GeeGooData CN/HK/US 分节点 |
-| `send_feishu_summary` | skip | 未配 `feishu_webhook_url` |
+| `send_feishu_summary` | ❌ | 已从 Registry 移除；待 Notify Gateway |
 
 ### 默认 chat toolset
 
@@ -121,7 +121,7 @@ GeeGooAgent Tools
 | `search_code`, `web_search`, `check_trading_day`, `get_current_price` | ✅ | ✅ |
 | `get_report_bot_codes`, `create_pre_market_report`, … | 💬/🔒 | workflow；缺参时先向用户确认 |
 | `fetch_*_news`, `recall_yesterday_summary` | ✅ | 新闻 Go 回退；昨日摘要无文件时 skip |
-| `send_feishu_summary` | ⚠️ | 需 `feishu_webhook_url` |
+| `send_feishu_summary` | ❌ | 已移除 | 待 GeeGooBot Notify Gateway |
 | `get_mcp_analysis` | 💬/✅ | 💬 缺 `period`；配 prompt+LLM 为长文分析 |
 | `get_capital_*` | ⚠️ | Bot 分节点路由 GeeGooData |
 | `recall` | ✅ | ✅ |
