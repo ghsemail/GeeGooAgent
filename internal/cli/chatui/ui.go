@@ -459,6 +459,12 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 			u.println(fmt.Sprintf("⋯ step %v", data["step"]))
 		}
 	case "stream_delta":
+		if reasoning, _ := data["reasoning"].(string); strings.TrimSpace(reasoning) != "" {
+			if u.plain {
+				u.println(fmt.Sprintf("  [思考] %s", truncate(reasoning, 200)))
+			}
+			return
+		}
 		if content, _ := data["content"].(string); content != "" {
 			u.WriteStreamDelta(content)
 		}

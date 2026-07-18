@@ -9,7 +9,7 @@
 | Hermes (Python) | GeeGooAgent (Go，当前) | 状态 |
 |---|---|---|
 | `run_agent.py` AIAgent | `internal/agent/agent.go` `Agent.Run` | ✅ 对齐（门面） |
-| `agent/prompt_builder.py` | `internal/chatprompt/prompt.go` + `chatsession.RuntimeMessages` 注入动态 context | ⚠️ 部分（分层 builder 未拆，但稳定性已修） |
+| `agent/prompt_builder.py` | `internal/chatprompt/builder.go` + `soul.go` / `tool_routing.go` / `memory.go` + `RuntimeMessages` 动态 context | ✅ 分层 builder |
 | `agent/context_compressor.py` | `internal/prompt/compressor.go` + `summary.go` | ✅ 对齐（Hermes-style 四阶段） |
 | `agent/prompt_caching.py` | 隐式（system 稳定即可命中 DeepSeek 前缀缓存） | ⚠️ 无显式断点 |
 | `hermes_cli/runtime_provider.py` (18+ provider) | `internal/llm/presets.go` (DeepSeek/OpenAI/Minimax) + `BuildProviderFromLLMFields` | ✅ 按需精简 |
@@ -44,7 +44,7 @@
 | 危险操作审批 | ✅ approval.py | ✅ approval.go | ✅ |
 | 工具契约/schema | ✅ | ⚠️ Meta + 空成功检测，无 jsonschema | ⚠️ |
 | 会话持久化 | SQLite+FTS5+血缘 | SQLite+FTS5+压缩血缘（metadata） | ✅ |
-| 可中断 | ✅ | ✅ P2b ctx 贯穿 | ✅ |
+| 迭代预算耗尽 | 返回已完成工作摘要 | ✅ `finishBudgetExhausted` + 无 tool 终局 LLM 调用 | ✅ |
 | 平台无关核心 | ✅ | ✅ P2c | ✅ |
 | 松耦合 | ✅ 注册表+check_fn | ⚠️ Deps 硬编 | ⚠️ |
 | Profile 隔离 | ✅ | ❌ 单 profile | ❌（YAGNI） |
@@ -85,7 +85,7 @@
 1. **显式 prompt 缓存断点**：靠前缀稳定隐式命中，无 Anthropic cache_control
 2. **工具自注册**：主路径仍 `RegisterAll`，但已支持 `AddRegistrar` 扩展
 3. **Profile 隔离**：单 profile，多租户不支持（YAGNI）
-4. **CLI 打字机**：`stream_delta` 已在 TTY 边生成边显示；markdown 框仅用于非流式回退
+4. **CLI 打字机**：`stream_delta` 已在 TTY 边生成边显示；reasoning 经 `thinking_start/stop` 分段；markdown 框仅用于非流式回退
 
 ## 六、结论
 

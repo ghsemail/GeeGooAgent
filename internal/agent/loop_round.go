@@ -27,6 +27,7 @@ func (l *Loop) runRound(
 
 	*messages = l.applyCompression(ctx, session, *messages)
 	apiMessages := withBudgetWarning(*messages, round, l.maxToolRounds, session)
+	apiMessages = llm.SanitizeMessages(apiMessages)
 	if len(apiMessages) > len(*messages) {
 		l.emit("budget_warning", map[string]any{
 			"round": round + 1, "max_rounds": l.maxToolRounds,
@@ -57,9 +58,11 @@ func (l *Loop) runRound(
 	})
 
 	if len(resp.ToolCalls) == 0 {
+		l.emitStepComplete(step, round, false, nil)
 		return true, l.finalizeReply(session, resp, step, records)
 	}
 
+	l.emitStepComplete(step, round, true, toolNames)
 	return false, l.applyToolRound(ctx, session, messages, toolCtx, resp, step, toolNames, records)
 }
 

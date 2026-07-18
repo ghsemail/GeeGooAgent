@@ -111,25 +111,6 @@ func (l *Loop) emitBus(event string, data map[string]any) {
 	}
 }
 
-func (l *Loop) streamHandler(ctx context.Context) llm.StreamHandler {
-	outer := llm.StreamHandlerFrom(ctx)
-	if outer == nil && l.onProgress == nil {
-		return nil
-	}
-	return func(delta llm.StreamDelta) {
-		if delta.Content != "" {
-			l.emit("stream_delta", map[string]any{"content": delta.Content})
-		}
-		if delta.ReasoningContent != "" {
-			l.emit("stream_delta", map[string]any{"reasoning": delta.ReasoningContent})
-		}
-		if outer != nil {
-			outer(delta)
-		}
-	}
-}
-
-// RunTurn executes one user message through LLM + tools.
 func (l *Loop) RunTurn(
 	ctx context.Context,
 	session *runtime.Session,
@@ -170,12 +151,8 @@ func (l *Loop) RunTurn(
 		}
 	}
 
-	msg := "已达到单轮 Tool 调用上限，请缩小问题范围后重试。"
-	l.emit("error", map[string]any{"message": msg})
-	l.emitBus("TurnFailed", map[string]any{
-		"session_id": session.ID, "error": "max_tool_rounds",
-	})
-	return runtime.TurnResult{AssistantText: msg, Failed: true, Error: "max_tool_rounds", StepRecords: records}
+	msg := l.finishBudgetExhausted(ctx, session, messages, records)
+	return msg
 }
 
 func (l *Loop) failTurn(ctx context.Context, session *runtime.Session, err error, records []runtime.StepRecord) runtime.TurnResult {

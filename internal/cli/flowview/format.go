@@ -16,6 +16,15 @@ func Format(rec infra.EventRecord) string {
 		return fmt.Sprintf("对话完成  session=%s  steps=%v", str(rec.Payload, "session_id"), rec.Payload["steps"])
 	case "TurnFailed":
 		return fmt.Sprintf("对话失败  session=%s  err=%s", str(rec.Payload, "session_id"), str(rec.Payload, "error"))
+	case "TurnBudgetExhausted":
+		return fmt.Sprintf("对话预算耗尽  session=%s  max_rounds=%v", str(rec.Payload, "session_id"), rec.Payload["max_rounds"])
+	case "thinking_start":
+		return "模型开始思考"
+	case "thinking_stop":
+		return "模型结束思考"
+	case "step_complete":
+		return fmt.Sprintf("回合完成  step=%v  round=%v  tools=%v",
+			rec.Payload["step"], rec.Payload["round"], rec.Payload["had_tools"])
 	case "RunStarted":
 		return fmt.Sprintf("Skill 启动  skill=%s  session=%s", str(rec.Payload, "skill"), str(rec.Payload, "session_id"))
 	case "RunCompleted":

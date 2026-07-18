@@ -32,7 +32,21 @@ func (s *LiveSlot) ApplyProgress(event string, data map[string]any) {
 		s.LiveThinkingID = ""
 		s.LiveToolsID = ""
 		s.LiveReplyID = ""
+	case "thinking_start":
+		s.Status = "thinking…"
+		s.ensureLiveThinkingStream()
+	case "thinking_stop":
+		s.finalizeLiveThinking()
 	case "stream_delta":
+		reasoning, _ := data["reasoning"].(string)
+		if strings.TrimSpace(reasoning) != "" {
+			s.ensureLiveThinkingStream()
+			if idx := s.blockIndex(s.LiveThinkingID); idx >= 0 {
+				s.Blocks[idx].Body += reasoning
+				s.Blocks[idx].Live = true
+			}
+			return
+		}
 		content, _ := data["content"].(string)
 		if strings.TrimSpace(content) == "" {
 			return
@@ -100,6 +114,19 @@ func (s *LiveSlot) ApplyProgress(event string, data map[string]any) {
 		s.Busy = false
 		s.Status = "error"
 	}
+}
+
+func (s *LiveSlot) ensureLiveThinkingStream() {
+	if s.LiveThinkingID != "" {
+		return
+	}
+	id := fmt.Sprintf("think-%d", s.Seq)
+	s.Seq++
+	s.Blocks = append(s.Blocks, Block{
+		ID: id, Kind: KindThinking, Title: "💭 思考", Live: true,
+	})
+	s.LiveThinkingID = id
+	s.Focus = len(s.Blocks) - 1
 }
 
 func (s *LiveSlot) ensureLiveReply() {
