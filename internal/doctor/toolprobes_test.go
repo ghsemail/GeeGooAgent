@@ -32,8 +32,9 @@ func TestProbeSearchCodeOK(t *testing.T) {
 	defer srv.Close()
 
 	cfg := &config.AppConfig{
-		SignalAPIURLField: srv.URL,
-		APIKey:            "sk-test",
+		SignalAPIURLField:  srv.URL,
+		SignalAPIKeyField:  "sk-test",
+		Sandbox:            config.SandboxConfig{AllowedHosts: []string{"127.0.0.1"}},
 	}
 	row := probeSearchCode(t.Context(), cfg)
 	if !row.OK || row.Warn {
@@ -47,7 +48,10 @@ func TestProbeSearchCodeWarnEmpty(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	cfg := &config.AppConfig{SignalAPIURLField: srv.URL}
+	cfg := &config.AppConfig{
+		SignalAPIURLField: srv.URL,
+		Sandbox:           config.SandboxConfig{AllowedHosts: []string{"127.0.0.1"}},
+	}
 	row := probeSearchCode(t.Context(), cfg)
 	if !row.OK || !row.Warn {
 		t.Fatalf("expected WARN, got %+v", row)

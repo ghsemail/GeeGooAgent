@@ -1,12 +1,8 @@
 package doctor
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
 	"time"
 
@@ -50,28 +46,13 @@ func checkToolProbes(cfg *config.AppConfig) []CheckResult {
 
 func probeSearchCode(ctx context.Context, cfg *config.AppConfig) CheckResult {
 	name := "tool probe: search_code"
-	url := cfg.SignalAPIURL() + "/searchCode"
-	body, _ := json.Marshal(map[string]any{"regex": "00700"})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	client := mcp.NewClient(cfg.SignalAPIURL(), cfg.SignalAPIKey(), mcp.Options{
+		Timeout:      25 * time.Second,
+		AllowedHosts: cfg.ResolvedAllowedHosts(),
+	})
+	items, err := client.SearchCode(ctx, "00700", nil)
 	if err != nil {
 		return CheckResult{Name: name, OK: false, Detail: err.Error()}
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if bearer := cfg.SignalAPIKey(); bearer != "" {
-		req.Header.Set("Authorization", "Bearer "+bearer)
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return CheckResult{Name: name, OK: false, Detail: err.Error()}
-	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 400))
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return CheckResult{Name: name, OK: false, Detail: fmt.Sprintf("HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(raw)))}
-	}
-	var items []any
-	if err := json.Unmarshal(raw, &items); err != nil {
-		return CheckResult{Name: name, OK: false, Detail: "invalid JSON: " + err.Error()}
 	}
 	if len(items) == 0 {
 		return CheckResult{Name: name, OK: true, Warn: true, Detail: "API OK but 0 matches for 00700"}
@@ -129,10 +110,14 @@ func probeCapitalDistHasData(d *mcp.CapitalDistributionData) bool {
 
 func probeMCPCodeQuery(ctx context.Context, client *mcp.Client, token, toolName, path string) CheckResult {
 	name := "tool probe: " + toolName
-	payload, err := client.Post(ctx, path, map[string]any{
+	body := map[string]any{
 		"mcp_token": token,
 		"code":      probeCodeHK,
-	})
+	}
+	if toolName == "get_ticker" {
+		body["num"] = 3
+	}
+	payload, err := client.Post(ctx, path, body)
 	if err != nil {
 		return CheckResult{Name: name, OK: false, Detail: err.Error()}
 	}
