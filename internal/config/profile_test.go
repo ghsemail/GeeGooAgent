@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestApplyProfileOverrides(t *testing.T) {
 	t.Setenv("GEEGOO_PROFILE", "work")
@@ -32,5 +35,45 @@ func TestApplyProfileDefaultWithoutMap(t *testing.T) {
 	applyProfile(cfg)
 	if cfg.ResolvedProfile != "default" || cfg.OutputDir != "/data" {
 		t.Fatalf("cfg=%+v", cfg)
+	}
+}
+
+func TestProfileSummaryWithOverrides(t *testing.T) {
+	t.Setenv("GEEGOO_PROFILE", "work")
+	cfg := &AppConfig{
+		OutputDir: "/data/root",
+		Profiles: map[string]ProfileConfig{
+			"work": {
+				OutputDir:    "/data/work",
+				ChatToolsets: []string{"market"},
+			},
+		},
+	}
+	applyProfile(cfg)
+	summary := cfg.ProfileSummary()
+	if !strings.Contains(summary, "work via GEEGOO_PROFILE") {
+		t.Fatalf("summary=%q", summary)
+	}
+	if !strings.Contains(summary, "output_dir=/data/work") || !strings.Contains(summary, "chat_toolsets=market") {
+		t.Fatalf("summary=%q", summary)
+	}
+	if !cfg.ProfileOverridesApplied() {
+		t.Fatal("expected overrides applied")
+	}
+}
+
+func TestProfileSummaryUndefinedProfile(t *testing.T) {
+	cfg := &AppConfig{
+		ActiveProfile: "missing",
+		Profiles: map[string]ProfileConfig{
+			"work": {OutputDir: "/data/work"},
+		},
+	}
+	applyProfile(cfg)
+	if cfg.ProfileOverridesApplied() {
+		t.Fatal("expected no overrides")
+	}
+	if !strings.Contains(cfg.ProfileSummary(), "no overrides") {
+		t.Fatalf("summary=%q", cfg.ProfileSummary())
 	}
 }

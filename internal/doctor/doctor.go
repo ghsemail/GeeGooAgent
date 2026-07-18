@@ -30,6 +30,9 @@ func RunWithOptions(configPath string, opts Options) int {
 	results := []CheckResult{}
 	cfg, cfgResults := checkConfigFile(configPath)
 	results = append(results, cfgResults...)
+	if cfg != nil {
+		results = append(results, profileCheck(cfg))
+	}
 	printResults(results)
 	if cfg == nil {
 		return 1
@@ -71,6 +74,16 @@ func endpointSummary(cfg *config.AppConfig) string {
 		"MCP %s | Signal %s | Data %s | runtime %s",
 		cfg.EffectiveMCPURL(), cfg.SignalCatalogURL(), cfg.DataHTTPURL(), runtimeHealthURL(),
 	)
+}
+
+func profileCheck(cfg *config.AppConfig) CheckResult {
+	warn := len(cfg.Profiles) > 0 && cfg.ResolvedProfile != "default" && !cfg.ProfileOverridesApplied()
+	return CheckResult{
+		Name:   "profile",
+		OK:     true,
+		Warn:   warn,
+		Detail: cfg.ProfileSummary(),
+	}
 }
 
 func checkConfigFile(path string) (*config.AppConfig, []CheckResult) {

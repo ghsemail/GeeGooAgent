@@ -16,6 +16,18 @@
   "tool_max_parallel": 4,
   "tool_timeout_sec": 120,
   "chat_toolsets": [],
+  "active_profile": "default",
+  "profiles": {
+    "default": {},
+    "work": {
+      "output_dir": "./data/work",
+      "chat_toolsets": ["market", "portfolio"]
+    },
+    "sandbox": {
+      "dry_run": true,
+      "chat_toolsets": ["readonly"]
+    }
+  },
   "llm": {
     "provider": "deepseek",
     "token_key": "",

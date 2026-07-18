@@ -80,6 +80,31 @@ func (a *Agent) Run(
 | `tool_timeout_sec` | 120 | 单次 tool 超时秒数（最大 600） |
 | `temperature` | 0.2 | 传给 Provider |
 | `context_token_budget` | 模型相关 | 压缩阈值参考 |
+| `active_profile` | `default` | 未设 `GEEGOO_PROFILE` 时使用的 profile 名 |
+| `profiles` | — | 按 profile 覆盖 `output_dir` / `mcp_token` / `chat_toolsets` / `dry_run` |
+
+### Profile 多租户
+
+Hermes 对齐：同一台 Agent 可按运行场景切换隔离配置，无需多份 `config.json`。
+
+优先级：`GEEGOO_PROFILE` 环境变量 > `active_profile` > `default`。
+
+```json
+{
+  "active_profile": "work",
+  "output_dir": "./data",
+  "profiles": {
+    "work": {
+      "output_dir": "./data/work",
+      "mcp_token": "mcp_xxx",
+      "chat_toolsets": ["market"]
+    },
+    "sandbox": { "dry_run": true }
+  }
+}
+```
+
+`geegoo doctor` 会打印当前 `ResolvedProfile` 与生效覆盖项；`geegoo verify agent-loop` 在验收开头同样输出 profile 名。
 
 压缩阈值见 `internal/prompt/compressor.go`（回合开始 85%、每轮 LLM 前 50%）。
 
@@ -103,6 +128,15 @@ func (a *Agent) Run(
 - `internal/agent/loop_test.go`
 - `internal/agent/loop_interrupt_test.go`
 - `internal/agent/loop_compress_test.go`
+- `internal/verify/agent_loop_test.go` — 离线 parity 卡片
+
+### 离线验收（Hermes parity）
+
+```bash
+geegoo verify agent-loop --config ~/.geegoo/config.json
+```
+
+检查项：`delegate_task` / `recall` / `search_code` 注册、prompt cache 断点、workflow/chat 工具隔离、子 Agent 嵌套防护。全部 `[OK]` 时退出码为 0。
 
 ## 延伸阅读
 
