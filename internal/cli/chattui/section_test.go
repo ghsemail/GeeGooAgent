@@ -6,11 +6,28 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 )
 
-func TestLiveBlockAlwaysExpanded(t *testing.T) {
+func TestLiveBlockCompactPreviewByDefault(t *testing.T) {
 	cfg := config.DisplayConfig{DetailsMode: config.ModeCollapsed}
-	b := Block{Kind: KindThinking, Live: true, Body: "reason"}
+	b := Block{Kind: KindThinking, Live: true, Body: "line1\nline2"}
+	if b.IsExpanded(cfg) {
+		t.Fatal("live should not fully expand in collapsed mode")
+	}
+	if !b.ShowLivePreview(cfg) {
+		t.Fatal("live should show preview line")
+	}
+	if b.LastBodyLine() != "line2" {
+		t.Fatalf("last line=%q", b.LastBodyLine())
+	}
+}
+
+func TestLiveBlockExpandedModeShowsFullBody(t *testing.T) {
+	cfg := config.DisplayConfig{DetailsMode: config.ModeExpanded}
+	b := Block{Kind: KindTools, Live: true, Body: "→ foo"}
 	if !b.IsExpanded(cfg) {
-		t.Fatal("live should expand")
+		t.Fatal("expanded mode should show full live body")
+	}
+	if b.ShowLivePreview(cfg) {
+		t.Fatal("no preview when fully expanded")
 	}
 }
 
@@ -43,6 +60,18 @@ func TestUserOverride(t *testing.T) {
 	b.ToggleExpand(cfg)
 	if b.IsExpanded(cfg) {
 		t.Fatal("toggle should collapse")
+	}
+}
+
+func TestLiveToggleExpandWithoutClearingLive(t *testing.T) {
+	cfg := config.DisplayConfig{DetailsMode: config.ModeCollapsed}
+	b := Block{Kind: KindTools, Live: true, Body: "→ foo"}
+	b.ToggleExpand(cfg)
+	if !b.Live {
+		t.Fatal("toggle during live should keep Live=true")
+	}
+	if !b.IsExpanded(cfg) {
+		t.Fatal("toggle should expand live block")
 	}
 }
 

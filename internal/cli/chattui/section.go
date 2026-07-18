@@ -30,7 +30,7 @@ type Block struct {
 	DurationSec  float64
 }
 
-// IsExpanded reports whether body should be visible.
+// IsExpanded reports whether the full body should be visible.
 func (b Block) IsExpanded(cfg config.DisplayConfig) bool {
 	if b.Kind == KindReply || b.Kind == KindUser {
 		return true
@@ -39,7 +39,10 @@ func (b Block) IsExpanded(cfg config.DisplayConfig) bool {
 		return false
 	}
 	if b.Live {
-		return true
+		if b.UserExpanded != nil {
+			return *b.UserExpanded
+		}
+		return cfg.EffectiveMode(string(b.Kind)) == config.ModeExpanded
 	}
 	if b.UserExpanded != nil {
 		return *b.UserExpanded
@@ -53,6 +56,32 @@ func (b Block) IsExpanded(cfg config.DisplayConfig) bool {
 	default:
 		return false
 	}
+}
+
+// ShowLivePreview reports whether a single current line should show while Live.
+func (b Block) ShowLivePreview(cfg config.DisplayConfig) bool {
+	if !b.Live || b.Kind == KindReply || b.Kind == KindUser {
+		return false
+	}
+	if b.Kind == KindThinking && !cfg.ReasoningVisible() {
+		return false
+	}
+	if b.IsExpanded(cfg) {
+		return false
+	}
+	return strings.TrimSpace(b.Body) != ""
+}
+
+// LastBodyLine returns the most recent non-empty line in Body.
+func (b Block) LastBodyLine() string {
+	body := strings.TrimRight(b.Body, "\n")
+	if body == "" {
+		return ""
+	}
+	if idx := strings.LastIndex(body, "\n"); idx >= 0 {
+		return body[idx+1:]
+	}
+	return body
 }
 
 // IsVisible reports whether the block header (and maybe body) should render at all.
@@ -97,7 +126,6 @@ func (b *Block) ToggleExpand(cfg config.DisplayConfig) {
 	cur := b.IsExpanded(cfg)
 	next := !cur
 	b.UserExpanded = &next
-	b.Live = false
 }
 
 // TruncateRunes shortens s to at most n runes with ellipsis.

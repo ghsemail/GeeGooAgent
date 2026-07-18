@@ -13,8 +13,11 @@ func TestApplyProgressLLMPlanCreatesThinking(t *testing.T) {
 		t.Fatalf("blocks=%+v", s.Blocks)
 	}
 	cfg := config.DisplayConfig{DetailsMode: config.ModeCollapsed}
-	if !s.Blocks[0].Live || !s.Blocks[0].IsExpanded(cfg) {
-		t.Fatal("live thinking should expand")
+	if !s.Blocks[0].Live || s.Blocks[0].IsExpanded(cfg) {
+		t.Fatal("live thinking should use compact preview in collapsed mode")
+	}
+	if !s.Blocks[0].ShowLivePreview(cfg) {
+		t.Fatal("live thinking should show preview line")
 	}
 	s.finalizeLiveSections()
 	if s.Blocks[0].Live || s.Blocks[0].IsExpanded(cfg) {

@@ -117,6 +117,14 @@ func (m *Model) renderTranscript() string {
 					}
 					b.WriteByte('\n')
 				}
+			} else if block.ShowLivePreview(m.display) {
+				line := TruncateRunes(block.LastBodyLine(), width-4)
+				if block.Kind == KindThinking {
+					b.WriteString(chatui.RenderThinkingLine(line))
+				} else {
+					b.WriteString(chatui.RenderDetailLine(line))
+				}
+				b.WriteByte('\n')
 			}
 			wroteContent = true
 		}
@@ -129,9 +137,7 @@ func (m *Model) renderTranscript() string {
 		b.WriteByte('\n')
 	}
 
-	_ = EstimateTranscriptHeight(s.Blocks, func(block Block) (bool, bool) {
-		return block.IsVisible(m.display), block.IsExpanded(m.display)
-	})
+	_ = EstimateTranscriptHeight(s.Blocks, m.display)
 	return b.String()
 }
 

@@ -2,6 +2,8 @@ package chattui
 
 import (
 	"testing"
+
+	"github.com/ghsemail/GeeGooAgent/internal/config"
 )
 
 func TestNormalizeMouseMode(t *testing.T) {
@@ -23,11 +25,18 @@ func TestCycleMouseMode(t *testing.T) {
 }
 
 func TestEstimateBlockHeight(t *testing.T) {
+	cfg := config.DisplayConfig{DetailsMode: config.ModeCollapsed}
 	b := Block{Kind: KindThinking, Title: "💭", Body: "a\nb\nc", Live: true}
-	if EstimateBlockHeight(b, true) < 4 {
-		t.Fatalf("got %d", EstimateBlockHeight(b, true))
+	if EstimateBlockHeight(b, cfg) != 2 {
+		t.Fatalf("live preview=%d", EstimateBlockHeight(b, cfg))
 	}
-	if EstimateBlockHeight(b, false) != 1 {
-		t.Fatalf("collapsed=%d", EstimateBlockHeight(b, false))
+	b.Live = false
+	if EstimateBlockHeight(b, cfg) != 1 {
+		t.Fatalf("collapsed=%d", EstimateBlockHeight(b, cfg))
+	}
+	expanded := config.DisplayConfig{DetailsMode: config.ModeExpanded}
+	b.Live = true
+	if EstimateBlockHeight(b, expanded) < 4 {
+		t.Fatalf("expanded live=%d", EstimateBlockHeight(b, expanded))
 	}
 }
