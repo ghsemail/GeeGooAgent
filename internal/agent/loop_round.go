@@ -124,6 +124,13 @@ func (l *Loop) applyToolRound(
 ) runtime.TurnResult {
 	l.emit("llm_tools", map[string]any{"step": step, "tool_names": toolNames})
 
+	if l.onProgress != nil {
+		fn := l.onProgress
+		toolCtx.Progress = func(event string, data map[string]any) {
+			fn(event, data)
+		}
+	}
+
 	assistant := llm.Message{
 		Role: llm.RoleAssistant, Content: resp.Content, ToolCalls: resp.ToolCalls,
 		ReasoningContent: resp.ReasoningContent,

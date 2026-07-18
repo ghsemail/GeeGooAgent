@@ -114,7 +114,7 @@ func TestReportWorkflowToolsetIncludesPostMarketIdempotency(t *testing.T) {
 func TestToolsetCountsMatchDocumentation(t *testing.T) {
 	t.Parallel()
 	want := map[string]int{
-		"market": 18, "strategy": 3, "bot_manager": 20, "reminder_manager": 15,
+		"market": 19, "strategy": 3, "bot_manager": 20, "reminder_manager": 15,
 		"report_query": 13, "report_workflow": 8, "prompt_template": 6,
 	}
 	union := map[string]struct{}{}
@@ -126,11 +126,11 @@ func TestToolsetCountsMatchDocumentation(t *testing.T) {
 			union[name] = struct{}{}
 		}
 	}
-	if len(union) != 82 {
-		t.Fatalf("toolset union want 82, got %d", len(union))
+	if len(union) != 83 {
+		t.Fatalf("toolset union want 83, got %d", len(union))
 	}
 	defaultChat := tools.ChatToolNamesForToolsets(nil)
-	if len(defaultChat) != 69 {
-		t.Fatalf("default chat allowlist want 69, got %d", len(defaultChat))
+	if len(defaultChat) != 70 {
+		t.Fatalf("default chat allowlist want 70, got %d", len(defaultChat))
 	}
 }

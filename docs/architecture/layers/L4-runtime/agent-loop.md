@@ -74,6 +74,7 @@ func (a *Agent) Run(
 | 字段 | 默认 | 说明 |
 |------|------|------|
 | `max_steps` | 80 | 单 turn 最大 LLM↔tool 轮数 |
+| `sub_agent_max_steps` | 20 | `delegate_task` 子 Agent 回合上限（最大 40） |
 | `tool_max_parallel` | 4 | 单轮并行 tool 上限（最大 16） |
 | `tool_timeout_sec` | 120 | 单次 tool 超时秒数（最大 600） |
 | `temperature` | 0.2 | 传给 Provider |
@@ -84,7 +85,8 @@ func (a *Agent) Run(
 ## 可观测性
 
 - `SetProgress(fn)` — chatui spinner / 工具预览
-- Hermes 对齐回调：`thinking_start/stop`、`step_complete`、`tool_gen_start/delta`、`stream_delta`
+- Hermes 对齐回调：`thinking_start/stop`、`step_complete`、`tool_gen_start/delta`、`subagent_*`、`stream_delta`
+- `delegate_task` — 子 Agent 独立会话 + `sub_agent_max_steps` 预算；禁止嵌套
 - `Result.Meta` — HTTP 工具 `api_code`、`duration_ms`
 - EventBus（L0）— workflow 路径发 `ToolCalled` / `ToolCompleted`；chat 路径发 `TurnStarted`/`TurnCompleted`；报告合成发 `SynthesisStarted`/`SynthesisCompleted`
 

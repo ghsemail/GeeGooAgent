@@ -112,6 +112,14 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	app.Agent.SetToolMaxParallel(cfg.EffectiveToolMaxParallel())
 	app.Agent.SetToolTimeout(cfg.EffectiveToolTimeout())
 	app.Agent.SetEventBus(eventBus)
+	sub := agent.NewSubAgent(agent.SubAgentConfig{
+		Gateway: app.Gateway, Executor: executor, Registry: registry,
+		MaxSteps: cfg.EffectiveSubAgentMaxSteps(),
+		ChatToolNames: app.ChatToolNames,
+	})
+	sub.SetEventBus(eventBus)
+	agent.RegisterDelegateTask(registry, sub)
+	app.Agent.SetSubAgent(sub)
 	app.wireCompressor()
 	app.Workflow.SetToolExec(app.Agent.ToolExec())
 	app.wireSynthesizer()

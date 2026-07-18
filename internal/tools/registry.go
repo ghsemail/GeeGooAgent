@@ -37,7 +37,14 @@ type Context struct {
 	Interactive bool
 	// Approved indicates the user confirmed a mutating tool call.
 	Approved bool
+	// DelegateDepth tracks nested delegate_task calls (max 1).
+	DelegateDepth int
+	// Progress receives live loop events when tools spawn sub-agents.
+	Progress ProgressFunc
 }
+
+// ProgressFunc is the chat progress callback signature.
+type ProgressFunc func(event string, data map[string]any)
 
 // GoContext returns the embedded context.Context, defaulting to background.
 func (c Context) GoContext() context.Context {

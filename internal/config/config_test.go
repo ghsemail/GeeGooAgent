@@ -162,6 +162,18 @@ func TestEffectiveMaxSteps(t *testing.T) {
 	}
 }
 
+func TestEffectiveSubAgentMaxSteps(t *testing.T) {
+	if got := (&AppConfig{}).EffectiveSubAgentMaxSteps(); got != 20 {
+		t.Fatalf("default EffectiveSubAgentMaxSteps = %d, want 20", got)
+	}
+	if got := (&AppConfig{SubAgentMaxSteps: 12}).EffectiveSubAgentMaxSteps(); got != 12 {
+		t.Fatalf("EffectiveSubAgentMaxSteps(12) = %d, want 12", got)
+	}
+	if got := (&AppConfig{SubAgentMaxSteps: 99}).EffectiveSubAgentMaxSteps(); got != 40 {
+		t.Fatalf("EffectiveSubAgentMaxSteps capped = %d, want 40", got)
+	}
+}
+
 func TestEffectiveToolMaxParallel(t *testing.T) {
 	if got := (&AppConfig{}).EffectiveToolMaxParallel(); got != 4 {
 		t.Fatalf("default EffectiveToolMaxParallel = %d, want 4", got)

@@ -24,6 +24,7 @@ type Agent struct {
 	Executor    *runtime.Executor
 	Registry    *tools.Registry
 	reportSynth *ReportSynthesizer
+	subAgent    *SubAgent
 }
 
 // New constructs an Agent from the supplied collaborators.
@@ -52,6 +53,9 @@ func (a *Agent) Run(
 func (a *Agent) SetCompressor(c *prompt.Compressor) {
 	if a != nil && a.Loop != nil {
 		a.Loop.SetCompressor(c)
+	}
+	if a != nil && a.subAgent != nil {
+		a.subAgent.SetCompressor(c)
 	}
 }
 
@@ -102,12 +106,26 @@ func (a *Agent) SetApproval(fn runtime.ApprovalFunc) {
 	if a.Loop != nil {
 		a.Loop.SetApproval(fn)
 	}
+	if a.subAgent != nil {
+		a.subAgent.SetApproval(fn)
+	}
+}
+
+// SetSubAgent wires the delegate_task runner (approval/compressor/event bus sync via Agent setters).
+func (a *Agent) SetSubAgent(sub *SubAgent) {
+	if a == nil {
+		return
+	}
+	a.subAgent = sub
 }
 
 // SetEventBus wires turn-level observability on the loop.
 func (a *Agent) SetEventBus(bus tools.EventEmitter) {
 	if a.Loop != nil {
 		a.Loop.SetEventBus(bus)
+	}
+	if a.subAgent != nil {
+		a.subAgent.SetEventBus(bus)
 	}
 }
 

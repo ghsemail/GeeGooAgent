@@ -110,6 +110,7 @@ type AppConfig struct {
 	DryRun           bool              `json:"dry_run"`
 	FeishuWebhookURL *string           `json:"feishu_webhook_url"`
 	MaxSteps         int               `json:"max_steps"`
+	SubAgentMaxSteps int               `json:"sub_agent_max_steps"`
 	ToolMaxParallel  int               `json:"tool_max_parallel"`
 	ToolTimeoutSec   int               `json:"tool_timeout_sec"`
 	LLM              LLMConfig         `json:"llm"`
@@ -260,6 +261,18 @@ func (c *AppConfig) EffectiveMaxSteps() int {
 		return 90
 	}
 	return c.MaxSteps
+}
+
+// EffectiveSubAgentMaxSteps returns the delegate_task ReAct round cap (default 20, max 40).
+func (c *AppConfig) EffectiveSubAgentMaxSteps() int {
+	const defaultMax, cap = 20, 40
+	if c == nil || c.SubAgentMaxSteps <= 0 {
+		return defaultMax
+	}
+	if c.SubAgentMaxSteps > cap {
+		return cap
+	}
+	return c.SubAgentMaxSteps
 }
 
 // EffectiveToolMaxParallel returns the per-round concurrent tool cap (default 4, max 16).

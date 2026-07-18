@@ -77,6 +77,23 @@ func (s *LiveSlot) ApplyProgress(event string, data map[string]any) {
 			s.Blocks[idx].Body += TruncateRunes(args, 80)
 			s.Blocks[idx].Live = true
 		}
+	case "subagent_start":
+		s.Status = "sub-agent…"
+		task, _ := data["task"].(string)
+		if task != "" {
+			s.ensureLiveTools()
+			if idx := s.blockIndex(s.LiveToolsID); idx >= 0 {
+				line := "⇢ delegate: " + TruncateRunes(task, 120)
+				if s.Blocks[idx].Body != "" {
+					s.Blocks[idx].Body += "\n" + line
+				} else {
+					s.Blocks[idx].Body = line
+				}
+				s.Blocks[idx].Live = true
+			}
+		}
+	case "subagent_end":
+		s.Status = "running…"
 	case "stream_delta":
 		reasoning, _ := data["reasoning"].(string)
 		if strings.TrimSpace(reasoning) != "" {
