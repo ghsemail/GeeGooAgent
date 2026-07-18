@@ -121,6 +121,9 @@ type AppConfig struct {
 	Auxiliary        AuxiliaryConfig   `json:"auxiliary"`
 	ChatToolsets     []string          `json:"chat_toolsets,omitempty"`
 	Display          DisplayConfig     `json:"display,omitempty"`
+	ActiveProfile    string            `json:"active_profile,omitempty"`
+	Profiles         map[string]ProfileConfig `json:"profiles,omitempty"`
+	ResolvedProfile  string            `json:"-"`
 }
 
 // ConfigError indicates invalid or missing configuration.
@@ -147,7 +150,44 @@ func Load(path string) (*AppConfig, error) {
 		_ = os.MkdirAll(cfg.OutputDir, 0o755)
 	}
 	applyEnv(&cfg)
+	applyProfile(&cfg)
 	return &cfg, nil
+}
+
+func applyProfile(cfg *AppConfig) {
+	if cfg == nil {
+		return
+	}
+	name := strings.TrimSpace(os.Getenv("GEEGOO_PROFILE"))
+	if name == "" {
+		name = strings.TrimSpace(cfg.ActiveProfile)
+	}
+	if name == "" {
+		name = "default"
+	}
+	cfg.ResolvedProfile = name
+	if len(cfg.Profiles) == 0 {
+		return
+	}
+	prof, ok := cfg.Profiles[name]
+	if !ok {
+		if name != "default" {
+			fmt.Fprintf(os.Stderr, "警告: profile %q 未在 config.profiles 中定义，使用根配置\n", name)
+		}
+		return
+	}
+	if v := strings.TrimSpace(prof.OutputDir); v != "" {
+		cfg.OutputDir = v
+	}
+	if v := strings.TrimSpace(prof.MCPToken); v != "" {
+		cfg.UserMCPToken = v
+	}
+	if len(prof.ChatToolsets) > 0 {
+		cfg.ChatToolsets = append([]string(nil), prof.ChatToolsets...)
+	}
+	if prof.DryRun != nil {
+		cfg.DryRun = *prof.DryRun
+	}
 }
 
 func applyEnv(cfg *AppConfig) {

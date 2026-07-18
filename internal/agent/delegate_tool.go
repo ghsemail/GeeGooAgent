@@ -5,8 +5,8 @@ import (
 )
 
 // RegisterDelegateTask adds the delegate_task tool for spawning isolated sub-agents.
-func RegisterDelegateTask(r *tools.Registry, sub *SubAgent) {
-	if r == nil || sub == nil {
+func RegisterDelegateTask(r *tools.Registry, delegate tools.TaskDelegator) {
+	if r == nil || delegate == nil {
 		return
 	}
 	r.Register(tools.Tool{
@@ -35,7 +35,7 @@ func RegisterDelegateTask(r *tools.Registry, sub *SubAgent) {
 			task := strArg(args, "task", "")
 			background := strArg(args, "context", "")
 			maxSteps := intArg(args, "max_steps", 0)
-			return sub.Run(ctx, task, background, maxSteps)
+			return delegate.DelegateTask(ctx, task, background, maxSteps)
 		},
 	})
 }

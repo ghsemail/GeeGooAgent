@@ -73,6 +73,7 @@ Usage:
   %s skills list
   %s scheduler <run|list> [--config PATH]
   %s verify --codes CODES [--date YYYY-MM-DD] [--config PATH]
+  %s verify agent-loop [--config PATH]
 
-`, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
+`, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
 }

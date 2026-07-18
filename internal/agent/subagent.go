@@ -77,6 +77,11 @@ func (s *SubAgent) SetApproval(fn runtime.ApprovalFunc) {
 	}
 }
 
+// DelegateTask implements tools.TaskDelegator.
+func (s *SubAgent) DelegateTask(ctx tools.Context, task, background string, maxSteps int) tools.Result {
+	return s.Run(ctx, task, background, maxSteps)
+}
+
 // Run executes one delegated task in an ephemeral session.
 func (s *SubAgent) Run(parent tools.Context, task, background string, maxSteps int) tools.Result {
 	if s == nil || s.gateway == nil || s.executor == nil || s.registry == nil {

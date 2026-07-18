@@ -82,12 +82,6 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 
 	registry := tools.NewRegistry()
 	workingLoader := workflow.WorkingLoaderAdapter{Store: working}
-	tools.RegisterAll(registry, tools.Deps{
-		HTTP: httpBackends, WorkspaceRoot: workspace, ProjectRoot: findProjectRoot(),
-		Working: workingLoader, Search: cfg.EffectiveSearch(),
-		FeishuWebhookURL: cfg.EffectiveFeishuWebhookURL(),
-	})
-
 	executor := runtime.NewExecutor(registry)
 	cpAdapter := workflow.CheckpointAdapter{SaveFn: func(sessionID, skill, status, lastTool string, step int, w *memory.PreMarketWorking) error {
 		return checkpoints.Save(infra.Checkpoint{
@@ -118,7 +112,12 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 		ChatToolNames: app.ChatToolNames,
 	})
 	sub.SetEventBus(eventBus)
-	agent.RegisterDelegateTask(registry, sub)
+	tools.RegisterAll(registry, tools.Deps{
+		HTTP: httpBackends, WorkspaceRoot: workspace, ProjectRoot: findProjectRoot(),
+		Working: workingLoader, Search: cfg.EffectiveSearch(),
+		FeishuWebhookURL: cfg.EffectiveFeishuWebhookURL(),
+		Delegate: sub,
+	})
 	app.Agent.SetSubAgent(sub)
 	app.wireCompressor()
 	app.Workflow.SetToolExec(app.Agent.ToolExec())

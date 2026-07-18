@@ -14,6 +14,14 @@ import (
 )
 
 func runVerify(args []string) {
+	if len(args) > 0 && args[0] == "agent-loop" {
+		runVerifyAgentLoop(args[1:])
+		return
+	}
+	runVerifyReports(args)
+}
+
+func runVerifyReports(args []string) {
 	fs := flag.NewFlagSet("verify", flag.ExitOnError)
 	configPath := fs.String("config", config.DefaultPath(), "path to config.json")
 	date := fs.String("date", "", "report date YYYY-MM-DD (default today)")

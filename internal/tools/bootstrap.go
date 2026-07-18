@@ -18,6 +18,13 @@ type Deps struct {
 	Working          WorkingLoader
 	Search           config.SearchConfig
 	FeishuWebhookURL string
+	// Delegate runs delegate_task sub-agent turns (optional; wired by app).
+	Delegate TaskDelegator
+}
+
+// TaskDelegator is implemented by agent.SubAgent for delegate_task registration.
+type TaskDelegator interface {
+	DelegateTask(ctx Context, task, background string, maxSteps int) Result
 }
 
 // WorkingLoader loads working memory for meta tools.
@@ -181,10 +188,7 @@ type Registrar func(*Registry, Deps)
 
 var (
 	registrarMu sync.RWMutex
-	registrars  = []Registrar{
-		RegisterHTTPFromCatalog,
-		RegisterBespokeTools,
-	}
+	registrars  []Registrar
 )
 
 // AddRegistrar appends a tool registrar (for tests or optional tool packs).

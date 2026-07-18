@@ -39,7 +39,7 @@
 | Provider 数量 | 18+ | 3 (DeepSeek/OpenAI/Minimax) | 按需精简 |
 | API mode | 3 种 (chat/codex/anthropic) | 1 种 (chat_completions) | 按需精简 |
 | 工具数 | 70+ | ~82 (catalog+bespoke) | ✅ |
-| 工具自注册 | ✅ 导入时 | ⚠️ `AddRegistrar` 可扩展；主路径仍 RegisterAll | ⚠️ |
+| 工具自注册 | ✅ 导入时 | ✅ `init()` + `AddRegistrar`（catalog/bespoke/agent） | ✅ |
 | toolset 分组 | ✅ 28 toolset | ✅ `tools/toolset.go` + `chat_toolsets` + `/toolsets` | ✅ |
 | 危险操作审批 | ✅ approval.py | ✅ approval.go | ✅ |
 | 工具契约/schema | ✅ | ⚠️ Meta + 空成功检测，无 jsonschema | ⚠️ |
@@ -49,7 +49,7 @@
 | Chat 工具拦截 | ✅ agent 层 memory/todo 类 | ✅ workflow 独占 tool 过滤 + `tool_intercepted` | ✅ |
 | 平台无关核心 | ✅ | ✅ P2c | ✅ |
 | 松耦合 | ✅ 注册表+check_fn | ⚠️ Deps 硬编 | ⚠️ |
-| Profile 隔离 | ✅ | ❌ 单 profile | ❌（YAGNI） |
+| Profile 隔离 | ✅ | ✅ `profiles` + `GEEGOO_PROFILE` | ✅ |
 | Cron | ✅ agent 一等公民 | ✅ P7 robfig/cron | ✅ |
 | 失败重跑 | ✅ | ✅ supervisor verdict 驱动退避重试 | ✅ |
 | Supervisor 质检 | ❌ 无显式 | ✅ P3 verdict pass/recoverable/terminal | GeeGoo 更强 |
@@ -72,7 +72,7 @@
 | 可中断 | ✅ P2b |
 | 平台无关核心 | ✅ P2c |
 | 松耦合 | ⚠️ 部分（MCP/Search 仍硬编进 Deps） |
-| Profile 隔离 | ❌ |
+| Profile 隔离 | ✅ |
 
 ## 四、GeeGooAgent 相对 Hermes 的差异化优势
 
@@ -85,8 +85,8 @@
 ## 五、GeeGooAgent 仍弱于 Hermes 的地方
 
 1. **显式 prompt 缓存断点**：已支持 `cache_control` 断点 + DeepSeek cache hit 统计；OpenAI 仍主要靠自动前缀缓存
-2. **工具自注册**：主路径仍 `RegisterAll`，但已支持 `AddRegistrar` 扩展
-3. **Profile 隔离**：单 profile，多租户不支持（YAGNI）
+2. **工具自注册**：`init()` 注册 catalog/bespoke/agent 扩展
+3. **Profile 隔离**：`config.profiles` + `GEEGOO_PROFILE` 覆盖 output_dir/mcp_token/chat_toolsets
 4. **CLI 打字机**：`stream_delta` 边生成边显示；reasoning 经 `thinking_start/stop` 分段；tool 参数经 `tool_gen_start/delta` 预览
 
 ## 六、结论
@@ -95,9 +95,7 @@
 
 **GeeGoo 在质检/审计/防失控/验收上超越 Hermes**，因为这些是金融场景特有需求。
 
-**仍待补（不阻塞 cutover）**：
-1. 导入时工具自发现（Go 侧用 `AddRegistrar` 已够用）
-2. Profile 多租户（YAGNI）
+**仍待补（不阻塞 cutover）**：无 — Hermes agent-loop 对齐项已落地；用 `geegoo verify agent-loop` 做离线验收。
 
 ## 七、P1–P8 交付索引
 
