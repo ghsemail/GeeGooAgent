@@ -77,3 +77,16 @@ func TestProfileSummaryUndefinedProfile(t *testing.T) {
 		t.Fatalf("summary=%q", cfg.ProfileSummary())
 	}
 }
+
+func TestProfileFeatureEnabled(t *testing.T) {
+	if (&AppConfig{}).ProfileFeatureEnabled() {
+		t.Fatal("expected disabled without config")
+	}
+	if !(&AppConfig{Profiles: map[string]ProfileConfig{"work": {}}}).ProfileFeatureEnabled() {
+		t.Fatal("expected enabled with profiles map")
+	}
+	cfg := &AppConfig{ActiveProfile: "work"}
+	if !cfg.ProfileFeatureEnabled() {
+		t.Fatal("expected enabled with active_profile")
+	}
+}

@@ -14,6 +14,20 @@ type ProfileConfig struct {
 	DryRun       *bool    `json:"dry_run,omitempty"`
 }
 
+// ProfileFeatureEnabled reports whether profile switching is configured (optional feature).
+func (c *AppConfig) ProfileFeatureEnabled() bool {
+	if c == nil {
+		return false
+	}
+	if len(c.Profiles) > 0 {
+		return true
+	}
+	if strings.TrimSpace(os.Getenv("GEEGOO_PROFILE")) != "" {
+		return true
+	}
+	return strings.TrimSpace(c.ActiveProfile) != ""
+}
+
 func (c *AppConfig) profileSource() string {
 	if strings.TrimSpace(os.Getenv("GEEGOO_PROFILE")) != "" {
 		return "GEEGOO_PROFILE"

@@ -24,7 +24,9 @@ func runVerifyAgentLoop(args []string) {
 	defer application.Close()
 
 	cards := verify.VerifyAgentLoopParity(application.Registry)
-	fmt.Printf("Profile: %s\n", application.Config.ResolvedProfile)
+	if application.Config.ProfileFeatureEnabled() {
+		fmt.Printf("Profile: %s\n", application.Config.ProfileSummary())
+	}
 	for _, c := range cards {
 		mark := "✓"
 		if !c.Passed {

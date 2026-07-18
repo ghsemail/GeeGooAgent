@@ -26,6 +26,31 @@ func captureDoctor(fn func()) string {
 	return buf.String()
 }
 
+func TestDoctorHidesProfileLineWithoutProfiles(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	content := `{
+		"base_url": "http://127.0.0.1:3120",
+		"api_key": "sk-real-key",
+		"geegoo_url": "http://127.0.0.1:3120",
+		"geegoo_api_key": "sk-real-key",
+		"mcp_token": "user-mcp",
+		"llm": {"token_key": "llm-key"}
+	}`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := captureDoctor(func() {
+		code := doctor.RunWithOptions(path, doctor.Options{SkipConnectivity: true})
+		if code != 0 {
+			t.Fatalf("expected exit 0, got %d", code)
+		}
+	})
+	if bytes.Contains([]byte(out), []byte("[OK] profile:")) {
+		t.Fatalf("unexpected profile line:\n%s", out)
+	}
+}
+
 func TestDoctorShowsProfileLine(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")

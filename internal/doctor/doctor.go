@@ -31,7 +31,9 @@ func RunWithOptions(configPath string, opts Options) int {
 	cfg, cfgResults := checkConfigFile(configPath)
 	results = append(results, cfgResults...)
 	if cfg != nil {
-		results = append(results, profileCheck(cfg))
+		if row, ok := profileCheck(cfg); ok {
+			results = append(results, row)
+		}
 	}
 	printResults(results)
 	if cfg == nil {
@@ -76,14 +78,17 @@ func endpointSummary(cfg *config.AppConfig) string {
 	)
 }
 
-func profileCheck(cfg *config.AppConfig) CheckResult {
+func profileCheck(cfg *config.AppConfig) (CheckResult, bool) {
+	if !cfg.ProfileFeatureEnabled() {
+		return CheckResult{}, false
+	}
 	warn := len(cfg.Profiles) > 0 && cfg.ResolvedProfile != "default" && !cfg.ProfileOverridesApplied()
 	return CheckResult{
 		Name:   "profile",
 		OK:     true,
 		Warn:   warn,
 		Detail: cfg.ProfileSummary(),
-	}
+	}, true
 }
 
 func checkConfigFile(path string) (*config.AppConfig, []CheckResult) {

@@ -83,9 +83,9 @@ func (a *Agent) Run(
 | `active_profile` | `default` | 未设 `GEEGOO_PROFILE` 时使用的 profile 名 |
 | `profiles` | — | 按 profile 覆盖 `output_dir` / `mcp_token` / `chat_toolsets` / `dry_run` |
 
-### Profile 多租户
+### Profile 运行场景（可选）
 
-Hermes 对齐：同一台 Agent 可按运行场景切换隔离配置，无需多份 `config.json`。
+可选：同一 `config.json` 内预设多套「情景补丁」，按需切换，无需维护多份配置文件。
 
 优先级：`GEEGOO_PROFILE` 环境变量 > `active_profile` > `default`。
 
@@ -104,7 +104,7 @@ Hermes 对齐：同一台 Agent 可按运行场景切换隔离配置，无需多
 }
 ```
 
-`geegoo doctor` 会打印当前 `ResolvedProfile` 与生效覆盖项；`geegoo verify agent-loop` 在验收开头同样输出 profile 名。
+`geegoo doctor` 仅在配置了 `profiles` 或显式选择 profile 时打印当前情景；`geegoo verify agent-loop` 同理。
 
 压缩阈值见 `internal/prompt/compressor.go`（回合开始 85%、每轮 LLM 前 50%）。
 
