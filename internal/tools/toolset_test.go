@@ -11,10 +11,17 @@ import (
 func TestDefaultChatToolsetsExcludeWorkflow(t *testing.T) {
 	t.Parallel()
 	names := tools.ChatToolNamesForToolsets(nil)
+	set := map[string]struct{}{}
 	for _, name := range names {
-		if name == "create_pre_market_report" || name == "write_execution_log" {
-			t.Fatalf("workflow tool %s should not be in default chat allowlist", name)
+		set[name] = struct{}{}
+	}
+	for _, name := range []string{"create_pre_market_report", "write_execution_log", "list_today_post_market_reports"} {
+		if _, ok := set[name]; ok {
+			t.Fatalf("workflow-only tool %s should not be in default chat allowlist", name)
 		}
+	}
+	if _, ok := set["get_bot_yesterday_attitude"]; !ok {
+		t.Fatal("get_bot_yesterday_attitude should be in default chat (shared with market toolset)")
 	}
 	if len(names) < 20 {
 		t.Fatalf("expected a substantial chat allowlist, got %d", len(names))

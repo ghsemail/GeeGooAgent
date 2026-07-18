@@ -17,13 +17,13 @@
 
 | 后端 | 默认端口 | 主机（生产） | 承载 Tool |
 |------|----------|--------------|-----------|
-| **GeeGooBot `mcp-api`** | **3120** | 118.195.135.97 | 绝大多数 MCP HTTP（行情、报告、Bot CRUD、资金流经 Bot 转发） |
+| **GeeGooBot `mcp-api`** | **3120** | 118.195.135.97 | 绝大多数 MCP HTTP；**bespoke** `get_mcp_analysis`/`fetch_*_news` 等亦经此入口（Bot 内转发 analyze/Data） |
 | **GeeGooSignal `signal-api`** | **3200** | 146.56.225.252 | `search_code`、`loopback_strategy` |
 | **GeeGooSignal `catalog-api`** | **3210** | 146.56.225.252 | `get_index_signals`、`get_signal_combinations` |
 | **GeeGooSignal `analyze-api`** | **3230** | 146.56.225.252 | `generate_grid_strategy`、`generate_dca_strategy`（失败可 fallback mcp-api） |
 | **GeeGooData `data-api`** | **3300** | A 股 **82.157.97.76**；港/美 **47.80.14.120** | 资金流/行情底层；Agent **不直连**，经 Bot `:3120` 按代码路由 |
 | **Agent `agent-runtime`** | **3400** | 119.45.16.112 本机 | ReAct / workflow，非业务 Tool 出口 |
-| **Agent 本地** | — | workspace / DuckDuckGo | `web_search`、`save_local_report`、`recall*`、`write_execution_log`；**新闻**（过渡期）`fetch_*_news` |
+| **Agent 本地** | — | workspace / DuckDuckGo | `web_search`、`save_local_report`、`recall*`、`write_execution_log`；新闻 Bot 不可达时的本地 fallback |
 
 `geegoo doctor` 探测：mcp-api `/health`、`/ready`、`checkTradingDay`；Signal signal/catalog/analyze `/health`；GeeGooData `/health`；**tool 探针**（`search_code`、资金流、富途三类、个股新闻、`get_stock_daily_reports`；`get_mcp_analysis` 跳过因 LLM 慢）。
 
@@ -34,7 +34,7 @@
 | 维度 | 数量 |
 |------|------|
 | Registry 已注册 | **82** |
-| 默认 chat 白名单 | **68** |
+| 默认 chat 白名单 | **69**（含 `market` 与 `report_workflow` 共享的 `get_bot_yesterday_attitude`） |
 | Bespoke 手写 | **21** |
 | HTTP 转发（catalog） | **61** |
 
@@ -51,8 +51,8 @@
 | `get_ticker` | ✅ | HTTP | mcp-api `/getTicker` → `futu_bridge` → 本机 OpenD | 3120 | **盘中逐笔**；非 TradingData；空 payload 重试 1 次 |
 | `get_broker` | ✅ | HTTP | mcp-api `/getBroker` → `futu_bridge` → OpenD | 3120 | 同上 |
 | `get_position` | ✅ | HTTP | mcp-api `/getPosition` → `futu_bridge` → OpenD | 3120 | 同上；真实空仓仍 skip |
-| `fetch_market_news` | ✅ | bespoke | **GeeGooBot** `/getMarketNews` → GeeGooData `/v1/news/market`；本地 finance-news / web_search 回退 | — | 见 [geegoodata-news.md](../../domains/geegoodata-news.md) |
-| `fetch_stock_news` | ✅ | bespoke | **GeeGooBot** `/getStockNews` → GeeGooData `/v1/news/stock`；本地 / web_search 回退 | — | 双源仍无 → StatusError |
+| `fetch_market_news` | ✅ | bespoke | **主路径** Bot `/getMarketNews` → GeeGooData `/v1/news/market`；失败时本地 finance-news / `web_search` | 3120→3300 | 见 [geegoodata-news.md](../../domains/geegoodata-news.md) |
+| `fetch_stock_news` | ✅ | bespoke | **主路径** Bot `/getStockNews` → GeeGooData `/v1/news/stock`；失败时本地 / `web_search` | 3120→3300 | 双源仍无 → StatusError |
 | `get_report_bot_codes` | ✅ | bespoke | mcp-api `/getReportBotCodes` | 3120 | 盘前待写报告标的 |
 
 ---
@@ -79,7 +79,7 @@
 | `get_mcp_analysis` | 💬/✅ | bespoke | mcp-api `/getMCPAnalysis` → analyze-api LLM | 3120→3230 | 必填 `period`；空结果自动重试 1 次；慢 60–180s |
 | `get_capital_flow` | ✅ | bespoke | mcp-api `/getCapitalFlow` → GeeGooData | 3120→3300 | DAY 空自动试 WEEK + 重试；仍无数据 skip |
 | `get_capital_distribution` | ✅ | bespoke | mcp-api `/getCapitalDistribution` → GeeGooData | 3120→3300 | 空结果自动重试 1 次 |
-| `get_bot_yesterday_attitude` | 💬 | bespoke | mcp-api `/getBotYesterdayAttitude` | 3120 | 必填 `bot_id` |
+| `get_bot_yesterday_attitude` | 💬 | bespoke | mcp-api `/getBotYesterdayAttitude` | 3120 | 必填 `bot_id`；**默认 chat 可用**（`market` 与 `report_workflow` 共享） |
 | `get_stock_daily_reports` | 💬 | bespoke | mcp-api `/getStockDailyReports` | 3120 | 建议传 `report_date` |
 | `list_today_reports` | ✅ | bespoke | 同上（盘前幂等别名） | 3120 | |
 | `list_today_post_market_reports` | ✅ | bespoke | 同上（盘后幂等别名） | 3120 | `post_market` workflow |
@@ -172,8 +172,8 @@ manifest 路径：`skills/<skill>/manifest.yaml`。Skill 文档 → [L5 skills](
 | `get_capital_flow` | DAY 空试 WEEK；整轮重试 1 次 |
 | `get_capital_distribution` | 空分布重试 1 次 |
 | `get_mcp_analysis` | 空 `analysis_result` 重试 1 次 |
-| `fetch_stock_news` | finance-news 弱结果 → `web_search` 补充；仍无 → `StatusError` |
-| `fetch_market_news` | 同上（`web_search` 标题为「市场新闻」） |
+| `fetch_stock_news` | Bot→Data 无标题 → 本地 finance-news → `web_search`；仍无 → `StatusError` |
+| `fetch_market_news` | 同上 |
 | `recall_yesterday_summary` | 本地无文件 → MCP 报告向前查 5 天 |
 
 ---
@@ -195,7 +195,7 @@ manifest 路径：`skills/<skill>/manifest.yaml`。Skill 文档 → [L5 skills](
 
 | ID | 默认 chat | 工具数 | 说明 |
 |----|-----------|--------|------|
-| `market` | ✅ | 17 | 行情、分析、新闻 |
+| `market` | ✅ | 18 | 行情、分析、新闻（含 `get_bot_yesterday_attitude`） |
 | `strategy` | ✅ | 3 | generate + loopback |
 | `bot_manager` | ✅ | 20 | 交易 Bot CRUD + log |
 | `reminder_manager` | ✅ | 15 | 提醒 Bot |
@@ -204,6 +204,8 @@ manifest 路径：`skills/<skill>/manifest.yaml`。Skill 文档 → [L5 skills](
 | `prompt_template` | 🔒 | **6** | 竞品/ETF Prompt 模板 CRUD |
 
 切换：`/toolsets market,strategy` · `/toolsets default` · `/toolsets prompt_template`（高级）
+
+> **共享 tool**：`get_bot_yesterday_attitude` 同时在 `market` 与 `report_workflow`；默认 chat **保留**（仅 workflow 独占 tool 从默认 chat 排除）。
 
 ---
 
@@ -218,7 +220,7 @@ GeeGooAgent Tools
 │  ├─ get_bot_yesterday_attitude                                        💬 需 bot_id
 │  ├─ get_index_signals, get_signal_combinations                        ✅ :3210
 │  ├─ get_single_prompt_template, get_mcp_analysis                     💬 需 period
-│  ├─ fetch_market_news, fetch_stock_news                               ✅ Go 多源回退
+│  ├─ fetch_market_news, fetch_stock_news                               ✅ Bot→GeeGooData；本地 fallback
 │  ├─ get_bot_log_by_type, recall                                       ✅
 ├─ strategy
 │  ├─ generate_grid_strategy, generate_dca_strategy                     💬/✅ :3230
@@ -252,7 +254,7 @@ GeeGooAgent Tools
 
 新增 Tool 后同步更新：**本文件** + [tool-catalog.md](./tool-catalog.md) + `catalog/catalog.go` + [interface-map.md](../../../reference/geegoo-mcp/interface-map.md)（新 HTTP 时）。
 
-新闻迁入 GeeGooData 后：同步 [geegoodata-news.md](../../domains/geegoodata-news.md)、GeeGooData `docs/NEWS.md`、Bot `interface-map`。
+新闻迁入 GeeGooData 已完成（主路径 Bot→Data）；维护时同步 [geegoodata-news.md](../../domains/geegoodata-news.md)、GeeGooData `docs/NEWS.md`、Bot `interface-map`。
 
 核对命令：
 

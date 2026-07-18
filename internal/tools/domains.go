@@ -73,6 +73,7 @@ var (
 		"get_broker":               {},
 		"get_capital_flow":         {},
 		"get_capital_distribution": {},
+		"get_bot_yesterday_attitude": {},
 		"get_mcp_analysis":         {},
 		"get_single_prompt_template": {},
 		"get_index_signals":        {},
@@ -130,6 +131,10 @@ var domainLabels = map[ToolDomain]string{
 
 func toolDomain(name string) ToolDomain {
 	switch {
+	case inSet(name, marketTools):
+		return DomainMarket
+	case inSet(name, strategyTools):
+		return DomainStrategy
 	case inSet(name, reportWorkflowTools):
 		return DomainReportWorkflow
 	case inSet(name, reportQueryTools):
@@ -138,10 +143,6 @@ func toolDomain(name string) ToolDomain {
 		return DomainBotManager
 	case inSet(name, reminderManagerTools):
 		return DomainReminderManager
-	case inSet(name, marketTools):
-		return DomainMarket
-	case inSet(name, strategyTools):
-		return DomainStrategy
 	case inSet(name, promptTemplateTools):
 		return DomainPromptTemplate
 	default:

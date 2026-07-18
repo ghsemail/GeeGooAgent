@@ -54,6 +54,31 @@ var builtinToolsets = []Toolset{
 	newToolset("prompt_template", "Prompt 模板", "竞品/ETF 分析模板 CRUD（高级，默认不进 chat）", false, promptTemplateTools),
 }
 
+// workflowExclusiveTools are in report_workflow but not shared with any other toolset.
+// Shared tools (e.g. get_bot_yesterday_attitude in market) stay in default chat.
+var workflowExclusiveTools = buildWorkflowExclusiveTools()
+
+func buildWorkflowExclusiveTools() map[string]struct{} {
+	shared := map[string]struct{}{}
+	for _, ts := range builtinToolsets {
+		if ts.ID == "report_workflow" {
+			continue
+		}
+		for name := range ts.names {
+			if _, wf := reportWorkflowTools[name]; wf {
+				shared[name] = struct{}{}
+			}
+		}
+	}
+	exclusive := make(map[string]struct{}, len(reportWorkflowTools))
+	for name := range reportWorkflowTools {
+		if _, ok := shared[name]; !ok {
+			exclusive[name] = struct{}{}
+		}
+	}
+	return exclusive
+}
+
 // AllToolsets returns the built-in toolset catalog.
 func AllToolsets() []Toolset {
 	out := make([]Toolset, len(builtinToolsets))
@@ -124,7 +149,7 @@ func ChatToolNamesForToolsets(ids []string) []string {
 			continue
 		}
 		for name := range ts.names {
-			if _, workflow := reportWorkflowTools[name]; workflow && id != "report_workflow" {
+			if _, onlyWorkflow := workflowExclusiveTools[name]; onlyWorkflow && id != "report_workflow" {
 				continue
 			}
 			chat[name] = struct{}{}

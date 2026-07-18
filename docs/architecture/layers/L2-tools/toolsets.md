@@ -8,7 +8,7 @@
 
 | Toolset ID | 中文 | 默认 chat | 工具数 |
 |------------|------|-----------|--------|
-| `market` | 行情与分析 | ✅ | 17 |
+| `market` | 行情与分析 | ✅ | 18 |
 | `strategy` | 策略生成与回测 | ✅ | 3 |
 | `bot_manager` | 交易 Bot | ✅ | 20 |
 | `reminder_manager` | 提醒 Bot | ✅ | 15 |
@@ -17,6 +17,8 @@
 | `prompt_template` | Prompt 模板 CRUD | ❌ | 6 |
 
 Chat 切换：`/toolsets market,strategy` · `/toolsets default` · `/toolsets prompt_template`（高级）
+
+**workflow 独占 vs 共享**：仅存在于 `report_workflow` 的 tool（如 `create_pre_market_report`）默认不进 chat；与 `market` 等共享的 tool（如 `get_bot_yesterday_attitude`）在默认 chat 仍可用。
 
 Workflow（`geegoo run`）不按 toolset 过滤，步骤在 `workflow/premarket.go` 硬编码。
 
@@ -45,11 +47,11 @@ Workflow（`geegoo run`）不按 toolset 过滤，步骤在 `workflow/premarket.
 
 | 端口 | Tools |
 |------|-------|
-| 3120 MCP | 报告、Bot、资金、策略转发（默认） |
+| 3120 MCP | 报告、Bot、资金、`get_mcp_analysis`（bespoke，Bot 内转发 analyze-api）、`fetch_*_news`（→ GeeGooData）、策略 fallback |
 | 3200 Signal | `search_code`, `loopback_strategy` |
 | 3210 Catalog | `get_index_signals`, `get_signal_combinations` |
-| 3230 Analyze | `get_mcp_analysis`, `generate_*`（经 MCP 转发） |
-| 3300 Data | 现价、资金（经 MCP/bespoke） |
+| 3230 Analyze | `generate_grid_strategy`, `generate_dca_strategy`（Agent 直连，失败可 fallback 3120） |
+| 3300 Data | 现价、资金、新闻（经 Bot/bespoke，Agent 不直连） |
 
 ## Skill Pack → Tool 子集
 
