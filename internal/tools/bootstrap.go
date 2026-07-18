@@ -150,6 +150,11 @@ func normalizeHTTPResponse(name string, payload any) (map[string]any, string) {
 		if price, ok := v["price"]; ok {
 			return v, fmt.Sprintf("%s: price=%v", name, price)
 		}
+		if finalValue, ok := v["finalValue"]; ok {
+			if profitRate, ok := v["profit_rate"]; ok {
+				return v, fmt.Sprintf("%s: finalValue=%v profit_rate=%v", name, finalValue, profitRate)
+			}
+		}
 		return v, fmt.Sprintf("%s succeeded", name)
 	default:
 		return map[string]any{"value": payload}, fmt.Sprintf("%s succeeded", name)

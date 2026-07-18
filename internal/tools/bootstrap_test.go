@@ -82,3 +82,17 @@ func TestNewsToolsSkipWhenScriptRunnerUnavailable(t *testing.T) {
 		}
 	}
 }
+
+func TestLoopbackStrategyUsesDirectResponse(t *testing.T) {
+	t.Parallel()
+	for _, spec := range catalog.AllHTTP() {
+		if spec.Name != "loopback_strategy" {
+			continue
+		}
+		if !spec.DirectResponse {
+			t.Fatal("loopback_strategy must use DirectResponse (signal-api returns bare JSON, not MCP envelope)")
+		}
+		return
+	}
+	t.Fatal("loopback_strategy not found in HTTP catalog")
+}
