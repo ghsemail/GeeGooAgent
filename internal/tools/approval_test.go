@@ -8,7 +8,7 @@ import (
 
 func TestApprovalRequiredForMutatingTools(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{"create_dca_bot", "update_grid_bot", "delete_smart_trade", "create_pre_market_report"} {
+	for _, name := range []string{"create_dca_bot", "update_grid_bot", "delete_smart_trade", "create_pre_market_report", "edit_competitor_prompt_template", "edit_etf_prompt_template"} {
 		if !tools.ApprovalRequired(name) {
 			t.Fatalf("%s should require approval", name)
 		}
@@ -17,6 +17,22 @@ func TestApprovalRequiredForMutatingTools(t *testing.T) {
 		if tools.ApprovalRequired(name) {
 			t.Fatalf("%s should not require approval", name)
 		}
+	}
+}
+
+func TestApprovalGateBlocksEditPromptTemplate(t *testing.T) {
+	t.Parallel()
+	called := false
+	gated := tools.ApprovalGate("edit_competitor_prompt_template", func(ctx tools.Context, args map[string]any) tools.Result {
+		called = true
+		return tools.Result{Status: tools.StatusOK, Summary: "edited"}
+	})
+	res := gated(tools.Context{Interactive: true, Approved: false}, nil)
+	if called {
+		t.Fatal("edit prompt handler should not run when unapproved in interactive")
+	}
+	if res.Status != tools.StatusSkip {
+		t.Fatalf("expected skip, got %s", res.Status)
 	}
 }
 

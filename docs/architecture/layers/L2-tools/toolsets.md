@@ -38,7 +38,7 @@ Workflow（`geegoo run`）不按 toolset 过滤，步骤在 `workflow/premarket.
 
 | 机制 | 文件 |
 |------|------|
-| ApprovalGate | `approval.go` — chat 写操作需确认 |
+| ApprovalGate | `approval.go` — chat 写操作需确认（含 `edit_*` Prompt 模板） |
 | ClassifyHTTPPayload | `contract.go` — 空 data → skipped |
 | NeedsMCPToken | `catalog/token.go` |
 | HTTPBackends | `httpbackend.go` — 按 tool 选 :3120/:3200/:3210 |

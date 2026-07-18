@@ -7,11 +7,11 @@ import "strings"
 // Workflow (pre_market) runs are deterministic and pre-authorized, so this
 // gate only applies to ad-hoc chat invocations.
 //
-// The check is name-based and conservative: any create_/update_/delete_/switch
+// The check is name-based and conservative: any create_/update_/delete_/edit_/switch
 // tool is considered mutating. Read-only tools (list_/get_/search_) are not.
 var ApprovalRequired = func(toolName string) bool {
 	name := strings.ToLower(toolName)
-	for _, prefix := range []string{"create_", "update_", "delete_", "switch_"} {
+	for _, prefix := range []string{"create_", "update_", "delete_", "edit_", "switch_"} {
 		if strings.HasPrefix(name, prefix) {
 			return true
 		}

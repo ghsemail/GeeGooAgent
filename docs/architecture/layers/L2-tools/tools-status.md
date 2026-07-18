@@ -94,8 +94,8 @@
 
 | Tool | 状态 | 路径 | 端口 |
 |------|------|------|------|
-| `create/edit/delete_competitor_prompt_template` | ✅ | mcp-api 对应路径 | 3120 |
-| `create/edit/delete_etf_prompt_template` | ✅ | mcp-api 对应路径 | 3120 |
+| `create/edit/delete_*_competitor_prompt_template` | ✅ | mcp-api 对应路径 | 3120 | `/toolsets prompt_template`；chat 写操作需确认 |
+| `create/edit/delete_*_etf_prompt_template` | ✅ | mcp-api 对应路径 | 3120 | 同上 |
 
 ---
 
