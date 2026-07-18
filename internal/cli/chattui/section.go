@@ -20,6 +20,11 @@ const (
 
 const thinkingPreviewLines = 2
 
+// IsProcessKind reports thinking, tools, or activity blocks.
+func IsProcessKind(kind SectionKind) bool {
+	return kind == KindThinking || kind == KindTools || kind == KindActivity
+}
+
 // Block is one collapsible (or always-open) transcript unit.
 type Block struct {
 	ID           string

@@ -135,6 +135,16 @@ func RenderDetailLine(line string) string {
 	return styleText.Render("    " + line)
 }
 
+// RenderProcessPanel wraps thinking/tools sections in a single inset panel.
+func RenderProcessPanel(content string, width int) string {
+	content = strings.TrimRight(content, "\n")
+	if strings.TrimSpace(content) == "" {
+		return ""
+	}
+	w := clampRuleWidth(width)
+	return styleProcessBox.Width(w).Render(content)
+}
+
 // PrintBanner shows Hermes-style two-column welcome panel.
 func (u *ChatUI) PrintBanner(opts BannerOptions) {
 	u.write(RenderBanner(opts, u.width, u.plain))

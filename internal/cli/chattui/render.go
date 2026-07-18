@@ -74,11 +74,12 @@ func (m *Model) renderTranscript() string {
 	}
 
 	hasSegment := m.banner != ""
-	var prev transcriptSegment = segmentNone
+	prev := segmentNone
 	if m.banner != "" {
-		prev = segmentProcess // banner counts as prior content for first user turn rule
+		prev = segmentProcess
 	}
-	for i, block := range s.Blocks {
+	for i := 0; i < len(s.Blocks); i++ {
+		block := s.Blocks[i]
 		if !block.IsVisible(m.display) {
 			continue
 		}
@@ -88,6 +89,25 @@ func (m *Model) renderTranscript() string {
 				continue
 			}
 		}
+
+		if IsProcessKind(block.Kind) {
+			cur := segmentProcess
+			if hasSegment {
+				m.writeSegmentDivider(&b, width, prev, cur)
+			}
+			if boxed := m.renderProcessGroup(s.Blocks, i, s.Focus, width); boxed != "" {
+				b.WriteString(boxed)
+				b.WriteByte('\n')
+			}
+			for i < len(s.Blocks) && s.Blocks[i].IsVisible(m.display) && IsProcessKind(s.Blocks[i].Kind) {
+				i++
+			}
+			i--
+			prev = cur
+			hasSegment = true
+			continue
+		}
+
 		cur := blockSegment(block.Kind)
 		if hasSegment {
 			m.writeSegmentDivider(&b, width, prev, cur)
@@ -109,33 +129,6 @@ func (m *Model) renderTranscript() string {
 				b.WriteString(chatui.RenderAssistantBox(body, width))
 			}
 			b.WriteByte('\n')
-		default:
-			prefix := "  "
-			if i == s.Focus {
-				prefix = styleFocus.Render("› ")
-			}
-			b.WriteString(prefix + renderSectionHeader(block, m.display))
-			b.WriteByte('\n')
-			if block.IsExpanded(m.display) {
-				body := strings.TrimRight(block.Body, "\n")
-				for _, line := range strings.Split(body, "\n") {
-					if block.Kind == KindThinking {
-						b.WriteString(chatui.RenderThinkingLine(line))
-					} else {
-						b.WriteString(chatui.RenderDetailLine(line))
-					}
-					b.WriteByte('\n')
-				}
-			} else if block.ShowThinkingPreview(m.display) {
-				for _, line := range block.LastBodyLines(thinkingPreviewLines) {
-					b.WriteString(chatui.RenderThinkingLine(TruncateRunes(line, width-4)))
-					b.WriteByte('\n')
-				}
-			} else if block.ShowLivePreview(m.display) {
-				line := TruncateRunes(block.LastBodyLine(), width-4)
-				b.WriteString(chatui.RenderDetailLine(line))
-				b.WriteByte('\n')
-			}
 		}
 		prev = cur
 		hasSegment = true
@@ -171,11 +164,6 @@ func (m *Model) writeSegmentDivider(b *strings.Builder, width int, prev, cur tra
 	}
 	if cur == segmentUser {
 		b.WriteString(chatui.RenderRule(width))
-		b.WriteByte('\n')
-		return
-	}
-	if prev == cur && cur == segmentProcess {
-		b.WriteString(chatui.RenderSoftDivider(width))
 		b.WriteByte('\n')
 		return
 	}

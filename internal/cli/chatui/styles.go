@@ -15,6 +15,10 @@ var (
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color(colorBorder)).
 			Padding(0, 2)
+	styleProcessBox = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(colorDim)).
+			Padding(0, 1)
 	styleSubtle  = lipgloss.NewStyle().Foreground(lipgloss.Color(colorDim)).Italic(true)
 	styleToolRun = lipgloss.NewStyle().Foreground(lipgloss.Color(colorText))
 )

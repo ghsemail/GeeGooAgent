@@ -41,6 +41,13 @@ func stripANSI(s string) string {
 	return out.String()
 }
 
+func TestRenderProcessPanelHasBorder(t *testing.T) {
+	out := stripANSI(chatui.RenderProcessPanel("▸ 💭 思考\n    line", 80))
+	if !strings.Contains(out, "╭") || !strings.Contains(out, "╯") {
+		t.Fatalf("expected rounded border: %q", out)
+	}
+}
+
 func TestRenderSoftDividerShorterThanRule(t *testing.T) {
 	soft := stripANSI(chatui.RenderSoftDivider(80))
 	rule := stripANSI(chatui.RenderRule(80))
