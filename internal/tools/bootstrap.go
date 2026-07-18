@@ -160,7 +160,7 @@ func appendStrategyFollowUp(summary, strategyType string, data map[string]any) s
 		}
 	case "dca":
 		if signal, ok := data["signal"].(map[string]any); ok {
-			if _, ok := signal["buy_signal"]; ok {
+			if buy, ok := signal["buy_signal"].([]any); ok && len(buy) > 0 {
 				return summary + "；可 loopback_strategy(type=dca, signal=signal.buy_signal, sl_tp 由 dynamicParam/fixedParam 组装) 或 create_dca_bot"
 			}
 		}

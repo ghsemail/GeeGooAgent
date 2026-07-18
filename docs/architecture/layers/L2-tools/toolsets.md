@@ -1,6 +1,6 @@
 # Toolset 与扩展
 
-> Tool 注册机制见 [registry.md](./registry.md)。运行态可用性见 [tools-tree.md](./tools-tree.md)。
+> Tool 注册机制见 [registry.md](./registry.md)。运行态可用性见 [tools-status.md](./tools-status.md)。
 
 ## Toolset（Hermes 风格）
 
@@ -61,14 +61,14 @@ Workflow（`geegoo run`）不按 toolset 过滤，步骤在 `workflow/premarket.
 | `strategy` | §2.3 策略 | 5 |
 | `bot_manager` | Bot CRUD + logs | 6 |
 
-manifest 白名单：`skills/pre_market/manifest.yaml`。Skill 文档 → [L5 skills](../L5-application/skills.md)。
+manifest 白名单：`skills/<skill>/manifest.yaml`（`pre_market` / `intraday` / `post_market`）。Skill 文档 → [L5 skills](../L5-application/skills.md)。
 
 ## 扩展：新增 Tool
 
 1. `catalog/catalog.go` 增加 `HTTPSpec`，或 `bespoke.go` 注册
 2. 更新 `domains.go` / `toolset.go`
 3. GeeGooBot 注册 MCP 路由（若新 HTTP）
-4. 同步 [tools-tree.md](./tools-tree.md) + [tool-catalog.md](./tool-catalog.md)
+4. 同步 [tools-status.md](./tools-status.md) + [tool-catalog.md](./tool-catalog.md)
 
 ## 与 Skill 的关系
 

@@ -51,7 +51,7 @@ GeeGooAgent/
 ├── deploy/                     # systemd、Hermes 对齐文档
 ├── docs/
 │   ├── architecture/           # 本目录
-│   ├── reference/            # MCP interface-map、tools-tree
+│   ├── reference/            # MCP interface-map、tools-status
 │   └── engineering/
 ├── scripts/
 │   ├── install.sh              # 自托管安装

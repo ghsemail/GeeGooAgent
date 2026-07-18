@@ -3,14 +3,14 @@
 > **运行态 SSOT**（已注册 / 可用性 / 端口 / 后端）：[tools-status.md](./tools-status.md)  
 > **MCP HTTP SSOT**：[interface-map.md](../../../reference/geegoo-mcp/interface-map.md)  
 > 命名：`snake_case` Tool → HTTP 路径；**MVP 加粗**。  
-> 表内无「注册」列时，默认 ✅ 已注册；运行态见 [tools-tree.md](./tools-tree.md)。
+> 表内无「注册」列时，默认 ✅ 已注册；**运行态**见 [tools-status.md](./tools-status.md)。
 
 ## 端口与 Client
 
 | Client | 端口 | api_key | 说明 |
 |--------|------|---------|------|
 | `GeeGooBotClient` / `MarketClient` | **3120** | `sk-...` | 全部 GeeGooBot mcp-api（MarketClient 为别名） |
-| `SignalClient` | **3200** / **3210** | Bearer | signal-api 搜索/回测；catalog-api 指标与 queryModel |
+| `SignalClient` | **3200** / **3210** / **3230** | Bearer | signal-api 搜索/回测；catalog-api 指标；analyze-api 策略生成 |
 
 ---
 
@@ -24,17 +24,17 @@
 | **get_report_bot_codes** | 3120 `/getReportBotCodes` | 是 | 1 | **✓** | 报告待分析标的，含 bot_id |
 | **search_code** | 3200 `/searchCode` | 否 | 4 | | bespoke；Signal signal-api |
 | **web_search** | Agent 本地 DuckDuckGo | — | 4 | | 已注册；非 MCP |
-| **get_position** | 3120 `/getPosition` | 是 | 3/6 | | ⚠️ 富途 OpenD；无持仓 skip |
+| **get_position** | 3120 `/getPosition` | 是 | 3/6 | | 富途 OpenD；空 payload 重试；真实空仓 skip |
 | **get_current_price** | 3120 `/getCurrentPrice` | 是* | 4 | | bespoke → Data |
-| get_ticker | 3120 `/getTicker` | 是 | 3 | | ⚠️ 富途 OpenD；非交易时段常 skip |
-| get_broker | 3120 `/getBroker` | 是 | 3 | | ⚠️ 富途 OpenD |
+| get_ticker | 3120 `/getTicker` | 是 | 3 | | 富途 OpenD；空 payload 重试 |
+| get_broker | 3120 `/getBroker` | 是 | 3 | | 富途 OpenD；空 payload 重试 |
 
 ### 1.2 新闻与行情（本地脚本 / bundled）
 
 | Tool | 实现 | Phase | MVP | 说明 |
 |------|------|-------|-----|------|
 | **fetch_market_news** | finance-news US/CN/HK | 1 | **✓** | 市场新闻，内置降级 |
-| **fetch_stock_news** | eastmoney + 备选 | 1 | **✓** | 个股新闻 |
+| **fetch_stock_news** | eastmoney + Go 多源 + web_search | 1 | **✓** | 双源仍无则 StatusError |
 
 ---
 
@@ -47,7 +47,8 @@
 | **get_mcp_analysis** | 3120 `/getMCPAnalysis` | 1 | **✓** | period 必填；name=股票名；读 `analysis_result`；盘前 workflow 常用 3120 |
 | **get_single_prompt_template** | 3120 `/getSinglePromptTemplate` | 4 | | type: index/tech/fundamental；可选 period |
 | get_stock_daily_reports | 3120 `/getStockDailyReports` | 1 | **✓** | 聚合 pre/intraday/post；**查询报告用此接口** |
-| **list_today_reports** | 3120 `/getStockDailyReports` | 1 | **✓** | 幂等检查别名（同日 code） |
+| **list_today_reports** | 3120 `/getStockDailyReports` | 1 | **✓** | 盘前幂等检查别名（同日 code） |
+| **list_today_post_market_reports** | 3120 `/getStockDailyReports` | 2 | | 盘后幂等检查别名 |
 
 ### 2.2 资金与态度（geegoo Trading）
 
@@ -64,9 +65,9 @@
 |------|-----|-------|------|
 | **get_index_signals** | 3210 `/getIndexSignalForSkill` | 5 | SAR/MACD/BBAND 等指标列表 |
 | **get_signal_combinations** | 3210 `/getSignalCombinationForSkill` | 5 | 推荐组合信号 |
-| **generate_grid_strategy** | 3120 `/generateGridStrategy` | 5 | 网格参数建议 |
-| **generate_dca_strategy** | 3120 `/generateDCAStrategy` | 5 | DCA+信号+止盈止损建议 |
-| **loopback_strategy** | 3200 `/loopBackStrategy` | 5 | ⚠️ Signal 简化回测 |
+| **generate_grid_strategy** | 3230 `/generateGridStrategy`（fallback 3120） | 5 | 网格参数建议 |
+| **generate_dca_strategy** | 3230 `/generateDCAStrategy`（fallback 3120） | 5 | DCA+信号+止盈止损；需先选 signal_id |
+| **loopback_strategy** | 3200 `/loopBackStrategy` | 5 | Signal 原生回测 |
 
 ### 2.4 Prompt 模板管理（geegoo AgentAnalyst — 高级）
 
@@ -197,14 +198,14 @@
 
 ## 六、Skill Pack → Tool 子集
 
-| Skill Pack | 包含 Tool 组 | Phase |
-|------------|--------------|-------|
-| `pre_market` | §1.1 check/get_user + §1.2 新闻 + §2.1 get_mcp + §2.2 capital/attitude + §4.1 create_pre/save_local + §5 部分 | **1** |
-| `post_market` | pre 子集 + get_bot_log + create_post + 3× hourly analysis | 2 |
-| `intraday` | get_stock_daily_reports + get_position + create_intraday | 3 |
-| `on_demand_analysis` | search_code + get_single_prompt_template + get_mcp_analysis + get_current_price | 4 |
-| `strategy` | §2.3 全部 + loopback | 5 |
-| `bot_manager` | §4.2–4.8 全部 + §2.5 日志 + search_code + get_position | 6 |
+| Skill Pack | 包含 Tool 组 | Phase | manifest |
+|------------|--------------|-------|----------|
+| `pre_market` | §1.1–1.2 + §2.1–2.2 + §4.1 create_pre/save_local + §5 Meta | **1** | `skills/pre_market/manifest.yaml`（15） |
+| `post_market` | check + bot codes + list_today_post_market + 3× hourly analysis + bot log + post 报告 | 2 | `skills/post_market/manifest.yaml`（10） |
+| `intraday` | get_position + daily reports + capital + hourly analysis + intraday 报告 | 3 | `skills/intraday/manifest.yaml`（9） |
+| `on_demand_analysis` | search_code + get_single_prompt_template + get_mcp_analysis + get_current_price | 4 | — |
+| `strategy` | §2.3 全部 + loopback | 5 | — |
+| `bot_manager` | §4.2–4.8 全部 + §2.5 日志 + search_code + get_position | 6 | — |
 
 **Scheduled 模式排除**：§4.2–4.8 所有 `create_*` / `delete_*` / `update_*`（除 report 类 MVP 已控）。
 
@@ -244,7 +245,7 @@
 | Meta | 1 |
 | **合计** | **82** |
 
-运行态明细 → [tools-tree.md](./tools-tree.md)
+运行态明细 → [tools-status.md](./tools-status.md)
 
 ---
 
@@ -252,7 +253,7 @@
 
 ```text
 internal/tools/
-├── registry.go, bootstrap.go, bespoke.go
+├── registry.go, bootstrap.go, bespoke.go, resilience.go
 ├── catalog/catalog.go    # HTTP 规格
 ├── toolset.go, domains.go
 └── approval.go, contract.go, httpbackend.go

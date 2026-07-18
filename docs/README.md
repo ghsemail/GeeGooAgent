@@ -8,7 +8,7 @@
 |----------|------|
 | 系统总览 | [architecture/overview.md](./architecture/overview.md) |
 | **实现 / 未实现** | [architecture/implementation-status.md](./architecture/implementation-status.md) |
-| Tool 运行态 | [architecture/layers/L2-tools/tools-tree.md](./architecture/layers/L2-tools/tools-tree.md) |
+| Tool 运行态 | [architecture/layers/L2-tools/tools-status.md](./architecture/layers/L2-tools/tools-status.md) |
 
 六层文档均在 `architecture/layers/L0-infrastructure/` … `L5-application/`。
 

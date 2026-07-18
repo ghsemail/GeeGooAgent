@@ -8,7 +8,7 @@
 |------|------|
 | 第一次读代码库 | [overview.md](./overview.md) |
 | **哪些已实现 / 未实现** | **[implementation-status.md](./implementation-status.md)** |
-| Tool 能否调用 | [layers/L2-tools/tools-reference.md](./layers/L2-tools/tools-reference.md) |
+| Tool 能否调用 | [layers/L2-tools/tools-status.md](./layers/L2-tools/tools-status.md) |
 | 改 Agent 循环 | [layers/L4-runtime/agent-loop.md](./layers/L4-runtime/agent-loop.md) |
 | 改盘前 Workflow | [layers/L4-runtime/workflow-engine.md](./layers/L4-runtime/workflow-engine.md) |
 | 入口与命令 | [entrypoints.md](./entrypoints.md) |
@@ -34,7 +34,7 @@ architecture/
 ├── layers/
 │   ├── L0-infrastructure/    # SQLite、EventBus、Scheduler、Sandbox
 │   ├── L1-model-gateway/     # LLM Gateway
-│   ├── L2-tools/             # 82 Tool；tools-tree = 运行态 SSOT
+│   ├── L2-tools/             # 82 Tool；tools-status = 运行态 SSOT
 │   ├── L3-memory/            # Session、压缩、Working、Evidence
 │   ├── L4-runtime/           # ReAct、Workflow、Supervisor
 │   └── L5-application/       # Skill、触发、Rules

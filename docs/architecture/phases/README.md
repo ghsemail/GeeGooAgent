@@ -26,7 +26,7 @@
 | 富途 `get_position` 等 | ⚠️ | 依赖 MCP 配置 |
 | Bot 侧 scheduler | ❌ | Agent 不自动下单 |
 
-Tool 明细 → [layers/L2-tools/tools-reference.md](../layers/L2-tools/tools-reference.md)
+Tool 明细 → [layers/L2-tools/tools-status.md](../layers/L2-tools/tools-status.md)
 
 ## 原则
 

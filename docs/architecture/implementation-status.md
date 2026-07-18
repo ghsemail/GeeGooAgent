@@ -1,6 +1,6 @@
 # 实现状态（2026-07）
 
-> **单一事实来源**：本文与代码不一致时，以 `internal/` + [layers/L2-tools/tools-tree.md](./layers/L2-tools/tools-tree.md) 为准。  
+> **单一事实来源**：本文与代码不一致时，以 `internal/` + [layers/L2-tools/tools-status.md](./layers/L2-tools/tools-status.md) 为准。  
 > 业务能力分期见 [phases/README.md](./phases/README.md)。
 
 ## 图例
@@ -43,8 +43,8 @@
 |-------|------|------|------|
 | 0 | 平台内核 | ✅ | 见上表 |
 | 1 | 盘前 `pre_market` | ✅ | `workflow/premarket.go` + `skills/pre_market/` |
-| 2 | 盘后 `post_market` | 📋 | `loader.go` 注册名，**无步骤**、无 `skills/post_market/` |
-| 3 | 盘中 `intraday` | 📋 | 同上；富途三接口已接通 ✅ |
+| 2 | 盘后 `post_market` | ✅ | `workflow/postmarket.go` + `skills/post_market/` |
+| 3 | 盘中 `intraday` | ✅ | `workflow/intraday.go` + `skills/intraday/`；富途三接口已接通 |
 | 4 | 按需分析（chat） | ⚠️ | `market` toolset + ReAct；无独立 Skill 包 |
 | 5 | 策略 | ✅ | Grid/DCA/MCP 分析 LLM；loopback 原生 Go 回测 |
 | 6 | Bot / Reminder 管理 | ⚠️ | CRUD ✅ + schema/prompt；GeeGooBot 无 scheduler |
@@ -57,14 +57,14 @@
 | Skill | 注册 | 步骤 | 资源目录 | 状态 |
 |-------|------|------|----------|------|
 | `pre_market` | ✅ | PhaseA + PerStock | `skills/pre_market/` | ✅ |
-| `intraday` | ✅ | `emptySteps()` | 无 | 📋 |
-| `post_market` | ✅ | `emptySteps()` | 无 | 📋 |
+| `intraday` | ✅ | PerStock + hourly 分析 | `skills/intraday/` | ✅ |
+| `post_market` | ✅ | PhaseB + 3× hourly | `skills/post_market/` | ✅ |
 
 ---
 
 ## Tool 运行态摘要
 
-完整树 → [layers/L2-tools/tools-status.md](./layers/L2-tools/tools-status.md)（**推荐**）· [tools-tree.md](./layers/L2-tools/tools-tree.md)。
+完整树 → [layers/L2-tools/tools-status.md](./layers/L2-tools/tools-status.md)（**运行态 SSOT**）。
 
 | 类别 | 已注册 | 端到端可用 | 主要 ⚠️ |
 |------|--------|------------|---------|

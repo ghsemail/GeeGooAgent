@@ -10,7 +10,7 @@ The project now builds and runs as a single Go binary named `geegoo`. Configurat
 - [docs/architecture/overview.md](docs/architecture/overview.md) — system architecture
 - [docs/architecture/implementation-status.md](docs/architecture/implementation-status.md) — what's implemented
 - [docs/architecture/platform-blueprint/README.md](docs/architecture/platform-blueprint/README.md) — generic agent blueprint
-- [docs/architecture/layers/L2-tools/tools-tree.md](docs/architecture/layers/L2-tools/tools-tree.md) — registered tools
+- [docs/architecture/layers/L2-tools/tools-status.md](docs/architecture/layers/L2-tools/tools-status.md) — registered tools (runtime SSOT)
 
 Development plans (archived): [docs/archive/](docs/archive/).
 
