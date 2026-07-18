@@ -13,6 +13,7 @@ type HTTPSpec struct {
 
 // BespokeNames are implemented as dedicated handlers, not generic HTTP tools.
 var BespokeNames = map[string]bool{
+	"search_code": true, "web_search": true,
 	"check_trading_day": true, "get_current_price": true, "get_report_bot_codes": true,
 	"fetch_market_news": true, "fetch_stock_news": true, "get_mcp_analysis": true,
 	"get_single_prompt_template": true,
@@ -25,7 +26,6 @@ var BespokeNames = map[string]bool{
 // AllHTTP returns generic MCP HTTP tool specs (excludes bespoke names).
 func AllHTTP() []HTTPSpec {
 	raw := []HTTPSpec{
-		{Name: "search_code", Description: "Search stock by code or name.", Path: "/searchCode", RequiresMCPToken: false, DirectResponse: true},
 		{Name: "get_position", Description: "查询富途账户持仓。须先 search_code；无持仓或富途未配时 skip。", Path: "/getPosition", Parameters: codeQueryParameters("标的代码")},
 		{Name: "get_current_price", Description: "Get latest price.", Path: "/getCurrentPrice", DirectResponse: true},
 		{Name: "get_ticker", Description: "盘中逐笔行情 (MCP /getTicker)；区别于 get_current_price 现价快照。需富途 OpenD；非交易时段可能 skip。", Path: "/getTicker", Parameters: codeQueryParameters("标的代码")},

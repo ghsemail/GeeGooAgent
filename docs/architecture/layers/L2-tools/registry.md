@@ -49,7 +49,7 @@ tools.RegisterAll(r, deps)
         └── registerReportTools + registerMetaTools
 ```
 
-`catalog.BespokeNames` 中的 Tool **不**走通用 HTTP 转发，避免双注册逻辑冲突（`search_code` 在 catalog 有定义但由 bespoke 覆盖）。
+`catalog.BespokeNames` 中的 Tool **不**走通用 HTTP 转发（如 `search_code` 直连 Signal `:3200` 的 `SearchCode` 客户端）。
 
 ## HTTP 转发路径
 
