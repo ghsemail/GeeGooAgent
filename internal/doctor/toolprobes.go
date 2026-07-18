@@ -24,8 +24,9 @@ func checkToolProbes(cfg *config.AppConfig) []CheckResult {
 	defer cancel()
 
 	client := mcp.NewClient(cfg.EffectiveMCPURL(), cfg.MCPAPIKey(), mcp.Options{
-		Timeout:    25 * time.Second,
-		MaxRetries: 1,
+		Timeout:      25 * time.Second,
+		MaxRetries:   1,
+		AllowedHosts: cfg.ResolvedAllowedHosts(),
 	})
 	token := cfg.MCPToken()
 
