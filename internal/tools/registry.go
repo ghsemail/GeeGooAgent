@@ -41,6 +41,8 @@ type Context struct {
 	DelegateDepth int
 	// Progress receives live loop events when tools spawn sub-agents.
 	Progress ProgressFunc
+	// ClarifyFn blocks for clarify tool user input (interactive chat).
+	ClarifyFn ClarifyFunc
 }
 
 // ProgressFunc is the chat progress callback signature.

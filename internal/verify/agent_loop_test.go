@@ -10,6 +10,7 @@ import (
 func TestVerifyAgentLoopParityOnRegistry(t *testing.T) {
 	t.Parallel()
 	reg := tools.NewRegistry()
+	reg.Register(tools.Tool{Name: "clarify"})
 	reg.Register(tools.Tool{Name: "delegate_task"})
 	reg.Register(tools.Tool{Name: "recall"})
 	reg.Register(tools.Tool{Name: "search_code"})

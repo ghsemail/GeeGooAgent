@@ -37,6 +37,12 @@ type Model struct {
 	approvalTool    string
 	approvalArgs    string
 
+	clarifyPending      bool
+	clarifyAwaitingText bool
+	clarifyQuestion     string
+	clarifyChoices      []string
+	clarifyFocus        int
+
 	sessionPicker bool
 	pickerFocus   int
 

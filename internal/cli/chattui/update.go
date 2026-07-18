@@ -102,12 +102,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case approvalTickMsg:
 		host := m.activeHost()
-		if host != nil && !m.approvalPending {
+		if host != nil && !m.approvalPending && !m.clarifyPending && !m.clarifyAwaitingText {
 			if tool, args, ok := host.PollApproval(); ok {
 				m.approvalPending = true
 				m.approvalTool = tool
 				m.approvalArgs = args
 				m.info = fmt.Sprintf("写操作确认: %s — 输入 y 执行 / n 跳过", tool)
+			} else if q, choices, ok := host.PollClarify(); ok {
+				m.clarifyQuestion = q
+				m.clarifyChoices = choices
+				if len(choices) == 0 {
+					m.clarifyAwaitingText = true
+					m.info = "请回答上方问题"
+				} else {
+					m.clarifyPending = true
+					m.clarifyFocus = 0
+					m.info = ""
+				}
 			}
 		}
 		return m, tickApproval()
@@ -147,6 +158,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.info = "已跳过"
 				return m, nil
 			}
+			return m, nil
+		}
+		if m.clarifyPending {
+			if m.handleClarifyKey(msg) {
+				m.refreshViewport()
+				return m, nil
+			}
+		}
+		if m.clarifyAwaitingText && msg.Type == tea.KeyEsc {
+			m.submitClarifyAnswer("", true)
+			m.input.SetValue("")
+			m.refreshViewport()
 			return m, nil
 		}
 		switch msg.Type {
@@ -217,6 +240,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.Alt {
 				return m, nil
 			}
+			if m.clarifyAwaitingText {
+				text := strings.TrimSpace(m.input.Value())
+				m.input.SetValue("")
+				m.submitClarifyAnswer(text, true)
+				m.refreshViewport()
+				return m, nil
+			}
 			text := strings.TrimSpace(m.input.Value())
 			if text == "" {
 				return m, nil
@@ -234,17 +264,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	s := m.activeSlot()
-	if s == nil || !s.Busy {
+	if s == nil || (!s.Busy && !m.clarifyAwaitingText) {
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)
 		m.clampSlashPick()
+		return m, cmd
+	}
+	if m.clarifyAwaitingText {
+		var cmd tea.Cmd
+		m.input, cmd = m.input.Update(msg)
 		return m, cmd
 	}
 	return m, nil
 }
 
 func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	if m.sessionPicker || m.approvalPending {
+	if m.sessionPicker || m.approvalPending || m.clarifyPending {
 		return m, nil
 	}
 	switch msg.Action {
@@ -387,6 +422,12 @@ func (m *Model) moveFocus(delta int) {
 }
 
 func (m Model) handleSubmit(text string) (tea.Model, tea.Cmd) {
+	if m.clarifyAwaitingText {
+		m.submitClarifyAnswer(strings.TrimSpace(text), true)
+		m.input.SetValue("")
+		m.refreshViewport()
+		return m, nil
+	}
 	if strings.HasPrefix(text, "/") {
 		return m.handleSlash(text)
 	}
@@ -394,7 +435,7 @@ func (m Model) handleSubmit(text string) (tea.Model, tea.Cmd) {
 	if s == nil {
 		return m, nil
 	}
-	if s.Busy {
+	if s.Busy && !m.clarifyAwaitingText {
 		m.info = "请等待当前回合结束，或 Esc 中断"
 		return m, nil
 	}
@@ -601,6 +642,12 @@ func (m Model) View() string {
 	if m.approvalPending {
 		b.WriteString(styleErr.Render(fmt.Sprintf("⚠ 确认写操作 %s: %s  [y/n]", m.approvalTool, m.approvalArgs)))
 		b.WriteByte('\n')
+	} else if m.clarifyPending {
+		b.WriteString(chatui.RenderClarifyPanel(m.clarifyQuestion, m.clarifyDisplayOptions(), m.clarifyFocus, m.width))
+		b.WriteByte('\n')
+	} else if m.clarifyAwaitingText && m.clarifyQuestion != "" {
+		b.WriteString(chatui.RenderClarifyPanel(m.clarifyQuestion, nil, 0, m.width))
+		b.WriteByte('\n')
 	} else if m.info != "" {
 		b.WriteString(styleDim.Render(m.info))
 		b.WriteByte('\n')
@@ -612,7 +659,7 @@ func (m Model) View() string {
 		b.WriteString(renderSlashMenu(matches, m.slashPick, m.width))
 		b.WriteByte('\n')
 	}
-	if !m.approvalPending {
+	if !m.approvalPending && !m.clarifyPending {
 		b.WriteString(renderInputLine(m.input))
 	}
 	return b.String()

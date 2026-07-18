@@ -83,6 +83,7 @@ var (
 		"fetch_stock_news":         {},
 		"web_search":               {},
 		"recall":                   {},
+		"clarify":                  {},
 		"delegate_task":            {},
 	}
 	strategyTools = map[string]struct{}{

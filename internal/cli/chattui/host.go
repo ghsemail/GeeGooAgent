@@ -14,6 +14,9 @@ type ReplHost struct {
 	ConfigPath string
 	approveCh  chan bool
 	askCh      chan approvalAsk
+
+	clarifyAnsCh chan clarifyAnswer
+	askClarifyCh chan clarifyAsk
 }
 
 type approvalAsk struct {
@@ -24,12 +27,15 @@ type approvalAsk struct {
 // NewReplHost wraps a Repl for TUI use.
 func NewReplHost(repl *chatrepl.Repl, configPath string) *ReplHost {
 	h := &ReplHost{
-		Repl:       repl,
-		ConfigPath: configPath,
-		approveCh:  make(chan bool, 1),
-		askCh:      make(chan approvalAsk, 1),
+		Repl:         repl,
+		ConfigPath:   configPath,
+		approveCh:    make(chan bool, 1),
+		askCh:        make(chan approvalAsk, 1),
+		clarifyAnsCh: make(chan clarifyAnswer, 1),
+		askClarifyCh: make(chan clarifyAsk, 1),
 	}
 	repl.SetApprovalFn(h.promptApproval)
+	repl.SetClarifyFn(h.promptClarify)
 	return h
 }
 
@@ -43,6 +49,15 @@ func (h *ReplHost) promptApproval(toolName string, args map[string]any) bool {
 	default:
 	}
 	return <-h.approveCh
+}
+
+func (h *ReplHost) promptClarify(question string, choices []string) (string, bool) {
+	select {
+	case h.askClarifyCh <- clarifyAsk{Question: question, Choices: append([]string(nil), choices...)}:
+	default:
+	}
+	ans := <-h.clarifyAnsCh
+	return ans.Answer, ans.OK
 }
 
 // PollApproval returns pending approval request if any.
@@ -59,6 +74,24 @@ func (h *ReplHost) PollApproval() (tool, args string, ok bool) {
 func (h *ReplHost) AnswerApproval(yes bool) {
 	select {
 	case h.approveCh <- yes:
+	default:
+	}
+}
+
+// PollClarify returns a pending clarify prompt if any.
+func (h *ReplHost) PollClarify() (question string, choices []string, ok bool) {
+	select {
+	case a := <-h.askClarifyCh:
+		return a.Question, a.Choices, true
+	default:
+		return "", nil, false
+	}
+}
+
+// AnswerClarify responds to the pending clarify prompt.
+func (h *ReplHost) AnswerClarify(answer string, ok bool) {
+	select {
+	case h.clarifyAnsCh <- clarifyAnswer{Answer: answer, OK: ok}:
 	default:
 	}
 }

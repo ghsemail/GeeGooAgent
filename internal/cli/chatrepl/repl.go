@@ -42,6 +42,7 @@ type Repl struct {
 	StepLog      []runtime.StepRecord
 	InstallDir   string
 	ProjectRoot  string
+	clarifyFn    tools.ClarifyFunc
 	curCancel    context.CancelFunc
 	stdin        io.Reader
 	stdout       io.Writer
@@ -328,6 +329,7 @@ func (r *Repl) runTurn(text string) runtime.TurnResult {
 	// therefore pass through ApprovalGate instead of inheriting the workflow
 	// default (non-interactive) policy from App.ToolContext.
 	ctx.Interactive = true
+	ctx.ClarifyFn = r.promptClarify
 	turnCtx := r.turnCtx()
 	result := r.App.Agent.Run(turnCtx, r.Session, text, ctx, schemas)
 	if r.curCancel != nil {

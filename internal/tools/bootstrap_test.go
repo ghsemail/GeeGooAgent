@@ -24,8 +24,8 @@ func TestRegisterAllToolCount(t *testing.T) {
 	r := tools.NewRegistry()
 	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: t.TempDir()})
 	names := r.Names()
-	if len(names) != 82 {
-		t.Fatalf("expected 82 tools, got %d", len(names))
+	if len(names) != 83 {
+		t.Fatalf("expected 83 tools, got %d", len(names))
 	}
 }
 
@@ -41,7 +41,7 @@ func TestAllToolsDryRun(t *testing.T) {
 		SessionID: "test", MCPToken: "tok", DryRun: true, WorkspaceRoot: root, StateStore: state,
 	}
 	for _, name := range r.Names() {
-		if name == "read_working_state" {
+		if name == "read_working_state" || name == "clarify" {
 			continue
 		}
 		result := r.Execute(tools.CallRequest{Name: name, Arguments: map[string]any{

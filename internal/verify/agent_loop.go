@@ -31,6 +31,7 @@ func (c AgentLoopCard) Summary() string {
 // VerifyAgentLoopParity runs offline checks for Hermes agent-loop alignment.
 func VerifyAgentLoopParity(reg ToolLookup) []AgentLoopCard {
 	checks := []AgentLoopCard{
+		checkTool(reg, "clarify", "引导选项 clarify"),
 		checkTool(reg, "delegate_task", "子 Agent delegate_task"),
 		checkTool(reg, "recall", "跨会话记忆 recall"),
 		checkTool(reg, "search_code", "行情检索 search_code"),

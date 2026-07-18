@@ -15,6 +15,7 @@
 | `hermes_cli/runtime_provider.py` (18+ provider) | `internal/llm/presets.go` (DeepSeek/OpenAI/Minimax) + `BuildProviderFromLLMFields` | ✅ 按需精简 |
 | `tools/registry.py` (70+/28 toolset) | `internal/tools/registry.go` + `catalog/` + `bespoke.go` + `domains.go` | ✅ 对齐 |
 | `tools/approval.py` | `internal/tools/approval.go` | ✅ 对齐 |
+| `tools/clarify_tool.py` | `internal/tools/clarify.go` + TUI 选项面板 | ✅ |
 | `hermes_state.py` SQLite+FTS5+血缘 | `internal/chatsession/sqlite.go` + `infra/db.go` (WAL+FTS5) | ✅ 对齐（血缘未做） |
 | `gateway/session.py` | `internal/chatsession/` | ✅ |
 | `gateway/platforms/` (20 IM) | — | ❌ 不做（不需要 IM） |

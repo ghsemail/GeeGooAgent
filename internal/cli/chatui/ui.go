@@ -145,6 +145,36 @@ func RenderProcessPanel(content string, width int) string {
 	return styleProcessBox.Width(w).Render(content)
 }
 
+// RenderClarifyPanel renders a Hermes-style multiple-choice clarify prompt.
+func RenderClarifyPanel(question string, options []string, focus int, width int) string {
+	var b strings.Builder
+	b.WriteString(styleAmber.Bold(true).Render("? " + strings.TrimSpace(question)))
+	if len(options) > 0 {
+		for i, opt := range options {
+			b.WriteByte('\n')
+			label := fmt.Sprintf("  [%s] %s", choiceLabel(i), opt)
+			if i == focus {
+				b.WriteString(styleGold.Render("› " + label))
+			} else {
+				b.WriteString(styleDim.Render(label))
+			}
+		}
+		b.WriteByte('\n')
+		b.WriteString(styleDim.Render("  ↑↓ 选择 · Enter 确认 · A/B/C 或 1/2/3 · Esc 跳过"))
+	} else {
+		b.WriteByte('\n')
+		b.WriteString(styleDim.Render("  在下方输入回答 · Esc 跳过"))
+	}
+	return styleProcessBox.Width(clampRuleWidth(width)).Render(strings.TrimRight(b.String(), "\n"))
+}
+
+func choiceLabel(i int) string {
+	if i < 0 || i > 25 {
+		return fmt.Sprintf("%d", i+1)
+	}
+	return string(rune('A' + i))
+}
+
 // PrintBanner shows Hermes-style two-column welcome panel.
 func (u *ChatUI) PrintBanner(opts BannerOptions) {
 	u.write(RenderBanner(opts, u.width, u.plain))

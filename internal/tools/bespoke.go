@@ -26,6 +26,7 @@ var dryRunSampleBots = []map[string]string{
 
 // RegisterBespokeTools registers hand-written MCP and local tools.
 func RegisterBespokeTools(r *Registry, deps Deps) {
+	registerClarifyTool(r)
 	registerPerceptionTools(r, deps)
 	registerAnalysisTools(r, deps)
 	registerReportTools(r, deps)
