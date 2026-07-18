@@ -196,6 +196,14 @@ func parseOpenAIStream(r io.Reader, model string, onDelta StreamHandler) (*Respo
 				acc.Name = tc.Function.Name
 			}
 			acc.appendArgs(tc.Function.Arguments)
+			if onDelta != nil && (tc.Function.Name != "" || tc.Function.Arguments != "") {
+				onDelta(StreamDelta{ToolCall: &ToolCallStreamDelta{
+					Index:     tc.Index,
+					ID:        tc.ID,
+					Name:      tc.Function.Name,
+					Arguments: tc.Function.Arguments,
+				}})
+			}
 		}
 	}
 	if err := scanner.Err(); err != nil {

@@ -468,6 +468,14 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 		if content, _ := data["content"].(string); content != "" {
 			u.WriteStreamDelta(content)
 		}
+	case "tool_gen_start":
+		if name, _ := data["name"].(string); name != "" && u.plain {
+			u.println(fmt.Sprintf("  [tool] ⋯ %s", name))
+		}
+	case "tool_gen_delta":
+		if args, _ := data["arguments"].(string); args != "" && u.plain {
+			u.println(fmt.Sprintf("  [tool] %s", truncate(args, 120)))
+		}
 	case "llm_plan":
 		reasoning, _ := data["reasoning"].(string)
 		content, _ := data["content"].(string)

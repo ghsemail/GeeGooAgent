@@ -133,7 +133,7 @@ func (r *Repl) attachProgress() {
 			live.Emit(event, data)
 		}
 		switch event {
-		case "stream_delta", "turn_start", "reply_start", "thinking_start", "thinking_stop":
+		case "stream_delta", "turn_start", "reply_start", "thinking_start", "thinking_stop", "tool_gen_start", "tool_gen_delta":
 			sink.EmitProgress(event, data)
 			return
 		case "llm_tools", "tool_start", "error":

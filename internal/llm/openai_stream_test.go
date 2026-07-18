@@ -20,9 +20,13 @@ func TestParseOpenAIStreamContentAndTools(t *testing.T) {
 	}, "\n")
 
 	var parts []string
+	var toolParts []string
 	resp, err := parseOpenAIStream(strings.NewReader(sse), "m", func(d StreamDelta) {
 		if d.Content != "" {
 			parts = append(parts, d.Content)
+		}
+		if d.ToolCall != nil && d.ToolCall.Arguments != "" {
+			toolParts = append(toolParts, d.ToolCall.Arguments)
 		}
 	})
 	if err != nil {
@@ -30,6 +34,9 @@ func TestParseOpenAIStreamContentAndTools(t *testing.T) {
 	}
 	if strings.Join(parts, "") != "你好世界" {
 		t.Fatalf("deltas=%v", parts)
+	}
+	if len(toolParts) != 2 || !strings.Contains(strings.Join(toolParts, ""), "腾讯") {
+		t.Fatalf("tool deltas=%v", toolParts)
 	}
 	if resp.Content != "你好世界" {
 		t.Fatalf("content=%q", resp.Content)

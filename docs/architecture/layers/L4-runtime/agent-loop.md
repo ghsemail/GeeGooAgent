@@ -84,7 +84,7 @@ func (a *Agent) Run(
 ## 可观测性
 
 - `SetProgress(fn)` — chatui spinner / 工具预览
-- Hermes 对齐回调：`thinking_start` / `thinking_stop`、`step_complete`、`stream_delta`（content + reasoning）
+- Hermes 对齐回调：`thinking_start/stop`、`step_complete`、`tool_gen_start/delta`、`stream_delta`
 - `Result.Meta` — HTTP 工具 `api_code`、`duration_ms`
 - EventBus（L0）— workflow 路径发 `ToolCalled` / `ToolCompleted`；chat 路径发 `TurnStarted`/`TurnCompleted`；报告合成发 `SynthesisStarted`/`SynthesisCompleted`
 

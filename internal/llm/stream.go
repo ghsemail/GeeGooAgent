@@ -6,6 +6,15 @@ import "context"
 type StreamDelta struct {
 	Content          string
 	ReasoningContent string
+	ToolCall         *ToolCallStreamDelta
+}
+
+// ToolCallStreamDelta is a fragment of an in-flight tool call from the provider stream.
+type ToolCallStreamDelta struct {
+	Index     int
+	ID        string
+	Name      string
+	Arguments string
 }
 
 // StreamHandler receives content as the model generates it.

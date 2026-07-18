@@ -37,6 +37,46 @@ func (s *LiveSlot) ApplyProgress(event string, data map[string]any) {
 		s.ensureLiveThinkingStream()
 	case "thinking_stop":
 		s.finalizeLiveThinking()
+	case "tool_gen_start":
+		s.Status = "planning tools…"
+		s.ensureLiveTools()
+		name, _ := data["name"].(string)
+		if name == "" {
+			return
+		}
+		idx := s.blockIndex(s.LiveToolsID)
+		if idx >= 0 {
+			line := "⋯ " + name
+			if s.Blocks[idx].Body != "" {
+				s.Blocks[idx].Body += "\n" + line
+			} else {
+				s.Blocks[idx].Body = line
+			}
+			s.Blocks[idx].Live = true
+		}
+	case "tool_gen_delta":
+		args, _ := data["arguments"].(string)
+		name, _ := data["name"].(string)
+		if args == "" && name == "" {
+			return
+		}
+		s.ensureLiveTools()
+		idx := s.blockIndex(s.LiveToolsID)
+		if idx < 0 {
+			return
+		}
+		if name != "" && !strings.Contains(s.Blocks[idx].Body, name) {
+			line := "⋯ " + name
+			if s.Blocks[idx].Body != "" {
+				s.Blocks[idx].Body += "\n" + line
+			} else {
+				s.Blocks[idx].Body = line
+			}
+		}
+		if args != "" {
+			s.Blocks[idx].Body += TruncateRunes(args, 80)
+			s.Blocks[idx].Live = true
+		}
 	case "stream_delta":
 		reasoning, _ := data["reasoning"].(string)
 		if strings.TrimSpace(reasoning) != "" {

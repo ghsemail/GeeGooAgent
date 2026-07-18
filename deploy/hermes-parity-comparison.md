@@ -85,7 +85,7 @@
 1. **显式 prompt 缓存断点**：靠前缀稳定隐式命中，无 Anthropic cache_control
 2. **工具自注册**：主路径仍 `RegisterAll`，但已支持 `AddRegistrar` 扩展
 3. **Profile 隔离**：单 profile，多租户不支持（YAGNI）
-4. **CLI 打字机**：`stream_delta` 已在 TTY 边生成边显示；reasoning 经 `thinking_start/stop` 分段；markdown 框仅用于非流式回退
+4. **CLI 打字机**：`stream_delta` 边生成边显示；reasoning 经 `thinking_start/stop` 分段；tool 参数经 `tool_gen_start/delta` 预览
 
 ## 六、结论
 
