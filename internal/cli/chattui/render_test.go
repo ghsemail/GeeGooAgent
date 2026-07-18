@@ -11,8 +11,8 @@ func TestWriteSegmentDivider(t *testing.T) {
 	var m Model
 	var b strings.Builder
 	m.writeSegmentDivider(&b, 80, segmentUser, segmentProcess)
-	if !strings.Contains(b.String(), "─") {
-		t.Fatalf("expected soft divider between user and process: %q", b.String())
+	if b.String() != "" {
+		t.Fatalf("no divider before process panel: %q", b.String())
 	}
 	b.Reset()
 	m.writeSegmentDivider(&b, 80, segmentUser, segmentReply)

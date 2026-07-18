@@ -117,7 +117,6 @@ func (m *Model) renderTranscript() string {
 			b.WriteString(chatui.RenderUserLine(block.Body))
 			b.WriteByte('\n')
 			if s.Busy && i == len(s.Blocks)-1 {
-				m.writeSegmentDivider(&b, width, segmentUser, segmentProcess)
 				b.WriteString(chatui.RenderInitializing())
 				b.WriteByte('\n')
 			}
@@ -167,11 +166,12 @@ func (m *Model) writeSegmentDivider(b *strings.Builder, width int, prev, cur tra
 		b.WriteByte('\n')
 		return
 	}
+	if cur == segmentProcess {
+		return
+	}
 	switch {
-	case prev == segmentUser && cur == segmentProcess,
-		prev == segmentUser && cur == segmentReply,
-		prev == segmentProcess && cur == segmentReply,
-		prev == segmentReply && cur == segmentProcess:
+	case prev == segmentUser && cur == segmentReply,
+		prev == segmentProcess && cur == segmentReply:
 		b.WriteString(chatui.RenderSoftDivider(width))
 		b.WriteByte('\n')
 	}
