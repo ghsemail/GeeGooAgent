@@ -46,6 +46,7 @@
 | 会话持久化 | SQLite+FTS5+血缘 | SQLite+FTS5+压缩血缘（metadata） | ✅ |
 | 迭代预算耗尽 | 返回已完成工作摘要 | ✅ `finishBudgetExhausted` + 无 tool 终局 LLM 调用 | ✅ |
 | 子 Agent / delegate | ✅ delegate_task | ✅ 独立会话 + `sub_agent_max_steps`；禁止嵌套 | ✅ |
+| Chat 工具拦截 | ✅ agent 层 memory/todo 类 | ✅ workflow 独占 tool 过滤 + `tool_intercepted` | ✅ |
 | 平台无关核心 | ✅ | ✅ P2c | ✅ |
 | 松耦合 | ✅ 注册表+check_fn | ⚠️ Deps 硬编 | ⚠️ |
 | Profile 隔离 | ✅ | ❌ 单 profile | ❌（YAGNI） |

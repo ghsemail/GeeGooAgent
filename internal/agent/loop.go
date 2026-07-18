@@ -125,6 +125,9 @@ func (l *Loop) RunTurn(
 	if toolCtx.EventBus == nil && l.eventBus != nil {
 		toolCtx.EventBus = l.eventBus
 	}
+	if toolCtx.Interactive {
+		schemas = filterInteractiveSchemas(schemas)
+	}
 
 	session.AppendMessage(llm.Message{Role: llm.RoleUser, Content: userText})
 	messages := session.LLMMessages()

@@ -87,6 +87,7 @@ func (a *Agent) Run(
 - `SetProgress(fn)` — chatui spinner / 工具预览
 - Hermes 对齐回调：`thinking_start/stop`、`step_complete`、`tool_gen_start/delta`、`subagent_*`、`stream_delta`
 - `delegate_task` — 子 Agent 独立会话 + `sub_agent_max_steps` 预算；禁止嵌套
+- **Chat 工具拦截** — interactive 模式从 schema 剔除 workflow 独占 tool；运行时 `tool_intercepted` 兜底（如 `read_working_state` → 引导 `recall`）
 - `Result.Meta` — HTTP 工具 `api_code`、`duration_ms`
 - EventBus（L0）— workflow 路径发 `ToolCalled` / `ToolCompleted`；chat 路径发 `TurnStarted`/`TurnCompleted`；报告合成发 `SynthesisStarted`/`SynthesisCompleted`
 
