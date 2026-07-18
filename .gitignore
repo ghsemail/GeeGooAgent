@@ -43,6 +43,7 @@ scripts/_*
 *_test_out.txt
 bot_test_out.txt
 signal_test_out.txt
+.tmp/
 
 # Git worktrees
 .worktrees/
