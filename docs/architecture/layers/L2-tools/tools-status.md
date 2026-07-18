@@ -1,4 +1,4 @@
-# GeeGooAgent Tools 运行态总览（2026-07-17）
+# GeeGooAgent Tools 运行态总览（2026-07-18）
 
 > **运行态 SSOT**：与代码不一致时以 `internal/tools/` 为准。  
 > 相关：[tool-catalog.md](./tool-catalog.md)（设计全集）· [tool-server-mapping.md](./tool-server-mapping.md)（HTTP 路径）· [implementation-status.md](../../implementation-status.md)
@@ -45,15 +45,29 @@
 | Tool | 状态 | 实现 | 来源 / 路径 | 端口 | 备注 |
 |------|------|------|-------------|------|------|
 | `check_trading_day` | ✅ | bespoke | mcp-api `/checkTradingDay` | 3120 | 需 `mcp_token` |
-| `search_code` | ✅ | bespoke | signal-api `/searchCode` | 3200 | 不需 `mcp_token` |
+| `search_code` | ✅ | bespoke | signal-api `/searchCode` → Mongo `stock_db` | 3200 | 不需 `mcp_token`；需 Bearer `signal_api_key` |
 | `web_search` | ✅ | bespoke | DuckDuckGo 本地 | — | 股票库无结果时用 |
-| `get_current_price` | ✅ | bespoke | mcp-api `/getCurrentPrice` | 3120 | 现价快照 |
-| `get_ticker` | ✅ | HTTP | mcp-api `/getTicker` | 3120 | 空 payload 自动重试 1 次（2s）；非交易时段仍可能 skip |
-| `get_broker` | ✅ | HTTP | mcp-api `/getBroker` | 3120 | 同上 |
-| `get_position` | ✅ | HTTP | mcp-api `/getPosition` | 3120 | 同上；真实空仓仍 skip |
+| `get_current_price` | ✅ | bespoke | mcp-api `/getCurrentPrice` → GeeGooData 行情 | 3120→3300 | **现价快照**；日常查价首选 |
+| `get_ticker` | ✅ | HTTP | mcp-api `/getTicker` → `futu_bridge` → 本机 OpenD | 3120 | **盘中逐笔**；非 TradingData；空 payload 重试 1 次 |
+| `get_broker` | ✅ | HTTP | mcp-api `/getBroker` → `futu_bridge` → OpenD | 3120 | 同上 |
+| `get_position` | ✅ | HTTP | mcp-api `/getPosition` → `futu_bridge` → OpenD | 3120 | 同上；真实空仓仍 skip |
 | `fetch_market_news` | ✅ | bespoke | **GeeGooBot** `/getMarketNews` → GeeGooData `/v1/news/market`；本地 finance-news / web_search 回退 | — | 见 [geegoodata-news.md](../../domains/geegoodata-news.md) |
 | `fetch_stock_news` | ✅ | bespoke | **GeeGooBot** `/getStockNews` → GeeGooData `/v1/news/stock`；本地 / web_search 回退 | — | 双源仍无 → StatusError |
 | `get_report_bot_codes` | ✅ | bespoke | mcp-api `/getReportBotCodes` | 3120 | 盘前待写报告标的 |
+
+---
+
+## 一点五、查价 vs 逐笔（`get_current_price` / `get_ticker`）
+
+| 维度 | `get_current_price` | `get_ticker` |
+|------|---------------------|--------------|
+| 用途 | 最新价/涨跌幅等**快照** | 盘中**逐笔成交**（time & sales） |
+| 调用链 | Agent → Bot `:3120` `/getCurrentPrice` → GeeGooData `:3300` | Agent → Bot `:3120` `/getTicker` → Python `futu_bridge` → **Futu OpenD** `:11111` |
+| 是否走 TradingData | 否（GeeGooData） | **否**（TradingData 无逐笔 API，不可替代） |
+| 是否需 OpenD | 否 | **是**（Bot 机本机 `127.0.0.1:11111`） |
+| 非交易时段 | 通常仍有快照 | 可能为空或仅历史最后几条；doctor 空结果 → `[WARN]` |
+
+`search_code` 为第三条独立链路：Agent → Signal `:3200` `/searchCode` → Mongo `stock_db`（与 Futu / TradingData 无关）。
 
 ---
 
@@ -169,7 +183,8 @@ manifest 路径：`skills/<skill>/manifest.yaml`。Skill 文档 → [L5 skills](
 | 现象 | 可能原因 | 处理 |
 |------|----------|------|
 | 资金类 skip | Bot→CN 节点防火墙 / Token / 标的无成交 | `verify_e2e_capital.py`；查 Bot `.env` 路由 |
-| 富途三类 skip | OpenD 未配或非交易时段 | 用 `get_current_price` |
+| `search_code` doctor FAIL | 曾误截断响应体；或 `signal_api_key` 未配 | 用 `mcp.Client.SearchCode` 探针；确认 `:3200` Bearer |
+| 富途三类 skip / 500 | OpenD 未起、非交易时段、或 bridge stdout 混日志 | 查 Bot `mcp-api.out`；查价改用 `get_current_price` |
 | 新闻 `StatusError` | 双源均无标题 | 检查网络；`fetch_market_news` / `fetch_stock_news` 行为一致 |
 | generate 503 | analyze-api 或 LLM 未配 | `curl :3230/health` |
 | Bot 创建不跑 | GeeGooBot 无 scheduler | 架构缺口，非 Agent bug |
@@ -221,7 +236,8 @@ GeeGooAgent Tools
 
 | 目标 | 推荐 | 避免 |
 |------|------|------|
-| 查价 | `search_code` → `get_current_price` | 直接用 `get_ticker` |
+| 查价 | `search_code` → `get_current_price` | 用 `get_ticker` 当现价用（链路更重、依赖 OpenD） |
+| 盘中逐笔 | `get_ticker`（交易时段） | 期望走 GeeGooData / TradingData（无此能力） |
 | 技术分析 | `get_single_prompt_template` → `get_mcp_analysis` | 缺 `period` |
 | DCA 方案 | 先选信号 → `generate_dca_strategy` → 可选 `loopback_strategy` | 未选 `signal_id` 就 generate |
 | 新闻 | `fetch_stock_news` / `fetch_market_news`；库无结果用 `web_search` | — |
@@ -241,4 +257,5 @@ GeeGooAgent Tools
 
 ```bash
 go test ./internal/tools/... -count=1
+python scripts/verify_e2e_news.py    # Bot 新闻路由
 ```
