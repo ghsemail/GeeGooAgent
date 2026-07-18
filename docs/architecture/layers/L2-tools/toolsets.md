@@ -12,10 +12,11 @@
 | `strategy` | 策略生成与回测 | ✅ | 3 |
 | `bot_manager` | 交易 Bot | ✅ | 20 |
 | `reminder_manager` | 提醒 Bot | ✅ | 15 |
-| `report_query` | 报告查询 | ✅ | 10 |
+| `report_query` | 报告查询 | ✅ | 13 |
 | `report_workflow` | 报告 Workflow | ❌ | 8 |
+| `prompt_template` | Prompt 模板 CRUD | ❌ | 6 |
 
-Chat 切换：`/toolsets market,strategy` · `/toolsets default`
+Chat 切换：`/toolsets market,strategy` · `/toolsets default` · `/toolsets prompt_template`（高级）
 
 Workflow（`geegoo run`）不按 toolset 过滤，步骤在 `workflow/premarket.go` 硬编码。
 

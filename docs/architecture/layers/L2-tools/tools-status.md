@@ -34,9 +34,9 @@
 | 维度 | 数量 |
 |------|------|
 | Registry 已注册 | **82** |
-| 默认 chat 白名单 | **~73** |
+| 默认 chat 白名单 | **68** |
 | Bespoke 手写 | **21** |
-| HTTP 转发（catalog） | **60** |
+| HTTP 转发（catalog） | **61** |
 
 ---
 
@@ -199,10 +199,11 @@ manifest 路径：`skills/<skill>/manifest.yaml`。Skill 文档 → [L5 skills](
 | `strategy` | ✅ | 3 | generate + loopback |
 | `bot_manager` | ✅ | 20 | 交易 Bot CRUD + log |
 | `reminder_manager` | ✅ | 15 | 提醒 Bot |
-| `report_query` | ✅ | 10 | 报告查询 |
-| `report_workflow` | 🔒 | 8 | 盘前写报告等 workflow 专用 |
+| `report_query` | ✅ | **13** | 报告查询 |
+| `report_workflow` | 🔒 | **8** | 盘前/盘后 workflow（含 `list_today_post_market_reports`） |
+| `prompt_template` | 🔒 | **6** | 竞品/ETF Prompt 模板 CRUD |
 
-切换：`/toolsets market,strategy` · `/toolsets default`。详见 [toolsets.md](./toolsets.md)。
+切换：`/toolsets market,strategy` · `/toolsets default` · `/toolsets prompt_template`（高级）
 
 ---
 
@@ -223,9 +224,9 @@ GeeGooAgent Tools
 │  ├─ generate_grid_strategy, generate_dca_strategy                     💬/✅ :3230
 │  └─ loopback_strategy                                                 💬 需 generate_* 参数链
 ├─ bot_manager / reminder_manager（各 5× CRUD + log）
-├─ report_query（盘前/盘中/盘后 CRUD + 聚合 + list_today_*）
-├─ report_workflow 🔒（create_pre_market, save_local, …）
-└─ prompt_template（竞品/ETF 模板 CRUD×6）
+├─ report_query（盘前/盘中/盘后 CRUD + 聚合 + list_today_reports）
+├─ report_workflow 🔒（create_pre_market, list_today_post_market_reports, save_local, …）
+└─ prompt_template 🔒（竞品/ETF 模板 CRUD×6；读模板用 market 内 get_single_prompt_template）
 ```
 
 实现层：**Agent/Go** · **Bot/Go** :3120 · **Signal/Go** :3200/3210 · **Analyze/Go** :3230 · **Data/Go** :3300 · **本地**

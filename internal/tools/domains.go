@@ -47,13 +47,22 @@ var (
 		[]string{"get_stock_daily_reports", "list_today_reports"},
 	)
 	reportWorkflowTools = map[string]struct{}{
-		"get_report_bot_codes":       {},
-		"create_pre_market_report":   {},
-		"save_local_report":          {},
-		"write_execution_log":        {},
-		"read_working_state":         {},
-		"recall_yesterday_summary":   {},
-		"get_bot_yesterday_attitude": {},
+		"get_report_bot_codes":           {},
+		"create_pre_market_report":       {},
+		"save_local_report":              {},
+		"write_execution_log":            {},
+		"read_working_state":             {},
+		"recall_yesterday_summary":       {},
+		"get_bot_yesterday_attitude":     {},
+		"list_today_post_market_reports": {},
+	}
+	promptTemplateTools = map[string]struct{}{
+		"create_competitor_prompt_template": {},
+		"edit_competitor_prompt_template":   {},
+		"delete_competitor_prompt_template": {},
+		"create_etf_prompt_template":        {},
+		"edit_etf_prompt_template":          {},
+		"delete_etf_prompt_template":        {},
 	}
 	marketTools = map[string]struct{}{
 		"check_trading_day":        {},
@@ -133,9 +142,7 @@ func toolDomain(name string) ToolDomain {
 		return DomainMarket
 	case inSet(name, strategyTools):
 		return DomainStrategy
-	case strings.HasPrefix(name, "create_") && strings.Contains(name, "prompt_template"),
-		strings.HasPrefix(name, "edit_") && strings.Contains(name, "prompt_template"),
-		strings.HasPrefix(name, "delete_") && strings.Contains(name, "prompt_template"):
+	case inSet(name, promptTemplateTools):
 		return DomainPromptTemplate
 	default:
 		return DomainMeta

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
@@ -54,5 +55,51 @@ func TestFormatToolsetsListingMarksActive(t *testing.T) {
 	text := tools.FormatToolsetsListing([]string{"market"})
 	if !strings.Contains(text, "* market") {
 		t.Fatalf("expected market marked active:\n%s", text)
+	}
+}
+
+func TestAllRegisteredToolsBelongToToolset(t *testing.T) {
+	t.Parallel()
+	client := mcp.NewClient("http://127.0.0.1:3120", "sk-test", mcp.Options{
+		AllowedHosts: []string{"127.0.0.1"},
+	})
+	r := tools.NewRegistry()
+	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: t.TempDir()})
+
+	union := map[string]struct{}{}
+	for _, ts := range tools.AllToolsets() {
+		for _, name := range ts.Names() {
+			union[name] = struct{}{}
+		}
+	}
+	var missing []string
+	for _, name := range r.Names() {
+		if _, ok := union[name]; !ok {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) > 0 {
+		t.Fatalf("registered tools missing from toolsets: %v", missing)
+	}
+}
+
+func TestPromptTemplateToolsetNotInDefaultChat(t *testing.T) {
+	t.Parallel()
+	names := tools.ChatToolNamesForToolsets(nil)
+	for _, name := range names {
+		if strings.Contains(name, "prompt_template") && name != "get_single_prompt_template" {
+			t.Fatalf("prompt CRUD %s should not be in default chat", name)
+		}
+	}
+}
+
+func TestReportWorkflowToolsetIncludesPostMarketIdempotency(t *testing.T) {
+	t.Parallel()
+	ts, ok := tools.ToolsetByID("report_workflow")
+	if !ok {
+		t.Fatal("missing report_workflow toolset")
+	}
+	if !ts.Contains("list_today_post_market_reports") {
+		t.Fatal("report_workflow should include list_today_post_market_reports")
 	}
 }

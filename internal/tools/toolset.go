@@ -50,7 +50,8 @@ var builtinToolsets = []Toolset{
 	newToolset("bot_manager", "交易 Bot", "DCA/GRID/SmartTrade/HDG 读写", true, botManagerTools),
 	newToolset("reminder_manager", "提醒 Bot", "DCA/GRID/Smart 提醒读写", true, reminderManagerTools),
 	newToolset("report_query", "报告查询", "读盘前/盘中/盘后报告", true, reportQueryTools),
-	newToolset("report_workflow", "报告 Workflow", "盘前自动化写报告（默认不进 chat）", false, reportWorkflowTools),
+	newToolset("report_workflow", "报告 Workflow", "盘前/盘后自动化写报告（默认不进 chat）", false, reportWorkflowTools),
+	newToolset("prompt_template", "Prompt 模板", "竞品/ETF 分析模板 CRUD（高级，默认不进 chat）", false, promptTemplateTools),
 }
 
 // AllToolsets returns the built-in toolset catalog.
