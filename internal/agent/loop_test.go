@@ -1,4 +1,4 @@
-package runtime_test
+package agent_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -45,7 +46,7 @@ func TestReActLoopExecutesToolThenReplies(t *testing.T) {
 		},
 	})
 
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 	session := runtime.NewSession()
 	result := loop.RunTurn(
 		context.Background(),
@@ -95,7 +96,7 @@ func TestReActLoopToolRoundTripWithMCPMock(t *testing.T) {
 		},
 	})
 
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 	session := runtime.NewSession()
 	result := loop.RunTurn(context.Background(), session, "腾讯多少钱", tools.Context{}, registry.Schemas([]string{"get_current_price"}))
 	if result.AssistantText != "腾讯现价 99.5 港元。" {
@@ -111,7 +112,7 @@ func TestReActLoopEmptyContentFallsBackToReasoning(t *testing.T) {
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
 	result := loop.RunTurn(context.Background(), runtime.NewSession(), "腾讯价格", tools.Context{}, nil)
 	if result.AssistantText != "结论：腾讯约 380 港元" {
 		t.Fatalf("got %q", result.AssistantText)
@@ -124,7 +125,7 @@ func TestReActLoopEmptyContentLengthHint(t *testing.T) {
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
 	result := loop.RunTurn(context.Background(), runtime.NewSession(), "hi", tools.Context{}, nil)
 	if !strings.Contains(result.AssistantText, "max_tokens") {
 		t.Fatalf("got %q", result.AssistantText)
@@ -139,7 +140,7 @@ func TestReActLoopStripsSIDOnlyContent(t *testing.T) {
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
 	result := loop.RunTurn(context.Background(), runtime.NewSession(), "hi", tools.Context{}, nil)
 	if !strings.Contains(result.AssistantText, "模型未返回可读内容") {
 		t.Fatalf("got %q", result.AssistantText)
@@ -152,7 +153,7 @@ func TestReActLoopMalformedToolCallsMessage(t *testing.T) {
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
 	result := loop.RunTurn(context.Background(), runtime.NewSession(), "hi", tools.Context{}, nil)
 	if !strings.Contains(result.AssistantText, "tool_calls") {
 		t.Fatalf("got %q", result.AssistantText)
@@ -180,7 +181,7 @@ func TestReActLoopEmptyAfterToolErrorSurfacesTool(t *testing.T) {
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 	result := loop.RunTurn(
 		context.Background(), runtime.NewSession(), "腾讯价格", tools.Context{},
 		registry.Schemas([]string{"search_code"}),
@@ -222,7 +223,7 @@ func TestReActLoopSlimRetryAfterMalformedToolCalls(t *testing.T) {
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 	result := loop.RunTurn(context.Background(), runtime.NewSession(), "腾讯价格", tools.Context{}, schemas)
 	if !strings.Contains(result.AssistantText, "380") {
 		t.Fatalf("got %q", result.AssistantText)
@@ -252,7 +253,7 @@ func TestRunTurnInjectsBudgetWarningNearCap(t *testing.T) {
 			return tools.Result{Status: tools.StatusOK, Summary: "ok"}
 		},
 	})
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 	loop.SetMaxToolRounds(3)
 	session := runtime.NewSession()
 	result := loop.RunTurn(context.Background(), session, "go", tools.Context{}, registry.Schemas(nil))
@@ -316,7 +317,7 @@ func TestRunTurnRespectsMaxToolRoundsConfig(t *testing.T) {
 			return tools.Result{Status: tools.StatusOK, Summary: "ok"}
 		},
 	})
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 	loop.SetMaxToolRounds(3)
 	result := loop.RunTurn(context.Background(), runtime.NewSession(), "go", tools.Context{}, registry.Schemas(nil))
 	if !result.Failed || result.Error != "max_tool_rounds" {
@@ -362,7 +363,7 @@ func TestRunTurnParallelToolCallsPreserveOrder(t *testing.T) {
 	registry.Register(tools.Tool{Name: "slow_a", Description: "a", Handle: slow("A")})
 	registry.Register(tools.Tool{Name: "slow_b", Description: "b", Handle: slow("B")})
 
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 	session := runtime.NewSession()
 	result := loop.RunTurn(context.Background(), session, "parallel", tools.Context{}, registry.Schemas(nil))
 	if result.Failed {
@@ -406,7 +407,7 @@ func TestRunTurnApprovalCallback(t *testing.T) {
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 	loop.SetApproval(func(toolName string, args map[string]any) bool { return true })
 	result := loop.RunTurn(context.Background(), runtime.NewSession(), "创建", tools.Context{Interactive: true}, registry.Schemas(nil))
 	if result.Failed {
@@ -436,7 +437,7 @@ func TestRunTurnApprovalDenied(t *testing.T) {
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 	loop.SetApproval(func(toolName string, args map[string]any) bool { return false })
 	result := loop.RunTurn(context.Background(), runtime.NewSession(), "删除", tools.Context{Interactive: true}, registry.Schemas(nil))
 	if result.Failed {

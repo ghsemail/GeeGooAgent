@@ -14,6 +14,8 @@
   "output_dir": "./data",
   "dry_run": false,
   "max_steps": 80,
+  "tool_max_parallel": 4,
+  "tool_timeout_sec": 120,
   "sandbox": {
     "allowed_hosts": [
       "127.0.0.1",

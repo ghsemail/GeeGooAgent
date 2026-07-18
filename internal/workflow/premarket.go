@@ -138,14 +138,6 @@ func BuildReportContent(w *memory.PreMarketWorking, code string) string {
 	return strings.Join(lines, "\n")
 }
 
-// defaultSynthesizer is the optional LLM report synthesizer used by
-// BuildCreateReportArgs. Set via SetDefaultSynthesizer. When nil or when
-// synthesis fails, the rule-based view is used unchanged.
-var defaultSynthesizer SynthesizerProvider
-
-// SetDefaultSynthesizer wires an LLM report synthesizer for BuildCreateReportArgs.
-func SetDefaultSynthesizer(s SynthesizerProvider) { defaultSynthesizer = s }
-
 // BuildCreateReportArgs builds MCP createPreMarketReport body.
 //
 // result and confidence are always rule-based (attitude → result, evidence
@@ -177,11 +169,11 @@ func BuildCreateReportArgsContext(ctx context.Context, w *memory.PreMarketWorkin
 	reason := view.Reason
 	suggestion := view.Suggestion
 	summary := plainSummary(report, 200)
-	if defaultSynthesizer != nil {
+	if synth := SynthesizerFrom(ctx); synth != nil {
 		if ctx == nil {
 			ctx = context.Background()
 		}
-		if r, s, sm, err := defaultSynthesizer.Synthesize(ctx, ws, evidence, w.MarketContext); err == nil && strings.TrimSpace(r) != "" {
+		if r, s, sm, err := synth.Synthesize(ctx, ws, evidence, w.MarketContext); err == nil && strings.TrimSpace(r) != "" {
 			reason = r
 			if strings.TrimSpace(s) != "" {
 				suggestion = s

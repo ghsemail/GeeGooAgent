@@ -9,6 +9,7 @@ package agent
 
 import (
 	"context"
+	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
@@ -16,22 +17,22 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
-// Agent bundles the loop and its collaborators. It is intentionally thin:
-// today it delegates to runtime.ReActLoop. As later phases add prompt
-// building, compression, and trajectory capture, those responsibilities
-// migrate here so every entry point shares them.
+// Agent bundles the loop and its collaborators.
 type Agent struct {
-	Loop     *runtime.ReActLoop
-	Gateway  *llm.Gateway
-	Executor *runtime.Executor
-	Registry *tools.Registry
+	Loop        *Loop
+	Gateway     *llm.Gateway
+	Executor    *runtime.Executor
+	Registry    *tools.Registry
+	reportSynth *ReportSynthesizer
 }
 
 // New constructs an Agent from the supplied collaborators.
 func New(gateway *llm.Gateway, executor *runtime.Executor, registry *tools.Registry) *Agent {
 	return &Agent{
-		Loop: runtime.NewReActLoop(gateway, executor), Gateway: gateway,
-		Executor: executor, Registry: registry,
+		Loop:     NewLoop(gateway, executor),
+		Gateway:  gateway,
+		Executor: executor,
+		Registry: registry,
 	}
 }
 
@@ -63,6 +64,9 @@ func (a *Agent) SetGateway(g *llm.Gateway) {
 	if a.Loop != nil {
 		a.Loop.SetGateway(g)
 	}
+	if a.reportSynth != nil {
+		a.reportSynth.SetGateway(g)
+	}
 }
 
 // SetProgress wires live step output (used by chat UI).
@@ -79,9 +83,57 @@ func (a *Agent) SetMaxToolRounds(n int) {
 	}
 }
 
+// SetToolMaxParallel caps concurrent tool calls per LLM round.
+func (a *Agent) SetToolMaxParallel(n int) {
+	if a.Loop != nil {
+		a.Loop.SetToolMaxParallel(n)
+	}
+}
+
+// SetToolTimeout bounds a single tool invocation.
+func (a *Agent) SetToolTimeout(d time.Duration) {
+	if a.Loop != nil {
+		a.Loop.SetToolTimeout(d)
+	}
+}
+
 // SetApproval wires interactive confirmation for mutating tools.
 func (a *Agent) SetApproval(fn runtime.ApprovalFunc) {
 	if a.Loop != nil {
 		a.Loop.SetApproval(fn)
 	}
+}
+
+// SetEventBus wires turn-level observability on the loop.
+func (a *Agent) SetEventBus(bus tools.EventEmitter) {
+	if a.Loop != nil {
+		a.Loop.SetEventBus(bus)
+	}
+}
+
+// SetReportSynthesizer wires workflow report LLM synthesis (shared gateway).
+func (a *Agent) SetReportSynthesizer(s *ReportSynthesizer) {
+	if a == nil {
+		return
+	}
+	a.reportSynth = s
+	if a.Gateway != nil && s != nil {
+		s.SetGateway(a.Gateway)
+	}
+}
+
+// ReportSynthesizer returns the evidence-only report synthesizer.
+func (a *Agent) ReportSynthesizer() *ReportSynthesizer {
+	if a == nil {
+		return nil
+	}
+	return a.reportSynth
+}
+
+// ToolExec returns the shared tool dispatcher for workflow and other callers.
+func (a *Agent) ToolExec() *ToolExec {
+	if a == nil || a.Loop == nil {
+		return nil
+	}
+	return a.Loop.ToolExec()
 }

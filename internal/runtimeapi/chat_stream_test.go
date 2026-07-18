@@ -33,14 +33,12 @@ func testChatStreamApp(t *testing.T) *app.App {
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
 	state := infra.NewStateStore(t.TempDir())
 	return &app.App{
 		Config:   &config.AppConfig{},
 		State:    state,
 		Registry: registry,
 		Gateway:  gateway,
-		Loop:     loop,
 		Agent:    agent.New(gateway, runtime.NewExecutor(registry), registry),
 	}
 }

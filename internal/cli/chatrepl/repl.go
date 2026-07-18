@@ -17,6 +17,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/app"
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/cli/chatui"
+	"github.com/ghsemail/GeeGooAgent/internal/cli/flowview"
 	"github.com/ghsemail/GeeGooAgent/internal/cli/progress"
 	"github.com/ghsemail/GeeGooAgent/internal/clients/admin"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
@@ -32,9 +33,8 @@ type Repl struct {
 	Chat         *chatsession.ChatSession
 	SessionStore chatsession.SessionStore
 	Session      *runtime.Session
-	Registry     *tools.Registry
-	Loop         *runtime.ReActLoop
-	UI           *chatui.ChatUI
+	Registry *tools.Registry
+	UI       *chatui.ChatUI
 	Progress     progress.Sink // optional override; default UI
 	DryRun       bool
 	Verbose      bool
@@ -92,7 +92,7 @@ func NewWithSession(application *app.App, configPath string, sessionID string, d
 			StepCounter: chat.StepCounter, CreatedAt: chat.CreatedAt,
 			ParentID: parentID, LineageRoot: lineageRoot, CompactionGeneration: generation,
 		},
-		Registry: application.Registry, Loop: application.Loop, UI: ui,
+		Registry: application.Registry, UI: ui,
 		DryRun: dryRun || application.Config.DryRun, Verbose: true,
 		stdout: stdout, stdin: os.Stdin, InstallDir: findInstallDir(), ProjectRoot: findProjectRoot(),
 	}
@@ -643,11 +643,7 @@ func (r *Repl) printFlow(limit int) {
 		history = history[len(history)-limit:]
 	}
 	for _, rec := range history {
-		parts := make([]string, 0, len(rec.Payload))
-		for k, v := range rec.Payload {
-			parts = append(parts, fmt.Sprintf("%s=%v", k, v))
-		}
-		fmt.Fprintf(r.stdout, "  %s: %s\n", rec.Event, strings.Join(parts, ", "))
+		fmt.Fprintf(r.stdout, "  [%s] %s\n", rec.Event, flowview.Format(rec))
 	}
 }
 
@@ -898,5 +894,8 @@ func (r *Repl) runWorkflow(skill string) {
 	}
 	workspace, _ := r.App.Config.ResolveOutputDir()
 	fmt.Fprintf(r.stdout, "  查看 execution-log: %s\n", workspace)
-	fmt.Fprintf(r.stdout, "  使用 /flow 查看本次 workflow 触发的 Tool 事件\n")
+	if result.Supervisor != nil {
+		fmt.Fprintf(r.stdout, "  supervisor: %s\n", result.Supervisor.Summary())
+	}
+	fmt.Fprintf(r.stdout, "  使用 /flow 查看 Run/Tool/Synthesis 事件轨迹\n")
 }

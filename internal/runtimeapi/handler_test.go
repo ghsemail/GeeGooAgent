@@ -67,9 +67,8 @@ func TestChatCompletionsWithMockLLM(t *testing.T) {
 	application := &app.App{
 		Config:   &config.AppConfig{},
 		Registry: registry,
-		Gateway:  gateway,
-		Loop:     runtime.NewReActLoop(gateway, runtime.NewExecutor(registry)),
-		Agent:    agent.New(gateway, runtime.NewExecutor(registry), registry),
+		Gateway: gateway,
+		Agent:   agent.New(gateway, runtime.NewExecutor(registry), registry),
 	}
 
 	mux := httpserver.NewMux("agent-runtime")
@@ -125,9 +124,8 @@ func TestChatCompletionsStream(t *testing.T) {
 	application := &app.App{
 		Config:   &config.AppConfig{},
 		Registry: registry,
-		Gateway:  gateway,
-		Loop:     runtime.NewReActLoop(gateway, runtime.NewExecutor(registry)),
-		Agent:    agent.New(gateway, runtime.NewExecutor(registry), registry),
+		Gateway: gateway,
+		Agent:   agent.New(gateway, runtime.NewExecutor(registry), registry),
 	}
 	mux := httpserver.NewMux("agent-runtime")
 	runtimeapi.NewHandler(application).Register(mux)

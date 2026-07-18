@@ -45,6 +45,14 @@ func NewSynthesizer(gateway *llm.Gateway, model string) *Synthesizer {
 // Available reports whether synthesis can run (gateway present).
 func (s *Synthesizer) Available() bool { return s != nil && s.gateway != nil }
 
+// SetGateway swaps the LLM gateway used for synthesis (e.g. after /model).
+func (s *Synthesizer) SetGateway(gateway *llm.Gateway) {
+	if s == nil {
+		return
+	}
+	s.gateway = gateway
+}
+
 // Synthesize asks the LLM to write reason/suggestion/summary strictly from
 // the supplied evidence. On any error or contract violation, returns an error
 // so the caller falls back to the rule-based path.

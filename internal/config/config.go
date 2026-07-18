@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // LLMConfig mirrors Python llm section.
@@ -109,6 +110,8 @@ type AppConfig struct {
 	DryRun           bool              `json:"dry_run"`
 	FeishuWebhookURL *string           `json:"feishu_webhook_url"`
 	MaxSteps         int               `json:"max_steps"`
+	ToolMaxParallel  int               `json:"tool_max_parallel"`
+	ToolTimeoutSec   int               `json:"tool_timeout_sec"`
 	LLM              LLMConfig         `json:"llm"`
 	Search           SearchConfig      `json:"search"`
 	Sandbox          SandboxConfig     `json:"sandbox"`
@@ -257,6 +260,31 @@ func (c *AppConfig) EffectiveMaxSteps() int {
 		return 90
 	}
 	return c.MaxSteps
+}
+
+// EffectiveToolMaxParallel returns the per-round concurrent tool cap (default 4, max 16).
+func (c *AppConfig) EffectiveToolMaxParallel() int {
+	const defaultMax = 4
+	if c == nil || c.ToolMaxParallel <= 0 {
+		return defaultMax
+	}
+	if c.ToolMaxParallel > 16 {
+		return 16
+	}
+	return c.ToolMaxParallel
+}
+
+// EffectiveToolTimeout returns the per-tool execution timeout (default 120s, max 600s).
+func (c *AppConfig) EffectiveToolTimeout() time.Duration {
+	const defaultSec = 120
+	sec := defaultSec
+	if c != nil && c.ToolTimeoutSec > 0 {
+		sec = c.ToolTimeoutSec
+	}
+	if sec > 600 {
+		sec = 600
+	}
+	return time.Duration(sec) * time.Second
 }
 
 // EffectiveChatToolsets returns enabled chat toolset ids (empty config → defaults).

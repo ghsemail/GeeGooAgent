@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestDefaultPathPrefersEnv(t *testing.T) {
@@ -158,5 +159,29 @@ func TestEffectiveMaxSteps(t *testing.T) {
 	}
 	if got := (&AppConfig{MaxSteps: 200}).EffectiveMaxSteps(); got != 90 {
 		t.Fatalf("EffectiveMaxSteps capped = %d, want 90", got)
+	}
+}
+
+func TestEffectiveToolMaxParallel(t *testing.T) {
+	if got := (&AppConfig{}).EffectiveToolMaxParallel(); got != 4 {
+		t.Fatalf("default EffectiveToolMaxParallel = %d, want 4", got)
+	}
+	if got := (&AppConfig{ToolMaxParallel: 8}).EffectiveToolMaxParallel(); got != 8 {
+		t.Fatalf("EffectiveToolMaxParallel(8) = %d, want 8", got)
+	}
+	if got := (&AppConfig{ToolMaxParallel: 99}).EffectiveToolMaxParallel(); got != 16 {
+		t.Fatalf("EffectiveToolMaxParallel capped = %d, want 16", got)
+	}
+}
+
+func TestEffectiveToolTimeout(t *testing.T) {
+	if got := (&AppConfig{}).EffectiveToolTimeout(); got != 120*time.Second {
+		t.Fatalf("default EffectiveToolTimeout = %v, want 120s", got)
+	}
+	if got := (&AppConfig{ToolTimeoutSec: 30}).EffectiveToolTimeout(); got != 30*time.Second {
+		t.Fatalf("EffectiveToolTimeout(30) = %v, want 30s", got)
+	}
+	if got := (&AppConfig{ToolTimeoutSec: 9999}).EffectiveToolTimeout(); got != 600*time.Second {
+		t.Fatalf("EffectiveToolTimeout capped = %v, want 600s", got)
 	}
 }

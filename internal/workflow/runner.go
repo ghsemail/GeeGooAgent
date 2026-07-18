@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -51,9 +52,10 @@ func (r RunResult) OK() bool { return r.Status == "completed" }
 
 // Runner executes deterministic workflow steps.
 type Runner struct {
-	executor    *runtime.Executor
-	working     *memory.WorkingStore
-	checkpts    CheckpointSaver
+	executor *runtime.Executor
+	toolExec *agent.ToolExec
+	working  *memory.WorkingStore
+	checkpts CheckpointSaver
 	synthesizer SynthesizerProvider
 }
 
@@ -79,6 +81,9 @@ func NewRunner(executor *runtime.Executor, working *memory.WorkingStore, checkpt
 // rule-based report content path is used.
 func (r *Runner) SetSynthesizer(s SynthesizerProvider) { r.synthesizer = s }
 
+// SetToolExec wires the shared agent tool dispatcher (timeout + EventBus parity).
+func (r *Runner) SetToolExec(te *agent.ToolExec) { r.toolExec = te }
+
 // Run executes phase A then optional per-stock phase B, then runs supervisor.
 func (r *Runner) Run(
 	sessionID, skill string,
@@ -101,6 +106,9 @@ func (r *Runner) RunFrom(
 	completedStep int,
 ) RunResult {
 	_ = completedStep // idempotency via CompletedStepKeys now
+	if r.synthesizer != nil {
+		ctx.Ctx = ContextWithSynthesizer(ctx.GoContext(), r.synthesizer)
+	}
 	stepCounter := 0
 	for index, step := range phaseA {
 		stepCounter = index + 1
@@ -217,14 +225,14 @@ func (r *Runner) processStep(
 	if err := goCtx.Err(); err != nil {
 		return working, &RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: err.Error()}
 	}
-	result := r.executor.Execute(tools.CallRequest{Name: step.Tool, Arguments: step.Args(goCtx, working)}, ctx)
+	result := r.dispatchTool(goCtx, tools.CallRequest{Name: step.Tool, Arguments: step.Args(goCtx, working)}, ctx)
 	var err error
 	working, err = r.working.Apply(working, step.Tool, result)
 	if err != nil {
 		return working, &RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: err.Error()}
 	}
 	if step.Tool != "write_execution_log" {
-		logResult := r.executor.Execute(tools.CallRequest{
+		logResult := r.dispatchTool(goCtx, tools.CallRequest{
 			Name: "write_execution_log",
 			Arguments: map[string]any{
 				"step": step.Name, "message": result.Summary, "status": string(result.Status),
@@ -242,7 +250,7 @@ func (r *Runner) processStep(
 			if err := goCtx.Err(); err != nil {
 				return working, &RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: err.Error()}
 			}
-			result2 := r.executor.Execute(tools.CallRequest{Name: step.Tool, Arguments: step.Args(goCtx, working)}, ctx)
+			result2 := r.dispatchTool(goCtx, tools.CallRequest{Name: step.Tool, Arguments: step.Args(goCtx, working)}, ctx)
 			working, _ = r.working.Apply(working, step.Tool, result2)
 			if result2.Status != tools.StatusError {
 				markStepComplete(working, stepKey(step.Name, step.Tool))
@@ -260,6 +268,13 @@ func (r *Runner) processStep(
 	}
 	markStepComplete(working, stepKey(step.Name, step.Tool))
 	return working, nil
+}
+
+func (r *Runner) dispatchTool(ctx context.Context, req tools.CallRequest, toolCtx tools.Context) tools.Result {
+	if r.toolExec != nil {
+		return r.toolExec.Execute(ctx, req, toolCtx)
+	}
+	return r.executor.Execute(req, toolCtx)
 }
 
 // stepKey is the idempotency key for a workflow step.

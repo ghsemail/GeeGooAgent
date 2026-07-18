@@ -1,4 +1,4 @@
-package runtime_test
+package agent_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
@@ -55,7 +56,7 @@ func TestRunTurnCompressesBeforeChat(t *testing.T) {
 	gateway.SetSleep(func(time.Duration) {})
 
 	registry := tools.NewRegistry()
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 	loop.SetCompressor(prompt.NewCompressor(config.ResolvedCompression{
 		Enabled: true, Threshold: 0.01, HygieneThreshold: 0.85, TargetRatio: 0.2,
 		ProtectFirstN: 1, ProtectLastN: 1, ContextLength: 10000, ClearToolMinChars: 50,
@@ -104,7 +105,7 @@ func TestRunTurnHygieneAtEightyFivePercent(t *testing.T) {
 	gateway.SetSleep(func(time.Duration) {})
 
 	registry := tools.NewRegistry()
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 	sum := &sessionRecordingSummarizer{next: []string{"hygiene-summary", "loop-summary"}}
 	// Equal thresholds: turn-start hygiene runs first; in-loop may no-op if tokens drop.
 	loop.SetCompressor(prompt.NewCompressor(config.ResolvedCompression{
@@ -135,7 +136,7 @@ func TestCompressionSummaryIsPerSession(t *testing.T) {
 	gateway.SetSleep(func(time.Duration) {})
 
 	registry := tools.NewRegistry()
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 	summarizer := &sessionRecordingSummarizer{
 		next: []string{"first-summary", "second-summary"},
 	}

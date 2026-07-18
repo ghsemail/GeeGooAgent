@@ -24,7 +24,6 @@ func TestRebuildGatewayUpdatesAgentGateway(t *testing.T) {
 		},
 		Registry: registry,
 		Gateway:  initial,
-		Loop:     runtime.NewReActLoop(initial, runtime.NewExecutor(registry)),
 		Agent:    agent.New(initial, runtime.NewExecutor(registry), registry),
 	}
 
@@ -33,6 +32,9 @@ func TestRebuildGatewayUpdatesAgentGateway(t *testing.T) {
 	}
 	if application.Agent.Gateway != application.Gateway {
 		t.Fatal("agent gateway was not synchronized")
+	}
+	if application.Agent.ReportSynthesizer() == nil {
+		t.Fatal("report synthesizer not wired")
 	}
 }
 

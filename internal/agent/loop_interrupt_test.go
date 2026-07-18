@@ -1,4 +1,4 @@
-package runtime_test
+package agent_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -26,7 +27,7 @@ func TestRunTurnRespectsCancelledContext(t *testing.T) {
 	registry := tools.NewRegistry()
 	gateway := llm.NewGateway(&hangingProvider{}, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
-	loop := runtime.NewReActLoop(gateway, runtime.NewExecutor(registry))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 	session := runtime.NewSession()
 
 	ctx, cancel := context.WithCancel(context.Background())

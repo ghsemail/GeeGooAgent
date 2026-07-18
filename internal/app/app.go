@@ -33,7 +33,6 @@ type App struct {
 	MCP         *mcp.Client
 	Registry    *tools.Registry
 	Gateway     *llm.Gateway
-	Loop        *runtime.ReActLoop
 	Executor    *runtime.Executor
 	Workflow    *workflow.Runner
 	Working     *memory.WorkingStore
@@ -108,14 +107,14 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	if err := app.RebuildGateway(); err != nil {
 		fmt.Fprintf(os.Stderr, "警告: LLM 未就绪: %v\n", err)
 	}
-	app.Loop = runtime.NewReActLoop(app.Gateway, executor)
-	app.Loop.SetMaxToolRounds(cfg.EffectiveMaxSteps())
 	app.Agent = agent.New(app.Gateway, executor, registry)
 	app.Agent.SetMaxToolRounds(cfg.EffectiveMaxSteps())
+	app.Agent.SetToolMaxParallel(cfg.EffectiveToolMaxParallel())
+	app.Agent.SetToolTimeout(cfg.EffectiveToolTimeout())
+	app.Agent.SetEventBus(eventBus)
 	app.wireCompressor()
-	if adapter := newSynthesizerAdapter(app.Gateway, app.Config.LLM.Model); adapter != nil {
-		workflow.SetDefaultSynthesizer(adapter)
-	}
+	app.Workflow.SetToolExec(app.Agent.ToolExec())
+	app.wireSynthesizer()
 
 	return app, nil
 }
@@ -198,13 +197,11 @@ func (a *App) RebuildGateway() error {
 		MaxTokens: a.Config.LLM.EffectiveMaxTokens(thinkingOn),
 	})
 	a.Gateway.SetFallbacks(a.buildFallbackProviders())
-	if a.Loop != nil {
-		a.Loop.SetGateway(a.Gateway)
-	}
 	if a.Agent != nil {
 		a.Agent.SetGateway(a.Gateway)
 	}
 	a.wireCompressor()
+	a.wireSynthesizer()
 	return nil
 }
 
@@ -315,9 +312,6 @@ func (a *App) setCompressor(c *prompt.Compressor) {
 	if a.Agent != nil {
 		a.Agent.SetCompressor(c)
 	}
-	if a.Loop != nil {
-		a.Loop.SetCompressor(c)
-	}
 }
 
 // Skills is the registry of runnable skills (built-in + any registered at runtime).
@@ -377,6 +371,7 @@ func (a *App) RunSkillContext(ctx context.Context, skill string, runOpts ...Skil
 	}
 	toolCtx := a.ToolContextWithContext(ctx, sessionID)
 	result := a.Workflow.Run(sessionID, skill, phaseA, perStock, toolCtx, working)
+	a.emitSkillRunResult(sessionID, skill, result)
 	return result, nil
 }
 
@@ -415,7 +410,31 @@ func (a *App) ResumePreMarketContext(ctx context.Context, sessionID string) (wor
 		return workflow.RunResult{SessionID: sessionID, Status: "completed", Working: working}, nil
 	}
 	toolCtx := a.ToolContextWithContext(ctx, sessionID)
-	return a.Workflow.RunFrom(sessionID, cp.Skill, phaseA, perStock, toolCtx, working, cp.Step), nil
+	result := a.Workflow.RunFrom(sessionID, cp.Skill, phaseA, perStock, toolCtx, working, cp.Step)
+	a.emitSkillRunResult(sessionID, cp.Skill, result)
+	return result, nil
+}
+
+func (a *App) emitSkillRunResult(sessionID, skill string, result workflow.RunResult) {
+	if a == nil || a.EventBus == nil {
+		return
+	}
+	payload := map[string]any{
+		"session_id": sessionID,
+		"skill":      skill,
+		"status":     result.Status,
+	}
+	if result.LastError != "" {
+		payload["error"] = result.LastError
+	}
+	if result.Supervisor != nil {
+		payload["verdict"] = string(result.Supervisor.Verdict)
+	}
+	if result.OK() {
+		a.EventBus.Emit("RunCompleted", payload)
+		return
+	}
+	a.EventBus.Emit("RunFailed", payload)
 }
 
 // ToolContext builds execution context for the current session.

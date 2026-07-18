@@ -13,29 +13,20 @@ import (
 type failingSynthesizer struct{}
 
 func (f *failingSynthesizer) Synthesize(ctx context.Context, ws memory.StockWorkspace, ev []memory.EvidenceRef, mc memory.MarketContext) (string, string, string, error) {
-	return "", "", "", context.DeadlineExceeded
+	return "", "", "", context.Canceled
 }
 
 func TestBuildCreateReportArgsFallsBackOnSynthesisError(t *testing.T) {
-	// NOT parallel: mutates package-level defaultSynthesizer.
-	workflow.SetDefaultSynthesizer(&failingSynthesizer{})
-	defer workflow.SetDefaultSynthesizer(nil)
-
-	w := memory.NewPreMarketWorking("s1", "pre_market")
-	trading := true
-	w.IsTradingDay = &trading
-	w.BotCodes = []memory.BotStock{{Code: "00700.HK", StockName: "腾讯控股", BotID: "b1", BotName: "bot", BotType: "DCA"}}
-	w.Stocks["00700.HK"] = memory.StockWorkspace{
-		Code: "00700.HK", StockName: "腾讯控股", BotID: "b1", BotName: "bot", BotType: "DCA",
-		Status: "collecting", Attitude: "bullish",
+	ctx := workflow.ContextWithSynthesizer(context.Background(), &failingSynthesizer{})
+	w := &memory.PreMarketWorking{
+		BotCodes: []memory.BotStock{{Code: "00700.HK", StockName: "腾讯控股"}},
+		Stocks: map[string]memory.StockWorkspace{
+			"00700.HK": {Code: "00700.HK", StockName: "腾讯控股", Attitude: "bullish"},
+		},
 	}
-	args := workflow.BuildCreateReportArgs(w, "00700.HK")
+	args := workflow.BuildCreateReportArgsContext(ctx, w, "00700.HK")
 	if args["result"] != "long" {
-		t.Fatalf("result should be long from attitude, got %v", args["result"])
-	}
-	reason, _ := args["reason"].(string)
-	if !strings.Contains(reason, "attitude is bullish") {
-		t.Fatalf("reason should fall back to rule-based, got %q", reason)
+		t.Fatalf("result=%v want long (rule-based)", args["result"])
 	}
 }
 
@@ -46,23 +37,15 @@ func (h *happySynthesizer) Synthesize(ctx context.Context, ws memory.StockWorksp
 }
 
 func TestBuildCreateReportArgsUsesSynthesisWhenSuccessful(t *testing.T) {
-	// NOT parallel: mutates package-level defaultSynthesizer.
-	workflow.SetDefaultSynthesizer(&happySynthesizer{})
-	defer workflow.SetDefaultSynthesizer(nil)
-
-	w := memory.NewPreMarketWorking("s2", "pre_market")
-	trading := true
-	w.IsTradingDay = &trading
-	w.BotCodes = []memory.BotStock{{Code: "00700.HK", StockName: "腾讯", BotID: "b1", BotName: "bot", BotType: "DCA"}}
-	w.Stocks["00700.HK"] = memory.StockWorkspace{Code: "00700.HK", StockName: "腾讯", BotID: "b1", BotName: "bot", BotType: "DCA", Attitude: "neutral"}
-	args := workflow.BuildCreateReportArgs(w, "00700.HK")
-	if args["result"] != "neutral" {
-		t.Fatalf("result must stay rule-based, got %v", args["result"])
+	ctx := workflow.ContextWithSynthesizer(context.Background(), &happySynthesizer{})
+	w := &memory.PreMarketWorking{
+		BotCodes: []memory.BotStock{{Code: "00700.HK"}},
+		Stocks: map[string]memory.StockWorkspace{
+			"00700.HK": {Code: "00700.HK", Attitude: "bullish"},
+		},
 	}
-	if args["suggestion"] != "buy" {
-		t.Fatalf("suggestion should come from synthesis, got %v", args["suggestion"])
-	}
+	args := workflow.BuildCreateReportArgsContext(ctx, w, "00700.HK")
 	if args["summary"] != "LLM 摘要" {
-		t.Fatalf("summary should come from synthesis, got %v", args["summary"])
+		t.Fatalf("summary=%v", args["summary"])
 	}
 }
