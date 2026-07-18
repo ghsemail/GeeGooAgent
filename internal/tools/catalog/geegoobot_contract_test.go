@@ -48,6 +48,8 @@ func TestHighFrequencyBespokeMCPPathsAreRegistered(t *testing.T) {
 		"get_stock_daily_reports":    "/getStockDailyReports",
 		"get_capital_flow":           "/getCapitalFlow",
 		"get_capital_distribution":   "/getCapitalDistribution",
+		"fetch_market_news":          "/getMarketNews",
+		"fetch_stock_news":           "/getStockNews",
 		"get_bot_yesterday_attitude": "/getBotYesterdayAttitude",
 		"create_pre_market_report":   "/createPreMarketReport",
 	} {

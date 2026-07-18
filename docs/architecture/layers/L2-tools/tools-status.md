@@ -1,7 +1,7 @@
 # GeeGooAgent Tools 运行态总览（2026-07-17）
 
-> **SSOT**：与代码不一致时以 `internal/tools/` 为准。  
-> 相关：[tools-tree.md](./tools-tree.md) · [tool-catalog.md](./tool-catalog.md) · [implementation-status.md](../../implementation-status.md)
+> **运行态 SSOT**：与代码不一致时以 `internal/tools/` 为准。  
+> 相关：[tool-catalog.md](./tool-catalog.md)（设计全集）· [tool-server-mapping.md](./tool-server-mapping.md)（HTTP 路径）· [implementation-status.md](../../implementation-status.md)
 
 ## 图例
 
@@ -23,7 +23,7 @@
 | **GeeGooSignal `analyze-api`** | **3230** | 146.56.225.252 | `generate_grid_strategy`、`generate_dca_strategy`（失败可 fallback mcp-api） |
 | **GeeGooData `data-api`** | **3300** | A 股 **82.157.97.76**；港/美 **47.80.14.120** | 资金流/行情底层；Agent **不直连**，经 Bot `:3120` 按代码路由 |
 | **Agent `agent-runtime`** | **3400** | 119.45.16.112 本机 | ReAct / workflow，非业务 Tool 出口 |
-| **Agent 本地** | — | workspace / DuckDuckGo | `fetch_*_news`、`web_search`、`save_local_report`、`recall*`、`write_execution_log` |
+| **Agent 本地** | — | workspace / DuckDuckGo | `web_search`、`save_local_report`、`recall*`、`write_execution_log`；**新闻**（过渡期）`fetch_*_news` |
 
 `geegoo doctor` 探测：mcp-api `/health`、`/ready`、`checkTradingDay`；Signal signal/catalog/analyze `/health`；GeeGooData `/health`；**tool 探针**（`search_code`、资金流、富途三类、个股新闻、`get_stock_daily_reports`；`get_mcp_analysis` 跳过因 LLM 慢）。
 
@@ -33,7 +33,7 @@
 
 | 维度 | 数量 |
 |------|------|
-| Registry 已注册 | **≥80** |
+| Registry 已注册 | **82** |
 | 默认 chat 白名单 | **~73** |
 | Bespoke 手写 | **21** |
 | HTTP 转发（catalog） | **60** |
@@ -51,8 +51,8 @@
 | `get_ticker` | ✅ | HTTP | mcp-api `/getTicker` | 3120 | 空 payload 自动重试 1 次（2s）；非交易时段仍可能 skip |
 | `get_broker` | ✅ | HTTP | mcp-api `/getBroker` | 3120 | 同上 |
 | `get_position` | ✅ | HTTP | mcp-api `/getPosition` | 3120 | 同上；真实空仓仍 skip |
-| `fetch_market_news` | ✅ | bespoke | 本地 Go RSS/新浪 + Python 回退 | — | US/CN/HK |
-| `fetch_stock_news` | ✅ | bespoke | finance-news + Go 多源 + `web_search` | — | 港股：Yahoo `.HK` → ADR → 新浪；A 股：东财公告 → 新浪；双源仍无则 `StatusError` |
+| `fetch_market_news` | ✅ | bespoke | **GeeGooBot** `/getMarketNews` → GeeGooData `/v1/news/market`；本地 finance-news / web_search 回退 | — | 见 [geegoodata-news.md](../../domains/geegoodata-news.md) |
+| `fetch_stock_news` | ✅ | bespoke | **GeeGooBot** `/getStockNews` → GeeGooData `/v1/news/stock`；本地 / web_search 回退 | — | 双源仍无 → StatusError |
 | `get_report_bot_codes` | ✅ | bespoke | mcp-api `/getReportBotCodes` | 3120 | 盘前待写报告标的 |
 
 ---
@@ -67,11 +67,12 @@
 | `get_capital_distribution` | ✅ | bespoke | mcp-api `/getCapitalDistribution` → GeeGooData | 3120→3300 | 空结果自动重试 1 次 |
 | `get_bot_yesterday_attitude` | 💬 | bespoke | mcp-api `/getBotYesterdayAttitude` | 3120 | 必填 `bot_id` |
 | `get_stock_daily_reports` | 💬 | bespoke | mcp-api `/getStockDailyReports` | 3120 | 建议传 `report_date` |
-| `list_today_reports` | ✅ | bespoke | 同上（幂等检查别名） | 3120 | |
+| `list_today_reports` | ✅ | bespoke | 同上（盘前幂等别名） | 3120 | |
+| `list_today_post_market_reports` | ✅ | bespoke | 同上（盘后幂等别名） | 3120 | `post_market` workflow |
 | `get_index_signals` | ✅ | HTTP | catalog-api `/getIndexSignalForSkill` | 3210 | DCA 单指标 |
 | `get_signal_combinations` | ✅ | HTTP | catalog-api `/getSignalCombinationForSkill` | 3210 | DCA 组合信号 |
-| `generate_grid_strategy` | 💬/✅ | HTTP | analyze-api `/generateGridStrategy` | 3230 | 空 payload 重试 1 次；可 fallback 3120 |
-| `generate_dca_strategy` | 💬/✅ | HTTP | analyze-api `/generateDCAStrategy` | 3230 | 同上；需先选 `signal_id` |
+| `generate_grid_strategy` | 💬/✅ | HTTP | analyze-api `/generateGridStrategy` | 3230 | 空 `param` → skip（重试 1 次）；有 grid 字段即 OK（`suitable=false` 亦可） |
+| `generate_dca_strategy` | 💬/✅ | HTTP | analyze-api `/generateDCAStrategy` | 3230 | 空 `signal.buy_signal` → skip（重试 1 次）；可 fallback 3120 |
 | `loopback_strategy` | 💬/✅ | HTTP | signal-api `/loopBackStrategy` | 3200 | 需先 `generate_*` 拿参数 |
 | `get_bot_log_by_type` | ✅ | HTTP | mcp-api `/getBotLogByType` | 3120 | 必填 `type` + `bot_id` |
 
@@ -125,43 +126,116 @@
 
 ## 七、Skill / Workflow 与 Tool 关系
 
-| Skill | 状态 | 说明 |
-|-------|------|------|
-| `pre_market` | ✅ | `skills/pre_market/` 有步骤；`geegoo run pre_market` |
-| `intraday` | ✅ | 信号触发；`geegoo run intraday --code … --bot-id …` |
-| `post_market` | ✅ | 交易日 cron；`geegoo run post_market` |
+| Skill | 状态 | CLI | manifest 白名单 |
+|-------|------|-----|-----------------|
+| `pre_market` | ✅ | `geegoo run pre_market` | 15 Tool（无 `send_feishu`） |
+| `intraday` | ✅ | `geegoo run intraday --code … --bot-id …` | 9 Tool：持仓、报告、资金、分析、现价 |
+| `post_market` | ✅ | `geegoo run post_market` | 10 Tool：3× hourly 分析 + bot log + post 报告 |
+
+manifest 路径：`skills/<skill>/manifest.yaml`。Skill 文档 → [L5 skills](../L5-application/skills.md)。
 
 ---
 
-## 八、韧性策略速查（`internal/tools/resilience.go`）
+## 八、需引导用户选择（💬）
+
+| Tool | Agent 应先做什么 |
+|------|------------------|
+| `generate_dca_strategy` | 问单指标/组合 → `get_index_signals` / `get_signal_combinations` → 用户选 `signal_id` |
+| `loopback_strategy` | grid：先 `generate_grid_strategy`；dca：确认 `signal` + `sl_tp` |
+| `get_mcp_analysis` | 确认 `period`（及 `prompt_id`）；可用 `get_single_prompt_template` |
+| `get_bot_yesterday_attitude` | 列机器人，让用户指定 `bot_id` |
+| `get_stock_daily_reports` | 确认 `report_date`（`YYYY-MM-DD`） |
+| `create_*_report` / Bot 写操作 | 确认 code、stock_name 等；默认 chat 不含 🔒 workflow 工具 |
+
+---
+
+## 九、韧性策略速查（`internal/tools/resilience.go`）
 
 | Tool | 策略 |
 |------|------|
 | `get_position` / `get_ticker` / `get_broker` | HTTP 空 payload → 等 2s 重试 1 次 |
-| `generate_grid_strategy` / `generate_dca_strategy` | 同上 |
+| `generate_grid_strategy` / `generate_dca_strategy` | HTTP 空 payload → 等 2s 重试 1 次；仍无可用字段 → skip |
 | `get_capital_flow` | DAY 空试 WEEK；整轮重试 1 次 |
 | `get_capital_distribution` | 空分布重试 1 次 |
 | `get_mcp_analysis` | 空 `analysis_result` 重试 1 次 |
 | `fetch_stock_news` | finance-news 弱结果 → `web_search` 补充；仍无 → `StatusError` |
+| `fetch_market_news` | 同上（`web_search` 标题为「市场新闻」） |
 | `recall_yesterday_summary` | 本地无文件 → MCP 报告向前查 5 天 |
 
 ---
 
-## 九、常踩坑速查
+## 十、常踩坑速查
 
 | 现象 | 可能原因 | 处理 |
 |------|----------|------|
 | 资金类 skip | Bot→CN 节点防火墙 / Token / 标的无成交 | `verify_e2e_capital.py`；查 Bot `.env` 路由 |
 | 富途三类 skip | OpenD 未配或非交易时段 | 用 `get_current_price` |
-| 新闻 `StatusError` | 双源均无标题 | 检查网络；A 股可配 `EASTMONEY_NEWS_APIKEY` |
+| 新闻 `StatusError` | 双源均无标题 | 检查网络；`fetch_market_news` / `fetch_stock_news` 行为一致 |
 | generate 503 | analyze-api 或 LLM 未配 | `curl :3230/health` |
 | Bot 创建不跑 | GeeGooBot 无 scheduler | 架构缺口，非 Agent bug |
 
 ---
 
-## 十、维护
+## 十一、默认 chat Toolset
 
-新增 Tool 后同步更新：**本文件**、`tools-tree.md`、`tool-catalog.md`、`catalog/catalog.go`。
+| ID | 默认 chat | 工具数 | 说明 |
+|----|-----------|--------|------|
+| `market` | ✅ | 17 | 行情、分析、新闻 |
+| `strategy` | ✅ | 3 | generate + loopback |
+| `bot_manager` | ✅ | 20 | 交易 Bot CRUD + log |
+| `reminder_manager` | ✅ | 15 | 提醒 Bot |
+| `report_query` | ✅ | 10 | 报告查询 |
+| `report_workflow` | 🔒 | 8 | 盘前写报告等 workflow 专用 |
+
+切换：`/toolsets market,strategy` · `/toolsets default`。详见 [toolsets.md](./toolsets.md)。
+
+---
+
+## 十二、树形总览（82 registered）
+
+```text
+GeeGooAgent Tools
+├─ market [toolset]
+│  ├─ search_code, web_search, check_trading_day, get_current_price     ✅
+│  ├─ get_ticker, get_broker, get_position                              ✅ futu_bridge + 空 payload 重试
+│  ├─ get_capital_flow, get_capital_distribution                        ✅ Bot→GeeGooData 分节点
+│  ├─ get_bot_yesterday_attitude                                        💬 需 bot_id
+│  ├─ get_index_signals, get_signal_combinations                        ✅ :3210
+│  ├─ get_single_prompt_template, get_mcp_analysis                     💬 需 period
+│  ├─ fetch_market_news, fetch_stock_news                               ✅ Go 多源回退
+│  ├─ get_bot_log_by_type, recall                                       ✅
+├─ strategy
+│  ├─ generate_grid_strategy, generate_dca_strategy                     💬/✅ :3230
+│  └─ loopback_strategy                                                 💬 需 generate_* 参数链
+├─ bot_manager / reminder_manager（各 5× CRUD + log）
+├─ report_query（盘前/盘中/盘后 CRUD + 聚合 + list_today_*）
+├─ report_workflow 🔒（create_pre_market, save_local, …）
+└─ prompt_template（竞品/ETF 模板 CRUD×6）
+```
+
+实现层：**Agent/Go** · **Bot/Go** :3120 · **Signal/Go** :3200/3210 · **Analyze/Go** :3230 · **Data/Go** :3300 · **本地**
+
+---
+
+## 十三、对话场景推荐
+
+| 目标 | 推荐 | 避免 |
+|------|------|------|
+| 查价 | `search_code` → `get_current_price` | 直接用 `get_ticker` |
+| 技术分析 | `get_single_prompt_template` → `get_mcp_analysis` | 缺 `period` |
+| DCA 方案 | 先选信号 → `generate_dca_strategy` → 可选 `loopback_strategy` | 未选 `signal_id` 就 generate |
+| 新闻 | `fetch_stock_news` / `fetch_market_news`；库无结果用 `web_search` | — |
+| 盘前写报告 | `/toolsets report_workflow` 或 `geegoo run pre_market` | 默认 chat 白名单 |
+| 盘中决策 | `geegoo run intraday --code …` | 默认 chat |
+| 盘后总结 | `geegoo run post_market` | — |
+
+---
+
+## 十四、维护
+
+新增 Tool 后同步更新：**本文件** + [tool-catalog.md](./tool-catalog.md) + `catalog/catalog.go` + [interface-map.md](../../../reference/geegoo-mcp/interface-map.md)（新 HTTP 时）。
+
+新闻迁入 GeeGooData 后：同步 [geegoodata-news.md](../../domains/geegoodata-news.md)、GeeGooData `docs/NEWS.md`、Bot `interface-map`。
 
 核对命令：
 

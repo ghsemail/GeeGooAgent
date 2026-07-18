@@ -26,9 +26,11 @@ var EmptyResultTools = map[string]bool{
 	"get_position":          true,
 	"get_ticker":            true,
 	"get_broker":            true,
-	"get_capital_flow":      true,
-	"get_capital_distribution": true,
+	"get_capital_flow":           true,
+	"get_capital_distribution":   true,
 	"get_bot_yesterday_attitude": true,
+	"generate_grid_strategy":     true,
+	"generate_dca_strategy":      true,
 }
 
 // ClassifyHTTPPayload decides status/summary from a normalized payload for
@@ -37,7 +39,7 @@ func ClassifyHTTPPayload(toolName string, normalized map[string]any, rawEnvelope
 	if !EmptyResultTools[toolName] {
 		return StatusOK, "", false
 	}
-	if isEmptyPayload(normalized) {
+	if isEmptyPayload(toolName, normalized) {
 		note := emptyDataNoteForTool(toolName, normalized)
 		return StatusSkip, note, true
 	}
@@ -45,7 +47,7 @@ func ClassifyHTTPPayload(toolName string, normalized map[string]any, rawEnvelope
 }
 
 // isEmptyPayload reports whether the normalized result has no usable items.
-func isEmptyPayload(normalized map[string]any) bool {
+func isEmptyPayload(toolName string, normalized map[string]any) bool {
 	if normalized == nil {
 		return true
 	}
@@ -60,7 +62,50 @@ func isEmptyPayload(normalized map[string]any) bool {
 	if ar, ok := normalized["analysis_result"].(string); ok && strings.TrimSpace(ar) == "" {
 		return true
 	}
+	switch toolName {
+	case "generate_grid_strategy":
+		return !gridStrategyHasUsableData(normalized)
+	case "generate_dca_strategy":
+		return !dcaStrategyHasUsableData(normalized)
+	}
 	return false
+}
+
+func gridStrategyHasUsableData(m map[string]any) bool {
+	param, ok := m["param"].(map[string]any)
+	if !ok || len(param) == 0 {
+		return false
+	}
+	for _, key := range []string{"upper_limit_price", "lower_limit_price", "grid_num"} {
+		if numericNonZero(param[key]) {
+			return true
+		}
+	}
+	return false
+}
+
+func dcaStrategyHasUsableData(m map[string]any) bool {
+	if signal, ok := m["signal"].(map[string]any); ok {
+		if buy, ok := signal["buy_signal"].([]any); ok && len(buy) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func numericNonZero(v any) bool {
+	switch n := v.(type) {
+	case float64:
+		return n != 0
+	case float32:
+		return n != 0
+	case int:
+		return n != 0
+	case int64:
+		return n != 0
+	default:
+		return false
+	}
 }
 
 func emptyDataNoteForTool(toolName string, normalized map[string]any) string {
@@ -74,6 +119,16 @@ func emptyDataNoteForTool(toolName string, normalized map[string]any) string {
 		return fmt.Sprintf("get_broker: 无经纪分布（富途未配置；code=%s）", code)
 	case "get_mcp_analysis":
 		return fmt.Sprintf("get_mcp_analysis: 分析结果为空（analyze-api 与 mcp-api 均无内容；code=%s）", code)
+	case "generate_grid_strategy":
+		if code != "" {
+			return fmt.Sprintf("generate_grid_strategy: 未返回可用网格 param（upper/lower/grid_num；code=%s）；检查 analyze-api :3230 与 LLM/prompt 配置", code)
+		}
+		return "generate_grid_strategy: 未返回可用网格 param（upper_limit_price / lower_limit_price / grid_num）；检查 analyze-api :3230 与 LLM/prompt 配置"
+	case "generate_dca_strategy":
+		if code != "" {
+			return fmt.Sprintf("generate_dca_strategy: 未返回 signal.buy_signal（code=%s）；确认 signal_id 有效且 analyze-api 已配置", code)
+		}
+		return "generate_dca_strategy: 未返回 signal.buy_signal；确认 signal_id 有效且 analyze-api 已配置"
 	default:
 		if code != "" {
 			return fmt.Sprintf("%s: API 返回成功但数据为空（code=%s）", toolName, code)

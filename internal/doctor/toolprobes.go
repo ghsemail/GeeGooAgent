@@ -36,7 +36,8 @@ func checkToolProbes(cfg *config.AppConfig) []CheckResult {
 	results = append(results, probeMCPCodeQuery(ctx, client, token, "get_position", "/getPosition"))
 	results = append(results, probeMCPCodeQuery(ctx, client, token, "get_ticker", "/getTicker"))
 	results = append(results, probeMCPCodeQuery(ctx, client, token, "get_broker", "/getBroker"))
-	results = append(results, probeStockNews(ctx))
+	results = append(results, probeStockNews(ctx, client, token))
+	results = append(results, probeMarketNews(ctx, client, token))
 	results = append(results, probeStockDailyReports(ctx, client, token))
 	results = append(results, CheckResult{
 		Name:   "tool probe: get_mcp_analysis",
@@ -168,22 +169,57 @@ func probePayloadSummary(data any) string {
 	}
 }
 
-func probeStockNews(ctx context.Context) CheckResult {
+func probeStockNews(ctx context.Context, client *mcp.Client, token string) CheckResult {
 	name := "tool probe: fetch_stock_news"
-	probeCtx, cancel := context.WithTimeout(ctx, 18*time.Second)
+	probeCtx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
-	text, err := newsrunner.StockNewsGo(probeCtx, probeCodeHK, 3)
+	data, err := client.GetStockNews(probeCtx, token, probeCodeHK, 3)
 	if err != nil {
-		return CheckResult{Name: name, OK: false, Detail: err.Error()}
+		// Fall back to local Go probe when Bot route not deployed yet.
+		text, localErr := newsrunner.StockNewsGo(probeCtx, probeCodeHK, 3)
+		if localErr != nil {
+			return CheckResult{Name: name, OK: false, Detail: err.Error()}
+		}
+		text = strings.TrimSpace(text)
+		if text == "" || strings.Contains(text, "暂无数据") {
+			return CheckResult{
+				Name: name, OK: true, Warn: true,
+				Detail: probeCodeHK + ": Bot news unavailable; local probe empty",
+			}
+		}
+		return CheckResult{Name: name, OK: true, Detail: fmt.Sprintf("%s: local fallback %d chars", probeCodeHK, len(text))}
 	}
-	text = strings.TrimSpace(text)
+	text := strings.TrimSpace(data.Text)
 	if text == "" || strings.Contains(text, "暂无数据") {
 		return CheckResult{
 			Name: name, OK: true, Warn: true,
-			Detail: probeCodeHK + ": no headlines (check outbound network / news sources)",
+			Detail: probeCodeHK + ": API OK but no headlines",
 		}
 	}
-	return CheckResult{Name: name, OK: true, Detail: fmt.Sprintf("%s: %d chars", probeCodeHK, len(text))}
+	src := strings.Join(data.SourcesUsed, ",")
+	if src == "" {
+		src = "GeeGooData-via-Bot"
+	}
+	return CheckResult{Name: name, OK: true, Detail: fmt.Sprintf("%s via %s: %d chars", probeCodeHK, src, len(text))}
+}
+
+func probeMarketNews(ctx context.Context, client *mcp.Client, token string) CheckResult {
+	name := "tool probe: fetch_market_news"
+	probeCtx, cancel := context.WithTimeout(ctx, 25*time.Second)
+	defer cancel()
+	data, err := client.GetMarketNews(probeCtx, token, "HK", 3)
+	if err != nil {
+		return CheckResult{Name: name, OK: true, Warn: true, Detail: "HK market news via Bot: " + err.Error()}
+	}
+	text := strings.TrimSpace(data.Text)
+	if text == "" || strings.Contains(text, "暂无数据") {
+		return CheckResult{Name: name, OK: true, Warn: true, Detail: "HK market news: API OK but empty"}
+	}
+	src := strings.Join(data.SourcesUsed, ",")
+	if src == "" {
+		src = "GeeGooData-via-Bot"
+	}
+	return CheckResult{Name: name, OK: true, Detail: fmt.Sprintf("HK via %s: %d chars", src, len(text))}
 }
 
 func probeStockDailyReports(ctx context.Context, client *mcp.Client, token string) CheckResult {

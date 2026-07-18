@@ -1,7 +1,7 @@
 # Tool 服务器与接口对照表
 
 > 维护：Tool 注册以 `internal/tools/catalog/catalog.go` 与 `bespoke.go` 为准；改 API 时同步本表与 [interface-map.md](../../../reference/geegoo-mcp/interface-map.md)。  
-> 运行态可用性：[tools-tree.md](./tools-tree.md)
+> **运行态可用性**：[tools-status.md](./tools-status.md)
 
 ## 服务器别名（GeeGoo Go 3xxx）
 
@@ -10,8 +10,9 @@
 | **GeeGooBot mcp-api** | `118.195.135.97` | **3120** | MCP 契约 API（GeeGooAgent 主入口） |
 | **GeeGooSignal signal-api** | `146.56.225.252` | **3200** | 标的搜索、回测等 |
 | **GeeGooSignal catalog-api** | `146.56.225.252` | **3210** | 指标信号、queryModel |
-| **GeeGooSignal analyze-api** | `146.56.225.252` | **3230** | MCP 分析（getMCPAnalysis） |
-| **GeeGooData data-api** | `47.80.14.120` | **3300** | 行情数据 |
+| **GeeGooSignal analyze-api** | `146.56.225.252` | **3230** | MCP 分析、策略生成（Agent 可直连） |
+| **GeeGooData data-api（港/美）** | `47.80.14.120` | **3300** | 港美股行情、资金底层 |
+| **GeeGooData data-api（A 股）** | `82.157.97.76` | **3300** | A 股行情、资金底层（经 Bot 按 code 路由） |
 
 配置项对应关系（`config.json`）：
 
@@ -24,7 +25,7 @@
 | `signal_catalog_api_key` | 各服务 Bearer | 见 GeeGooSignal `.env` |
 | `signal_analyze_api_url` | `http://146.56.225.252:3230` | analyze-api |
 | `signal_analyze_api_key` | analyze-api Bearer | 见 GeeGooSignal `.env` |
-| `data_base_url` | `http://47.80.14.120:3300` | GeeGooData |
+| `data_base_url` | `http://47.80.14.120:3300` | GeeGooData 默认（港/美）；A 股由 Bot 路由至 `82.157.97.76:3300` |
 
 参考：`config.production.example.json`
 
@@ -39,8 +40,8 @@
 
 特殊值：
 
-- **—** — 不依赖 GeeGooBot mcp-api / GeeGooSignal / TradingServer
-- **外网 HTTPS** — 新闻脚本或飞书 Webhook 等公网出站
+- **—** — 不依赖 GeeGoo Go 后端（本地 workspace / 外网）
+- **外网 HTTPS** — 新闻 RSS、DuckDuckGo 等公网出站
 
 ---
 
@@ -48,24 +49,22 @@
 
 | 服务器 | 涉及 Tool 数 | 说明 |
 |--------|-------------|------|
-| **GeeGooBot mcp-api** | 74 | 全部 HTTP Tool 的最终入口 |
-| **GeeGooSignal**（间接） | 5 | 信号列表、组合信号、策略生成、回测 |
-| **TradingServer**（间接） | 1～2 | 最新价、持仓（GeeGooBot mcp-api 内部转发） |
-| **无（本地/外网）** | 8 | workspace、chat 文件、新闻、飞书 |
+| **GeeGooBot mcp-api** | 74 | 绝大多数 HTTP Tool 入口 |
+| **GeeGooSignal**（Agent 可直连） | 5 | search、catalog、analyze、loopback |
+| **GeeGooData**（间接，经 Bot） | 2+ | 现价、资金、分布 |
+| **无（本地/外网）** | 7 | workspace、新闻、web_search、recall |
 
 ---
 
 ## 间接依赖速查
 
-| 间接服务器 | 触发 Tool | GeeGooBot mcp-api 入口 |
-|-----------|----------|----------------|
-| **TradingServer** `:7000` | `get_current_price` | GeeGooBot mcp-api `POST /getCurrentPrice` |
-| **TradingServer** `:7000` | `get_position` | GeeGooBot mcp-api `POST /getPosition` |
-| **GeeGooSignal** `:3210` | `get_index_signals` | GeeGooBot mcp-api `POST /getIndexSignalForSkill` |
-| **GeeGooSignal** `:3210` | `get_signal_combinations` | GeeGooBot mcp-api `POST /getSignalCombinationForSkill` |
-| **GeeGooSignal** `:3210` | `generate_grid_strategy` | GeeGooBot mcp-api `POST /generateGridStrategy` |
-| **GeeGooSignal** `:3210` | `generate_dca_strategy` | GeeGooBot mcp-api `POST /generateDCAStrategy` |
-| **GeeGooSignal signal-api** `:3200` | `loopback_strategy` | GeeGooSignal signal-api `POST /loopBackStrategy` |
+| 下游 | 触发 Tool | Agent 入口 |
+|------|----------|------------|
+| **GeeGooData** `:3300` | `get_current_price`, `get_capital_flow`, `get_capital_distribution` | Bot `POST` 对应路径（按 code 路由 CN/HK/US 节点） |
+| **富途 OpenD** | `get_position`, `get_ticker`, `get_broker` | Bot `POST /getPosition` 等 |
+| **GeeGooSignal catalog** `:3210` | `get_index_signals`, `get_signal_combinations` | Agent 直连 catalog-api |
+| **GeeGooSignal analyze** `:3230` | `generate_grid_strategy`, `generate_dca_strategy` | Agent 直连 analyze-api（失败 fallback 3120） |
+| **GeeGooSignal signal** `:3200` | `search_code`, `loopback_strategy` | Agent 直连 signal-api |
 
 ---
 
@@ -75,13 +74,13 @@
 |------|-----------|-----------|----------|----------|
 | `check_trading_day` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /checkTradingDay` |
 | `search_code` | GeeGooSignal signal-api | — | GeeGooSignal signal-api:3200 | `POST /searchCode` |
-| `get_current_price` | GeeGooBot mcp-api | TradingServer | GeeGooBot mcp-api:3120 | `POST /getCurrentPrice`；失败回退 `POST /getTicker` |
-| `get_ticker` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getTicker` |
-| `get_position` | GeeGooBot mcp-api | TradingServer | GeeGooBot mcp-api:3120 | `POST /getPosition` |
+| `get_current_price` | GeeGooBot mcp-api | GeeGooData | GeeGooBot mcp-api:3120 | `POST /getCurrentPrice` |
+| `get_ticker` | GeeGooBot mcp-api | 富途 OpenD | GeeGooBot mcp-api:3120 | `POST /getTicker` |
+| `get_position` | GeeGooBot mcp-api | 富途 OpenD | GeeGooBot mcp-api:3120 | `POST /getPosition` |
 | `get_broker` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getBroker` |
 | `get_report_bot_codes` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getReportBotCodes` |
-| `fetch_market_news` | — | 外网 HTTPS | 本地脚本 | subprocess（东方财富 / finance-news） |
-| `fetch_stock_news` | — | 外网 HTTPS | 本地脚本 | subprocess（东方财富 / akshare / finance-news） |
+| `fetch_market_news` | GeeGooBot :3120 | GeeGooData :3300 | Bot→Data 多源聚合 + Agent 本地回退 |
+| `fetch_stock_news` | GeeGooBot :3120 | GeeGooData :3300 | Bot→Data 多源聚合 + web_search |
 
 ---
 
@@ -89,22 +88,23 @@
 
 | Tool | 直连服务器 | 间接服务器 | 接口服务 | 接口方法 |
 |------|-----------|-----------|----------|----------|
-| `get_mcp_analysis` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getMCPAnalysis` |
-| `get_capital_flow` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getCapitalFlow` |
-| `get_capital_distribution` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getCapitalDistribution` |
+| `get_mcp_analysis` | GeeGooBot mcp-api | analyze-api | GeeGooBot mcp-api:3120 | `POST /getMCPAnalysis`（内部可转 3230） |
+| `get_capital_flow` | GeeGooBot mcp-api | GeeGooData | GeeGooBot mcp-api:3120 | `POST /getCapitalFlow` |
+| `get_capital_distribution` | GeeGooBot mcp-api | GeeGooData | GeeGooBot mcp-api:3120 | `POST /getCapitalDistribution` |
 | `get_bot_yesterday_attitude` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getBotYesterdayAttitude` |
 | `get_bot_log_by_type` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getBotLogByType` |
 | `get_stock_daily_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getStockDailyReports` |
-| `list_today_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getStockDailyReports` |
+| `list_today_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getStockDailyReports`（盘前幂等别名） |
+| `list_today_post_market_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getStockDailyReports`（盘后幂等别名） |
 | `get_pre_market_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getPreMarketReports` |
 | `get_intraday_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getIntradayTradeDecisionReports` |
 | `get_post_market_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getPostMarketReports` |
-| `get_index_signals` | GeeGooBot mcp-api | GeeGooSignal | GeeGooBot mcp-api:3120 | `POST /getIndexSignalForSkill` |
-| `get_signal_combinations` | GeeGooBot mcp-api | GeeGooSignal | GeeGooBot mcp-api:3120 | `POST /getSignalCombinationForSkill` |
+| `get_index_signals` | GeeGooSignal catalog-api | — | catalog-api:3210 | `POST /getIndexSignalForSkill` |
+| `get_signal_combinations` | GeeGooSignal catalog-api | — | catalog-api:3210 | `POST /getSignalCombinationForSkill` |
 | `get_single_prompt_template` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getSinglePromptTemplate` |
-| `generate_grid_strategy` | GeeGooBot mcp-api | GeeGooSignal | GeeGooBot mcp-api:3120 | `POST /generateGridStrategy` |
-| `generate_dca_strategy` | GeeGooBot mcp-api | GeeGooSignal | GeeGooBot mcp-api:3120 | `POST /generateDCAStrategy` |
-| `loopback_strategy` | GeeGooBot mcp-api | GeeGooSignal | GeeGooBot mcp-api:3120 | `POST /loopBackStrategy` |
+| `generate_grid_strategy` | GeeGooSignal analyze-api | — | analyze-api:3230 | `POST /generateGridStrategy`（fallback 3120） |
+| `generate_dca_strategy` | GeeGooSignal analyze-api | — | analyze-api:3230 | `POST /generateDCAStrategy`（fallback 3120） |
+| `loopback_strategy` | GeeGooSignal signal-api | — | signal-api:3200 | `POST /loopBackStrategy` |
 | `get_dca_bot_log` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getDCABotLog` |
 | `get_grid_bot_log` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getGRIDBotLog` |
 | `get_smart_trade_log` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getSmartTradeLog` |
@@ -149,7 +149,6 @@
 | `update_post_market_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /updatePostMarketReport` |
 | `delete_post_market_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /deletePostMarketReport` |
 | `save_local_report` | — | — | 本地 workspace | 写 `reports/{date}/{code}-*.md` |
-| `send_feishu_summary` | — | 外网 HTTPS | 飞书 Webhook | `POST feishu_webhook_url` |
 
 ### 5.2 Prompt 模板
 
@@ -217,35 +216,23 @@
 
 ## 场景子集
 
-### `geegoo chat`（15 个）
+### `geegoo chat`（~73 个，按 toolset 白名单）
 
-| Tool | 直连 | 间接 | 接口 |
-|------|------|------|------|
-| `check_trading_day` | GeeGooBot mcp-api | — | GeeGooBot mcp-api `POST /checkTradingDay` |
-| `search_code` | GeeGooBot mcp-api | — | GeeGooBot mcp-api `POST /searchCode` |
-| `get_current_price` | GeeGooBot mcp-api | TradingServer | GeeGooBot mcp-api `POST /getCurrentPrice` → 回退 GeeGooBot mcp-api `POST /getTicker` |
-| `get_ticker` | GeeGooBot mcp-api | — | GeeGooBot mcp-api `POST /getTicker` |
-| `get_position` | GeeGooBot mcp-api | TradingServer | GeeGooBot mcp-api `POST /getPosition` |
-| `get_capital_flow` | GeeGooBot mcp-api | — | GeeGooBot mcp-api `POST /getCapitalFlow` |
-| `get_capital_distribution` | GeeGooBot mcp-api | — | GeeGooBot mcp-api `POST /getCapitalDistribution` |
-| `get_single_prompt_template` | GeeGooBot mcp-api | — | GeeGooBot mcp-api `POST /getSinglePromptTemplate` |
-| `get_mcp_analysis` | GeeGooBot mcp-api | — | GeeGooBot mcp-api `POST /getMCPAnalysis` |
-| `fetch_market_news` | — | 外网 | 本地脚本 |
-| `fetch_stock_news` | — | 外网 | 本地脚本 |
-| `get_report_bot_codes` | GeeGooBot mcp-api | — | GeeGooBot mcp-api `POST /getReportBotCodes` |
-| `get_stock_daily_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api `POST /getStockDailyReports` |
-| `list_today_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api `POST /getStockDailyReports` |
-| `write_execution_log` | — | — | 本地 workspace |
-| `recall` | — | — | 本地 chat 存储 |
+详见 [tools-status.md](./tools-status.md) §十一 Toolset。核心：`market` + `strategy` + `bot_manager` + `reminder_manager` + `report_query`。
 
-### 盘前 workflow（16 个，见 `skills/pre_market/manifest.yaml`）
+### 盘前 workflow（15 个，见 `skills/pre_market/manifest.yaml`）
 
-`check_trading_day`, `get_report_bot_codes`, `fetch_market_news`, `fetch_stock_news`, `get_mcp_analysis`, `get_stock_daily_reports`, `list_today_reports`, `get_capital_flow`, `get_capital_distribution`, `get_bot_yesterday_attitude`, `recall_yesterday_summary`, `read_working_state`, `create_pre_market_report`, `save_local_report`, `send_feishu_summary`, `write_execution_log`
+`check_trading_day`, `get_report_bot_codes`, `fetch_market_news`, `fetch_stock_news`, `get_mcp_analysis`, `get_stock_daily_reports`, `list_today_reports`, `get_capital_flow`, `get_capital_distribution`, `get_bot_yesterday_attitude`, `recall_yesterday_summary`, `read_working_state`, `create_pre_market_report`, `save_local_report`, `write_execution_log`
+
+### 盘中 / 盘后
+
+见 `skills/intraday/manifest.yaml`（9 Tool）、`skills/post_market/manifest.yaml`（10 Tool）。
 
 ---
 
 ## 相关文档
 
+- [tools-status.md](./tools-status.md) — 运行态 SSOT
 - [tool-catalog.md](./tool-catalog.md) — Tool 功能与 MVP 标记
 - [clients.md](./clients.md) — HTTP Client 设计
 - [geegoo-api-routing.md](../../domains/geegoo-api-routing.md) — GeeGooBot mcp-api 3120 路由规则

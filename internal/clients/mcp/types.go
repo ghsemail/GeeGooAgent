@@ -88,3 +88,31 @@ type SearchCodeItem struct {
 type CurrentPriceData struct {
 	Price float64 `json:"price"`
 }
+
+// NewsItem from /getMarketNews and /getStockNews.
+type NewsItem struct {
+	Title       string `json:"title"`
+	URL         string `json:"url,omitempty"`
+	Snippet     string `json:"snippet,omitempty"`
+	SourceID    string `json:"source_id,omitempty"`
+	SourceLabel string `json:"source_label,omitempty"`
+	PublishedAt string `json:"published_at,omitempty"`
+}
+
+// MarketNewsData from /getMarketNews.
+type MarketNewsData struct {
+	Market      string     `json:"market"`
+	Items       []NewsItem `json:"items"`
+	Text        string     `json:"text"`
+	SourcesUsed []string   `json:"sources_used"`
+	CacheHit    bool       `json:"cache_hit"`
+}
+
+// StockNewsData from /getStockNews.
+type StockNewsData struct {
+	Code        string     `json:"code"`
+	Items       []NewsItem `json:"items"`
+	Text        string     `json:"text"`
+	SourcesUsed []string   `json:"sources_used"`
+	CacheHit    bool       `json:"cache_hit"`
+}

@@ -47,3 +47,53 @@ func TestClassifyNonEmptyToolAlwaysOK(t *testing.T) {
 		t.Fatalf("expected ok for non-listed tool, got %s", status)
 	}
 }
+
+func TestClassifyEmptyGridStrategyAsSkip(t *testing.T) {
+	t.Parallel()
+	status, note, gap := tools.ClassifyHTTPPayload("generate_grid_strategy",
+		map[string]any{"suitable": false, "reason": "not suitable"}, nil)
+	if status != tools.StatusSkip {
+		t.Fatalf("expected skip, got %s", status)
+	}
+	if !gap || note == "" {
+		t.Fatalf("expected data gap note, got gap=%v note=%q", gap, note)
+	}
+}
+
+func TestClassifyGridStrategyWithParamAsOK(t *testing.T) {
+	t.Parallel()
+	status, _, _ := tools.ClassifyHTTPPayload("generate_grid_strategy", map[string]any{
+		"code": "00700.HK",
+		"param": map[string]any{
+			"upper_limit_price": 640.0,
+			"lower_limit_price": 500.0,
+			"grid_num":          7.0,
+		},
+		"suitable": true,
+	}, nil)
+	if status != tools.StatusOK {
+		t.Fatalf("expected ok, got %s", status)
+	}
+}
+
+func TestClassifyEmptyDCAStrategyAsSkip(t *testing.T) {
+	t.Parallel()
+	status, _, _ := tools.ClassifyHTTPPayload("generate_dca_strategy",
+		map[string]any{"signal": map[string]any{"buy_signal": []any{}}}, nil)
+	if status != tools.StatusSkip {
+		t.Fatalf("expected skip, got %s", status)
+	}
+}
+
+func TestClassifyDCAStrategyWithBuySignalAsOK(t *testing.T) {
+	t.Parallel()
+	status, _, _ := tools.ClassifyHTTPPayload("generate_dca_strategy", map[string]any{
+		"code": "00700.HK",
+		"signal": map[string]any{
+			"buy_signal": []any{map[string]any{"index": "SAR"}},
+		},
+	}, nil)
+	if status != tools.StatusOK {
+		t.Fatalf("expected ok, got %s", status)
+	}
+}

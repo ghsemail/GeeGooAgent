@@ -212,7 +212,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "fetch_market_news", Description: "拉取市场新闻（US/CN/HK RSS/东财）。失败时改用 web_search。",
+		Name: "fetch_market_news", Description: "拉取市场新闻（经 GeeGooBot→GeeGooData 多源聚合；失败时本地 finance-news / web_search）。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -226,47 +226,21 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("fetch_market_news", map[string]any{"market": market, "text": "", "items": []any{}})
 			}
-			text, err := newsrunner.MarketNews(ctx.GoContext(), newsrunner.Options{ProjectRoot: deps.ProjectRoot}, market, limit)
+			text, source, items, err := fetchMarketNewsResilient(ctx.GoContext(), deps.HTTP.MCP, ctx.MCPToken, deps.ProjectRoot, market, limit)
 			if err != nil {
 				return newsUnavailableResult("fetch_market_news", market, "", err)
 			}
-			source := "finance-news"
 			if stockNewsNeedsFallback(text) {
-				query := strings.ToUpper(market) + " stock market news today"
-				if market == "CN" || market == "HK" {
-					query = strings.ToUpper(market) + " 股市 新闻"
-				}
-				cfg := deps.Search
-				if strings.TrimSpace(cfg.Provider) == "" {
-					cfg.Provider = search.ProviderDuckDuckGo
-				}
-				if cfg.MaxResults <= 0 {
-					cfg.MaxResults = 8
-				}
-				if hits, err := search.Search(ctx.GoContext(), search.Config{
-					Provider: cfg.Provider, MaxResults: cfg.MaxResults,
-				}, query); err == nil && len(hits) > 0 {
-					items := make([]map[string]any, 0, len(hits))
-					for _, h := range hits {
-						items = append(items, map[string]any{
-							"title": h.Title, "url": h.URL, "snippet": h.Snippet,
-						})
-					}
-					text = mergeStockNewsText(text, formatWebSearchNews(market, query, items))
-					source = "finance-news+web_search"
+				if supplement, _ := webSearchMarketFallback(ctx.GoContext(), deps.Search, market); supplement != "" {
+					text = mergeStockNewsText(text, supplement)
+					source = source + "+web_search"
 				}
 			}
-			summary := fmt.Sprintf("fetch_market_news %s: %d chars", market, len(text))
-			if text == "" {
-				summary = fmt.Sprintf("fetch_market_news %s: no items", market)
-			}
-			return Result{Status: StatusOK, Summary: summary, Data: map[string]any{
-				"market": market, "text": text, "items": []any{}, "source": source,
-			}}
+			return buildMarketNewsResult(market, text, source, items)
 		},
 	})
 	r.Register(Tool{
-		Name: "fetch_stock_news", Description: "拉取个股新闻（多源：finance-news → web_search 补充）。",
+		Name: "fetch_stock_news", Description: "拉取个股新闻（经 GeeGooBot→GeeGooData；失败时本地多源 / web_search）。",
 		Parameters: map[string]any{
 			"type": "object", "required": []string{"code"},
 			"properties": map[string]any{
@@ -283,26 +257,29 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("fetch_stock_news", map[string]any{"code": code, "text": "", "source": "dry-run"})
 			}
-			text, err := newsrunner.StockNews(ctx.GoContext(), newsrunner.Options{ProjectRoot: deps.ProjectRoot}, code, limit)
+			text, source, items, err := fetchStockNewsResilient(ctx.GoContext(), deps.HTTP.MCP, ctx.MCPToken, deps.ProjectRoot, code, limit)
 			if err != nil {
 				return newsUnavailableResult("fetch_stock_news", "", code, err)
 			}
-			source := "finance-news"
 			if stockNewsNeedsFallback(text) {
 				if supplement, _ := webSearchNewsFallback(ctx.GoContext(), deps.Search, code); supplement != "" {
 					text = mergeStockNewsText(text, supplement)
-					source = "finance-news+web_search"
+					if source == "" {
+						source = "web_search"
+					} else {
+						source = source + "+web_search"
+					}
 				}
 			}
 			if stockNewsNeedsFallback(text) {
-				return newsUnavailableResult("fetch_stock_news", "", code, fmt.Errorf("no headlines after finance-news and web_search"))
+				return newsUnavailableResult("fetch_stock_news", "", code, fmt.Errorf("no headlines after GeeGooData and web_search"))
 			}
 			summary := fmt.Sprintf("fetch_stock_news %s: %d chars", code, len(text))
 			if text == "" {
 				summary = fmt.Sprintf("fetch_stock_news %s: no items", code)
 			}
 			return Result{Status: StatusOK, Summary: summary, Data: map[string]any{
-				"code": code, "text": text, "source": source,
+				"code": code, "text": text, "items": items, "source": source,
 			}}
 		},
 	})
@@ -827,7 +804,7 @@ func newsUnavailableResult(tool, market, code string, err error) Result {
 		}
 		return Result{
 			Status:  StatusSkip,
-			Summary: tool + ": 新闻获取失败（Python 脚本与 Go 回退均不可用）",
+			Summary: tool + ": 新闻获取失败（GeeGooData / 本地回退均不可用）",
 			Data:    data,
 		}
 	}
