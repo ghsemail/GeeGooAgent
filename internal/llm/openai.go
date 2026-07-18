@@ -14,12 +14,13 @@ import (
 
 // OpenAIProvider calls OpenAI-compatible chat/completions endpoints.
 type OpenAIProvider struct {
-	model           string
-	apiKey          string
-	baseURL         string
-	httpClient      *http.Client
-	thinkingEnabled bool
-	reasoningEffort string
+	model               string
+	apiKey              string
+	baseURL             string
+	httpClient          *http.Client
+	thinkingEnabled     bool
+	reasoningEffort     string
+	explicitPromptCache bool
 }
 
 // OpenAIOptions configures the HTTP provider.
@@ -30,6 +31,7 @@ type OpenAIOptions struct {
 	HTTPClient      *http.Client
 	ThinkingEnabled bool
 	ReasoningEffort string
+	ExplicitPromptCache bool
 }
 
 // NewOpenAIProvider creates an OpenAI-compatible provider.
@@ -43,12 +45,13 @@ func NewOpenAIProvider(opts OpenAIOptions) *OpenAIProvider {
 		base = "https://api.openai.com/v1"
 	}
 	return &OpenAIProvider{
-		model:           opts.Model,
-		apiKey:          opts.APIKey,
-		baseURL:         base,
-		httpClient:      client,
-		thinkingEnabled: opts.ThinkingEnabled,
-		reasoningEffort: opts.ReasoningEffort,
+		model:               opts.Model,
+		apiKey:              opts.APIKey,
+		baseURL:             base,
+		httpClient:          client,
+		thinkingEnabled:     opts.ThinkingEnabled,
+		reasoningEffort:     opts.ReasoningEffort,
+		explicitPromptCache: opts.ExplicitPromptCache,
 	}
 }
 
@@ -57,7 +60,7 @@ func (p *OpenAIProvider) Model() string { return p.model }
 func (p *OpenAIProvider) Chat(ctx context.Context, messages []Message, tools []ToolSchema, temperature float64, maxTokens int) (*Response, error) {
 	body := map[string]any{
 		"model":       p.model,
-		"messages":    toOpenAIMessages(messages),
+		"messages":    p.toOpenAIMessages(messages),
 		"temperature": temperature,
 		"max_tokens":  maxTokens,
 	}
@@ -96,7 +99,7 @@ func (p *OpenAIProvider) Chat(ctx context.Context, messages []Message, tools []T
 	return parseOpenAIResponse(respBody, p.model)
 }
 
-func toOpenAIMessages(messages []Message) []map[string]any {
+func (p *OpenAIProvider) toOpenAIMessages(messages []Message) []map[string]any {
 	out := make([]map[string]any, 0, len(messages))
 	for _, m := range messages {
 		item := map[string]any{"role": string(m.Role)}
@@ -108,7 +111,7 @@ func toOpenAIMessages(messages []Message) []map[string]any {
 			if content == "" {
 				item["content"] = nil
 			} else {
-				item["content"] = content
+				item["content"] = p.formatTextContent(content, m.CacheBreakpoint)
 			}
 			calls := make([]map[string]any, 0, len(m.ToolCalls))
 			for _, c := range m.ToolCalls {
@@ -127,11 +130,30 @@ func toOpenAIMessages(messages []Message) []map[string]any {
 			item["content"] = m.Content
 			item["tool_call_id"] = m.ToolCallID
 		} else {
-			item["content"] = m.Content
+			item["content"] = p.formatTextContent(m.Content, m.CacheBreakpoint)
 		}
 		out = append(out, item)
 	}
 	return out
+}
+
+func (p *OpenAIProvider) formatTextContent(text string, breakpoint bool) any {
+	if !p.explicitPromptCache || !breakpoint || text == "" {
+		return text
+	}
+	return []map[string]any{
+		{
+			"type": "text",
+			"text": text,
+			"cache_control": map[string]any{
+				"type": "ephemeral",
+			},
+		},
+	}
+}
+
+func toOpenAIMessages(messages []Message) []map[string]any {
+	return (&OpenAIProvider{}).toOpenAIMessages(messages)
 }
 
 func toOpenAITools(tools []ToolSchema) []map[string]any {
@@ -170,8 +192,10 @@ func parseOpenAIResponse(raw []byte, model string) (*Response, error) {
 			} `json:"message"`
 		} `json:"choices"`
 		Usage struct {
-			PromptTokens     int `json:"prompt_tokens"`
-			CompletionTokens int `json:"completion_tokens"`
+			PromptTokens          int `json:"prompt_tokens"`
+			CompletionTokens      int `json:"completion_tokens"`
+			PromptCacheHitTokens  int `json:"prompt_cache_hit_tokens"`
+			PromptCacheMissTokens int `json:"prompt_cache_miss_tokens"`
 		} `json:"usage"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
@@ -200,9 +224,11 @@ func parseOpenAIResponse(raw []byte, model string) (*Response, error) {
 		ToolCalls:        calls,
 		FinishReason:     choice.FinishReason,
 		Usage: TokenUsage{
-			PromptTokens:     envelope.Usage.PromptTokens,
-			CompletionTokens: envelope.Usage.CompletionTokens,
-			Model:            model,
+			PromptTokens:          envelope.Usage.PromptTokens,
+			CompletionTokens:      envelope.Usage.CompletionTokens,
+			PromptCacheHitTokens:  envelope.Usage.PromptCacheHitTokens,
+			PromptCacheMissTokens: envelope.Usage.PromptCacheMissTokens,
+			Model:                 model,
 		},
 	}, nil
 }
@@ -246,7 +272,7 @@ func scrubSIDTokens(s string) string {
 
 // BuildProviderFromConfig creates a provider from config fields (no thinking).
 func BuildProviderFromConfig(providerName, tokenKey, model string) (Provider, error) {
-	return BuildProviderFromLLMFields(providerName, tokenKey, model, nil, "", "")
+	return BuildProviderFromLLMFields(providerName, tokenKey, model, nil, "", "", nil)
 }
 
 // BuildProviderFromLLMFields creates a provider with optional thinking settings.
@@ -256,6 +282,7 @@ func BuildProviderFromLLMFields(
 	thinking *bool,
 	reasoningEffort string,
 	baseURLOverride string,
+	promptCache *bool,
 ) (Provider, error) {
 	if tokenKey == "" {
 		return nil, fmt.Errorf("LLM 未配置：请填写 llm.token_key 或运营配置 token")
@@ -284,11 +311,12 @@ func BuildProviderFromLLMFields(
 		baseURL = preset.BaseURL
 	}
 	return NewOpenAIProvider(OpenAIOptions{
-		Model:           resolved,
-		APIKey:          tokenKey,
-		BaseURL:         baseURL,
-		ThinkingEnabled: ResolveThinkingEnabled(name, resolved, thinking),
-		ReasoningEffort: effort,
+		Model:               resolved,
+		APIKey:              tokenKey,
+		BaseURL:             baseURL,
+		ThinkingEnabled:     ResolveThinkingEnabled(name, resolved, thinking),
+		ReasoningEffort:     effort,
+		ExplicitPromptCache: ResolveExplicitPromptCache(name, promptCache),
 	}), nil
 }
 

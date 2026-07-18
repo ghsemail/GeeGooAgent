@@ -76,6 +76,19 @@ func TestParseOpenAIResponseCoercesNullContentAndFinishReason(t *testing.T) {
 	}
 }
 
+func TestParseOpenAIResponseCacheUsage(t *testing.T) {
+	resp, err := parseOpenAIResponse([]byte(`{
+		"choices":[{"finish_reason":"stop","message":{"content":"ok"}}],
+		"usage":{"prompt_tokens":100,"completion_tokens":10,"prompt_cache_hit_tokens":80,"prompt_cache_miss_tokens":20}
+	}`), "deepseek-v4-flash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Usage.PromptCacheHitTokens != 80 || resp.Usage.PromptCacheMissTokens != 20 {
+		t.Fatalf("usage=%+v", resp.Usage)
+	}
+}
+
 func TestParseOpenAIResponseMultipartContent(t *testing.T) {
 	resp, err := parseOpenAIResponse([]byte(`{
 		"choices":[{"finish_reason":"stop","message":{"content":[{"type":"text","text":"hello"}]}}]

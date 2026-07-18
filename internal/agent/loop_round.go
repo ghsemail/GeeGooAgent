@@ -47,6 +47,11 @@ func (l *Loop) runRound(
 	if resp.Usage.PromptTokens > 0 {
 		session.LastPromptTokens = resp.Usage.PromptTokens
 	}
+	if resp.Usage.PromptCacheHitTokens > 0 || resp.Usage.PromptCacheMissTokens > 0 {
+		l.emit("prompt_cache", map[string]any{
+			"hit_tokens": resp.Usage.PromptCacheHitTokens, "miss_tokens": resp.Usage.PromptCacheMissTokens,
+		})
+	}
 
 	toolNames := toolCallNames(resp.ToolCalls)
 	planSummary := planSummaryText(resp, toolNames)

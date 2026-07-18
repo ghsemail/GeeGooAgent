@@ -195,6 +195,7 @@ func (a *App) RebuildGateway() error {
 	provider, err := llm.BuildProviderFromLLMFields(
 		providerName, tokenKey, model,
 		a.Config.LLM.Thinking, a.Config.LLM.ReasoningEffort, baseURL,
+		a.Config.LLM.PromptCache,
 	)
 	if err != nil {
 		return err
@@ -281,6 +282,7 @@ func (a *App) buildFallbackProviders() []llm.Provider {
 		p, err := llm.BuildProviderFromLLMFields(
 			fb.Provider, fb.TokenKey, fb.Model,
 			fb.Thinking, fb.ReasoningEffort, fb.BaseURL,
+			fb.PromptCache,
 		)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "警告: fallback LLM 跳过 (%s): %v\n", fb.Provider, err)
@@ -307,7 +309,7 @@ func (a *App) wireCompressor() {
 	// Explicit config.compression.context_length wins; otherwise resolve from model.
 	cfg.ContextLength = llm.ResolveContextWindow(model, a.Config.Compression.ContextLength)
 	aux := a.Config.EffectiveAuxiliaryCompression()
-	provider, err := llm.BuildProviderFromLLMFields(aux.Provider, aux.TokenKey, aux.Model, nil, "", aux.BaseURL)
+	provider, err := llm.BuildProviderFromLLMFields(aux.Provider, aux.TokenKey, aux.Model, nil, "", aux.BaseURL, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "警告: 上下文压缩未启用: %v\n", err)
 		a.setCompressor(nil)

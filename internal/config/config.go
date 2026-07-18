@@ -22,6 +22,7 @@ type LLMConfig struct {
 	UseOpsModel     *bool       `json:"use_ops_model,omitempty"`
 	CatalogModelID  string      `json:"catalog_model_id,omitempty"` // empty = trading_operation configured model
 	Fallbacks       []LLMConfig `json:"fallbacks,omitempty"`
+	PromptCache     *bool       `json:"prompt_cache,omitempty"`
 }
 
 // OpsModelEnabled reports whether RebuildGateway should query ops configured model.

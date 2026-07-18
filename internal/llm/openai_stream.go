@@ -23,7 +23,7 @@ func (p *OpenAIProvider) ChatStream(
 ) (*Response, error) {
 	body := map[string]any{
 		"model":       p.model,
-		"messages":    toOpenAIMessages(messages),
+		"messages":    p.toOpenAIMessages(messages),
 		"temperature": temperature,
 		"max_tokens":  maxTokens,
 		"stream":      true,
@@ -151,8 +151,10 @@ func parseOpenAIStream(r io.Reader, model string, onDelta StreamHandler) (*Respo
 				} `json:"delta"`
 			} `json:"choices"`
 			Usage *struct {
-				PromptTokens     int `json:"prompt_tokens"`
-				CompletionTokens int `json:"completion_tokens"`
+				PromptTokens          int `json:"prompt_tokens"`
+				CompletionTokens      int `json:"completion_tokens"`
+				PromptCacheHitTokens  int `json:"prompt_cache_hit_tokens"`
+				PromptCacheMissTokens int `json:"prompt_cache_miss_tokens"`
 			} `json:"usage"`
 		}
 		if err := json.Unmarshal([]byte(payload), &envelope); err != nil {
@@ -161,6 +163,8 @@ func parseOpenAIStream(r io.Reader, model string, onDelta StreamHandler) (*Respo
 		if envelope.Usage != nil {
 			usage.PromptTokens = envelope.Usage.PromptTokens
 			usage.CompletionTokens = envelope.Usage.CompletionTokens
+			usage.PromptCacheHitTokens = envelope.Usage.PromptCacheHitTokens
+			usage.PromptCacheMissTokens = envelope.Usage.PromptCacheMissTokens
 		}
 		if len(envelope.Choices) == 0 {
 			continue

@@ -88,6 +88,7 @@ func (g *Gateway) ChatStream(
 	if onDelta == nil {
 		onDelta = StreamHandlerFrom(ctx)
 	}
+	messages = ApplyCacheBreakpoints(messages)
 	providers := g.providers()
 	var lastErr error
 	for i, provider := range providers {

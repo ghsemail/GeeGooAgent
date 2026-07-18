@@ -75,6 +75,7 @@ func (a *Agent) Run(
 |------|------|------|
 | `max_steps` | 80 | 单 turn 最大 LLM↔tool 轮数 |
 | `sub_agent_max_steps` | 20 | `delegate_task` 子 Agent 回合上限（最大 40） |
+| `llm.prompt_cache` | 按 provider | 显式 `cache_control` 断点；DeepSeek/Minimax 默认 true |
 | `tool_max_parallel` | 4 | 单轮并行 tool 上限（最大 16） |
 | `tool_timeout_sec` | 120 | 单次 tool 超时秒数（最大 600） |
 | `temperature` | 0.2 | 传给 Provider |
@@ -88,6 +89,7 @@ func (a *Agent) Run(
 - Hermes 对齐回调：`thinking_start/stop`、`step_complete`、`tool_gen_start/delta`、`subagent_*`、`stream_delta`
 - `delegate_task` — 子 Agent 独立会话 + `sub_agent_max_steps` 预算；禁止嵌套
 - **Chat 工具拦截** — interactive 模式从 schema 剔除 workflow 独占 tool；运行时 `tool_intercepted` 兜底（如 `read_working_state` → 引导 `recall`）
+- **Prompt cache** — `llm.ApplyCacheBreakpoints`（system + 稳定历史边界）；`prompt_cache` 事件上报 hit/miss tokens
 - `Result.Meta` — HTTP 工具 `api_code`、`duration_ms`
 - EventBus（L0）— workflow 路径发 `ToolCalled` / `ToolCompleted`；chat 路径发 `TurnStarted`/`TurnCompleted`；报告合成发 `SynthesisStarted`/`SynthesisCompleted`
 

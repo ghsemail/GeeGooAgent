@@ -24,6 +24,8 @@ type Message struct {
 	ToolCallID       string     `json:"tool_call_id,omitempty"`
 	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`
 	ReasoningContent string     `json:"reasoning_content,omitempty"`
+	// CacheBreakpoint marks the end of a stable prefix for prompt caching (API-only).
+	CacheBreakpoint bool `json:"-"`
 }
 
 // ToolSchema describes a callable tool for the LLM.
@@ -42,9 +44,11 @@ type ToolCall struct {
 
 // TokenUsage records token consumption.
 type TokenUsage struct {
-	PromptTokens     int
-	CompletionTokens int
-	Model            string
+	PromptTokens          int
+	CompletionTokens      int
+	PromptCacheHitTokens  int
+	PromptCacheMissTokens int
+	Model                 string
 }
 
 // Response is a gateway result.

@@ -11,7 +11,7 @@
 | `run_agent.py` AIAgent | `internal/agent/agent.go` `Agent.Run` | ✅ 对齐（门面） |
 | `agent/prompt_builder.py` | `internal/chatprompt/builder.go` + `soul.go` / `tool_routing.go` / `memory.go` + `RuntimeMessages` 动态 context | ✅ 分层 builder |
 | `agent/context_compressor.py` | `internal/prompt/compressor.go` + `summary.go` | ✅ 对齐（Hermes-style 四阶段） |
-| `agent/prompt_caching.py` | 隐式（system 稳定即可命中 DeepSeek 前缀缓存） | ⚠️ 无显式断点 |
+| `agent/prompt_caching.py` | `internal/llm/cache.go` + 稳定 system / `RuntimeMessages` | ✅ 显式断点 |
 | `hermes_cli/runtime_provider.py` (18+ provider) | `internal/llm/presets.go` (DeepSeek/OpenAI/Minimax) + `BuildProviderFromLLMFields` | ✅ 按需精简 |
 | `tools/registry.py` (70+/28 toolset) | `internal/tools/registry.go` + `catalog/` + `bespoke.go` + `domains.go` | ✅ 对齐 |
 | `tools/approval.py` | `internal/tools/approval.go` | ✅ 对齐 |
@@ -35,7 +35,7 @@
 | Agent 循环 | AIAgent 单一入口 | `Agent.Run(ctx,sess,input)` | ✅ |
 | Prompt 稳定性 | ✅ system 不变 | ✅ P2a 修复 | ✅ |
 | 上下文压缩 | ✅ 有损摘要 + Gateway 85% hygiene | ✅ 四阶段 + 回合前 85% hygiene + 按模型 context_length | ✅ |
-| Prompt 缓存断点 | ✅ Anthropic 显式 | ⚠️ 隐式（前缀稳定） | ⚠️ |
+| Prompt 缓存断点 | ✅ Anthropic 显式 | ✅ `ApplyCacheBreakpoints` + `cache_control`（DeepSeek/Minimax 默认开启） | ✅ |
 | Provider 数量 | 18+ | 3 (DeepSeek/OpenAI/Minimax) | 按需精简 |
 | API mode | 3 种 (chat/codex/anthropic) | 1 种 (chat_completions) | 按需精简 |
 | 工具数 | 70+ | ~82 (catalog+bespoke) | ✅ |
@@ -84,7 +84,7 @@
 
 ## 五、GeeGooAgent 仍弱于 Hermes 的地方
 
-1. **显式 prompt 缓存断点**：靠前缀稳定隐式命中，无 Anthropic cache_control
+1. **显式 prompt 缓存断点**：已支持 `cache_control` 断点 + DeepSeek cache hit 统计；OpenAI 仍主要靠自动前缀缓存
 2. **工具自注册**：主路径仍 `RegisterAll`，但已支持 `AddRegistrar` 扩展
 3. **Profile 隔离**：单 profile，多租户不支持（YAGNI）
 4. **CLI 打字机**：`stream_delta` 边生成边显示；reasoning 经 `thinking_start/stop` 分段；tool 参数经 `tool_gen_start/delta` 预览
