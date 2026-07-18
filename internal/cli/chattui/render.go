@@ -95,14 +95,9 @@ func (m *Model) renderTranscript() string {
 			if hasSegment {
 				m.writeSegmentDivider(&b, width, prev, cur)
 			}
-			if boxed := m.renderProcessGroup(s.Blocks, i, s.Focus, width); boxed != "" {
-				b.WriteString(boxed)
-				b.WriteByte('\n')
-			}
-			for i < len(s.Blocks) && s.Blocks[i].IsVisible(m.display) && IsProcessKind(s.Blocks[i].Kind) {
-				i++
-			}
-			i--
+			var panel strings.Builder
+			m.appendProcessBlock(&panel, block, i, s.Focus, width)
+			b.WriteString(panel.String())
 			prev = cur
 			hasSegment = true
 			continue
@@ -166,7 +161,12 @@ func (m *Model) writeSegmentDivider(b *strings.Builder, width int, prev, cur tra
 		b.WriteByte('\n')
 		return
 	}
-	if cur == segmentProcess {
+	if prev == segmentUser && cur == segmentProcess {
+		return
+	}
+	if prev == cur && cur == segmentProcess {
+		b.WriteString(chatui.RenderSoftDivider(width))
+		b.WriteByte('\n')
 		return
 	}
 	switch {

@@ -12,6 +12,7 @@ const (
 	ColorBorder   = "214"
 	ColorErr      = "203"
 	ColorOK       = "114"
+	ColorRunning  = "120" // light green — in-progress elapsed
 )
 
 // Back-compat aliases for chatui internals.
@@ -25,4 +26,5 @@ const (
 	colorBorder   = ColorBorder
 	colorErr      = ColorErr
 	colorOK       = ColorOK
+	colorRunning  = ColorRunning
 )

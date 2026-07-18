@@ -42,23 +42,11 @@ func EstimateBlockHeight(b Block, cfg config.DisplayConfig) int {
 // EstimateTranscriptHeight sums visible block heights.
 func EstimateTranscriptHeight(blocks []Block, cfg config.DisplayConfig) int {
 	total := 0
-	for i := 0; i < len(blocks); {
-		b := blocks[i]
+	for _, b := range blocks {
 		if !b.IsVisible(cfg) {
-			i++
-			continue
-		}
-		if IsProcessKind(b.Kind) {
-			group := 2 // process panel border
-			for i < len(blocks) && blocks[i].IsVisible(cfg) && IsProcessKind(blocks[i].Kind) {
-				group += EstimateBlockHeight(blocks[i], cfg)
-				i++
-			}
-			total += group
 			continue
 		}
 		total += EstimateBlockHeight(b, cfg)
-		i++
 	}
 	return total
 }

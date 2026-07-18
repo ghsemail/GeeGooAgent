@@ -88,10 +88,16 @@ func RenderHermesStatusBar(opts StatusBarOptions, width int) string {
 	if elapsed < 0 {
 		elapsed = 0
 	}
+	elapsedSec := int(elapsed.Seconds())
 
-	busyPart := styleOK.Render(fmt.Sprintf("✓ %ds", int(elapsed.Seconds())))
+	var busyPart string
+	var elapsedPart string
 	if opts.Busy {
-		busyPart = styleDim.Render(fmt.Sprintf("⏲ %ds", int(elapsed.Seconds())))
+		busyPart = styleRunning.Render(fmt.Sprintf("⏲ %ds", elapsedSec))
+		elapsedPart = styleRunning.Render(fmt.Sprintf("%ds", elapsedSec))
+	} else {
+		busyPart = styleOK.Render(fmt.Sprintf("✓ %ds", elapsedSec))
+		elapsedPart = styleDim.Render(fmt.Sprintf("%ds", elapsedSec))
 	}
 
 	parts := []string{
@@ -100,7 +106,7 @@ func RenderHermesStatusBar(opts StatusBarOptions, width int) string {
 		styleDim.Render(FormatTokenCount(used)) + "/" + styleDim.Render(FormatTokenCount(ctx)),
 		styleDim.Render(renderProgressBar(pct, barW)),
 		styleDim.Render(fmt.Sprintf("%d%%", int(pct*100+0.5))),
-		styleDim.Render(fmt.Sprintf("%ds", int(elapsed.Seconds()))),
+		elapsedPart,
 		busyPart,
 	}
 	if opts.Steps > 0 {

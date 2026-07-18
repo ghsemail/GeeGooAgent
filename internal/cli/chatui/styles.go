@@ -11,6 +11,7 @@ var (
 	styleDim       = lipgloss.NewStyle().Foreground(lipgloss.Color(colorDim))
 	styleErr     = lipgloss.NewStyle().Foreground(lipgloss.Color(colorErr)).Bold(true)
 	styleOK      = lipgloss.NewStyle().Foreground(lipgloss.Color(colorOK))
+	styleRunning = lipgloss.NewStyle().Foreground(lipgloss.Color(colorRunning))
 	stylePanel   = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color(colorBorder)).

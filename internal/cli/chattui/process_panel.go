@@ -27,29 +27,14 @@ func (m *Model) appendProcessBlock(b *strings.Builder, block Block, blockIdx, fo
 	}
 	if block.ShowThinkingPreview(m.display) {
 		for _, line := range block.LastBodyLines(thinkingPreviewLines) {
-			b.WriteString(chatui.RenderThinkingLine(TruncateRunes(line, width-8)))
+			b.WriteString(chatui.RenderThinkingLine(TruncateRunes(line, width-4)))
 			b.WriteByte('\n')
 		}
 		return
 	}
 	if block.ShowLivePreview(m.display) {
-		line := TruncateRunes(block.LastBodyLine(), width-8)
+		line := TruncateRunes(block.LastBodyLine(), width-4)
 		b.WriteString(chatui.RenderDetailLine(line))
 		b.WriteByte('\n')
 	}
-}
-
-func (m *Model) renderProcessGroup(blocks []Block, start, focus int, width int) string {
-	var panel strings.Builder
-	for i := start; i < len(blocks); i++ {
-		block := blocks[i]
-		if !block.IsVisible(m.display) || !IsProcessKind(block.Kind) {
-			break
-		}
-		if panel.Len() > 0 {
-			panel.WriteByte('\n')
-		}
-		m.appendProcessBlock(&panel, block, i, focus, width)
-	}
-	return chatui.RenderProcessPanel(panel.String(), width)
 }
