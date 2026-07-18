@@ -93,8 +93,23 @@ func (u *ChatUI) printRule() {
 	u.println(RenderRule(u.width))
 }
 
-// RenderRule returns a Hermes-style horizontal rule.
+// RenderRule returns a Hermes-style horizontal rule (major turn boundary).
 func RenderRule(width int) string {
+	w := clampRuleWidth(width)
+	return styleDim.Render(strings.Repeat("─", w))
+}
+
+// RenderSoftDivider is a short inset line between thinking, tools, and reply within one turn.
+func RenderSoftDivider(width int) string {
+	w := clampRuleWidth(width)
+	seg := strings.Repeat("─", w/3)
+	if len(seg) < 12 {
+		seg = strings.Repeat("─", 12)
+	}
+	return styleDim.Render("  " + seg)
+}
+
+func clampRuleWidth(width int) int {
 	w := width
 	if w < 40 {
 		w = 40
@@ -102,7 +117,7 @@ func RenderRule(width int) string {
 	if w > 80 {
 		w = 80
 	}
-	return styleDim.Render(strings.Repeat("─", w))
+	return w
 }
 
 // RenderInitializing returns the turn-start status line.

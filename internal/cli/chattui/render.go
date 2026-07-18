@@ -17,6 +17,15 @@ var (
 	styleFocus = lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorGold))
 )
 
+type transcriptSegment int
+
+const (
+	segmentNone transcriptSegment = iota
+	segmentUser
+	segmentProcess // thinking / tools / activity
+	segmentReply
+)
+
 func (m *Model) rebuildBanner() {
 	if m.width <= 0 {
 		m.width = 80
@@ -64,42 +73,42 @@ func (m *Model) renderTranscript() string {
 		return b.String()
 	}
 
-	wroteContent := m.banner != ""
+	hasSegment := m.banner != ""
+	var prev transcriptSegment = segmentNone
+	if m.banner != "" {
+		prev = segmentProcess // banner counts as prior content for first user turn rule
+	}
 	for i, block := range s.Blocks {
 		if !block.IsVisible(m.display) {
 			continue
 		}
+		if block.Kind == KindReply {
+			body := strings.TrimRight(block.Body, "\n")
+			if body == "" && !block.Live {
+				continue
+			}
+		}
+		cur := blockSegment(block.Kind)
+		if hasSegment {
+			m.writeSegmentDivider(&b, width, prev, cur)
+		}
 		switch block.Kind {
 		case KindUser:
-			if wroteContent {
-				b.WriteString(chatui.RenderRule(width))
-				b.WriteByte('\n')
-			}
 			b.WriteString(chatui.RenderUserLine(block.Body))
 			b.WriteByte('\n')
-			wroteContent = true
 			if s.Busy && i == len(s.Blocks)-1 {
-				b.WriteString(chatui.RenderRule(width))
-				b.WriteByte('\n')
+				m.writeSegmentDivider(&b, width, segmentUser, segmentProcess)
 				b.WriteString(chatui.RenderInitializing())
 				b.WriteByte('\n')
 			}
 		case KindReply:
 			body := strings.TrimRight(block.Body, "\n")
-			if body == "" && !block.Live {
-				continue
-			}
-			if wroteContent {
-				b.WriteString(chatui.RenderRule(width))
-				b.WriteByte('\n')
-			}
 			if block.Live {
 				b.WriteString(chatui.RenderAssistantBoxLive(body, width))
 			} else {
 				b.WriteString(chatui.RenderAssistantBox(body, width))
 			}
 			b.WriteByte('\n')
-			wroteContent = true
 		default:
 			prefix := "  "
 			if i == s.Focus {
@@ -126,19 +135,57 @@ func (m *Model) renderTranscript() string {
 				}
 				b.WriteByte('\n')
 			}
-			wroteContent = true
 		}
+		prev = cur
+		hasSegment = true
 	}
 
 	if s.Err != "" {
-		b.WriteString(chatui.RenderRule(width))
-		b.WriteByte('\n')
+		if hasSegment {
+			b.WriteString(chatui.RenderSoftDivider(width))
+			b.WriteByte('\n')
+		}
 		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorErr)).Bold(true).Render("✗ " + s.Err))
 		b.WriteByte('\n')
 	}
 
 	_ = EstimateTranscriptHeight(s.Blocks, m.display)
 	return b.String()
+}
+
+func blockSegment(kind SectionKind) transcriptSegment {
+	switch kind {
+	case KindUser:
+		return segmentUser
+	case KindReply:
+		return segmentReply
+	default:
+		return segmentProcess
+	}
+}
+
+func (m *Model) writeSegmentDivider(b *strings.Builder, width int, prev, cur transcriptSegment) {
+	if prev == segmentNone || cur == segmentNone {
+		return
+	}
+	if cur == segmentUser {
+		b.WriteString(chatui.RenderRule(width))
+		b.WriteByte('\n')
+		return
+	}
+	if prev == cur && cur == segmentProcess {
+		b.WriteString(chatui.RenderSoftDivider(width))
+		b.WriteByte('\n')
+		return
+	}
+	switch {
+	case prev == segmentUser && cur == segmentProcess,
+		prev == segmentUser && cur == segmentReply,
+		prev == segmentProcess && cur == segmentReply,
+		prev == segmentReply && cur == segmentProcess:
+		b.WriteString(chatui.RenderSoftDivider(width))
+		b.WriteByte('\n')
+	}
 }
 
 func renderSectionHeader(b Block, cfg config.DisplayConfig) string {
