@@ -16,9 +16,13 @@
 | `report_workflow` | 报告 Workflow | ❌ | 8 |
 | `prompt_template` | Prompt 模板 CRUD | ❌ | 6 |
 
+**默认 chat 白名单：69**（5 个 ChatDefault toolset，减去 7 个 workflow 独占 tool）。
+
 Chat 切换：`/toolsets market,strategy` · `/toolsets default` · `/toolsets prompt_template`（高级）
 
-**workflow 独占 vs 共享**：仅存在于 `report_workflow` 的 tool（如 `create_pre_market_report`）默认不进 chat；与 `market` 等共享的 tool（如 `get_bot_yesterday_attitude`）在默认 chat 仍可用。
+**workflow 独占（7，默认不进 chat）**：`get_report_bot_codes`、`create_pre_market_report`、`save_local_report`、`write_execution_log`、`read_working_state`、`recall_yesterday_summary`、`list_today_post_market_reports`。
+
+**workflow 共享（1）**：`get_bot_yesterday_attitude`（同时在 `market`，默认 chat 可用）。
 
 Workflow（`geegoo run`）不按 toolset 过滤，步骤在 `workflow/premarket.go` 硬编码。
 

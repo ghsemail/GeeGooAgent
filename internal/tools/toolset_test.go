@@ -110,3 +110,27 @@ func TestReportWorkflowToolsetIncludesPostMarketIdempotency(t *testing.T) {
 		t.Fatal("report_workflow should include list_today_post_market_reports")
 	}
 }
+
+func TestToolsetCountsMatchDocumentation(t *testing.T) {
+	t.Parallel()
+	want := map[string]int{
+		"market": 18, "strategy": 3, "bot_manager": 20, "reminder_manager": 15,
+		"report_query": 13, "report_workflow": 8, "prompt_template": 6,
+	}
+	union := map[string]struct{}{}
+	for _, ts := range tools.AllToolsets() {
+		if got := len(ts.Names()); got != want[ts.ID] {
+			t.Fatalf("toolset %s: want %d tools, got %d", ts.ID, want[ts.ID], got)
+		}
+		for _, name := range ts.Names() {
+			union[name] = struct{}{}
+		}
+	}
+	if len(union) != 82 {
+		t.Fatalf("toolset union want 82, got %d", len(union))
+	}
+	defaultChat := tools.ChatToolNamesForToolsets(nil)
+	if len(defaultChat) != 69 {
+		t.Fatalf("default chat allowlist want 69, got %d", len(defaultChat))
+	}
+}

@@ -1,4 +1,4 @@
-# GeeGooAgent Tools 运行态总览（2026-07-18）
+# GeeGooAgent Tools 运行态总览（2026-07-18，审查同步）
 
 > **运行态 SSOT**：与代码不一致时以 `internal/tools/` 为准。  
 > 相关：[tool-catalog.md](./tool-catalog.md)（设计全集）· [tool-server-mapping.md](./tool-server-mapping.md)（HTTP 路径）· [implementation-status.md](../../implementation-status.md)
@@ -34,9 +34,11 @@
 | 维度 | 数量 |
 |------|------|
 | Registry 已注册 | **82** |
-| 默认 chat 白名单 | **69**（含 `market` 与 `report_workflow` 共享的 `get_bot_yesterday_attitude`） |
+| Toolset 并集（全覆盖） | **82** |
+| 默认 chat 白名单 | **69** |
 | Bespoke 手写 | **21** |
 | HTTP 转发（catalog） | **61** |
+| workflow 独占（默认不进 chat） | **7** |
 
 ---
 
@@ -90,11 +92,11 @@
 | `loopback_strategy` | 💬/✅ | HTTP | signal-api `/loopBackStrategy` | 3200 | 需先 `generate_*` 拿参数 |
 | `get_bot_log_by_type` | ✅ | HTTP | mcp-api `/getBotLogByType` | 3120 | 必填 `type` + `bot_id` |
 
-### Prompt 模板 CRUD（6）
+### Prompt 模板 CRUD（6，`prompt_template` toolset）
 
-| Tool | 状态 | 路径 | 端口 |
-|------|------|------|------|
-| `create/edit/delete_*_competitor_prompt_template` | ✅ | mcp-api 对应路径 | 3120 | `/toolsets prompt_template`；chat 写操作需确认 |
+| Tool | 状态 | 路径 | 端口 | 备注 |
+|------|------|------|------|------|
+| `create/edit/delete_*_competitor_prompt_template` | ✅ | mcp-api 对应路径 | 3120 | `/toolsets prompt_template`；`create_`/`edit_`/`delete_` 需确认 |
 | `create/edit/delete_*_etf_prompt_template` | ✅ | mcp-api 对应路径 | 3120 | 同上 |
 
 ---
@@ -250,7 +252,38 @@ GeeGooAgent Tools
 
 ---
 
-## 十四、维护
+## 十五、模块健康审查（2026-07-18）
+
+| 检查项 | 结果 |
+|--------|------|
+| `go test ./internal/tools/...` | ✅ 通过（含 82 注册、61 HTTP、69 默认 chat 回归） |
+| 注册 tool ⊆ toolset 并集 | ✅ 82/82 |
+| `search_code` 双注册 | ✅ 已消除（仅 bespoke → Signal `:3200`） |
+| `edit_*` Prompt CRUD ApprovalGate | ✅ 与 `create_`/`update_`/`delete_` 一致 |
+| catalog 无 bespoke 死行 | ✅ `get_current_price` 等已从 raw 剔除 |
+| 生产 `geegoo doctor` | ✅ 探针通过（非交易时段富途/报告可为 WARN） |
+
+**已知限制（非 Agent tools bug）**
+
+| 项 | 说明 |
+|----|------|
+| Bot 创建后不自动跑 | GeeGooBot 无 scheduler |
+| 富途三类非交易时段 | 可能空 payload → skip / doctor WARN |
+| `prompt_template` / 部分 workflow tool | 默认 chat 不可见，需 `/toolsets` 或 `geegoo run` |
+| 新闻 SerpAPI 额度 | 免费计划有上限；Key 仅在服务器 `.env` |
+
+**实现分层**
+
+```text
+RegisterAll
+├── RegisterHTTPFromCatalog (61) → ApprovalGate → ForTool → Post/Direct
+└── RegisterBespokeTools (21)    → 本地 / Signal / Bot 直连客户端
+Chat 白名单 ← ChatToolNamesForToolsets（workflow 独占过滤）
+```
+
+---
+
+## 十六、维护
 
 新增 Tool 后同步更新：**本文件** + [tool-catalog.md](./tool-catalog.md) + `catalog/catalog.go` + [interface-map.md](../../../reference/geegoo-mcp/interface-map.md)（新 HTTP 时）。
 

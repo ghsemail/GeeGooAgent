@@ -29,12 +29,12 @@
 | get_ticker | 3120 `/getTicker` | 是 | 3 | | 富途 OpenD；空 payload 重试 |
 | get_broker | 3120 `/getBroker` | 是 | 3 | | 富途 OpenD；空 payload 重试 |
 
-### 1.2 新闻与行情（本地脚本 / bundled）
+### 1.2 新闻（GeeGooData 主路径 + 本地 fallback）
 
 | Tool | 实现 | Phase | MVP | 说明 |
 |------|------|-------|-----|------|
-| **fetch_market_news** | finance-news US/CN/HK | 1 | **✓** | 市场新闻，内置降级 |
-| **fetch_stock_news** | eastmoney + Go 多源 + web_search | 1 | **✓** | 双源仍无则 StatusError |
+| **fetch_market_news** | Bot `/getMarketNews` → GeeGooData `/v1/news/market`；失败时 finance-news / `web_search` | 1 | **✓** | bespoke |
+| **fetch_stock_news** | Bot `/getStockNews` → GeeGooData `/v1/news/stock`；失败时本地 / `web_search` | 1 | **✓** | 双源仍无 → StatusError |
 
 ---
 
@@ -69,12 +69,12 @@
 | **generate_dca_strategy** | 3230 `/generateDCAStrategy`（fallback 3120） | 5 | DCA+信号+止盈止损；需先选 signal_id |
 | **loopback_strategy** | 3200 `/loopBackStrategy` | 5 | Signal 原生回测 |
 
-### 2.4 Prompt 模板管理（geegoo AgentAnalyst — 高级）
+### 2.4 Prompt 模板管理（`prompt_template` toolset，默认不进 chat）
 
 | Tool | API | Phase | 说明 |
 |------|-----|-------|------|
-| create_competitor_prompt_template | 3120 `/createCompetitorPromptTemplate` | 7 | 用户自建竞品模板 |
-| edit_competitor_prompt_template | 3120 `/editCompetitorPromptTemplate` | 7 | |
+| create_competitor_prompt_template | 3120 `/createCompetitorPromptTemplate` | 7 | `/toolsets prompt_template`；ApprovalGate |
+| edit_competitor_prompt_template | 3120 `/editCompetitorPromptTemplate` | 7 | `edit_` 前缀需确认 |
 | delete_competitor_prompt_template | 3120 `/deleteCompetitorPromptTemplate` | 7 | |
 | create_etf_prompt_template | 3120 `/createEtfPromptTemplate` | 7 | |
 | edit_etf_prompt_template | 3120 `/editEtfPromptTemplate` | 7 | |
@@ -244,6 +244,13 @@
 | Action | 42 |
 | Meta | 1 |
 | **合计** | **82** |
+
+| 实现 | 数量 |
+|------|------|
+| HTTP catalog（`AllHTTP`） | 61 |
+| Bespoke（`BespokeNames`） | 21 |
+| 默认 chat 白名单 | 69 |
+| Toolset 并集 | 82 |
 
 运行态明细 → [tools-status.md](./tools-status.md)
 
