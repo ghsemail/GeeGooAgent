@@ -6,14 +6,33 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 )
 
+func TestLastBodyLinesThinkingPreview(t *testing.T) {
+	b := Block{Kind: KindThinking, Body: "a\nb\nc\nd"}
+	lines := b.LastBodyLines(thinkingPreviewLines)
+	if len(lines) != 2 || lines[0] != "c" || lines[1] != "d" {
+		t.Fatalf("lines=%v", lines)
+	}
+}
+
+func TestThinkingPreviewAfterTurn(t *testing.T) {
+	cfg := config.DisplayConfig{DetailsMode: config.ModeCollapsed}
+	b := Block{Kind: KindThinking, Live: false, Body: "one\ntwo\nthree"}
+	if !b.ShowThinkingPreview(cfg) {
+		t.Fatal("collapsed thinking should preview")
+	}
+	if len(b.LastBodyLines(thinkingPreviewLines)) != 2 {
+		t.Fatal("expected 2 preview lines")
+	}
+}
+
 func TestLiveBlockCompactPreviewByDefault(t *testing.T) {
 	cfg := config.DisplayConfig{DetailsMode: config.ModeCollapsed}
 	b := Block{Kind: KindThinking, Live: true, Body: "line1\nline2"}
 	if b.IsExpanded(cfg) {
 		t.Fatal("live should not fully expand in collapsed mode")
 	}
-	if !b.ShowLivePreview(cfg) {
-		t.Fatal("live should show preview line")
+	if !b.ShowThinkingPreview(cfg) {
+		t.Fatal("live should show thinking preview")
 	}
 	if b.LastBodyLine() != "line2" {
 		t.Fatalf("last line=%q", b.LastBodyLine())

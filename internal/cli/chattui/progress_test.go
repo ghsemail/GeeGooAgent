@@ -16,8 +16,8 @@ func TestApplyProgressLLMPlanCreatesThinking(t *testing.T) {
 	if !s.Blocks[0].Live || s.Blocks[0].IsExpanded(cfg) {
 		t.Fatal("live thinking should use compact preview in collapsed mode")
 	}
-	if !s.Blocks[0].ShowLivePreview(cfg) {
-		t.Fatal("live thinking should show preview line")
+	if !s.Blocks[0].ShowThinkingPreview(cfg) {
+		t.Fatal("live thinking should show thinking preview")
 	}
 	s.finalizeLiveSections()
 	if s.Blocks[0].Live || s.Blocks[0].IsExpanded(cfg) {

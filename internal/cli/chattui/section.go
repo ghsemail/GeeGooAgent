@@ -18,6 +18,8 @@ const (
 	KindUser     SectionKind = "user"
 )
 
+const thinkingPreviewLines = 2
+
 // Block is one collapsible (or always-open) transcript unit.
 type Block struct {
 	ID           string
@@ -58,18 +60,39 @@ func (b Block) IsExpanded(cfg config.DisplayConfig) bool {
 	}
 }
 
-// ShowLivePreview reports whether a single current line should show while Live.
+// ShowLivePreview reports whether a single current line should show while Live (tools).
 func (b Block) ShowLivePreview(cfg config.DisplayConfig) bool {
-	if !b.Live || b.Kind == KindReply || b.Kind == KindUser {
-		return false
-	}
-	if b.Kind == KindThinking && !cfg.ReasoningVisible() {
+	if !b.Live || b.Kind == KindReply || b.Kind == KindUser || b.Kind == KindThinking {
 		return false
 	}
 	if b.IsExpanded(cfg) {
 		return false
 	}
 	return strings.TrimSpace(b.Body) != ""
+}
+
+// ShowThinkingPreview reports whether up to two thinking lines should show when collapsed.
+func (b Block) ShowThinkingPreview(cfg config.DisplayConfig) bool {
+	if b.Kind != KindThinking || !cfg.ReasoningVisible() {
+		return false
+	}
+	if b.IsExpanded(cfg) {
+		return false
+	}
+	return strings.TrimSpace(b.Body) != ""
+}
+
+// LastBodyLines returns up to n trailing non-empty lines from Body.
+func (b Block) LastBodyLines(n int) []string {
+	body := strings.TrimRight(b.Body, "\n")
+	if body == "" || n <= 0 {
+		return nil
+	}
+	lines := strings.Split(body, "\n")
+	if len(lines) <= n {
+		return lines
+	}
+	return lines[len(lines)-n:]
 }
 
 // LastBodyLine returns the most recent non-empty line in Body.

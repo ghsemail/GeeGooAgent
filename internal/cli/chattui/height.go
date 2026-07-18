@@ -25,6 +25,13 @@ func EstimateBlockHeight(b Block, cfg config.DisplayConfig) int {
 			}
 			return 1 + strings.Count(body, "\n") + 1
 		}
+		if b.ShowThinkingPreview(cfg) {
+			n := len(b.LastBodyLines(thinkingPreviewLines))
+			if n == 0 {
+				return 1
+			}
+			return 1 + n
+		}
 		if b.ShowLivePreview(cfg) {
 			return 2
 		}

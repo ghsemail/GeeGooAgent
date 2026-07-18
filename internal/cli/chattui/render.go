@@ -126,13 +126,14 @@ func (m *Model) renderTranscript() string {
 					}
 					b.WriteByte('\n')
 				}
+			} else if block.ShowThinkingPreview(m.display) {
+				for _, line := range block.LastBodyLines(thinkingPreviewLines) {
+					b.WriteString(chatui.RenderThinkingLine(TruncateRunes(line, width-4)))
+					b.WriteByte('\n')
+				}
 			} else if block.ShowLivePreview(m.display) {
 				line := TruncateRunes(block.LastBodyLine(), width-4)
-				if block.Kind == KindThinking {
-					b.WriteString(chatui.RenderThinkingLine(line))
-				} else {
-					b.WriteString(chatui.RenderDetailLine(line))
-				}
+				b.WriteString(chatui.RenderDetailLine(line))
 				b.WriteByte('\n')
 			}
 		}
