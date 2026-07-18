@@ -64,7 +64,7 @@ func (e *ToolExec) Execute(ctx context.Context, req tools.CallRequest, toolCtx t
 	if err := ctx.Err(); err != nil {
 		return tools.Result{Status: tools.StatusError, Summary: fmt.Sprintf("已中断: %v", err)}
 	}
-	timedCtx, cancel := context.WithTimeout(ctx, e.timeout)
+	timedCtx, cancel := context.WithTimeout(ctx, tools.ExecutionTimeout(req.Name, e.timeout))
 	defer cancel()
 	tc := toolCtx
 	tc.Ctx = timedCtx
@@ -117,7 +117,7 @@ func (e *ToolExec) ExecuteBatch(
 		emitProgress(onProgress, "tool_start", map[string]any{
 			"step": step, "name": call.Name, "arguments": call.Arguments,
 		})
-		timedCtx, cancel := context.WithTimeout(ctx, e.timeout)
+		timedCtx, cancel := context.WithTimeout(ctx, tools.ExecutionTimeout(call.Name, e.timeout))
 		defer cancel()
 		tc.Ctx = timedCtx
 		result := e.run(tools.CallRequest{Name: call.Name, Arguments: call.Arguments}, tc)

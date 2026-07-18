@@ -72,7 +72,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 
 	mcpOpts := mcp.Options{AllowedHosts: cfg.ResolvedAllowedHosts()}
 	analysisOpts := mcpOpts
-	analysisOpts.Timeout = 180 * time.Second
+	analysisOpts.Timeout = 8 * time.Minute
 	httpBackends := tools.HTTPBackends{
 		MCP:           mcp.NewClient(cfg.EffectiveMCPURL(), cfg.MCPAPIKey(), analysisOpts),
 		SignalAPI:     mcp.NewClient(cfg.SignalAPIURL(), cfg.SignalAPIKey(), mcpOpts),
