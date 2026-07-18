@@ -31,8 +31,8 @@ func TestEstimateBlockHeight(t *testing.T) {
 		t.Fatalf("live thinking preview=%d", EstimateBlockHeight(b, cfg))
 	}
 	b.Live = false
-	if EstimateBlockHeight(b, cfg) != 1 {
-		t.Fatalf("collapsed=%d", EstimateBlockHeight(b, cfg))
+	if EstimateBlockHeight(b, cfg) != 3 {
+		t.Fatalf("collapsed thinking preview=%d", EstimateBlockHeight(b, cfg))
 	}
 	expanded := config.DisplayConfig{DetailsMode: config.ModeExpanded}
 	b.Live = true
