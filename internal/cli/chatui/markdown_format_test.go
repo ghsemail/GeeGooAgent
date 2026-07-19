@@ -157,6 +157,62 @@ func TestExpandGluedPipeRows_SectionHeader(t *testing.T) {
 	}
 }
 
+func TestPreprocessTerminalMarkdown_StockAnalysisGlue(t *testing.T) {
+	in := `|---## 腾讯控股（00700.HK）综合分析>现价：461.6港元---###一、近期新闻面|日期|事件|
+|  ------|------|
+|  7/16|腾讯为港股通（深）10大活跃成交股榜首|
+|  7/15|混元大模型发布，早盘涨超4%|
+|  |6/8|微信发布AI生态开发者接入指引，股价涨超4%|>AI催化密集：混元大模型+微信AI生态。---###二、资金面
+|维度|信号|
+|------|---|
+|AI基本面|积极|
+|主力行为|高位出货迹象|
+|类型|净流入（亿港元）|
+|------|:------:|
+|特大单|+4.03|
+|大单|+7.54|
+操作建议：-持仓者：考虑分批止盈-观望者：不要追高`
+	out := PreprocessTerminalMarkdown(in)
+	if strings.Contains(out, "|---") || strings.Contains(out, "|日期|事件|") {
+		t.Fatalf("raw table pipes should be converted: %q", out)
+	}
+	if strings.Contains(out, "---") && !strings.Contains(out, "------") {
+		t.Fatalf("horizontal rules should be removed: %q", out)
+	}
+	if !strings.Contains(out, "## 腾讯控股") {
+		t.Fatalf("missing title: %q", out)
+	}
+	if !strings.Contains(out, "### 一、近期新闻面") && !strings.Contains(out, "## 一、近期新闻面") {
+		t.Fatalf("missing section heading: %q", out)
+	}
+	if !strings.Contains(out, "**7/16**：") || !strings.Contains(out, "港股通") {
+		t.Fatalf("missing news kv row: %q", out)
+	}
+	if !strings.Contains(out, "**AI基本面**：积极") {
+		t.Fatalf("missing signal kv row: %q", out)
+	}
+	if !strings.Contains(out, ">AI催化密集") {
+		t.Fatalf("missing blockquote: %q", out)
+	}
+	if !strings.Contains(out, "操作建议：") || !strings.Contains(out, "- 持仓者") || !strings.Contains(out, "- 观望者") {
+		t.Fatalf("missing advice list: %q", out)
+	}
+}
+
+func TestRenderAssistantMarkdown_StockAnalysisGlue(t *testing.T) {
+	in := `|---## 腾讯控股（00700.HK）综合分析>现价：461.6港元---###一、近期新闻面|日期|事件|
+|  7/16|腾讯为港股通榜首|
+|维度|信号|
+|AI基本面|积极|`
+	out := stripANSI(RenderAssistantMarkdown(in, 100))
+	if strings.Contains(out, "|") {
+		t.Fatalf("pipes should not appear in render: %q", out)
+	}
+	if !strings.Contains(out, "腾讯控股") || !strings.Contains(out, "积极") {
+		t.Fatalf("missing content: %q", out)
+	}
+}
+
 func TestHardWrapLine_Chinese(t *testing.T) {
 	in := "这是一段很长的中文说明文字用于测试在终端里是否会强制折行显示而不是挤成一行"
 	out := WrapPlain(in, 20)

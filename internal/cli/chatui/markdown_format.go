@@ -23,6 +23,17 @@ var (
 	reGlueListDash  = regexp.MustCompile(`([^\n-])(\s+-\s+)`)
 	reGlueColonList   = regexp.MustCompile(`([：:;；])\s*-\s+`)
 	reGluePunctList   = regexp.MustCompile(`([。！？])\s*-\s+`)
+	rePipeHRHeading   = regexp.MustCompile(`\|+---+\s*(#{1,6})`)
+	reHRHeading       = regexp.MustCompile(`---+(\s*#{1,6})`)
+	reCNHeadingSpace  = regexp.MustCompile(`(#{2,6})([\p{Han}一二三四五六七八九十、（(])`)
+	reHeadingTableGlue = regexp.MustCompile(`([面论表况])\|([^\n|]+\|[^\n|]+\|)`)
+	reGlueBlockquote  = regexp.MustCompile(`([）)％%港元\d\.])(>[^|\n#]+)`)
+	rePipeBlockquote    = regexp.MustCompile(`\|(\s*>[^|\n#]+)`)
+	reTitleBlockquote   = regexp.MustCompile(`(综合分析|结论|建议)(>[^|\n#]+)`)
+	reAdviceList      = regexp.MustCompile(`(操作建议[：:])\s*-`)
+	reAdviceDash      = regexp.MustCompile(`([者。盈%）)])\s*-([\p{Han}])`)
+	reFixTightDashList = regexp.MustCompile(`\n-([\p{Han}A-Za-z])`)
+	reDateCell        = regexp.MustCompile(`^\d{1,2}/\d{1,2}$`)
 )
 
 // NormalizeAssistantLayout inserts line breaks when the model glues markdown blocks
@@ -39,6 +50,12 @@ func NormalizeAssistantLayout(text string) string {
 			continue
 		}
 		if strings.HasPrefix(trim, "|") || isTableSeparator(trim) {
+			if strings.Contains(trim, "#") {
+				for _, sub := range splitPipeHeadingGlue(line) {
+					out = append(out, sub)
+				}
+				continue
+			}
 			out = append(out, line)
 			continue
 		}
@@ -112,6 +129,7 @@ func breakInlinePipeFields(text string) string {
 
 // PreprocessTerminalMarkdown adapts assistant markdown for narrow terminals.
 func PreprocessTerminalMarkdown(text string) string {
+	text = normalizeGluedAnalysisMarkdown(text)
 	text = normalizeGluedMarkdownTables(text)
 	text = NormalizeAssistantLayout(text)
 	text = ensureListSpacing(text)
@@ -119,6 +137,64 @@ func PreprocessTerminalMarkdown(text string) string {
 		text = convertMarkdownTables(text)
 	}
 	return tightenParagraphSpacing(text)
+}
+
+// normalizeGluedAnalysisMarkdown fixes stock-analysis replies glued with |---, ---###,
+// inline tables, and blockquotes (common when models stream without line breaks).
+func normalizeGluedAnalysisMarkdown(text string) string {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
+	text = rePipeHRHeading.ReplaceAllString(text, "\n$1")
+	text = reHRHeading.ReplaceAllString(text, "\n$1")
+	text = reCNHeadingSpace.ReplaceAllString(text, "$1 $2")
+	text = reHeadingTableGlue.ReplaceAllString(text, "$1\n\n|$2")
+	text = reGlueBlockquote.ReplaceAllString(text, "$1\n$2")
+	text = rePipeBlockquote.ReplaceAllString(text, "\n$1")
+	text = reTitleBlockquote.ReplaceAllString(text, "$1\n$2")
+	text = reAdviceList.ReplaceAllString(text, "$1\n-")
+	text = reAdviceDash.ReplaceAllString(text, "$1\n-$2")
+	text = reFixTightDashList.ReplaceAllString(text, "\n- $1")
+	text = strings.ReplaceAll(text, "|  |", "\n|")
+	return strings.TrimSpace(text)
+}
+
+func splitPipeHeadingGlue(line string) []string {
+	trim := strings.TrimSpace(line)
+	trim = strings.TrimLeft(trim, "|")
+	trim = strings.TrimLeft(trim, "-")
+	trim = strings.TrimSpace(trim)
+	if trim == "" {
+		return nil
+	}
+	var out []string
+	for strings.Contains(trim, "##") {
+		idx := strings.Index(trim, "##")
+		if idx > 0 {
+			prefix := strings.TrimSpace(trim[:idx])
+			prefix = strings.Trim(prefix, "|- ")
+			if prefix != "" && !isTableSeparator(prefix) {
+				out = append(out, prefix)
+			}
+		}
+		trim = strings.TrimSpace(trim[idx:])
+		end := len(trim)
+		if j := strings.Index(trim, "|"); j > 0 && strings.Count(trim[j:], "|") >= 2 {
+			heading := strings.TrimSpace(trim[:j])
+			heading = strings.TrimRight(heading, "-")
+			out = append(out, heading)
+			trim = strings.TrimSpace(trim[j:])
+			continue
+		}
+		out = append(out, trim[:end])
+		break
+	}
+	if len(out) == 0 {
+		return []string{line}
+	}
+	if strings.TrimSpace(trim) != "" && !strings.HasPrefix(trim, "##") {
+		out = append(out, trim)
+	}
+	return out
 }
 
 // normalizeGluedMarkdownTables splits model-glued table rows (||) and inline headers
@@ -230,7 +306,16 @@ func convertMarkdownTables(text string) string {
 	lines := strings.Split(text, "\n")
 	var out []string
 	for i := 0; i < len(lines); {
-		if cells := parseTableRow(lines[i]); cells != nil {
+		cells := parseTableRow(lines[i])
+		if cells != nil && !isTableSeparator(lines[i]) {
+			if len(cells) == 2 && looksLikeDateCell(cells[0]) {
+				if len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
+					out = append(out, "")
+				}
+				out = append(out, formatKeyValueTable([][]string{cells}))
+				i++
+				continue
+			}
 			tableLines := []string{lines[i]}
 			i++
 			for i < len(lines) {
@@ -239,12 +324,15 @@ func convertMarkdownTables(text string) string {
 					i++
 					continue
 				}
-				if cells := parseTableRow(lines[i]); cells != nil {
-					tableLines = append(tableLines, lines[i])
-					i++
-					continue
+				next := parseTableRow(lines[i])
+				if next == nil {
+					break
 				}
-				break
+				if len(tableLines) > 0 && isLikelyTableHeader(next) && tableHasDataRows(tableLines) {
+					break
+				}
+				tableLines = append(tableLines, lines[i])
+				i++
 			}
 			if formatted := formatTableBlock(tableLines); formatted != "" {
 				if len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
@@ -262,11 +350,22 @@ func convertMarkdownTables(text string) string {
 	return strings.Join(out, "\n")
 }
 
+func tableHasDataRows(tableLines []string) bool {
+	start := 1
+	if len(tableLines) > 1 && isTableSeparator(tableLines[1]) {
+		start = 2
+	}
+	return len(tableLines) > start
+}
+
 func tightenParagraphSpacing(text string) string {
 	lines := strings.Split(text, "\n")
 	var out []string
 	for _, line := range lines {
 		trim := strings.TrimSpace(line)
+		if trim == "#" || trim == "##" {
+			continue
+		}
 		if trim == "" || trim == "---" || trim == "***" || strings.Trim(trim, "-*") == "" {
 			if len(out) > 0 && out[len(out)-1] != "" {
 				out = append(out, "")
@@ -282,9 +381,12 @@ func tightenParagraphSpacing(text string) string {
 }
 
 func isSectionStart(line string) bool {
-	return strings.HasPrefix(line, "##") ||
-		strings.HasPrefix(line, "**") ||
-		strings.HasPrefix(line, "小结")
+	trim := strings.TrimSpace(line)
+	return strings.HasPrefix(trim, "##") ||
+		strings.HasPrefix(trim, "###") ||
+		strings.HasPrefix(trim, "**") ||
+		strings.HasPrefix(trim, ">") ||
+		strings.HasPrefix(trim, "小结")
 }
 
 func parseTableRow(line string) []string {
@@ -348,6 +450,9 @@ func formatTableBlock(tableLines []string) string {
 	if len(rows) == 0 {
 		return ""
 	}
+	if len(headers) == 2 && isKeyValueTableHeaders(headers) {
+		return formatKeyValueTable(rows)
+	}
 	var b strings.Builder
 	for i, row := range rows {
 		if i > 0 {
@@ -362,6 +467,9 @@ func isLikelyTableHeader(cells []string) bool {
 	if len(cells) == 0 {
 		return false
 	}
+	if looksLikeDateCell(cells[0]) {
+		return false
+	}
 	h := strings.TrimSpace(strings.ToLower(cells[0]))
 	switch h {
 	case "#", "序号", "no", "no.":
@@ -370,7 +478,82 @@ func isLikelyTableHeader(cells []string) bool {
 	if strings.Contains(cells[0], "名称") || strings.Contains(strings.ToLower(cells[0]), "name") {
 		return true
 	}
+	if len(cells) >= 2 && !looksLikeColumnName(cells[1]) {
+		return false
+	}
 	return !isNumericIndex(cells[0])
+}
+
+func looksLikeColumnName(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" || len([]rune(s)) > 10 {
+		return false
+	}
+	for _, w := range []string{"积极", "出货", "迹象", "港元", "流入", "升高", "增大", "调整"} {
+		if strings.Contains(s, w) {
+			return false
+		}
+	}
+	return true
+}
+
+func looksLikeDateCell(s string) bool {
+	return reDateCell.MatchString(strings.TrimSpace(s))
+}
+
+func isKeyValueTableHeaders(headers []string) bool {
+	if len(headers) != 2 {
+		return false
+	}
+	a := strings.TrimSpace(headers[0])
+	b := strings.TrimSpace(headers[1])
+	switch {
+	case strings.Contains(a, "日期") || strings.Contains(b, "事件"):
+		return true
+	case strings.Contains(a, "维度") || strings.Contains(b, "信号"):
+		return true
+	case strings.Contains(a, "类型") || strings.Contains(b, "净流入"):
+		return true
+	}
+	return len([]rune(a)) <= 8 && len([]rune(b)) <= 12 &&
+		!strings.Contains(a, "名称") && !strings.Contains(a, "#")
+}
+
+func formatKeyValueTable(rows [][]string) string {
+	var b strings.Builder
+	n := 0
+	for _, row := range rows {
+		if len(row) < 2 {
+			continue
+		}
+		if isSeparatorCells(row) {
+			continue
+		}
+		k := strings.TrimSpace(row[0])
+		v := strings.TrimSpace(row[1])
+		if k == "" && v == "" {
+			continue
+		}
+		if n > 0 {
+			b.WriteByte('\n')
+		}
+		n++
+		if k == "" {
+			b.WriteString("- ")
+			b.WriteString(v)
+			continue
+		}
+		b.WriteString("- **")
+		b.WriteString(k)
+		b.WriteString("**：")
+		b.WriteString(v)
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+func isSeparatorCells(row []string) bool {
+	line := "|" + strings.Join(row, "|") + "|"
+	return isTableSeparator(line)
 }
 
 func defaultTableHeaders(n int) []string {
