@@ -8,6 +8,9 @@ from pathlib import Path
 
 import paramiko
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 DEPLOY = Path(r"C:\Users\ghsemail\.cursor\skills\remote-deploy\deploy.json")
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_HEAD = (
