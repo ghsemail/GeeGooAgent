@@ -275,20 +275,16 @@ func RenderBanner(opts BannerOptions, width int, plain bool) string {
 		rev = ResolveRevision(opts.InstallDir)
 	}
 	var b strings.Builder
+	b.WriteString(renderBannerLogo(width))
 	b.WriteByte('\n')
-	if shouldShowWideLogo(width) {
-		b.WriteString(renderWideLogoForWidth(width))
-		b.WriteByte('\n')
-		b.WriteByte('\n')
-	}
-	left := buildBannerLeft(opts, !shouldShowWideLogo(width))
-	right := buildBannerRight(opts)
-	cols := lipgloss.JoinHorizontal(lipgloss.Top,
-		lipgloss.NewStyle().Padding(0, 2).Align(lipgloss.Center).Render(left),
-		lipgloss.NewStyle().Padding(0, 1).Render(right),
-	)
 	b.WriteString(styleBrand.Render(formatVersionLabel(rev)))
 	b.WriteByte('\n')
+	left := buildBannerLeft(opts)
+	right := buildBannerRight(opts)
+	cols := lipgloss.JoinHorizontal(lipgloss.Top,
+		lipgloss.NewStyle().PaddingRight(2).Render(left),
+		lipgloss.NewStyle().Render(right),
+	)
 	b.WriteString(stylePanel.Render(cols))
 	b.WriteByte('\n')
 	b.WriteByte('\n')

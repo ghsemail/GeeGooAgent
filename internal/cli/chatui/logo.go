@@ -23,7 +23,6 @@ var wideLogoLines = []string{
 	" ╚═════╝ ╚══════╝╚══════╝ ╚═════╝  ╚════╝  ╚════╝",
 }
 
-
 func shouldShowWideLogo(terminalWidth int) bool {
 	if terminalWidth <= 0 {
 		return true
@@ -45,46 +44,44 @@ func wideLogoDisplayWidth() int {
 	return max
 }
 
-func renderHero() string {
-	var out strings.Builder
-	for i, line := range heroLines {
-		if i%2 == 0 {
-			out.WriteString(styleTitle.Render(line))
-		} else {
-			out.WriteString(styleBrand.Render(line))
-		}
-		out.WriteByte('\n')
+// renderBannerLogo returns the top header block (block GEEGOO or compact hero), left-aligned.
+func renderBannerLogo(terminalWidth int) string {
+	if shouldShowWideLogo(terminalWidth) {
+		return renderWideLogo()
 	}
-	return strings.TrimRight(out.String(), "\n")
+	var b strings.Builder
+	b.WriteString(styleBrand.Render(agentTitle + " Agent"))
+	b.WriteByte('\n')
+	b.WriteString(renderHero())
+	return b.String()
 }
 
 func renderWideLogo() string {
-	return renderWideLogoForWidth(0)
-}
-
-// renderWideLogoForWidth draws the block GEEGOO logo, centered when terminalWidth allows.
-// Falls back to the compact hero when the terminal is too narrow.
-func renderWideLogoForWidth(terminalWidth int) string {
-	logoW := wideLogoDisplayWidth()
-	if !shouldShowWideLogo(terminalWidth) {
-		return renderHero()
-	}
-	leftPad := 0
-	if terminalWidth > logoW {
-		leftPad = (terminalWidth - logoW) / 2
-	}
-	pad := strings.Repeat(" ", leftPad)
 	var out strings.Builder
 	for i, line := range wideLogoLines {
 		if i > 0 {
 			out.WriteByte('\n')
 		}
-		styled := styleTitle.Render(line)
-		if i%2 != 0 {
-			styled = styleBrand.Render(line)
+		if i%2 == 0 {
+			out.WriteString(styleTitle.Render(line))
+		} else {
+			out.WriteString(styleBrand.Render(line))
 		}
-		out.WriteString(pad)
-		out.WriteString(styled)
+	}
+	return out.String()
+}
+
+func renderHero() string {
+	var out strings.Builder
+	for i, line := range heroLines {
+		if i > 0 {
+			out.WriteByte('\n')
+		}
+		if i%2 == 0 {
+			out.WriteString(styleTitle.Render(line))
+		} else {
+			out.WriteString(styleBrand.Render(line))
+		}
 	}
 	return out.String()
 }

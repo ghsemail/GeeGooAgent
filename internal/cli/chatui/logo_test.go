@@ -27,26 +27,24 @@ func TestShouldShowWideLogo(t *testing.T) {
 	}
 }
 
-func TestRenderWideLogoForWidthCentered(t *testing.T) {
-	termW := wideLogoDisplayWidth() + 10
-	out := stripANSI(renderWideLogoForWidth(termW))
+func TestRenderWideLogoLeftAligned(t *testing.T) {
+	out := stripANSI(renderWideLogo())
 	lines := strings.Split(out, "\n")
 	if len(lines) != len(wideLogoLines) {
 		t.Fatalf("lines=%d", len(lines))
 	}
-	first := lines[0]
-	if !strings.HasPrefix(first, " ") {
-		t.Fatalf("expected centered logo, got %q", first)
+	if strings.HasPrefix(lines[0], "   ") {
+		t.Fatalf("logo should be left aligned, got %q", lines[0])
 	}
-	if lipgloss.Width(first) > termW {
-		t.Fatalf("logo wider than terminal: %d", lipgloss.Width(first))
+	if lipgloss.Width(lines[0]) > wideLogoDisplayWidth() {
+		t.Fatalf("logo line wider than expected")
 	}
 }
 
-func TestRenderWideLogoFallsBackOnNarrowTerminal(t *testing.T) {
-	out := renderWideLogoForWidth(wideLogoDisplayWidth() - 1)
-	if !strings.Contains(out, "╔═╗") {
-		t.Fatalf("expected compact hero on narrow terminal: %q", stripANSI(out))
+func TestRenderBannerLogoFallsBackOnNarrowTerminal(t *testing.T) {
+	out := stripANSI(renderBannerLogo(wideLogoDisplayWidth() - 1))
+	if !strings.Contains(out, "⚕ GeeGoo Agent") || !strings.Contains(out, "╔═╗") {
+		t.Fatalf("expected title + compact hero on narrow terminal: %q", out)
 	}
 }
 

@@ -130,7 +130,7 @@ func RenderWelcomeTips() string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func buildBannerLeft(opts BannerOptions, includeHero bool) string {
+func buildBannerLeft(opts BannerOptions) string {
 	modelShort := opts.Model
 	if i := strings.LastIndex(modelShort, "/"); i >= 0 {
 		modelShort = modelShort[i+1:]
@@ -147,11 +147,6 @@ func buildBannerLeft(opts BannerOptions, includeHero bool) string {
 		dry = "on"
 	}
 	var lines []string
-	if includeHero {
-		lines = []string{"", renderHero(), ""}
-	} else {
-		lines = []string{""}
-	}
 	lines = append(lines,
 		styleBrand.Render(modelShort)+styleMeta.Render(" · ")+styleMeta.Render(opts.Provider),
 		styleWhisper.Render(fmt.Sprintf("think %s · dry-run %s", think, dry)),
