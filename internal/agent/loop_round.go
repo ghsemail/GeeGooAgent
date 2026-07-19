@@ -149,16 +149,17 @@ func (l *Loop) applyToolRound(
 
 	mutating, readonly := partitionToolCalls(resp.ToolCalls)
 	planGate := l.tools != nil && l.tools.PlanGateEnabled()
+	policy := l.effectivePlanPolicy()
 
 	if len(readonly) > 0 {
 		readonlyResults := l.executeToolCalls(ctx, readonly, toolCtx, step)
 		appendToolResults(session, messages, readonly, readonlyResults, step, records)
 	}
 
-	if shouldHoldPlan(planGate, toolCtx, mutating) {
-		l.emit("plan_proposed", planProposedPayload(mutating))
+	if shouldHoldPlan(policy, planGate, toolCtx, mutating) {
+		l.emit("plan_proposed", planProposedPayload(policy, mutating))
 		session.PendingPlan = &runtime.PendingPlan{Step: step, ToolCalls: append([]llm.ToolCall(nil), mutating...)}
-		text := planHoldSummary(resp, mutating)
+		text := planHoldSummary(policy, resp, mutating)
 		*records = append(*records, runtime.StepRecord{
 			Step: step, Timestamp: time.Now().UTC(), Kind: "plan_hold", Summary: text,
 		})
@@ -170,7 +171,12 @@ func (l *Loop) applyToolRound(
 	}
 
 	if len(mutating) > 0 {
-		mutResults := l.executeToolCalls(ctx, mutating, toolCtx, step)
+		execCtx := toolCtx
+		// PlanPolicy already declined to hold; do not let ToolExec re-skip the same calls.
+		if planGate && !execCtx.Approved {
+			execCtx.Approved = true
+		}
+		mutResults := l.executeToolCalls(ctx, mutating, execCtx, step)
 		appendToolResults(session, messages, mutating, mutResults, step, records)
 	}
 	return runtime.TurnResult{}

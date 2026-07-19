@@ -12,9 +12,16 @@
 Agent = L4 Runtime + L0 Infrastructure + L5 Skill Pack
 ```
 
+长期产品视角下，它首先是 **Agent Runtime（Go 控制面）**，而不是「Python 脑 + Go 手脚」的 chatbot 壳。控制面 / 语言边界 / 包边界定稿见：
+
+- **[agent-runtime-architecture.md](./agent-runtime-architecture.md)** — Agent OS 架构定稿  
+- **[agent-runtime-migration-plan.md](./agent-runtime-migration-plan.md)** — 改造计划（Dashboard 后置）
+
+六层模型描述能力分层；与定稿冲突时，以 Runtime 定稿的硬边界为准。
+
 **不是什么**：自动交易系统、Airflow 式 pipeline、Coding Agent（无任意 Bash）、Hermes 式超长 cron prompt。
 
-MVP **零外部向量库**：状态在 SQLite + 本地 md；业务数据经 GeeGoo HTTP API。详见 [layers/L3-memory/README.md](./layers/L3-memory/README.md#外部依赖决策数据库--向量库--embedding)。
+MVP **零外部向量库**：状态在 SQLite + 本地 md；业务数据经 GeeGoo HTTP API。详见 [layers/L3-memory/README.md](./layers/L3-memory/README.md#外部依赖决策数据库--向量库--embedding)。Session SSOT 与 Memory 端口的区分见定稿第 7 节。
 
 实现状态一览 → **[implementation-status.md](./implementation-status.md)**。
 

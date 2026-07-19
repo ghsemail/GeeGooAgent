@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -105,7 +106,7 @@ func appendToolResults(
 	}
 }
 
-func planHoldSummary(resp *llm.Response, mutating []llm.ToolCall) string {
+func planHoldSummary(policy cognition.PlanPolicy, resp *llm.Response, mutating []llm.ToolCall) string {
 	names := make([]string, 0, len(mutating))
 	for _, c := range mutating {
 		names = append(names, c.Name)
@@ -114,5 +115,5 @@ func planHoldSummary(resp *llm.Response, mutating []llm.ToolCall) string {
 	if text == "" {
 		text = fmt.Sprintf("计划调用写操作：%s", strings.Join(names, ", "))
 	}
-	return planHoldUserMessage(text)
+	return planHoldUserMessage(policy, text)
 }

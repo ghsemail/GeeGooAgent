@@ -7,6 +7,8 @@
 | 目标 | 文档 |
 |------|------|
 | 第一次读代码库 | [overview.md](./overview.md) |
+| **Agent Runtime 定稿（控制面 / 语言边界）** | **[agent-runtime-architecture.md](./agent-runtime-architecture.md)** |
+| **Runtime 改造计划（无 Dashboard）** | **[agent-runtime-migration-plan.md](./agent-runtime-migration-plan.md)** |
 | **哪些已实现 / 未实现** | **[implementation-status.md](./implementation-status.md)** |
 | Tool 能否调用 | [layers/L2-tools/tools-status.md](./layers/L2-tools/tools-status.md) |
 | 改 Agent 循环 | [layers/L4-runtime/agent-loop.md](./layers/L4-runtime/agent-loop.md) |
@@ -27,6 +29,8 @@
 architecture/
 ├── README.md                 # 本索引
 ├── overview.md               # 主架构：系统图、数据流、六层、原则
+├── agent-runtime-architecture.md  # ★ Agent OS 定稿（控制面 / 语言边界）
+├── agent-runtime-migration-plan.md # Runtime 改造计划（Dashboard 后置）
 ├── implementation-status.md  # ★ 实现状态 SSOT
 ├── repo-layout.md            # 仓库 ↔ internal/ 包
 ├── entrypoints.md            # CLI / HTTP / scheduler

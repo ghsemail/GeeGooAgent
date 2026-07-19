@@ -1,7 +1,8 @@
 # 业务能力分期
 
 > **实现细节与缺口清单** → [implementation-status.md](../implementation-status.md)（优先读）。  
-> **平台内核交付（P1–P8）** → [deploy/hermes-parity-roadmap.md](../../../deploy/hermes-parity-roadmap.md)。
+> **平台内核交付（P1–P8）** → [deploy/hermes-parity-roadmap.md](../../../deploy/hermes-parity-roadmap.md)。  
+> **Agent Runtime 控制面改造**（与业务 Phase 正交）→ [agent-runtime-migration-plan.md](../agent-runtime-migration-plan.md)；定稿 → [agent-runtime-architecture.md](../agent-runtime-architecture.md)。
 
 ## Phase 路线图
 

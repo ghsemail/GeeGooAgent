@@ -2,6 +2,11 @@
 
 Go 主分支实现；与架构六层概念的包对照如下。
 
+> **目标态（Agent OS）**：逻辑包边界、依赖方向与渐进目录见  
+> [agent-runtime-architecture.md](./agent-runtime-architecture.md) §5–§11 与  
+> [agent-runtime-migration-plan.md](./agent-runtime-migration-plan.md)。  
+> 下文描述**当前**仓库树；改造期间以定稿依赖方向为准，不必一夜改名。
+
 ```text
 GeeGooAgent/
 ├── cmd/
@@ -17,9 +22,10 @@ GeeGooAgent/
 │   └── agent-runtime/          # L5 HTTP 入口 (:3400)
 │
 ├── internal/
-│   ├── agent/                  # L4 平台无关核心（薄封装）
+│   ├── agent/                  # L4 Kernel（ReAct Loop + ToolExec；薄封装）
+│   ├── cognition/              # L4 策略扩展点（Ranker / Evaluator / PlanPolicy）
 │   ├── app/                    # 依赖组装（LoadFromConfigPath）
-│   ├── runtime/                # L4 ReAct Loop + Executor + Session
+│   ├── runtime/                # L4 Session + Executor + events
 │   ├── workflow/               # L4/L5 确定性工作流 + Supervisor
 │   ├── skills/                 # L5 Skill 注册表
 │   ├── scheduler/              # L0 内置 cron
@@ -66,7 +72,7 @@ GeeGooAgent/
 | 层 | 职责 | 主要包 |
 |----|------|--------|
 | **L5** | Skill、CLI、Rules、报告合成 | `cmd/geegoo`, `internal/skills`, `internal/workflow`, `internal/report`, `skills/`, `rules/` |
-| **L4** | ReAct、Workflow、Supervisor | `internal/agent`, `internal/runtime`, `internal/workflow` |
+| **L4** | ReAct、Workflow、Supervisor | `internal/agent`, `internal/cognition`, `internal/runtime`, `internal/workflow` |
 | **L3** | 会话、Working、Evidence、压缩 | `internal/chatsession`, `internal/memory`, `internal/prompt` |
 | **L2** | Tool Registry、MCP 客户端 | `internal/tools`, `internal/clients/mcp`, `internal/search` |
 | **L1** | LLM Gateway | `internal/llm` |
@@ -77,10 +83,15 @@ GeeGooAgent/
 ```text
 cmd/geegoo, cmd/agent-runtime
     → internal/app
-        → agent, runtime, workflow, tools, llm, chatsession, memory, infra
+        → agent, cognition, runtime, workflow, tools, llm, chatsession, memory, infra
+agent (Kernel) → cognition | runtime | tools | llm | prompt
+cognition 不得 import agent / cli / runtimeapi
 tools → clients/mcp → HTTP
 infra 不得 import runtime / tools / llm
 ```
+
+> Agent OS 定稿与改造节奏：[agent-runtime-architecture.md](./agent-runtime-architecture.md)、[agent-runtime-migration-plan.md](./agent-runtime-migration-plan.md)。  
+> P1 已引入 `internal/cognition`（Ranker / Evaluator / PlanPolicy）；Loop 经 `SetCognition` 注入。
 
 ## 工具注册链
 

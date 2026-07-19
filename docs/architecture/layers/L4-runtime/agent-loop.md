@@ -4,6 +4,10 @@
 
 GeeGooAgent 的对话编排引擎：**Observe → Plan → Act → Update**，直到无 `tool_calls` 或达到 `max_steps`。
 
+> **Kernel vs Cognition**：Loop 是控制平面（权限、超时、取消、状态、审计），属于 Agent Kernel。  
+> Planner / Ranker / Evaluator 是策略，落在 `internal/cognition`，经 `Loop.SetCognition` 注入（默认 Go 实现，行为与历史一致）。  
+> 定稿：[agent-runtime-architecture.md](../../agent-runtime-architecture.md) · 改造：[agent-runtime-migration-plan.md](../../agent-runtime-migration-plan.md)（P1 已完成）
+
 ## 代码位置
 
 | 组件 | 包 / 文件 |

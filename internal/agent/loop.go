@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
@@ -25,14 +26,21 @@ type Loop struct {
 	onProgress    runtime.ProgressFunc
 	compressor    *prompt.Compressor
 	eventBus      tools.EventEmitter
+	ranker        cognition.Ranker
+	evaluator     cognition.Evaluator
+	planPolicy    cognition.PlanPolicy
 }
 
 // NewLoop creates an agent loop.
 func NewLoop(gateway *llm.Gateway, executor *runtime.Executor) *Loop {
+	d := cognition.Defaults()
 	return &Loop{
 		gateway:       gateway,
 		tools:         NewToolExec(executor),
 		maxToolRounds: defaultMaxToolRounds,
+		ranker:        d.Ranker,
+		evaluator:     d.Evaluator,
+		planPolicy:    d.PlanPolicy,
 	}
 }
 
@@ -113,6 +121,63 @@ func (l *Loop) SetEventBus(bus tools.EventEmitter) {
 	l.eventBus = bus
 }
 
+// SetCognition replaces Ranker / Evaluator / PlanPolicy. Nil fields keep current values.
+func (l *Loop) SetCognition(b cognition.Bundle) {
+	if l == nil {
+		return
+	}
+	if b.Ranker != nil {
+		l.ranker = b.Ranker
+	}
+	if b.Evaluator != nil {
+		l.evaluator = b.Evaluator
+	}
+	if b.PlanPolicy != nil {
+		l.planPolicy = b.PlanPolicy
+	}
+}
+
+func (l *Loop) effectivePlanPolicy() cognition.PlanPolicy {
+	if l != nil && l.planPolicy != nil {
+		return l.planPolicy
+	}
+	return cognition.DefaultPlanPolicy{}
+}
+
+func (l *Loop) effectiveEvaluator() cognition.Evaluator {
+	if l != nil && l.evaluator != nil {
+		return l.evaluator
+	}
+	return cognition.AcceptAllEvaluator{}
+}
+
+func (l *Loop) effectiveRanker() cognition.Ranker {
+	if l != nil && l.ranker != nil {
+		return l.ranker
+	}
+	return cognition.IdentityRanker{}
+}
+
+// RankItems applies the injected Ranker (Kernel hook for recall/snippet ordering).
+func (l *Loop) RankItems(ctx context.Context, items []cognition.RankItem) ([]cognition.RankItem, error) {
+	return l.effectiveRanker().Rank(ctx, items)
+}
+
+func (l *Loop) evaluateTurn(ctx context.Context, session *runtime.Session, result runtime.TurnResult) {
+	eval := l.effectiveEvaluator()
+	res, err := eval.Evaluate(ctx, cognition.EvalInput{
+		SessionID:     session.ID,
+		AssistantText: result.AssistantText,
+		Failed:        result.Failed,
+	})
+	if err != nil || res.Accept {
+		return
+	}
+	l.emit("cognition_eval", map[string]any{
+		"accept": res.Accept, "retry_suggested": res.RetrySuggested, "reason": res.Reason,
+	})
+}
+
 func (l *Loop) emit(event string, data map[string]any) {
 	if l.onProgress != nil {
 		l.onProgress(event, data)
@@ -153,13 +218,17 @@ func (l *Loop) RunTurn(
 	})
 	messages = l.applyHygiene(ctx, session, messages)
 
+	policy := l.effectivePlanPolicy()
 	if session.PendingPlan != nil {
-		if isPlanApproval(userText) {
-			return l.resumePendingPlan(ctx, session, &messages, toolCtx, schemas, &records)
+		if policy.IsApproval(userText) {
+			result := l.resumePendingPlan(ctx, session, &messages, toolCtx, schemas, &records)
+			l.evaluateTurn(ctx, session, result)
+			return result
 		}
-		if isPlanRejection(userText) {
+		if policy.IsRejection(userText) {
 			result := l.cancelPendingPlan(session)
 			result.StepRecords = records
+			l.evaluateTurn(ctx, session, result)
 			return result
 		}
 		session.PendingPlan = nil
@@ -177,11 +246,13 @@ func (l *Loop) RunTurn(
 				})
 			}
 			result.StepRecords = records
+			l.evaluateTurn(ctx, session, result)
 			return result
 		}
 	}
 
 	msg := l.finishBudgetExhausted(ctx, session, messages, records)
+	l.evaluateTurn(ctx, session, msg)
 	return msg
 }
 

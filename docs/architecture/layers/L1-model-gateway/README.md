@@ -2,7 +2,8 @@
 
 Runtime **禁止**直连厂商 SDK；所有 LLM 调用经 Gateway。
 
-> Go 实现：`internal/llm/`
+> Go 实现：`internal/llm/`  
+> **演进**：定稿要求在 Gateway 之上区分 **Model Runtime / Policy**（选模、预算、是否压缩、fallback 策略）与 **Gateway**（provider 适配、流式归一、重试）。现状策略仍部分落在 Gateway 调用点；改造见 [agent-runtime-migration-plan.md](../../agent-runtime-migration-plan.md) P2 与 [agent-runtime-architecture.md](../../agent-runtime-architecture.md) §8。
 
 ## 模块索引
 
@@ -11,6 +12,7 @@ Runtime **禁止**直连厂商 SDK；所有 LLM 调用经 Gateway。
 | Gateway | [gateway.md](./gateway.md) | `gateway.go` | ✅ 重试 + ctx 取消 |
 | Providers | [providers.md](./providers.md) | `openai.go`, `presets.go` | ✅ 3 provider |
 | Cost | [cost-manager.md](./cost-manager.md) | — | 📋 轻量 / 规划 |
+| Model Policy | — | — | 📋 改造计划 P2 |
 
 ## 调用链
 

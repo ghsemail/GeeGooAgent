@@ -1,16 +1,18 @@
-// Package agent is the platform-agnostic core of GeeGooAgent.
+// Package agent is the platform-agnostic Agent Kernel of GeeGooAgent.
 //
-// It owns the ReAct loop, LLM gateway, tool executor, and tool registry,
-// exposing a single Run entry point used by CLI chat, the HTTP runtime,
-// and (in later phases) the workflow runner and scheduler. Platform
-// differences live in the entry points (cmd/geegoo, agent-runtime), not
-// inside the agent.
+// It owns the ReAct control plane (loop, tool exec, approval, budgets). Replaceable
+// cognition strategies (Ranker / Evaluator / PlanPolicy) live in internal/cognition
+// and are injected via SetCognition; defaults preserve historical behavior.
+//
+// Agent.Run is the shared entry used by CLI chat, the HTTP runtime, and (later)
+// workflow/scheduler. Platform differences live in entry points, not inside the kernel.
 package agent
 
 import (
 	"context"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
@@ -115,6 +117,13 @@ func (a *Agent) SetApproval(fn runtime.ApprovalFunc) {
 func (a *Agent) SetPlanGate(v bool) {
 	if a.Loop != nil {
 		a.Loop.SetPlanGate(v)
+	}
+}
+
+// SetCognition wires Ranker / Evaluator / PlanPolicy into the owned loop.
+func (a *Agent) SetCognition(b cognition.Bundle) {
+	if a != nil && a.Loop != nil {
+		a.Loop.SetCognition(b)
 	}
 }
 

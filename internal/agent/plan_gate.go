@@ -1,8 +1,7 @@
 package agent
 
 import (
-	"strings"
-
+	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
@@ -18,44 +17,32 @@ func partitionToolCalls(calls []llm.ToolCall) (mutating, readonly []llm.ToolCall
 	return mutating, readonly
 }
 
-func shouldHoldPlan(planGate bool, toolCtx tools.Context, mutating []llm.ToolCall) bool {
-	return planGate && toolCtx.Interactive && !toolCtx.Approved && len(mutating) > 0
+func shouldHoldPlan(policy cognition.PlanPolicy, planGate bool, toolCtx tools.Context, mutating []llm.ToolCall) bool {
+	if policy == nil {
+		policy = cognition.DefaultPlanPolicy{}
+	}
+	return policy.ShouldHold(cognition.PlanHoldInput{
+		GateEnabled:   planGate,
+		Interactive:   toolCtx.Interactive,
+		Approved:      toolCtx.Approved,
+		MutatingCount: len(mutating),
+	})
 }
 
-func planProposedPayload(mutating []llm.ToolCall) map[string]any {
-	toolsOut := make([]map[string]any, 0, len(mutating))
-	names := make([]string, 0, len(mutating))
+func planProposedPayload(policy cognition.PlanPolicy, mutating []llm.ToolCall) map[string]any {
+	if policy == nil {
+		policy = cognition.DefaultPlanPolicy{}
+	}
+	calls := make([]cognition.ProposedCall, 0, len(mutating))
 	for _, call := range mutating {
-		names = append(names, call.Name)
-		toolsOut = append(toolsOut, map[string]any{
-			"name": call.Name, "arguments": call.Arguments,
-		})
+		calls = append(calls, cognition.ProposedCall{Name: call.Name, Arguments: call.Arguments})
 	}
-	return map[string]any{"tools": names, "calls": toolsOut}
+	return policy.ProposedPayload(calls)
 }
 
-func planHoldUserMessage(planText string) string {
-	planText = strings.TrimSpace(planText)
-	if planText == "" {
-		planText = "（模型未给出文字说明）"
+func planHoldUserMessage(policy cognition.PlanPolicy, planText string) string {
+	if policy == nil {
+		policy = cognition.DefaultPlanPolicy{}
 	}
-	return planText + "\n\n---\n写操作待确认：输入 y/yes/确认 执行，n/no/取消 放弃。"
-}
-
-func isPlanApproval(text string) bool {
-	switch strings.ToLower(strings.TrimSpace(text)) {
-	case "y", "yes", "确认", "执行", "ok":
-		return true
-	default:
-		return false
-	}
-}
-
-func isPlanRejection(text string) bool {
-	switch strings.ToLower(strings.TrimSpace(text)) {
-	case "n", "no", "取消", "skip":
-		return true
-	default:
-		return false
-	}
+	return policy.HoldMessage(planText)
 }
