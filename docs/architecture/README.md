@@ -39,7 +39,10 @@ architecture/
 │   ├── L1-model-gateway/
 │   ├── L2-tools/
 │   ├── L3-memory/
-│   ├── L4-runtime/
+│   ├── L4-runtime/                # Agent Loop、Workflow、HTTP 协议
+│   │   ├── README.md
+│   │   ├── agent-loop.md          # Loop SSOT（原理+流程+模块）
+│   │   └── agent-loop-verification.md
 │   └── L5-application/
 ├── domains/
 ├── cross-cutting/

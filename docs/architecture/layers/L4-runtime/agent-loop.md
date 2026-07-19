@@ -1,56 +1,25 @@
 # L4 — Agent 循环
 
-> 更新：2026-07-19（已部署 `225615ed` → 119.45.16.112）。Hermes 对应：[Agent 循环内部机制](https://hermes-agent.nousresearch.com/docs/zh-Hans/developer-guide/architecture) · `run_agent.py` / `AIAgent`
+> 更新：2026-07-20。Hermes 对照：[Agent 循环](https://hermes-agent.nousresearch.com/docs/zh-Hans/developer-guide/architecture)。  
+> 验收手册：[agent-loop-verification.md](./agent-loop-verification.md)
 
 GeeGooAgent 的对话编排引擎：**Observe → Plan → Act → Update**，直到无 `tool_calls` 或达到 `max_steps`。
 
-> **Kernel vs Cognition**：Loop 是控制平面；Planner / Ranker / Evaluator 在 `internal/cognition`，经 `SetCognition` 注入。  
-> 架构：[agent-runtime-architecture.md](../../agent-runtime-architecture.md)
+> **Kernel vs Cognition**：Loop 是控制平面；Ranker / Evaluator / PlanPolicy 在 `internal/cognition`，经 `SetCognition` 注入。定稿：[agent-runtime-architecture.md](../../agent-runtime-architecture.md)
 
-## 代码位置
+## 目录
 
-| 组件 | 包 / 文件 |
-|------|-----------|
-| 对外入口 | `internal/agent/agent.go` — `Agent.Run` |
-| ReAct 循环 | `internal/agent/loop.go` — `Loop.RunTurn` |
-| Tool 执行 | `internal/agent/tool_exec.go` — `ToolExec`（Loop + Workflow 共用） |
-| 报告合成 | `internal/agent/synthesis.go` — `ReportSynthesizer` |
-| 底层派发 | `internal/runtime/executor.go` |
-| 消息 sanitize | `internal/llm/messages.go` — 每轮 LLM 前合并连续 user/assistant |
-| 会话消息 | `internal/runtime/session.go` |
-| 稳定 System | `internal/chatprompt/builder.go` — Soul + ToolRouting + Memory + Endpoints |
-| 进度回调 | `internal/runtime/progress.go` |
-| NDJSON 事件 | `internal/runtime/agent_events.go` + `internal/cli/progress/ndjson.go` |
-| Loop 自检 | `geegoo inspect` → `internal/inspect/report.go` |
-| HTTP clarify | `internal/runtimeapi/clarify_hub.go` + `POST /v1/chat/clarify` |
+1. [总览](#1-总览)
+2. [实现原理](#2-实现原理)
+3. [执行流程](#3-执行流程)
+4. [功能模块](#4-功能模块)
+5. [配置与运维](#5-配置与运维)
 
-`Agent` 是薄封装：统一 CLI chat、HTTP runtime、未来子 Agent 的调用面。
+---
 
-## 单次 Turn 流程
+## 1. 总览
 
-```text
-RunTurn(ctx, session, userText, toolCtx, schemas)
-  │
-  ├─ [可选] Compressor.ShouldCompress → 四阶段压缩
-  │
-  └─ loop (max_tool_rounds):
-        Gateway.Chat(ctx, messages, schemas)
-        ├─ 无 tool_calls → 返回最终文本
-        └─ 有 tool_calls:
-              ToolExec.ExecuteBatch → append tool results → 继续
-        达上限 → finishBudgetExhausted（无 tool 终局总结）
-```
-
-### 与 Workflow 的分工
-
-| 模式 | 编排者 | 适用 |
-|------|--------|------|
-| **ReAct** | LLM 选 Tool | `geegoo chat`、HTTP runtime |
-| **确定性 Workflow** | `workflow.Runner` 硬编码步骤 | `geegoo run pre_market` |
-
-盘前用 Workflow 是为幂等 resume、逐步验收；chat 用 ReAct 是为自然语言灵活编排。
-
-## 核心接口（Go）
+### 入口
 
 ```go
 // internal/agent/agent.go
@@ -63,129 +32,249 @@ func (a *Agent) Run(
 ) runtime.TurnResult
 ```
 
-`tools.Context` 携带：
+`Agent` 统一 CLI chat、HTTP `runtimeapi`、子 Agent 的调用面；核心在 `Loop.RunTurn`。
 
-| 字段 | 用途 |
+### 调用链
+
+```text
+L5  chatrepl / runtimeapi
+        │
+        ▼
+L4  Agent.Run → Loop.RunTurn
+        │
+        ├── Gateway.Chat（L1）          ← 「Planner」逻辑在此
+        ├── ToolExec → Executor（L4）→ Registry（L2）
+        ├── Memory port 压缩 / recall（L3）
+        └── Cognition 注入
+```
+
+### 与 Workflow 的分工
+
+| 维度 | ReAct（本页） | [Workflow](./workflow-engine.md) |
+|------|---------------|----------------------------------|
+| 编排者 | LLM 选 Tool | `workflow.Runner` 硬编码步骤 |
+| 适用 | `geegoo chat`、HTTP runtime | `geegoo run pre_market` 等 |
+| 恢复 | PendingPlan、历史消息 | checkpoint + Working |
+| 共享 | `ToolExec`、`Registry`、`Gateway` | 同左 |
+
+---
+
+## 2. 实现原理
+
+### 2.1 Kernel 拥有 Loop
+
+- `Loop.RunTurn` 是唯一状态机：何时调 LLM、执行 Tool、结束。
+- Python Advisor 只返回 suggestion，不写 session、不调 tool。
+
+### 2.2 Cognition ≠ Kernel
+
+| 面 | 职责 | 包 |
+|----|------|-----|
+| Kernel | 轮次、Tool 派发、Plan 挂起、压缩、事件 | `internal/agent` |
+| Cognition | 排序、质量评估、Plan 确认语义 | `internal/cognition` |
+
+经 `SetCognition` 注入；默认 `AcceptAllEvaluator`、`IdentityRanker`、`DefaultPlanPolicy`。
+
+### 2.3 ToolExec 双路径复用
+
+`ToolExec` 同时服务 ReAct Loop 与 Workflow Runner，共用超时、并行、Approval、Plan Gate。
+
+### 2.4 Session 为对话 SSOT
+
+消息经 `runtime.Session` → `chatsession` 持久化；Loop 不直接碰 SQLite。Working/Evidence 由 Tool 更新，经 `tools.Context.StateStore` 传递。
+
+Chat 会话状态：`running`（对话中）、`plan_pending`（写操作待确认）。Workflow 侧完整状态机见 [workflow-engine.md](./workflow-engine.md)。
+
+### 2.5 可取消与可观测
+
+- `context.Context` 贯穿 LLM 与 Tool；Ctrl+C 中断当前回合。
+- `SetProgress` → UI / NDJSON；`EventBus` → `TurnStarted` / `TurnCompleted` 等审计事件。
+
+### 2.6 安全默认值
+
+Plan Gate（mutating 先确认）、Schema 校验、Chat 工具隔离、`delegate_task` 禁止嵌套。
+
+### 2.7 预算、压缩、Evaluator
+
+- `max_steps` 限制轮次；耗尽时 `finishBudgetExhausted` 做阶段性总结。
+- Memory port 在 hygiene（~85%）与每轮 LLM 前（~50%）压缩；血缘见 `lineage`。
+- `eval_max_retries`（0–1）：Evaluator 建议重试时追加 hint 再跑一轮。
+
+### 2.8 Planner 与 Executor（概念 → 代码）
+
+Go 实现**无独立 Planner/Executor 包**：
+
+| 概念 | Go 落点 |
+|------|---------|
+| **Planner** | `loop_round.callLLM` + `Gateway.Chat`；上下文由 `chatprompt` + `session.LLMMessages` 组装 |
+| **Executor** | `ToolExec.ExecuteBatch` → `runtime.Executor` → `Registry.Execute` |
+
+Planner 用的 Gateway 与 `get_mcp_analysis` Tool 调用的分析 LLM 分工不同：前者编排综合，后者技术面深度分析（Tool 返回结果，Planner 不重复编造）。
+
+---
+
+## 3. 执行流程
+
+> 代码：`loop.go`（`RunTurn`）、`loop_round.go`（`runRound`）。
+
+### 3.1 时序总览
+
+```mermaid
+sequenceDiagram
+    participant U as 用户 / API
+    participant L as Loop.RunTurn
+    participant M as Memory port
+    participant G as Gateway
+    participant T as ToolExec
+
+    U->>L: userText
+    L->>M: applyHygiene
+    alt PendingPlan
+        L->>L: resume / cancel plan
+    end
+    loop round < max_steps
+        L->>M: applyCompression
+        L->>G: Chat
+        alt 无 tool_calls
+            L-->>U: TurnResult
+        else 有 tool_calls
+            L->>T: ExecuteBatch
+            T-->>L: tool messages
+        end
+    end
+    L->>L: finishBudgetExhausted（若用尽预算）
+```
+
+### 3.2 RunTurn 阶段
+
+**Phase 0 — 初始化**：AppendMessage(user)、`turn_start`、`applyHygiene`。
+
+**Phase 1 — Pending Plan**：`y`/`确认` → `resumePendingPlan`；`n`/`取消` → `cancelPendingPlan`；其他 → 丢弃 PendingPlan。
+
+**Phase 2 — ReAct 主循环**（`runRound`）：
+
+```text
+applyCompression → withBudgetWarning → SanitizeMessages → Gateway.Chat
+  ├─ 无 tool_calls → finalizeReply
+  └─ 有 tool_calls → intercept → ToolExec.ExecuteBatch → append tool msgs
+        └─ Plan Gate? → PendingPlan + plan_proposed
+```
+
+回合结束：`tryEvalRetry`（可选）或 `TurnCompleted`。
+
+**Phase 3 — 预算耗尽**：`finishBudgetExhausted` + 无 tool 的终局 LLM 调用。
+
+### 3.3 Tool 执行
+
+```text
+ToolExec.ExecuteBatch
+  → timeout / parallel / delegate_sem
+  → ApprovalGate / plan_gate / hooks
+  → Executor → Registry.Execute
+```
+
+### 3.4 子 Agent
+
+`delegate_task` / `delegate_tasks` → `SubAgent` 独立 Session、`sub_agent_max_steps`、禁止嵌套 delegate。
+
+### 3.5 事件
+
+| 层级 | 示例 |
 |------|------|
-| `Ctx` | 取消传播（Ctrl+C） |
-| `MCPToken` | GeeGoo API 鉴权 |
-| `DryRun` | 跳过写操作 |
-| `Interactive` + `Approved` | ApprovalGate |
-| `SessionID` / `StateStore` | recall、working |
-| `DelegateDepth` / `Progress` / `ClarifyFn` / `Hooks` | 子 Agent 深度、进度、澄清回调、审计钩子 |
+| Progress | `turn_start`, `tool_done`, `eval_retry`, `turn_complete` |
+| NDJSON | `schema_version: 1`（`runtime/agent_events.go`） |
+| EventBus | `TurnStarted`, `TurnCompleted`, `TurnFailed` |
 
-## 配置
+HTTP clarify / plan 协议：[runtime-clarify.md](./runtime-clarify.md)。
 
-`config.json` → `agent` 段：
+---
+
+## 4. 功能模块
+
+### 4.1 关系图
+
+```text
+Agent (agent.go) → Loop (loop.go)
+  ├─ loop_round / loop_plan / loop_compress / loop_budget / loop_reply / loop_stream
+  ├─ loop_tools → ToolExec (tool_exec.go) → Executor (runtime) → Registry (tools)
+  ├─ SubAgent (subagent.go) + delegate_tool.go
+  └─ ReportSynthesizer (synthesis.go) — Workflow 用
+```
+
+### 4.2 `internal/agent` 文件职责
+
+| 文件 | 职责 |
+|------|------|
+| `loop.go` | `RunTurn`、Evaluator 重试、EventBus |
+| `loop_round.go` | `runRound`、`callLLM`、`applyToolRound` |
+| `loop_plan.go` | PendingPlan 恢复/取消 |
+| `loop_tools.go` | `executeToolCalls` |
+| `loop_compress.go` | hygiene / compression + lineage |
+| `loop_budget.go` | 预算耗尽终局 |
+| `loop_reply.go` | `[BUDGET]` 临时提示 |
+| `loop_stream.go` | 流式 `stream_delta` |
+| `plan_gate.go` | mutating 判定 |
+| `tool_intercept.go` | Chat 工具兜底 |
+| `tool_exec.go` | 并行、超时、Plan Gate（**Workflow 共用**） |
+
+### 4.3 跨包协作
+
+| 包 | 关系 |
+|----|------|
+| `cognition` | `SetCognition` 注入 Ranker / Evaluator / PlanPolicy |
+| `runtime` | Session、Executor、TurnResult |
+| `llm` | Gateway、SanitizeMessages、cache breakpoints |
+| `memport` / `prompt` | 压缩与 recall |
+| `chatprompt` | 稳定 System prompt |
+| `tools` | Registry、Context、ValidateArguments |
+| `app` | 依赖组装、`wireCognition` |
+
+### 4.4 入口（L5 → L4）
+
+| 入口 | 路径 |
+|------|------|
+| `geegoo chat` | `chatrepl` → `Agent.Run` |
+| HTTP | `runtimeapi` → `Agent.Run` |
+| `delegate_task` | `SubAgent` 内嵌 `Loop.RunTurn` |
+| Workflow | `Runner` → `ToolExec()`（不经 `RunTurn`） |
+
+### 4.5 测试
+
+```bash
+go test ./internal/agent/... ./internal/verify/...
+```
+
+关键：`loop_plan_test`、`loop_compress_test`、`loop_eval_retry_test`、`verify agent-loop --offline`。
+
+---
+
+## 5. 配置与运维
+
+### 配置（`config.json` agent 段）
 
 | 字段 | 默认 | 说明 |
 |------|------|------|
-| `max_steps` | 80 | 单 turn 最大 LLM↔tool 轮数 |
-| `sub_agent_max_steps` | 20 | `delegate_task` 子 Agent 回合上限（最大 40） |
-| `llm.prompt_cache` | 按 provider | 显式 `cache_control` 断点；DeepSeek/Minimax 默认 true |
-| `tool_max_parallel` | 4 | 单轮并行 tool 上限（最大 16） |
-| `mcp_max_parallel` | 6 | 全局 MCP/Signal HTTP 并发上限（最大 16，与 delegate 并行共享出站配额） |
-| `delegate_max_parallel` | 3 | `delegate_task` / `delegate_tasks` 并发上限（最大 8） |
-| `tool_timeout_sec` | 120 | 单次 tool 超时秒数（最大 600） |
-| `plan_gate` | true | mutating 工具先 `plan_proposed` 挂起，用户 `y`/`确认` 后执行 |
-| `hooks.tool_before` / `tool_after` | — | 可选 shell 审计脚本（stdin JSON，`fail_closed` 可阻断） |
-| `temperature` | 0.2 | 传给 Provider |
-| `context_token_budget` | 模型相关 | 压缩阈值参考 |
-| `active_profile` | `default` | 未设 `GEEGOO_PROFILE` 时使用的 profile 名 |
-| `profiles` | — | 按 profile 覆盖 `output_dir` / `mcp_token` / `chat_toolsets` / `dry_run` |
+| `max_steps` | 80 | LLM↔tool 轮数上限（最大 90） |
+| `sub_agent_max_steps` | 20 | delegate 上限（最大 40） |
+| `tool_max_parallel` | 4 | 单轮并行 tool |
+| `delegate_max_parallel` | 3 | 并行 delegate |
+| `tool_timeout_sec` | 120 | 单次 tool 超时 |
+| `plan_gate` | true | mutating 先确认 |
+| `eval_max_retries` | 0 | Evaluator 重试（最大 1） |
+| `profiles` | — | 情景补丁 |
 
-### Profile 运行场景（可选）
-
-可选：同一 `config.json` 内预设多套「情景补丁」，按需切换，无需维护多份配置文件。
-
-优先级：`GEEGOO_PROFILE` 环境变量 > `active_profile` > `default`。
-
-```json
-{
-  "active_profile": "work",
-  "output_dir": "./data",
-  "profiles": {
-    "work": {
-      "output_dir": "./data/work",
-      "mcp_token": "mcp_xxx",
-      "chat_toolsets": ["market"]
-    },
-    "sandbox": { "dry_run": true }
-  }
-}
-```
-
-`geegoo doctor` 仅在配置了 `profiles` 或显式选择 profile 时打印当前情景；`geegoo inspect` / `geegoo verify agent-loop` 同理。
-
-### 运维与集成命令
+### 命令
 
 ```bash
-# 只读汇总：profile、loop 参数、toolsets、skills（无网络）
-geegoo inspect --config ~/.geegoo/config.json
-
-# 内嵌离线 parity 卡片
+geegoo verify agent-loop --offline   # 12 项 parity，无需 config
+geegoo verify agent-loop
 geegoo inspect --quick
-
-# Headless 单次提问 + NDJSON 事件流（CI / 脚本）
 geegoo chat --message "..." --output-format ndjson --cli
-
-# Hermes parity 验收
-geegoo verify agent-loop --config ~/.geegoo/config.json
 ```
 
-HTTP runtime：SSE 流含 `clarify` 事件；客户端 `POST /v1/chat/clarify` 提交 `{session_id, answer}` 或 `{skip:true}` 续跑。详见 [runtime-clarify.md](./runtime-clarify.md)。**验收步骤** → [agent-loop-verification.md](./agent-loop-verification.md)。
+### 延伸阅读
 
-Plan 门控：mutating 工具先 `plan_proposed`，用户 `y`/`确认` 后执行挂起的 tool_calls，`n`/`取消` 放弃。
-
-压缩阈值见 `internal/prompt/compressor.go`（回合开始 85%、每轮 LLM 前 50%）。
-
-## 可观测性
-
-- `SetProgress(fn)` — chatui spinner / 工具预览；NDJSON 编码见 `schema_version: 1` 事件
-- Hermes 对齐回调：`thinking_start/stop`、`step_complete`、`tool_gen_start/delta`、`subagent_*`、`stream_delta`、`plan_proposed`
-- `delegate_task` / `delegate_tasks` — 子 Agent 独立会话 + `sub_agent_max_steps` 预算；禁止嵌套；批量并行受 `delegate_max_parallel` 限制
-- **工具 schema 校验** — `Registry.Execute` 前 `ValidateArguments`（必填项与基础类型）
-- **Hooks** — `tool_before` / `tool_after` shell 脚本（可选 `fail_closed`）
-- **Chat 工具拦截** — interactive 模式从 schema 剔除 workflow 独占 tool；运行时 `tool_intercepted` 兜底（如 `read_working_state` → 引导 `recall`）
-- **Prompt cache** — `llm.ApplyCacheBreakpoints`（system + 稳定历史边界）；`prompt_cache` 事件上报 hit/miss tokens
-- `Result.Meta` — HTTP 工具 `api_code`、`duration_ms`
-- EventBus（L0）— workflow 路径发 `ToolCalled` / `ToolCompleted`；chat 路径发 `TurnStarted`/`TurnCompleted`；报告合成发 `SynthesisStarted`/`SynthesisCompleted`
-
-## 可中断性
-
-`context.Context` 贯穿 `Gateway.Chat` 与 `Registry.Execute`。用户 Ctrl+C 中断**当前回合**；会话历史已持久化，下回合可继续。
-
-## 测试
-
-- `internal/agent/agent_test.go`
-- `internal/agent/loop_test.go`
-- `internal/agent/loop_interrupt_test.go`
-- `internal/agent/loop_compress_test.go`
-- `internal/verify/agent_loop_test.go` — 离线 parity 卡片
-
-### 离线验收（Hermes parity）
-
-```bash
-geegoo verify agent-loop --config ~/.geegoo/config.json
-```
-
-检查项：`clarify` / `delegate_task` / `delegate_tasks` / `recall` / `search_code` 注册、prompt cache 断点、workflow/chat 工具隔离、子 Agent 嵌套防护、工具 schema 校验。全部 PASS 时退出码为 0。
-
-线上验收（2026-07-19，`geegoo inspect --quick`）：9/9 PASS。
-
-## 延伸阅读
-
+- [agent-loop-verification.md](./agent-loop-verification.md) — 验收步骤
 - [workflow-engine.md](./workflow-engine.md) — 确定性工作流
-- [../../entrypoints.md](../../entrypoints.md) — CLI / HTTP 如何调用 Agent
+- [../../entrypoints.md](../../entrypoints.md) — CLI / HTTP 入口
 - [../L1-model-gateway/gateway.md](../L1-model-gateway/gateway.md) — LLM 调用链
-
-## 设计意图（Observe → Plan → Act → Update）
-
-循环直到无 `tool_calls` 或 `max_steps`：
-
-1. **Observe** — `RuntimeMessages` + Working 状态组装上下文；必要时压缩（`internal/prompt`）
-2. **Plan** — `gateway.Chat` + tool schemas
-3. **Act** — `Executor` 调 `tools.Registry`；写 session tool 消息
-4. **Update** — Working/Evidence；workflow 路径另写 checkpoint
-
-配置项见 `config.json` 的 `agent.max_tool_rounds`、`prompt` 压缩阈值。
