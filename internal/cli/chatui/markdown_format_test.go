@@ -259,6 +259,53 @@ func TestPreprocessTerminalMarkdown_BotSummaryTables(t *testing.T) {
 	}
 }
 
+func TestPreprocessTerminalMarkdown_BotFieldDetailTable(t *testing.T) {
+	in := `查询结果：你目前只有1个与腾讯相关的机器人。
+
+腾讯控股机器人|字段|详情
+---|---
+类型|GRID网格交易Bot
+bot_id|6781cb8309a2189f26d8866e
+标的|腾讯控股（00700.HK）
+频率|5m
+网格参数|上限700/下限300/格数5
+每手股数|100
+当前网格档位|500（第5档）
+买入档（已成交）|300、400（各100股）
+卖出档|700、600
+持仓|100股，成本价620，浮亏-25.71%（约-15,940HKD）
+Bot开关|✅开启
+
+1. ✅开启（日频），最近态度bullish（2026-07-17）** · ` + "`" + `
+小结：你账号下只有一个腾讯的GRID网格交易机器人，DCA、SmartTrade、HDG及各提醒类型中均无腾讯标的。需要我帮你做进一步分析（如技术面、资金流向）或调整这个Bot吗？` + "`" + `
+：态度监控`
+	out := PreprocessTerminalMarkdown(in)
+	if strings.Contains(out, "|---|") || strings.Contains(out, "---|---") {
+		t.Fatalf("table separator should be removed: %q", out)
+	}
+	if strings.Contains(out, "字段|详情") {
+		t.Fatalf("header row should be converted: %q", out)
+	}
+	if !strings.Contains(out, "腾讯控股机器人") {
+		t.Fatalf("missing title: %q", out)
+	}
+	if !strings.Contains(out, "**类型**：GRID网格交易Bot") {
+		t.Fatalf("missing type field: %q", out)
+	}
+	if !strings.Contains(out, "**bot_id**：6781cb8309a2189f26d8866e") {
+		t.Fatalf("missing bot_id field: %q", out)
+	}
+	if !strings.Contains(out, "**Bot开关**：✅开启") {
+		t.Fatalf("missing switch field: %q", out)
+	}
+	if strings.Contains(out, "** · `") || strings.Contains(out, "：态度监控") {
+		t.Fatalf("broken markdown tail should be cleaned: %q", out)
+	}
+	if !strings.Contains(out, "小结：你账号下只有一个腾讯的GRID网格交易机器人") {
+		t.Fatalf("summary paragraph should be preserved: %q", out)
+	}
+}
+
 func TestHardWrapLine_Chinese(t *testing.T) {
 	in := "这是一段很长的中文说明文字用于测试在终端里是否会强制折行显示而不是挤成一行"
 	out := WrapPlain(in, 20)

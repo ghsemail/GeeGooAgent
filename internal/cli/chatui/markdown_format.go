@@ -36,7 +36,7 @@ var (
 	reDateCell        = regexp.MustCompile(`^\d{1,2}/\d{1,2}$`)
 	reGlueEmojiHeading = regexp.MustCompile(`([^\n#])(#{2,6})([\p{So}])`)
 	reGluePipeSection = regexp.MustCompile(`(\|[^\n#]{3,})(#{2,6})`)
-	reLooseTableHeaderSep = regexp.MustCompile(`(\|(?:类型\|说明|日期\|事件|维度\|信号)\|)\s*([-]{2,}\|[-]{2,})`)
+	reLooseTableHeaderSep = regexp.MustCompile(`(\|?(?:类型\|说明|日期\|事件|维度\|信号|字段\|详情)\|?)\s*([-]{2,}\|[-]{2,})`)
 	reLooseSepRow         = regexp.MustCompile(`([-]{2,}\|[-]{2,})\s*([\p{Han}A-Za-z][^\n|]{0,24}\|)`)
 	reLooseRowAfterBacktest = regexp.MustCompile(`(回测)(GRID[^\n|]*\|)`)
 	reGlueBeforeTypeTable   = regexp.MustCompile(`(Bot管理|分析模板)(\|类型\|说明\|)`)
@@ -44,6 +44,9 @@ var (
 	reGlueParenDash       = regexp.MustCompile(`([）)])(-)([\p{Han}])`)
 	reBotSummaryHeader    = regexp.MustCompile(`([）)])(\|Bot名称\|标的\|开关\|?)`)
 	rePipeBotRow          = regexp.MustCompile(`\|[^\n|]+\|[^\n|]+\|[^\n|]+\|`)
+	reFieldDetailHeader   = regexp.MustCompile(`([^\n|]{2,})(\|字段\|详情\|?)`)
+	reBrokenMarkdownTail  = regexp.MustCompile(`(?m)^\d+\.\s+✅开启[^\n]*\*\*\s*·\s*` + "`" + `\s*$`)
+	reOrphanFieldLabel    = regexp.MustCompile(`^：[^\n]{1,20}\s*$`)
 )
 
 // NormalizeAssistantLayout inserts line breaks when the model glues markdown blocks
@@ -171,6 +174,7 @@ func normalizeGluedAnalysisMarkdown(text string) string {
 	text = reAdviceList.ReplaceAllString(text, "$1\n-")
 	text = reAdviceDash.ReplaceAllString(text, "$1\n-$2")
 	text = reFixTightDashList.ReplaceAllString(text, "\n- $1")
+	text = reBrokenMarkdownTail.ReplaceAllString(text, "")
 	text = strings.ReplaceAll(text, "|  |", "\n|")
 	return strings.TrimSpace(text)
 }
@@ -186,6 +190,7 @@ func normalizeLoosePipeTablesInline(text string) string {
 	text = reLooseTableHeaderSep.ReplaceAllString(text, "$1\n$2\n")
 	text = reLooseSepRow.ReplaceAllString(text, "$1\n$2")
 	text = reLooseRowAfterBacktest.ReplaceAllString(text, "$1\n$2")
+	text = reFieldDetailHeader.ReplaceAllString(text, "$1\n\n$2\n")
 	// Split consecutive loose rows: 回测\nGRID... and 买卖\nSmartTrade...
 	text = regexp.MustCompile(`(回测)\n?(GRID[^\n|]+\|)`).ReplaceAllString(text, "$1\n$2")
 	text = regexp.MustCompile(`(买卖)\n?(SmartTrade\|)`).ReplaceAllString(text, "$1\n$2")
@@ -387,6 +392,47 @@ func convertLoosePipeTables(text string) string {
 	lines := strings.Split(text, "\n")
 	var out []string
 	for i := 0; i < len(lines); {
+		if title, ok := splitFieldDetailHeaderLine(lines[i]); ok {
+			if title != "" {
+				out = append(out, title, "")
+			}
+			i++
+			var rows [][]string
+			for i < len(lines) {
+				trim := strings.TrimSpace(lines[i])
+				if trim == "" {
+					i++
+					if len(rows) > 0 {
+						break
+					}
+					continue
+				}
+				if isLooseTableSeparator(lines[i]) || isTableSeparator(lines[i]) {
+					i++
+					continue
+				}
+				if _, nextOK := splitFieldDetailHeaderLine(lines[i]); nextOK {
+					break
+				}
+				if cells := parseFieldDetailRow(lines[i]); cells != nil {
+					rows = append(rows, cells)
+					i++
+					continue
+				}
+				break
+			}
+			if formatted := formatKeyValueTable(rows); formatted != "" {
+				if len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
+					out = append(out, "")
+				}
+				out = append(out, formatted)
+				continue
+			}
+			if title != "" {
+				out = append(out, title)
+			}
+			continue
+		}
 		if _, ok := isLooseTableHeaderLine(lines[i]); ok {
 			start := i
 			i++
@@ -416,6 +462,40 @@ func convertLoosePipeTables(text string) string {
 		i++
 	}
 	return strings.Join(out, "\n")
+}
+
+func splitFieldDetailHeaderLine(line string) (title string, ok bool) {
+	for _, marker := range []string{"|字段|详情|", "|字段|详情", "字段|详情"} {
+		if idx := strings.Index(line, marker); idx >= 0 {
+			return strings.TrimSpace(line[:idx]), true
+		}
+	}
+	return "", false
+}
+
+func parseFieldDetailRow(line string) []string {
+	trim := strings.TrimSpace(line)
+	if trim == "" || isLooseTableSeparator(trim) || strings.Contains(trim, "|字段|详情") {
+		return nil
+	}
+	if reOrphanFieldLabel.MatchString(trim) {
+		return nil
+	}
+	if strings.HasPrefix(trim, "|") {
+		cells := parseTableRow(trim)
+		if cells != nil && len(cells) == 2 && cells[0] != "字段" {
+			return cells
+		}
+		return nil
+	}
+	if !strings.Contains(trim, "|") {
+		return nil
+	}
+	parts := splitNonEmptyPipeParts(trim)
+	if len(parts) != 2 || parts[0] == "字段" {
+		return nil
+	}
+	return parts
 }
 
 func isLooseTableHeaderLine(line string) ([]string, bool) {
@@ -710,12 +790,36 @@ func tightenParagraphSpacing(text string) string {
 		if strings.HasPrefix(trim, "|") && (isLooseTableSeparator(trim) || isTableSeparator(trim)) {
 			continue
 		}
+		if isLooseTableSeparator(trim) || isTableSeparator(trim) {
+			continue
+		}
+		if reOrphanFieldLabel.MatchString(trim) {
+			continue
+		}
+		if cleaned := stripStrayTrailingBacktick(line); cleaned != line {
+			line = cleaned
+			trim = strings.TrimSpace(line)
+			if trim == "" {
+				continue
+			}
+		}
 		if isSectionStart(trim) && len(out) > 0 && out[len(out)-1] != "" {
 			out = append(out, "")
 		}
 		out = append(out, line)
 	}
 	return strings.Join(out, "\n")
+}
+
+func stripStrayTrailingBacktick(line string) string {
+	trimmed := strings.TrimRight(line, " ")
+	if !strings.HasSuffix(trimmed, "`") {
+		return line
+	}
+	if strings.Count(trimmed, "`")%2 == 0 {
+		return line
+	}
+	return strings.TrimSuffix(trimmed, "`") + line[len(trimmed):]
 }
 
 func isSectionStart(line string) bool {
@@ -851,6 +955,8 @@ func isKeyValueTableHeaders(headers []string) bool {
 	case strings.Contains(a, "维度") || strings.Contains(b, "信号"):
 		return true
 	case strings.Contains(a, "类型") || strings.Contains(b, "说明"):
+		return true
+	case strings.Contains(a, "字段") || strings.Contains(b, "详情"):
 		return true
 	case strings.Contains(a, "类型") || strings.Contains(b, "净流入"):
 		return true
