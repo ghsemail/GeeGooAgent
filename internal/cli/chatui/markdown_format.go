@@ -9,6 +9,11 @@ import (
 var (
 	reGlueHeading = regexp.MustCompile(`([^\n])(#{2,6}\s)`)
 	reGlueH3Num   = regexp.MustCompile(`([^\n#])(#{3,6}\s*\d+\.\s)`)
+	reGlueHeadingCN = regexp.MustCompile(`([！。!?；:，,])(#{2,6})`)
+	reGlueHeadingMid = regexp.MustCompile(`([^\n#])(#{2,6}\d+\.)`)
+	reGlueHeadingTight = regexp.MustCompile(`([^\n#\s])(#{2,6}\d)`)
+	reHeadingSpace = regexp.MustCompile(`^(#{1,6})([^\s#\n])`)
+	reHeadingNumSpace = regexp.MustCompile(`^(#{1,6})(\d+\.)`)
 	reGlueCard    = regexp.MustCompile(`([^\n])(\*\*[0-9]+\.)`)
 	reGlueSummary = regexp.MustCompile(`([^\n])(小结[:：])`)
 	reGlueHR      = regexp.MustCompile(`\s*---+\s*`)
@@ -38,6 +43,9 @@ func NormalizeAssistantLayout(text string) string {
 			continue
 		}
 		line = strings.ReplaceAll(line, " ### ", "\n### ")
+		line = reGlueHeadingCN.ReplaceAllString(line, "$1\n$2")
+		line = reGlueHeadingMid.ReplaceAllString(line, "$1\n$2")
+		line = reGlueHeadingTight.ReplaceAllString(line, "$1\n$2")
 		line = reGlueHeading.ReplaceAllString(line, "$1\n$2")
 		line = reGlueH3Num.ReplaceAllString(line, "$1\n$2")
 		line = reGlueCard.ReplaceAllString(line, "$1\n$2")
@@ -51,6 +59,7 @@ func NormalizeAssistantLayout(text string) string {
 		line = reGlueListDash.ReplaceAllString(line, "$1\n- ")
 		for _, sub := range strings.Split(line, "\n") {
 			sub = strings.TrimRight(sub, " ")
+			sub = fixHeadingSyntax(sub)
 			if strings.TrimSpace(sub) == "" {
 				continue
 			}
@@ -58,6 +67,12 @@ func NormalizeAssistantLayout(text string) string {
 		}
 	}
 	return breakInlinePipeFields(strings.Join(out, "\n"))
+}
+
+func fixHeadingSyntax(line string) string {
+	line = reHeadingSpace.ReplaceAllString(line, "$1 $2")
+	line = reHeadingNumSpace.ReplaceAllString(line, "$1 $2")
+	return line
 }
 
 func breakAfterPunctuation(line string) string {
