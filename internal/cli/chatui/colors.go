@@ -13,6 +13,7 @@ const (
 	ColorErr      = "203"
 	ColorOK       = "114"
 	ColorRunning  = "120" // light green — in-progress elapsed
+	ColorBgPrompt = "236" // dark gray user prompt band (Grok-style)
 )
 
 // Back-compat aliases for chatui internals.
@@ -27,4 +28,5 @@ const (
 	colorErr      = ColorErr
 	colorOK       = ColorOK
 	colorRunning  = ColorRunning
+	colorBgPrompt = ColorBgPrompt
 )

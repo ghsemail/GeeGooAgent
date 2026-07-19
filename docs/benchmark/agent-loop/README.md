@@ -17,7 +17,8 @@
 3. 若关心 **Plan mode、并行子 Agent、Headless CI** 等编码 harness 能力 → [grok-build.md](./grok-build.md)
 4. 三方全维度速查表 → [../comparison.md](../comparison.md)
 5. GeeGoo loop 实现细节 → [../../architecture/layers/L4-runtime/agent-loop.md](../../architecture/layers/L4-runtime/agent-loop.md)
-6. Hermes P1–P8 交付记录 → [../../../deploy/hermes-parity-comparison.md](../../../deploy/hermes-parity-comparison.md)
+6. **功能怎么测** → [../../architecture/layers/L4-runtime/agent-loop-verification.md](../../architecture/layers/L4-runtime/agent-loop-verification.md)
+7. Hermes P1–P8 交付记录 → [../../../deploy/hermes-parity-comparison.md](../../../deploy/hermes-parity-comparison.md)
 
 ## 图例
 

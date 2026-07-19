@@ -45,7 +45,6 @@ func NormalizeAssistantLayout(text string) string {
 		line = reGlueField.ReplaceAllString(line, "\n  - $1")
 		line = reGlueNumbered.ReplaceAllString(line, "$1\n$2")
 		line = reGlueListDash.ReplaceAllString(line, "$1\n$2")
-		line = breakAfterPunctuation(line)
 		for _, sub := range strings.Split(line, "\n") {
 			sub = strings.TrimRight(sub, " ")
 			if strings.TrimSpace(sub) == "" {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
+	"github.com/ghsemail/GeeGooAgent/internal/lineage"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 )
@@ -46,9 +47,11 @@ func (l *Loop) runCompression(ctx context.Context, session *runtime.Session, mes
 		return messages
 	}
 	before := len(session.Messages)
+	tokensAfter := prompt.EstimateTokens(out)
 	session.Messages = out
 	session.PreviousSummary = newSummary
-	session.LastPromptTokens = prompt.EstimateTokens(out)
+	session.LastPromptTokens = tokensAfter
+	recordCompactionLineage(session, before, len(out), est, tokensAfter, hygiene, newSummary)
 	advanceLineage(session)
 	event := "context_compressed"
 	if hygiene {
@@ -65,6 +68,29 @@ func (l *Loop) runCompression(ctx context.Context, session *runtime.Session, mes
 		"compaction_generation":   session.CompactionGeneration,
 	})
 	return session.LLMMessages()
+}
+
+func recordCompactionLineage(session *runtime.Session, msgsBefore, msgsAfter, tokensBefore, tokensAfter int, hygiene bool, summary string) {
+	if session == nil {
+		return
+	}
+	gen := session.CompactionGeneration + 1
+	parent := session.LineageRoot
+	if parent == "" {
+		parent = session.ID
+	}
+	if session.CompactionGeneration > 0 {
+		parent = fmt.Sprintf("%s#g%d", session.LineageRoot, session.CompactionGeneration)
+		if session.LineageRoot == "" {
+			parent = fmt.Sprintf("%s#g%d", session.ID, session.CompactionGeneration)
+		}
+	}
+	session.LineageChain = append(session.LineageChain, lineage.Record{
+		Generation: gen, ParentID: parent, Hygiene: hygiene,
+		MsgsBefore: msgsBefore, MsgsAfter: msgsAfter,
+		TokensBefore: tokensBefore, TokensAfter: tokensAfter,
+		SummaryHash: lineage.SummaryHashPrefix(summary), SummaryChars: len(summary),
+	})
 }
 
 // advanceLineage records a Hermes-style child generation after compaction.

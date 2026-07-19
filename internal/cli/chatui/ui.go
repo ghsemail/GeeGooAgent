@@ -415,7 +415,7 @@ func (u *ChatUI) PrintUser(text string) {
 		return
 	}
 	u.println("")
-	u.println(RenderUserLineWidth(text, u.width))
+	u.println(RenderUserPromptBox(text, u.width))
 }
 
 func (u *ChatUI) PrintAssistant(text string) {
@@ -425,7 +425,6 @@ func (u *ChatUI) PrintAssistant(text string) {
 		u.println("")
 		return
 	}
-	u.println(RenderAgentHeader(u.width))
 	u.println(RenderAssistantBox(text, u.width))
 }
 
@@ -449,8 +448,6 @@ func (u *ChatUI) WriteStreamDelta(text string) {
 		u.println("")
 		if u.plain {
 			u.write("GeeGoo> ")
-		} else {
-			u.println(RenderAgentHeader(u.width))
 		}
 	}
 	u.streamBuf.WriteString(text)
@@ -573,10 +570,10 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 		u.ResetStream()
 		if u.plain {
 			u.println("────────────────")
-			u.println("Initializing agent...")
+			u.println("Working…")
 			return
 		}
-		u.println(RenderStatusBox(u.width))
+		u.println(RenderWorkingLine())
 	case "round_start":
 		u.streamRoundHad = false
 		if u.plain {

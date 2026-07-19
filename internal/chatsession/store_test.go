@@ -8,6 +8,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
+	"github.com/ghsemail/GeeGooAgent/internal/lineage"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
@@ -209,5 +210,29 @@ func TestChatSessionLineageMetadataRoundTrip(t *testing.T) {
 	parent, rootID, gen := loaded.LineageFromMetadata()
 	if parent != session.ID || rootID != session.ID || gen != 2 {
 		t.Fatalf("lineage parent=%q root=%q gen=%d", parent, rootID, gen)
+	}
+}
+
+func TestChatSessionLineageChainRoundTrip(t *testing.T) {
+	root := t.TempDir()
+	store := infra.NewStateStore(filepath.Join(root, "state"))
+	sessions := chatsession.NewChatSessionStore(store)
+	session, err := sessions.Create()
+	if err != nil {
+		t.Fatal(err)
+	}
+	session.SyncLineageChain([]lineage.Record{
+		{Generation: 1, ParentID: session.ID, MsgsBefore: 10, MsgsAfter: 4, TokensBefore: 1000, TokensAfter: 400, SummaryHash: "abcd1234"},
+	})
+	if err := sessions.Save(session); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := sessions.Load(session.ID)
+	if err != nil || loaded == nil {
+		t.Fatalf("load: %v", err)
+	}
+	chain := loaded.LineageChainFromMetadata()
+	if len(chain) != 1 || chain[0].SummaryHash != "abcd1234" {
+		t.Fatalf("chain=%+v", chain)
 	}
 }

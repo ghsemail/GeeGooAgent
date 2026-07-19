@@ -47,7 +47,7 @@ func TestContentWrapWidth(t *testing.T) {
 	if got := ContentWrapWidth(80); got != 76 {
 		t.Fatalf("got %d", got)
 	}
-	if got := ContentWrapWidth(200); got != 96 {
-		t.Fatalf("wide cap: got %d", got)
+	if got := ContentWrapWidth(200); got != 196 {
+		t.Fatalf("wide terminal: got %d", got)
 	}
 }

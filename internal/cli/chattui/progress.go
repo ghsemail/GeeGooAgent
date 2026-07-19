@@ -218,17 +218,21 @@ func (s *LiveSlot) finalizeLiveThinking() {
 }
 
 func (s *LiveSlot) finalizeLiveSections() {
+	replyID := s.LiveReplyID
 	for _, id := range []string{s.LiveThinkingID, s.LiveToolsID, s.LiveReplyID} {
 		if idx := s.blockIndex(id); idx >= 0 {
 			s.Blocks[idx].Live = false
 		}
 	}
+	if idx := s.blockIndex(replyID); idx >= 0 && !s.TurnStartedAt.IsZero() {
+		s.TurnEndedAt = time.Now()
+		s.Blocks[idx].DurationSec = s.TurnEndedAt.Sub(s.TurnStartedAt).Seconds()
+	} else if !s.TurnStartedAt.IsZero() {
+		s.TurnEndedAt = time.Now()
+	}
 	s.LiveThinkingID, s.LiveToolsID, s.LiveReplyID = "", "", ""
 	s.Busy = false
 	s.Status = "ready"
-	if !s.TurnStartedAt.IsZero() {
-		s.TurnEndedAt = time.Now()
-	}
 }
 
 func (s *LiveSlot) blockIndex(id string) int {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatprompt"
+	"github.com/ghsemail/GeeGooAgent/internal/lineage"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
@@ -31,6 +32,8 @@ type Session struct {
 	CompactionGeneration int
 	// PendingPlan holds mutating tool_calls awaiting user confirmation (plan gate).
 	PendingPlan *PendingPlan
+	// LineageChain records each context compression/hygiene event (newest last).
+	LineageChain []lineage.Record
 }
 
 // PendingPlan is a held mutating-tool batch from one LLM round.

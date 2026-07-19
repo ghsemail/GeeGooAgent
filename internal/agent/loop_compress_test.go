@@ -97,6 +97,9 @@ func TestRunTurnCompressesBeforeChat(t *testing.T) {
 	if session.ParentID == "" {
 		t.Fatal("expected parent_id after compression")
 	}
+	if len(session.LineageChain) != 1 {
+		t.Fatalf("lineage_chain=%d want 1", len(session.LineageChain))
+	}
 }
 
 func TestRunTurnHygieneAtEightyFivePercent(t *testing.T) {

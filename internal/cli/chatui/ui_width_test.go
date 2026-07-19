@@ -3,8 +3,8 @@ package chatui
 import "testing"
 
 func TestAssistantWrapWidth_CappedOnWideTerminal(t *testing.T) {
-	if got := assistantWrapWidth(200); got != 96 {
-		t.Fatalf("wide terminal: got %d want 96", got)
+	if got := assistantWrapWidth(200); got != 196 {
+		t.Fatalf("wide terminal: got %d want 196", got)
 	}
 }
 

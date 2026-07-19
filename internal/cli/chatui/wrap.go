@@ -13,9 +13,6 @@ func ContentWrapWidth(terminalWidth int) int {
 	if w < 32 {
 		return 32
 	}
-	if w > 96 {
-		return 96
-	}
 	return w
 }
 

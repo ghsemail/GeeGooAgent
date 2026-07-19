@@ -129,7 +129,7 @@ geegoo chat --message "..." --output-format ndjson --cli
 geegoo verify agent-loop --config ~/.geegoo/config.json
 ```
 
-HTTP runtime：SSE 流含 `clarify` 事件；客户端 `POST /v1/chat/clarify` 提交 `{session_id, answer}` 或 `{skip:true}` 续跑。详见 [runtime-clarify.md](./runtime-clarify.md)。
+HTTP runtime：SSE 流含 `clarify` 事件；客户端 `POST /v1/chat/clarify` 提交 `{session_id, answer}` 或 `{skip:true}` 续跑。详见 [runtime-clarify.md](./runtime-clarify.md)。**验收步骤** → [agent-loop-verification.md](./agent-loop-verification.md)。
 
 Plan 门控：mutating 工具先 `plan_proposed`，用户 `y`/`确认` 后执行挂起的 tool_calls，`n`/`取消` 放弃。
 

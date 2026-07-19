@@ -69,7 +69,7 @@ Usage:
   %s update [--dir PATH]
   %s resume --session ID [--config PATH] [--dry-run]
   %s doctor [--config PATH]
-  %s inspect [--config PATH] [--quick]
+  %s inspect [--config PATH] [--quick] [--session ID]
   %s chat [--config PATH] [--dry-run] [--message TEXT] [--output-format text|ndjson] [--session ID] [--tui|--cli]
   %s run <skill> [--config PATH] [--dry-run]
   %s migrate [--config PATH] [--dry-run]

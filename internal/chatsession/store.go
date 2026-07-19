@@ -10,6 +10,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatprompt"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
+	"github.com/ghsemail/GeeGooAgent/internal/lineage"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
@@ -209,6 +210,78 @@ func (c *ChatSession) SyncLineageFromRuntime(parentID, lineageRoot string, gener
 	}
 	if generation > 0 {
 		c.Metadata["compaction_generation"] = generation
+	}
+}
+
+// SyncLineageChain persists compaction event history into Metadata.
+func (c *ChatSession) SyncLineageChain(chain []lineage.Record) {
+	if c == nil || len(chain) == 0 {
+		return
+	}
+	if c.Metadata == nil {
+		c.Metadata = map[string]any{}
+	}
+	items := make([]any, 0, len(chain))
+	for _, rec := range chain {
+		items = append(items, map[string]any{
+			"generation": rec.Generation, "parent_id": rec.ParentID, "hygiene": rec.Hygiene,
+			"msgs_before": rec.MsgsBefore, "msgs_after": rec.MsgsAfter,
+			"tokens_before": rec.TokensBefore, "tokens_after": rec.TokensAfter,
+			"summary_hash": rec.SummaryHash, "summary_chars": rec.SummaryChars,
+		})
+	}
+	c.Metadata["lineage_chain"] = items
+}
+
+// LineageChainFromMetadata reads compaction history from Metadata.
+func (c *ChatSession) LineageChainFromMetadata() []lineage.Record {
+	if c == nil || c.Metadata == nil {
+		return nil
+	}
+	raw, ok := c.Metadata["lineage_chain"].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]lineage.Record, 0, len(raw))
+	for _, item := range raw {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		rec := lineage.Record{
+			ParentID:    strMeta(m, "parent_id"),
+			SummaryHash: strMeta(m, "summary_hash"),
+			MsgsBefore:  intMeta(m, "msgs_before"),
+			MsgsAfter:   intMeta(m, "msgs_after"),
+			TokensBefore: intMeta(m, "tokens_before"),
+			TokensAfter:  intMeta(m, "tokens_after"),
+			SummaryChars: intMeta(m, "summary_chars"),
+			Generation:   intMeta(m, "generation"),
+		}
+		if v, ok := m["hygiene"].(bool); ok {
+			rec.Hygiene = v
+		}
+		out = append(out, rec)
+	}
+	return out
+}
+
+func strMeta(m map[string]any, key string) string {
+	s, _ := m[key].(string)
+	return s
+}
+
+func intMeta(m map[string]any, key string) int {
+	switch v := m[key].(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	case json.Number:
+		n, _ := v.Int64()
+		return int(n)
+	default:
+		return 0
 	}
 }
 

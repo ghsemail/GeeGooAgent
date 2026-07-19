@@ -24,8 +24,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		if msg.Width > 4 {
-			m.input.Width = msg.Width - 4
+		if msg.Width > 12 {
+			m.input.Width = msg.Width - 8
 		}
 		m.rebuildBanner()
 		m.layoutViewport()
@@ -605,8 +605,7 @@ func (m *Model) showSlashOutput(output string) {
 }
 
 func (m *Model) layoutViewport() {
-	// status bar + input + separators ≈ 5 lines
-	h := m.height - 5
+	h := m.height - m.footerLineCount()
 	if h < 8 {
 		h = 8
 	}
@@ -618,8 +617,25 @@ func (m *Model) layoutViewport() {
 	m.vp.Height = h
 }
 
+func (m Model) footerLineCount() int {
+	n := 1 // status bar
+	if m.approvalPending || m.clarifyPending || m.clarifyAwaitingText || m.info != "" {
+		n++
+	}
+	if !m.approvalPending && !m.clarifyPending {
+		n++ // input chrome
+	}
+	if m.slashMenuOpen() {
+		n += len(m.slashMatches())
+	}
+	return n
+}
+
 func (m *Model) refreshViewport() {
 	content := m.renderTranscript()
+	if m.scrollFollow {
+		content = chatui.AnchorContentBottom(content, m.vp.Height)
+	}
 	m.vp.SetContent(content)
 	if m.scrollFollow {
 		m.vp.GotoBottom()
@@ -635,8 +651,6 @@ func (m Model) View() string {
 
 	var b strings.Builder
 	b.WriteString(m.vp.View())
-	b.WriteByte('\n')
-	b.WriteString(chatui.RenderRule(m.width))
 	b.WriteByte('\n')
 
 	if m.approvalPending {
@@ -660,7 +674,7 @@ func (m Model) View() string {
 		b.WriteByte('\n')
 	}
 	if !m.approvalPending && !m.clarifyPending {
-		b.WriteString(renderInputLine(m.input))
+		b.WriteString(renderInputLine(m.input, m.width))
 	}
 	return b.String()
 }

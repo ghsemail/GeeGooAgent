@@ -92,6 +92,7 @@ func NewWithSession(application *app.App, configPath string, sessionID string, d
 			ID: chat.ID, Messages: chat.RuntimeMessages(),
 			StepCounter: chat.StepCounter, CreatedAt: chat.CreatedAt,
 			ParentID: parentID, LineageRoot: lineageRoot, CompactionGeneration: generation,
+			LineageChain: chat.LineageChainFromMetadata(),
 		},
 		Registry: application.Registry, UI: ui,
 		DryRun: dryRun || application.Config.DryRun, Verbose: true,
@@ -370,6 +371,7 @@ func (r *Repl) runTurn(text string) runtime.TurnResult {
 	}
 	r.Chat.SyncFromRuntime(r.Session.Messages, r.Session.StepCounter, newRecords)
 	r.Chat.SyncLineageFromRuntime(r.Session.ParentID, r.Session.LineageRoot, r.Session.CompactionGeneration)
+	r.Chat.SyncLineageChain(r.Session.LineageChain)
 	_ = r.SessionStore.Save(r.Chat)
 	if pub := chatsession.NewLivePublisher(r.App.State, r.Chat.ID); pub != nil {
 		pub.EndTurn()
@@ -472,10 +474,16 @@ func (r *Repl) handleSlash(line string) bool {
 			think = "on"
 		}
 		r.UI.PrintInfo(fmt.Sprintf(
-			"session=%s messages=%d steps=%d dry_run=%v llm=%s/%s verbose=%v think=%s",
+			"session=%s messages=%d steps=%d dry_run=%v llm=%s/%s verbose=%v think=%s lineage_gen=%d chain=%d",
 			r.Chat.ID, len(r.Chat.Messages), len(r.Chat.StepRecords), r.DryRun,
 			preset.Label, model, r.Verbose, think,
+			r.Session.CompactionGeneration, len(r.Session.LineageChain),
 		))
+		if chain := r.Chat.LineageChainFromMetadata(); len(chain) > 0 {
+			for _, rec := range chain {
+				r.UI.PrintInfo("  " + rec.FormatLine())
+			}
+		}
 	case "/tools":
 		r.printTools()
 	case "/toolsets":

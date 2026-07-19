@@ -65,17 +65,26 @@ func (m *Model) renderTranscript() string {
 		width = 80
 	}
 	var b strings.Builder
-	if m.banner != "" {
+	showBanner := m.banner != ""
+	s := m.activeSlot()
+	if s != nil {
+		for _, block := range s.Blocks {
+			if block.Kind == KindUser {
+				showBanner = false
+				break
+			}
+		}
+	}
+	if showBanner {
 		b.WriteString(m.banner)
 	}
-	s := m.activeSlot()
 	if s == nil {
 		return b.String()
 	}
 
-	hasSegment := m.banner != ""
+	hasSegment := showBanner && m.banner != ""
 	prev := segmentNone
-	if m.banner != "" {
+	if showBanner && m.banner != "" {
 		prev = segmentProcess
 	}
 	for i := 0; i < len(s.Blocks); i++ {
@@ -93,7 +102,7 @@ func (m *Model) renderTranscript() string {
 		if IsProcessKind(block.Kind) {
 			cur := segmentProcess
 			if hasSegment {
-				m.writeSegmentDivider(&b, width, prev, cur)
+				m.writeSegmentDivider(&b, prev, cur)
 			}
 			var panel strings.Builder
 			m.appendProcessBlock(&panel, block, i, s.Focus, width)
@@ -105,14 +114,14 @@ func (m *Model) renderTranscript() string {
 
 		cur := blockSegment(block.Kind)
 		if hasSegment {
-			m.writeSegmentDivider(&b, width, prev, cur)
+			m.writeSegmentDivider(&b, prev, cur)
 		}
 		switch block.Kind {
 		case KindUser:
-			b.WriteString(chatui.RenderUserLineWidth(block.Body, width))
+			b.WriteString(chatui.RenderUserPromptBox(block.Body, width))
 			b.WriteByte('\n')
 			if s.Busy && i == len(s.Blocks)-1 {
-				b.WriteString(chatui.RenderStatusBox(width))
+				b.WriteString(chatui.RenderWorkingLine())
 				b.WriteByte('\n')
 			}
 		case KindReply:
@@ -123,6 +132,10 @@ func (m *Model) renderTranscript() string {
 				b.WriteString(chatui.RenderAssistantBox(body, width))
 			}
 			b.WriteByte('\n')
+			if !block.Live && block.DurationSec > 0 {
+				b.WriteString(chatui.RenderTurnFooter(time.Duration(block.DurationSec * float64(time.Second))))
+				b.WriteByte('\n')
+			}
 		}
 		prev = cur
 		hasSegment = true
@@ -130,7 +143,6 @@ func (m *Model) renderTranscript() string {
 
 	if s.Err != "" {
 		if hasSegment {
-			b.WriteString(chatui.RenderSoftDivider(width))
 			b.WriteByte('\n')
 		}
 		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorErr)).Bold(true).Render("✗ " + s.Err))
@@ -152,12 +164,11 @@ func blockSegment(kind SectionKind) transcriptSegment {
 	}
 }
 
-func (m *Model) writeSegmentDivider(b *strings.Builder, width int, prev, cur transcriptSegment) {
+func (m *Model) writeSegmentDivider(b *strings.Builder, prev, cur transcriptSegment) {
 	if prev == segmentNone || cur == segmentNone {
 		return
 	}
 	if cur == segmentUser {
-		b.WriteString(chatui.RenderRule(width))
 		b.WriteByte('\n')
 		return
 	}
@@ -165,16 +176,10 @@ func (m *Model) writeSegmentDivider(b *strings.Builder, width int, prev, cur tra
 		return
 	}
 	if prev == cur && cur == segmentProcess {
-		b.WriteString(chatui.RenderSoftDivider(width))
 		b.WriteByte('\n')
 		return
 	}
-	if cur == segmentReply {
-		if prev == segmentProcess {
-			b.WriteString(chatui.RenderSoftDivider(width))
-			b.WriteByte('\n')
-		}
-		b.WriteString(chatui.RenderAgentHeader(width))
+	if cur == segmentReply && prev == segmentProcess {
 		b.WriteByte('\n')
 	}
 }
@@ -197,6 +202,6 @@ func renderSectionHeader(b Block, cfg config.DisplayConfig) string {
 	)
 }
 
-func renderInputLine(ti textinput.Model) string {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorGold)).Bold(true).Render("❯ ") + ti.View()
+func renderInputLine(ti textinput.Model, width int) string {
+	return chatui.RenderInputChrome(ti.View(), width)
 }
