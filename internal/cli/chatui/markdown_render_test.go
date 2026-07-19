@@ -30,11 +30,29 @@ func TestRenderAssistantBoxWithLiveUsesPlain(t *testing.T) {
 }
 
 func TestRenderAssistantBoxCompletedUsesMarkdown(t *testing.T) {
-	out := stripANSI(RenderAssistantBoxWith("## Title\n\nbody", 80, AssistantRenderOptions{Markdown: true, Live: false}))
+	out := stripANSI(RenderAssistantBoxWith("## Title\n\n- one\n- two", 80, AssistantRenderOptions{Markdown: true, Live: false}))
 	if strings.Contains(out, "##") {
 		t.Fatalf("completed reply should render markdown: %q", out)
 	}
-	if !strings.Contains(out, "Title") {
-		t.Fatalf("missing title: %q", out)
+	if !strings.Contains(out, "Title") || !strings.Contains(out, "one") {
+		t.Fatalf("missing content: %q", out)
+	}
+}
+
+func TestRenderAssistantBoxHermesPanel(t *testing.T) {
+	out := RenderAssistantBoxWith("核心能力:\n\n文件 & 代码\n- 读写文件\n- grep 搜索", 100, AssistantRenderOptions{Markdown: true})
+	plain := stripANSI(out)
+	if !strings.Contains(plain, "读写文件") {
+		t.Fatalf("missing list item: %q", plain)
+	}
+	if !strings.Contains(out, "│") {
+		t.Fatalf("expected Hermes panel border: %q", plain)
+	}
+}
+
+func TestRenderAssistantBoxLiveNoPanel(t *testing.T) {
+	out := RenderAssistantBoxWith("## Title", 80, AssistantRenderOptions{Markdown: true, Live: true})
+	if strings.Contains(out, "│") {
+		t.Fatalf("live preview should not use panel: %q", stripANSI(out))
 	}
 }

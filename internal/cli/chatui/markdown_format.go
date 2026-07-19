@@ -113,10 +113,31 @@ func breakInlinePipeFields(text string) string {
 // PreprocessTerminalMarkdown adapts assistant markdown for narrow terminals.
 func PreprocessTerminalMarkdown(text string) string {
 	text = NormalizeAssistantLayout(text)
+	text = ensureListSpacing(text)
 	if strings.Contains(text, "|") {
 		text = convertMarkdownTables(text)
 	}
 	return tightenParagraphSpacing(text)
+}
+
+func ensureListSpacing(text string) string {
+	lines := strings.Split(text, "\n")
+	var out []string
+	for i, line := range lines {
+		trim := strings.TrimSpace(line)
+		if isListLine(trim) && i > 0 {
+			prev := strings.TrimSpace(lines[i-1])
+			if prev != "" && !isListLine(prev) && (len(out) == 0 || out[len(out)-1] != "") {
+				out = append(out, "")
+			}
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
+func isListLine(line string) bool {
+	return strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") || strings.HasPrefix(line, "+ ")
 }
 
 func convertMarkdownTables(text string) string {

@@ -36,20 +36,36 @@ func RenderAssistantBoxWith(text string, width int, opts AssistantRenderOptions)
 	if opts.Live {
 		return RenderGrokReplyBlock(body, width)
 	}
+	panelW := assistantBoxOuterWidth(width)
+	innerW := PanelContentWidth(width)
+	var inner string
 	if opts.Markdown {
-		return RenderAssistantMarkdown(body, width)
+		inner = RenderAssistantMarkdownAt(body, innerW)
+	} else {
+		inner = RenderPlainAssistantBody(body, innerW)
 	}
-	return RenderGrokReplyBlock(body, width)
+	if strings.TrimSpace(stripANSI(inner)) == "" {
+		return styleMeta.Render("⋯ 正在生成回复…")
+	}
+	return stylePanel.Width(panelW).Render(inner)
 }
 
 // RenderAssistantMarkdown renders markdown via glamour with terminal word-wrap.
 func RenderAssistantMarkdown(text string, width int) string {
+	return RenderAssistantMarkdownAt(text, ContentWrapWidth(width))
+}
+
+// RenderAssistantMarkdownAt renders markdown at a fixed inner column width.
+func RenderAssistantMarkdownAt(text string, innerW int) string {
 	text = strings.TrimRight(text, "\n")
 	if strings.TrimSpace(text) == "" {
 		return styleMeta.Render("⋯ 正在生成回复…")
 	}
 	text = PreprocessTerminalMarkdown(text)
-	w := ContentWrapWidth(width)
+	w := innerW
+	if w < 32 {
+		w = 32
+	}
 	r, err := newMarkdownRenderer(w)
 	if err != nil {
 		return RenderPlainAssistantBody(text, w)
