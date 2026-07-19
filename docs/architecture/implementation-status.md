@@ -1,7 +1,7 @@
 # 实现状态（2026-07）
 
 > **单一事实来源**：本文与代码不一致时，以 `internal/` + [layers/L2-tools/tools-status.md](./layers/L2-tools/tools-status.md) 为准。  
-> 业务能力分期见 [phases/README.md](./phases/README.md)。
+> 未做项 → [backlog.md](./backlog.md)。
 
 ## 图例
 
@@ -12,6 +12,20 @@
 | ⚠️ | 已注册/已接线，但能力降级、依赖外部环境或仅为占位 |
 | 📋 | 已登记名称，无业务步骤或目录 |
 | ❌ | 未实现 |
+
+---
+
+## Agent Runtime（Agent OS）
+
+| 能力 | 状态 | Go 代码 |
+|------|------|---------|
+| Cognition 接口（Ranker / Evaluator / PlanPolicy） | ✅ | `internal/cognition` |
+| Loop `SetCognition` / `SetMemory` | ✅ | `internal/agent` |
+| Model Policy（Config + Complexity） | ✅ | `internal/llm/policy.go` |
+| Memory port + Adapter | ✅ | `internal/memport`, `internal/memory/adapter.go` |
+| Recall → Ranker 接线 | ✅ | `memory.Adapter.SessionRanker`, `agent.RankRecallHits` |
+| Python Advisor（可选） | ✅ 默认关 | `services/cognitive`, `config.advisor` |
+| Import 边界检查 + CI | ✅ | `internal/archboundaries`, `.github/workflows/ci.yml` |
 
 ---
 
@@ -123,7 +137,7 @@
 | Evidence | ✅ | 报告 evidence_refs |
 | Compaction | ✅ | Hermes 四阶段 |
 | Episodic（跨日摘要） | ✅ | `recall_yesterday_summary` 读本地 reports + MCP 回退 |
-| Semantic（向量） | ❌ | 刻意不做；见 L3 README |
+| Semantic（向量） | ❌ | 见 [backlog.md](./backlog.md) |
 
 ---
 
@@ -157,4 +171,4 @@
 
 ## 文档维护
 
-状态变更时同步更新：**本文件** → `phases/README.md` → `architecture/README.md` → 相关层 README。
+状态变更时同步更新：**本文件**、相关层 README；待办仅维护 [backlog.md](./backlog.md)。

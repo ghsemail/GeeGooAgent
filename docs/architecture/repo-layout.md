@@ -2,10 +2,8 @@
 
 Go 主分支实现；与架构六层概念的包对照如下。
 
-> **目标态（Agent OS）**：逻辑包边界、依赖方向与渐进目录见  
-> [agent-runtime-architecture.md](./agent-runtime-architecture.md) §5–§11 与  
-> [agent-runtime-migration-plan.md](./agent-runtime-migration-plan.md)。  
-> 下文描述**当前**仓库树；改造期间以定稿依赖方向为准，不必一夜改名。
+> **Agent OS 架构**：[agent-runtime-architecture.md](./agent-runtime-architecture.md)。  
+> 目标逻辑包 / 依赖方向见定稿 §5 与 [repo-layout.md](./repo-layout.md)。
 
 ```text
 GeeGooAgent/
@@ -97,10 +95,9 @@ tools → clients/mcp → HTTP
 infra 不得 import runtime / tools / llm
 ```
 
-> Agent OS 定稿与改造节奏：[agent-runtime-architecture.md](./agent-runtime-architecture.md)、[agent-runtime-migration-plan.md](./agent-runtime-migration-plan.md)。  
-> P1 已引入 `internal/cognition`（Ranker / Evaluator / PlanPolicy）；Loop 经 `SetCognition` 注入。  
-> P4 可选 `services/cognitive` sidecar + `AdvisorClient`（`config.advisor.enabled` 默认 false）。  
-> P5 `go run scripts/check_import_boundaries.go` 或 `go test ./internal/archboundaries/...` 验证依赖方向；CI 见 `.github/workflows/ci.yml`。  
+> Agent OS：[agent-runtime-architecture.md](./agent-runtime-architecture.md)。  
+> `internal/cognition` + `SetCognition`；可选 `services/cognitive` Advisor（`config.advisor`，默认 false）。  
+> 边界检查：`go run scripts/check_import_boundaries.go`；CI 见 `.github/workflows/ci.yml`。  
 > Recall 排序：`memory.Adapter.SessionRanker` → `agent.RankRecallHits` → cognition Ranker。
 
 ## 工具注册链

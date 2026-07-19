@@ -3,9 +3,8 @@
 Runtime **禁止**直连厂商 SDK；所有 LLM 调用经 Gateway。
 
 > Go 实现：`internal/llm/`  
-> **Model Policy**：`policy.go` — `Policy` / `ConfigPolicy` / `ComplexityPolicy`；Gateway 经 `CallMeta`（context）应用 temperature / max_tokens。  
-> Kernel chat / synthesis / compress 调用点已带 `TaskKind`。`ComplexityPolicy` 可选，默认不接入 App（避免 82 tools 抬高全员 max_tokens）。  
-> 定稿：[agent-runtime-architecture.md](../../agent-runtime-architecture.md) §8 · 改造：[agent-runtime-migration-plan.md](../../agent-runtime-migration-plan.md) P2。
+> **Model Policy**：`policy.go` — `ConfigPolicy` + `ComplexityPolicy`（App 默认栈）；Gateway 经 `CallMeta` 应用参数。  
+> 架构：[agent-runtime-architecture.md](../../agent-runtime-architecture.md) §8
 
 ## 模块索引
 
@@ -14,7 +13,7 @@ Runtime **禁止**直连厂商 SDK；所有 LLM 调用经 Gateway。
 | Gateway | [gateway.md](./gateway.md) | `gateway.go` | ✅ 重试 + ctx 取消 + Policy |
 | Providers | [providers.md](./providers.md) | `openai.go`, `presets.go` | ✅ 3 provider |
 | Cost | [cost-manager.md](./cost-manager.md) | — | 📋 轻量 / 规划 |
-| Model Policy | — | `policy.go` | ✅ ConfigPolicy 默认；ComplexityPolicy 可选 |
+| Model Policy | — | `policy.go` | ✅ ConfigPolicy + ComplexityPolicy |
 
 ## 调用链
 

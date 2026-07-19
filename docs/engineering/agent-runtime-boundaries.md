@@ -49,5 +49,6 @@ go build ./cmd/geegoo ./cmd/agent-runtime
 
 ## 相关文档
 
-- [agent-runtime-migration-plan.md](../architecture/agent-runtime-migration-plan.md)  
+- [agent-runtime-architecture.md](../architecture/agent-runtime-architecture.md)  
+- [backlog.md](../architecture/backlog.md)  
 - [repo-layout.md](../architecture/repo-layout.md)
