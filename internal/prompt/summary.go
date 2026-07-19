@@ -30,6 +30,7 @@ type Summarizer interface {
 // ProviderSummarizer wraps an llm.Provider for structured compaction summaries.
 type ProviderSummarizer struct {
 	Provider llm.Provider
+	Policy   llm.Policy // optional; temperature from TaskCompress when set
 }
 
 func (p *ProviderSummarizer) Summarize(ctx context.Context, middle []llm.Message, previousSummary string, maxTokens int) (string, error) {
@@ -53,7 +54,14 @@ func (p *ProviderSummarizer) Summarize(ctx context.Context, middle []llm.Message
 		{Role: llm.RoleSystem, Content: summarySystem},
 		{Role: llm.RoleUser, Content: b.String()},
 	}
-	resp, err := p.Provider.Chat(ctx, msgs, nil, 0.2, maxTokens)
+	temp := 0.2
+	if p.Policy != nil {
+		d := p.Policy.Decide(llm.Request{Kind: llm.TaskCompress})
+		if d.Temperature > 0 {
+			temp = d.Temperature
+		}
+	}
+	resp, err := p.Provider.Chat(ctx, msgs, nil, temp, maxTokens)
 	if err != nil {
 		return "", err
 	}

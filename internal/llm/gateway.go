@@ -20,6 +20,7 @@ type Gateway struct {
 	primary   Provider
 	fallbacks []Provider
 	config    GatewayConfig
+	policy    Policy
 	sleep     func(time.Duration)
 }
 
@@ -40,7 +41,10 @@ func NewGateway(primary Provider, cfg GatewayConfig) *Gateway {
 	return &Gateway{
 		primary: primary,
 		config:  cfg,
-		sleep:   time.Sleep,
+		policy: NewConfigPolicy(ConfigPolicyInput{
+			Temperature: cfg.Temperature, MaxTokens: cfg.MaxTokens,
+		}),
+		sleep: time.Sleep,
 	}
 }
 
@@ -50,6 +54,22 @@ func (g *Gateway) SetFallbacks(fallbacks []Provider) {
 		return
 	}
 	g.fallbacks = fallbacks
+}
+
+// SetPolicy replaces the model runtime policy (temperature / token budget strategy).
+func (g *Gateway) SetPolicy(p Policy) {
+	if g == nil || p == nil {
+		return
+	}
+	g.policy = p
+}
+
+// Policy returns the active model policy (never nil after NewGateway).
+func (g *Gateway) Policy() Policy {
+	if g == nil || g.policy == nil {
+		return NewConfigPolicy(ConfigPolicyInput{})
+	}
+	return g.policy
 }
 
 // SetSleep replaces sleep for tests.
@@ -124,12 +144,13 @@ func (g *Gateway) chatStreamWithRetries(
 	tools []ToolSchema,
 	onDelta StreamHandler,
 ) (*Response, error) {
+	temp, maxTok := g.resolveCallParams(ctx)
 	var lastErr error
 	for attempt := 0; attempt < g.config.MaxRetries; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		resp, err := invokeProvider(ctx, provider, messages, tools, g.config.Temperature, g.config.MaxTokens, onDelta)
+		resp, err := invokeProvider(ctx, provider, messages, tools, temp, maxTok, onDelta)
 		if err == nil {
 			if MalformedToolCallResponse(resp) {
 				lastErr = fmt.Errorf("malformed tool_calls response (finish_reason=%q, tools=%d)", resp.FinishReason, len(resp.ToolCalls))
@@ -147,6 +168,26 @@ func (g *Gateway) chatStreamWithRetries(
 		}
 	}
 	return nil, lastErr
+}
+
+func (g *Gateway) resolveCallParams(ctx context.Context) (temperature float64, maxTokens int) {
+	temperature = g.config.Temperature
+	maxTokens = g.config.MaxTokens
+	if g == nil {
+		return temperature, maxTokens
+	}
+	policy := g.policy
+	if policy == nil {
+		return temperature, maxTokens
+	}
+	d := policy.Decide(RequestFromCallMeta(CallMetaFrom(ctx)))
+	if d.Temperature > 0 {
+		temperature = d.Temperature
+	}
+	if d.MaxTokens > 0 {
+		maxTokens = d.MaxTokens
+	}
+	return temperature, maxTokens
 }
 
 func invokeProvider(

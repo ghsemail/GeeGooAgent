@@ -72,7 +72,8 @@ func (l *Loop) requestBudgetSummary(ctx context.Context, session *runtime.Sessio
 	session.StepCounter++
 	step := session.StepCounter
 	onDelta := l.streamHandler(ctx)
-	resp, err := l.gateway.ChatStream(ctx, out, nil, session.ID, step, onDelta)
+	callCtx := llm.WithCallMeta(ctx, llm.CallMeta{Kind: llm.TaskComplex})
+	resp, err := l.gateway.ChatStream(callCtx, out, nil, session.ID, step, onDelta)
 	if err != nil {
 		return ""
 	}

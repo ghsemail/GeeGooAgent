@@ -84,7 +84,10 @@ func (l *Loop) callLLM(
 	records *[]runtime.StepRecord,
 ) (*llm.Response, error) {
 	onDelta := l.streamHandler(ctx)
-	resp, err := l.gateway.ChatStream(ctx, messages, schemas, sessionID, step, onDelta)
+	callCtx := llm.WithCallMeta(ctx, llm.CallMeta{
+		Kind: llm.TaskChat, ToolSchemaCount: len(schemas),
+	})
+	resp, err := l.gateway.ChatStream(callCtx, messages, schemas, sessionID, step, onDelta)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +99,10 @@ func (l *Loop) callLLM(
 		return resp, nil
 	}
 	l.emit("llm_tools_slim_retry", map[string]any{"from": len(schemas), "to": len(slim)})
-	return l.gateway.ChatStream(ctx, messages, slim, sessionID, step, onDelta)
+	callCtx = llm.WithCallMeta(ctx, llm.CallMeta{
+		Kind: llm.TaskChat, ToolSchemaCount: len(slim),
+	})
+	return l.gateway.ChatStream(callCtx, messages, slim, sessionID, step, onDelta)
 }
 
 func (l *Loop) finalizeReply(

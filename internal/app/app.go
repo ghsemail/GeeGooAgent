@@ -207,10 +207,15 @@ func (a *App) RebuildGateway() error {
 		return err
 	}
 	thinkingOn := llm.ResolveThinkingEnabled(llm.ProviderName(providerName), model, a.Config.LLM.Thinking)
+	maxTokens := a.Config.LLM.EffectiveMaxTokens(thinkingOn)
+	temp := a.Config.LLM.Temperature
 	a.Gateway = llm.NewGateway(provider, llm.GatewayConfig{
-		MaxRetries: 3, RetryWait: time.Second, Temperature: a.Config.LLM.Temperature,
-		MaxTokens: a.Config.LLM.EffectiveMaxTokens(thinkingOn),
+		MaxRetries: 3, RetryWait: time.Second, Temperature: temp, MaxTokens: maxTokens,
 	})
+	a.Gateway.SetPolicy(llm.NewConfigPolicy(llm.ConfigPolicyInput{
+		Temperature: temp, MaxTokens: maxTokens,
+		CompressTemperature: 0.2,
+	}))
 	a.Gateway.SetFallbacks(a.buildFallbackProviders())
 	if a.Agent != nil {
 		a.Agent.SetGateway(a.Gateway)
@@ -321,7 +326,14 @@ func (a *App) wireCompressor() {
 		a.setCompressor(nil)
 		return
 	}
-	a.setCompressor(prompt.NewCompressor(cfg, &prompt.ProviderSummarizer{Provider: provider}))
+	var policy llm.Policy
+	if a.Gateway != nil {
+		policy = a.Gateway.Policy()
+	}
+	a.setCompressor(prompt.NewCompressor(cfg, &prompt.ProviderSummarizer{
+		Provider: provider,
+		Policy:   policy,
+	}))
 }
 
 func (a *App) setCompressor(c *prompt.Compressor) {

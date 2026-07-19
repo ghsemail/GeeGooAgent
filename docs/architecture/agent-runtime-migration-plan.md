@@ -59,7 +59,7 @@ go build ./cmd/geegoo ./cmd/agent-runtime
 |------|------|------|------|
 | **P0** | 定稿落地 + 边界冻结 | 本文 + 架构定稿；overview/README 索引；禁止清单写入工程约定 | 低 · **文档已完成** |
 | **P1** | Cognition 接口 + Go 默认 | `internal/cognition`；Loop 改调接口；行为等价 | 中 · **代码已落地** |
-| **P2** | Model Policy 抽出 | Policy 在 Gateway 之上；选模/预算可测 | 中 |
+| **P2** | Model Policy 抽出 | Policy 在 Gateway 之上；选模/预算可测 | 中 · **代码已落地** |
 | **P3** | Memory port | 接口 + 现有实现适配；不换存储 | 中 |
 | **P4** | Python Advisor（可选） | 窄 HTTP 契约 + 降级；默认关闭 | 中高 |
 | **P5** | 包边界加固 | 按需物理整理、依赖检查；仍无 Dashboard | 低 |
@@ -146,8 +146,15 @@ go build ./cmd/geegoo ./cmd/agent-runtime
 
 ### 完成标准
 
-- Gateway 文件职责以「provider 适配 + 重试 + 流式」为主  
-- 换模型策略不改 Loop 状态机  
+- [x] Gateway 文件职责以「provider 适配 + 重试 + 流式」为主；策略在 Policy  
+- [x] 换模型策略不改 Loop 状态机  
+
+### P2 落地摘要（2026-07-19）
+
+- `internal/llm/policy.go`：`Policy` / `ConfigPolicy` / `ComplexityPolicy` + `CallMeta`  
+- `Gateway.SetPolicy`；Chat 经 context `CallMeta` 应用 temperature / max_tokens  
+- Loop chat、budget summary、report synthesis、compressor summarizer 已标 `TaskKind`  
+- App 默认 `ConfigPolicy`；`ComplexityPolicy` 可选（不自动接入，避免 82 tools 抬高 max_tokens）  
 
 ### 不做
 
@@ -235,8 +242,8 @@ type Memory interface {
 | T1.2 | P1 | Loop 注入 Ranker/Evaluator | internal/agent | ✅ |
 | T1.3 | P1 | Planner/门控委托 | plan_gate.go | ✅ |
 | T1.4 | P1 | 回归测试 | *_test.go | ✅ |
-| T2.1 | P2 | Policy 类型与配置映射 | internal/llm / model | |
-| T2.2 | P2 | 调用点改经 Policy | agent、report、prompt | |
+| T2.1 | P2 | Policy 类型与配置映射 | internal/llm | ✅ |
+| T2.2 | P2 | 调用点改经 Policy | agent、report、prompt | ✅ |
 | T3.1 | P3 | Memory 接口 + 适配器 | internal/memory | |
 | T3.2 | P3 | 文档：SSOT vs index | L3-memory docs | |
 | T4.1 | P4 | Advisor OpenAPI/JSON 契约 | services/cognitive | |
@@ -284,4 +291,4 @@ P0 文档冻结
  —— Dashboard / Flutter：另开规划 ——
 ```
 
-**当前下一步**：P2 Model Policy（从 Gateway 调用点抽出选模/预算策略）。P1 已完成。
+**当前下一步**：P3 Memory port。P0–P2 已完成。

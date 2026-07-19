@@ -72,7 +72,8 @@ func (s *Synthesizer) Synthesize(
 	defer cancel()
 
 	prompt := buildSynthesisPrompt(ws, evidence, marketContext)
-	resp, err := s.gateway.Chat(cctx, prompt, nil, "", 0)
+	callCtx := llm.WithCallMeta(cctx, llm.CallMeta{Kind: llm.TaskSynthesis})
+	resp, err := s.gateway.Chat(callCtx, prompt, nil, "", 0)
 	if err != nil {
 		return SynthesisResult{}, fmt.Errorf("synthesis LLM call: %w", err)
 	}
