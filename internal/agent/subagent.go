@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatprompt"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
@@ -25,6 +26,7 @@ type SubAgent struct {
 	compressor    *prompt.Compressor
 	eventBus      tools.EventEmitter
 	maxSteps      int
+	maxParallel   int
 	approvalFn    runtime.ApprovalFunc
 	chatToolNames func() []string
 }
@@ -35,6 +37,7 @@ type SubAgentConfig struct {
 	Executor      *runtime.Executor
 	Registry      *tools.Registry
 	MaxSteps      int
+	MaxParallel   int
 	ChatToolNames func() []string
 }
 
@@ -47,11 +50,19 @@ func NewSubAgent(cfg SubAgentConfig) *SubAgent {
 	if maxSteps > maxSubAgentMaxSteps {
 		maxSteps = maxSubAgentMaxSteps
 	}
+	par := cfg.MaxParallel
+	if par <= 0 {
+		par = 3
+	}
+	if par > 8 {
+		par = 8
+	}
 	return &SubAgent{
 		gateway:       cfg.Gateway,
 		executor:      cfg.Executor,
 		registry:      cfg.Registry,
 		maxSteps:      maxSteps,
+		maxParallel:   par,
 		chatToolNames: cfg.ChatToolNames,
 	}
 }
@@ -80,6 +91,71 @@ func (s *SubAgent) SetApproval(fn runtime.ApprovalFunc) {
 // DelegateTask implements tools.TaskDelegator.
 func (s *SubAgent) DelegateTask(ctx tools.Context, task, background string, maxSteps int) tools.Result {
 	return s.Run(ctx, task, background, maxSteps)
+}
+
+// DelegateTasks runs multiple sub-agent tasks with bounded parallelism.
+func (s *SubAgent) DelegateTasks(parent tools.Context, specs []tools.BatchDelegateTask) tools.Result {
+	if parent.DelegateDepth >= 1 {
+		return tools.Result{
+			Status: tools.StatusError, Summary: "delegate_tasks: nested delegation is not allowed", ExitCode: 1,
+		}
+	}
+	if len(specs) == 0 {
+		return tools.Result{Status: tools.StatusError, Summary: "delegate_tasks: tasks required", ExitCode: 1}
+	}
+	if len(specs) > 8 {
+		return tools.Result{Status: tools.StatusError, Summary: "delegate_tasks: at most 8 tasks per call", ExitCode: 1}
+	}
+	if parent.DryRun {
+		return tools.Result{
+			Status:  tools.StatusDryRun,
+			Summary: fmt.Sprintf("dry-run: would delegate %d task(s)", len(specs)),
+			Data:    map[string]any{"count": len(specs)},
+		}
+	}
+	type item struct {
+		idx int
+		res tools.Result
+	}
+	out := make([]map[string]any, len(specs))
+	sem := make(chan struct{}, s.maxParallel)
+	ch := make(chan item, len(specs))
+	var wg sync.WaitGroup
+	for i, spec := range specs {
+		wg.Add(1)
+		go func(i int, spec tools.BatchDelegateTask) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			res := s.Run(parent, spec.Task, spec.Background, spec.MaxSteps)
+			ch <- item{idx: i, res: res}
+		}(i, spec)
+	}
+	wg.Wait()
+	close(ch)
+	ok, fail := 0, 0
+	for it := range ch {
+		res := it.res
+		answer, _ := res.Data["answer"].(string)
+		out[it.idx] = map[string]any{
+			"task": specs[it.idx].Task, "status": string(res.Status),
+			"summary": res.Summary, "answer": answer,
+		}
+		if res.Status == tools.StatusOK {
+			ok++
+		} else {
+			fail++
+		}
+	}
+	status := tools.StatusOK
+	summary := fmt.Sprintf("delegate_tasks: %d ok, %d failed", ok, fail)
+	if fail > 0 && ok == 0 {
+		status = tools.StatusError
+	}
+	return tools.Result{
+		Status: status, Summary: summary,
+		Data: map[string]any{"results": out, "ok": ok, "failed": fail},
+	}
 }
 
 // Run executes one delegated task in an ephemeral session.
@@ -146,7 +222,7 @@ func (s *SubAgent) Run(parent tools.Context, task, background string, maxSteps i
 		childCtx.Progress = emit
 	}
 
-	schemas := subAgentSchemas(s.registry, s.chatToolNames, []string{"delegate_task"})
+	schemas := subAgentSchemas(s.registry, s.chatToolNames, []string{"delegate_task", "delegate_tasks"})
 	result := loop.RunTurn(childCtx.GoContext(), session, userText, childCtx, schemas)
 
 	if emit != nil {

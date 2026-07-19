@@ -25,6 +25,14 @@ type Deps struct {
 // TaskDelegator is implemented by agent.SubAgent for delegate_task registration.
 type TaskDelegator interface {
 	DelegateTask(ctx Context, task, background string, maxSteps int) Result
+	DelegateTasks(ctx Context, tasks []BatchDelegateTask) Result
+}
+
+// BatchDelegateTask is one item for delegate_tasks.
+type BatchDelegateTask struct {
+	Task      string
+	Background string
+	MaxSteps  int
 }
 
 // WorkingLoader loads working memory for meta tools.

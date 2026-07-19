@@ -1,10 +1,8 @@
 # L5 — Subagent 委派
 
-## 状态：❌ 未实现
+## 状态：✅ 已实现（`delegate_task`）
 
-当前 Orchestrator **直接**调用 Tool Registry；无 `spawn_subagent`、无独立子 Session 包。
-
-## 规划角色（未编码）
+`internal/agent/subagent.go` 提供独立子 Agent 回合；禁止嵌套 delegate。规划中的按角色 tool 子集（NewsCollector 等）仍为可选增强，见下表。
 
 | 名称 | 工具子集 | 说明 |
 |------|----------|------|

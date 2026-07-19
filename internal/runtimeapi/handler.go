@@ -22,17 +22,19 @@ const defaultModel = "geegoo-agent"
 type Handler struct {
 	App    *app.App
 	chatMu sync.Mutex // serializes SetProgress wiring for chat SSE turns
+	clarify *ClarifyHub
 }
 
 // NewHandler creates runtime API handlers.
 func NewHandler(application *app.App) *Handler {
-	return &Handler{App: application}
+	return &Handler{App: application, clarify: newClarifyHub()}
 }
 
 // Register mounts routes on mux.
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/chat/completions", h.chatCompletions)
 	mux.HandleFunc("GET /v1/models", h.listModels)
+	h.registerClarifyRoutes(mux)
 	h.registerSessionRoutes(mux)
 	h.registerChatStreamRoutes(mux)
 }
@@ -110,15 +112,22 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	ctx := h.App.ToolContext(sessionID)
 	ctx.MCPToken = mcpToken
 	ctx.Interactive = true
+	ctx.SessionID = sessionID
 	if approveWrites(r) {
 		ctx.Approved = true
 	}
+	clarifyNotify := func(p PendingClarify) {
+		// non-stream: no-op; stream handler wires SSE
+		_ = p
+	}
+	ctx.ClarifyFn = h.clarifyFn(r.Context(), sessionID, clarifyNotify)
 
 	upstream := make([]runtime.UpstreamMessage, 0, len(req.Messages))
 	for _, m := range req.Messages {
 		upstream = append(upstream, runtime.UpstreamMessage{Role: m.Role, Content: m.Content})
 	}
 	session, lastUser := runtime.NewUpstreamSession(upstream)
+	session.ID = sessionID
 	if lastUser == "" {
 		writeError(w, http.StatusBadRequest, "last message must be user")
 		return
@@ -133,7 +142,7 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	schemas := h.App.Registry.Schemas(h.App.ChatToolNames())
 
 	if req.Stream {
-		h.streamChat(w, r, session, lastUser, ctx, schemas, id, model, created)
+		h.streamChat(w, r, session, lastUser, ctx, schemas, id, model, sessionID, created)
 		return
 	}
 
@@ -160,7 +169,7 @@ func (h *Handler) streamChat(
 	lastUser string,
 	toolCtx tools.Context,
 	schemas []llm.ToolSchema,
-	id, model string,
+	id, model, sessionID string,
 	created int64,
 ) {
 	flusher, ok := w.(http.Flusher)
@@ -188,6 +197,17 @@ func (h *Handler) streamChat(
 
 	writeChunk(chatMessage{Role: "assistant"}, nil)
 
+	clarifyNotify := func(p PendingClarify) {
+		mu.Lock()
+		defer mu.Unlock()
+		writeAgentEvent(w, flusher, map[string]any{
+			"event":       "clarify",
+			"session_id":  p.SessionID,
+			"question":    p.Question,
+			"choices":     p.Choices,
+		})
+	}
+
 	runCtx := llm.WithStreamHandler(r.Context(), func(delta llm.StreamDelta) {
 		if delta.Content == "" {
 			return
@@ -195,6 +215,7 @@ func (h *Handler) streamChat(
 		streamed.Store(true)
 		writeChunk(chatMessage{Content: delta.Content}, nil)
 	})
+	toolCtx.ClarifyFn = h.clarifyFn(r.Context(), sessionID, clarifyNotify)
 
 	result := h.App.Agent.Run(runCtx, session, lastUser, toolCtx, schemas)
 	if !streamed.Load() && result.AssistantText != "" {
@@ -215,6 +236,19 @@ func (h *Handler) streamChat(
 
 func writeSSE(w http.ResponseWriter, flusher http.Flusher, chunk streamChunk) {
 	raw, err := json.Marshal(chunk)
+	if err != nil {
+		return
+	}
+	_, _ = fmt.Fprintf(w, "data: %s\n\n", raw)
+	flusher.Flush()
+}
+
+func writeAgentEvent(w http.ResponseWriter, flusher http.Flusher, payload map[string]any) {
+	body := map[string]any{
+		"object": "geegoo.agent_event",
+		"data":   payload,
+	}
+	raw, err := json.Marshal(body)
 	if err != nil {
 		return
 	}

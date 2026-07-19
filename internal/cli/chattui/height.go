@@ -16,7 +16,7 @@ func EstimateBlockHeight(b Block, cfg config.DisplayConfig) int {
 		if body == "" {
 			return 1
 		}
-		return 1 + strings.Count(body, "\n") + 1
+		return strings.Count(body, "\n") + 1
 	default:
 		if b.IsExpanded(cfg) {
 			body := strings.TrimRight(b.Body, "\n")
@@ -26,14 +26,18 @@ func EstimateBlockHeight(b Block, cfg config.DisplayConfig) int {
 			return 1 + strings.Count(body, "\n") + 1
 		}
 		if b.ShowThinkingPreview(cfg) {
-			n := len(b.LastBodyLines(thinkingPreviewLines))
+			n := len(b.LastBodyLines(collapsedPreviewLines))
 			if n == 0 {
 				return 1
 			}
 			return 1 + n
 		}
-		if b.ShowLivePreview(cfg) {
-			return 2
+		if b.ShowToolPreview(cfg) {
+			n := len(b.LastBodyLines(collapsedPreviewLines))
+			if n == 0 {
+				return 1
+			}
+			return 1 + n
 		}
 		return 1
 	}

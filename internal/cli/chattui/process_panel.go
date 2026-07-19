@@ -16,25 +16,31 @@ func (m *Model) appendProcessBlock(b *strings.Builder, block Block, blockIdx, fo
 	if block.IsExpanded(m.display) {
 		body := strings.TrimRight(block.Body, "\n")
 		for _, line := range strings.Split(body, "\n") {
+			if strings.TrimSpace(line) == "" {
+				b.WriteByte('\n')
+				continue
+			}
 			if block.Kind == KindThinking {
-				b.WriteString(chatui.RenderThinkingLine(line))
+				b.WriteString(chatui.RenderThinkingLineWidth(line, width))
 			} else {
-				b.WriteString(chatui.RenderDetailLine(line))
+				b.WriteString(chatui.RenderDetailLineWidth(line, width))
 			}
 			b.WriteByte('\n')
 		}
 		return
 	}
 	if block.ShowThinkingPreview(m.display) {
-		for _, line := range block.LastBodyLines(thinkingPreviewLines) {
-			b.WriteString(chatui.RenderThinkingLine(TruncateRunes(line, width-4)))
+		for _, line := range block.LastBodyLines(collapsedPreviewLines) {
+			b.WriteString(chatui.RenderThinkingLineWidth(line, width))
 			b.WriteByte('\n')
 		}
 		return
 	}
-	if block.ShowLivePreview(m.display) {
-		line := TruncateRunes(block.LastBodyLine(), width-4)
-		b.WriteString(chatui.RenderDetailLine(line))
-		b.WriteByte('\n')
+	if block.ShowToolPreview(m.display) {
+		for _, line := range block.LastBodyLines(collapsedPreviewLines) {
+			b.WriteString(chatui.RenderDetailLineWidth(line, width))
+			b.WriteByte('\n')
+		}
+		return
 	}
 }

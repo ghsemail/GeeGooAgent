@@ -23,3 +23,12 @@ func TestRenderClarifyPanelShowsLabels(t *testing.T) {
 		t.Fatalf("panel=%q", plain)
 	}
 }
+
+func TestRenderClarifyPanelWrapsLongOption(t *testing.T) {
+	long := "这是一个很长的选项说明需要折行显示让用户能完整阅读全部内容"
+	out := chatui.RenderClarifyPanel("请确认你的选择", []string{long}, 0, 50)
+	plain := stripANSI(out)
+	if !strings.Contains(plain, "\n") {
+		t.Fatalf("expected wrapped option: %q", plain)
+	}
+}

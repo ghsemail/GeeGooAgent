@@ -43,6 +43,8 @@ type Context struct {
 	Progress ProgressFunc
 	// ClarifyFn blocks for clarify tool user input (interactive chat).
 	ClarifyFn ClarifyFunc
+	// Hooks runs optional audit scripts around tool execution.
+	Hooks *HookRunner
 }
 
 // ProgressFunc is the chat progress callback signature.
@@ -141,10 +143,29 @@ func (r *Registry) Execute(req CallRequest, ctx Context) Result {
 	if req.Arguments == nil {
 		req.Arguments = map[string]any{}
 	}
+	if err := ValidateArguments(t.Parameters, req.Arguments); err != nil {
+		return Result{
+			Status:  StatusError,
+			Summary: "参数校验失败: " + err.Error(),
+			Data:    map[string]any{"tool": req.Name, "validation_error": err.Error()},
+			ExitCode: 1,
+		}
+	}
+	if ctx.Hooks != nil {
+		if err := ctx.Hooks.RunToolBefore(ctx, req.Name, req.Arguments); err != nil {
+			return Result{
+				Status: StatusError, Summary: err.Error(), ExitCode: 1,
+				Data: map[string]any{"tool": req.Name, "hook": "tool_before"},
+			}
+		}
+	}
 	if ctx.EventBus != nil {
 		ctx.EventBus.Emit("ToolCalled", map[string]any{"tool": req.Name, "step": ctx.Step})
 	}
 	result := t.Handle(ctx, req.Arguments)
+	if ctx.Hooks != nil {
+		_ = ctx.Hooks.RunToolAfter(ctx, req.Name, req.Arguments, result)
+	}
 	if ctx.EventBus != nil {
 		ctx.EventBus.Emit("ToolFinished", map[string]any{
 			"tool": req.Name, "step": ctx.Step, "status": string(result.Status), "summary": result.Summary,

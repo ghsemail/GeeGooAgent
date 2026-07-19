@@ -109,10 +109,10 @@ func (m *Model) renderTranscript() string {
 		}
 		switch block.Kind {
 		case KindUser:
-			b.WriteString(chatui.RenderUserLine(block.Body))
+			b.WriteString(chatui.RenderUserLineWidth(block.Body, width))
 			b.WriteByte('\n')
 			if s.Busy && i == len(s.Blocks)-1 {
-				b.WriteString(chatui.RenderInitializing())
+				b.WriteString(chatui.RenderStatusBox(width))
 				b.WriteByte('\n')
 			}
 		case KindReply:
@@ -169,10 +169,12 @@ func (m *Model) writeSegmentDivider(b *strings.Builder, width int, prev, cur tra
 		b.WriteByte('\n')
 		return
 	}
-	switch {
-	case prev == segmentUser && cur == segmentReply,
-		prev == segmentProcess && cur == segmentReply:
-		b.WriteString(chatui.RenderSoftDivider(width))
+	if cur == segmentReply {
+		if prev == segmentProcess {
+			b.WriteString(chatui.RenderSoftDivider(width))
+			b.WriteByte('\n')
+		}
+		b.WriteString(chatui.RenderAgentHeader(width))
 		b.WriteByte('\n')
 	}
 }

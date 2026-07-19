@@ -98,3 +98,38 @@ func TestDelegateTaskEmitsProgress(t *testing.T) {
 		t.Fatalf("events=%v", events)
 	}
 }
+
+func TestDelegateTasksRunsInParallel(t *testing.T) {
+	t.Parallel()
+	provider := &llm.MockProvider{
+		Responses: []*llm.Response{
+			{Content: "A done"},
+			{Content: "B done"},
+		},
+	}
+	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
+	registry := tools.NewRegistry()
+	sub := agent.NewSubAgent(agent.SubAgentConfig{
+		Gateway: gateway, Executor: runtime.NewExecutor(registry), Registry: registry,
+		MaxSteps: 5, MaxParallel: 2,
+	})
+	agent.RegisterDelegateTasks(registry, sub)
+
+	result := registry.Execute(tools.CallRequest{
+		Name: "delegate_tasks",
+		Arguments: map[string]any{
+			"tasks": []any{
+				map[string]any{"task": "task A"},
+				map[string]any{"task": "task B"},
+			},
+		},
+	}, tools.Context{SessionID: "s1"})
+
+	if result.Status != tools.StatusOK {
+		t.Fatalf("status=%s summary=%q", result.Status, result.Summary)
+	}
+	results, _ := result.Data["results"].([]map[string]any)
+	if len(results) != 2 {
+		t.Fatalf("results=%v", result.Data["results"])
+	}
+}

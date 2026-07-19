@@ -4,10 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/app"
 	"github.com/ghsemail/GeeGooAgent/internal/cli/chatrepl"
 	"github.com/ghsemail/GeeGooAgent/internal/cli/chattui"
+	"github.com/ghsemail/GeeGooAgent/internal/cli/progress"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 )
 
@@ -16,6 +18,7 @@ func runChat(args []string) {
 	configPath := fs.String("config", config.DefaultPath(), "path to config.json")
 	dryRun := fs.Bool("dry-run", false, "skip mutating API calls")
 	message := fs.String("message", "", "single-turn message (non-interactive)")
+	outputFormat := fs.String("output-format", "text", "output format for --message: text|ndjson")
 	sessionID := fs.String("session", "", "resume existing chat session id")
 	forceTUI := fs.Bool("tui", false, "force Bubble Tea TUI")
 	forceCLI := fs.Bool("cli", false, "force classic CLI (go-prompt)")
@@ -39,6 +42,10 @@ func runChat(args []string) {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "chat: %v\n", err)
 			os.Exit(2)
+		}
+		if strings.EqualFold(*outputFormat, "ndjson") {
+			sink := progress.NewNDJSONSink(os.Stdout)
+			os.Exit(repl.RunSingleWithSink(*message, sink))
 		}
 		os.Exit(repl.RunSingle(*message))
 	}

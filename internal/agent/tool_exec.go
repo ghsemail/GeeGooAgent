@@ -17,10 +17,12 @@ type ToolProgress func(event string, data map[string]any)
 // ToolExec dispatches tool calls with timeout, optional approval, and batch parallelism.
 // Shared by the ReAct loop and deterministic workflow runner.
 type ToolExec struct {
-	executor    *runtime.Executor
-	timeout     time.Duration
-	maxParallel int
-	approvalFn  runtime.ApprovalFunc
+	executor            *runtime.Executor
+	timeout             time.Duration
+	maxParallel         int
+	delegateMaxParallel int
+	approvalFn          runtime.ApprovalFunc
+	planGate            bool
 }
 
 // NewToolExec creates a tool dispatcher backed by the registry executor.
@@ -29,6 +31,7 @@ func NewToolExec(executor *runtime.Executor) *ToolExec {
 		executor:    executor,
 		timeout:     defaultToolTimeout,
 		maxParallel: defaultToolMaxParallel,
+		planGate:    true,
 	}
 }
 
@@ -54,6 +57,22 @@ func (e *ToolExec) SetApproval(fn runtime.ApprovalFunc) {
 		return
 	}
 	e.approvalFn = fn
+}
+
+// SetPlanGate enables plan_proposed events before mutating tool approval.
+func (e *ToolExec) SetPlanGate(v bool) {
+	if e == nil {
+		return
+	}
+	e.planGate = v
+}
+
+// SetDelegateMaxParallel caps concurrent delegate_task invocations per LLM round.
+func (e *ToolExec) SetDelegateMaxParallel(n int) {
+	if e == nil || n <= 0 {
+		return
+	}
+	e.delegateMaxParallel = n
 }
 
 // Execute runs one tool call with timeout and ctx cancellation.
@@ -82,6 +101,12 @@ func (e *ToolExec) ExecuteBatch(
 	results := make([]tools.Result, len(calls))
 	if len(calls) == 0 || e == nil {
 		return results
+	}
+
+	if e.planGate && needsInteractiveApproval(toolCtx, calls) && !toolCtx.Approved {
+		emitProgress(onProgress, "plan_proposed", map[string]any{
+			"tools": mutatingToolNames(calls),
+		})
 	}
 
 	runOne := func(i int, call llm.ToolCall) {
@@ -142,6 +167,10 @@ func (e *ToolExec) ExecuteBatch(
 	}
 
 	sem := make(chan struct{}, e.maxParallel)
+	var delegateSem chan struct{}
+	if e.delegateMaxParallel > 0 {
+		delegateSem = make(chan struct{}, e.delegateMaxParallel)
+	}
 	var wg sync.WaitGroup
 	for i, call := range calls {
 		if err := ctx.Err(); err != nil {
@@ -158,6 +187,10 @@ func (e *ToolExec) ExecuteBatch(
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
+			if delegateSem != nil && (call.Name == "delegate_task" || call.Name == "delegate_tasks") {
+				delegateSem <- struct{}{}
+				defer func() { <-delegateSem }()
+			}
 			runOne(i, call)
 		}(i, call)
 	}
@@ -185,4 +218,14 @@ func needsInteractiveApproval(toolCtx tools.Context, calls []llm.ToolCall) bool 
 		}
 	}
 	return false
+}
+
+func mutatingToolNames(calls []llm.ToolCall) []string {
+	var names []string
+	for _, call := range calls {
+		if tools.ApprovalRequired(call.Name) {
+			names = append(names, call.Name)
+		}
+	}
+	return names
 }

@@ -93,36 +93,87 @@ func (u *ChatUI) printRule() {
 	u.println(RenderRule(u.width))
 }
 
+const agentTitle = "⚕ GeeGoo"
+
 // RenderRule returns a Hermes-style horizontal rule (major turn boundary).
 func RenderRule(width int) string {
-	w := clampRuleWidth(width)
-	return styleDim.Render(strings.Repeat("─", w))
+	w := terminalWidth(width)
+	return styleGold.Render(strings.Repeat("─", w))
+}
+
+// RenderAgentHeader returns the integrated agent title line (⚕ GeeGoo ───…).
+func RenderAgentHeader(width int) string {
+	prefix := agentTitle + " "
+	w := terminalWidth(width)
+	lineLen := w - lipgloss.Width(prefix)
+	if lineLen < 8 {
+		lineLen = 8
+	}
+	return styleGold.Render(prefix + strings.Repeat("─", lineLen))
 }
 
 // RenderSoftDivider is a short inset line between thinking, tools, and reply within one turn.
 func RenderSoftDivider(width int) string {
-	w := clampRuleWidth(width)
-	seg := strings.Repeat("─", w/3)
-	if len(seg) < 12 {
-		seg = strings.Repeat("─", 12)
+	w := terminalWidth(width)
+	seg := strings.Repeat("─", w/4)
+	if len(seg) < 10 {
+		seg = strings.Repeat("─", 10)
 	}
 	return styleDim.Render("  " + seg)
 }
 
-func clampRuleWidth(width int) int {
-	w := width
-	if w < 40 {
-		w = 40
-	}
-	if w > 80 {
-		w = 80
-	}
-	return w
+// RenderStatusBox wraps the turn-start status between two gold rules.
+func RenderStatusBox(width int) string {
+	text := styleDim.Render("Initializing agent...")
+	return RenderRule(width) + "\n" + text + "\n" + RenderRule(width)
 }
 
-// RenderInitializing returns the turn-start status line.
+func terminalWidth(width int) int {
+	if width < 40 {
+		return 40
+	}
+	return width
+}
+
+func clampRuleWidth(width int) int {
+	return terminalWidth(width)
+}
+
+// RenderInitializing returns the turn-start status line (text only).
 func RenderInitializing() string {
 	return styleDim.Render("Initializing agent...")
+}
+
+// RenderThinkingLineWidth wraps and renders a thinking line for the given terminal width.
+func RenderThinkingLineWidth(line string, width int) string {
+	innerW := width - 4
+	if innerW < 24 {
+		innerW = 24
+	}
+	var b strings.Builder
+	for i, wl := range strings.Split(WrapPlain(line, innerW), "\n") {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(RenderThinkingLine(wl))
+	}
+	return b.String()
+}
+
+// RenderDetailLineWidth wraps and renders a tool/activity detail line.
+func RenderDetailLineWidth(line string, width int) string {
+	innerW := width - 4
+	if innerW < 24 {
+		innerW = 24
+	}
+	var b strings.Builder
+	for i, wl := range strings.Split(WrapPlain(line, innerW), "\n") {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(RenderDetailLine(wl))
+	}
+	return b.String()
 }
 
 // RenderThinkingLine returns body text for expanded reasoning sections.
@@ -132,7 +183,7 @@ func RenderThinkingLine(line string) string {
 
 // RenderDetailLine returns body text for tool/activity detail sections.
 func RenderDetailLine(line string) string {
-	return styleText.Render("    " + line)
+	return "  " + styleDim.Render("│ ") + styleText.Render(line)
 }
 
 // RenderProcessPanel wraps thinking/tools sections in a single inset panel.
@@ -147,23 +198,28 @@ func RenderProcessPanel(content string, width int) string {
 
 // RenderClarifyPanel renders a Hermes-style multiple-choice clarify prompt.
 func RenderClarifyPanel(question string, options []string, focus int, width int) string {
+	innerW := PanelContentWidth(width)
 	var b strings.Builder
-	b.WriteString(styleAmber.Bold(true).Render("? " + strings.TrimSpace(question)))
+	q := WrapWithPrefix(strings.TrimSpace(question), "? ", "  ", innerW)
+	b.WriteString(styleAmber.Bold(true).Render(q))
 	if len(options) > 0 {
 		for i, opt := range options {
 			b.WriteByte('\n')
-			label := fmt.Sprintf("  [%s] %s", choiceLabel(i), opt)
+			label := fmt.Sprintf("  [%s] ", choiceLabel(i))
+			var line string
 			if i == focus {
-				b.WriteString(styleGold.Render("› " + label))
+				line = WrapWithPrefix(opt, "› "+label, "    ", innerW)
+				b.WriteString(styleGold.Render(line))
 			} else {
-				b.WriteString(styleDim.Render(label))
+				line = WrapWithPrefix(opt, label, "      ", innerW)
+				b.WriteString(styleDim.Render(line))
 			}
 		}
 		b.WriteByte('\n')
-		b.WriteString(styleDim.Render("  ↑↓ 选择 · Enter 确认 · A/B/C 或 1/2/3 · Esc 跳过"))
+		b.WriteString(styleDim.Render(WrapPlain("  ↑↓ 选择 · Enter 确认 · A/B/C 或 1/2/3 · Esc 跳过", innerW)))
 	} else {
 		b.WriteByte('\n')
-		b.WriteString(styleDim.Render("  在下方输入回答 · Esc 跳过"))
+		b.WriteString(styleDim.Render(WrapPlain("  在下方输入回答 · Esc 跳过", innerW)))
 	}
 	return styleProcessBox.Width(clampRuleWidth(width)).Render(strings.TrimRight(b.String(), "\n"))
 }
@@ -240,22 +296,12 @@ func renderAssistantPanel(text string, width int, live bool) string {
 	innerW := assistantWrapWidth(width)
 	body := strings.TrimRight(text, "\n")
 	body = RenderPlainAssistantBody(body, innerW)
-	title := styleGold.Render("⚕ GeeGoo")
-	return title + "\n" + body
+	return body
 }
 
-// assistantWrapWidth returns the content wrap width (capped, narrow on small terminals).
+// assistantWrapWidth returns the content wrap width for assistant replies.
 func assistantWrapWidth(terminalWidth int) int {
-	w := assistantBoxInnerWidth
-	if terminalWidth > 0 {
-		if max := terminalWidth - 10; max < w {
-			w = max
-		}
-	}
-	if w < 32 {
-		return 32
-	}
-	return w
+	return ContentWrapWidth(terminalWidth)
 }
 
 // assistantBoxOuterWidth is the lipgloss panel width (border + padding + inner text).
@@ -295,7 +341,28 @@ func min(a, b int) int {
 
 // RenderUserLine returns Hermes-style user message bullet.
 func RenderUserLine(text string) string {
-	return styleGold.Render("● ") + styleText.Render(text)
+	return RenderUserLineWidth(text, 0)
+}
+
+// RenderUserLineWidth wraps user text to the given terminal width (0 = no wrap).
+func RenderUserLineWidth(text string, width int) string {
+	if width <= 0 {
+		return styleGold.Render("● ") + styleText.Render(text)
+	}
+	wrapped := WrapWithPrefix(text, "● ", "  ", ContentWrapWidth(width))
+	var b strings.Builder
+	for i, line := range strings.Split(wrapped, "\n") {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		if strings.HasPrefix(line, "● ") {
+			b.WriteString(styleGold.Render("● "))
+			b.WriteString(styleText.Render(strings.TrimPrefix(line, "● ")))
+			continue
+		}
+		b.WriteString(styleText.Render(line))
+	}
+	return b.String()
 }
 
 func (u *ChatUI) PrintStatusBar(model string, thinking, dryRun bool, steps int) {
@@ -348,7 +415,7 @@ func (u *ChatUI) PrintUser(text string) {
 		return
 	}
 	u.println("")
-	u.println(RenderUserLine(text))
+	u.println(RenderUserLineWidth(text, u.width))
 }
 
 func (u *ChatUI) PrintAssistant(text string) {
@@ -358,6 +425,7 @@ func (u *ChatUI) PrintAssistant(text string) {
 		u.println("")
 		return
 	}
+	u.println(RenderAgentHeader(u.width))
 	u.println(RenderAssistantBox(text, u.width))
 }
 
@@ -381,6 +449,8 @@ func (u *ChatUI) WriteStreamDelta(text string) {
 		u.println("")
 		if u.plain {
 			u.write("GeeGoo> ")
+		} else {
+			u.println(RenderAgentHeader(u.width))
 		}
 	}
 	u.streamBuf.WriteString(text)
@@ -506,8 +576,7 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 			u.println("Initializing agent...")
 			return
 		}
-		u.printRule()
-		u.println(styleDim.Render("Initializing agent..."))
+		u.println(RenderStatusBox(u.width))
 	case "round_start":
 		u.streamRoundHad = false
 		if u.plain {

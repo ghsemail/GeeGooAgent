@@ -32,7 +32,9 @@
 | Chat TUI（Hermes 风格） | ✅ | `internal/cli/chatui/` |
 | Cutover `geegoo verify` | ✅ | `internal/verify/`, `cmd/geegoo/verify.go` |
 | Cost Manager | ❌ | 无 `internal/llm/cost` |
-| 子 Agent 委派 | ❌ | 无 `spawn_subagent`；见 [subagents.md](./layers/L5-application/subagents.md) |
+| 子 Agent 委派 | ✅ | `delegate_task` / `delegate_tasks` + `SubAgent`；`delegate_max_parallel`；`geegoo inspect` / `verify agent-loop` |
+| 工具 schema 校验 | ✅ | `internal/tools/schema_validate.go`（Execute 前校验） |
+| Hooks | ✅ | `config.hooks` → `HookRunner`（tool_before / tool_after） |
 | Webhook 触发 | ❌ | 无 HTTP webhook 入口 |
 
 ---

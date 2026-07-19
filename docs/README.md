@@ -16,6 +16,7 @@
 
 | 目录 | 用途 |
 |------|------|
+| [benchmark/](./benchmark/) | GeeGooAgent vs Hermes vs Grok Build 对标；**Agent Loop 专项**见 [benchmark/agent-loop/](./benchmark/agent-loop/) |
 | [engineering/](./engineering/) | 编码规范、需求、Cursor 工作流 |
 | [reference/geegoo-mcp/](./reference/geegoo-mcp/) | MCP HTTP 参考 |
 | [archive/](./archive/) | 开发计划稿、旧重定向（非架构正文） |

@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-
-	"github.com/muesli/reflow/wordwrap"
 )
 
 var (
@@ -15,7 +13,9 @@ var (
 	reGlueSummary = regexp.MustCompile(`([^\n])(小结[:：])`)
 	reGlueHR      = regexp.MustCompile(`\s*---+\s*`)
 	rePipeField   = regexp.MustCompile(`\s\|\s*((?:ID|Bot ID|bot_id|状态|网格区间|网格范围|档数|当前档|持仓|成本价|当前价|浮盈亏|盈亏|操作|触发)[：:])`)
-	reGlueField   = regexp.MustCompile(`\s+-\s+((?:代码|类型|状态|网格|持仓|盈亏|频率|成本|当前|对冲)[：:])`)
+	reGlueField     = regexp.MustCompile(`\s+-\s+((?:代码|类型|状态|网格|持仓|盈亏|频率|成本|当前|对冲)[：:])`)
+	reGlueNumbered  = regexp.MustCompile(`([^\n\d])(\d+\.\s)`)
+	reGlueListDash  = regexp.MustCompile(`([^\n-])(\s+-\s+)`)
 )
 
 // NormalizeAssistantLayout inserts line breaks when the model glues markdown blocks
@@ -28,6 +28,7 @@ func NormalizeAssistantLayout(text string) string {
 		line = strings.TrimRight(line, " ")
 		trim := strings.TrimSpace(line)
 		if trim == "" {
+			out = append(out, "")
 			continue
 		}
 		if strings.HasPrefix(trim, "|") || isTableSeparator(trim) {
@@ -42,6 +43,8 @@ func NormalizeAssistantLayout(text string) string {
 		line = reGlueSummary.ReplaceAllString(line, "$1\n$2")
 		line = rePipeField.ReplaceAllString(line, "\n  $1")
 		line = reGlueField.ReplaceAllString(line, "\n  - $1")
+		line = reGlueNumbered.ReplaceAllString(line, "$1\n$2")
+		line = reGlueListDash.ReplaceAllString(line, "$1\n$2")
 		line = breakAfterPunctuation(line)
 		for _, sub := range strings.Split(line, "\n") {
 			sub = strings.TrimRight(sub, " ")
@@ -313,20 +316,20 @@ func RenderPlainAssistantBody(text string, wrapW int) string {
 			continue
 		}
 		trim := strings.TrimLeft(line, " ")
-		indent := len(line) - len(trim)
+		indent := leadingSpaceWidth(line)
 		lineW := wrapW - indent
 		if lineW < 24 {
 			lineW = 24
 		}
 		plain, style := classifyAssistantLine(trim)
 		plain = stripInlineMarkdown(plain)
-		for i, wl := range strings.Split(hardWrapLine(plain, lineW), "\n") {
-			if i > 0 {
-				wl = strings.Repeat(" ", indent) + wl
-			} else if indent > 0 {
-				wl = strings.Repeat(" ", indent) + wl
+		indentStr := strings.Repeat(" ", indent)
+		for _, wl := range strings.Split(WrapPlain(plain, lineW), "\n") {
+			if wl == "" {
+				b.WriteByte('\n')
+				continue
 			}
-			b.WriteString(style(wl))
+			b.WriteString(style(indentStr + wl))
 			b.WriteByte('\n')
 		}
 	}
@@ -407,26 +410,3 @@ func stripInlineMarkdown(s string) string {
 	return s
 }
 
-func hardWrapLine(s string, width int) string {
-	if width <= 0 || s == "" {
-		return s
-	}
-	if strings.Contains(s, " ") {
-		return strings.TrimRight(wordwrap.String(s, width), "\n")
-	}
-	runes := []rune(s)
-	if len(runes) <= width {
-		return s
-	}
-	var b strings.Builder
-	col := 0
-	for _, r := range runes {
-		if col >= width {
-			b.WriteByte('\n')
-			col = 0
-		}
-		b.WriteRune(r)
-		col++
-	}
-	return b.String()
-}

@@ -94,6 +94,20 @@ func (l *Loop) SetApproval(fn runtime.ApprovalFunc) {
 	}
 }
 
+// SetPlanGate enables plan_proposed events before mutating tool approval.
+func (l *Loop) SetPlanGate(v bool) {
+	if l != nil && l.tools != nil {
+		l.tools.SetPlanGate(v)
+	}
+}
+
+// SetDelegateMaxParallel caps concurrent delegate_task calls per round.
+func (l *Loop) SetDelegateMaxParallel(n int) {
+	if l != nil && l.tools != nil {
+		l.tools.SetDelegateMaxParallel(n)
+	}
+}
+
 // SetEventBus wires turn- and tool-level observability (ToolCalled is also emitted by the registry).
 func (l *Loop) SetEventBus(bus tools.EventEmitter) {
 	l.eventBus = bus

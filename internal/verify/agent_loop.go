@@ -33,11 +33,13 @@ func VerifyAgentLoopParity(reg ToolLookup) []AgentLoopCard {
 	checks := []AgentLoopCard{
 		checkTool(reg, "clarify", "引导选项 clarify"),
 		checkTool(reg, "delegate_task", "子 Agent delegate_task"),
+		checkTool(reg, "delegate_tasks", "并行子 Agent delegate_tasks"),
 		checkTool(reg, "recall", "跨会话记忆 recall"),
 		checkTool(reg, "search_code", "行情检索 search_code"),
 		checkCacheBreakpoints(),
 		checkWorkflowExclusive(),
 		checkDelegateNesting(),
+		checkSchemaValidation(),
 	}
 	return checks
 }
@@ -104,4 +106,26 @@ func checkDelegateNesting() AgentLoopCard {
 		return AgentLoopCard{Name: "delegate nesting guard", Passed: false, Detail: res.Summary}
 	}
 	return AgentLoopCard{Name: "delegate nesting guard", Passed: true, Detail: "depth>=1 rejected"}
+}
+
+func checkSchemaValidation() AgentLoopCard {
+	reg := tools.NewRegistry()
+	reg.Register(tools.Tool{
+		Name: "need_task",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"task": map[string]any{"type": "string"},
+			},
+			"required": []any{"task"},
+		},
+		Handle: func(ctx tools.Context, args map[string]any) tools.Result {
+			return tools.Result{Status: tools.StatusOK, Summary: "ok"}
+		},
+	})
+	res := reg.Execute(tools.CallRequest{Name: "need_task"}, tools.Context{})
+	if res.Status != tools.StatusError || !strings.Contains(res.Summary, "参数校验失败") {
+		return AgentLoopCard{Name: "tool schema validation", Passed: false, Detail: res.Summary}
+	}
+	return AgentLoopCard{Name: "tool schema validation", Passed: true, Detail: "required args enforced"}
 }

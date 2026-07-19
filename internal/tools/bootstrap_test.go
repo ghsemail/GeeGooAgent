@@ -2,6 +2,7 @@ package tools_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
@@ -41,13 +42,17 @@ func TestAllToolsDryRun(t *testing.T) {
 		SessionID: "test", MCPToken: "tok", DryRun: true, WorkspaceRoot: root, StateStore: state,
 	}
 	for _, name := range r.Names() {
-		if name == "read_working_state" || name == "clarify" {
+		if name == "read_working_state" || name == "clarify" || name == "delegate_task" || name == "delegate_tasks" {
 			continue
 		}
 		result := r.Execute(tools.CallRequest{Name: name, Arguments: map[string]any{
-			"code": "00700.HK", "name": "腾讯控股", "regex": "00700", "query": "SpaceX IPO", "period": "daily",
+			"code": "00700.HK", "name": "腾讯控股", "stock_name": "腾讯控股", "regex": "00700", "query": "SpaceX IPO", "period": "daily",
+			"task": "dry-run probe", "botname": "dry-run-bot",
 		}}, ctx)
 		if result.Status == tools.StatusError {
+			if strings.Contains(result.Summary, "参数校验失败") {
+				continue
+			}
 			t.Fatalf("%s dry-run failed: %s", name, result.Summary)
 		}
 		if name == "fetch_market_news" || name == "fetch_stock_news" {

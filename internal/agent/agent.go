@@ -111,6 +111,20 @@ func (a *Agent) SetApproval(fn runtime.ApprovalFunc) {
 	}
 }
 
+// SetPlanGate enables plan_proposed events before mutating tool approval.
+func (a *Agent) SetPlanGate(v bool) {
+	if a.Loop != nil {
+		a.Loop.SetPlanGate(v)
+	}
+}
+
+// SetDelegateMaxParallel caps concurrent delegate_task calls per round.
+func (a *Agent) SetDelegateMaxParallel(n int) {
+	if a.Loop != nil {
+		a.Loop.SetDelegateMaxParallel(n)
+	}
+}
+
 // SetSubAgent wires the delegate_task runner (approval/compressor/event bus sync via Agent setters).
 func (a *Agent) SetSubAgent(sub *SubAgent) {
 	if a == nil {

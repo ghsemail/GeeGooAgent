@@ -93,6 +93,14 @@ type ResolvedCompression struct {
 	ClearToolMinChars int
 }
 
+// HooksConfig runs optional shell scripts around tool calls.
+type HooksConfig struct {
+	ToolBefore []string `json:"tool_before,omitempty"`
+	ToolAfter  []string `json:"tool_after,omitempty"`
+	FailClosed bool     `json:"fail_closed,omitempty"`
+	TimeoutSec int      `json:"timeout_sec,omitempty"`
+}
+
 // AppConfig is compatible with Python config.json.
 type AppConfig struct {
 	BaseURL          string            `json:"base_url"`
@@ -120,6 +128,9 @@ type AppConfig struct {
 	Compression      CompressionConfig `json:"compression"`
 	Auxiliary        AuxiliaryConfig   `json:"auxiliary"`
 	ChatToolsets     []string          `json:"chat_toolsets,omitempty"`
+	PlanGate         *bool             `json:"plan_gate,omitempty"`
+	DelegateMaxParallel int            `json:"delegate_max_parallel,omitempty"`
+	Hooks            HooksConfig       `json:"hooks,omitempty"`
 	Display          DisplayConfig     `json:"display,omitempty"`
 	ActiveProfile    string            `json:"active_profile,omitempty"`
 	Profiles         map[string]ProfileConfig `json:"profiles,omitempty"`
@@ -347,6 +358,26 @@ func (c *AppConfig) EffectiveChatToolsets() []string {
 		return nil
 	}
 	return c.ChatToolsets
+}
+
+// EffectivePlanGate reports whether mutating tools should emit plan_proposed before approval (default true).
+func (c *AppConfig) EffectivePlanGate() bool {
+	if c == nil || c.PlanGate == nil {
+		return true
+	}
+	return *c.PlanGate
+}
+
+// EffectiveDelegateMaxParallel caps concurrent delegate_task / delegate_tasks workers (default 3, max 8).
+func (c *AppConfig) EffectiveDelegateMaxParallel() int {
+	const def, max = 3, 8
+	if c == nil || c.DelegateMaxParallel <= 0 {
+		return def
+	}
+	if c.DelegateMaxParallel > max {
+		return max
+	}
+	return c.DelegateMaxParallel
 }
 
 // EffectiveSearch returns search settings with defaults (duckduckgo, max 5).

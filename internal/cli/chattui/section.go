@@ -18,7 +18,7 @@ const (
 	KindUser     SectionKind = "user"
 )
 
-const thinkingPreviewLines = 2
+const collapsedPreviewLines = 2
 
 // IsProcessKind reports thinking, tools, or activity blocks.
 func IsProcessKind(kind SectionKind) bool {
@@ -65,15 +65,20 @@ func (b Block) IsExpanded(cfg config.DisplayConfig) bool {
 	}
 }
 
-// ShowLivePreview reports whether a single current line should show while Live (tools).
-func (b Block) ShowLivePreview(cfg config.DisplayConfig) bool {
-	if !b.Live || b.Kind == KindReply || b.Kind == KindUser || b.Kind == KindThinking {
+// ShowToolPreview reports whether up to two tool/activity lines show when collapsed.
+func (b Block) ShowToolPreview(cfg config.DisplayConfig) bool {
+	if b.Kind != KindTools && b.Kind != KindActivity {
 		return false
 	}
 	if b.IsExpanded(cfg) {
 		return false
 	}
 	return strings.TrimSpace(b.Body) != ""
+}
+
+// ShowLivePreview reports whether a collapsed tool preview should show (alias for ShowToolPreview).
+func (b Block) ShowLivePreview(cfg config.DisplayConfig) bool {
+	return b.ShowToolPreview(cfg)
 }
 
 // ShowThinkingPreview reports whether up to two thinking lines should show when collapsed.

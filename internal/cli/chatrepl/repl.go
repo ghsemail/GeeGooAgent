@@ -134,7 +134,7 @@ func (r *Repl) attachProgress() {
 			live.Emit(event, data)
 		}
 		switch event {
-		case "stream_delta", "turn_start", "reply_start", "thinking_start", "thinking_stop", "tool_gen_start", "tool_gen_delta", "subagent_start", "subagent_end", "subagent_event":
+		case "stream_delta", "turn_start", "reply_start", "thinking_start", "thinking_stop", "tool_gen_start", "tool_gen_delta", "subagent_start", "subagent_end", "subagent_event", "plan_proposed":
 			sink.EmitProgress(event, data)
 			return
 		case "llm_tools", "tool_start", "error":
@@ -217,6 +217,27 @@ func (r *Repl) promptToolApproval(toolName string, args map[string]any) bool {
 
 // RunSingle handles one --message turn with full UI.
 func (r *Repl) RunSingle(message string) int {
+	return r.RunSingleWithSink(message, nil)
+}
+
+// RunSingleWithSink runs one message; sink receives NDJSON progress when set.
+func (r *Repl) RunSingleWithSink(message string, sink progress.Sink) int {
+	if sink != nil {
+		r.SetProgressSink(sink)
+		r.attachApproval()
+		sink.EmitProgress("turn_start", map[string]any{"user_text": message})
+		result := r.runTurn(message)
+		sink.EmitProgress("turn_complete", map[string]any{
+			"assistant_text": result.AssistantText,
+			"failed":         result.Failed,
+			"error":          result.Error,
+			"steps":          len(result.StepRecords),
+		})
+		if result.Failed {
+			return 1
+		}
+		return 0
+	}
 	r.printBanner()
 	r.UI.PrintUser(message)
 	result := r.runTurn(message)

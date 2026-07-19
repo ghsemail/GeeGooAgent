@@ -46,6 +46,7 @@ type App struct {
 	// P2c platform-agnostic agent core. Owns the ReAct loop; used by chat,
 	// runtime HTTP, and (later) workflow/scheduler.
 	Agent *agent.Agent
+	Hooks *tools.HookRunner
 }
 
 // LoadFromConfigPath builds an App from config.json.
@@ -101,14 +102,18 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	if err := app.RebuildGateway(); err != nil {
 		fmt.Fprintf(os.Stderr, "警告: LLM 未就绪: %v\n", err)
 	}
+	app.Hooks = buildHooks(cfg.Hooks)
 	app.Agent = agent.New(app.Gateway, executor, registry)
 	app.Agent.SetMaxToolRounds(cfg.EffectiveMaxSteps())
 	app.Agent.SetToolMaxParallel(cfg.EffectiveToolMaxParallel())
 	app.Agent.SetToolTimeout(cfg.EffectiveToolTimeout())
+	app.Agent.SetPlanGate(cfg.EffectivePlanGate())
+	app.Agent.SetDelegateMaxParallel(cfg.EffectiveDelegateMaxParallel())
 	app.Agent.SetEventBus(eventBus)
 	sub := agent.NewSubAgent(agent.SubAgentConfig{
 		Gateway: app.Gateway, Executor: executor, Registry: registry,
 		MaxSteps: cfg.EffectiveSubAgentMaxSteps(),
+		MaxParallel: cfg.EffectiveDelegateMaxParallel(),
 		ChatToolNames: app.ChatToolNames,
 	})
 	sub.SetEventBus(eventBus)
@@ -456,6 +461,23 @@ func (a *App) ToolContextWithContext(ctx context.Context, sessionID string) tool
 	return tools.Context{
 		Ctx: ctx, SessionID: sessionID, MCPToken: a.Config.MCPToken(), DryRun: a.Config.DryRun,
 		WorkspaceRoot: a.Workspace, EventBus: a.EventBus, StateStore: a.State,
+		Hooks: a.Hooks,
+	}
+}
+
+func buildHooks(h config.HooksConfig) *tools.HookRunner {
+	if len(h.ToolBefore) == 0 && len(h.ToolAfter) == 0 {
+		return nil
+	}
+	timeout := time.Duration(h.TimeoutSec) * time.Second
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	return &tools.HookRunner{
+		ToolBefore: append([]string(nil), h.ToolBefore...),
+		ToolAfter:  append([]string(nil), h.ToolAfter...),
+		FailClosed: h.FailClosed,
+		Timeout:    timeout,
 	}
 }
 

@@ -8,7 +8,7 @@ import (
 
 func TestLastBodyLinesThinkingPreview(t *testing.T) {
 	b := Block{Kind: KindThinking, Body: "a\nb\nc\nd"}
-	lines := b.LastBodyLines(thinkingPreviewLines)
+	lines := b.LastBodyLines(collapsedPreviewLines)
 	if len(lines) != 2 || lines[0] != "c" || lines[1] != "d" {
 		t.Fatalf("lines=%v", lines)
 	}
@@ -20,7 +20,18 @@ func TestThinkingPreviewAfterTurn(t *testing.T) {
 	if !b.ShowThinkingPreview(cfg) {
 		t.Fatal("collapsed thinking should preview")
 	}
-	if len(b.LastBodyLines(thinkingPreviewLines)) != 2 {
+	if len(b.LastBodyLines(collapsedPreviewLines)) != 2 {
+		t.Fatal("expected 2 preview lines")
+	}
+}
+
+func TestToolPreviewAfterTurn(t *testing.T) {
+	cfg := config.DisplayConfig{DetailsMode: config.ModeCollapsed}
+	b := Block{Kind: KindTools, Live: false, Body: "one\ntwo\nthree"}
+	if !b.ShowToolPreview(cfg) {
+		t.Fatal("collapsed tools should preview")
+	}
+	if len(b.LastBodyLines(collapsedPreviewLines)) != 2 {
 		t.Fatal("expected 2 preview lines")
 	}
 }

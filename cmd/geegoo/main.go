@@ -25,6 +25,8 @@ func main() {
 		runResume(os.Args[2:])
 	case "doctor":
 		runDoctor(os.Args[2:])
+	case "inspect":
+		runInspect(os.Args[2:])
 	case "chat":
 		runChat(os.Args[2:])
 	case "run":
@@ -67,7 +69,8 @@ Usage:
   %s update [--dir PATH]
   %s resume --session ID [--config PATH] [--dry-run]
   %s doctor [--config PATH]
-  %s chat [--config PATH] [--dry-run] [--message TEXT] [--session ID] [--tui|--cli]
+  %s inspect [--config PATH] [--quick]
+  %s chat [--config PATH] [--dry-run] [--message TEXT] [--output-format text|ndjson] [--session ID] [--tui|--cli]
   %s run <skill> [--config PATH] [--dry-run]
   %s migrate [--config PATH] [--dry-run]
   %s skills list
@@ -75,5 +78,5 @@ Usage:
   %s verify --codes CODES [--date YYYY-MM-DD] [--config PATH]
   %s verify agent-loop [--config PATH]
 
-`, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
+`, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
 }

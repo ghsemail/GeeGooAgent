@@ -9,5 +9,6 @@ func init() {
 func registerAgentTools(r *tools.Registry, deps tools.Deps) {
 	if deps.Delegate != nil {
 		RegisterDelegateTask(r, deps.Delegate)
+		RegisterDelegateTasks(r, deps.Delegate)
 	}
 }
