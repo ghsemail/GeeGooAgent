@@ -61,7 +61,6 @@ func RenderAssistantMarkdownAt(text string, innerW int) string {
 	if strings.TrimSpace(text) == "" {
 		return styleMeta.Render("⋯ 正在生成回复…")
 	}
-	text = PreprocessTerminalMarkdown(text)
 	w := innerW
 	if w < 32 {
 		w = 32

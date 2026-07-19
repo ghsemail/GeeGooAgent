@@ -83,15 +83,30 @@ func TestNormalizeAssistantLayout_GluedColonList(t *testing.T) {
 	}
 }
 
-func TestRenderAssistantMarkdownSplitsGluedList(t *testing.T) {
-	in := "你好！可以帮你：- 📊 行情分析：A股 - 🤖 交易 Bot"
+func TestRenderAssistantMarkdown_ValidList(t *testing.T) {
+	in := "你好！可以帮你：\n\n- 📊 行情分析：A股\n- 🤖 交易 Bot"
 	out := stripANSI(RenderAssistantMarkdown(in, 100))
 	if !strings.Contains(out, "行情分析") {
 		t.Fatalf("missing content: %q", out)
 	}
-	// glamour renders list items on separate visual lines
 	if strings.Count(out, "\n") < 2 {
 		t.Fatalf("expected multiple lines for list: %q", out)
+	}
+}
+
+func TestRenderAssistantMarkdown_ValidTable(t *testing.T) {
+	in := `## 组合信号
+
+| 信号 | 核心逻辑 | 卖出方式 |
+|------|----------|----------|
+| SAR+MACD | 趋势共振 | 自动 |
+`
+	out := stripANSI(RenderAssistantMarkdown(in, 100))
+	if !strings.Contains(out, "组合信号") || !strings.Contains(out, "SAR+MACD") {
+		t.Fatalf("missing content: %q", out)
+	}
+	if strings.Contains(out, "##") {
+		t.Fatalf("heading markers should be rendered: %q", out)
 	}
 }
 
@@ -205,9 +220,6 @@ func TestRenderAssistantMarkdown_StockAnalysisGlue(t *testing.T) {
 |维度|信号|
 |AI基本面|积极|`
 	out := stripANSI(RenderAssistantMarkdown(in, 100))
-	if strings.Contains(out, "|") {
-		t.Fatalf("pipes should not appear in render: %q", out)
-	}
 	if !strings.Contains(out, "腾讯控股") || !strings.Contains(out, "积极") {
 		t.Fatalf("missing content: %q", out)
 	}

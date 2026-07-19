@@ -144,6 +144,7 @@ func breakInlinePipeFields(text string) string {
 }
 
 // PreprocessTerminalMarkdown adapts assistant markdown for narrow terminals.
+// Not used on the default glamour render path; kept for tests and optional future use.
 func PreprocessTerminalMarkdown(text string) string {
 	text = normalizeGluedAnalysisMarkdown(text)
 	text = normalizeBotSummaryTablesInline(text)
@@ -1092,7 +1093,6 @@ func isNumericIndex(s string) bool {
 // RenderPlainAssistantBody renders assistant text line-by-line for the terminal.
 // wrapW is the max content width in runes (viewport does not soft-wrap).
 func RenderPlainAssistantBody(text string, wrapW int) string {
-	text = PreprocessTerminalMarkdown(text)
 	if strings.TrimSpace(text) == "" {
 		return styleDim.Render("⋯ 正在生成回复…")
 	}

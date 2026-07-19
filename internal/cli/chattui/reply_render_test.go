@@ -13,7 +13,7 @@ func TestReplyRendersMarkdownWithStreamOff(t *testing.T) {
 	m.display.Normalize()
 	m.slots[0].Blocks = []Block{
 		{Kind: KindUser, Body: "你能做什么"},
-		{Kind: KindReply, Body: "##你好！###1.股票分析 **实时行情-** 查询价格", Live: false},
+		{Kind: KindReply, Body: "## 你好！\n\n### 1. 股票分析\n\n- 实时行情：查询价格", Live: false},
 	}
 	out := stripANSI(m.renderTranscript())
 	if strings.Contains(out, "##") || strings.Contains(out, "**") {
