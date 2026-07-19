@@ -28,9 +28,10 @@ type Loop struct {
 	onProgress    runtime.ProgressFunc
 	mem           memport.Port
 	eventBus      tools.EventEmitter
-	ranker        cognition.Ranker
-	evaluator     cognition.Evaluator
-	planPolicy    cognition.PlanPolicy
+	ranker         cognition.Ranker
+	evaluator      cognition.Evaluator
+	planPolicy     cognition.PlanPolicy
+	evalMaxRetries int
 }
 
 // NewLoop creates an agent loop.
@@ -136,6 +137,20 @@ func (l *Loop) SetEventBus(bus tools.EventEmitter) {
 	l.eventBus = bus
 }
 
+// SetEvalMaxRetries caps quality-evaluator driven re-runs per turn (default 0, max 1).
+func (l *Loop) SetEvalMaxRetries(n int) {
+	if l == nil {
+		return
+	}
+	if n < 0 {
+		n = 0
+	}
+	if n > 1 {
+		n = 1
+	}
+	l.evalMaxRetries = n
+}
+
 // SetCognition replaces Ranker / Evaluator / PlanPolicy. Nil fields keep current values.
 func (l *Loop) SetCognition(b cognition.Bundle) {
 	if l == nil {
@@ -178,19 +193,63 @@ func (l *Loop) RankItems(ctx context.Context, items []cognition.RankItem) ([]cog
 	return l.effectiveRanker().Rank(ctx, items)
 }
 
-func (l *Loop) evaluateTurn(ctx context.Context, session *runtime.Session, result runtime.TurnResult) {
+func (l *Loop) runEvaluator(ctx context.Context, session *runtime.Session, result runtime.TurnResult) cognition.EvalResult {
 	eval := l.effectiveEvaluator()
 	res, err := eval.Evaluate(ctx, cognition.EvalInput{
 		SessionID:     session.ID,
 		AssistantText: result.AssistantText,
 		Failed:        result.Failed,
 	})
-	if err != nil || res.Accept {
+	if err != nil {
+		return cognition.EvalResult{Accept: true}
+	}
+	return res
+}
+
+func (l *Loop) emitEvalResult(res cognition.EvalResult) {
+	if res.Accept {
 		return
 	}
 	l.emit("cognition_eval", map[string]any{
 		"accept": res.Accept, "retry_suggested": res.RetrySuggested, "reason": res.Reason,
 	})
+}
+
+func (l *Loop) evaluateTurn(ctx context.Context, session *runtime.Session, result runtime.TurnResult) {
+	l.emitEvalResult(l.runEvaluator(ctx, session, result))
+}
+
+func (l *Loop) tryEvalRetry(
+	ctx context.Context,
+	session *runtime.Session,
+	messages *[]llm.Message,
+	result runtime.TurnResult,
+	retriesLeft *int,
+) bool {
+	if l == nil || retriesLeft == nil || *retriesLeft <= 0 || result.Failed || result.PlanPending {
+		l.evaluateTurn(ctx, session, result)
+		return false
+	}
+	res := l.runEvaluator(ctx, session, result)
+	if res.Accept || !res.RetrySuggested {
+		l.emitEvalResult(res)
+		return false
+	}
+	*retriesLeft--
+	l.emit("eval_retry", map[string]any{
+		"reason": res.Reason, "remaining": *retriesLeft,
+	})
+	l.emitEvalResult(res)
+	hint := res.Reason
+	if hint == "" {
+		hint = "请根据工具结果改进回答，避免空泛或遗漏关键事实。"
+	}
+	session.AppendMessage(llm.Message{
+		Role:    llm.RoleUser,
+		Content: "[质量评估] " + hint + " 请重新组织回答。",
+	})
+	*messages = session.LLMMessages()
+	return true
 }
 
 func (l *Loop) emit(event string, data map[string]any) {
@@ -232,6 +291,7 @@ func (l *Loop) RunTurn(
 		"session_id": session.ID, "user_text": userText,
 	})
 	messages = l.applyHygiene(ctx, session, messages)
+	evalRetriesLeft := l.evalMaxRetries
 
 	policy := l.effectivePlanPolicy()
 	if session.PendingPlan != nil {
@@ -255,13 +315,15 @@ func (l *Loop) RunTurn(
 		}
 		done, result := l.runRound(ctx, session, &messages, toolCtx, schemas, round, &records)
 		if done {
+			if l.tryEvalRetry(ctx, session, &messages, result, &evalRetriesLeft) {
+				continue
+			}
 			if !result.Failed {
 				l.emitBus("TurnCompleted", map[string]any{
 					"session_id": session.ID, "steps": len(result.StepRecords),
 				})
 			}
 			result.StepRecords = records
-			l.evaluateTurn(ctx, session, result)
 			return result
 		}
 	}

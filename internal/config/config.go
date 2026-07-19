@@ -147,6 +147,7 @@ type AppConfig struct {
 	Auxiliary        AuxiliaryConfig   `json:"auxiliary"`
 	ChatToolsets     []string          `json:"chat_toolsets,omitempty"`
 	PlanGate         *bool             `json:"plan_gate,omitempty"`
+	EvalMaxRetries   int               `json:"eval_max_retries,omitempty"`
 	DelegateMaxParallel int            `json:"delegate_max_parallel,omitempty"`
 	MCPMaxParallel      int            `json:"mcp_max_parallel,omitempty"`
 	Hooks            HooksConfig       `json:"hooks,omitempty"`
@@ -398,6 +399,17 @@ func (c *AppConfig) EffectivePlanGate() bool {
 		return true
 	}
 	return *c.PlanGate
+}
+
+// EffectiveEvalMaxRetries caps evaluator-driven assistant re-runs per turn (default 0, max 1).
+func (c *AppConfig) EffectiveEvalMaxRetries() int {
+	if c == nil || c.EvalMaxRetries <= 0 {
+		return 0
+	}
+	if c.EvalMaxRetries > 1 {
+		return 1
+	}
+	return c.EvalMaxRetries
 }
 
 // EffectiveDelegateMaxParallel caps concurrent delegate_task / delegate_tasks workers (default 3, max 8).

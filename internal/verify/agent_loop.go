@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
+	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
@@ -42,6 +43,7 @@ func VerifyAgentLoopParity(reg ToolLookup) []AgentLoopCard {
 		checkSchemaValidation(),
 		checkNestedSchemaValidation(),
 		checkPlanGateHold(),
+		checkNDJSONProgressSchema(),
 	}
 	return checks
 }
@@ -184,4 +186,15 @@ func checkPlanGateHold() AgentLoopCard {
 		return AgentLoopCard{Name: "plan gate mutating list", Passed: false, Detail: "create_* not mutating"}
 	}
 	return AgentLoopCard{Name: "plan gate mutating list", Passed: true, Detail: "create_/update_/delete_ gated"}
+}
+
+func checkNDJSONProgressSchema() AgentLoopCard {
+	line, err := runtime.ProgressToAgentEvent("turn_complete", map[string]any{"assistant_text": "ok"}).EncodeLine()
+	if err != nil || len(line) == 0 {
+		return AgentLoopCard{Name: "NDJSON progress schema", Passed: false, Detail: "encode failed"}
+	}
+	if runtime.AgentEventSchemaVersion != 1 {
+		return AgentLoopCard{Name: "NDJSON progress schema", Passed: false, Detail: "schema version mismatch"}
+	}
+	return AgentLoopCard{Name: "NDJSON progress schema", Passed: true, Detail: "schema_version=1"}
 }

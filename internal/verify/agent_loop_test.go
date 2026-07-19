@@ -32,3 +32,15 @@ func TestVerifyAgentLoopParityFailsMissingDelegate(t *testing.T) {
 		t.Fatal("expected failure without tools")
 	}
 }
+
+func TestOfflineAgentLoopRegistryPassesParity(t *testing.T) {
+	t.Parallel()
+	cards := verify.VerifyAgentLoopParity(verify.OfflineAgentLoopRegistry(t.TempDir()))
+	if !verify.AllAgentLoopPass(cards) {
+		for _, c := range cards {
+			if !c.Passed {
+				t.Fatalf("%s", c.Summary())
+			}
+		}
+	}
+}

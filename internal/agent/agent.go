@@ -131,6 +131,13 @@ func (a *Agent) SetPlanGate(v bool) {
 	}
 }
 
+// SetEvalMaxRetries caps quality-evaluator driven re-runs per turn (config eval_max_retries).
+func (a *Agent) SetEvalMaxRetries(n int) {
+	if a != nil && a.Loop != nil {
+		a.Loop.SetEvalMaxRetries(n)
+	}
+}
+
 // SetCognition wires Ranker / Evaluator / PlanPolicy into the owned loop.
 func (a *Agent) SetCognition(b cognition.Bundle) {
 	if a != nil && a.Loop != nil {
