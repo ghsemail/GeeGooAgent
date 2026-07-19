@@ -21,3 +21,20 @@ func TestRenderAssistantBoxWithPlain(t *testing.T) {
 		t.Fatalf("missing text: %q", out)
 	}
 }
+
+func TestRenderAssistantBoxWithLiveUsesPlain(t *testing.T) {
+	out := stripANSI(RenderAssistantBoxWith("## Title", 80, AssistantRenderOptions{Markdown: true, Live: true}))
+	if strings.Contains(out, "##") && !strings.Contains(out, "Title") {
+		t.Fatalf("live preview should stay plain: %q", out)
+	}
+}
+
+func TestRenderAssistantBoxCompletedUsesMarkdown(t *testing.T) {
+	out := stripANSI(RenderAssistantBoxWith("## Title\n\nbody", 80, AssistantRenderOptions{Markdown: true, Live: false}))
+	if strings.Contains(out, "##") {
+		t.Fatalf("completed reply should render markdown: %q", out)
+	}
+	if !strings.Contains(out, "Title") {
+		t.Fatalf("missing title: %q", out)
+	}
+}

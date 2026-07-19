@@ -114,10 +114,14 @@ func (m *Model) renderTranscript() string {
 			}
 		case KindReply:
 			body := strings.TrimRight(block.Body, "\n")
+			streaming := block.Live && m.display.StreamReplyEnabled()
 			if block.Live && !m.display.StreamReplyEnabled() {
 				continue
 			}
-			opts := chatui.AssistantRenderOptions{Markdown: m.display.ReplyMarkdownEnabled(), Live: block.Live}
+			opts := chatui.AssistantRenderOptions{
+				Markdown: m.display.ReplyMarkdownEnabled(),
+				Live:     streaming,
+			}
 			b.WriteString(chatui.RenderAssistantBoxWith(body, width, opts))
 			b.WriteByte('\n')
 			if !block.Live && block.DurationSec > 0 {

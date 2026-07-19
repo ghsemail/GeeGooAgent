@@ -226,6 +226,24 @@ func (s *LiveSlot) finalizeLiveThinking() {
 	s.LiveThinkingID = ""
 }
 
+func (s *LiveSlot) upsertTurnReply(reply string) {
+	reply = strings.TrimSpace(reply)
+	if reply == "" {
+		return
+	}
+	if s.LiveReplyID != "" {
+		if idx := s.blockIndex(s.LiveReplyID); idx >= 0 {
+			s.Blocks[idx].Body = reply
+			s.Blocks[idx].Live = false
+			return
+		}
+	}
+	s.Blocks = append(s.Blocks, Block{
+		ID: fmt.Sprintf("reply-%d", s.Seq), Kind: KindReply, Title: "助手", Body: reply,
+	})
+	s.Seq++
+}
+
 func (s *LiveSlot) finalizeLiveSections() {
 	replyID := s.LiveReplyID
 	for _, id := range []string{s.LiveThinkingID, s.LiveToolsID, s.LiveReplyID} {

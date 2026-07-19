@@ -58,16 +58,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.Err = msg.Err
 		}
 		if reply != "" {
-			if idx := findLastKind(s.Blocks, KindReply); idx >= 0 {
-				if strings.TrimSpace(s.Blocks[idx].Body) == "" {
-					s.Blocks[idx].Body = reply
-				}
-			} else {
-				s.Blocks = append(s.Blocks, Block{
-					ID: fmt.Sprintf("reply-%d", s.Seq), Kind: KindReply, Title: "助手", Body: reply,
-				})
-				s.Seq++
-			}
+			s.upsertTurnReply(reply)
 		}
 		s.finalizeLiveSections()
 		if msg.Slot == m.active {

@@ -21,6 +21,7 @@ func RenderAssistantBoxLive(text string, width int) string {
 }
 
 // RenderAssistantBoxWith renders assistant text with the given options.
+// Live means streaming typewriter preview only; completed replies use Markdown when enabled.
 func RenderAssistantBoxWith(text string, width int, opts AssistantRenderOptions) string {
 	if width <= 0 {
 		width = 80
@@ -32,10 +33,13 @@ func RenderAssistantBoxWith(text string, width int, opts AssistantRenderOptions)
 		}
 		return styleMeta.Render("⋯ 正在生成回复…")
 	}
-	if opts.Live || !opts.Markdown {
+	if opts.Live {
 		return RenderGrokReplyBlock(body, width)
 	}
-	return RenderAssistantMarkdown(body, width)
+	if opts.Markdown {
+		return RenderAssistantMarkdown(body, width)
+	}
+	return RenderGrokReplyBlock(body, width)
 }
 
 // RenderAssistantMarkdown renders markdown via glamour with terminal word-wrap.
@@ -48,11 +52,22 @@ func RenderAssistantMarkdown(text string, width int) string {
 	w := ContentWrapWidth(width)
 	r, err := newMarkdownRenderer(w)
 	if err != nil {
-		return RenderGrokReplyBlock(text, width)
+		return RenderPlainAssistantBody(text, w)
 	}
 	out, err := r.Render(text)
-	if err != nil {
-		return RenderGrokReplyBlock(text, width)
+	if err != nil || markdownLooksUnrendered(out, text) {
+		return RenderPlainAssistantBody(text, w)
 	}
 	return strings.TrimRight(out, "\n")
+}
+
+func markdownLooksUnrendered(rendered, source string) bool {
+	plain := strings.ReplaceAll(rendered, "\x1b[0m", "")
+	if strings.Contains(plain, "##") && strings.Contains(source, "##") {
+		return true
+	}
+	if strings.Contains(plain, "**") && strings.Contains(source, "**") {
+		return true
+	}
+	return false
 }
