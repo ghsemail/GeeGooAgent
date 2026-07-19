@@ -90,6 +90,7 @@ func generateGridStrategyParameters() map[string]any {
 			},
 			"language": map[string]any{
 				"type":        "string",
+				"enum":        []string{"cn", "en", "hk", "all"},
 				"description": "cn / en / hk / all",
 			},
 		},
@@ -108,7 +109,11 @@ func generateDCAStrategyParameters() map[string]any {
 				"description": "来自 get_index_signals 或 get_signal_combinations",
 			},
 			"months_back": map[string]any{"type": "integer"},
-			"language":    map[string]any{"type": "string"},
+			"language": map[string]any{
+				"type":        "string",
+				"enum":        []string{"cn", "en", "hk", "all"},
+				"description": "cn / en / hk / all",
+			},
 		},
 	}
 }

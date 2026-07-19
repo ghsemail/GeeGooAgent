@@ -75,6 +75,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.scrollFollow = true
 			m.refreshViewport()
 		}
+		if msg.Slot >= 0 && msg.Slot < len(m.slots) {
+			s := m.slots[msg.Slot]
+			if msg.PlanPending {
+				s.PlanPending = true
+				s.PlanTools = append([]string(nil), msg.PlanTools...)
+			} else {
+				s.PlanPending = false
+				s.PlanTools = nil
+			}
+		}
 		return m, nil
 
 	case InfoMsg:
@@ -105,7 +115,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case approvalTickMsg:
 		host := m.activeHost()
-		if host != nil && !m.approvalPending && !m.clarifyPending && !m.clarifyAwaitingText {
+		if host != nil && !m.approvalPending && !m.clarifyPending && !m.clarifyAwaitingText && !m.activeSlotPlanPending() {
 			if tool, args, ok := host.PollApproval(); ok {
 				m.approvalPending = true
 				m.approvalTool = tool
@@ -135,6 +145,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.sessionPicker {
 			return m.handlePickerKeys(msg)
+		}
+		if s := m.activeSlot(); s != nil && s.PlanPending {
+			switch strings.ToLower(msg.String()) {
+			case "y", "yes":
+				return m.submitPlanAnswer(true)
+			case "n", "no":
+				return m.submitPlanAnswer(false)
+			}
+			if msg.Type == tea.KeyEsc {
+				return m.submitPlanAnswer(false)
+			}
+			return m, nil
 		}
 		if m.approvalPending {
 			switch strings.ToLower(msg.String()) {
@@ -282,7 +304,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	if m.sessionPicker || m.approvalPending || m.clarifyPending {
+	if m.sessionPicker || m.approvalPending || m.clarifyPending || m.activeSlotPlanPending() {
 		return m, nil
 	}
 	switch msg.Action {
@@ -459,6 +481,40 @@ func (m Model) handleSubmit(text string) (tea.Model, tea.Cmd) {
 	m.refreshViewport()
 	go func() { s.SubmitCh <- text }()
 	return m, nil
+}
+
+func (m Model) submitPlanAnswer(approve bool) (tea.Model, tea.Cmd) {
+	s := m.activeSlot()
+	if s == nil || !s.PlanPending {
+		return m, nil
+	}
+	text := "n"
+	info := "已取消写操作"
+	if approve {
+		text = "y"
+		info = "已确认，执行写操作…"
+	}
+	s.PlanPending = false
+	s.PlanTools = nil
+	s.Err = ""
+	m.info = info
+	s.Blocks = append(s.Blocks, Block{
+		ID: fmt.Sprintf("user-%d", s.Seq), Kind: KindUser, Title: "你", Body: text,
+	})
+	s.Seq++
+	s.Busy = true
+	s.Status = "thinking…"
+	s.TurnStartedAt = time.Now()
+	s.TurnEndedAt = time.Time{}
+	m.scrollFollow = true
+	m.refreshViewport()
+	go func() { s.SubmitCh <- text }()
+	return m, nil
+}
+
+func (m Model) activeSlotPlanPending() bool {
+	s := m.activeSlot()
+	return s != nil && s.PlanPending
 }
 
 func (m Model) handleSlash(text string) (tea.Model, tea.Cmd) {
@@ -673,10 +729,10 @@ func (m *Model) layoutViewport() {
 
 func (m Model) footerLineCount() int {
 	n := 1 // status bar
-	if m.approvalPending || m.clarifyPending || m.clarifyAwaitingText || m.info != "" {
+	if m.approvalPending || m.clarifyPending || m.clarifyAwaitingText || m.info != "" || m.activeSlotPlanPending() {
 		n++
 	}
-	if !m.approvalPending && !m.clarifyPending {
+	if !m.approvalPending && !m.clarifyPending && !m.activeSlotPlanPending() {
 		n++ // input chrome
 	}
 	if m.slashMenuOpen() {
@@ -719,6 +775,9 @@ func (m Model) View() string {
 	if m.approvalPending {
 		b.WriteString(styleErr.Render(fmt.Sprintf("⚠ 确认写操作 %s: %s  [y/n]", m.approvalTool, m.approvalArgs)))
 		b.WriteByte('\n')
+	} else if s := m.activeSlot(); s != nil && s.PlanPending {
+		b.WriteString(styleErr.Render(fmt.Sprintf("⚠ Plan 待确认: %s  [y 执行 / n 取消]", formatPlanTools(s.PlanTools))))
+		b.WriteByte('\n')
 	} else if m.clarifyPending {
 		b.WriteString(chatui.RenderClarifyPanel(m.clarifyQuestion, m.clarifyDisplayOptions(), m.clarifyFocus, m.width))
 		b.WriteByte('\n')
@@ -736,7 +795,7 @@ func (m Model) View() string {
 		b.WriteString(renderSlashMenu(matches, m.slashPick, m.width))
 		b.WriteByte('\n')
 	}
-	if !m.approvalPending && !m.clarifyPending {
+	if !m.approvalPending && !m.clarifyPending && !m.activeSlotPlanPending() {
 		opts := m.statusBarOpts()
 		b.WriteString(renderInputLine(m.input, opts.Model, m.width))
 	}

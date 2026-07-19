@@ -72,9 +72,20 @@ func validateValue(field string, prop map[string]any, value any) error {
 		if min, ok := prop["minItems"].(float64); ok && float64(len(items)) < min {
 			return fmt.Errorf("参数 %q 至少需要 %d 项", field, int(min))
 		}
+		if itemSchema, ok := prop["items"].(map[string]any); ok {
+			for i, item := range items {
+				if err := validateValue(fmt.Sprintf("%s[%d]", field, i), itemSchema, item); err != nil {
+					return err
+				}
+			}
+		}
 	case "object":
-		if _, ok := value.(map[string]any); !ok {
+		obj, ok := value.(map[string]any)
+		if !ok {
 			return fmt.Errorf("参数 %q 应为对象", field)
+		}
+		if err := validateObjectFields(field, prop, obj); err != nil {
+			return err
 		}
 	}
 	if typ == "string" || typ == "" {
@@ -83,6 +94,41 @@ func validateValue(field string, prop map[string]any, value any) error {
 			if !ok || !stringIn(enum, s) {
 				return fmt.Errorf("参数 %q 必须是 %v 之一", field, enum)
 			}
+		}
+	}
+	return nil
+}
+
+func validateObjectFields(prefix string, schema map[string]any, obj map[string]any) error {
+	props, _ := schema["properties"].(map[string]any)
+	required := stringSlice(schema["required"])
+	for _, key := range required {
+		field := key
+		if prefix != "" {
+			field = prefix + "." + key
+		}
+		v, ok := obj[key]
+		if !ok {
+			return fmt.Errorf("缺少必填参数 %q", field)
+		}
+		if isEmptyArg(v) {
+			return fmt.Errorf("参数 %q 不能为空", field)
+		}
+	}
+	if props == nil {
+		return nil
+	}
+	for key, raw := range obj {
+		prop, ok := props[key].(map[string]any)
+		if !ok {
+			continue
+		}
+		field := key
+		if prefix != "" {
+			field = prefix + "." + key
+		}
+		if err := validateValue(field, prop, raw); err != nil {
+			return err
 		}
 	}
 	return nil

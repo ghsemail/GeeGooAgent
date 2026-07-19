@@ -102,7 +102,7 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 								continue
 							}
 						}
-						return Result{Status: StatusError, Summary: err.Error(), ExitCode: 1,
+						return Result{Status: StatusError, Summary: enrichHTTPError(spec.Name, err), ExitCode: 1,
 							Meta: MetaFromEnvelope(nil, started)}
 					}
 					normalized, summary := normalizeHTTPResponse(spec.Name, data)
@@ -150,6 +150,24 @@ func buildHTTPBody(args map[string]any, mergePayload bool) map[string]any {
 		}
 	}
 	return out
+}
+
+func enrichHTTPError(toolName string, err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "502") {
+		return msg
+	}
+	switch toolName {
+	case "generate_dca_strategy":
+		return msg + "；analyze-api :3230 业务层异常：确认 signal_id 来自 get_signal_combinations/get_index_signals，并检查 GeeGooSignal analyze-api 日志与 LLM 配置"
+	case "generate_grid_strategy":
+		return msg + "；analyze-api :3230 业务层异常：检查 GeeGooSignal analyze-api 日志与 LLM 配置"
+	default:
+		return msg
+	}
 }
 
 func normalizeHTTPResponse(name string, payload any) (map[string]any, string) {

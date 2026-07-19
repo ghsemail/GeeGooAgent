@@ -14,7 +14,7 @@ func (m Model) slashMatches() []chatui.SlashCommand {
 }
 
 func (m Model) slashMenuOpen() bool {
-	if m.sessionPicker || m.approvalPending {
+	if m.sessionPicker || m.approvalPending || m.activeSlotPlanPending() {
 		return false
 	}
 	val := strings.TrimSpace(m.input.Value())

@@ -40,6 +40,7 @@ func VerifyAgentLoopParity(reg ToolLookup) []AgentLoopCard {
 		checkWorkflowExclusive(),
 		checkDelegateNesting(),
 		checkSchemaValidation(),
+		checkNestedSchemaValidation(),
 		checkPlanGateHold(),
 	}
 	return checks
@@ -129,6 +130,42 @@ func checkSchemaValidation() AgentLoopCard {
 		return AgentLoopCard{Name: "tool schema validation", Passed: false, Detail: res.Summary}
 	}
 	return AgentLoopCard{Name: "tool schema validation", Passed: true, Detail: "required args enforced"}
+}
+
+func checkNestedSchemaValidation() AgentLoopCard {
+	reg := tools.NewRegistry()
+	reg.Register(tools.Tool{
+		Name: "create_dca_bot",
+		Parameters: map[string]any{
+			"type":     "object",
+			"required": []any{"signal"},
+			"properties": map[string]any{
+				"signal": map[string]any{
+					"type":     "object",
+					"required": []any{"buy_signal"},
+					"properties": map[string]any{
+						"buy_signal": map[string]any{
+							"type":     "array",
+							"minItems": float64(1),
+						},
+					},
+				},
+			},
+		},
+		Handle: func(ctx tools.Context, args map[string]any) tools.Result {
+			return tools.Result{Status: tools.StatusOK, Summary: "ok"}
+		},
+	})
+	res := reg.Execute(tools.CallRequest{
+		Name: "create_dca_bot",
+		Arguments: map[string]any{
+			"signal": map[string]any{"buy_signal": []any{}},
+		},
+	}, tools.Context{})
+	if res.Status != tools.StatusError || !strings.Contains(res.Summary, "至少需要") {
+		return AgentLoopCard{Name: "nested schema validation", Passed: false, Detail: res.Summary}
+	}
+	return AgentLoopCard{Name: "nested schema validation", Passed: true, Detail: "nested object/array enforced"}
 }
 
 func checkPlanGateHold() AgentLoopCard {

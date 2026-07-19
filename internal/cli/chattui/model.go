@@ -118,9 +118,11 @@ type approvalTickMsg time.Time
 
 // TurnDoneMsg is sent when an agent turn finishes.
 type TurnDoneMsg struct {
-	Slot  int
-	Reply string
-	Err   string
+	Slot        int
+	Reply       string
+	Err         string
+	PlanPending bool
+	PlanTools   []string
 }
 
 // InfoMsg shows a transient status line.

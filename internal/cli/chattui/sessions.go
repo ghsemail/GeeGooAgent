@@ -40,6 +40,9 @@ type LiveSlot struct {
 
 	TurnStartedAt time.Time
 	TurnEndedAt   time.Time
+
+	PlanPending bool
+	PlanTools   []string
 }
 
 func (s *LiveSlot) shortTitle() string {

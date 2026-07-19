@@ -95,6 +95,11 @@ func (s *LiveSlot) ApplyProgress(event string, data map[string]any, cfg config.D
 		}
 	case "subagent_end":
 		s.Status = "running…"
+	case "plan_proposed":
+		s.Status = "plan confirm…"
+		if names := toolNamesFromAny(data["tools"]); len(names) > 0 {
+			s.PlanTools = names
+		}
 	case "stream_delta":
 		reasoning, _ := data["reasoning"].(string)
 		if strings.TrimSpace(reasoning) != "" {

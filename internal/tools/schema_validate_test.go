@@ -53,6 +53,47 @@ func TestValidateArgumentsEnum(t *testing.T) {
 	}
 }
 
+func TestValidateArgumentsNestedObject(t *testing.T) {
+	t.Parallel()
+	schema := map[string]any{
+		"type": "object",
+		"required": []any{"signal"},
+		"properties": map[string]any{
+			"signal": map[string]any{
+				"type":     "object",
+				"required": []any{"buy_signal"},
+				"properties": map[string]any{
+					"buy_signal": map[string]any{
+						"type":     "array",
+						"minItems": float64(1),
+						"items": map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"index": map[string]any{"type": "string"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	if err := tools.ValidateArguments(schema, map[string]any{
+		"signal": map[string]any{"buy_signal": []any{}},
+	}); err == nil {
+		t.Fatal("expected minItems error")
+	}
+	if err := tools.ValidateArguments(schema, map[string]any{
+		"signal": map[string]any{},
+	}); err == nil || !strings.Contains(err.Error(), "signal.buy_signal") {
+		t.Fatalf("expected nested required error, got %v", err)
+	}
+	if err := tools.ValidateArguments(schema, map[string]any{
+		"signal": map[string]any{"buy_signal": []any{map[string]any{"index": 1}}},
+	}); err == nil || !strings.Contains(err.Error(), "应为字符串") {
+		t.Fatalf("expected nested type error, got %v", err)
+	}
+}
+
 func TestValidateArgumentsMinItems(t *testing.T) {
 	t.Parallel()
 	schema := map[string]any{

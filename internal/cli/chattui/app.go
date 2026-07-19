@@ -88,6 +88,7 @@ func Run(opts RunOpts) int {
 			Focus:    -1,
 		}
 		slot.Host = NewReplHost(repl, opts.ConfigPath)
+		syncSlotPlanFromRepl(slot, repl)
 		sink := &programSink{program: program, slot: slot}
 		repl.SetProgressSink(sink)
 		go runTurnHostSlot(slot, func() *tea.Program { return program })
@@ -161,7 +162,14 @@ func runTurnHostSlot(slot *LiveSlot, programFn func() *tea.Program) {
 					errText = "turn failed"
 				}
 			}
-			done <- TurnDoneMsg{Slot: slot.Index, Reply: result.AssistantText, Err: errText}
+			planTools := []string{}
+			if result.PlanPending && slot.Repl.Session != nil && slot.Repl.Session.PendingPlan != nil {
+				planTools = toolNamesFromCalls(slot.Repl.Session.PendingPlan.ToolCalls)
+			}
+			done <- TurnDoneMsg{
+				Slot: slot.Index, Reply: result.AssistantText, Err: errText,
+				PlanPending: result.PlanPending, PlanTools: planTools,
+			}
 		}(text)
 
 		select {

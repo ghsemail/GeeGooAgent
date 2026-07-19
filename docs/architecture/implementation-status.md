@@ -47,7 +47,7 @@
 | Cutover `geegoo verify` | ✅ | `internal/verify/`, `cmd/geegoo/verify.go` |
 | Cost Manager | ❌ | 无 `internal/llm/cost` |
 | 子 Agent 委派 | ✅ | `delegate_task` / `delegate_tasks` + `SubAgent`；`delegate_max_parallel`；已部署 119.45.16.112（`225615ed`） |
-| 工具 schema 校验 | ✅ | `internal/tools/schema_validate.go`（Execute 前校验） |
+| 工具 schema 校验 | ✅ | `schema_validate.go`：顶层 + 嵌套 object/array（`create_dca_bot.signal.buy_signal` 等） |
 | Hooks | ✅ | `config.hooks` → `HookRunner`（tool_before / tool_after） |
 | Webhook 触发 | ❌ | 无 HTTP webhook 入口 |
 

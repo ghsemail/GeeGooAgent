@@ -81,21 +81,18 @@ func botCreateParameters(kind botKind) map[string]any {
 
 	switch kind {
 	case botKindGrid, botKindGridReminder:
-		props["grid"] = map[string]any{
-			"type":        "object",
-			"description": "网格参数：upper_limit_price、lower_limit_price、grid_num（来自 generate_grid_strategy.param）",
-		}
+		props["grid"] = gridParamSchema()
 		required = append(required, "grid")
 		if kind == botKindGrid {
 			props["order_size"] = objectProp("可选；lot_size 会自动生成 base_order_size")
 		}
 	case botKindDCA:
-		props["signal"] = objectProp("买卖信号；buy_signal 数组来自 generate_dca_strategy.signal.buy_signal")
+		props["signal"] = dcaSignalSchema("买卖信号；buy_signal 数组来自 generate_dca_strategy.signal.buy_signal")
 		props["tp"] = objectProp("止盈：tp_mode=fix|dynamic，fix_tp 或 tp_dynamic_index 等")
 		props["sl"] = objectProp("止损：sl_mode=fix|dynamic，fix_sl 或 sl_dynamic_index 等")
 		required = append(required, "signal")
 	case botKindDCAReminder:
-		props["signal"] = objectProp("提醒信号；buy_signal 来自 generate_dca_strategy")
+		props["signal"] = dcaSignalSchema("提醒信号；buy_signal 来自 generate_dca_strategy")
 		required = append(required, "signal")
 	case botKindSmartTrade:
 		props["strategy"] = objectProp("SmartTrade 策略配置（按用户意图填写）")
@@ -160,6 +157,42 @@ func intProp(desc string) map[string]any {
 
 func objectProp(desc string) map[string]any {
 	return map[string]any{"type": "object", "description": desc}
+}
+
+func gridParamSchema() map[string]any {
+	return map[string]any{
+		"type":        "object",
+		"description": "网格参数：upper_limit_price、lower_limit_price、grid_num（来自 generate_grid_strategy.param）",
+		"required":    []string{"upper_limit_price", "lower_limit_price", "grid_num"},
+		"properties": map[string]any{
+			"upper_limit_price": map[string]any{"type": "number"},
+			"lower_limit_price": map[string]any{"type": "number"},
+			"grid_num":          map[string]any{"type": "integer"},
+		},
+	}
+}
+
+func dcaSignalSchema(desc string) map[string]any {
+	return map[string]any{
+		"type":        "object",
+		"description": desc,
+		"required":    []string{"buy_signal"},
+		"properties": map[string]any{
+			"buy_signal": map[string]any{
+				"type":        "array",
+				"description": "来自 generate_dca_strategy.signal.buy_signal",
+				"minItems":    float64(1),
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"index": map[string]any{"type": "string"},
+						"type":  map[string]any{"type": "string"},
+						"param": map[string]any{"type": "object"},
+					},
+				},
+			},
+		},
+	}
 }
 
 func emptyObjectSchema() map[string]any {
