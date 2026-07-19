@@ -6,4 +6,6 @@ type TurnResult struct {
 	Failed        bool
 	Error         string
 	StepRecords   []StepRecord
+	// PlanPending indicates mutating tools were held for user confirmation.
+	PlanPending bool
 }

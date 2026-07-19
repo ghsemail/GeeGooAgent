@@ -408,6 +408,7 @@ func TestRunTurnApprovalCallback(t *testing.T) {
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
 	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
+	loop.SetPlanGate(false)
 	loop.SetApproval(func(toolName string, args map[string]any) bool { return true })
 	result := loop.RunTurn(context.Background(), runtime.NewSession(), "创建", tools.Context{Interactive: true}, registry.Schemas(nil))
 	if result.Failed {
@@ -438,6 +439,7 @@ func TestRunTurnApprovalDenied(t *testing.T) {
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
 	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
+	loop.SetPlanGate(false)
 	loop.SetApproval(func(toolName string, args map[string]any) bool { return false })
 	result := loop.RunTurn(context.Background(), runtime.NewSession(), "删除", tools.Context{Interactive: true}, registry.Schemas(nil))
 	if result.Failed {

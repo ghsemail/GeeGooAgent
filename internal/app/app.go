@@ -458,11 +458,15 @@ func (a *App) ToolContext(sessionID string) tools.Context {
 
 // ToolContextWithContext builds execution context for the current session.
 func (a *App) ToolContextWithContext(ctx context.Context, sessionID string) tools.Context {
-	return tools.Context{
+	tc := tools.Context{
 		Ctx: ctx, SessionID: sessionID, MCPToken: a.Config.MCPToken(), DryRun: a.Config.DryRun,
-		WorkspaceRoot: a.Workspace, EventBus: a.EventBus, StateStore: a.State,
+		WorkspaceRoot: a.Workspace, StateStore: a.State,
 		Hooks: a.Hooks,
 	}
+	if a.EventBus != nil {
+		tc.EventBus = a.EventBus
+	}
+	return tc
 }
 
 func buildHooks(h config.HooksConfig) *tools.HookRunner {

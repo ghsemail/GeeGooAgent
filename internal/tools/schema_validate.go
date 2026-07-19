@@ -65,15 +65,36 @@ func validateValue(field string, prop map[string]any, value any) error {
 			return fmt.Errorf("参数 %q 应为布尔值", field)
 		}
 	case "array":
-		if _, ok := value.([]any); !ok {
+		items, ok := value.([]any)
+		if !ok {
 			return fmt.Errorf("参数 %q 应为数组", field)
+		}
+		if min, ok := prop["minItems"].(float64); ok && float64(len(items)) < min {
+			return fmt.Errorf("参数 %q 至少需要 %d 项", field, int(min))
 		}
 	case "object":
 		if _, ok := value.(map[string]any); !ok {
 			return fmt.Errorf("参数 %q 应为对象", field)
 		}
 	}
+	if typ == "string" || typ == "" {
+		if enum := stringSlice(prop["enum"]); len(enum) > 0 {
+			s, ok := value.(string)
+			if !ok || !stringIn(enum, s) {
+				return fmt.Errorf("参数 %q 必须是 %v 之一", field, enum)
+			}
+		}
+	}
 	return nil
+}
+
+func stringIn(list []string, v string) bool {
+	for _, s := range list {
+		if s == v {
+			return true
+		}
+	}
+	return false
 }
 
 func isEmptyArg(v any) bool {

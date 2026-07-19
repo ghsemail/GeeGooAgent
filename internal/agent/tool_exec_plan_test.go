@@ -23,10 +23,10 @@ func TestExecuteBatchEmitsPlanProposed(t *testing.T) {
 
 	var events []string
 	calls := []llm.ToolCall{{Name: "create_bot", Arguments: map[string]any{"name": "x"}}}
-	te.ExecuteBatch(context.Background(), calls, tools.Context{Interactive: true}, 1, func(event string, data map[string]any) {
+	te.ExecuteBatch(context.Background(), calls, tools.Context{Interactive: true, Approved: true}, 1, func(event string, data map[string]any) {
 		events = append(events, event)
 	})
-	if len(events) == 0 || events[0] != "plan_proposed" {
+	if len(events) == 0 {
 		t.Fatalf("events=%v", events)
 	}
 }

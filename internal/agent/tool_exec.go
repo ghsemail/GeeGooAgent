@@ -67,6 +67,11 @@ func (e *ToolExec) SetPlanGate(v bool) {
 	e.planGate = v
 }
 
+// PlanGateEnabled reports whether mutating tools are held for explicit confirmation.
+func (e *ToolExec) PlanGateEnabled() bool {
+	return e != nil && e.planGate
+}
+
 // SetDelegateMaxParallel caps concurrent delegate_task invocations per LLM round.
 func (e *ToolExec) SetDelegateMaxParallel(n int) {
 	if e == nil || n <= 0 {
@@ -107,6 +112,7 @@ func (e *ToolExec) ExecuteBatch(
 		emitProgress(onProgress, "plan_proposed", map[string]any{
 			"tools": mutatingToolNames(calls),
 		})
+		// When plan gate holds at loop level, ExecuteBatch is not reached for mutating tools.
 	}
 
 	runOne := func(i int, call llm.ToolCall) {
@@ -120,6 +126,20 @@ func (e *ToolExec) ExecuteBatch(
 		tc := toolCtx
 		tc.Step = step
 		if tc.Interactive && tools.ApprovalRequired(call.Name) && !tc.Approved {
+			// Plan gate holds mutating tools at loop level; skip inline approval here.
+			if e.planGate {
+				result := tools.Result{
+					Status:  tools.StatusSkip,
+					Summary: "需要确认：" + call.Name + " 是写操作，请确认后再执行",
+					Data:    map[string]any{"tool": call.Name, "approval_required": true, "plan_gate": true},
+				}
+				emitProgress(onProgress, "tool_done", map[string]any{
+					"step": step, "name": call.Name, "status": string(result.Status),
+					"summary": result.Summary, "arguments": call.Arguments,
+				})
+				results[i] = result
+				return
+			}
 			approved := false
 			if e.approvalFn != nil {
 				approved = e.approvalFn(call.Name, call.Arguments)

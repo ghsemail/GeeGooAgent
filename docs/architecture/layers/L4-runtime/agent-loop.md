@@ -83,7 +83,7 @@ func (a *Agent) Run(
 | `tool_max_parallel` | 4 | 单轮并行 tool 上限（最大 16） |
 | `delegate_max_parallel` | 3 | `delegate_task` / `delegate_tasks` 并发上限（最大 8） |
 | `tool_timeout_sec` | 120 | 单次 tool 超时秒数（最大 600） |
-| `plan_gate` | true | 写操作前发出 `plan_proposed` 事件（与 ApprovalGate 并存） |
+| `plan_gate` | true | mutating 工具先 `plan_proposed` 挂起，用户 `y`/`确认` 后执行 |
 | `hooks.tool_before` / `tool_after` | — | 可选 shell 审计脚本（stdin JSON，`fail_closed` 可阻断） |
 | `temperature` | 0.2 | 传给 Provider |
 | `context_token_budget` | 模型相关 | 压缩阈值参考 |
@@ -129,7 +129,9 @@ geegoo chat --message "..." --output-format ndjson --cli
 geegoo verify agent-loop --config ~/.geegoo/config.json
 ```
 
-HTTP runtime：SSE 流含 `clarify` 事件；客户端 `POST /v1/chat/clarify` 提交 `{session_id, answer}` 或 `{skip:true}` 续跑。
+HTTP runtime：SSE 流含 `clarify` 事件；客户端 `POST /v1/chat/clarify` 提交 `{session_id, answer}` 或 `{skip:true}` 续跑。详见 [runtime-clarify.md](./runtime-clarify.md)。
+
+Plan 门控：mutating 工具先 `plan_proposed`，用户 `y`/`确认` 后执行挂起的 tool_calls，`n`/`取消` 放弃。
 
 压缩阈值见 `internal/prompt/compressor.go`（回合开始 85%、每轮 LLM 前 50%）。
 

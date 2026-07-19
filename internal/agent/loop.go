@@ -153,6 +153,18 @@ func (l *Loop) RunTurn(
 	})
 	messages = l.applyHygiene(ctx, session, messages)
 
+	if session.PendingPlan != nil {
+		if isPlanApproval(userText) {
+			return l.resumePendingPlan(ctx, session, &messages, toolCtx, schemas, &records)
+		}
+		if isPlanRejection(userText) {
+			result := l.cancelPendingPlan(session)
+			result.StepRecords = records
+			return result
+		}
+		session.PendingPlan = nil
+	}
+
 	for round := 0; round < l.maxToolRounds; round++ {
 		if err := ctx.Err(); err != nil {
 			return l.failTurn(ctx, session, err, records)
@@ -164,6 +176,7 @@ func (l *Loop) RunTurn(
 					"session_id": session.ID, "steps": len(result.StepRecords),
 				})
 			}
+			result.StepRecords = records
 			return result
 		}
 	}

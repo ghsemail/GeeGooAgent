@@ -29,6 +29,14 @@ type Session struct {
 	ParentID             string
 	LineageRoot          string
 	CompactionGeneration int
+	// PendingPlan holds mutating tool_calls awaiting user confirmation (plan gate).
+	PendingPlan *PendingPlan
+}
+
+// PendingPlan is a held mutating-tool batch from one LLM round.
+type PendingPlan struct {
+	Step      int
+	ToolCalls []llm.ToolCall
 }
 
 // NewSession creates a chat session with system prompt.

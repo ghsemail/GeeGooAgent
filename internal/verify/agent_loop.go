@@ -40,6 +40,7 @@ func VerifyAgentLoopParity(reg ToolLookup) []AgentLoopCard {
 		checkWorkflowExclusive(),
 		checkDelegateNesting(),
 		checkSchemaValidation(),
+		checkPlanGateHold(),
 	}
 	return checks
 }
@@ -128,4 +129,22 @@ func checkSchemaValidation() AgentLoopCard {
 		return AgentLoopCard{Name: "tool schema validation", Passed: false, Detail: res.Summary}
 	}
 	return AgentLoopCard{Name: "tool schema validation", Passed: true, Detail: "required args enforced"}
+}
+
+func checkPlanGateHold() AgentLoopCard {
+	reg := tools.NewRegistry()
+	reg.Register(tools.Tool{
+		Name: "create_test_bot",
+		Handle: func(ctx tools.Context, args map[string]any) tools.Result {
+			if !ctx.Approved {
+				return tools.Result{Status: tools.StatusError, Summary: "should not run unapproved"}
+			}
+			return tools.Result{Status: tools.StatusOK, Summary: "ok"}
+		},
+	})
+	// Plan gate is enforced in agent.Loop; offline card only checks mutating prefix list.
+	if !tools.ApprovalRequired("create_test_bot") {
+		return AgentLoopCard{Name: "plan gate mutating list", Passed: false, Detail: "create_* not mutating"}
+	}
+	return AgentLoopCard{Name: "plan gate mutating list", Passed: true, Detail: "create_/update_/delete_ gated"}
 }

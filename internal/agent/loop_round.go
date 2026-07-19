@@ -68,7 +68,11 @@ func (l *Loop) runRound(
 	}
 
 	l.emitStepComplete(step, round, true, toolNames)
-	return false, l.applyToolRound(ctx, session, messages, toolCtx, resp, step, toolNames, records)
+	result := l.applyToolRound(ctx, session, messages, toolCtx, resp, step, toolNames, records)
+	if result.PlanPending {
+		return true, result
+	}
+	return false, result
 }
 
 func (l *Loop) callLLM(
@@ -143,23 +147,31 @@ func (l *Loop) applyToolRound(
 	session.AppendMessage(assistant)
 	*messages = append(*messages, assistant)
 
-	toolResults := l.executeToolCalls(ctx, resp.ToolCalls, toolCtx, step)
-	for i, call := range resp.ToolCalls {
-		result := toolResults[i]
-		summary := result.Summary
-		if len(summary) > 300 {
-			summary = summary[:300]
-		}
-		*records = append(*records, runtime.StepRecord{
-			Step: step, Timestamp: time.Now().UTC(), Kind: "tool",
-			ToolName: call.Name, ToolStatus: string(result.Status), Summary: summary,
-		})
+	mutating, readonly := partitionToolCalls(resp.ToolCalls)
+	planGate := l.tools != nil && l.tools.PlanGateEnabled()
 
-		toolMsg := llm.Message{
-			Role: llm.RoleTool, Content: toolResultContent(result), ToolCallID: call.ID,
+	if len(readonly) > 0 {
+		readonlyResults := l.executeToolCalls(ctx, readonly, toolCtx, step)
+		appendToolResults(session, messages, readonly, readonlyResults, step, records)
+	}
+
+	if shouldHoldPlan(planGate, toolCtx, mutating) {
+		l.emit("plan_proposed", planProposedPayload(mutating))
+		session.PendingPlan = &runtime.PendingPlan{Step: step, ToolCalls: append([]llm.ToolCall(nil), mutating...)}
+		text := planHoldSummary(resp, mutating)
+		*records = append(*records, runtime.StepRecord{
+			Step: step, Timestamp: time.Now().UTC(), Kind: "plan_hold", Summary: text,
+		})
+		return runtime.TurnResult{
+			AssistantText: text,
+			PlanPending:   true,
+			StepRecords:   *records,
 		}
-		session.AppendMessage(toolMsg)
-		*messages = append(*messages, toolMsg)
+	}
+
+	if len(mutating) > 0 {
+		mutResults := l.executeToolCalls(ctx, mutating, toolCtx, step)
+		appendToolResults(session, messages, mutating, mutResults, step, records)
 	}
 	return runtime.TurnResult{}
 }

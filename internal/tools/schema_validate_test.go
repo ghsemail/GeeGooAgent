@@ -40,6 +40,32 @@ func TestValidateArgumentsTypes(t *testing.T) {
 	}
 }
 
+func TestValidateArgumentsEnum(t *testing.T) {
+	t.Parallel()
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"market": map[string]any{"type": "string", "enum": []any{"US", "HK", "CN"}},
+		},
+	}
+	if err := tools.ValidateArguments(schema, map[string]any{"market": "XX"}); err == nil {
+		t.Fatal("expected enum error")
+	}
+}
+
+func TestValidateArgumentsMinItems(t *testing.T) {
+	t.Parallel()
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"tasks": map[string]any{"type": "array", "minItems": float64(1)},
+		},
+	}
+	if err := tools.ValidateArguments(schema, map[string]any{"tasks": []any{}}); err == nil {
+		t.Fatal("expected minItems error")
+	}
+}
+
 func TestRegistryRejectsInvalidArgs(t *testing.T) {
 	t.Parallel()
 	r := tools.NewRegistry()
