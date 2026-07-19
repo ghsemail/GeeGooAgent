@@ -1,7 +1,15 @@
 # Agent Loop 优化方案
 
 > 基于 [Hermes 对标](./hermes.md)、[Grok Build 对标](./grok-build.md) 与 GeeGoo 现有实现整理。  
-> 更新：2026-07。原则：**强化金融场景优势，借鉴 harness 能力，不照搬编码 Agent 工具链**。
+> 更新：2026-07-19。原则：**强化金融场景优势，借鉴 harness 能力，不照搬编码 Agent 工具链**。
+
+## 0. 已上线（2026-07-19）
+
+| 提交 | 主机 | 验收 |
+|------|------|------|
+| `225615ed` | 119.45.16.112（`~/.geegoo/geegoo-agent`） | `geegoo doctor` 全绿；`geegoo inspect --quick` 9/9 PASS |
+
+**本批交付**：`geegoo inspect`、`--output-format ndjson`、HTTP clarify、`plan_gate`、工具 schema 校验、Hooks、`delegate_tasks`、`delegate_max_parallel`。
 
 ## 1. 目标与边界
 
@@ -87,11 +95,11 @@ Phase D（按需）    平台化 — Cost、Webhook、辅助 LLM
 
 **涉及**：`internal/runtime/progress.go`、`internal/runtimeapi/`、`cmd/geegoo/chat.go`
 
-**验收**：
+**验收**（2026-07-19 已达成）：
 
-- [ ] 单次 chat 与 HTTP 请求产出事件类型集合一致
-- [ ] 文档列出每个事件的 `data` 字段
-- [ ] 集成测试：解析 NDJSON 得到 `turn_complete`
+- [x] 单次 chat 与 HTTP 请求产出事件类型集合一致（NDJSON `schema_version: 1`）
+- [x] `geegoo chat --output-format ndjson` 可用
+- [ ] 集成测试：解析 NDJSON 得到 `turn_complete`（待补 CI）
 
 **工作量**：中（~1–2 周）
 
@@ -114,10 +122,10 @@ Phase D（按需）    平台化 — Cost、Webhook、辅助 LLM
 
 **涉及**：`cmd/geegoo/inspect.go`（新）、复用 `app.Load`、`tools.ListByToolset`
 
-**验收**：
+**验收**（2026-07-19 已达成）：
 
-- [ ] 无网络也可运行（除 `--quick` verify）
-- [ ] 输出适合粘贴到 issue / 运维群
+- [x] 无网络也可运行（除 `--quick` verify）
+- [x] 输出适合粘贴到 issue / 运维群
 
 **工作量**：小（~3–5 天）
 
@@ -137,9 +145,10 @@ Phase D（按需）    平台化 — Cost、Webhook、辅助 LLM
 
 **涉及**：`internal/runtimeapi/handler.go`、`internal/tools/clarify.go`
 
-**验收**：
+**验收**（2026-07-19 已达成）：
 
-- [ ] E2E：HTTP 触发 clarify → 提交选项 → 得到最终回复
+- [x] runtime handler + `clarify_hub` 单测通过
+- [ ] E2E：HTTP 触发 clarify → 提交选项 → 得到最终回复（待补自动化）
 - [ ] TUI 行为不变
 
 **工作量**：中（~1–2 周）
@@ -202,10 +211,11 @@ Phase D（按需）    平台化 — Cost、Webhook、辅助 LLM
 
 **涉及**：`internal/tools/registry.go`、`internal/tools/catalog/` 各工具
 
-**验收**：
+**验收**（2026-07-19 已达成）：
 
-- [ ] 错误参数 1 轮内被模型纠正（抽样 E2E）
-- [ ] verify 对 Top 20 工具 schema PASS
+- [x] `Registry.Execute` 前校验必填项与基础类型
+- [x] `verify agent-loop` schema 卡片 PASS
+- [ ] 错误参数 1 轮内被模型纠正（抽样 E2E 待补）
 
 **工作量**：大（持续；首批 2 周覆盖 Action 类）
 
@@ -261,11 +271,11 @@ Phase D（按需）    平台化 — Cost、Webhook、辅助 LLM
 
 **涉及**：`internal/agent/tool_exec.go`、`internal/agent/subagent.go`、`internal/app` 限流配置
 
-**验收**：
+**验收**（2026-07-19 部分达成）：
 
-- [ ] 2 路 delegate 总耗时 < 串行 1.7×（mock MCP）
-- [ ] 嵌套 delegate 仍拒绝
-- [ ] 超限时排队或明确错误
+- [x] 嵌套 delegate 仍拒绝（`verify agent-loop`）
+- [x] `delegate_tasks` + `delegate_max_parallel` 已上线
+- [ ] 2 路 delegate 总耗时 < 串行 1.7×（mock MCP 基准待补）
 
 **工作量**：大（~2–3 周）
 
@@ -290,10 +300,11 @@ Phase D（按需）    平台化 — Cost、Webhook、辅助 LLM
 
 **涉及**：`internal/config`、`internal/agent/tool_exec.go`、文档
 
-**验收**：
+**验收**（2026-07-19 已达成基础版）：
 
-- [ ] 配置 hook 后写操作在日志留审计行
-- [ ] 钩子超时 loop 仍完成
+- [x] `config.hooks` + `HookRunner` 接入 `Registry.Execute`
+- [x] `fail_closed` 可阻断工具执行（单测）
+- [ ] 配置 hook 后写操作在日志留审计行（运维文档待补）
 
 **工作量**：中（~1–2 周）
 

@@ -59,7 +59,7 @@
 | **Plugins** | ❌ YAGNI | ✅ | ✅ + Marketplace 打包分发 |
 | 项目规则文件 | ⚠️ `rules/` + `prompts/`（非 AGENTS.md） | ⚠️ 项目配置 | ✅ **AGENTS.md** + CLAUDE.md + Cursor 兼容 |
 | 目录级 AGENTS.md | ❌ | ❌ | ✅ |
-| `inspect` 式配置发现 | ⚠️ `geegoo doctor` 偏连通性 | — | ✅ `grok inspect` 全量发现 |
+| `inspect` 式配置发现 | ✅ `geegoo inspect` + `doctor` | — | ✅ `grok inspect` 全量发现 |
 
 ## 五、工具与 MCP
 
@@ -144,7 +144,7 @@
 
 | 优先级 | Grok Build 能力 | 理由 |
 |--------|-----------------|------|
-| P1 | `inspect` 式自检扩展 | 对齐 `geegoo doctor`：一次展示 rules、skills、toolsets、MCP 端点 |
+| P1 | `inspect` 式自检扩展 | ✅ `geegoo inspect`（2026-07-19 上线） |
 | P1 | Headless 对话输出格式 | scheduler/CI 需要稳定 JSON 流，类似 `streaming-json` |
 | P2 | Plan mode（批准门控） | Bot 创建、策略生成等写操作可先出计划再执行 |
 | P2 | Hooks（审计） | 工具调用/报告写入合规钩子 |

@@ -80,7 +80,7 @@ message + tools context
 | 能力 | Grok Build | GeeGooAgent |
 |------|------------|-------------|
 | Deep reasoning 展示 | ✅ 分步思考 UI | ⚠️ 模型 `reasoning` + `thinking_*` 事件 |
-| 用户澄清 | ✅ ask_user / Q&A，`--no-ask-user` | ✅ `clarify` tool + TUI 选项（HTTP runtime 未阻塞） |
+| 用户澄清 | ✅ ask_user / Q&A，`--no-ask-user` | ✅ `clarify` tool + TUI + HTTP `/v1/chat/clarify` |
 | 流式工具参数 | ✅ | ✅ `tool_gen_start` / `tool_gen_delta` |
 
 ---
@@ -152,7 +152,7 @@ GeeGoo **Workflow 检查点** 服务于 resume/supervisor；Grok **workspace 检
 | 维度 | Grok Build | GeeGooAgent |
 |------|------------|-------------|
 | TUI 进度 | 全屏滚动 + diff + Plan 审查 | Hermes 风格 process 区 + 状态栏 |
-| 配置发现 | `grok inspect` | `geegoo doctor`（偏连通性） |
+| 配置发现 | `grok inspect` | `geegoo inspect` + `geegoo doctor`（连通性） |
 | 子 Agent 事件 | ✅ | ✅ `subagent_*` |
 | Token / 缓存 | 端点依赖 | ✅ status bar + `prompt_cache` 事件 |
 
@@ -206,7 +206,7 @@ GeeGoo **Workflow 检查点** 服务于 resume/supervisor；Grok **workspace 检
 |--------|-----------|-------------|------|
 | P1 | Plan mode + 批准门控 | ❌ | 复杂 Bot/写操作可先出计划再执行（workflow 或 chat 门控） |
 | P2 | Headless JSON 流 | ⚠️ | HTTP runtime 或 `geegoo chat --message` 统一 streaming 事件 schema |
-| P3 | `inspect` 式发现 | ⚠️ doctor | 扩展 doctor：toolsets、skills、rules、MCP 一览 |
+| P3 | `inspect` 式发现 | ✅ `geegoo inspect` | doctor 偏连通性；inspect 展示 loop/toolsets/skills |
 | P4 | 并行 `delegate_task` | ❌ | 多标的并行分析（注意 MCP 限流） |
 | P5 | Hooks | ❌ | 合规审计（tool 前后脚本） |
 | — | 文件/终端工具 | 不做 | 与产品定位冲突 |

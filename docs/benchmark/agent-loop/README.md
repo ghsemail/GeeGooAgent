@@ -1,5 +1,7 @@
 # Agent Loop 对标
 
+> **部署记录**：2026-07-19，`225615ed` 已上线 GeeGooAgent 节点（119.45.16.112）。`geegoo doctor` 全绿；`geegoo inspect --quick` 9/9 PASS。
+
 本目录聚焦 **Agent Loop**（单轮或多轮「观察 → 规划 → 行动 → 更新」循环）的实现差异，不覆盖 IM 网关、盘前 Workflow、TUI 皮肤等外围能力。
 
 | 文档 | 对比轴 | 说明 |
@@ -35,8 +37,12 @@
 | 单轮迭代 | `internal/agent/loop_round.go` |
 | 预算耗尽 | `internal/agent/loop_budget.go` |
 | 上下文压缩 | `internal/agent/loop_compress.go` + `internal/prompt/compressor.go` |
-| 子 Agent | `internal/agent/subagent.go` + `delegate_tool.go` |
-| Chat 工具拦截 | `internal/agent/tool_intercept.go` |
+| 子 Agent | `internal/agent/subagent.go` + `delegate_tool.go`（`delegate_task` / `delegate_tasks`） |
+| 工具 schema | `internal/tools/schema_validate.go` |
+| Hooks | `internal/tools/hooks.go` |
+| Loop 自检 | `cmd/geegoo/inspect.go` → `internal/inspect/report.go` |
+| NDJSON 事件 | `internal/runtime/agent_events.go` |
+| HTTP clarify | `internal/runtimeapi/clarify_hub.go` |
 | 离线验收 | `geegoo verify agent-loop` → `internal/verify/agent_loop.go` |
 
 ## 外部参考
