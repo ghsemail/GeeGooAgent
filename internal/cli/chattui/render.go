@@ -202,6 +202,6 @@ func renderSectionHeader(b Block, cfg config.DisplayConfig) string {
 	)
 }
 
-func renderInputLine(ti textinput.Model, width int) string {
-	return chatui.RenderInputChrome(ti.View(), width)
+func renderInputLine(ti textinput.Model, model string, width int) string {
+	return chatui.RenderInputChrome(ti.View(), model, width)
 }
