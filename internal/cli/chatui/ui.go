@@ -11,6 +11,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
 
+	"github.com/mattn/go-runewidth"
+
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
@@ -120,11 +122,12 @@ func RenderRule(width int) string {
 func RenderAgentHeader(width int) string {
 	prefix := agentTitle + " "
 	w := terminalWidth(width)
-	lineLen := w - lipgloss.Width(prefix)
+	prefixW := runewidth.StringWidth(prefix)
+	lineLen := w - prefixW
 	if lineLen < 8 {
 		lineLen = 8
 	}
-	return styleGold.Render(prefix + strings.Repeat("─", lineLen))
+	return styleBrand.Render(prefix + strings.Repeat("─", lineLen))
 }
 
 // RenderSoftDivider is a short inset line between thinking, tools, and reply within one turn.
@@ -273,12 +276,12 @@ func RenderBanner(opts BannerOptions, width int, plain bool) string {
 	}
 	var b strings.Builder
 	b.WriteByte('\n')
-	if width >= 95 {
-		b.WriteString(renderWideLogo())
+	if shouldShowWideLogo(width) {
+		b.WriteString(renderWideLogoForWidth(width))
 		b.WriteByte('\n')
 		b.WriteByte('\n')
 	}
-	left := buildBannerLeft(opts, width < 95)
+	left := buildBannerLeft(opts, !shouldShowWideLogo(width))
 	right := buildBannerRight(opts)
 	cols := lipgloss.JoinHorizontal(lipgloss.Top,
 		lipgloss.NewStyle().Padding(0, 2).Align(lipgloss.Center).Render(left),

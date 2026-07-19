@@ -686,13 +686,35 @@ func (m Model) footerLineCount() int {
 
 func (m *Model) refreshViewport() {
 	content := m.renderTranscript()
+	scrollTop := m.shouldAnchorTranscriptTop()
 	if m.scrollFollow {
 		content = chatui.AnchorContentBottomKeepingPrefix(m.banner, content, m.vp.Height)
 	}
 	m.vp.SetContent(content)
 	if m.scrollFollow {
-		m.vp.GotoBottom()
+		if scrollTop {
+			m.vp.GotoTop()
+		} else {
+			m.vp.GotoBottom()
+		}
 	}
+}
+
+// shouldAnchorTranscriptTop keeps the welcome banner (incl. block logo) visible at startup.
+func (m *Model) shouldAnchorTranscriptTop() bool {
+	if m.banner == "" {
+		return false
+	}
+	s := m.activeSlot()
+	if s == nil {
+		return true
+	}
+	for _, block := range s.Blocks {
+		if block.Kind == KindUser {
+			return false
+		}
+	}
+	return true
 }
 
 func (m Model) View() string {
