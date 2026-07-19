@@ -25,7 +25,7 @@ func TestFixedWelcomeBannerLayout(t *testing.T) {
 		t.Fatal("expected fixed banner lines")
 	}
 	if m.vp.Height != 40-m.footerLineCount()-bannerLines {
-		t.Fatalf("vp height=%d want %d", m.vp.Height, 40-m.footerLineCount()-bannerLines)
+		t.Fatalf("vp height=%d want %d (bannerLines=%d incl top pad)", m.vp.Height, 40-m.footerLineCount()-bannerLines, bannerLines)
 	}
 	m.refreshViewport()
 	if strings.Contains(m.renderTranscript(), "Welcome to GeeGoo Agent") {

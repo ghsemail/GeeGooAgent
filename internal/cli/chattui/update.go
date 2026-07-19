@@ -710,6 +710,7 @@ func (m Model) View() string {
 
 	var b strings.Builder
 	if m.canFixWelcomeBanner() {
+		b.WriteString(welcomeBannerTopPadding())
 		b.WriteString(m.banner)
 	}
 	b.WriteString(m.vp.View())

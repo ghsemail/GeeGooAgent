@@ -66,6 +66,7 @@ func (m *Model) renderTranscript() string {
 	showBanner := m.showWelcomeBanner() && !m.canFixWelcomeBanner()
 	s := m.activeSlot()
 	if showBanner {
+		b.WriteString(welcomeBannerTopPadding())
 		b.WriteString(m.banner)
 	}
 	if s == nil {

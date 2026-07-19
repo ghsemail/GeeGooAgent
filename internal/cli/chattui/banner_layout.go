@@ -2,7 +2,10 @@ package chattui
 
 import "strings"
 
-const minViewportHeight = 4
+const (
+	minViewportHeight     = 4
+	welcomeBannerTopPad   = 2 // blank lines so block logo is not clipped at terminal top
+)
 
 func lineCount(s string) int {
 	if s == "" {
@@ -28,6 +31,10 @@ func (m *Model) showWelcomeBanner() bool {
 	return true
 }
 
+func welcomeBannerTopPadding() string {
+	return strings.Repeat("\n", welcomeBannerTopPad)
+}
+
 // canFixWelcomeBanner reports whether the banner fits above the scrollable viewport.
 func (m Model) canFixWelcomeBanner() bool {
 	if !m.showWelcomeBanner() {
@@ -37,12 +44,12 @@ func (m Model) canFixWelcomeBanner() bool {
 		return true
 	}
 	footer := m.footerLineCount()
-	return lineCount(m.banner) <= m.height-footer-minViewportHeight
+	return welcomeBannerTopPad+lineCount(m.banner) <= m.height-footer-minViewportHeight
 }
 
 func (m Model) fixedWelcomeBannerLines() int {
 	if !m.canFixWelcomeBanner() {
 		return 0
 	}
-	return lineCount(m.banner)
+	return welcomeBannerTopPad + lineCount(m.banner)
 }
