@@ -658,9 +658,10 @@ func (m *Model) showSlashOutput(output string) {
 }
 
 func (m *Model) layoutViewport() {
-	h := m.height - m.footerLineCount()
-	if h < 8 {
-		h = 8
+	footer := m.footerLineCount()
+	h := m.height - footer - m.fixedWelcomeBannerLines()
+	if h < minViewportHeight {
+		h = minViewportHeight
 	}
 	w := m.width
 	if w < 20 {
@@ -685,36 +686,19 @@ func (m Model) footerLineCount() int {
 }
 
 func (m *Model) refreshViewport() {
+	m.layoutViewport()
 	content := m.renderTranscript()
-	welcome := m.shouldAnchorTranscriptTop()
-	if m.scrollFollow && !welcome {
+	if m.scrollFollow && !m.showWelcomeBanner() {
 		content = chatui.AnchorContentBottomKeepingPrefix(m.banner, content, m.vp.Height)
 	}
 	m.vp.SetContent(content)
 	if m.scrollFollow {
-		if welcome {
+		if m.showWelcomeBanner() {
 			m.vp.YOffset = 0
 		} else {
 			m.vp.GotoBottom()
 		}
 	}
-}
-
-// shouldAnchorTranscriptTop keeps the welcome banner (incl. block logo) visible at startup.
-func (m *Model) shouldAnchorTranscriptTop() bool {
-	if m.banner == "" {
-		return false
-	}
-	s := m.activeSlot()
-	if s == nil {
-		return true
-	}
-	for _, block := range s.Blocks {
-		if block.Kind == KindUser {
-			return false
-		}
-	}
-	return true
 }
 
 func (m Model) View() string {
@@ -725,6 +709,9 @@ func (m Model) View() string {
 	}
 
 	var b strings.Builder
+	if m.canFixWelcomeBanner() {
+		b.WriteString(m.banner)
+	}
 	b.WriteString(m.vp.View())
 	b.WriteByte('\n')
 

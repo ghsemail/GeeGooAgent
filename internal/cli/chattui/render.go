@@ -63,16 +63,8 @@ func (m *Model) renderTranscript() string {
 		width = 80
 	}
 	var b strings.Builder
-	showBanner := m.banner != ""
+	showBanner := m.showWelcomeBanner() && !m.canFixWelcomeBanner()
 	s := m.activeSlot()
-	if s != nil {
-		for _, block := range s.Blocks {
-			if block.Kind == KindUser {
-				showBanner = false
-				break
-			}
-		}
-	}
 	if showBanner {
 		b.WriteString(m.banner)
 	}
@@ -82,9 +74,6 @@ func (m *Model) renderTranscript() string {
 
 	hasSegment := showBanner && m.banner != ""
 	prev := segmentNone
-	if showBanner && m.banner != "" {
-		prev = segmentProcess
-	}
 	for i := 0; i < len(s.Blocks); i++ {
 		block := s.Blocks[i]
 		if !block.IsVisible(m.display) {
