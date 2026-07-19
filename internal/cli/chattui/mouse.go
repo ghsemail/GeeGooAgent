@@ -38,9 +38,12 @@ func CycleMouseMode(mode string) string {
 	}
 }
 
-// ProgramOptions builds tea.ProgramOption list from display mouse setting.
-func ProgramOptions(mouseMode string) []tea.ProgramOption {
-	opts := []tea.ProgramOption{tea.WithAltScreen()}
+// ProgramOptions builds tea.ProgramOption list from display mouse and alt-screen settings.
+func ProgramOptions(mouseMode string, altScreen bool) []tea.ProgramOption {
+	var opts []tea.ProgramOption
+	if altScreen {
+		opts = append(opts, tea.WithAltScreen())
+	}
 	switch NormalizeMouseMode(mouseMode) {
 	case "off":
 		// no mouse

@@ -106,6 +106,57 @@ func TestNormalizeAssistantLayout_InlineH3Sections(t *testing.T) {
 	}
 }
 
+func TestPreprocessTerminalMarkdown_GluedTableRows(t *testing.T) {
+	in := `## 📌 DCA提醒机器人（6个）|#|名称|代码|频率|买入信号|状态||
+||1|黄金ETF提醒器|518880.SH|60m|-|✅开启||2|中国船舶提醒机器人|600150.SH|60m|-|✅开启||3|中航沈飞提醒机器人|600760.SH|60m|-|✅开启|`
+	out := PreprocessTerminalMarkdown(in)
+	if strings.Contains(out, "||") {
+		t.Fatalf("glued pipes should be removed: %q", out)
+	}
+	if !strings.Contains(out, "## 📌 DCA提醒机器人（6个）") {
+		t.Fatalf("missing section title: %q", out)
+	}
+	if !strings.Contains(out, "**1. 黄金ETF提醒器**") {
+		t.Fatalf("missing first card: %q", out)
+	}
+	if !strings.Contains(out, "**2. 中国船舶提醒机器人**") {
+		t.Fatalf("missing second card: %q", out)
+	}
+	if !strings.Contains(out, "**3. 中航沈飞提醒机器人**") {
+		t.Fatalf("missing third card: %q", out)
+	}
+	if !strings.Contains(out, "频率：60m") {
+		t.Fatalf("missing field line: %q", out)
+	}
+}
+
+func TestPreprocessTerminalMarkdown_GluedTableWithSectionBreak(t *testing.T) {
+	in := `||1|五粮液提醒机器人|000858.SZ|120-180|10|-5%|✅开启||## 📌 Smart提醒机器人（1个）||1|腾讯控股提醒机器人|00700.HK|daily|-|✅开启|`
+	out := PreprocessTerminalMarkdown(in)
+	if strings.Contains(out, "||") {
+		t.Fatalf("glued pipes should be removed: %q", out)
+	}
+	if !strings.Contains(out, "## 📌 Smart提醒机器人（1个）") {
+		t.Fatalf("missing glued section header: %q", out)
+	}
+	if !strings.Contains(out, "**1. 五粮液提醒机器人**") {
+		t.Fatalf("missing grid card: %q", out)
+	}
+	if !strings.Contains(out, "**1. 腾讯控股提醒机器人**") {
+		t.Fatalf("missing smart card: %q", out)
+	}
+}
+
+func TestExpandGluedPipeRows_SectionHeader(t *testing.T) {
+	got := expandGluedPipeRows("||1|foo|bar|baz||## Title||2|qux|qaz|wsx|")
+	if len(got) != 3 {
+		t.Fatalf("want 3 rows, got %d: %q", len(got), got)
+	}
+	if got[1] != "## Title" {
+		t.Fatalf("middle should be section header: %q", got[1])
+	}
+}
+
 func TestHardWrapLine_Chinese(t *testing.T) {
 	in := "这是一段很长的中文说明文字用于测试在终端里是否会强制折行显示而不是挤成一行"
 	out := WrapPlain(in, 20)

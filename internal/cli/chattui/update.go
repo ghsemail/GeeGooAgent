@@ -531,7 +531,7 @@ func (m Model) handleSlash(text string) (tea.Model, tea.Cmd) {
 		} else {
 			m.display.MouseTracking = NormalizeMouseMode(mode)
 		}
-		m.info = "mouse=" + m.display.MouseTracking + "（下次启动或重启 chat 生效完整 tracking）"
+		m.info = "mouse=" + m.display.MouseTracking + "（off=可选中文字 wheel=滚轮滚动；重启 chat 生效）"
 		cp := m.configPath
 		disp := m.display
 		return m, func() tea.Msg {

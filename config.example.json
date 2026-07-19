@@ -79,7 +79,7 @@
       "tools": "",
       "activity": "hidden"
     },
-    "mouse_tracking": "wheel",
+    "mouse_tracking": "off",
     "status_indicator": "emoji",
     "show_reasoning": true
   }

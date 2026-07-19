@@ -81,3 +81,23 @@ func TestStreamReplyOn(t *testing.T) {
 		t.Fatal("expected on")
 	}
 }
+
+func TestMouseTrackingDefaultOff(t *testing.T) {
+	d := DisplayConfig{}
+	d.Normalize()
+	if d.MouseTracking != "off" {
+		t.Fatalf("mouse_tracking=%q want off", d.MouseTracking)
+	}
+}
+
+func TestAltScreenDefaultOn(t *testing.T) {
+	d := DisplayConfig{}
+	if !d.AltScreenEnabled() {
+		t.Fatal("alt_screen should default on")
+	}
+	off := false
+	d.AltScreen = &off
+	if d.AltScreenEnabled() {
+		t.Fatal("alt_screen should be off when set")
+	}
+}

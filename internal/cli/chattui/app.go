@@ -110,7 +110,7 @@ func Run(opts RunOpts) int {
 	model.rebuildBanner()
 	model.refreshViewport()
 	model.configPath = opts.ConfigPath
-	program = tea.NewProgram(model, ProgramOptions(display.MouseTracking)...)
+	program = tea.NewProgram(model, ProgramOptions(display.MouseTracking, display.AltScreenEnabled())...)
 	// Re-bind sink program pointer (created before program existed)
 	if sink, ok := first.Repl.Progress.(*programSink); ok {
 		sink.program = program

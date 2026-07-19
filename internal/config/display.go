@@ -27,7 +27,8 @@ type DisplayConfig struct {
 	Interface       string          `json:"interface,omitempty"` // tui | cli
 	DetailsMode     string          `json:"details_mode,omitempty"`
 	Sections        DisplaySections `json:"sections,omitempty"`
-	MouseTracking   string          `json:"mouse_tracking,omitempty"`
+	MouseTracking   string          `json:"mouse_tracking,omitempty"` // off|wheel|buttons|all — off allows mouse text selection
+	AltScreen       *bool           `json:"alt_screen,omitempty"`     // default true; false uses main buffer (scrollback + select)
 	StatusIndicator string          `json:"status_indicator,omitempty"`
 	ShowReasoning   *bool           `json:"show_reasoning,omitempty"`
 	StreamReply     *bool           `json:"stream_reply,omitempty"`  // default false: wait for full reply then render
@@ -53,7 +54,7 @@ func (d *DisplayConfig) Normalize() {
 	}
 	d.MouseTracking = strings.ToLower(strings.TrimSpace(d.MouseTracking))
 	if d.MouseTracking == "" {
-		d.MouseTracking = "wheel"
+		d.MouseTracking = "off"
 	}
 	d.StatusIndicator = strings.ToLower(strings.TrimSpace(d.StatusIndicator))
 	if d.StatusIndicator == "" {
@@ -79,6 +80,15 @@ func (d DisplayConfig) StreamReplyEnabled() bool {
 func (d DisplayConfig) ReplyMarkdownEnabled() bool {
 	d.Normalize()
 	return d.ReplyFormat == ReplyFormatMarkdown
+}
+
+// AltScreenEnabled reports whether the TUI uses the terminal alternate screen buffer.
+func (d DisplayConfig) AltScreenEnabled() bool {
+	d.Normalize()
+	if d.AltScreen == nil {
+		return true
+	}
+	return *d.AltScreen
 }
 
 func normalizeMode(s, fallback string) string {

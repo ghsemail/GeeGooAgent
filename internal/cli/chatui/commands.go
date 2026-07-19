@@ -38,7 +38,7 @@ func BuildHelpText() string {
   /reply markdown    Markdown 排版（glamour，默认）
   /reply plain       纯文本排版
   /sessions          TUI：切换/新建 live session（Ctrl+X）
-  /mouse             TUI：鼠标 tracking（off|wheel|buttons|all）
+  /mouse             TUI：鼠标 tracking（off=可选中文字 wheel=滚轮滚动）
 `
 }
 

@@ -112,12 +112,98 @@ func breakInlinePipeFields(text string) string {
 
 // PreprocessTerminalMarkdown adapts assistant markdown for narrow terminals.
 func PreprocessTerminalMarkdown(text string) string {
+	text = normalizeGluedMarkdownTables(text)
 	text = NormalizeAssistantLayout(text)
 	text = ensureListSpacing(text)
 	if strings.Contains(text, "|") {
 		text = convertMarkdownTables(text)
 	}
 	return tightenParagraphSpacing(text)
+}
+
+// normalizeGluedMarkdownTables splits model-glued table rows (||) and inline headers
+// such as "## 标题|#|名称|代码||1|foo|..." before card conversion.
+func normalizeGluedMarkdownTables(text string) string {
+	var out []string
+	for _, line := range strings.Split(text, "\n") {
+		out = append(out, expandGluedTableLine(line)...)
+	}
+	return strings.Join(out, "\n")
+}
+
+func expandGluedTableLine(line string) []string {
+	trim := strings.TrimSpace(line)
+	if trim == "" {
+		return []string{line}
+	}
+	if !looksLikeGluedTableLine(trim) {
+		return []string{line}
+	}
+	if idx := findInlineTableHeaderStart(trim); idx > 0 {
+		prefix := strings.TrimSpace(trim[:idx])
+		suffix := strings.TrimSpace(trim[idx:])
+		var rows []string
+		if prefix != "" {
+			rows = append(rows, prefix)
+		}
+		rows = append(rows, expandGluedPipeRows(suffix)...)
+		return rows
+	}
+	if strings.Contains(trim, "||") {
+		return expandGluedPipeRows(trim)
+	}
+	return []string{line}
+}
+
+func looksLikeGluedTableLine(line string) bool {
+	if strings.Contains(line, "||") && strings.Count(line, "|") >= 3 {
+		return true
+	}
+	return findInlineTableHeaderStart(line) > 0
+}
+
+func findInlineTableHeaderStart(line string) int {
+	best := -1
+	for _, marker := range []string{"|#|", "| # |", "|序号|"} {
+		if i := strings.Index(line, marker); i > 0 {
+			if best < 0 || i < best {
+				best = i
+			}
+		}
+	}
+	return best
+}
+
+func expandGluedPipeRows(s string) []string {
+	parts := strings.Split(s, "||")
+	var out []string
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if strings.HasPrefix(part, "#") {
+			out = append(out, part)
+			continue
+		}
+		if strings.Count(part, "|") < 2 {
+			out = append(out, part)
+			continue
+		}
+		out = append(out, normalizeTableRowLine(part))
+	}
+	return out
+}
+
+func normalizeTableRowLine(part string) string {
+	part = strings.TrimSpace(part)
+	if !strings.HasPrefix(part, "|") {
+		part = "|" + part
+	}
+	if !strings.HasSuffix(part, "|") {
+		part += "|"
+	}
+	return part
 }
 
 func ensureListSpacing(text string) string {
@@ -236,16 +322,22 @@ func isTableSeparator(line string) bool {
 }
 
 func formatTableBlock(tableLines []string) string {
-	if len(tableLines) < 2 {
+	if len(tableLines) == 0 {
 		return ""
 	}
-	headers := parseTableRow(tableLines[0])
-	if headers == nil {
+	first := parseTableRow(tableLines[0])
+	if first == nil {
 		return ""
 	}
+	headers := first
 	start := 1
-	if start < len(tableLines) && isTableSeparator(tableLines[start]) {
-		start++
+	if isLikelyTableHeader(first) {
+		if start < len(tableLines) && isTableSeparator(tableLines[start]) {
+			start++
+		}
+	} else {
+		headers = defaultTableHeaders(len(first))
+		start = 0
 	}
 	var rows [][]string
 	for _, line := range tableLines[start:] {
@@ -264,6 +356,37 @@ func formatTableBlock(tableLines []string) string {
 		b.WriteString(formatTableRowCard(i+1, headers, row))
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+func isLikelyTableHeader(cells []string) bool {
+	if len(cells) == 0 {
+		return false
+	}
+	h := strings.TrimSpace(strings.ToLower(cells[0]))
+	switch h {
+	case "#", "序号", "no", "no.":
+		return true
+	}
+	if strings.Contains(cells[0], "名称") || strings.Contains(strings.ToLower(cells[0]), "name") {
+		return true
+	}
+	return !isNumericIndex(cells[0])
+}
+
+func defaultTableHeaders(n int) []string {
+	defaults := []string{"#", "名称", "代码", "频率", "买入信号", "状态", "网格区间", "档数", "盈亏"}
+	if n <= len(defaults) {
+		return defaults[:n]
+	}
+	out := make([]string, n)
+	for i := range out {
+		if i < len(defaults) {
+			out[i] = defaults[i]
+		} else {
+			out[i] = fmt.Sprintf("字段%d", i+1)
+		}
+	}
+	return out
 }
 
 func formatTableRowCard(fallbackNum int, headers, cells []string) string {
