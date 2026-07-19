@@ -130,6 +130,7 @@ type AppConfig struct {
 	ChatToolsets     []string          `json:"chat_toolsets,omitempty"`
 	PlanGate         *bool             `json:"plan_gate,omitempty"`
 	DelegateMaxParallel int            `json:"delegate_max_parallel,omitempty"`
+	MCPMaxParallel      int            `json:"mcp_max_parallel,omitempty"`
 	Hooks            HooksConfig       `json:"hooks,omitempty"`
 	Display          DisplayConfig     `json:"display,omitempty"`
 	ActiveProfile    string            `json:"active_profile,omitempty"`
@@ -337,6 +338,18 @@ func (c *AppConfig) EffectiveToolMaxParallel() int {
 		return 16
 	}
 	return c.ToolMaxParallel
+}
+
+// EffectiveMCPMaxParallel caps concurrent outbound MCP/Signal HTTP calls (default 6, max 16).
+func (c *AppConfig) EffectiveMCPMaxParallel() int {
+	const defaultMax = 6
+	if c == nil || c.MCPMaxParallel <= 0 {
+		return defaultMax
+	}
+	if c.MCPMaxParallel > 16 {
+		return 16
+	}
+	return c.MCPMaxParallel
 }
 
 // EffectiveToolTimeout returns the per-tool execution timeout (default 120s, max 600s).

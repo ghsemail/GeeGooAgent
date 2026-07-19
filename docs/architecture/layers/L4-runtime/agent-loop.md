@@ -81,6 +81,7 @@ func (a *Agent) Run(
 | `sub_agent_max_steps` | 20 | `delegate_task` 子 Agent 回合上限（最大 40） |
 | `llm.prompt_cache` | 按 provider | 显式 `cache_control` 断点；DeepSeek/Minimax 默认 true |
 | `tool_max_parallel` | 4 | 单轮并行 tool 上限（最大 16） |
+| `mcp_max_parallel` | 6 | 全局 MCP/Signal HTTP 并发上限（最大 16，与 delegate 并行共享出站配额） |
 | `delegate_max_parallel` | 3 | `delegate_task` / `delegate_tasks` 并发上限（最大 8） |
 | `tool_timeout_sec` | 120 | 单次 tool 超时秒数（最大 600） |
 | `plan_gate` | true | mutating 工具先 `plan_proposed` 挂起，用户 `y`/`确认` 后执行 |

@@ -21,6 +21,7 @@ type Client struct {
 	maxRetries int
 	retryWait  time.Duration
 	sleep      func(time.Duration)
+	concurrency *ConcurrencyLimiter
 }
 
 // Options configures MCP client behavior.
@@ -32,6 +33,7 @@ type Options struct {
 	Sleep             func(time.Duration)
 	AllowedHosts      []string
 	NetworkPolicy     *NetworkPolicy
+	Concurrency       *ConcurrencyLimiter
 }
 
 // NewClient creates an MCP HTTP client.
@@ -64,6 +66,7 @@ func NewClient(baseURL, apiKey string, opts Options) *Client {
 		maxRetries: opts.MaxRetries,
 		retryWait:  opts.RetryWait,
 		sleep:      opts.Sleep,
+		concurrency: opts.Concurrency,
 	}
 }
 
@@ -119,6 +122,12 @@ func (c *Client) PostDirect(ctx context.Context, path string, body map[string]an
 }
 
 func (c *Client) doJSON(ctx context.Context, path string, body map[string]any) ([]byte, error) {
+	if c.concurrency != nil {
+		if err := c.concurrency.Acquire(ctx); err != nil {
+			return nil, err
+		}
+		defer c.concurrency.Release()
+	}
 	fullURL := c.baseURL + path
 	host, err := hostFromURL(fullURL)
 	if err != nil {

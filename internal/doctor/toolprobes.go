@@ -36,10 +36,11 @@ func checkToolProbes(cfg *config.AppConfig) []CheckResult {
 	results = append(results, probeStockNews(ctx, client, token))
 	results = append(results, probeMarketNews(ctx, client, token))
 	results = append(results, probeStockDailyReports(ctx, client, token))
+	results = append(results, probeGenerateDCAStrategy(ctx, cfg))
 	results = append(results, CheckResult{
 		Name:   "tool probe: get_mcp_analysis",
 		OK:     true,
-		Detail: "skipped (LLM 60–180s); analyze /health 已测",
+		Detail: "skipped (LLM 60–180s); analyze /health + generate_dca_strategy route 已测",
 	})
 	return results
 }
@@ -223,4 +224,31 @@ func probeStockDailyReports(ctx context.Context, client *mcp.Client, token strin
 		}
 	}
 	return CheckResult{Name: name, OK: true, Detail: fmt.Sprintf("%s %s: %d report(s)", probeCodeHK, reportDate, n)}
+}
+
+func probeGenerateDCAStrategy(ctx context.Context, cfg *config.AppConfig) CheckResult {
+	name := "tool probe: generate_dca_strategy"
+	token := strings.TrimSpace(cfg.MCPToken())
+	if token == "" {
+		return CheckResult{Name: name, OK: true, Warn: true, Detail: "skipped (no mcp_token)"}
+	}
+	client := mcp.NewClient(cfg.SignalAnalyzeURL(), cfg.SignalAnalyzeAPIKey(), mcp.Options{
+		Timeout:      20 * time.Second,
+		MaxRetries:   1,
+		AllowedHosts: cfg.ResolvedAllowedHosts(),
+	})
+	_, err := client.Post(ctx, "/generateDCAStrategy", map[string]any{
+		"mcp_token": token,
+	})
+	if err == nil {
+		return CheckResult{Name: name, OK: true, Detail: "analyze-api /generateDCAStrategy reachable"}
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "server error 5") {
+		return CheckResult{Name: name, OK: false, Detail: msg}
+	}
+	if len(msg) > 100 {
+		msg = msg[:97] + "..."
+	}
+	return CheckResult{Name: name, OK: true, Detail: "route reachable: " + msg}
 }

@@ -58,6 +58,46 @@ func TestProbeSearchCodeWarnEmpty(t *testing.T) {
 	}
 }
 
+func TestProbeGenerateDCAStrategyRouteOK(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/generateDCAStrategy" {
+			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"code":400,"message":"missing code"}`))
+	}))
+	defer srv.Close()
+
+	cfg := &config.AppConfig{
+		UserMCPToken:            "tok",
+		SignalAnalyzeURLField:   srv.URL,
+		SignalAnalyzeAPIKeyField: "sk-test",
+		Sandbox:                 config.SandboxConfig{AllowedHosts: []string{"127.0.0.1"}},
+	}
+	row := probeGenerateDCAStrategy(t.Context(), cfg)
+	if !row.OK || row.Warn {
+		t.Fatalf("expected OK, got %+v", row)
+	}
+}
+
+func TestProbeGenerateDCAStrategy502Fails(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer srv.Close()
+
+	cfg := &config.AppConfig{
+		UserMCPToken:          "tok",
+		SignalAnalyzeURLField: srv.URL,
+		Sandbox:               config.SandboxConfig{AllowedHosts: []string{"127.0.0.1"}},
+	}
+	row := probeGenerateDCAStrategy(t.Context(), cfg)
+	if row.OK {
+		t.Fatalf("expected FAIL on 502, got %+v", row)
+	}
+}
+
 func TestAnyWarned(t *testing.T) {
 	if anyWarned([]CheckResult{{OK: true, Warn: true}}) != true {
 		t.Fatal("expected warned")

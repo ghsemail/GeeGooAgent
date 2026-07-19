@@ -72,6 +72,8 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	eventBus := infra.NewEventBus()
 
 	mcpOpts := mcp.Options{AllowedHosts: cfg.ResolvedAllowedHosts()}
+	mcpLimiter := mcp.NewConcurrencyLimiter(cfg.EffectiveMCPMaxParallel())
+	mcpOpts.Concurrency = mcpLimiter
 	analysisOpts := mcpOpts
 	analysisOpts.Timeout = 5 * time.Minute
 	httpBackends := tools.HTTPBackends{

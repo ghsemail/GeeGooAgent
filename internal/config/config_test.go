@@ -174,6 +174,15 @@ func TestEffectiveSubAgentMaxSteps(t *testing.T) {
 	}
 }
 
+func TestEffectiveMCPMaxParallel(t *testing.T) {
+	if got := (&AppConfig{}).EffectiveMCPMaxParallel(); got != 6 {
+		t.Fatalf("default = %d, want 6", got)
+	}
+	if got := (&AppConfig{MCPMaxParallel: 10}).EffectiveMCPMaxParallel(); got != 10 {
+		t.Fatalf("custom = %d, want 10", got)
+	}
+}
+
 func TestEffectiveToolMaxParallel(t *testing.T) {
 	if got := (&AppConfig{}).EffectiveToolMaxParallel(); got != 4 {
 		t.Fatalf("default EffectiveToolMaxParallel = %d, want 4", got)

@@ -40,6 +40,7 @@ type LoopSection struct {
 	SubAgentMaxSteps    int
 	ToolMaxParallel     int
 	DelegateMaxParallel int
+	MCPMaxParallel      int
 	ToolTimeoutSec      int
 	CompressEnabled     bool
 	CompressThreshold   float64
@@ -96,6 +97,7 @@ func Build(application *app.App, opts Options) Report {
 			SubAgentMaxSteps:    cfg.EffectiveSubAgentMaxSteps(),
 			ToolMaxParallel:     cfg.EffectiveToolMaxParallel(),
 			DelegateMaxParallel: cfg.EffectiveDelegateMaxParallel(),
+			MCPMaxParallel:      cfg.EffectiveMCPMaxParallel(),
 			ToolTimeoutSec:      int(cfg.EffectiveToolTimeout().Seconds()),
 			CompressEnabled:     comp.Enabled,
 			CompressThreshold:   comp.Threshold,
@@ -163,8 +165,8 @@ func FormatText(r Report) string {
 	b.WriteByte('\n')
 	b.WriteString("[Agent Loop]\n")
 	b.WriteString(fmt.Sprintf("  max_steps: %d  sub_agent_max_steps: %d\n", r.Loop.MaxSteps, r.Loop.SubAgentMaxSteps))
-	b.WriteString(fmt.Sprintf("  tool_max_parallel: %d  delegate_max_parallel: %d  tool_timeout_sec: %d\n",
-		r.Loop.ToolMaxParallel, r.Loop.DelegateMaxParallel, r.Loop.ToolTimeoutSec))
+	b.WriteString(fmt.Sprintf("  tool_max_parallel: %d  delegate_max_parallel: %d  mcp_max_parallel: %d  tool_timeout_sec: %d\n",
+		r.Loop.ToolMaxParallel, r.Loop.DelegateMaxParallel, r.Loop.MCPMaxParallel, r.Loop.ToolTimeoutSec))
 	b.WriteString(fmt.Sprintf("  plan_gate: %v  hooks: configured=%v before=%d after=%d fail_closed=%v\n",
 		r.Loop.PlanGate, r.Loop.HooksConfigured, r.Loop.HooksBefore, r.Loop.HooksAfter, r.Loop.HooksFailClosed))
 	b.WriteString(fmt.Sprintf("  compression: enabled=%v threshold=%.2f hygiene=%.2f context_length=%d\n",
