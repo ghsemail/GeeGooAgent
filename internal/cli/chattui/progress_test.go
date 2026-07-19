@@ -8,7 +8,7 @@ import (
 
 func TestApplyProgressLLMPlanCreatesThinking(t *testing.T) {
 	s := &LiveSlot{Status: "ready", Focus: -1}
-	s.ApplyProgress("llm_plan", map[string]any{"reasoning": "find ticker first"})
+	s.ApplyProgress("llm_plan", map[string]any{"reasoning": "find ticker first"}, config.DisplayConfig{})
 	if len(s.Blocks) != 1 || s.Blocks[0].Kind != KindThinking {
 		t.Fatalf("blocks=%+v", s.Blocks)
 	}

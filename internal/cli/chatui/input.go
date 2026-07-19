@@ -5,22 +5,17 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// ConfigureTextInput applies the GeeGoo white/yellow palette to a bubbles input.
-// Bubbles defaults and unset cursor text styles can render as violet on some terminals.
+// ConfigureTextInput applies the GeeGoo palette to a bubbles input.
 func ConfigureTextInput(ti *textinput.Model) {
 	if ti == nil {
 		return
 	}
-	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorText))
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim))
-	goldStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorGold))
-
-	ti.TextStyle = textStyle
-	ti.PlaceholderStyle = dimStyle
-	ti.CompletionStyle = goldStyle
-	ti.PromptStyle = goldStyle
-	ti.Cursor.Style = goldStyle
-	ti.Cursor.TextStyle = textStyle
+	ti.TextStyle = styleBody
+	ti.PlaceholderStyle = styleWhisper
+	ti.CompletionStyle = styleTitle
+	ti.PromptStyle = lipgloss.NewStyle()
+	ti.Cursor.Style = styleBrand
+	ti.Cursor.TextStyle = styleBody
 	ti.ShowSuggestions = true
 	ti.SetSuggestions(SlashCommandStrings())
 }

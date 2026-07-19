@@ -9,6 +9,12 @@ const (
 	ModeExpanded  = "expanded"
 )
 
+// Reply format for assistant messages in the TUI/CLI.
+const (
+	ReplyFormatMarkdown = "markdown"
+	ReplyFormatPlain    = "plain"
+)
+
 // DisplaySections are optional per-section overrides (empty = follow global).
 type DisplaySections struct {
 	Thinking string `json:"thinking,omitempty"`
@@ -24,6 +30,8 @@ type DisplayConfig struct {
 	MouseTracking   string          `json:"mouse_tracking,omitempty"`
 	StatusIndicator string          `json:"status_indicator,omitempty"`
 	ShowReasoning   *bool           `json:"show_reasoning,omitempty"`
+	StreamReply     *bool           `json:"stream_reply,omitempty"`  // default false: wait for full reply then render
+	ReplyFormat     string          `json:"reply_format,omitempty"` // markdown | plain (default markdown)
 }
 
 // Normalize fills defaults and lowercases known enums.
@@ -51,6 +59,26 @@ func (d *DisplayConfig) Normalize() {
 	if d.StatusIndicator == "" {
 		d.StatusIndicator = "emoji"
 	}
+	d.ReplyFormat = strings.ToLower(strings.TrimSpace(d.ReplyFormat))
+	switch d.ReplyFormat {
+	case "", ReplyFormatMarkdown:
+		d.ReplyFormat = ReplyFormatMarkdown
+	case ReplyFormatPlain:
+	default:
+		d.ReplyFormat = ReplyFormatMarkdown
+	}
+}
+
+// StreamReplyEnabled reports whether assistant text streams token-by-token in the UI.
+func (d DisplayConfig) StreamReplyEnabled() bool {
+	d.Normalize()
+	return d.StreamReply != nil && *d.StreamReply
+}
+
+// ReplyMarkdownEnabled reports whether completed replies use glamour markdown rendering.
+func (d DisplayConfig) ReplyMarkdownEnabled() bool {
+	d.Normalize()
+	return d.ReplyFormat == ReplyFormatMarkdown
 }
 
 func normalizeMode(s, fallback string) string {

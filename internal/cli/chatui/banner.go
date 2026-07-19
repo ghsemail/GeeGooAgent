@@ -120,17 +120,17 @@ func welcomeTipLines() []string {
 // RenderWelcomeTips returns styled multi-line tips for the Hermes welcome panel.
 func RenderWelcomeTips() string {
 	var b strings.Builder
-	b.WriteString(styleDim.Render("✦ Tips:"))
+	b.WriteString(styleWhisper.Render("✦ Tips:"))
 	b.WriteByte('\n')
 	for _, tip := range welcomeTipLines() {
-		b.WriteString(styleDim.Render("  · "))
-		b.WriteString(styleText.Render(tip))
+		b.WriteString(styleMeta.Render("  · "))
+		b.WriteString(styleBody.Render(tip))
 		b.WriteByte('\n')
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func buildBannerLeft(opts BannerOptions) string {
+func buildBannerLeft(opts BannerOptions, includeHero bool) string {
 	modelShort := opts.Model
 	if i := strings.LastIndex(modelShort, "/"); i >= 0 {
 		modelShort = modelShort[i+1:]
@@ -146,23 +146,29 @@ func buildBannerLeft(opts BannerOptions) string {
 	if opts.DryRun {
 		dry = "on"
 	}
-	lines := []string{"", renderHero(), "",
-		styleAmber.Render(modelShort) + styleDim.Render(" · ") + styleDim.Render(opts.Provider),
-		styleDim.Render(fmt.Sprintf("think %s · dry-run %s", think, dry)),
+	var lines []string
+	if includeHero {
+		lines = []string{"", renderHero(), ""}
+	} else {
+		lines = []string{""}
 	}
+	lines = append(lines,
+		styleBrand.Render(modelShort)+styleMeta.Render(" · ")+styleMeta.Render(opts.Provider),
+		styleWhisper.Render(fmt.Sprintf("think %s · dry-run %s", think, dry)),
+	)
 	if opts.Workspace != "" {
 		cwd := opts.Workspace
 		if len(cwd) > 36 {
 			cwd = "…" + cwd[len(cwd)-35:]
 		}
-		lines = append(lines, styleDim.Render(cwd))
+		lines = append(lines, styleWhisper.Render(cwd))
 	}
-	lines = append(lines, styleDim.Render("Session: "+opts.SessionID))
+	lines = append(lines, styleMeta.Render("Session: "+opts.SessionID))
 	return strings.Join(lines, "\n")
 }
 
 func buildBannerRight(opts BannerOptions) string {
-	lines := []string{styleAmber.Render("Available Tools")}
+	lines := []string{styleTitle.Render("Available Tools")}
 	groups := groupTools(opts.Registry, opts.ToolNames)
 	order := []string{"perceive", "analyze", "decide", "act", "meta", "other"}
 	shown := 0
@@ -171,7 +177,7 @@ func buildBannerRight(opts BannerOptions) string {
 		if len(names) == 0 {
 			continue
 		}
-		lines = append(lines, styleDim.Render(label+":")+" "+styleText.Render(truncateToolList(names, 44)))
+		lines = append(lines, styleMeta.Render(label+":")+" "+styleBody.Render(truncateToolList(names, 44)))
 		shown++
 		if shown >= 7 {
 			break
@@ -179,9 +185,9 @@ func buildBannerRight(opts BannerOptions) string {
 	}
 	if len(opts.APIHosts) > 0 {
 		lines = append(lines, "")
-		lines = append(lines, styleAmber.Render("APIs"))
+		lines = append(lines, styleTitle.Render("APIs"))
 		for k, v := range opts.APIHosts {
-			lines = append(lines, styleDim.Render(k)+" "+styleText.Render("("+v+")"))
+			lines = append(lines, styleMeta.Render(k)+" "+styleBody.Render("("+v+")"))
 		}
 	}
 	skills := scanSkills(opts.ProjectRoot)
@@ -190,13 +196,13 @@ func buildBannerRight(opts BannerOptions) string {
 		totalSkills += len(v)
 	}
 	lines = append(lines, "")
-	lines = append(lines, styleAmber.Render("Available Skills"))
+	lines = append(lines, styleTitle.Render("Available Skills"))
 	if totalSkills == 0 {
-		lines = append(lines, styleDim.Render("No skills in project"))
+		lines = append(lines, styleWhisper.Render("No skills in project"))
 	} else {
 		count := 0
 		for cat, names := range skills {
-			lines = append(lines, styleDim.Render(cat+":")+" "+styleText.Render(truncateToolList(names, 52)))
+			lines = append(lines, styleMeta.Render(cat+":")+" "+styleBody.Render(truncateToolList(names, 52)))
 			count++
 			if count >= 8 {
 				break
@@ -205,7 +211,7 @@ func buildBannerRight(opts BannerOptions) string {
 	}
 	totalTools := len(toolNamesForBanner(opts))
 	lines = append(lines, "")
-	lines = append(lines, styleDim.Render(fmt.Sprintf("%d tools · %d skills · /help for commands", totalTools, totalSkills)))
+	lines = append(lines, styleWhisper.Render(fmt.Sprintf("%d tools · %d skills · /help for commands", totalTools, totalSkills)))
 	return strings.Join(lines, "\n")
 }
 

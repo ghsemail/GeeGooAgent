@@ -7,13 +7,14 @@ import (
 )
 
 func (m *Model) appendProcessBlock(b *strings.Builder, block Block, blockIdx, focus int, width int) {
-	prefix := ""
+	expanded := block.IsExpanded(m.display)
+	header := chatui.RenderGrokProcessHeader(expanded, block.Title, block.LineCount(), block.DurationSec)
 	if blockIdx == focus {
-		prefix = styleFocus.Render("› ")
+		header = styleFocus.Render("› ") + header
 	}
-	b.WriteString(prefix + renderSectionHeader(block, m.display))
+	b.WriteString(header)
 	b.WriteByte('\n')
-	if block.IsExpanded(m.display) {
+	if expanded {
 		body := strings.TrimRight(block.Body, "\n")
 		for _, line := range strings.Split(body, "\n") {
 			if strings.TrimSpace(line) == "" {
@@ -21,9 +22,9 @@ func (m *Model) appendProcessBlock(b *strings.Builder, block Block, blockIdx, fo
 				continue
 			}
 			if block.Kind == KindThinking {
-				b.WriteString(chatui.RenderThinkingLineWidth(line, width))
+				b.WriteString(chatui.RenderGrokThinkingLine(line, width))
 			} else {
-				b.WriteString(chatui.RenderDetailLineWidth(line, width))
+				b.WriteString(chatui.RenderGrokToolLine(line, width))
 			}
 			b.WriteByte('\n')
 		}
@@ -31,16 +32,15 @@ func (m *Model) appendProcessBlock(b *strings.Builder, block Block, blockIdx, fo
 	}
 	if block.ShowThinkingPreview(m.display) {
 		for _, line := range block.LastBodyLines(collapsedPreviewLines) {
-			b.WriteString(chatui.RenderThinkingLineWidth(line, width))
+			b.WriteString(chatui.RenderGrokThinkingLine(line, width))
 			b.WriteByte('\n')
 		}
 		return
 	}
 	if block.ShowToolPreview(m.display) {
 		for _, line := range block.LastBodyLines(collapsedPreviewLines) {
-			b.WriteString(chatui.RenderDetailLineWidth(line, width))
+			b.WriteString(chatui.RenderGrokToolLine(line, width))
 			b.WriteByte('\n')
 		}
-		return
 	}
 }

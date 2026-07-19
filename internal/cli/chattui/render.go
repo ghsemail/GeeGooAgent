@@ -1,7 +1,6 @@
 package chattui
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -9,12 +8,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/ghsemail/GeeGooAgent/internal/cli/chatui"
-	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
 var (
-	styleFocus = lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorGold))
+	styleFocus = lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorAmber)).Bold(true)
 )
 
 type transcriptSegment int
@@ -102,7 +100,7 @@ func (m *Model) renderTranscript() string {
 		if IsProcessKind(block.Kind) {
 			cur := segmentProcess
 			if hasSegment {
-				m.writeSegmentDivider(&b, prev, cur)
+				m.writeSegmentDivider(&b, width, prev, cur)
 			}
 			var panel strings.Builder
 			m.appendProcessBlock(&panel, block, i, s.Focus, width)
@@ -114,7 +112,7 @@ func (m *Model) renderTranscript() string {
 
 		cur := blockSegment(block.Kind)
 		if hasSegment {
-			m.writeSegmentDivider(&b, prev, cur)
+			m.writeSegmentDivider(&b, width, prev, cur)
 		}
 		switch block.Kind {
 		case KindUser:
@@ -126,11 +124,11 @@ func (m *Model) renderTranscript() string {
 			}
 		case KindReply:
 			body := strings.TrimRight(block.Body, "\n")
-			if block.Live {
-				b.WriteString(chatui.RenderAssistantBoxLive(body, width))
-			} else {
-				b.WriteString(chatui.RenderAssistantBox(body, width))
+			if block.Live && !m.display.StreamReplyEnabled() {
+				continue
 			}
+			opts := chatui.AssistantRenderOptions{Markdown: m.display.ReplyMarkdownEnabled(), Live: block.Live}
+			b.WriteString(chatui.RenderAssistantBoxWith(body, width, opts))
 			b.WriteByte('\n')
 			if !block.Live && block.DurationSec > 0 {
 				b.WriteString(chatui.RenderTurnFooter(time.Duration(block.DurationSec * float64(time.Second))))
@@ -164,42 +162,31 @@ func blockSegment(kind SectionKind) transcriptSegment {
 	}
 }
 
-func (m *Model) writeSegmentDivider(b *strings.Builder, prev, cur transcriptSegment) {
+func (m *Model) writeSegmentDivider(b *strings.Builder, width int, prev, cur transcriptSegment) {
 	if prev == segmentNone || cur == segmentNone {
 		return
 	}
 	if cur == segmentUser {
+		b.WriteString(chatui.RenderRule(width))
 		b.WriteByte('\n')
-		return
-	}
-	if prev == segmentUser && cur == segmentProcess {
 		return
 	}
 	if prev == cur && cur == segmentProcess {
+		b.WriteString(chatui.RenderSoftDivider(width))
 		b.WriteByte('\n')
 		return
 	}
-	if cur == segmentReply && prev == segmentProcess {
+	if prev == segmentProcess && cur == segmentReply {
+		b.WriteString(chatui.RenderAgentHeader(width))
+		b.WriteByte('\n')
+		return
+	}
+	switch {
+	case prev == segmentUser && cur == segmentProcess,
+		prev == segmentUser && cur == segmentReply:
+		b.WriteString(chatui.RenderSoftDivider(width))
 		b.WriteByte('\n')
 	}
-}
-
-func renderSectionHeader(b Block, cfg config.DisplayConfig) string {
-	n := b.LineCount()
-	extra := ""
-	if n > 0 {
-		extra = fmt.Sprintf(" · %d 行", n)
-	}
-	if b.DurationSec > 0 {
-		extra += fmt.Sprintf(" · %.1fs", b.DurationSec)
-	}
-	title := b.Title
-	if title == "" {
-		title = string(b.Kind)
-	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(chatui.ColorAmber)).Bold(true).Render(
-		fmt.Sprintf("%s %s%s", b.Chevron(cfg), title, extra),
-	)
 }
 
 func renderInputLine(ti textinput.Model, model string, width int) string {

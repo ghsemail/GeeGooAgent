@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
 
+	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
@@ -27,6 +28,9 @@ type ChatUI struct {
 	streamBuf      strings.Builder
 	replyStreamed  bool
 	streamRoundHad bool // content streamed in current LLM round (before tools)
+
+	streamReply   bool
+	replyMarkdown bool
 }
 
 // New creates a ChatUI; plain when not a TTY or GEEGOO_CHAT_PLAIN=1.
@@ -49,9 +53,20 @@ func New(out io.Writer) *ChatUI {
 	}
 	return &ChatUI{
 		out: out, plain: plain, width: width,
-		toolStarts: make(map[string]time.Time),
-		toolArgs:   make(map[string]string),
+		toolStarts:    make(map[string]time.Time),
+		toolArgs:      make(map[string]string),
+		replyMarkdown: true,
 	}
+}
+
+// ApplyDisplay updates reply streaming and markdown rendering from config.
+func (u *ChatUI) ApplyDisplay(d config.DisplayConfig) {
+	if u == nil {
+		return
+	}
+	d.Normalize()
+	u.streamReply = d.StreamReplyEnabled()
+	u.replyMarkdown = d.ReplyMarkdownEnabled()
 }
 
 func (u *ChatUI) IsPlain() bool { return u.plain }
@@ -119,7 +134,7 @@ func RenderSoftDivider(width int) string {
 	if len(seg) < 10 {
 		seg = strings.Repeat("─", 10)
 	}
-	return styleDim.Render("  " + seg)
+	return styleWhisper.Render("  " + seg)
 }
 
 // RenderStatusBox wraps the turn-start status between two gold rules.
@@ -196,32 +211,40 @@ func RenderProcessPanel(content string, width int) string {
 	return styleProcessBox.Width(w).Render(content)
 }
 
-// RenderClarifyPanel renders a Hermes-style multiple-choice clarify prompt.
+// RenderClarifyPanel renders a Hermes-style clarify prompt: large gold title + bordered option box.
 func RenderClarifyPanel(question string, options []string, focus int, width int) string {
 	innerW := PanelContentWidth(width)
-	var b strings.Builder
-	q := WrapWithPrefix(strings.TrimSpace(question), "? ", "  ", innerW)
-	b.WriteString(styleAmber.Bold(true).Render(q))
+	q := strings.TrimSpace(question)
+	title := WrapWithPrefix(q, "? ", "  ", ContentWrapWidth(width))
+	titleLine := styleTitle.Render(title)
+
+	var body strings.Builder
 	if len(options) > 0 {
 		for i, opt := range options {
-			b.WriteByte('\n')
-			label := fmt.Sprintf("  [%s] ", choiceLabel(i))
-			var line string
+			if i > 0 {
+				body.WriteByte('\n')
+			}
+			marker := "  "
 			if i == focus {
-				line = WrapWithPrefix(opt, "› "+label, "    ", innerW)
-				b.WriteString(styleGold.Render(line))
+				marker = "› "
+			}
+			label := fmt.Sprintf("  [%s] ", choiceLabel(i))
+			prefix := marker + label
+			indent := strings.Repeat(" ", lipgloss.Width(prefix))
+			line := WrapWithPrefix(opt, prefix, indent, innerW)
+			if i == focus {
+				body.WriteString(styleBrand.Render(line))
 			} else {
-				line = WrapWithPrefix(opt, label, "      ", innerW)
-				b.WriteString(styleDim.Render(line))
+				body.WriteString(styleBody.Render(line))
 			}
 		}
-		b.WriteByte('\n')
-		b.WriteString(styleDim.Render(WrapPlain("  ↑↓ 选择 · Enter 确认 · A/B/C 或 1/2/3 · Esc 跳过", innerW)))
+		body.WriteByte('\n')
+		body.WriteString(styleWhisper.Render(WrapPlain("  ↑↓ 选择 · Enter 确认 · A/B/C 或 1/2/3 · Esc 跳过", innerW)))
 	} else {
-		b.WriteByte('\n')
-		b.WriteString(styleDim.Render(WrapPlain("  在下方输入回答 · Esc 跳过", innerW)))
+		body.WriteString(styleWhisper.Render(WrapPlain("  在下方输入回答 · Esc 跳过", innerW)))
 	}
-	return styleProcessBox.Width(clampRuleWidth(width)).Render(strings.TrimRight(b.String(), "\n"))
+	box := stylePanel.Width(clampRuleWidth(width)).Render(strings.TrimRight(body.String(), "\n"))
+	return titleLine + "\n" + box
 }
 
 func choiceLabel(i int) string {
@@ -236,7 +259,7 @@ func (u *ChatUI) PrintBanner(opts BannerOptions) {
 	u.write(RenderBanner(opts, u.width, u.plain))
 }
 
-// RenderBanner returns the Grok-style welcome card as a string (CLI and TUI).
+// RenderBanner returns the Hermes-style welcome panel (logo, tools, tips).
 func RenderBanner(opts BannerOptions, width int, plain bool) string {
 	if width <= 0 {
 		width = 80
@@ -244,33 +267,40 @@ func RenderBanner(opts BannerOptions, width int, plain bool) string {
 	if plain {
 		return "\n" + BuildPlainBanner(opts)
 	}
-	return RenderGrokWelcomeCard(opts, width)
+	rev := opts.Revision
+	if rev == "" {
+		rev = ResolveRevision(opts.InstallDir)
+	}
+	var b strings.Builder
+	b.WriteByte('\n')
+	if width >= 95 {
+		b.WriteString(renderWideLogo())
+		b.WriteByte('\n')
+		b.WriteByte('\n')
+	}
+	left := buildBannerLeft(opts, width < 95)
+	right := buildBannerRight(opts)
+	cols := lipgloss.JoinHorizontal(lipgloss.Top,
+		lipgloss.NewStyle().Padding(0, 2).Align(lipgloss.Center).Render(left),
+		lipgloss.NewStyle().Padding(0, 1).Render(right),
+	)
+	b.WriteString(styleBrand.Render(formatVersionLabel(rev)))
+	b.WriteByte('\n')
+	b.WriteString(stylePanel.Render(cols))
+	b.WriteByte('\n')
+	b.WriteByte('\n')
+	b.WriteString(styleTitle.Render("Welcome to GeeGoo Agent! ") + styleMeta.Render("Type your message or /help for commands."))
+	b.WriteByte('\n')
+	b.WriteString(RenderWelcomeTips())
+	b.WriteByte('\n')
+	b.WriteByte('\n')
+	return b.String()
 }
 
 const (
 	// assistantBoxInnerWidth is the fixed text column inside the reply panel.
 	assistantBoxInnerWidth = 144
 )
-
-// RenderAssistantBox returns a Hermes-style rounded reply panel with glamour markdown.
-func RenderAssistantBox(text string, width int) string {
-	return renderAssistantPanel(text, width, false)
-}
-
-// RenderAssistantBoxLive shows a streaming preview without glamour (avoids broken partial tables).
-func RenderAssistantBoxLive(text string, width int) string {
-	return renderAssistantPanel(text, width, true)
-}
-
-func renderAssistantPanel(text string, width int, live bool) string {
-	if width <= 0 {
-		width = 80
-	}
-	innerW := assistantWrapWidth(width)
-	body := strings.TrimRight(text, "\n")
-	body = RenderPlainAssistantBody(body, innerW)
-	return body
-}
 
 // assistantWrapWidth returns the content wrap width for assistant replies.
 func assistantWrapWidth(terminalWidth int) int {
@@ -398,7 +428,7 @@ func (u *ChatUI) PrintAssistant(text string) {
 		u.println("")
 		return
 	}
-	u.println(RenderAssistantBox(text, u.width))
+	u.println(RenderAssistantBoxWith(text, u.width, AssistantRenderOptions{Markdown: u.replyMarkdown}))
 }
 
 // ResetStream clears typewriter state at the start of a user turn.
@@ -409,7 +439,7 @@ func (u *ChatUI) ResetStream() {
 	u.streamRoundHad = false
 }
 
-// WriteStreamDelta appends live assistant text (typewriter).
+// WriteStreamDelta appends live assistant text (typewriter when stream_reply is on).
 func (u *ChatUI) WriteStreamDelta(text string) {
 	text = stripStreamNoise(text)
 	if strings.TrimSpace(text) == "" {
@@ -418,13 +448,18 @@ func (u *ChatUI) WriteStreamDelta(text string) {
 	if !u.streamActive {
 		u.streamActive = true
 		u.streamBuf.Reset()
-		u.println("")
-		if u.plain {
-			u.write("GeeGoo> ")
+		if u.streamReply {
+			u.println("")
+			if u.plain {
+				u.write("GeeGoo> ")
+			}
 		}
 	}
 	u.streamBuf.WriteString(text)
 	u.streamRoundHad = true
+	if !u.streamReply {
+		return
+	}
 	if u.plain {
 		u.write(text)
 	}
@@ -464,7 +499,7 @@ func (u *ChatUI) FinishAssistantStream() bool {
 				u.write("\n")
 				u.println("")
 			} else {
-				u.println(RenderAssistantBox(final, u.width))
+				u.println(RenderAssistantBoxWith(final, u.width, AssistantRenderOptions{Markdown: u.replyMarkdown}))
 			}
 			u.replyStreamed = true
 		} else if !u.plain {
@@ -628,7 +663,7 @@ func (u *ChatUI) EmitProgress(event string, data map[string]any) {
 		}
 		label := displayToolName(name)
 		u.println(fmt.Sprintf("  ┊ %s %s",
-			toolEmoji(name), styleToolRun.Render("preparing "+label+"…")))
+			toolEmoji(name), styleTool.Render("preparing "+label+"…")))
 	case "tool_done":
 		name, _ := data["name"].(string)
 		status, _ := data["status"].(string)

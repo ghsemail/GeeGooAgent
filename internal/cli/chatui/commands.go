@@ -33,6 +33,10 @@ func BuildHelpText() string {
   /think off         关闭 DeepSeek 思考模式
   /think auto        恢复模型默认思考策略
   /details           折叠模式（Hermes 风格：hidden|collapsed|expanded|cycle）
+  /stream on         流式显示助手回复（逐字输出）
+  /stream off        等完整回复后再渲染（默认）
+  /reply markdown    Markdown 排版（glamour，默认）
+  /reply plain       纯文本排版
   /sessions          TUI：切换/新建 live session（Ctrl+X）
   /mouse             TUI：鼠标 tracking（off|wheel|buttons|all）
 `
@@ -58,6 +62,10 @@ var SlashCommands = []SlashCommand{
 	{"/think off", "关闭思考模式"},
 	{"/think auto", "恢复默认思考策略"},
 	{"/details", "折叠模式 details_mode"},
+	{"/stream on", "流式显示助手回复"},
+	{"/stream off", "完整回复后再显示"},
+	{"/reply markdown", "Markdown 排版"},
+	{"/reply plain", "纯文本排版"},
 	{"/sessions", "TUI live session 切换"},
 	{"/mouse", "TUI 鼠标 tracking"},
 }

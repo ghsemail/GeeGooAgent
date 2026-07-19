@@ -40,7 +40,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ProgressMsg:
 		if msg.Slot >= 0 && msg.Slot < len(m.slots) {
-			m.slots[msg.Slot].ApplyProgress(msg.Event, msg.Data)
+			m.slots[msg.Slot].ApplyProgress(msg.Event, msg.Data, m.display)
 			if msg.Slot == m.active {
 				m.scrollFollow = true
 				m.refreshViewport()
@@ -84,6 +84,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case DisplayUpdatedMsg:
 		m.display = msg.Display
 		m.display.Normalize()
+		if h := m.activeHost(); h != nil && h.Repl != nil && h.Repl.UI != nil {
+			h.Repl.UI.ApplyDisplay(m.display)
+		}
 		m.refreshViewport()
 		return m, nil
 
@@ -490,6 +493,56 @@ func (m Model) handleSlash(text string) (tea.Model, tea.Cmd) {
 			}
 			return DisplayUpdatedMsg{Display: disp}
 		}
+	case "/stream":
+		res := chatcmd.ApplyStream(&m.display, args)
+		if !res.OK {
+			m.info = res.Message
+			return m, nil
+		}
+		if res.Display != nil {
+			m.display = *res.Display
+			if h := m.activeHost(); h != nil && h.Repl != nil && h.Repl.UI != nil {
+				h.Repl.UI.ApplyDisplay(m.display)
+			}
+		}
+		m.info = res.Message
+		m.refreshViewport()
+		if res.Persist {
+			cp := m.configPath
+			disp := m.display
+			return m, func() tea.Msg {
+				if cp != "" {
+					_ = PersistDisplay(cp, disp)
+				}
+				return DisplayUpdatedMsg{Display: disp}
+			}
+		}
+		return m, nil
+	case "/reply":
+		res := chatcmd.ApplyReplyFormat(&m.display, args)
+		if !res.OK {
+			m.info = res.Message
+			return m, nil
+		}
+		if res.Display != nil {
+			m.display = *res.Display
+			if h := m.activeHost(); h != nil && h.Repl != nil && h.Repl.UI != nil {
+				h.Repl.UI.ApplyDisplay(m.display)
+			}
+		}
+		m.info = res.Message
+		m.refreshViewport()
+		if res.Persist {
+			cp := m.configPath
+			disp := m.display
+			return m, func() tea.Msg {
+				if cp != "" {
+					_ = PersistDisplay(cp, disp)
+				}
+				return DisplayUpdatedMsg{Display: disp}
+			}
+		}
+		return m, nil
 	case "/details":
 		res := chatcmd.ApplyDetails(&m.display, args)
 		if !res.OK {
@@ -667,7 +720,7 @@ func (m Model) View() string {
 		b.WriteByte('\n')
 	}
 
-	b.WriteString(chatui.RenderGrokFooterBar(m.statusBarOpts(), m.width))
+	b.WriteString(chatui.RenderHermesStatusBar(m.statusBarOpts(), m.width))
 	b.WriteByte('\n')
 	if matches := m.slashMatches(); m.slashMenuOpen() {
 		b.WriteString(renderSlashMenu(matches, m.slashPick, m.width))

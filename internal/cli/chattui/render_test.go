@@ -9,25 +9,35 @@ import (
 
 func TestWriteSegmentDivider(t *testing.T) {
 	var m Model
+	width := 80
 	var b strings.Builder
-	m.writeSegmentDivider(&b, segmentUser, segmentProcess)
-	if b.String() != "" {
-		t.Fatalf("no divider before process panel: %q", b.String())
-	}
+
 	b.Reset()
-	m.writeSegmentDivider(&b, segmentUser, segmentReply)
-	if b.String() != "" {
-		t.Fatalf("no divider between user and reply: %q", b.String())
+	m.writeSegmentDivider(&b, width, segmentUser, segmentProcess)
+	if !strings.Contains(stripANSI(b.String()), "─") {
+		t.Fatalf("expected soft divider user→process: %q", b.String())
 	}
+
 	b.Reset()
-	m.writeSegmentDivider(&b, segmentProcess, segmentReply)
-	if b.String() != "\n" {
-		t.Fatalf("expected blank line after process: %q", b.String())
+	m.writeSegmentDivider(&b, width, segmentProcess, segmentProcess)
+	if !strings.Contains(stripANSI(b.String()), "─") {
+		t.Fatalf("expected soft divider thinking→tools: %q", b.String())
 	}
+
 	b.Reset()
-	m.writeSegmentDivider(&b, segmentReply, segmentUser)
-	if b.String() != "\n" {
-		t.Fatalf("expected blank line before new user: %q", b.String())
+	m.writeSegmentDivider(&b, width, segmentProcess, segmentReply)
+	out := stripANSI(b.String())
+	if strings.Contains(out, strings.Repeat("─", 80)) {
+		t.Fatalf("should not render gold rule before reply: %q", out)
+	}
+	if !strings.Contains(out, "⚕ GeeGoo") {
+		t.Fatalf("expected agent header before reply: %q", out)
+	}
+
+	b.Reset()
+	m.writeSegmentDivider(&b, width, segmentReply, segmentUser)
+	if !strings.Contains(stripANSI(b.String()), strings.Repeat("─", 10)) {
+		t.Fatalf("expected gold rule before next user turn: %q", b.String())
 	}
 }
 

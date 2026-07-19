@@ -22,10 +22,10 @@ func RenderUserPromptBox(text string, width int) string {
 	var lines []string
 	for _, line := range strings.Split(wrapped, "\n") {
 		if strings.HasPrefix(line, "> ") {
-			lines = append(lines, styleText.Render("> ")+styleText.Render(strings.TrimPrefix(line, "> ")))
+			lines = append(lines, styleBrand.Render("> ")+styleUser.Render(strings.TrimPrefix(line, "> ")))
 			continue
 		}
-		lines = append(lines, styleText.Render(line))
+		lines = append(lines, styleUser.Render(line))
 	}
 	box := lipgloss.NewStyle().
 		Background(lipgloss.Color(ColorBgPrompt)).
@@ -38,10 +38,10 @@ func RenderUserPromptBox(text string, width int) string {
 
 // RenderWorkingLine shows a compact in-turn status while the agent is busy.
 func RenderWorkingLine() string {
-	return styleDim.Render("Working…")
+	return styleMeta.Render("Working…")
 }
 
-// RenderTurnFooter renders Grok-style turn timing after a completed reply.
+// RenderTurnFooter renders turn timing after a completed reply.
 func RenderTurnFooter(elapsed time.Duration) string {
 	if elapsed < 0 {
 		elapsed = 0
@@ -62,20 +62,16 @@ func RenderTurnFooter(elapsed time.Duration) string {
 			label = fmt.Sprintf("Worked for %dm%ds.", m, s)
 		}
 	}
-	return styleDim.Render(label)
+	return styleWhisper.Render(label)
 }
 
-// RenderInputChrome wraps the live input line in a Grok-style bordered box.
-// When model is non-empty it is shown right-aligned inside the box (Grok input chrome).
+// RenderInputChrome wraps the live input line in a bordered box.
 func RenderInputChrome(inputLine string, model string, width int) string {
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(ColorDim)).
-		Padding(0, 1)
+	box := styleInputBox
 	if width > 0 {
 		box = box.Width(width)
 	}
-	prompt := styleText.Render("> ") + inputLine
+	prompt := styleBrand.Render("> ") + inputLine
 	inner := prompt
 	model = strings.TrimSpace(model)
 	if model != "" {
@@ -85,7 +81,7 @@ func RenderInputChrome(inputLine string, model string, width int) string {
 		if len(model) > 28 {
 			model = model[:25] + "..."
 		}
-		modelLine := styleDim.Render(model)
+		modelLine := styleMeta.Render(model)
 		innerW := width - 4
 		if innerW < 20 {
 			innerW = 20
@@ -115,16 +111,12 @@ func RenderGrokWelcomeCard(opts BannerOptions, width int) string {
 		model = "default"
 	}
 	var body strings.Builder
-	body.WriteString(styleText.Render("GeeGoo Agent"))
+	body.WriteString(styleTitle.Render("GeeGoo Agent"))
 	body.WriteByte('\n')
-	body.WriteString(styleDim.Render(fmt.Sprintf("%s · %s / %s", formatVersionLabel(rev), opts.Provider, model)))
+	body.WriteString(styleMeta.Render(fmt.Sprintf("%s · %s / %s", formatVersionLabel(rev), opts.Provider, model)))
 	body.WriteByte('\n')
-	body.WriteString(styleDim.Render("Type a message or /help for commands."))
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(ColorDim)).
-		Padding(0, 1).
-		Width(width)
+	body.WriteString(styleWhisper.Render("Type a message or /help for commands."))
+	box := styleInputBox.Width(width)
 	return "\n" + box.Render(body.String()) + "\n"
 }
 
@@ -138,4 +130,99 @@ func AnchorContentBottom(content string, viewportHeight int) string {
 		return content
 	}
 	return strings.Repeat("\n", viewportHeight-lines) + content
+}
+
+// RenderGrokProcessHeader renders a section header (thinking / tools).
+func RenderGrokProcessHeader(expanded bool, title string, lineCount int, durationSec float64) string {
+	chevron := "▸"
+	if expanded {
+		chevron = "▾"
+	}
+	meta := ""
+	if lineCount > 0 {
+		meta = fmt.Sprintf(" · %d 行", lineCount)
+	}
+	if durationSec > 0 {
+		meta += fmt.Sprintf(" · %.1fs", durationSec)
+	}
+	return styleMeta.Render(chevron+" ") + styleSection.Render(title) + styleWhisper.Render(meta)
+}
+
+// RenderGrokThinkingLine renders a thinking detail line.
+func RenderGrokThinkingLine(line string, width int) string {
+	innerW := ContentWrapWidth(width) - 2
+	if innerW < 24 {
+		innerW = 24
+	}
+	var b strings.Builder
+	for i, wl := range strings.Split(WrapPlain(line, innerW), "\n") {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString("  ")
+		b.WriteString(styleThinking.Render(wl))
+	}
+	return b.String()
+}
+
+// RenderGrokToolLine renders a tool/activity detail line (sidebar + plain text).
+func RenderGrokToolLine(line string, width int) string {
+	innerW := ContentWrapWidth(width) - 4
+	if innerW < 24 {
+		innerW = 24
+	}
+	var b strings.Builder
+	trim := strings.TrimSpace(line)
+	if trim == "" {
+		return ""
+	}
+	prefix := "  "
+	sidebar := styleWhisper.Render("│ ")
+	for i, wl := range strings.Split(WrapPlain(trim, innerW), "\n") {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		if i == 0 {
+			b.WriteString(prefix + sidebar + styleTool.Render(wl))
+			continue
+		}
+		b.WriteString(prefix + strings.Repeat(" ", lipgloss.Width(sidebar)) + styleTool.Render(wl))
+	}
+	return b.String()
+}
+
+// RenderGrokReplyBlock renders assistant reply body with clean paragraph spacing.
+func RenderGrokReplyBlock(text string, width int) string {
+	body := RenderPlainAssistantBody(text, assistantWrapWidth(width))
+	if body == "" {
+		return body
+	}
+	lines := strings.Split(body, "\n")
+	var out []string
+	for i, line := range lines {
+		out = append(out, line)
+		if line == "" || i == len(lines)-1 {
+			continue
+		}
+		next := strings.TrimSpace(lines[i+1])
+		cur := strings.TrimSpace(stripANSI(line))
+		if cur != "" && next != "" && !strings.HasPrefix(next, "  ") {
+			out = append(out, "")
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+func stripANSI(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\x1b' {
+			for i < len(s) && s[i] != 'm' {
+				i++
+			}
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
 }

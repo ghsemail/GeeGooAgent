@@ -7,20 +7,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-func stripANSI(s string) string {
-	var out strings.Builder
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\x1b' {
-			for i < len(s) && s[i] != 'm' {
-				i++
-			}
-			continue
-		}
-		out.WriteByte(s[i])
-	}
-	return out.String()
-}
-
 func TestRenderRuleFullWidthGold(t *testing.T) {
 	rule := RenderRule(120)
 	if lipgloss.Width(rule) != 120 {

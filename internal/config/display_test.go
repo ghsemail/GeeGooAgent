@@ -62,3 +62,22 @@ func TestReasoningVisibleDefaultTrue(t *testing.T) {
 		t.Fatal("expected false")
 	}
 }
+
+func TestStreamReplyDefaultOff(t *testing.T) {
+	d := DisplayConfig{}
+	d.Normalize()
+	if d.StreamReplyEnabled() {
+		t.Fatal("stream_reply should default off")
+	}
+	if !d.ReplyMarkdownEnabled() {
+		t.Fatal("reply_format should default markdown")
+	}
+}
+
+func TestStreamReplyOn(t *testing.T) {
+	on := true
+	d := DisplayConfig{StreamReply: &on}
+	if !d.StreamReplyEnabled() {
+		t.Fatal("expected on")
+	}
+}

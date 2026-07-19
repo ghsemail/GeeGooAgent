@@ -16,10 +16,11 @@ type ProgressMsg struct {
 }
 
 // ApplyProgress mutates a live slot transcript from a progress event.
-func (s *LiveSlot) ApplyProgress(event string, data map[string]any) {
+func (s *LiveSlot) ApplyProgress(event string, data map[string]any, cfg config.DisplayConfig) {
 	if s == nil {
 		return
 	}
+	cfg.Normalize()
 	if data == nil {
 		data = map[string]any{}
 	}
@@ -106,6 +107,9 @@ func (s *LiveSlot) ApplyProgress(event string, data map[string]any) {
 		}
 		content, _ := data["content"].(string)
 		if strings.TrimSpace(content) == "" {
+			return
+		}
+		if !cfg.StreamReplyEnabled() {
 			return
 		}
 		s.ensureLiveReply()

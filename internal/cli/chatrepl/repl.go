@@ -17,6 +17,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/app"
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/cli/chatui"
+	"github.com/ghsemail/GeeGooAgent/internal/cli/chatcmd"
 	"github.com/ghsemail/GeeGooAgent/internal/cli/flowview"
 	"github.com/ghsemail/GeeGooAgent/internal/cli/progress"
 	"github.com/ghsemail/GeeGooAgent/internal/clients/admin"
@@ -85,6 +86,9 @@ func NewWithSession(application *app.App, configPath string, sessionID string, d
 		}
 	}
 	ui := chatui.New(stdout)
+	if application.Config != nil {
+		ui.ApplyDisplay(application.Config.Display)
+	}
 	parentID, lineageRoot, generation := chat.LineageFromMetadata()
 	r := &Repl{
 		App: application, ConfigPath: configPath, Chat: chat, SessionStore: store,
@@ -527,6 +531,10 @@ func (r *Repl) handleSlash(line string) bool {
 		}
 	case "/think":
 		r.handleThink(args)
+	case "/stream":
+		r.handleReplyDisplay("/stream", args)
+	case "/reply":
+		r.handleReplyDisplay("/reply", args)
 	case "/run":
 		skill := "pre_market"
 		if len(args) > 0 {
@@ -868,6 +876,34 @@ func (r *Repl) handleThink(args []string) {
 		state = "auto"
 	}
 	r.UI.PrintInfo("思考模式已设为: " + state)
+}
+
+func (r *Repl) handleReplyDisplay(cmd string, args []string) {
+	if r.App == nil || r.App.Config == nil {
+		return
+	}
+	d := &r.App.Config.Display
+	var res chatcmd.ReplyDisplayResult
+	switch cmd {
+	case "/stream":
+		res = chatcmd.ApplyStream(d, args)
+	case "/reply":
+		res = chatcmd.ApplyReplyFormat(d, args)
+	default:
+		return
+	}
+	if !res.OK {
+		fmt.Fprintf(r.stdout, "%s\n", res.Message)
+		return
+	}
+	if res.Display != nil {
+		r.App.Config.Display = *res.Display
+		r.UI.ApplyDisplay(*res.Display)
+	}
+	r.UI.PrintInfo(res.Message)
+	if res.Persist && r.ConfigPath != "" {
+		_ = config.PersistDisplay(r.ConfigPath, r.App.Config.Display)
+	}
 }
 
 func (r *Repl) persistConfigField(mutate func(*config.LLMConfig)) {

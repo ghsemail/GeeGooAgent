@@ -6,12 +6,20 @@ import (
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/cli/chatui"
+	"github.com/ghsemail/GeeGooAgent/internal/config"
 )
+
+func boolPtr(v bool) *bool { return &v }
+
+func enableStream(ui *chatui.ChatUI) {
+	ui.ApplyDisplay(config.DisplayConfig{StreamReply: boolPtr(true)})
+}
 
 func TestTypewriterStreamFinalReply(t *testing.T) {
 	t.Setenv("GEEGOO_CHAT_PLAIN", "1")
 	var buf bytes.Buffer
 	ui := chatui.New(&buf)
+	enableStream(ui)
 
 	ui.EmitProgress("turn_start", nil)
 	ui.EmitProgress("stream_delta", map[string]any{"content": "你好"})
@@ -32,6 +40,7 @@ func TestTypewriterAbortedBeforeTools(t *testing.T) {
 	t.Setenv("GEEGOO_CHAT_PLAIN", "1")
 	var buf bytes.Buffer
 	ui := chatui.New(&buf)
+	enableStream(ui)
 
 	ui.EmitProgress("turn_start", nil)
 	ui.EmitProgress("stream_delta", map[string]any{"content": "先查一下"})
@@ -54,6 +63,7 @@ func TestTypewriterSkipsDuplicatePlanWhenStreamed(t *testing.T) {
 	t.Setenv("GEEGOO_CHAT_PLAIN", "1")
 	var buf bytes.Buffer
 	ui := chatui.New(&buf)
+	enableStream(ui)
 
 	ui.EmitProgress("turn_start", nil)
 	ui.EmitProgress("stream_delta", map[string]any{"content": "计划A"})

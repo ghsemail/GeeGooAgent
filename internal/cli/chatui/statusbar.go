@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// StatusBarOptions feeds the Grok-style footer status line.
+// StatusBarOptions feeds the Hermes-style footer status line.
 type StatusBarOptions struct {
 	Model         string
 	PromptTokens  int
@@ -41,9 +41,34 @@ func FormatTokenCount(n int) string {
 	}
 }
 
-// RenderGrokFooterBar returns hints on the left and token usage on the right.
-func RenderGrokFooterBar(opts StatusBarOptions, width int) string {
-	left := styleDim.Render("Tab: sessions · /help")
+func renderProgressBar(pct float64, barWidth int) string {
+	if barWidth < 8 {
+		barWidth = 8
+	}
+	if pct < 0 {
+		pct = 0
+	}
+	if pct > 1 {
+		pct = 1
+	}
+	filled := int(pct*float64(barWidth) + 0.5)
+	if filled > barWidth {
+		filled = barWidth
+	}
+	return "[" + styleBrand.Render(strings.Repeat("█", filled)) +
+		styleWhisper.Render(strings.Repeat("░", barWidth-filled)) + "]"
+}
+
+// RenderHermesStatusBar returns the fixed footer line (model · tokens · bar · timing).
+func RenderHermesStatusBar(opts StatusBarOptions, width int) string {
+	modelShort := strings.TrimSpace(opts.Model)
+	if i := strings.LastIndex(modelShort, "/"); i >= 0 {
+		modelShort = modelShort[i+1:]
+	}
+	if len(modelShort) > 24 {
+		modelShort = modelShort[:21] + "..."
+	}
+
 	ctx := opts.ContextWindow
 	if ctx <= 0 {
 		ctx = 128_000
@@ -52,7 +77,63 @@ func RenderGrokFooterBar(opts StatusBarOptions, width int) string {
 	if used < 0 {
 		used = 0
 	}
-	right := styleDim.Render(FormatTokenCount(used) + " / " + FormatTokenCount(ctx))
+	pct := float64(used) / float64(ctx)
+	if pct > 1 {
+		pct = 1
+	}
+
+	barW := 10
+	if width > 100 {
+		barW = 12
+	}
+
+	elapsed := opts.Elapsed.Round(time.Second)
+	if elapsed < 0 {
+		elapsed = 0
+	}
+
+	busyPart := styleOK.Render(fmt.Sprintf("✓ %ds", int(elapsed.Seconds())))
+	if opts.Busy {
+		busyPart = styleRunning.Render(fmt.Sprintf("⏲ %ds", int(elapsed.Seconds())))
+	}
+
+	parts := []string{
+		styleBrand.Render("⚕") + " " + styleBrand.Render(modelShort),
+		styleWhisper.Render("│"),
+		styleMeta.Render(FormatTokenCount(used)) + styleWhisper.Render("/") + styleMeta.Render(FormatTokenCount(ctx)),
+		renderProgressBar(pct, barW),
+		styleWhisper.Render(fmt.Sprintf("%d%%", int(pct*100+0.5))),
+		styleMeta.Render(fmt.Sprintf("%ds", int(elapsed.Seconds()))),
+		busyPart,
+	}
+	if opts.Steps > 0 {
+		parts = append(parts, styleWhisper.Render(fmt.Sprintf("%d steps", opts.Steps)))
+	}
+	line := strings.Join(parts, " ")
+	if width > 0 && lipgloss.Width(line) > width {
+		parts = []string{
+			styleBrand.Render("⚕") + " " + styleBrand.Render(modelShort),
+			styleMeta.Render(FormatTokenCount(used)) + styleWhisper.Render("/") + styleMeta.Render(FormatTokenCount(ctx)),
+			styleWhisper.Render(fmt.Sprintf("%d%%", int(pct*100+0.5))),
+			busyPart,
+		}
+		line = strings.Join(parts, " ")
+	}
+	return line
+}
+
+// RenderGrokFooterBar returns hints on the left and token usage on the right.
+func RenderGrokFooterBar(opts StatusBarOptions, width int) string {
+	left := styleWhisper.Render("Tab: sessions · /help")
+	ctx := opts.ContextWindow
+	if ctx <= 0 {
+		ctx = 128_000
+	}
+	used := opts.PromptTokens
+	if used < 0 {
+		used = 0
+	}
+	right := styleMeta.Render(FormatTokenCount(used) + " / " + FormatTokenCount(ctx))
 	if width <= 0 {
 		return left + "  " + right
 	}
@@ -61,9 +142,4 @@ func RenderGrokFooterBar(opts StatusBarOptions, width int) string {
 		gap = 1
 	}
 	return left + strings.Repeat(" ", gap) + right
-}
-
-// RenderHermesStatusBar is kept for compatibility; delegates to Grok footer bar.
-func RenderHermesStatusBar(opts StatusBarOptions, width int) string {
-	return RenderGrokFooterBar(opts, width)
 }
