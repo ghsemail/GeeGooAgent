@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/tools/catalog"
@@ -85,7 +86,7 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 							data = envelope["data"]
 						}
 					}
-					if err != nil && deps.HTTP.HasMCPFallback(spec.Name) {
+					if err != nil && deps.HTTP.HasMCPFallback(spec.Name) && mcp.ShouldAnalyzeFallback(err) {
 						fallback := deps.HTTP.MCP
 						if spec.DirectResponse {
 							data, err = fallback.PostDirect(ctx.GoContext(), spec.Path, body)

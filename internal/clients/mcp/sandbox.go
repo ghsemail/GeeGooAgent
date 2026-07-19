@@ -1,6 +1,31 @@
 package mcp
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
+
+// ShouldAnalyzeFallback reports whether analyze-api failure should retry via mcp-api.
+// JSON business errors (e.g. code 101) must not fall back — they would surface as misleading HTTP 502.
+func ShouldAnalyzeFallback(err error) bool {
+	if err == nil {
+		return false
+	}
+	ce, ok := err.(*ClientError)
+	if !ok {
+		return true
+	}
+	if ce.HTTPStatus >= 500 {
+		return true
+	}
+	if ce.APICode != nil {
+		return false
+	}
+	msg := ce.Message
+	return strings.Contains(msg, "transport error") ||
+		strings.Contains(msg, "request failed after retries") ||
+		strings.Contains(msg, "invalid JSON")
+}
 
 // ClientError is an HTTP or GeeGoo API business error.
 type ClientError struct {
