@@ -173,7 +173,7 @@ func TestPreprocessTerminalMarkdown_StockAnalysisGlue(t *testing.T) {
 |大单|+7.54|
 操作建议：-持仓者：考虑分批止盈-观望者：不要追高`
 	out := PreprocessTerminalMarkdown(in)
-	if strings.Contains(out, "|---") || strings.Contains(out, "|日期|事件|") {
+	if strings.Contains(out, "|日期|事件|") || strings.Contains(out, "|维度|信号|") || strings.Contains(out, "|:---") {
 		t.Fatalf("raw table pipes should be converted: %q", out)
 	}
 	if strings.Contains(out, "---") && !strings.Contains(out, "------") {
@@ -210,6 +210,26 @@ func TestRenderAssistantMarkdown_StockAnalysisGlue(t *testing.T) {
 	}
 	if !strings.Contains(out, "腾讯控股") || !strings.Contains(out, "积极") {
 		t.Fatalf("missing content: %q", out)
+	}
+}
+
+func TestPreprocessTerminalMarkdown_WelcomeLooseTable(t *testing.T) {
+	in := `你好！我是GeeGoo股票分析Agent，主要帮你做以下事情：📊股票分析-实时行情：现价、逐笔成交、资金流向、资金分布、经纪席位-技术面分析：MCP多维度技术指标（日线/周线/小时线），信号趋势解读-新闻资讯：市场新闻、个股新闻（A股/港股/美股）-基本面：基本面分析模板##🤖交易Bot管理|类型|说明|------|------DCA定投|单指标/组合信号，动态止盈止损，支持回测GRID网格|自动网格策略生成+历史回测，高低买卖SmartTrade|灵活策略配置HDG对冲|对冲策略管理|支持：创建、查看、修改、启停、删除、查日志、查昨日态度🔔提醒Bot-DCA/GRID/Smart三种提醒Bot，只提醒不下单##📝报告-盘前/盘中/盘后报告，支持创建与查询`
+	out := PreprocessTerminalMarkdown(in)
+	if strings.Contains(out, "|类型|") || strings.Contains(out, "------|") {
+		t.Fatalf("loose table pipes should be removed: %q", out)
+	}
+	if !strings.Contains(out, "**DCA定投**") || !strings.Contains(out, "单指标/组合信号") {
+		t.Fatalf("missing DCA row: %q", out)
+	}
+	if !strings.Contains(out, "**GRID网格**") || !strings.Contains(out, "**SmartTrade**") {
+		t.Fatalf("missing bot rows: %q", out)
+	}
+	if !strings.Contains(out, "## 🤖") || strings.Contains(out, "##🤖") {
+		t.Fatalf("heading should be spaced: %q", out)
+	}
+	if !strings.Contains(out, "- 技术面") || !strings.Contains(out, "- 基本面") {
+		t.Fatalf("feature dashes should split: %q", out)
 	}
 }
 

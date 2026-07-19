@@ -34,6 +34,14 @@ var (
 	reAdviceDash      = regexp.MustCompile(`([者。盈%）)])\s*-([\p{Han}])`)
 	reFixTightDashList = regexp.MustCompile(`\n-([\p{Han}A-Za-z])`)
 	reDateCell        = regexp.MustCompile(`^\d{1,2}/\d{1,2}$`)
+	reGlueEmojiHeading = regexp.MustCompile(`([^\n#])(#{2,6})([\p{So}])`)
+	reGluePipeSection = regexp.MustCompile(`(\|[^\n#]{3,})(#{2,6})`)
+	reLooseTableHeaderSep = regexp.MustCompile(`(\|(?:类型\|说明|日期\|事件|维度\|信号)\|)\s*([-]{2,}\|[-]{2,})`)
+	reLooseSepRow         = regexp.MustCompile(`([-]{2,}\|[-]{2,})\s*([\p{Han}A-Za-z][^\n|]{0,24}\|)`)
+	reLooseRowAfterBacktest = regexp.MustCompile(`(回测)(GRID[^\n|]*\|)`)
+	reGlueBeforeTypeTable   = regexp.MustCompile(`(Bot管理|分析模板)(\|类型\|说明\|)`)
+	reGlueFeatureDash     = regexp.MustCompile(`(股票分析|经纪席位|新闻资讯)(-)([\p{Han}])`)
+	reGlueParenDash       = regexp.MustCompile(`([）)])(-)([\p{Han}])`)
 )
 
 // NormalizeAssistantLayout inserts line breaks when the model glues markdown blocks
@@ -89,6 +97,9 @@ func NormalizeAssistantLayout(text string) string {
 func fixHeadingSyntax(line string) string {
 	line = reHeadingSpace.ReplaceAllString(line, "$1 $2")
 	line = reHeadingNumSpace.ReplaceAllString(line, "$1 $2")
+	if strings.HasPrefix(strings.TrimSpace(line), "#") {
+		line = strings.Join(strings.Fields(line), " ")
+	}
 	return line
 }
 
@@ -130,10 +141,12 @@ func breakInlinePipeFields(text string) string {
 // PreprocessTerminalMarkdown adapts assistant markdown for narrow terminals.
 func PreprocessTerminalMarkdown(text string) string {
 	text = normalizeGluedAnalysisMarkdown(text)
+	text = normalizeLoosePipeTablesInline(text)
 	text = normalizeGluedMarkdownTables(text)
 	text = NormalizeAssistantLayout(text)
 	text = ensureListSpacing(text)
 	if strings.Contains(text, "|") {
+		text = convertLoosePipeTables(text)
 		text = convertMarkdownTables(text)
 	}
 	return tightenParagraphSpacing(text)
@@ -156,6 +169,134 @@ func normalizeGluedAnalysisMarkdown(text string) string {
 	text = reFixTightDashList.ReplaceAllString(text, "\n- $1")
 	text = strings.ReplaceAll(text, "|  |", "\n|")
 	return strings.TrimSpace(text)
+}
+
+// normalizeLoosePipeTablesInline splits welcome-style tables where only the header
+// row has leading pipes: |类型|说明| + ------|------ + DCA定投|描述|.
+func normalizeLoosePipeTablesInline(text string) string {
+	text = reGlueEmojiHeading.ReplaceAllString(text, "$1\n$2 $3")
+	text = reGlueBeforeTypeTable.ReplaceAllString(text, "$1\n\n$2")
+	text = reGluePipeSection.ReplaceAllString(text, "$1\n$2 ")
+	text = reGlueFeatureDash.ReplaceAllString(text, "$1\n- $3")
+	text = reGlueParenDash.ReplaceAllString(text, "$1\n- $3")
+	text = reLooseTableHeaderSep.ReplaceAllString(text, "$1\n$2\n")
+	text = reLooseSepRow.ReplaceAllString(text, "$1\n$2")
+	text = reLooseRowAfterBacktest.ReplaceAllString(text, "$1\n$2")
+	// Split consecutive loose rows: 回测\nGRID... and 买卖\nSmartTrade...
+	text = regexp.MustCompile(`(回测)\n?(GRID[^\n|]+\|)`).ReplaceAllString(text, "$1\n$2")
+	text = regexp.MustCompile(`(买卖)\n?(SmartTrade\|)`).ReplaceAllString(text, "$1\n$2")
+	text = regexp.MustCompile(`(配置)\n?(HDG[^\n|]+\|)`).ReplaceAllString(text, "$1\n$2")
+	return text
+}
+
+func convertLoosePipeTables(text string) string {
+	lines := strings.Split(text, "\n")
+	var out []string
+	for i := 0; i < len(lines); {
+		if _, ok := isLooseTableHeaderLine(lines[i]); ok {
+			start := i
+			i++
+			if i < len(lines) && isLooseTableSeparator(lines[i]) {
+				i++
+			}
+			var rows [][]string
+			for i < len(lines) {
+				if cells := parseLooseTableRow(lines[i]); cells != nil {
+					rows = append(rows, cells)
+					i++
+					continue
+				}
+				break
+			}
+			if formatted := formatKeyValueTable(rows); formatted != "" {
+				if len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
+					out = append(out, "")
+				}
+				out = append(out, formatted)
+				continue
+			}
+			out = append(out, lines[start:i]...)
+			continue
+		}
+		out = append(out, lines[i])
+		i++
+	}
+	return strings.Join(out, "\n")
+}
+
+func isLooseTableHeaderLine(line string) ([]string, bool) {
+	if isTableSeparator(line) || isLooseTableSeparator(line) {
+		return nil, false
+	}
+	cells := parseTableRow(line)
+	if cells == nil || len(cells) != 2 {
+		return nil, false
+	}
+	for _, c := range cells {
+		if strings.Trim(c, "-: ") == "" {
+			return nil, false
+		}
+	}
+	if isKeyValueTableHeaders(cells) {
+		return cells, true
+	}
+	a, b := strings.TrimSpace(cells[0]), strings.TrimSpace(cells[1])
+	if (strings.Contains(a, "类型") && strings.Contains(b, "说明")) ||
+		(looksLikeColumnName(a) && looksLikeColumnName(b)) {
+		return cells, true
+	}
+	return nil, false
+}
+
+func isLooseTableSeparator(line string) bool {
+	trim := strings.TrimSpace(line)
+	if strings.HasPrefix(trim, "|") {
+		return isTableSeparator(trim)
+	}
+	if !strings.Contains(trim, "|") || !strings.Contains(trim, "-") {
+		return false
+	}
+	for _, r := range trim {
+		switch r {
+		case '|', '-', ':', ' ', '\t':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func parseLooseTableRow(line string) []string {
+	trim := strings.TrimSpace(line)
+	if trim == "" || isLooseTableSeparator(trim) {
+		return nil
+	}
+	if strings.HasPrefix(trim, "|") {
+		cells := parseTableRow(trim)
+		if cells == nil || len(cells) != 2 || isLikelyTableHeader(cells) {
+			return nil
+		}
+		return cells
+	}
+	if !strings.Contains(trim, "|") {
+		return nil
+	}
+	parts := strings.Split(trim, "|")
+	var cells []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			cells = append(cells, p)
+		}
+	}
+	if len(cells) < 2 {
+		return nil
+	}
+	if len(cells) == 2 {
+		return cells
+	}
+	extra := strings.Join(cells[2:], " · ")
+	return []string{cells[0], cells[1] + " · " + extra}
 }
 
 func splitPipeHeadingGlue(line string) []string {
@@ -372,6 +513,9 @@ func tightenParagraphSpacing(text string) string {
 			}
 			continue
 		}
+		if strings.HasPrefix(trim, "|") && (isLooseTableSeparator(trim) || isTableSeparator(trim)) {
+			continue
+		}
 		if isSectionStart(trim) && len(out) > 0 && out[len(out)-1] != "" {
 			out = append(out, "")
 		}
@@ -511,6 +655,8 @@ func isKeyValueTableHeaders(headers []string) bool {
 	case strings.Contains(a, "日期") || strings.Contains(b, "事件"):
 		return true
 	case strings.Contains(a, "维度") || strings.Contains(b, "信号"):
+		return true
+	case strings.Contains(a, "类型") || strings.Contains(b, "说明"):
 		return true
 	case strings.Contains(a, "类型") || strings.Contains(b, "净流入"):
 		return true
