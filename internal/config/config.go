@@ -101,6 +101,24 @@ type HooksConfig struct {
 	TimeoutSec int      `json:"timeout_sec,omitempty"`
 }
 
+// AdvisorConfig enables optional Python cognition sidecar (default off).
+type AdvisorConfig struct {
+	Enabled    *bool  `json:"enabled,omitempty"`
+	BaseURL    string `json:"base_url,omitempty"`
+	TimeoutSec int    `json:"timeout_sec,omitempty"`
+	Ranker     *bool  `json:"ranker,omitempty"`
+	Evaluator  *bool  `json:"evaluator,omitempty"`
+}
+
+// ResolvedAdvisor is EffectiveAdvisor output.
+type ResolvedAdvisor struct {
+	Enabled   bool
+	BaseURL   string
+	Timeout   time.Duration
+	Ranker    bool
+	Evaluator bool
+}
+
 // AppConfig is compatible with Python config.json.
 type AppConfig struct {
 	BaseURL          string            `json:"base_url"`
@@ -132,6 +150,7 @@ type AppConfig struct {
 	DelegateMaxParallel int            `json:"delegate_max_parallel,omitempty"`
 	MCPMaxParallel      int            `json:"mcp_max_parallel,omitempty"`
 	Hooks            HooksConfig       `json:"hooks,omitempty"`
+	Advisor          AdvisorConfig     `json:"advisor,omitempty"`
 	Display          DisplayConfig     `json:"display,omitempty"`
 	ActiveProfile    string            `json:"active_profile,omitempty"`
 	Profiles         map[string]ProfileConfig `json:"profiles,omitempty"`
@@ -391,6 +410,34 @@ func (c *AppConfig) EffectiveDelegateMaxParallel() int {
 		return max
 	}
 	return c.DelegateMaxParallel
+}
+
+// EffectiveAdvisor returns optional cognition sidecar settings (default disabled).
+func (c *AppConfig) EffectiveAdvisor() ResolvedAdvisor {
+	out := ResolvedAdvisor{
+		Timeout: 3 * time.Second, Ranker: true, Evaluator: true,
+	}
+	if c == nil {
+		return out
+	}
+	adv := c.Advisor
+	if adv.Enabled != nil {
+		out.Enabled = *adv.Enabled
+	}
+	out.BaseURL = strings.TrimSpace(adv.BaseURL)
+	if adv.TimeoutSec > 0 {
+		out.Timeout = time.Duration(adv.TimeoutSec) * time.Second
+	}
+	if out.Timeout > 30*time.Second {
+		out.Timeout = 30 * time.Second
+	}
+	if adv.Ranker != nil {
+		out.Ranker = *adv.Ranker
+	}
+	if adv.Evaluator != nil {
+		out.Evaluator = *adv.Evaluator
+	}
+	return out
 }
 
 // EffectiveSearch returns search settings with defaults (duckduckgo, max 5).

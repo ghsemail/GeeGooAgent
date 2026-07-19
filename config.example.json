@@ -64,6 +64,13 @@
       "localhost"
     ]
   },
+  "advisor": {
+    "enabled": false,
+    "base_url": "http://127.0.0.1:3410",
+    "timeout_sec": 3,
+    "ranker": true,
+    "evaluator": true
+  },
   "display": {
     "interface": "tui",
     "details_mode": "collapsed",

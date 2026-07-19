@@ -15,6 +15,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/clients/admin"
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
+	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
@@ -124,6 +125,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	})
 	sub.SetEventBus(eventBus)
 	app.wireChatMemory()
+	app.wireCognition()
 	tools.RegisterAll(registry, tools.Deps{
 		HTTP: httpBackends, WorkspaceRoot: workspace, ProjectRoot: findProjectRoot(),
 		Working: workingLoader, Search: cfg.EffectiveSearch(),
@@ -356,6 +358,21 @@ func (a *App) setMemory(m memport.Port) {
 	if a.Agent != nil {
 		a.Agent.SetMemory(m)
 	}
+}
+
+func (a *App) wireCognition() {
+	if a == nil || a.Agent == nil || a.Config == nil {
+		return
+	}
+	adv := a.Config.EffectiveAdvisor()
+	if !adv.Enabled || adv.BaseURL == "" {
+		a.Agent.SetCognition(cognition.Defaults())
+		return
+	}
+	client := cognition.NewAdvisorClient(cognition.AdvisorConfig{
+		BaseURL: adv.BaseURL, Timeout: adv.Timeout,
+	})
+	a.Agent.SetCognition(cognition.BundleWithAdvisor(client, adv.Ranker, adv.Evaluator))
 }
 
 func (a *App) wireCompressor() { a.wireChatMemory() }

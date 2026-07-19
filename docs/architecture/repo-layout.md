@@ -23,7 +23,8 @@ GeeGooAgent/
 │
 ├── internal/
 │   ├── agent/                  # L4 Kernel（ReAct Loop + ToolExec；薄封装）
-│   ├── cognition/              # L4 策略扩展点（Ranker / Evaluator / PlanPolicy）
+│   ├── cognition/              # L4 策略扩展点（Ranker / Evaluator / PlanPolicy + AdvisorClient）
+│   ├── archboundaries/         # 包 import 边界检查（P5）
 │   ├── memport/                # L3 Memory port 接口（Recall / Store / Compress）
 │   ├── app/                    # 依赖组装（LoadFromConfigPath）
 │   ├── runtime/                # L4 Session + Executor + events
@@ -51,6 +52,10 @@ GeeGooAgent/
 │       ├── chatui/             # 终端 UI
 │       └── chattui/            # Bubble Tea 多会话
 │
+├── services/
+│   └── cognitive/              # 可选 Python Advisor sidecar（P4，默认不部署）
+│       ├── advisor_server.py
+│       └── README.md
 ├── skills/                     # L5 Skill 资源（manifest + 模板）
 │   ├── pre_market/
 │   └── bundled/
@@ -62,6 +67,7 @@ GeeGooAgent/
 │   └── engineering/
 ├── scripts/
 │   ├── install.sh              # 自托管安装
+│   ├── check_import_boundaries.go  # P5 import 边界 CI/本地检查
 │   └── deploy_agent_server.py  # 119.45.16.112 部署
 ├── config.example.json
 ├── start.sh                    # 服务器 build + runtime 管理
@@ -92,7 +98,9 @@ infra 不得 import runtime / tools / llm
 ```
 
 > Agent OS 定稿与改造节奏：[agent-runtime-architecture.md](./agent-runtime-architecture.md)、[agent-runtime-migration-plan.md](./agent-runtime-migration-plan.md)。  
-> P1 已引入 `internal/cognition`（Ranker / Evaluator / PlanPolicy）；Loop 经 `SetCognition` 注入。
+> P1 已引入 `internal/cognition`（Ranker / Evaluator / PlanPolicy）；Loop 经 `SetCognition` 注入。  
+> P4 可选 `services/cognitive` sidecar + `AdvisorClient`（`config.advisor.enabled` 默认 false）。  
+> P5 `go run scripts/check_import_boundaries.go` 或 `go test ./internal/archboundaries/...` 验证依赖方向。
 
 ## 工具注册链
 

@@ -206,3 +206,18 @@ func TestEffectiveToolTimeout(t *testing.T) {
 		t.Fatalf("EffectiveToolTimeout capped = %v, want 600s", got)
 	}
 }
+
+func TestEffectiveAdvisor(t *testing.T) {
+	def := (&AppConfig{}).EffectiveAdvisor()
+	if def.Enabled || def.BaseURL != "" || def.Timeout != 3*time.Second || !def.Ranker || !def.Evaluator {
+		t.Fatalf("default advisor: %+v", def)
+	}
+	on := true
+	cfg := &AppConfig{Advisor: AdvisorConfig{
+		Enabled: &on, BaseURL: "http://127.0.0.1:3410", TimeoutSec: 5,
+	}}
+	got := cfg.EffectiveAdvisor()
+	if !got.Enabled || got.BaseURL != "http://127.0.0.1:3410" || got.Timeout != 5*time.Second {
+		t.Fatalf("custom advisor: %+v", got)
+	}
+}
