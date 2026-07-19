@@ -45,9 +45,11 @@ def main() -> int:
     cmds = [
         f"cd {repo} && git fetch origin main && git reset --hard origin/main",
         f"cd {repo} && git log -1 --oneline",
+        f"cd {repo} && bash start.sh stop-runtime",
         f"cd {repo} && bash start.sh build",
-        f"cd {repo} && bash start.sh restart-runtime",
+        f"cd {repo} && bash start.sh start-runtime",
         f"cd {repo} && bash start.sh status",
+        "export PATH=$HOME/.geegoo/bin:$PATH; geegoo verify agent-loop --offline 2>&1",
         "export PATH=$HOME/.geegoo/bin:$PATH; geegoo doctor 2>&1",
         "curl -sf http://127.0.0.1:3400/health && echo",
     ]

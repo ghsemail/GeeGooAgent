@@ -22,7 +22,12 @@ PID_RUNTIME="${APP_DIR}/agent-runtime.pid"
 log() { echo "[GeeGooAgent] $*"; }
 
 install_geegoo_wrapper() {
-  cat > "$BIN_DIR/geegoo" <<EOF
+  local wrapper="$BIN_DIR/geegoo"
+  local tmp="$BIN_DIR/.geegoo.wrapper.new"
+  if [[ -L "$wrapper" ]]; then
+    rm -f "$wrapper"
+  fi
+  cat > "$tmp" <<EOF
 #!/usr/bin/env bash
 set -a
 # shellcheck disable=SC1091
@@ -30,7 +35,9 @@ source "\${GEEGOO_HOME:-$HOME/.geegoo}/agent.env" 2>/dev/null || true
 set +a
 exec "$BIN_DIR/geegoo.bin" "\$@"
 EOF
-  chmod +x "$BIN_DIR/geegoo" "$BIN_DIR/geegoo.bin" 2>/dev/null || true
+  chmod +x "$tmp"
+  mv -f "$tmp" "$wrapper"
+  chmod +x "$BIN_DIR/geegoo.bin" 2>/dev/null || true
 }
 
 build() {
@@ -45,7 +52,6 @@ start_runtime() {
     log "agent-runtime already running (PID $(cat "$PID_RUNTIME"))"
     return 0
   fi
-  build
   export GEEGOO_CONFIG="$CONFIG_PATH"
   nohup "$BIN_DIR/agentRuntimeServer" > "$LOG_RUNTIME" 2>&1 &
   echo $! > "$PID_RUNTIME"
@@ -74,7 +80,7 @@ case "${1:-help}" in
   build) build ;;
   start-runtime) start_runtime ;;
   stop-runtime) stop_runtime ;;
-  restart-runtime) stop_runtime; start_runtime ;;
+  restart-runtime) stop_runtime; build; start_runtime ;;
   status) status_runtime ;;
   *)
     echo "Usage: $0 {build|start-runtime|stop-runtime|restart-runtime|status}"
