@@ -56,7 +56,7 @@
 |------|-------------|--------------|------------|
 | **Skills** | ✅ `skills/` + `geegoo run`；manifest 工作流包 | ✅ `skills/` + optional-skills | ✅ 斜杠命令 + `/skillify` + Marketplace |
 | Skill 触发 | 调度器 / CLI 显式 | 自动匹配 + 命名调用 | 任务匹配或按名调用 |
-| **Hooks** | ❌ | ⚠️ 插件生态 | ✅ 文件编辑、工具调用脚本 |
+| **Hooks** | ✅ `config.hooks` tool_before/after | ⚠️ 插件生态 | ✅ 文件编辑、工具调用脚本 |
 | **Plugins** | ❌ YAGNI | ✅ | ✅ + Marketplace 打包分发 |
 | 项目规则文件 | ⚠️ `rules/` + `prompts/`（非 AGENTS.md） | ⚠️ 项目配置 | ✅ **AGENTS.md** + CLAUDE.md + Cursor 兼容 |
 | 目录级 AGENTS.md | ❌ | ❌ | ✅ |
@@ -143,15 +143,15 @@
 
 ## 十一、GeeGooAgent 可借鉴优先级（建议）
 
-| 优先级 | Grok Build 能力 | 理由 |
-|--------|-----------------|------|
-| P1 | `inspect` 式自检扩展 | ✅ `geegoo inspect`（2026-07-19 上线） |
-| P1 | Headless 对话输出格式 | scheduler/CI 需要稳定 JSON 流，类似 `streaming-json` |
-| P2 | Plan mode（批准门控） | Bot 创建、策略生成等写操作可先出计划再执行 |
-| P2 | Hooks（审计） | 工具调用/报告写入合规钩子 |
-| P3 | 并行 `delegate_task` | 多标的分析缩短 wall time |
-| P3 | AGENTS.md 加载 | 与 Cursor 规则统一，降低维护 `rules/` 双份成本 |
-| — | 文件编辑 / Git / Code review | **非 GeeGoo 目标场景**，保持不做 |
+| 优先级 | 能力 | 状态（2026-07-20） |
+|--------|------|-------------------|
+| P1 | `geegoo inspect` | ✅ 已上线 |
+| P1 | Headless NDJSON | ⚠️ `--message --output-format ndjson`；无 `-p` 别名 |
+| P2 | Plan 门控（mutating） | ✅ `plan_gate` |
+| P2 | Hooks（审计） | ✅ `config.hooks` |
+| P3 | 并行 `delegate_tasks` | ✅ `delegate_max_parallel` |
+| P3 | AGENTS.md 加载 | ❌ 仍用 `rules/` |
+| — | 文件编辑 / Git / 编码 Plan mode | **不做** |
 
 ## 十二、参考链接
 
