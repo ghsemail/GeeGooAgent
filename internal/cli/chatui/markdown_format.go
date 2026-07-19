@@ -42,6 +42,8 @@ var (
 	reGlueBeforeTypeTable   = regexp.MustCompile(`(Bot管理|分析模板)(\|类型\|说明\|)`)
 	reGlueFeatureDash     = regexp.MustCompile(`(股票分析|经纪席位|新闻资讯)(-)([\p{Han}])`)
 	reGlueParenDash       = regexp.MustCompile(`([）)])(-)([\p{Han}])`)
+	reBotSummaryHeader    = regexp.MustCompile(`([）)])(\|Bot名称\|标的\|开关\|?)`)
+	rePipeBotRow          = regexp.MustCompile(`\|[^\n|]+\|[^\n|]+\|[^\n|]+\|`)
 )
 
 // NormalizeAssistantLayout inserts line breaks when the model glues markdown blocks
@@ -141,11 +143,13 @@ func breakInlinePipeFields(text string) string {
 // PreprocessTerminalMarkdown adapts assistant markdown for narrow terminals.
 func PreprocessTerminalMarkdown(text string) string {
 	text = normalizeGluedAnalysisMarkdown(text)
+	text = normalizeBotSummaryTablesInline(text)
 	text = normalizeLoosePipeTablesInline(text)
 	text = normalizeGluedMarkdownTables(text)
 	text = NormalizeAssistantLayout(text)
 	text = ensureListSpacing(text)
 	if strings.Contains(text, "|") {
+		text = convertBotSummaryTables(text)
 		text = convertLoosePipeTables(text)
 		text = convertMarkdownTables(text)
 	}
@@ -187,6 +191,196 @@ func normalizeLoosePipeTablesInline(text string) string {
 	text = regexp.MustCompile(`(买卖)\n?(SmartTrade\|)`).ReplaceAllString(text, "$1\n$2")
 	text = regexp.MustCompile(`(配置)\n?(HDG[^\n|]+\|)`).ReplaceAllString(text, "$1\n$2")
 	return text
+}
+
+func normalizeBotSummaryTablesInline(text string) string {
+	text = reBotSummaryHeader.ReplaceAllString(text, "$1\n\n$2\n")
+	var out []string
+	for _, line := range strings.Split(text, "\n") {
+		rows := extractBotSummaryPipeLines(line)
+		if len(rows) > 0 && (isGarbledBotSummaryLine(line) || strings.Contains(line, "Bot名称")) {
+			out = append(out, rows...)
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
+func extractBotSummaryPipeLines(line string) []string {
+	matches := rePipeBotRow.FindAllString(line, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	var rows []string
+	for _, m := range matches {
+		cells := parseTableRow(m)
+		if cells != nil && len(cells) == 3 && !isBotSummaryHeaderCells(cells) && looksLikeBotSummaryName(cells[0]) {
+			rows = append(rows, m)
+		}
+	}
+	return rows
+}
+
+func convertBotSummaryTables(text string) string {
+	lines := strings.Split(text, "\n")
+	var out []string
+	for i := 0; i < len(lines); {
+		if title, ok := botSummarySectionStart(lines, i); ok {
+			if title != "" {
+				out = append(out, title, "")
+			}
+			i++
+			var rows [][]string
+			for i < len(lines) {
+				trim := strings.TrimSpace(lines[i])
+				if trim == "" {
+					i++
+					if len(rows) > 0 {
+						break
+					}
+					continue
+				}
+				if _, nextOK := botSummarySectionStart(lines, i); nextOK {
+					break
+				}
+				if cells := parseBotSummaryRow(lines[i]); cells != nil {
+					rows = append(rows, cells)
+					i++
+					continue
+				}
+				if isGarbledBotSummaryLine(lines[i]) {
+					i++
+					continue
+				}
+				break
+			}
+			if formatted := formatBotSummaryTable(rows); formatted != "" {
+				out = append(out, formatted)
+				continue
+			}
+			if title != "" {
+				out = append(out, title)
+			}
+			continue
+		}
+		out = append(out, lines[i])
+		i++
+	}
+	return strings.Join(out, "\n")
+}
+
+func botSummarySectionStart(lines []string, i int) (title string, ok bool) {
+	if i >= len(lines) {
+		return "", false
+	}
+	line := lines[i]
+	for _, marker := range []string{"|Bot名称|标的|开关|", "|Bot名称|标的|开关"} {
+		if idx := strings.Index(line, marker); idx >= 0 {
+			return strings.TrimSpace(line[:idx]), true
+		}
+	}
+	trim := strings.TrimSpace(line)
+	if strings.HasPrefix(trim, "|Bot名称|") {
+		return "", true
+	}
+	cells := parseTableRow(trim)
+	if cells != nil && isBotSummaryHeaderCells(cells) {
+		return "", true
+	}
+	return "", false
+}
+
+func isBotSummaryHeaderCells(cells []string) bool {
+	if len(cells) != 3 {
+		return false
+	}
+	joined := strings.Join(cells, " ")
+	return strings.Contains(joined, "Bot名称") ||
+		(strings.Contains(cells[0], "名称") && strings.Contains(cells[1], "标的"))
+}
+
+func parseBotSummaryRow(line string) []string {
+	trim := strings.TrimSpace(line)
+	if trim == "" {
+		return nil
+	}
+	if cells := parseTableRow(trim); cells != nil && isBotSummaryHeaderCells(cells) {
+		return nil
+	}
+	if m := rePipeBotRow.FindString(trim); m != "" {
+		if cells := parseTableRow(m); cells != nil && len(cells) == 3 && !isBotSummaryHeaderCells(cells) && looksLikeBotSummaryName(cells[0]) {
+			return cells
+		}
+	}
+	if strings.Count(trim, "|") >= 2 {
+		parts := splitNonEmptyPipeParts(trim)
+		if len(parts) == 3 && looksLikeTicker(parts[1]) && looksLikeBotSummaryName(parts[0]) && !isBotSummaryHeaderCells(parts) {
+			return parts
+		}
+	}
+	return nil
+}
+
+func looksLikeBotSummaryName(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" || isNumericIndex(s) {
+		return false
+	}
+	return strings.Contains(s, "机器人") ||
+		strings.Contains(s, "提醒") ||
+		strings.Contains(s, "GRID") ||
+		strings.Contains(s, "Trade") ||
+		strings.Contains(s, "Bot") ||
+		strings.HasSuffix(s, "器")
+}
+
+func splitNonEmptyPipeParts(s string) []string {
+	var parts []string
+	for _, p := range strings.Split(s, "|") {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			parts = append(parts, p)
+		}
+	}
+	return parts
+}
+
+func looksLikeTicker(s string) bool {
+	s = strings.ToUpper(strings.TrimSpace(s))
+	for _, suf := range []string{".HK", ".US", ".SH", ".SZ"} {
+		if strings.HasSuffix(s, suf) {
+			return true
+		}
+	}
+	return false
+}
+
+func isGarbledBotSummaryLine(line string) bool {
+	trim := strings.TrimSpace(line)
+	if strings.HasPrefix(trim, "1.") && strings.Count(trim, "：") >= 2 {
+		return true
+	}
+	return strings.Count(trim, "：") >= 3 && strings.Contains(trim, "机器人")
+}
+
+func formatBotSummaryTable(rows [][]string) string {
+	if len(rows) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for i, row := range rows {
+		if len(row) < 3 {
+			continue
+		}
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(fmt.Sprintf("**%d. %s** · `%s`", i+1, row[0], row[1]))
+		b.WriteString("\n  开关：")
+		b.WriteString(row[2])
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
 
 func convertLoosePipeTables(text string) string {

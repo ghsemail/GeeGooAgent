@@ -233,6 +233,32 @@ func TestPreprocessTerminalMarkdown_WelcomeLooseTable(t *testing.T) {
 	}
 }
 
+func TestPreprocessTerminalMarkdown_BotSummaryTables(t *testing.T) {
+	in := `🤖你的交易机器人汇总共6台（HDG对冲无），按类型如下：
+📈DCA定投（1台）|Bot名称|标的|开关
+|SpaceX机器人|SPCX.US|✅运行中|
+📊GRID网格（3台）|Bot名称|标的|开关
+1. 小米集团-W机器人 腾讯控股机器人：小米集团-W机器人 00700.HK：01810.HK ✅运行中：✅运行中 |招金矿业-GRID|01818.HK|✅运行中|
+🎯SmartTrade（2台）|Bot名称|标的|开关
+1. 小米集团-W交易机器人 SpaceX交易机器人：小米集团-W交易机器人 SPCX.US：01810.HK ✅运行中：⏸️已暂停`
+	out := PreprocessTerminalMarkdown(in)
+	if strings.Contains(out, "|Bot名称|") || strings.Contains(out, "|SpaceX") {
+		t.Fatalf("bot summary pipes should be removed: %q", out)
+	}
+	if !strings.Contains(out, "**1. SpaceX机器人**") || !strings.Contains(out, "`SPCX.US`") {
+		t.Fatalf("missing DCA bot card: %q", out)
+	}
+	if !strings.Contains(out, "**1. 招金矿业-GRID**") || !strings.Contains(out, "`01818.HK`") {
+		t.Fatalf("missing GRID bot card: %q", out)
+	}
+	if strings.Contains(out, "00700.HK：01810") {
+		t.Fatalf("garbled duplicate line should be removed: %q", out)
+	}
+	if !strings.Contains(out, "📈DCA定投（1台）") || !strings.Contains(out, "📊GRID网格（3台）") {
+		t.Fatalf("missing section titles: %q", out)
+	}
+}
+
 func TestHardWrapLine_Chinese(t *testing.T) {
 	in := "这是一段很长的中文说明文字用于测试在终端里是否会强制折行显示而不是挤成一行"
 	out := WrapPlain(in, 20)
