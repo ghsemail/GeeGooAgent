@@ -3,13 +3,16 @@
 > 基于 [Hermes 对标](./hermes.md)、[Grok Build 对标](./grok-build.md) 与 GeeGoo 现有实现整理。  
 > 更新：2026-07-19。原则：**强化金融场景优势，借鉴 harness 能力，不照搬编码 Agent 工具链**。
 
-## 0. 已上线（2026-07-19）
+## 0. 已上线（2026-07-20）
 
 | 提交 | 主机 | 验收 |
 |------|------|------|
-| `225615ed` | 119.45.16.112（`~/.geegoo/geegoo-agent`） | `geegoo doctor` 全绿；`geegoo inspect --quick` 9/9 PASS |
+| `20471ef` | 119.45.16.112 | `geegoo verify agent-loop --offline` 12/12；`geegoo doctor` 全绿 |
+| `084fce56` | 同上 | `eval_max_retries`、offline registry、NDJSON parity 卡片 |
 
-**本批交付**：`geegoo inspect`、`--output-format ndjson`、HTTP clarify、`plan_gate`、工具 schema 校验、Hooks、`delegate_tasks`、`delegate_max_parallel`。
+**近期交付**：`plan_gate`、`delegate_tasks`、`Hooks`、`geegoo inspect`、`--output-format ndjson`、`verify agent-loop --offline`、`eval_max_retries`（可选）。
+
+**仍待办**：Cost/token 预算、`-p` 短别名、Deps 注册表松耦合 — 见下文 Phase D / backlog。
 
 ## 1. 目标与边界
 
@@ -48,11 +51,13 @@
 | delegate_task | ✅ | `internal/agent/subagent.go` |
 | delegate_tasks | ✅ | 并行子 Agent，`delegate_max_parallel` |
 | 工具 schema 校验 | ✅ | `internal/tools/schema_validate.go` |
-| Headless 对话 `-p` | ❌ | 仅有 `run` / `verify` / scheduler |
-| Plan 批准门控 | ✅ | `plan_gate` + `plan_proposed` 事件 |
+| Headless 对话 `-p` | ❌ | 有 `--message` + `--output-format ndjson` |
+| Plan 批准门控 | ✅ | `plan_gate` + `plan_proposed` |
 | 并行子 Agent | ✅ | `delegate_tasks` + `delegate_max_parallel` |
 | Hooks | ✅ | `config.hooks` + `HookRunner` |
+| Evaluator 重试 | ⚠️ | `eval_max_retries`（0–1，默认关） |
 | `geegoo inspect` | ✅ | `cmd/geegoo/inspect.go` |
+| 离线 loop parity | ✅ | `geegoo verify agent-loop --offline`（12 项） |
 | Cost / token 预算 | ❌ | 无 `internal/llm/cost` |
 | 会话压缩血缘 | ⚠️ | metadata 有，未完整 FTS 血缘 |
 | Deps 松耦合 | ⚠️ | MCP/Search 硬编进 `app.App` |

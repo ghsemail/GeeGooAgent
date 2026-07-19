@@ -1,8 +1,10 @@
 # Agent Loop 对标
 
-> **部署记录**：2026-07-19，`225615ed` 已上线 GeeGooAgent 节点（119.45.16.112）。`geegoo doctor` 全绿；`geegoo inspect --quick` 9/9 PASS。
+> **部署记录**：2026-07-20，生产基线 `20471ef`（119.45.16.112）。`geegoo verify agent-loop --offline` 12/12 PASS；`geegoo doctor` 全绿。
 
-本目录聚焦 **Agent Loop**（单轮或多轮「观察 → 规划 → 行动 → 更新」循环）的实现差异，不覆盖 IM 网关、盘前 Workflow、TUI 皮肤等外围能力。
+## 文档概述
+
+本目录聚焦 **Agent Loop**（观察 → 规划 → 行动 → 更新）与 Hermes、Grok Build 的对标及优化路线图，不覆盖 IM 网关、TUI 皮肤等外围能力。
 
 | 文档 | 对比轴 | 说明 |
 |------|--------|------|

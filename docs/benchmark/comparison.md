@@ -1,6 +1,6 @@
 # GeeGooAgent × Hermes Agent × Grok Build 对比
 
-> 更新：2026-07。GeeGoo 实现状态以 [implementation-status.md](../architecture/implementation-status.md) 为准；Hermes 以 [官方架构文档](https://hermes-agent.nousresearch.com/docs/zh-Hans/developer-guide/architecture) 与 [hermes-parity-comparison.md](../../deploy/hermes-parity-comparison.md) 为准；Grok Build 以 [grok-build.md](./grok-build.md) 为准。
+> 更新：2026-07-20。GeeGoo 实现状态以 [implementation-status.md](../architecture/implementation-status.md) 为准；Hermes 以 [官方架构文档](https://hermes-agent.nousresearch.com/docs/zh-Hans/developer-guide/architecture) 与 [hermes-parity-comparison.md](../../deploy/hermes-parity-comparison.md) 为准；Grok Build 以 [grok-build.md](./grok-build.md) 为准。
 
 ## 图例
 
@@ -19,7 +19,7 @@
 | **开源** | ✅ | ✅ | ✅（不接受外部 PR） |
 | **核心场景** | 金融盘前/盘中/盘后、MCP 报告与 Bot | 通用 Agent + 多 IM 平台 | 终端编码、全栈开发工作流 |
 | **主入口** | `geegoo chat` TUI、`geegoo run <skill>` | CLI + 20+ IM 网关 | `grok` 全屏 TUI |
-| **Headless / CI** | ⚠️ `run`/`verify`/scheduler，无 `-p` 式对话 CLI | ⚠️ 脚本化可行 | ✅ `grok -p` + streaming JSON |
+| **Headless / CI** | ⚠️ `--message` + `--output-format ndjson`；`verify agent-loop --offline` | ⚠️ 脚本化可行 | ✅ `grok -p` + streaming JSON |
 | **IDE / ACP** | ❌ | ✅ ACP adapter | ✅ ACP |
 | **领域工具** | ✅ ~82 金融 MCP 工具 | ✅ 70+ 通用工具 | ⚠️ 编码工具为主 |
 
@@ -28,7 +28,8 @@
 | 能力 | GeeGooAgent | Hermes Agent | Grok Build |
 |------|-------------|--------------|------------|
 | ReAct / Agent 循环 | ✅ `internal/agent` | ✅ `AIAgent` | ✅ `xai-grok-shell` |
-| **Plan mode** | ❌ | ❌ | ✅ 批准前禁止编辑；`.grok/plan.md` |
+| **Plan / 写操作门控** | ✅ `plan_gate`（mutating 先确认） | ⚠️ approval | ✅ Plan mode（编码计划） |
+| **并行子 Agent** | ✅ `delegate_tasks` | ⚠️ 有限 | ✅ ~8 路 + worktree |
 | **Deep reasoning** | ⚠️ 模型 reasoning + TUI `thinking_*` 事件 | ✅ | ✅ 分步思考展示 |
 | 上下文压缩 | ✅ Hermes 四阶段 + 85% hygiene | ✅ | ✅（实现细节未公开） |
 | Prompt 缓存断点 | ✅ `cache_control` | ✅ Anthropic 等 | — |
