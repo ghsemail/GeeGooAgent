@@ -7,6 +7,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
+	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
@@ -100,4 +101,18 @@ func (reverseRanker) Rank(_ context.Context, items []cognition.RankItem) ([]cogn
 		out[len(items)-1-i] = items[i]
 	}
 	return out, nil
+}
+
+func TestAgentRankRecallHits(t *testing.T) {
+	t.Parallel()
+	ag := agent.New(nil, nil, nil)
+	ag.SetCognition(cognition.Bundle{Ranker: reverseRanker{}})
+	hits := []memport.RecallHit{{ID: "a", Snippet: "a"}, {ID: "b", Snippet: "b"}}
+	out, err := ag.RankRecallHits(context.Background(), hits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) != 2 || out[0].ID != "b" {
+		t.Fatalf("got %+v", out)
+	}
 }

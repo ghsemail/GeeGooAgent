@@ -126,6 +126,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	sub.SetEventBus(eventBus)
 	app.wireChatMemory()
 	app.wireCognition()
+	app.wireRecallRanker()
 	tools.RegisterAll(registry, tools.Deps{
 		HTTP: httpBackends, WorkspaceRoot: workspace, ProjectRoot: findProjectRoot(),
 		Working: workingLoader, Search: cfg.EffectiveSearch(),
@@ -218,10 +219,7 @@ func (a *App) RebuildGateway() error {
 	a.Gateway = llm.NewGateway(provider, llm.GatewayConfig{
 		MaxRetries: 3, RetryWait: time.Second, Temperature: temp, MaxTokens: maxTokens,
 	})
-	a.Gateway.SetPolicy(llm.NewConfigPolicy(llm.ConfigPolicyInput{
-		Temperature: temp, MaxTokens: maxTokens,
-		CompressTemperature: 0.2,
-	}))
+	a.Gateway.SetPolicy(a.buildModelPolicy(thinkingOn, maxTokens, temp))
 	a.Gateway.SetFallbacks(a.buildFallbackProviders())
 	if a.Agent != nil {
 		a.Agent.SetGateway(a.Gateway)
@@ -343,6 +341,7 @@ func (a *App) wireChatMemory() {
 	if ad, ok := a.ChatMemory.(*memory.Adapter); ok && ad != nil {
 		ad.SetCompressor(compressor)
 		a.setMemory(ad)
+		a.wireRecallRanker()
 		return
 	}
 	ad := memory.NewAdapter(memory.AdapterConfig{
@@ -352,6 +351,7 @@ func (a *App) wireChatMemory() {
 	})
 	a.ChatMemory = ad
 	a.setMemory(ad)
+	a.wireRecallRanker()
 }
 
 func (a *App) setMemory(m memport.Port) {
@@ -373,6 +373,37 @@ func (a *App) wireCognition() {
 		BaseURL: adv.BaseURL, Timeout: adv.Timeout,
 	})
 	a.Agent.SetCognition(cognition.BundleWithAdvisor(client, adv.Ranker, adv.Evaluator))
+}
+
+func (a *App) wireRecallRanker() {
+	if a == nil || a.Agent == nil {
+		return
+	}
+	ad, ok := a.ChatMemory.(*memory.Adapter)
+	if !ok || ad == nil {
+		return
+	}
+	agentRef := a.Agent
+	ad.SetSessionRanker(func(ctx context.Context, hits []memport.RecallHit) ([]memport.RecallHit, error) {
+		return agentRef.RankRecallHits(ctx, hits)
+	})
+}
+
+func (a *App) buildModelPolicy(thinkingOn bool, maxTokens int, temp float64) llm.Policy {
+	base := llm.NewConfigPolicy(llm.ConfigPolicyInput{
+		Temperature: temp, MaxTokens: maxTokens,
+		CompressTemperature: 0.2,
+		CompressMaxTokens:   maxTokens,
+	})
+	complexMin := maxTokens
+	if thinkingOn && complexMin < 8192 {
+		complexMin = 8192
+	}
+	return llm.ComplexityPolicy{
+		Inner:               base,
+		ComplexMinTokens:    complexMin,
+		ToolSchemaThreshold: 0, // TaskComplex only; avoids 82-tool chat inflating max_tokens
+	}
 }
 
 func (a *App) wireCompressor() { a.wireChatMemory() }

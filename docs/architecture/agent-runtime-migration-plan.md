@@ -77,7 +77,7 @@ go build ./cmd/geegoo ./cmd/agent-runtime
 - [x] 在 [repo-layout.md](./repo-layout.md) 增加「目标逻辑包 / 依赖方向」指引  
 - [x] 在 [layers/L4-runtime/agent-loop.md](./layers/L4-runtime/agent-loop.md) 顶部加「Kernel vs Cognition」短注与链接  
 - [x] 在 [layers/L1-model-gateway/README.md](./layers/L1-model-gateway/README.md) 注明未来 Policy 层  
-- [ ] （可选）`docs/engineering/` 增加一条：禁止 Python 拥有 loop/tool/session 写路径  
+- [x] （可选）`docs/engineering/` 增加一条：禁止 Python 拥有 loop/tool/session 写路径 → [agent-runtime-boundaries.md](../engineering/agent-runtime-boundaries.md)  
 
 ### 完成标准
 
@@ -116,7 +116,7 @@ go build ./cmd/geegoo ./cmd/agent-runtime
 
 - [x] Loop 源文件委托 PlanPolicy / Evaluator / Ranker（经 `SetCognition`）  
 - [x] `go test ./internal/cognition/... ./internal/agent/...` 通过；plan gate 回归保留  
-- [ ] 手动 `geegoo chat` 一轮 tool call（部署前建议）  
+- [x] `recall` tool 经 Memory port + `SessionRanker` → cognition Ranker  
 
 ### P1 落地摘要（2026-07-19）
 
@@ -154,7 +154,8 @@ go build ./cmd/geegoo ./cmd/agent-runtime
 - `internal/llm/policy.go`：`Policy` / `ConfigPolicy` / `ComplexityPolicy` + `CallMeta`  
 - `Gateway.SetPolicy`；Chat 经 context `CallMeta` 应用 temperature / max_tokens  
 - Loop chat、budget summary、report synthesis、compressor summarizer 已标 `TaskKind`  
-- App 默认 `ConfigPolicy`；`ComplexityPolicy` 可选（不自动接入，避免 82 tools 抬高 max_tokens）  
+- App 默认 `ConfigPolicy` + `ComplexityPolicy`（`TaskComplex` 抬 token；chat 不因 tool 数量误抬）  
+- `ComplexityPolicy.ToolSchemaThreshold=0` 时仅 `TaskComplex` 触发；可按需配置正阈值  
 
 ### 不做
 
@@ -216,6 +217,7 @@ type Memory interface {
 
 - 开关 off 与无 sidecar 时行为 ≡ P3  
 - 开关 on 且 sidecar 挂掉时 chat 仍成功（降级日志可观测）  
+- `deploy/systemd/geegoo-advisor.service` 可选部署  
 
 ### 不做
 
@@ -230,7 +232,7 @@ type Memory interface {
 
 1. 审计 `internal/` import 图，修复违规（尤其 tools → cognition、cognition → cli）  
 2. 按需物理整理：例如 `agent` 内 loop 与已迁走的策略文件清理；**不强制**改 module 路径  
-3. （可选）CI 增加简单依赖检查脚本或 `go test` 内 assert  
+3. （可选）CI 增加简单依赖检查脚本或 `go test` 内 assert → `.github/workflows/ci.yml`  
 4. 更新 [repo-layout.md](./repo-layout.md) 与定稿一致  
 
 ### 完成标准
@@ -257,6 +259,7 @@ type Memory interface {
 | T4.1 | P4 | Advisor OpenAPI/JSON 契约 | services/cognitive | ✅ |
 | T4.2 | P4 | Go client + 降级 | cognition | ✅ |
 | T5.1 | P5 | import 审计与文档同步 | repo-layout、CI | ✅ |
+| T5.2 | 收尾 | recall→Ranker、ComplexityPolicy、engineering 边界 | memory、app、llm | ✅ |
 
 ---
 
@@ -299,4 +302,4 @@ P0 文档冻结
  —— Dashboard / Flutter：另开规划 ——
 ```
 
-**当前状态**：P0–P5 已完成。可选开启 `advisor.enabled` 做 recall 排序 / evaluator 实验；Dashboard 另开规划。
+**当前状态**：P0–P5 及收尾项已完成（除 Dashboard、向量库后端）。生产部署：`git pull` + restart；可选 advisor systemd。

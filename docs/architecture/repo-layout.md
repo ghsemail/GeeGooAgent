@@ -100,7 +100,8 @@ infra 不得 import runtime / tools / llm
 > Agent OS 定稿与改造节奏：[agent-runtime-architecture.md](./agent-runtime-architecture.md)、[agent-runtime-migration-plan.md](./agent-runtime-migration-plan.md)。  
 > P1 已引入 `internal/cognition`（Ranker / Evaluator / PlanPolicy）；Loop 经 `SetCognition` 注入。  
 > P4 可选 `services/cognitive` sidecar + `AdvisorClient`（`config.advisor.enabled` 默认 false）。  
-> P5 `go run scripts/check_import_boundaries.go` 或 `go test ./internal/archboundaries/...` 验证依赖方向。
+> P5 `go run scripts/check_import_boundaries.go` 或 `go test ./internal/archboundaries/...` 验证依赖方向；CI 见 `.github/workflows/ci.yml`。  
+> Recall 排序：`memory.Adapter.SessionRanker` → `agent.RankRecallHits` → cognition Ranker。
 
 ## 工具注册链
 

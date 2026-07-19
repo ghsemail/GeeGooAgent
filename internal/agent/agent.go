@@ -138,6 +138,43 @@ func (a *Agent) SetCognition(b cognition.Bundle) {
 	}
 }
 
+// RankRecallHits applies the injected Ranker to session recall hits.
+func (a *Agent) RankRecallHits(ctx context.Context, hits []memport.RecallHit) ([]memport.RecallHit, error) {
+	if a == nil || a.Loop == nil || len(hits) == 0 {
+		return hits, nil
+	}
+	items := make([]cognition.RankItem, len(hits))
+	for i, h := range hits {
+		items[i] = cognition.RankItem{
+			ID: h.ID, Text: h.Snippet, Score: float64(h.Score), Meta: h.Data,
+		}
+	}
+	ranked, err := a.Loop.RankItems(ctx, items)
+	if err != nil {
+		return hits, err
+	}
+	out := make([]memport.RecallHit, len(ranked))
+	for i, item := range ranked {
+		out[i] = memport.RecallHit{ID: item.ID, Snippet: item.Text, Data: item.Meta}
+		if item.Score != 0 {
+			out[i].Score = int(item.Score)
+		} else if item.Meta != nil {
+			switch s := item.Meta["score"].(type) {
+			case float64:
+				out[i].Score = int(s)
+			case int:
+				out[i].Score = s
+			}
+		}
+		if out[i].Data == nil {
+			out[i].Data = map[string]any{
+				"session_id": item.ID, "snippet": item.Text, "score": out[i].Score,
+			}
+		}
+	}
+	return out, nil
+}
+
 // SetDelegateMaxParallel caps concurrent delegate_task calls per round.
 func (a *Agent) SetDelegateMaxParallel(n int) {
 	if a.Loop != nil {

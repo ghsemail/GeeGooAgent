@@ -8,6 +8,7 @@
 | [coding-standards.md](./coding-standards.md) | **编码规范**（命名、分层、错误处理、Client/Tool 模板） |
 | [testing-standards.md](./testing-standards.md) | **测试规范**（每 Step 必交付用例、mock、覆盖率、验收命令） |
 | [cursor-workflow.md](./cursor-workflow.md) | 如何用 Cursor Agent **分步骤、高效率**完成开发 |
+| [agent-runtime-boundaries.md](./agent-runtime-boundaries.md) | **Agent OS 硬边界**（Python 禁止清单、包依赖、验收命令） |
 
 **阅读顺序**：requirements → coding-standards + testing-standards → cursor-workflow → 按 Step 开工。
 

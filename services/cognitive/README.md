@@ -41,3 +41,17 @@ Forbidden in responses: `tool_calls`, `state`, `workflow_decision`, etc. (enforc
 ## Degradation
 
 If the sidecar is down or returns errors, Go falls back to `IdentityRanker` / `AcceptAllEvaluator`; chat continues.
+
+## Production (optional)
+
+Enable in `config.json` (`advisor.enabled: true`) only when the sidecar is running.
+
+```bash
+# systemd (adjust User/WorkingDirectory to match server layout)
+sudo cp deploy/systemd/geegoo-advisor.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now geegoo-advisor
+curl -s http://127.0.0.1:3410/health
+```
+
+GeeGooAgent main service does **not** depend on advisor health; advisor failure is non-fatal.

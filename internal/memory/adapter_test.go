@@ -80,3 +80,56 @@ func TestAdapterRecallSession(t *testing.T) {
 		t.Fatalf("expected hits, data=%+v", res.Data)
 	}
 }
+
+func TestAdapterRecallSessionRanker(t *testing.T) {
+	t.Parallel()
+	store := infra.NewStateStore(t.TempDir())
+	sessions := chatsession.NewChatSessionStore(store)
+	for i, query := range []string{"查茅台", "查腾讯"} {
+		s, err := sessions.Create()
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.Messages = append(s.Messages,
+			llm.Message{Role: llm.RoleUser, Content: query},
+			llm.Message{Role: llm.RoleAssistant, Content: "ok", ToolCalls: []llm.ToolCall{
+				{ID: "c1", Name: "get_current_price", Arguments: map[string]any{"code": "600519.SS"}},
+			}},
+			llm.Message{Role: llm.RoleTool, ToolCallID: "c1", Content: `{"summary":"price","data":{"code":"600519.SS","price":1800}}`},
+		)
+		s.UpdatedAt = time.Now().UTC().Add(time.Duration(i) * time.Minute)
+		if err := sessions.Save(s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	reverse := func(_ context.Context, hits []memport.RecallHit) ([]memport.RecallHit, error) {
+		out := make([]memport.RecallHit, len(hits))
+		for i, h := range hits {
+			out[len(hits)-1-i] = h
+		}
+		return out, nil
+	}
+	ad := memory.NewAdapter(memory.AdapterConfig{Sessions: sessions, SessionRanker: reverse})
+	res, err := ad.Recall(context.Background(), memport.RecallQuery{
+		Kind: memport.RecallSession, Query: "", Limit: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Hits) < 2 {
+		t.Fatalf("expected 2+ hits, got %d", len(res.Hits))
+	}
+	adPlain := memory.NewAdapter(memory.AdapterConfig{Sessions: sessions})
+	plain, err := adPlain.Recall(context.Background(), memport.RecallQuery{
+		Kind: memport.RecallSession, Query: "", Limit: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plain.Hits) < 2 {
+		t.Fatal("plain recall")
+	}
+	if res.Hits[0].ID == plain.Hits[0].ID {
+		t.Fatalf("ranker should change order: ranked=%s plain=%s", res.Hits[0].ID, plain.Hits[0].ID)
+	}
+}

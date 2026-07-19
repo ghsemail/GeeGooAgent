@@ -1,0 +1,16 @@
+[Unit]
+Description=GeeGoo Cognitive Advisor (optional sidecar)
+After=network.target
+Documentation=file:///home/ubuntu/.geegoo/geegoo-agent/services/cognitive/README.md
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/.geegoo/geegoo-agent
+ExecStart=/usr/bin/python3 services/cognitive/advisor_server.py
+Restart=on-failure
+RestartSec=5
+Environment=ADVISOR_PORT=3410
+
+[Install]
+WantedBy=multi-user.target

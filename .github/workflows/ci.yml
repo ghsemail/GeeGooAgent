@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Import boundaries
+        run: go run scripts/check_import_boundaries.go
+
+      - name: Unit tests
+        run: |
+          go test ./internal/archboundaries/... ./internal/cognition/... ./internal/agent/...
+          go test ./internal/app/... ./internal/llm/... ./internal/memport/... ./internal/memory/...
+          go test ./internal/config/... ./internal/runtimeapi/...
+
+      - name: Build
+        run: go build ./cmd/geegoo ./cmd/agent-runtime

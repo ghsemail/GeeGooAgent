@@ -107,10 +107,11 @@ func (p ComplexityPolicy) Decide(req Request) Decision {
 		minTok = 8192
 	}
 	threshold := p.ToolSchemaThreshold
-	if threshold <= 0 {
-		threshold = 40
+	complex := req.Kind == TaskComplex
+	if !complex && threshold > 0 && req.ToolSchemaCount >= threshold {
+		complex = true
 	}
-	if req.Kind == TaskComplex || req.ToolSchemaCount >= threshold {
+	if complex {
 		if d.MaxTokens < minTok {
 			d.MaxTokens = minTok
 		}

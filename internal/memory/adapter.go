@@ -12,24 +12,27 @@ import (
 
 // AdapterConfig wires existing backends into the Memory port.
 type AdapterConfig struct {
-	Compressor *prompt.Compressor
-	Sessions   chatsession.SessionStore
-	Evidence   *EvidenceStore
+	Compressor    *prompt.Compressor
+	Sessions      chatsession.SessionStore
+	Evidence      *EvidenceStore
+	SessionRanker memport.SessionRanker
 }
 
 // Adapter implements memport.Port using Compressor + SessionStore + EvidenceStore.
 type Adapter struct {
-	compressor *prompt.Compressor
-	sessions   chatsession.SessionStore
-	evidence   *EvidenceStore
+	compressor    *prompt.Compressor
+	sessions      chatsession.SessionStore
+	evidence      *EvidenceStore
+	sessionRanker memport.SessionRanker
 }
 
 // NewAdapter builds a Memory port from current Go implementations.
 func NewAdapter(cfg AdapterConfig) *Adapter {
 	return &Adapter{
-		compressor: cfg.Compressor,
-		sessions:   cfg.Sessions,
-		evidence:   cfg.Evidence,
+		compressor:    cfg.Compressor,
+		sessions:      cfg.Sessions,
+		evidence:      cfg.Evidence,
+		sessionRanker: cfg.SessionRanker,
 	}
 }
 
@@ -41,12 +44,19 @@ func (a *Adapter) SetCompressor(c *prompt.Compressor) {
 	a.compressor = c
 }
 
+// SetSessionRanker wires optional recall reordering (e.g. cognition Ranker via Agent).
+func (a *Adapter) SetSessionRanker(fn memport.SessionRanker) {
+	if a == nil {
+		return
+	}
+	a.sessionRanker = fn
+}
+
 // Recall dispatches by kind. Session recall searches past chat sessions.
 func (a *Adapter) Recall(ctx context.Context, q memport.RecallQuery) (memport.RecallResult, error) {
-	_ = ctx
 	switch q.Kind {
 	case memport.RecallSession, "":
-		return a.recallSessions(q)
+		return a.recallSessions(ctx, q)
 	case memport.RecallEvidence:
 		return a.recallEvidence(q)
 	default:
@@ -54,7 +64,7 @@ func (a *Adapter) Recall(ctx context.Context, q memport.RecallQuery) (memport.Re
 	}
 }
 
-func (a *Adapter) recallSessions(q memport.RecallQuery) (memport.RecallResult, error) {
+func (a *Adapter) recallSessions(ctx context.Context, q memport.RecallQuery) (memport.RecallResult, error) {
 	if a == nil || a.sessions == nil {
 		return memport.RecallResult{}, nil
 	}
@@ -82,6 +92,13 @@ func (a *Adapter) recallSessions(q memport.RecallQuery) (memport.RecallResult, e
 				"snippet": h.Snippet, "user_queries": h.UserQueries, "stock_events": h.StockEvents,
 			},
 		})
+	}
+	if a.sessionRanker != nil && len(out.Hits) > 1 {
+		ranked, err := a.sessionRanker(ctx, out.Hits)
+		if err == nil && len(ranked) > 0 {
+			out.Hits = ranked
+			out.Data = memport.RecallHitsToData(ranked)
+		}
 	}
 	return out, nil
 }

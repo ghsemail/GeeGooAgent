@@ -81,7 +81,24 @@ type CompressOutput struct {
 	EstimatedTokensAfter int
 }
 
-// Port is the Memory port: Recall / Store / Compress without binding a single backend.
+// RecallHitsToData builds a tool/API payload from ranked recall hits.
+func RecallHitsToData(hits []RecallHit) map[string]any {
+	matches := make([]map[string]any, 0, len(hits))
+	for _, h := range hits {
+		if h.Data != nil {
+			matches = append(matches, h.Data)
+			continue
+		}
+		matches = append(matches, map[string]any{
+			"session_id": h.ID, "score": h.Score, "snippet": h.Snippet,
+		})
+	}
+	return map[string]any{"count": len(hits), "matches": matches}
+}
+
+// SessionRanker reorders session recall hits (e.g. via cognition Ranker).
+type SessionRanker func(ctx context.Context, hits []RecallHit) ([]RecallHit, error)
+
 type Port interface {
 	Recall(ctx context.Context, q RecallQuery) (RecallResult, error)
 	Store(ctx context.Context, rec Record) error

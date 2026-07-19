@@ -44,7 +44,7 @@ func TestConfigPolicyCompressUsesDedicatedTemperature(t *testing.T) {
 func TestComplexityPolicyRaisesMaxTokens(t *testing.T) {
 	t.Parallel()
 	base := llm.NewConfigPolicy(llm.ConfigPolicyInput{Temperature: 0.2, MaxTokens: 4096})
-	p := llm.ComplexityPolicy{Inner: base, ComplexMinTokens: 8192, ToolSchemaThreshold: 40}
+	p := llm.ComplexityPolicy{Inner: base, ComplexMinTokens: 8192, ToolSchemaThreshold: 0}
 	simple := p.Decide(llm.Request{Kind: llm.TaskChat, ToolSchemaCount: 5})
 	if simple.MaxTokens != 4096 {
 		t.Fatalf("simple=%+v", simple)
@@ -54,8 +54,13 @@ func TestComplexityPolicyRaisesMaxTokens(t *testing.T) {
 		t.Fatalf("complex kind=%+v", complex)
 	}
 	manyTools := p.Decide(llm.Request{Kind: llm.TaskChat, ToolSchemaCount: 50})
-	if manyTools.MaxTokens != 8192 {
-		t.Fatalf("many tools=%+v", manyTools)
+	if manyTools.MaxTokens != 4096 {
+		t.Fatalf("threshold=0 should not boost chat by tool count, got %+v", manyTools)
+	}
+	pWithThreshold := llm.ComplexityPolicy{Inner: base, ComplexMinTokens: 8192, ToolSchemaThreshold: 40}
+	manyTools2 := pWithThreshold.Decide(llm.Request{Kind: llm.TaskChat, ToolSchemaCount: 50})
+	if manyTools2.MaxTokens != 8192 {
+		t.Fatalf("explicit threshold=%+v", manyTools2)
 	}
 }
 
