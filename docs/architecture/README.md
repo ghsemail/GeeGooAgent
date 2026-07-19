@@ -6,7 +6,7 @@
 
 | 目标 | 文档 |
 |------|------|
-| 第一次读代码库 | [overview.md](./overview.md) |
+| 第一次读代码库 | [overview.md](./overview.md) + [repo-layout.md](./repo-layout.md) |
 | **Agent Runtime 架构（定稿）** | **[agent-runtime-architecture.md](./agent-runtime-architecture.md)** |
 | **哪些已实现 / 未实现** | **[implementation-status.md](./implementation-status.md)** |
 | **后续规划（唯一待办）** | **[backlog.md](./backlog.md)** |

@@ -25,8 +25,8 @@ Agent = L4 Runtime + L0 Infrastructure + L5 Skill Pack
 
 ```text
 L5 Application   Skill、CLI、触发、Rules
-L4 Runtime       ReAct、Workflow、Supervisor
-L3 Memory        Session、Working、Evidence、Compaction
+L4 Runtime       ReAct、Workflow、Supervisor、Cognition（策略面）
+L3 Memory        Session SSOT、Memory port、Working、Evidence、Compaction
 L2 Tools         Registry、MCP Clients、Toolsets
 L1 Gateway       LLM Provider、重试
 L0 Infrastructure SQLite、EventBus、Scheduler、Sandbox
@@ -43,169 +43,51 @@ L0 Infrastructure SQLite、EventBus、Scheduler、Sandbox
 
 依赖规则：下层不知上层业务；`internal/infra` 不依赖 `workflow` / `tools`。
 
+依赖规则：下层不知上层业务；`internal/infra` 不依赖 `workflow` / `tools`。  
+Kernel 与 Cognition 分离、Memory port 与 Session SSOT 分离 → [agent-runtime-architecture.md](./agent-runtime-architecture.md)。
+
 ## 系统概览
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        Entry Points                                  │
-│                                                                      │
-│  CLI (cmd/geegoo)    HTTP Runtime (cmd/agent-runtime)   Go Library   │
-│  chat / run /        /v1/chat/completions                internal/*  │
-│  resume / scheduler  /health /ready                                 │
-│  verify / migrate / skills / doctor                                  │
-└──────────┬──────────────┬───────────────────────┬───────────────────┘
-           │              │                       │
-           ▼              ▼                       ▼
+│  CLI (cmd/geegoo)          HTTP (cmd/agent-runtime :3400)            │
+│  chat / run / scheduler    /v1/chat/*  /health                       │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                     Agent (internal/agent)                           │
-│                                                                     │
-│  Agent.Run(ctx, session, input)  ← 平台无关核心                      │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │
-│  │ Prompt       │  │ Provider     │  │ Tool         │               │
-│  │ (chatprompt +│  │ Resolution   │  │ Dispatch     │               │
-│  │  RuntimeMsgs)│  │ (llm/        │  │ (tools/      │               │
-│  │              │  │  presets+    │  │  registry+   │               │
-│  │ stable system│  │  gateway+    │  │  catalog+    │               │
-│  │ + dynamic ctx│  │  openai)     │  │  bespoke)    │               │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘               │
-│         │                 │                 │                       │
-│  ┌──────┴───────────────────────────────────────────────────────┐   │
-│  │ Context Compressor (internal/prompt)                         │   │
-│  │ Hermes-style token-threshold compression before LLM rounds   │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│         │                 │                 │                       │
-│  ┌──────┴───────┐  ┌──────┴───────┐  ┌──────┴───────┐               │
-│  │ DeepSeek     │  │ 3 providers  │  │ ~82 tools    │               │
-│  │ thinking +   │  │ chat_compl.  │  │ approval gate│               │
-│  │ ctx cancel   │  │ retries      │  │ empty-success│               │
-│  │ interrupt    │  │              │  │ detection    │               │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘               │
-└─────────┴─────────────────┴─────────────────┴───────────────────────┘
-           │                                    │
-           ▼                                    ▼
-┌─────────────────────┐              ┌──────────────────────┐
-│ Session + Evidence  │              │ Tool Backends         │
-│ (SQLite + WAL+FTS5) │              │ GeeGooBot MCP :3120   │
-│ infra/db.go         │              │ Signal :3210/:3230    │
-│ chatsession/sqlite  │              │ Data :3300            │
-│ memory/evidence     │              │ DuckDuckGo web search │
-└─────────────────────┘              └──────────────────────┘
-           │
-           ▼
+│                   App (internal/app) — 依赖组装                        │
+│  LoadFromConfigPath → RebuildGateway → wireChatMemory                │
+│                    → wireCognition → wireRecallRanker                │
+│                    → tools.RegisterAll(Deps{Memory: ChatMemory})      │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│              Workflow + Skills + Supervisor + Scheduler              │
-│  workflow/runner  →  skills/registry  →  supervisor verdict          │
-│  report/synthesis (evidence-only LLM)                                │
-│  scheduler/ (cron + retry)        verify/ (cutover acceptance)       │
+│              Agent Kernel (internal/agent)                            │
+│  Loop.RunTurn — 控制平面：权限、超时、取消、plan gate、预算            │
+│  SetCognition(Bundle)    SetMemory(memport.Port)                     │
+└───────┬─────────────────┬─────────────────┬─────────────────────────┘
+        │                 │                 │
+        ▼                 ▼                 ▼
+┌───────────────┐ ┌───────────────┐ ┌───────────────────────────────┐
+│ cognition     │ │ runtime       │ │ workflow                      │
+│ Ranker        │ │ Session       │ │ pre_market / intraday /       │
+│ Evaluator     │ │ Executor      │ │ post_market + Supervisor      │
+│ PlanPolicy    │ │ events        │ └───────────────────────────────┘
+│ (+Advisor opt)│ └───────────────┘
+└───────┬───────┘
+        │ optional HTTP
+        ▼
+ services/cognitive   Python Advisor（suggestion-only，默认关）
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                     Runtime 子系统（Go）                              │
+│  tools (~82) + MCP    chatsession (SSOT)    memport + memory.Adapter │
+│  llm: Policy → Gateway → providers                                   │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-## 目录结构
-
-```text
-GeeGooAgent/
-├── cmd/
-│   ├── geegoo/              # CLI 入口：chat / run / resume / setup / doctor / migrate / skills / scheduler / verify
-│   │   ├── main.go          # 子命令分发
-│   │   ├── chat.go          # 交互式 chat
-│   │   ├── run.go           # geegoo run <skill>
-│   │   ├── ops.go           # setup / update / resume
-│   │   ├── migrate.go       # file → SQLite 一次性迁移
-│   │   ├── skills.go        # geegoo skills list
-│   │   ├── scheduler.go     # geegoo scheduler run|list
-│   │   └── verify.go        # geegoo verify（cutover 验收）
-│   └── agent-runtime/       # HTTP runtime server（/v1/chat/completions, /health）
-│
-├── internal/
-│   ├── agent/               # ★ 平台无关核心
-│   │   ├── agent.go         # Agent = Loop + Gateway + Executor + Registry；Run(ctx, sess, input)
-│   │   └── agent_test.go
-│   │
-│   ├── chatprompt/          # 系统 prompt（静态人格 + 路由规则）
-│   │   └── prompt.go
-│   │
-│   ├── prompt/              # 上下文压缩（Hermes-style，LLM 轮前触发）
-│   │   ├── compressor.go    # 四阶段压缩 + ShouldCompress
-│   │   ├── summary.go       # 辅助 LLM 结构化摘要
-│   │   └── estimate.go      # token 估算（chars/4）
-│   │
-│   ├── llm/                 # Provider 层（roadmap 计划重命名为 provider/）
-│   │   ├── types.go         # Message / Provider interface / ToolSchema
-│   │   ├── openai.go        # OpenAI 兼容（DeepSeek/OpenAI/Minimax），thinking + reasoning_content
-│   │   ├── gateway.go       # 重试网关（ctx 可取消）
-│   │   ├── presets.go       # 3 provider 预设 + 模型目录 + thinking 解析
-│   │   └── mock.go          # 测试用
-│   │
-│   ├── tools/               # 工具系统
-│   │   ├── registry.go      # Registry + Context（含 Ctx/Interactive/Approved）+ Result（含 Meta）
-│   │   ├── bootstrap.go     # HTTP catalog 转发 + ApprovalGate + Meta + 空成功检测
-│   │   ├── bespoke.go       # 手写工具（search_code/web_search/analysis/...）
-│   │   ├── contract.go      # ClassifyHTTPPayload（code=100 但空 → Skip）+ MetaFromEnvelope
-│   │   ├── approval.go      # 危险操作门控（create_/update_/delete_/switch_）
-│   │   ├── domains.go       # ChatToolNames 白名单 + 按域分组
-│   │   └── catalog/         # HTTP 转发规格 + NeedsMCPToken
-│   │
-│   ├── chatsession/         # 会话持久化（SessionStore 接口）
-│   │   ├── store.go         # ChatSession + SessionStore 接口 + 文件实现
-│   │   ├── sqlite.go        # SQLiteSessionStore + FTS5 全文检索
-│   │   ├── recall.go        # 跨会话 recall（SearchPastSessions）
-│   │   └── prompt_stability_test.go
-│   │
-│   ├── memory/              # 工作记忆 + 证据
-│   │   ├── models.go        # PreMarketWorking + EvidenceRef + PayloadHash
-│   │   ├── working.go       # WorkingStore + Apply（工具结果落工作记忆）
-│   │   └── evidence.go      # EvidenceStore（SQLite，可审计 payload + hash）
-│   │
-│   ├── workflow/            # 确定性工作流
-│   │   ├── runner.go        # Runner.Run/RunFrom（按 CompletedStepKeys 幂等）+ SynthesizerProvider
-│   │   ├── premarket.go     # Phase A/B steps + BuildReportContent + BuildCreateReportArgs
-│   │   ├── supervisor.go    # Engine.Verify → verdict pass/recoverable/terminal
-│   │   └── errors.go        # StepError（Recoverable/Terminal）+ classifyError
-│   │
-│   ├── skills/              # Skill 注册表
-│   │   ├── registry.go      # Spec + Registry（Register/Get/List）
-│   │   └── loader.go        # RegisterBuiltins（pre_market + intraday/post_market 占位）
-│   │
-│   ├── scheduler/           # Go 内 cron
-│   │   ├── scheduler.go     # Runner（robfig/cron）+ supervisor 驱动退避重试
-│   │   └── jobs.go          # Job + jobs.json 读写 + DefaultJobs
-│   │
-│   ├── report/              # 报告综合
-│   │   └── synthesis.go     # LLM evidence-only 综合（reason/suggestion/summary；result/confidence 规则锁定）
-│   │
-│   ├── verify/              # Cutover 验收
-│   │   └── verify.go        # VerifyReport（字段完整 + 枚举 + reason 长度 + evidence_refs）+ CompletenessMatrix
-│   │
-│   ├── infra/               # 底层基础设施
-│   │   ├── db.go            # SQLite 句柄（modernc.org/sqlite，纯 Go 免 CGO）+ WAL + schema migration
-│   │   ├── schema.sql       # 7 表 + FTS5（chat_sessions/session_events/evidence_records/working_state/checkpoints/execution_events）
-│   │   ├── state.go         # 文件 StateStore（迁移期保留）+ CheckpointManager + WorkspaceGuard
-│   │   └── events.go        # EventBus（L0 解耦）
-│   │
-│   ├── clients/mcp/         # GeeGooBot MCP 客户端（Bearer + mcp_token body）
-│   ├── search/              # 免费网页搜索（DuckDuckGo HTML）
-│   ├── config/              # 配置加载 + 端点解析 + 路径
-│   ├── doctor/              # 健康检查
-│   ├── auth/                # Bearer 中间件
-│   ├── httpserver/          # runtime HTTP mux
-│   ├── runtimeapi/          # /v1/chat/completions handler
-│   └── cli/
-│       ├── chatrepl/        # 交互式 REPL + 斜杠命令 + 信号中断
-│       └── chatui/          # Hermes 风格终端 UI（banner/theme/markdown/tools_display）
-│
-├── skills/                  # Skill 资源（manifest + template + supervisor_checks）
-│   ├── pre_market/
-│   └── bundled/
-│
-├── deploy/
-│   ├── systemd/             # 过渡期 systemd unit
-│   ├── hermes-parity-roadmap.md       # P1–P8 路线图（已完成）
-│   ├── hermes-parity-comparison.md    # Hermes 对比
-│   └── hermes-migration-checklist.md  # cutover runbook
-│
-├── rules/                   # 报告格式 / 态度映射 / API 路由规则
-└── docs/                    # 本文档
-```
+完整目录树 → [repo-layout.md](./repo-layout.md)。
 
 ## 数据流
 
@@ -213,15 +95,20 @@ GeeGooAgent/
 
 ```text
 用户输入 → chatrepl.runTurn()
-  → Chat.SyncChatSystemPrompt()（system 保持稳定，不改内容）
-  → Chat.RuntimeMessages()（在最后一条 user 前注入动态 Tool 活动 context）
+  → Chat.SyncChatSystemPrompt() + RuntimeMessages()
   → Agent.Run(ctx, session, text, toolCtx, schemas)
-    → Gateway.Chat(ctx, ...)（重试，ctx 可取消）
-    → tool_calls? → Executor.Execute → Registry.Execute → MCP/Search
+    → [可选] Loop 压缩经 memport.Compress（memory.Adapter + prompt.Compressor）
+    → Loop.RunTurn：
+        PlanPolicy 门控 mutating tools（plan gate）
+        Gateway.ChatStream(ctx + CallMeta{TaskKind: chat})
+          → Policy.Decide → provider（重试，ctx 可取消）
+        tool_calls → ToolExec → Registry（recall 经 deps.Memory.Recall + SessionRanker）
+        回合末 Evaluator（cognition，默认 accept）
     → 循环直到无 tool_call
-  → 最终响应 → chatui 渲染 → 保存到 SessionStore（SQLite 或文件）
-  → Ctrl+C 中断当前回合，下一回合可继续
+  → 渲染 → chatsession 持久化（Session SSOT）
 ```
+
+启动时 `app.LoadFromConfigPath` 已注入：`SetCognition`、`SetMemory(ChatMemory)`、`Gateway.SetPolicy(ConfigPolicy+ComplexityPolicy)`。
 
 ### Pre-market Workflow
 
@@ -233,7 +120,7 @@ geegoo run pre_market
     → 按 CompletedStepKeys 幂等跳过（resume 不因 bot 列表变化而错位）
     → Recoverable 错误自动重试 1 次；Terminal 直接 fail
   → finishWithSupervisor：Engine.Verify → verdict（pass/recoverable/terminal）
-  → 报告生成：BuildCreateReportArgs 调 report.Synthesizer（evidence-only LLM）
+  → 报告生成：report.Synthesizer（CallMeta TaskSynthesis，经 Policy → Gateway）
     → result/confidence 规则锁定；reason/suggestion/summary 由 LLM 综合
     → LLM 失败回退规则版，不阻塞
   → create_pre_market_report 入库 + save_local_report 留档
@@ -263,9 +150,23 @@ POST /v1/chat/completions（Bearer + X-MCP-Token）
 
 ## 主要子系统
 
+### Agent OS 控制面
+
+定稿详见 [agent-runtime-architecture.md](./agent-runtime-architecture.md)。代码落点：
+
+| 组件 | 包 | 注入点 |
+|------|-----|--------|
+| **Kernel** | `internal/agent` | `Loop.RunTurn`；`SetCognition` / `SetMemory` |
+| **Cognition** | `internal/cognition` | Ranker / Evaluator / PlanPolicy；可选 `AdvisorClient` → `services/cognitive` |
+| **Memory port** | `internal/memport` + `memory.Adapter` | `Recall` / `Compress` / `Store(evidence)`；recall 排序经 `SessionRanker` |
+| **Model Policy** | `internal/llm/policy.go` | `ConfigPolicy` + `ComplexityPolicy` → `Gateway.SetPolicy` |
+| **组装** | `internal/app` | `wireChatMemory`、`wireCognition`、`wireRecallRanker`、`buildModelPolicy` |
+
+`tools` 不 import `cognition`；边界由 `archboundaries` + CI 校验。
+
 ### Agent 循环
 
-`internal/agent/agent.go` 中的 `Agent.Run(ctx, session, input, toolCtx, schemas)` 是平台无关核心，CLI chat、HTTP runtime 共用。封装 ReAct loop + Gateway + Executor + Registry。支持 `context.Context` 取消（Ctrl+C 中断进行中的 LLM/tool 调用）。
+`Agent.Run` 是平台无关核心（CLI、HTTP runtime 共用）。`Loop` 拥有 ReAct 状态机；策略经 `cognition.Bundle` 注入，默认 Go 实现与历史行为等价。支持 `context.Context` 取消与 plan gate。
 
 ### Prompt 系统
 
@@ -273,9 +174,10 @@ POST /v1/chat/completions（Bearer + X-MCP-Token）
 
 `internal/prompt/compressor.go` 在回合开始（默认 85% hygiene）与每轮 LLM 调用前（默认 50%）按 token 阈值触发 Hermes-style 四阶段压缩；`context_length` 可按当前模型自动解析。详见 [`layers/L3-memory/compaction.md`](layers/L3-memory/compaction.md)。
 
-### Provider 解析
+### Model Policy 与 Provider
 
-`internal/llm/presets.go` 提供 3 个 provider（DeepSeek/OpenAI/Minimax），统一 OpenAI 兼容 `chat_completions` mode。`BuildProviderFromLLMFields(provider, model, token, thinking, effort)` 解析为 `(provider, key, base_url, thinking_enabled)`。不实现 Hermes 的 18+ provider / codex_responses / anthropic_messages（按需精简）。
+`internal/llm/policy.go`：`ConfigPolicy`（chat/compress/synthesis 温度与 max_tokens）+ `ComplexityPolicy`（`TaskComplex` 抬 token；默认不因 tool 数量误抬）。  
+`Gateway` 经 context `CallMeta` 应用 Policy，再调 `presets.go` 解析的 3 个 provider（DeepSeek/OpenAI/Minimax）。
 
 ### 工具系统
 
@@ -285,9 +187,13 @@ POST /v1/chat/completions（Bearer + X-MCP-Token）
 - `Result.Meta`：每次 HTTP 工具带 `api_code/duration_ms`
 - `catalog.NeedsMCPToken`：除 search_code/get_index_signals/get_signal_combinations 外默认注入 mcp_token
 
-### 会话持久化
+### 会话与 Memory
 
-`internal/chatsession/sqlite.go` + `internal/infra/db.go`：SQLite + WAL + FTS5。表 `chat_sessions`/`session_events`/`evidence_records`/`working_state`/`checkpoints`/`execution_events`。`SessionStore` 接口允许文件实现（迁移期）和 SQLite 实现共存。`geegoo migrate` 一键从文件 JSON 迁到 SQLite。`recall` 跨会话检索历史查价/搜索活动。
+- **Session SSOT**：`chatsession` + SQLite（消息、pending plan、轨迹）  
+- **Memory port**：`memport.Port` + `memory.Adapter`（压缩、跨会话 recall、evidence 写入）  
+- **recall tool**：`deps.Memory.Recall` → 可选 `SessionRanker` → `agent.RankRecallHits` → cognition Ranker  
+
+`geegoo migrate` 文件 JSON → SQLite。FTS5 支持跨会话检索。
 
 ### Evidence Store
 
@@ -303,7 +209,7 @@ POST /v1/chat/completions（Bearer + X-MCP-Token）
 
 ### Skills
 
-`internal/skills/registry.go` + `loader.go`：`geegoo run <skill>` 从 registry 查 Spec（PhaseA/PerStock 函数 + template 路径）。pre_market 实步注册；intraday/post_market 占位。新增 skill 只在 RegisterBuiltins 加一项 + 实现步骤函数，无需改 cmd/app。
+`internal/skills/registry.go` + `loader.go`：`geegoo run <skill>` 从 registry 查 Spec。`pre_market`、`intraday`、`post_market` 均已注册步骤与资源目录。
 
 详见 [layers/L5-application/skills.md](./layers/L5-application/skills.md)。Tool 体系见 [layers/L2-tools/README.md](./layers/L2-tools/README.md)。
 
@@ -322,7 +228,7 @@ POST /v1/chat/completions（Bearer + X-MCP-Token）
 | 扩展 | Skill 目录 | Rules + Tools | Skill Pack + Rules |
 | 循环 | 隐式 | 显式 Loop | ReAct + `max_tool_rounds` |
 | 工具 | 隐式 shell | Read/Bash/Grep | 82 个 Typed Tools（无 Bash） |
-| 记忆 | 对话+日志 | 上下文+Grep | Session + Evidence（无向量库） |
+| 记忆 | 对话+日志 | 上下文+Grep | Session SSOT + Memory port + Evidence（无向量库） |
 | 持久化 | 文件+日志 | 无 Agent DB | SQLite WAL + evidence |
 | 质检 | 无 | 用户确认 | Supervisor + `geegoo verify` |
 | 定时 | 外部 Gateway cron | — | 内置 `geegoo scheduler` |
@@ -334,7 +240,7 @@ POST /v1/chat/completions（Bearer + X-MCP-Token）
 | Prompt 稳定性 | system message 对话中字节不变；动态 context 作为 user-side 注入；除 `/think`/`/model` 外不破坏缓存 |
 | 可观测执行 | 每次工具调用通过 `EmitProgress` 对用户可见（chatui spinner + 工具预览） |
 | 可中断 | `context.Context` 贯穿 Agent→Gateway→Provider→Tool；Ctrl+C 中断进行中回合，下回合可继续 |
-| 平台无关核心 | 单一 `Agent.Run` 同时服务 CLI chat、HTTP runtime、workflow LLM 合成；平台差异在入口点 |
+| 平台无关核心 | 单一 `Agent.Run` 服务 CLI / HTTP / workflow；Cognition / Memory 可注入替换 |
 | LLM 不当数据源 | 报告 result/confidence 规则锁定；LLM 只综合 evidence 已有数据；失败回退规则版 |
 | 报告可审计 | 每条结论可追溯到 evidence_records 原始 payload + hash |
 | 幂等 resume | 按 step key 跳过，不按编号；bot 列表变化不导致错位 |
@@ -346,43 +252,43 @@ POST /v1/chat/completions（Bearer + X-MCP-Token）
 
 ```mermaid
 sequenceDiagram
-  participant App as L5
-  participant RT as L4
-  participant GW as L1
-  participant Tools as L2
-  participant Infra as L0
-  App->>RT: run(skill) 或 chat turn
-  RT->>Infra: session / checkpoint
-  loop ReAct 或 Workflow 逐步
-    RT->>GW: chat（若 ReAct）
-    RT->>Tools: Execute
-    Tools-->>RT: Result
-    RT->>Infra: checkpoint / evidence
+  participant App as app
+  participant Kernel as agent/Loop
+  participant Cogn as cognition
+  participant GW as llm Policy+Gateway
+  participant Tools as tools
+  participant Mem as memport/Adapter
+  App->>Kernel: SetCognition / SetMemory
+  App->>GW: SetPolicy
+  Kernel->>Mem: Compress / Recall
+  Mem->>Cogn: SessionRanker (recall)
+  loop ReAct
+    Kernel->>Cogn: PlanPolicy / Evaluator
+    Kernel->>GW: ChatStream + CallMeta
+    Kernel->>Tools: Execute
+    Tools-->>Kernel: Result
   end
-  RT->>RT: Supervisor（workflow）
 ```
 
 ## 文件依赖链
 
 ```text
-infra/db.go + schema.sql  （无依赖——SQLite 句柄）
+infra/db.go + schema.sql
        ↑
-chatsession/sqlite.go, memory/evidence.go  （依赖 infra.DB）
+chatsession/, memory/ (Adapter, evidence, working)
+memport/  （接口，无 memory/tools 依赖）
        ↑
-tools/registry.go  （无依赖——被所有工具导入）
+llm/policy.go → gateway.go → presets/openai
+cognition/  （无 agent/tools 依赖）
        ↑
-tools/bootstrap.go + bespoke.go  （注册时调用 registry.Register）
+agent/loop_*  → runtime/executor
        ↑
-runtime/react.go  （依赖 tools + llm）
+app/app.go  （wireChatMemory, wireCognition, wireRecallRanker, RegisterAll）
        ↑
-agent/agent.go  （封装 runtime + llm + tools）
-       ↑
-app/app.go  （组装所有依赖）
-       ↑
-cmd/geegoo/* + cmd/agent-runtime/*  （入口）
+cmd/geegoo/* + cmd/agent-runtime/*
 ```
 
-工具注册发生在 `app.LoadFromConfigPath` 调用 `tools.RegisterAll` 时，早于任何 agent 实例创建。
+工具注册：`app.LoadFromConfigPath` → `tools.RegisterAll(Deps{Memory: ChatMemory})`，早于 Agent 首轮对话。
 
 ## Tools 与 Skills（速览）
 
@@ -403,15 +309,13 @@ Tool 文档入口 → **[layers/L2-tools/README.md](./layers/L2-tools/README.md)
 
 如果你是第一次接触代码库：
 
-1. **本页** — 整体架构
-2. [implementation-status.md](./implementation-status.md) — **已实现 / 未实现**
-3. [`README.md`](./README.md) — 文档目录
-3. [`entrypoints.md`](./entrypoints.md) — CLI / HTTP / Scheduler
-4. [layers/L2-tools/README.md](./layers/L2-tools/README.md) — Tool 体系
-5. [layers/L4-runtime/agent-loop.md](./layers/L4-runtime/agent-loop.md) — ReAct 循环
-6. [layers/L3-memory/compaction.md](./layers/L3-memory/compaction.md) — 上下文压缩
-7. [layers/L2-tools/tools-status.md](./layers/L2-tools/tools-status.md) — 哪些 Tool 能用
-8. [`domains/README.md`](./domains/README.md) — GeeGoo API 映射
-9. [`../../deploy/hermes-parity-roadmap.md`](../../deploy/hermes-parity-roadmap.md) — P1–P8 交付记录
+1. **本页** — 六层导图与数据流  
+2. [agent-runtime-architecture.md](./agent-runtime-architecture.md) — **Agent OS 定稿**  
+3. [implementation-status.md](./implementation-status.md) — 已实现 / 未实现  
+4. [repo-layout.md](./repo-layout.md) — 目录与包对照  
+5. [entrypoints.md](./entrypoints.md) — CLI / HTTP / Scheduler  
+6. [layers/L4-runtime/agent-loop.md](./layers/L4-runtime/agent-loop.md) — ReAct 循环  
+7. [layers/L2-tools/tools-status.md](./layers/L2-tools/tools-status.md) — Tool 运行态  
+8. [backlog.md](./backlog.md) — 唯一待办  
 
-深入代码：`internal/agent/agent.go` → `workflow/runner.go` → `infra/schema.sql`
+深入代码：`internal/app/app.go` → `internal/agent/loop.go` → `internal/cognition/`
