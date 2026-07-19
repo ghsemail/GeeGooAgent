@@ -79,11 +79,32 @@ L4  Agent.Run → Loop.RunTurn
 
 `ToolExec` 同时服务 ReAct Loop 与 Workflow Runner，共用超时、并行、Approval、Plan Gate。
 
-### 2.4 Session 为对话 SSOT
+### 2.4 Session 与回合状态
 
 消息经 `runtime.Session` → `chatsession` 持久化；Loop 不直接碰 SQLite。Working/Evidence 由 Tool 更新，经 `tools.Context.StateStore` 传递。
 
-Chat 会话状态：`running`（对话中）、`plan_pending`（写操作待确认）。Workflow 侧完整状态机见 [workflow-engine.md](./workflow-engine.md)。
+Chat **没有**独立的 `SessionStatus` 枚举；状态由 Session 字段 + metadata 表达。
+
+| 情形 | 标志 | 说明 |
+|------|------|------|
+| 正常对话 | `PendingPlan == nil` | 每轮 `RunTurn` 走 ReAct |
+| Plan 挂起 | `session.PendingPlan` 非空 | mutating 工具待用户 `y`/`n`；metadata 可恢复 |
+| 回合失败 | `TurnResult.Failed` | LLM/ctx 错误；emit `TurnFailed` |
+| 预算耗尽 | `finishBudgetExhausted` | 无 tool 的阶段性总结 |
+| 压缩血缘 | `LineageChain` | `/session` 或 `inspect --session` 查看 |
+
+```mermaid
+stateDiagram-v2
+  [*] --> idle
+  idle --> turn_running: RunTurn
+  turn_running --> turn_running: runRound + tools
+  turn_running --> plan_pending: Plan Gate
+  plan_pending --> turn_running: resumePendingPlan
+  plan_pending --> idle: cancelPendingPlan
+  turn_running --> idle: TurnCompleted / Failed
+```
+
+HTTP/TUI 对外字段：`plan_pending`（见 [runtime-clarify.md](./runtime-clarify.md)）。Workflow run 的 checkpoint 状态见 [workflow-engine.md §Run 生命周期](./workflow-engine.md#run-生命周期)。
 
 ### 2.5 可取消与可观测
 

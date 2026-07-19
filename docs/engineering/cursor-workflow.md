@@ -208,7 +208,7 @@ stocks、per_stock 子结构；memory/working.py 读写 StateStore。
 
 ```markdown
 @docs/architecture/layers/L4-runtime/workflow-engine.md
-@docs/architecture/layers/L4-runtime/state-machine.md
+@docs/architecture/layers/L4-runtime/agent-loop.md
 
 实现 Step 7：WorkflowRunner 接受步骤列表、驱动 Session 状态机、
 每步 checkpoint；cli.py 子命令 run pre_market、resume --session、--dry-run。

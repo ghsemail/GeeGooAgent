@@ -65,7 +65,17 @@ Run(skill Spec):
 | 编排 | Go 硬编码 | LLM tool_calls |
 | 用于 | pre_market | geegoo chat |
 | 可预测性 | 高 | 灵活 |
-| resume | step key 幂等 | 会话历史 |
+| resume | step key 幂等 | 会话历史 + PendingPlan |
+
+## Run 生命周期
+
+Workflow run 结果：`workflow.RunResult.Status` 为 `completed` 或 `failed`（`runner.go`）。每步成功后写 checkpoint（`CompletedStepKeys`），支持 `geegoo resume` 跳过已完成步骤。
+
+单股进度在 `Working.Stocks[code].Status`：`pending` → `collecting` → `reported` / `skipped` / `failed`。
+
+Supervisor 在结束时校验缺步（`pass` / `recoverable` / `terminal`），**不**把已 `failed` 的 run 改回 `completed`。
+
+Chat 回合状态机见 [agent-loop.md §2.4](./agent-loop.md#24-session-与回合状态)。
 
 ## pre_market 步骤
 
