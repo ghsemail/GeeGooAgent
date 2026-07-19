@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
-// StatusBarOptions feeds the Hermes-style footer status line.
+// StatusBarOptions feeds the Grok-style footer status line.
 type StatusBarOptions struct {
 	Model         string
 	PromptTokens  int
@@ -39,33 +41,9 @@ func FormatTokenCount(n int) string {
 	}
 }
 
-func renderProgressBar(pct float64, barWidth int) string {
-	if barWidth < 8 {
-		barWidth = 8
-	}
-	if pct < 0 {
-		pct = 0
-	}
-	if pct > 1 {
-		pct = 1
-	}
-	filled := int(pct*float64(barWidth) + 0.5)
-	if filled > barWidth {
-		filled = barWidth
-	}
-	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled) + "]"
-}
-
-// RenderHermesStatusBar returns the fixed footer line (model · tokens · bar · timing).
-func RenderHermesStatusBar(opts StatusBarOptions, width int) string {
-	modelShort := strings.TrimSpace(opts.Model)
-	if i := strings.LastIndex(modelShort, "/"); i >= 0 {
-		modelShort = modelShort[i+1:]
-	}
-	if len(modelShort) > 24 {
-		modelShort = modelShort[:21] + "..."
-	}
-
+// RenderGrokFooterBar returns hints on the left and token usage on the right.
+func RenderGrokFooterBar(opts StatusBarOptions, width int) string {
+	left := styleDim.Render("Tab: sessions · /help")
 	ctx := opts.ContextWindow
 	if ctx <= 0 {
 		ctx = 128_000
@@ -74,54 +52,18 @@ func RenderHermesStatusBar(opts StatusBarOptions, width int) string {
 	if used < 0 {
 		used = 0
 	}
-	pct := float64(used) / float64(ctx)
-	if pct > 1 {
-		pct = 1
+	right := styleDim.Render(FormatTokenCount(used) + " / " + FormatTokenCount(ctx))
+	if width <= 0 {
+		return left + "  " + right
 	}
+	gap := width - lipgloss.Width(left) - lipgloss.Width(right)
+	if gap < 1 {
+		gap = 1
+	}
+	return left + strings.Repeat(" ", gap) + right
+}
 
-	barW := 10
-	if width > 100 {
-		barW = 12
-	}
-
-	elapsed := opts.Elapsed.Round(time.Second)
-	if elapsed < 0 {
-		elapsed = 0
-	}
-	elapsedSec := int(elapsed.Seconds())
-
-	var busyPart string
-	var elapsedPart string
-	if opts.Busy {
-		busyPart = styleRunning.Render(fmt.Sprintf("⏲ %ds", elapsedSec))
-		elapsedPart = styleRunning.Render(fmt.Sprintf("%ds", elapsedSec))
-	} else {
-		busyPart = styleOK.Render(fmt.Sprintf("✓ %ds", elapsedSec))
-		elapsedPart = styleDim.Render(fmt.Sprintf("%ds", elapsedSec))
-	}
-
-	parts := []string{
-		styleGold.Render("⚕") + " " + styleGold.Render(modelShort),
-		styleDim.Render("│"),
-		styleDim.Render(FormatTokenCount(used)) + "/" + styleDim.Render(FormatTokenCount(ctx)),
-		styleDim.Render(renderProgressBar(pct, barW)),
-		styleDim.Render(fmt.Sprintf("%d%%", int(pct*100+0.5))),
-		elapsedPart,
-		busyPart,
-	}
-	if opts.Steps > 0 {
-		parts = append(parts, styleDim.Render(fmt.Sprintf("%d steps", opts.Steps)))
-	}
-	line := strings.Join(parts, " ")
-	if width > 0 && len(line) > width {
-		// Trim middle token segment on narrow terminals.
-		parts = []string{
-			styleGold.Render("⚕") + " " + styleGold.Render(modelShort),
-			styleDim.Render(FormatTokenCount(used)) + "/" + styleDim.Render(FormatTokenCount(ctx)),
-			styleDim.Render(fmt.Sprintf("%d%%", int(pct*100+0.5))),
-			busyPart,
-		}
-		line = strings.Join(parts, " ")
-	}
-	return line
+// RenderHermesStatusBar is kept for compatibility; delegates to Grok footer bar.
+func RenderHermesStatusBar(opts StatusBarOptions, width int) string {
+	return RenderGrokFooterBar(opts, width)
 }

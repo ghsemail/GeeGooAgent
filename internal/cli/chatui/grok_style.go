@@ -101,19 +101,6 @@ func RenderInputChrome(inputLine string, model string, width int) string {
 	return box.Render(inner)
 }
 
-// RenderGrokStatusBar returns a minimal hint row above the input (Grok-style).
-func RenderGrokStatusBar(width int) string {
-	left := styleDim.Render("Tab: sessions · /help")
-	if width <= 0 {
-		return left
-	}
-	pad := width - lipgloss.Width(left)
-	if pad < 0 {
-		pad = 0
-	}
-	return left + strings.Repeat(" ", pad)
-}
-
 // RenderGrokWelcomeCard returns a compact bordered welcome panel (flush-left).
 func RenderGrokWelcomeCard(opts BannerOptions, width int) string {
 	if width <= 0 {

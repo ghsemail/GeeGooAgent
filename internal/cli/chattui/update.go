@@ -667,14 +667,15 @@ func (m Model) View() string {
 		b.WriteByte('\n')
 	}
 
-	b.WriteString(chatui.RenderHermesStatusBar(m.statusBarOpts(), m.width))
+	b.WriteString(chatui.RenderGrokFooterBar(m.statusBarOpts(), m.width))
 	b.WriteByte('\n')
 	if matches := m.slashMatches(); m.slashMenuOpen() {
 		b.WriteString(renderSlashMenu(matches, m.slashPick, m.width))
 		b.WriteByte('\n')
 	}
 	if !m.approvalPending && !m.clarifyPending {
-		b.WriteString(renderInputLine(m.input, m.width))
+		opts := m.statusBarOpts()
+		b.WriteString(renderInputLine(m.input, opts.Model, m.width))
 	}
 	return b.String()
 }

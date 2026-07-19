@@ -178,7 +178,7 @@ func RenderDetailLineWidth(line string, width int) string {
 
 // RenderThinkingLine returns body text for expanded reasoning sections.
 func RenderThinkingLine(line string) string {
-	return styleText.Render("    " + line)
+	return "  " + styleDim.Render("│ ") + styleText.Render(line)
 }
 
 // RenderDetailLine returns body text for tool/activity detail sections.
@@ -236,7 +236,7 @@ func (u *ChatUI) PrintBanner(opts BannerOptions) {
 	u.write(RenderBanner(opts, u.width, u.plain))
 }
 
-// RenderBanner returns the Hermes-style welcome panel as a string (CLI and TUI).
+// RenderBanner returns the Grok-style welcome card as a string (CLI and TUI).
 func RenderBanner(opts BannerOptions, width int, plain bool) string {
 	if width <= 0 {
 		width = 80
@@ -244,34 +244,7 @@ func RenderBanner(opts BannerOptions, width int, plain bool) string {
 	if plain {
 		return "\n" + BuildPlainBanner(opts)
 	}
-	rev := opts.Revision
-	if rev == "" {
-		rev = ResolveRevision(opts.InstallDir)
-	}
-	var b strings.Builder
-	b.WriteByte('\n')
-	if width >= 95 {
-		b.WriteString(renderWideLogo())
-		b.WriteByte('\n')
-		b.WriteByte('\n')
-	}
-	left := buildBannerLeft(opts)
-	right := buildBannerRight(opts)
-	cols := lipgloss.JoinHorizontal(lipgloss.Top,
-		lipgloss.NewStyle().Padding(0, 2).Align(lipgloss.Center).Render(left),
-		lipgloss.NewStyle().Padding(0, 1).Render(right),
-	)
-	b.WriteString(styleGold.Render(formatVersionLabel(rev)))
-	b.WriteByte('\n')
-	b.WriteString(stylePanel.Render(cols))
-	b.WriteByte('\n')
-	b.WriteByte('\n')
-	b.WriteString(styleText.Render("Welcome to GeeGoo Agent! ") + styleDim.Render("Type your message or /help for commands."))
-	b.WriteByte('\n')
-	b.WriteString(RenderWelcomeTips())
-	b.WriteByte('\n')
-	b.WriteByte('\n')
-	return b.String()
+	return RenderGrokWelcomeCard(opts, width)
 }
 
 const (
@@ -406,7 +379,7 @@ func (u *ChatUI) PrintPrompt() {
 		u.write("> ")
 		return
 	}
-	u.write(styleGold.Render("❯ "))
+	u.write(styleText.Render("> "))
 }
 
 func (u *ChatUI) PrintUser(text string) {

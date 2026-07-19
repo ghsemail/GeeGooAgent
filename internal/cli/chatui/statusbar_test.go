@@ -14,15 +14,14 @@ func TestFormatTokenCount(t *testing.T) {
 	}
 }
 
-func TestRenderHermesStatusBar(t *testing.T) {
-	line := RenderHermesStatusBar(StatusBarOptions{
+func TestRenderGrokFooterBar(t *testing.T) {
+	line := stripANSI(RenderGrokFooterBar(StatusBarOptions{
 		Model: "openai/gpt-5.5", PromptTokens: 19600, ContextWindow: 1_100_000,
-		Busy: true,
-	}, 120)
-	if !strings.Contains(line, "gpt-5.5") {
-		t.Fatalf("missing model: %s", line)
-	}
+	}, 120))
 	if !strings.Contains(line, "19.6K") {
 		t.Fatalf("missing tokens: %s", line)
+	}
+	if !strings.Contains(line, "/help") {
+		t.Fatalf("missing hints: %s", line)
 	}
 }
