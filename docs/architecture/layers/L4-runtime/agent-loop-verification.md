@@ -75,7 +75,22 @@ geegoo chat
 
 ```bash
 go test ./internal/agent/... -run PlanGate -v
+go test ./internal/runtimeapi/... -run PlanHTTP -v
+go test ./internal/chatsession/... -run PendingPlan -v
 ```
+
+### HTTP plan 确认
+
+1. `POST /v1/chat/stream` 触发 mutating 工具 → `turn_end` 含 `"plan_pending":true`
+2. `POST /v1/chat/plan`：
+
+```json
+{ "session_id": "<id>", "approve": true }
+```
+
+3. 响应 `plan_pending` 应为 false，写操作已执行
+
+协议详见 [runtime-clarify.md](./runtime-clarify.md) §Plan 门控。
 
 ---
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 )
@@ -30,6 +31,7 @@ type chatTurnEndPayload struct {
 	Failed        bool   `json:"failed"`
 	Error         string `json:"error,omitempty"`
 	StepCount     int    `json:"step_count"`
+	PlanPending   bool   `json:"plan_pending"`
 }
 
 func (h *Handler) registerChatStreamRoutes(mux *http.ServeMux) {
@@ -107,7 +109,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	defer h.App.Agent.SetProgress(nil)
 
 	chat.SyncChatSystemPrompt()
-	rtSession := h.runtimeSessionFromChat(chat)
+	rtSession := agent.RuntimeSessionFromChat(chat)
 	mcpToken := resolveMCPToken(r, chatRequest{MCPToken: req.MCPToken}, h.App.Config.MCPToken())
 	toolCtx := h.App.ToolContextWithContext(r.Context(), chat.ID)
 	toolCtx.MCPToken = mcpToken
@@ -118,8 +120,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	result := h.App.Agent.Run(r.Context(), rtSession, message, toolCtx, schemas)
 
 	newRecords := stepRecordsFromTurn(result.StepRecords)
-	chat.SyncFromRuntime(rtSession.Messages, rtSession.StepCounter, newRecords)
-	chat.SyncLineageFromRuntime(rtSession.ParentID, rtSession.LineageRoot, rtSession.CompactionGeneration)
+	agent.SyncChatFromRuntime(chat, rtSession, newRecords)
 	_ = store.Save(chat)
 	if live != nil {
 		live.EndTurn()
@@ -131,6 +132,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 		Failed:        result.Failed,
 		Error:         result.Error,
 		StepCount:     len(chat.StepRecords),
+		PlanPending:   result.PlanPending,
 	})
 	writeSessionSSE(w, flusher, "done", map[string]string{"session_id": chat.ID})
 }
@@ -240,16 +242,7 @@ func (h *Handler) loadOrCreateChatSession(store chatsession.SessionStore, sessio
 }
 
 func (h *Handler) runtimeSessionFromChat(chat *chatsession.ChatSession) *runtime.Session {
-	parentID, lineageRoot, generation := chat.LineageFromMetadata()
-	return &runtime.Session{
-		ID:                   chat.ID,
-		Messages:             chat.RuntimeMessages(),
-		StepCounter:          chat.StepCounter,
-		CreatedAt:            chat.CreatedAt,
-		ParentID:             parentID,
-		LineageRoot:          lineageRoot,
-		CompactionGeneration: generation,
-	}
+	return agent.RuntimeSessionFromChat(chat)
 }
 
 func stepRecordsFromTurn(records []runtime.StepRecord) []chatsession.ChatStepRecord {

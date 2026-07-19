@@ -236,3 +236,27 @@ func TestChatSessionLineageChainRoundTrip(t *testing.T) {
 		t.Fatalf("chain=%+v", chain)
 	}
 }
+
+func TestChatSessionPendingPlanRoundTrip(t *testing.T) {
+	root := t.TempDir()
+	store := infra.NewStateStore(filepath.Join(root, "state"))
+	sessions := chatsession.NewChatSessionStore(store)
+	session, err := sessions.Create()
+	if err != nil {
+		t.Fatal(err)
+	}
+	session.SyncHeldPlan(2, []llm.ToolCall{{
+		ID: "c1", Name: "create_dca_bot", Arguments: map[string]any{"botname": "t"},
+	}})
+	if err := sessions.Save(session); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := sessions.Load(session.ID)
+	if err != nil || loaded == nil {
+		t.Fatalf("load: %v", err)
+	}
+	step, calls, ok := loaded.HeldPlanFromMetadata()
+	if !ok || step != 2 || len(calls) != 1 || calls[0].Name != "create_dca_bot" {
+		t.Fatalf("plan step=%d calls=%+v ok=%v", step, calls, ok)
+	}
+}

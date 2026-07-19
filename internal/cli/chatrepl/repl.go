@@ -14,6 +14,7 @@ import (
 
 	prompt "github.com/c-bata/go-prompt"
 
+	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/app"
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/cli/chatui"
@@ -89,15 +90,9 @@ func NewWithSession(application *app.App, configPath string, sessionID string, d
 	if application.Config != nil {
 		ui.ApplyDisplay(application.Config.Display)
 	}
-	parentID, lineageRoot, generation := chat.LineageFromMetadata()
 	r := &Repl{
 		App: application, ConfigPath: configPath, Chat: chat, SessionStore: store,
-		Session: &runtime.Session{
-			ID: chat.ID, Messages: chat.RuntimeMessages(),
-			StepCounter: chat.StepCounter, CreatedAt: chat.CreatedAt,
-			ParentID: parentID, LineageRoot: lineageRoot, CompactionGeneration: generation,
-			LineageChain: chat.LineageChainFromMetadata(),
-		},
+		Session: agent.RuntimeSessionFromChat(chat),
 		Registry: application.Registry, UI: ui,
 		DryRun: dryRun || application.Config.DryRun, Verbose: true,
 		stdout: stdout, stdin: os.Stdin, InstallDir: findInstallDir(), ProjectRoot: findProjectRoot(),
@@ -373,9 +368,7 @@ func (r *Repl) runTurn(text string) runtime.TurnResult {
 			ToolName: rec.ToolName, ToolStatus: rec.ToolStatus, Summary: rec.Summary,
 		})
 	}
-	r.Chat.SyncFromRuntime(r.Session.Messages, r.Session.StepCounter, newRecords)
-	r.Chat.SyncLineageFromRuntime(r.Session.ParentID, r.Session.LineageRoot, r.Session.CompactionGeneration)
-	r.Chat.SyncLineageChain(r.Session.LineageChain)
+	agent.SyncChatFromRuntime(r.Chat, r.Session, newRecords)
 	_ = r.SessionStore.Save(r.Chat)
 	if pub := chatsession.NewLivePublisher(r.App.State, r.Chat.ID); pub != nil {
 		pub.EndTurn()
