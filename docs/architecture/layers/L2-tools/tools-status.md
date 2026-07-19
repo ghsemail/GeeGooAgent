@@ -1,4 +1,4 @@
-# GeeGooAgent Tools 运行态总览（2026-07-18，审查同步）
+# GeeGooAgent Tools 运行态总览（2026-07-19，批量翻译对齐）
 
 > **运行态 SSOT**：与代码不一致时以 `internal/tools/` 为准。  
 > 相关：[tool-catalog.md](./tool-catalog.md)（设计全集）· [tool-server-mapping.md](./tool-server-mapping.md)（HTTP 路径）· [implementation-status.md](../../implementation-status.md)
@@ -87,8 +87,8 @@
 | `list_today_post_market_reports` | ✅ | bespoke | 同上（盘后幂等别名） | 3120 | `post_market` workflow |
 | `get_index_signals` | ✅ | HTTP | catalog-api `/getIndexSignalForSkill` | 3210 | DCA 单指标 |
 | `get_signal_combinations` | ✅ | HTTP | catalog-api `/getSignalCombinationForSkill` | 3210 | DCA 组合信号 |
-| `generate_grid_strategy` | 💬/✅ | HTTP | analyze-api `/generateGridStrategy` | 3230 | 空 `param` → skip（重试 1 次）；有 grid 字段即 OK（`suitable=false` 亦可） |
-| `generate_dca_strategy` | 💬/✅ | HTTP | analyze-api `/generateDCAStrategy` | 3230 | 空 `signal.buy_signal` → skip（重试 1 次）；可 fallback 3120 |
+| `generate_grid_strategy` | 💬/✅ | HTTP | analyze-api `/generateGridStrategy` | 3230 | JSON 批量翻译；cn 约 40s、en 约 50s（1 分析 + 可选 1 batch）；空 `param` → skip |
+| `generate_dca_strategy` | 💬/✅ | HTTP | analyze-api `/generateDCAStrategy` | 3230 | JSON 批量翻译；cn 约 2～2.5min（2 分析）、en 约 3min；**优先组合 signal_id**；可 fallback 3120 |
 | `loopback_strategy` | 💬/✅ | HTTP | signal-api `/loopBackStrategy` | 3200 | 需先 `generate_*` 拿参数 |
 | `get_bot_log_by_type` | ✅ | HTTP | mcp-api `/getBotLogByType` | 3120 | 必填 `type` + `bot_id` |
 
@@ -244,7 +244,7 @@ GeeGooAgent Tools
 | 查价 | `search_code` → `get_current_price` | 用 `get_ticker` 当现价用（链路更重、依赖 OpenD） |
 | 盘中逐笔 | `get_ticker`（交易时段） | 期望走 GeeGooData / TradingData（无此能力） |
 | 技术分析 | `get_single_prompt_template` → `get_mcp_analysis` | 缺 `period` |
-| DCA 方案 | 先选信号 → `generate_dca_strategy` → 可选 `loopback_strategy` | 未选 `signal_id` 就 generate |
+| DCA 方案 | clarify 选信号 → **优先组合** `get_signal_combinations` → `generate_dca_strategy` → 可选 `loopback_strategy` | 未选 `signal_id` 就 generate；单指标缺 buy_signal 会 500 |
 | 新闻 | `fetch_stock_news` / `fetch_market_news`；库无结果用 `web_search` | — |
 | 盘前写报告 | `/toolsets report_workflow` 或 `geegoo run pre_market` | 默认 chat 白名单 |
 | 盘中决策 | `geegoo run intraday --code …` | 默认 chat |

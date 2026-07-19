@@ -93,7 +93,7 @@
 | `fetch_market_news` / `fetch_stock_news` | 极少 skip | Go RSS/东财回退已实现 |
 | `get_ticker` / `get_broker` / `get_position` | — | **已接通** futu_bridge（2026-07-15） |
 | `get_mcp_analysis` | — | 经 mcp-api→analyze-api LLM |
-| `generate_grid_strategy` / `generate_dca_strategy` | LLM 较慢（60–180s） | analyze-api + promptServer |
+| `generate_grid_strategy` / `generate_dca_strategy` | LLM 较慢（grid 40–60s；DCA cn 2–2.5min） | analyze-api JSON 批量翻译（原 5 段逐条翻译已废弃） |
 | `get_capital_*` | A 股/HK/US | Bot :3120 路由 GeeGooData 分节点；空数据 skip |
 | Bot scheduler | 创建后不自动跑 | GeeGooBot 架构缺口，非 Agent bug |
 
