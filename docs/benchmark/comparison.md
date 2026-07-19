@@ -44,7 +44,7 @@
 | 能力 | GeeGooAgent | Hermes Agent | Grok Build |
 |------|-------------|--------------|------------|
 | 子 Agent 委派 | ✅ `delegate_task` + `SubAgent` | ✅ `delegate_task` | ✅ `task` / `spawn_subagent` |
-| 并行子 Agent | ❌ 顺序执行 | ⚠️ 有限并行 | ✅ 宣称多路并行（~8） |
+| 并行子 Agent | ✅ `delegate_tasks` + `delegate_max_parallel` | ⚠️ 有限并行 | ✅ 宣称多路并行（~8） |
 | 独立上下文 / 步数上限 | ✅ `sub_agent_max_steps`（默认 20，最大 40） | ✅ | ✅ per-child 窗口 |
 | 禁止嵌套委派 | ✅ | ✅ | ✅ |
 | Git worktree 隔离 | — | — | ✅ 子 Agent 可独立 worktree |
