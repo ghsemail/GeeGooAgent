@@ -132,6 +132,32 @@ func AnchorContentBottom(content string, viewportHeight int) string {
 	return strings.Repeat("\n", viewportHeight-lines) + content
 }
 
+// AnchorContentBottomKeepingPrefix keeps a leading section (e.g. welcome banner) at the
+// top of the viewport and only pads the remainder so short conversations sit above the input.
+func AnchorContentBottomKeepingPrefix(prefix, content string, viewportHeight int) string {
+	if viewportHeight <= 0 || strings.TrimSpace(content) == "" {
+		return content
+	}
+	head := ""
+	tail := content
+	if prefix != "" && strings.HasPrefix(content, prefix) {
+		head = prefix
+		tail = content[len(prefix):]
+	}
+	if strings.TrimSpace(tail) == "" {
+		return head
+	}
+	headLines := 0
+	if head != "" {
+		headLines = strings.Count(head, "\n") + 1
+	}
+	avail := viewportHeight - headLines
+	if avail < 1 {
+		avail = 1
+	}
+	return head + AnchorContentBottom(tail, avail)
+}
+
 // RenderGrokProcessHeader renders a section header (thinking / tools).
 func RenderGrokProcessHeader(expanded bool, title string, lineCount int, durationSec float64) string {
 	chevron := "▸"

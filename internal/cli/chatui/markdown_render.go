@@ -44,6 +44,7 @@ func RenderAssistantMarkdown(text string, width int) string {
 	if strings.TrimSpace(text) == "" {
 		return styleMeta.Render("⋯ 正在生成回复…")
 	}
+	text = PreprocessTerminalMarkdown(text)
 	w := ContentWrapWidth(width)
 	r, err := newMarkdownRenderer(w)
 	if err != nil {

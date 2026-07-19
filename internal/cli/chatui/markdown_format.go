@@ -16,6 +16,8 @@ var (
 	reGlueField     = regexp.MustCompile(`\s+-\s+((?:代码|类型|状态|网格|持仓|盈亏|频率|成本|当前|对冲)[：:])`)
 	reGlueNumbered  = regexp.MustCompile(`([^\n\d])(\d+\.\s)`)
 	reGlueListDash  = regexp.MustCompile(`([^\n-])(\s+-\s+)`)
+	reGlueColonList   = regexp.MustCompile(`([：:;；])\s*-\s+`)
+	reGluePunctList   = regexp.MustCompile(`([。！？])\s*-\s+`)
 )
 
 // NormalizeAssistantLayout inserts line breaks when the model glues markdown blocks
@@ -44,7 +46,9 @@ func NormalizeAssistantLayout(text string) string {
 		line = rePipeField.ReplaceAllString(line, "\n  $1")
 		line = reGlueField.ReplaceAllString(line, "\n  - $1")
 		line = reGlueNumbered.ReplaceAllString(line, "$1\n$2")
-		line = reGlueListDash.ReplaceAllString(line, "$1\n$2")
+		line = reGlueColonList.ReplaceAllString(line, "$1\n- ")
+		line = reGluePunctList.ReplaceAllString(line, "$1\n- ")
+		line = reGlueListDash.ReplaceAllString(line, "$1\n- ")
 		for _, sub := range strings.Split(line, "\n") {
 			sub = strings.TrimRight(sub, " ")
 			if strings.TrimSpace(sub) == "" {

@@ -39,6 +39,23 @@ func TestAnchorContentBottomSkipsLongTranscript(t *testing.T) {
 	}
 }
 
+func TestAnchorContentBottomKeepingPrefix(t *testing.T) {
+	banner := "BANNER\nLINE2\n"
+	conv := "user\nreply"
+	content := banner + conv
+	out := AnchorContentBottomKeepingPrefix(banner, content, 10)
+	if !strings.HasPrefix(out, banner) {
+		t.Fatalf("banner should stay at top: %q", out)
+	}
+	tail := strings.TrimPrefix(out, banner)
+	if !strings.HasPrefix(tail, strings.Repeat("\n", 3)) {
+		t.Fatalf("expected leading padding in tail, got: %q", tail)
+	}
+	if !strings.HasSuffix(strings.TrimRight(out, "\n"), "reply") {
+		t.Fatalf("conversation should stay at bottom: %q", out)
+	}
+}
+
 func TestContentWrapWidthUsesFullTerminal(t *testing.T) {
 	if got := ContentWrapWidth(200); got != 196 {
 		t.Fatalf("got %d want 196", got)

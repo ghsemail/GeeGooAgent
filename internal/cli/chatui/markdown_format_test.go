@@ -72,6 +72,29 @@ func TestStripInlineMarkdown(t *testing.T) {
 	}
 }
 
+func TestNormalizeAssistantLayout_GluedColonList(t *testing.T) {
+	in := "可以帮你：- 行情分析：A股/港股/美股 - 交易 Bot 管理：list / create"
+	out := NormalizeAssistantLayout(in)
+	if !strings.Contains(out, "可以帮你：\n- 行情分析") {
+		t.Fatalf("missing colon list break: %q", out)
+	}
+	if !strings.Contains(out, "\n- 交易 Bot") {
+		t.Fatalf("missing second list item: %q", out)
+	}
+}
+
+func TestRenderAssistantMarkdownSplitsGluedList(t *testing.T) {
+	in := "你好！可以帮你：- 📊 行情分析：A股 - 🤖 交易 Bot"
+	out := stripANSI(RenderAssistantMarkdown(in, 100))
+	if !strings.Contains(out, "行情分析") {
+		t.Fatalf("missing content: %q", out)
+	}
+	// glamour renders list items on separate visual lines
+	if strings.Count(out, "\n") < 2 {
+		t.Fatalf("expected multiple lines for list: %q", out)
+	}
+}
+
 func TestNormalizeAssistantLayout_InlineH3Sections(t *testing.T) {
 	in := "## 腾讯控股机器人 (00700.HK) — GRID 网络 Bot ### 1. 基本信息 - 代码: 00700.HK ### 2. 网格配置"
 	out := NormalizeAssistantLayout(in)

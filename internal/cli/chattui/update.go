@@ -687,7 +687,7 @@ func (m Model) footerLineCount() int {
 func (m *Model) refreshViewport() {
 	content := m.renderTranscript()
 	if m.scrollFollow {
-		content = chatui.AnchorContentBottom(content, m.vp.Height)
+		content = chatui.AnchorContentBottomKeepingPrefix(m.banner, content, m.vp.Height)
 	}
 	m.vp.SetContent(content)
 	if m.scrollFollow {
