@@ -3,6 +3,10 @@
 > 更新：2026-07-20。Hermes 对照：[Agent 循环](https://hermes-agent.nousresearch.com/docs/zh-Hans/developer-guide/architecture)。  
 > 验收手册：[agent-loop-verification.md](./agent-loop-verification.md)
 
+## 文档概述
+
+本文档是 **Agent Loop（ReAct 对话编排）** 的唯一实现说明（SSOT），说明 `Agent.Run` / `Loop.RunTurn` 的设计原理、执行时序、`internal/agent` 模块划分、会话状态与配置项。适用于维护 `geegoo chat`、HTTP runtime、子 Agent 委托等对话路径；确定性盘前流程见 [workflow-engine.md](./workflow-engine.md)。
+
 GeeGooAgent 的对话编排引擎：**Observe → Plan → Act → Update**，直到无 `tool_calls` 或达到 `max_steps`。
 
 > **Kernel vs Cognition**：Loop 是控制平面；Ranker / Evaluator / PlanPolicy 在 `internal/cognition`，经 `SetCognition` 注入。定稿：[agent-runtime-architecture.md](../../agent-runtime-architecture.md)

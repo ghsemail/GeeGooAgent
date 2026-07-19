@@ -2,6 +2,10 @@
 
 > 六层 **L4** 文档目录。定稿：[agent-runtime-architecture.md](../../agent-runtime-architecture.md)。
 
+## 文档概述
+
+本目录是 GeeGooAgent **L4（Agent Runtime）** 的专题文档索引，覆盖对话 ReAct 循环、确定性 Workflow、HTTP 交互协议及验收手册。读者为需要修改 `internal/agent`、`internal/workflow`、`internal/runtimeapi` 的开发者；上层入口见 [entrypoints.md](../../entrypoints.md)，全局边界见 [agent-runtime-architecture.md](../../agent-runtime-architecture.md)。
+
 ```text
 Agent Runtime = ReAct Loop + Workflow Runner + Supervisor + Cognition（策略面）
 ```

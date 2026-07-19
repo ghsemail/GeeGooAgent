@@ -1,6 +1,10 @@
 # HTTP Runtime — Clarify 两阶段协议
 
-> 更新：2026-07-19。配合 `internal/runtimeapi/clarify_hub.go` 与 Agent `clarify` 工具。
+> 更新：2026-07-20。配合 `internal/runtimeapi/clarify_hub.go` 与 Agent `clarify` 工具。
+
+## 文档概述
+
+本文档定义 **agent-runtime HTTP API** 在流式对话中的交互协议：模型触发 `clarify` 或 Plan 门控时，客户端如何通过 SSE 事件与 `POST /v1/chat/clarify`、`POST /v1/chat/plan` 续跑同一 session。面向 GeeGooBot、第三方 HTTP 集成方；Loop 内核逻辑见 [agent-loop.md](./agent-loop.md)。
 
 ## 流程
 

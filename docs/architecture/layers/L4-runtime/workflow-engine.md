@@ -1,8 +1,12 @@
 # L4 — Workflow Engine
 
-确定性工作流编排：**非** LLM 选步，按 Skill 注册的 Phase A / PerStock 步骤顺序执行。
-
 > Go 实现：`internal/workflow/runner.go`、`premarket.go`、`supervisor.go`
+
+## 文档概述
+
+本文档描述 **确定性工作流引擎**：由 Go 硬编码步骤顺序（非 LLM 选步），用于 `geegoo run pre_market` 等 Skill。涵盖 Runner 流程、checkpoint 幂等 resume、Supervisor 质检、报告合成与 Run 生命周期。与对话式 ReAct 的分工见 [agent-loop.md](./agent-loop.md)。
+
+确定性工作流编排：**非** LLM 选步，按 Skill 注册的 Phase A / PerStock 步骤顺序执行。
 
 ## 职责
 

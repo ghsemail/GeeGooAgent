@@ -2,6 +2,10 @@
 
 > 更新：2026-07-20。适用于本机或服务器（`~/.geegoo/bin/geegoo`）。
 
+## 文档概述
+
+本文档说明如何**验证 Agent Loop 行为是否符合预期**：离线 parity 卡片、Plan 门控、NDJSON、HTTP clarify、Hooks、压缩血缘及部署后检查清单。面向发布前自测、CI 与线上运维；实现细节见 [agent-loop.md](./agent-loop.md)，不要求通读代码即可按步骤验收。
+
 ## 1. 一键离线验收（推荐先做）
 
 ```bash
