@@ -8,6 +8,8 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatprompt"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
+	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -24,6 +26,7 @@ type SubAgent struct {
 	executor      *runtime.Executor
 	registry      *tools.Registry
 	compressor    *prompt.Compressor
+	mem           memport.Port
 	eventBus      tools.EventEmitter
 	maxSteps      int
 	maxParallel   int
@@ -67,10 +70,22 @@ func NewSubAgent(cfg SubAgentConfig) *SubAgent {
 	}
 }
 
-// SetCompressor wires context compression for sub turns.
+// SetCompressor wires context compression for sub turns (Memory port).
 func (s *SubAgent) SetCompressor(c *prompt.Compressor) {
 	if s != nil {
 		s.compressor = c
+		s.SetMemory(memory.NewAdapter(memory.AdapterConfig{Compressor: c}))
+	}
+}
+
+// SetMemory wires the Memory port for sub turns.
+func (s *SubAgent) SetMemory(m memport.Port) {
+	if s != nil {
+		if m != nil {
+			s.mem = m
+		} else {
+			s.mem = memport.Noop()
+		}
 	}
 }
 
@@ -202,7 +217,11 @@ func (s *SubAgent) Run(parent tools.Context, task, background string, maxSteps i
 
 	loop := NewLoop(s.gateway, s.executor)
 	loop.SetMaxToolRounds(maxSteps)
-	loop.SetCompressor(s.compressor)
+	if s.mem != nil {
+		loop.SetMemory(s.mem)
+	} else {
+		loop.SetCompressor(s.compressor)
+	}
 	loop.SetApproval(s.approvalFn)
 	if s.eventBus != nil {
 		loop.SetEventBus(s.eventBus)

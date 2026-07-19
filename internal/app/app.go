@@ -12,12 +12,14 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
+	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/clients/admin"
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/skills"
@@ -47,6 +49,8 @@ type App struct {
 	// runtime HTTP, and (later) workflow/scheduler.
 	Agent *agent.Agent
 	Hooks *tools.HookRunner
+	// ChatMemory is the Memory port shared by loop, recall tool, and evidence.
+	ChatMemory memport.Port
 }
 
 // LoadFromConfigPath builds an App from config.json.
@@ -119,14 +123,14 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 		ChatToolNames: app.ChatToolNames,
 	})
 	sub.SetEventBus(eventBus)
+	app.wireChatMemory()
 	tools.RegisterAll(registry, tools.Deps{
 		HTTP: httpBackends, WorkspaceRoot: workspace, ProjectRoot: findProjectRoot(),
 		Working: workingLoader, Search: cfg.EffectiveSearch(),
 		FeishuWebhookURL: cfg.EffectiveFeishuWebhookURL(),
-		Delegate: sub,
+		Delegate: sub, Memory: app.ChatMemory,
 	})
 	app.Agent.SetSubAgent(sub)
-	app.wireCompressor()
 	app.Workflow.SetToolExec(app.Agent.ToolExec())
 	app.wireSynthesizer()
 
@@ -220,7 +224,7 @@ func (a *App) RebuildGateway() error {
 	if a.Agent != nil {
 		a.Agent.SetGateway(a.Gateway)
 	}
-	a.wireCompressor()
+	a.wireChatMemory()
 	a.wireSynthesizer()
 	return nil
 }
@@ -304,43 +308,57 @@ func (a *App) buildFallbackProviders() []llm.Provider {
 	return out
 }
 
-func (a *App) wireCompressor() {
+func (a *App) wireChatMemory() {
+	if a == nil {
+		return
+	}
 	cfg := a.Config.EffectiveCompression()
-	if !cfg.Enabled {
-		a.setCompressor(nil)
+	var compressor *prompt.Compressor
+	if cfg.Enabled {
+		model := ""
+		if a.Gateway != nil {
+			model = a.Gateway.Model()
+		}
+		if model == "" && a.Config != nil {
+			model = a.Config.LLM.Model
+		}
+		cfg.ContextLength = llm.ResolveContextWindow(model, a.Config.Compression.ContextLength)
+		aux := a.Config.EffectiveAuxiliaryCompression()
+		provider, err := llm.BuildProviderFromLLMFields(aux.Provider, aux.TokenKey, aux.Model, nil, "", aux.BaseURL, nil)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "警告: 上下文压缩未启用: %v\n", err)
+		} else {
+			var policy llm.Policy
+			if a.Gateway != nil {
+				policy = a.Gateway.Policy()
+			}
+			compressor = prompt.NewCompressor(cfg, &prompt.ProviderSummarizer{
+				Provider: provider,
+				Policy:   policy,
+			})
+		}
+	}
+	if ad, ok := a.ChatMemory.(*memory.Adapter); ok && ad != nil {
+		ad.SetCompressor(compressor)
+		a.setMemory(ad)
 		return
 	}
-	model := ""
-	if a.Gateway != nil {
-		model = a.Gateway.Model()
-	}
-	if model == "" {
-		model = a.Config.LLM.Model
-	}
-	// Explicit config.compression.context_length wins; otherwise resolve from model.
-	cfg.ContextLength = llm.ResolveContextWindow(model, a.Config.Compression.ContextLength)
-	aux := a.Config.EffectiveAuxiliaryCompression()
-	provider, err := llm.BuildProviderFromLLMFields(aux.Provider, aux.TokenKey, aux.Model, nil, "", aux.BaseURL, nil)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "警告: 上下文压缩未启用: %v\n", err)
-		a.setCompressor(nil)
-		return
-	}
-	var policy llm.Policy
-	if a.Gateway != nil {
-		policy = a.Gateway.Policy()
-	}
-	a.setCompressor(prompt.NewCompressor(cfg, &prompt.ProviderSummarizer{
-		Provider: provider,
-		Policy:   policy,
-	}))
+	ad := memory.NewAdapter(memory.AdapterConfig{
+		Compressor: compressor,
+		Sessions:   chatsession.NewChatSessionStore(a.State),
+		Evidence:   a.Evidence,
+	})
+	a.ChatMemory = ad
+	a.setMemory(ad)
 }
 
-func (a *App) setCompressor(c *prompt.Compressor) {
+func (a *App) setMemory(m memport.Port) {
 	if a.Agent != nil {
-		a.Agent.SetCompressor(c)
+		a.Agent.SetMemory(m)
 	}
 }
+
+func (a *App) wireCompressor() { a.wireChatMemory() }
 
 // Skills is the registry of runnable skills (built-in + any registered at runtime).
 var DefaultSkills = skills.Default()

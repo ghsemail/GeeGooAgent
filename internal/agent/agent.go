@@ -14,6 +14,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
+	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -51,13 +52,23 @@ func (a *Agent) Run(
 	return a.Loop.RunTurn(ctx, session, userText, toolCtx, schemas)
 }
 
-// SetCompressor wires context compression into the owned loop.
+// SetCompressor wires context compression into the owned loop (Memory port).
 func (a *Agent) SetCompressor(c *prompt.Compressor) {
 	if a != nil && a.Loop != nil {
 		a.Loop.SetCompressor(c)
 	}
 	if a != nil && a.subAgent != nil {
 		a.subAgent.SetCompressor(c)
+	}
+}
+
+// SetMemory wires the Memory port on the owned loop and sub-agent.
+func (a *Agent) SetMemory(m memport.Port) {
+	if a != nil && a.Loop != nil {
+		a.Loop.SetMemory(m)
+	}
+	if a != nil && a.subAgent != nil {
+		a.subAgent.SetMemory(m)
 	}
 }
 

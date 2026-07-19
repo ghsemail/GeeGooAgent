@@ -7,6 +7,8 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
+	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -24,7 +26,7 @@ type Loop struct {
 	tools         *ToolExec
 	maxToolRounds int
 	onProgress    runtime.ProgressFunc
-	compressor    *prompt.Compressor
+	mem           memport.Port
 	eventBus      tools.EventEmitter
 	ranker        cognition.Ranker
 	evaluator     cognition.Evaluator
@@ -41,6 +43,7 @@ func NewLoop(gateway *llm.Gateway, executor *runtime.Executor) *Loop {
 		ranker:        d.Ranker,
 		evaluator:     d.Evaluator,
 		planPolicy:    d.PlanPolicy,
+		mem:           memport.Noop(),
 	}
 }
 
@@ -85,9 +88,21 @@ func (l *Loop) SetGateway(gateway *llm.Gateway) {
 	l.gateway = gateway
 }
 
-// SetCompressor wires optional context compaction before LLM calls.
+// SetCompressor wires optional context compaction (Memory port adapter).
 func (l *Loop) SetCompressor(c *prompt.Compressor) {
-	l.compressor = c
+	l.SetMemory(memory.NewAdapter(memory.AdapterConfig{Compressor: c}))
+}
+
+// SetMemory replaces the Memory port (compress / recall / store).
+func (l *Loop) SetMemory(m memport.Port) {
+	if l == nil {
+		return
+	}
+	if m != nil {
+		l.mem = m
+	} else {
+		l.mem = memport.Noop()
+	}
 }
 
 // SetProgress wires live step output (geegoo chat verbose UI).

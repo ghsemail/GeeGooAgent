@@ -6,6 +6,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/lineage"
+	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 )
@@ -19,39 +20,33 @@ func (l *Loop) applyHygiene(ctx context.Context, session *runtime.Session, messa
 }
 
 func (l *Loop) runCompression(ctx context.Context, session *runtime.Session, messages []llm.Message, hygiene bool) []llm.Message {
-	if l.compressor == nil {
-		return messages
+	mem := l.mem
+	if mem == nil {
+		mem = memport.Noop()
 	}
 	est := session.LastPromptTokens
 	if est <= 0 {
 		est = prompt.EstimateTokens(session.Messages)
 	}
-	var (
-		out        []llm.Message
-		did        bool
-		newSummary string
-		err        error
-	)
-	if hygiene {
-		if !l.compressor.ShouldHygiene(est, len(session.Messages)) {
-			return messages
-		}
-		out, did, newSummary, err = l.compressor.CompressHygiene(ctx, session.Messages, session.PreviousSummary, est)
-	} else {
-		if !l.compressor.ShouldCompress(est, len(session.Messages)) {
-			return messages
-		}
-		out, did, newSummary, err = l.compressor.Compress(ctx, session.Messages, session.PreviousSummary, est)
-	}
-	if err != nil || !did {
+	out, err := mem.Compress(ctx, memport.CompressInput{
+		SessionID:       session.ID,
+		Messages:        session.Messages,
+		PreviousSummary: session.PreviousSummary,
+		EstimatedTokens: est,
+		Hygiene:         hygiene,
+	})
+	if err != nil || !out.DidCompress {
 		return messages
 	}
 	before := len(session.Messages)
-	tokensAfter := prompt.EstimateTokens(out)
-	session.Messages = out
-	session.PreviousSummary = newSummary
+	session.Messages = out.Messages
+	session.PreviousSummary = out.PreviousSummary
+	tokensAfter := out.EstimatedTokensAfter
+	if tokensAfter <= 0 {
+		tokensAfter = prompt.EstimateTokens(out.Messages)
+	}
 	session.LastPromptTokens = tokensAfter
-	recordCompactionLineage(session, before, len(out), est, tokensAfter, hygiene, newSummary)
+	recordCompactionLineage(session, before, len(out.Messages), est, tokensAfter, hygiene, out.PreviousSummary)
 	advanceLineage(session)
 	event := "context_compressed"
 	if hygiene {
@@ -59,7 +54,7 @@ func (l *Loop) runCompression(ctx context.Context, session *runtime.Session, mes
 	}
 	l.emit(event, map[string]any{
 		"before_msgs":             before,
-		"after_msgs":              len(out),
+		"after_msgs":              len(out.Messages),
 		"estimated_tokens_before": est,
 		"summary_chars":           len(session.PreviousSummary),
 		"hygiene":                 hygiene,

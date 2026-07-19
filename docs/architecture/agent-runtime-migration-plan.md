@@ -60,7 +60,7 @@ go build ./cmd/geegoo ./cmd/agent-runtime
 | **P0** | 定稿落地 + 边界冻结 | 本文 + 架构定稿；overview/README 索引；禁止清单写入工程约定 | 低 · **文档已完成** |
 | **P1** | Cognition 接口 + Go 默认 | `internal/cognition`；Loop 改调接口；行为等价 | 中 · **代码已落地** |
 | **P2** | Model Policy 抽出 | Policy 在 Gateway 之上；选模/预算可测 | 中 · **代码已落地** |
-| **P3** | Memory port | 接口 + 现有实现适配；不换存储 | 中 |
+| **P3** | Memory port | 接口 + 现有实现适配；不换存储 | 中 · **代码已落地** |
 | **P4** | Python Advisor（可选） | 窄 HTTP 契约 + 降级；默认关闭 | 中高 |
 | **P5** | 包边界加固 | 按需物理整理、依赖检查；仍无 Dashboard | 低 |
 
@@ -183,8 +183,16 @@ type Memory interface {
 
 ### 完成标准
 
-- Chat 压缩与 recall 相关调用点经 port（或明确标注过渡期）  
-- SQLite 仍为 session SSOT；无新外部依赖  
+- [x] Chat 压缩与 recall 经 `memport.Port` / `memory.Adapter`  
+- [x] SQLite / chatsession 仍为 session SSOT；无新外部依赖  
+
+### P3 落地摘要（2026-07-19）
+
+- `internal/memport`：`Port` + `Recall` / `Store` / `Compress` 类型与 `Noop`  
+- `internal/memory.Adapter`：委托 `prompt.Compressor`、`chatsession`、`EvidenceStore`  
+- Loop / SubAgent：`SetMemory`；压缩走 `mem.Compress`  
+- `recall` tool：优先 `deps.Memory.Recall`（无 port 时回退原路径）  
+- App：`wireChatMemory` 组装共享 `ChatMemory`  
 
 ### 不做
 
@@ -244,8 +252,8 @@ type Memory interface {
 | T1.4 | P1 | 回归测试 | *_test.go | ✅ |
 | T2.1 | P2 | Policy 类型与配置映射 | internal/llm | ✅ |
 | T2.2 | P2 | 调用点改经 Policy | agent、report、prompt | ✅ |
-| T3.1 | P3 | Memory 接口 + 适配器 | internal/memory | |
-| T3.2 | P3 | 文档：SSOT vs index | L3-memory docs | |
+| T3.1 | P3 | Memory 接口 + 适配器 | internal/memport, memory.Adapter | ✅ |
+| T3.2 | P3 | 文档：SSOT vs index | L3-memory docs | ✅ |
 | T4.1 | P4 | Advisor OpenAPI/JSON 契约 | services/cognitive | |
 | T4.2 | P4 | Go client + 降级 | cognition | |
 | T5.1 | P5 | import 审计与文档同步 | repo-layout、CI | |
@@ -291,4 +299,4 @@ P0 文档冻结
  —— Dashboard / Flutter：另开规划 ——
 ```
 
-**当前下一步**：P3 Memory port。P0–P2 已完成。
+**当前下一步**：P5 包边界加固（或按需 P4 Python Advisor）。P0–P3 已完成。

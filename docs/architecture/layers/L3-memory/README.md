@@ -2,7 +2,9 @@
 
 Agent 的记忆系统：会话历史、工作进度、证据链、上下文压缩。
 
-> Go 实现：`internal/chatsession`、`internal/memory`、`internal/prompt`
+> Go 实现：`internal/chatsession`、`internal/memory`、`internal/memport`、`internal/prompt`  
+> **Memory port（P3）**：`internal/memport.Port` 定义 `Recall` / `Store` / `Compress`；`internal/memory.Adapter` 委托现有实现。  
+> **Session SSOT**：对话真相源仍在 `chatsession`（SQLite / 文件）；port 不写 conversation，只处理压缩、跨会话 recall、evidence 等辅助层。
 
 ## 四层模型（热 → 冷）
 

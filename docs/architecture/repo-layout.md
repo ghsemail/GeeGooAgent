@@ -24,6 +24,7 @@ GeeGooAgent/
 ├── internal/
 │   ├── agent/                  # L4 Kernel（ReAct Loop + ToolExec；薄封装）
 │   ├── cognition/              # L4 策略扩展点（Ranker / Evaluator / PlanPolicy）
+│   ├── memport/                # L3 Memory port 接口（Recall / Store / Compress）
 │   ├── app/                    # 依赖组装（LoadFromConfigPath）
 │   ├── runtime/                # L4 Session + Executor + events
 │   ├── workflow/               # L4/L5 确定性工作流 + Supervisor
@@ -73,7 +74,7 @@ GeeGooAgent/
 |----|------|--------|
 | **L5** | Skill、CLI、Rules、报告合成 | `cmd/geegoo`, `internal/skills`, `internal/workflow`, `internal/report`, `skills/`, `rules/` |
 | **L4** | ReAct、Workflow、Supervisor | `internal/agent`, `internal/cognition`, `internal/runtime`, `internal/workflow` |
-| **L3** | 会话、Working、Evidence、压缩 | `internal/chatsession`, `internal/memory`, `internal/prompt` |
+| **L3** | 会话、Working、Evidence、压缩 | `internal/chatsession`, `internal/memory`, `internal/memport`, `internal/prompt` |
 | **L2** | Tool Registry、MCP 客户端 | `internal/tools`, `internal/clients/mcp`, `internal/search` |
 | **L1** | LLM Gateway | `internal/llm` |
 | **L0** | SQLite、EventBus、Scheduler | `internal/infra`, `internal/scheduler` |

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/config"
+	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/tools/catalog"
 )
 
@@ -18,6 +19,7 @@ type Deps struct {
 	Working          WorkingLoader
 	Search           config.SearchConfig
 	FeishuWebhookURL string
+	Memory           memport.Port
 	// Delegate runs delegate_task sub-agent turns (optional; wired by app).
 	Delegate TaskDelegator
 }

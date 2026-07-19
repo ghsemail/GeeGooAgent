@@ -11,6 +11,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
+	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/search"
 	"github.com/ghsemail/GeeGooAgent/internal/tools/newsrunner"
 )
@@ -573,9 +574,6 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 		Description: "Search past geegoo chat sessions for stock price lookups and user queries. " +
 			"Use when the user asks what they checked before, including after quit/restart.",
 		Handle: func(ctx Context, args map[string]any) Result {
-			if ctx.StateStore == nil {
-				return Result{Status: StatusError, Summary: "state_store not configured", ExitCode: 1}
-			}
 			query := strArg(args, "query", "")
 			limit := intArg(args, "limit", 5)
 			if limit < 1 {
@@ -583,6 +581,27 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			}
 			if limit > 20 {
 				limit = 20
+			}
+			if deps.Memory != nil {
+				res, err := deps.Memory.Recall(ctx.GoContext(), memport.RecallQuery{
+					Kind: memport.RecallSession, Query: query,
+					ExcludeSessionID: ctx.SessionID, Limit: limit, ScanLimit: 30,
+				})
+				if err != nil {
+					return errResult(err)
+				}
+				if len(res.Hits) == 0 {
+					return Result{
+						Status: StatusOK, Summary: "No matching past chat sessions",
+						Data: map[string]any{"count": 0, "matches": []any{}},
+					}
+				}
+				top := res.Hits[0]
+				summary := fmt.Sprintf("Found %d session(s); latest: %s (%s)", len(res.Hits), top.Snippet, top.ID)
+				return Result{Status: StatusOK, Summary: summary, Data: res.Data}
+			}
+			if ctx.StateStore == nil {
+				return Result{Status: StatusError, Summary: "state_store not configured", ExitCode: 1}
 			}
 			store := chatsession.NewChatSessionStore(ctx.StateStore)
 			hits, err := chatsession.SearchPastSessions(store, query, ctx.SessionID, limit, 30)
