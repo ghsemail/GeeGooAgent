@@ -38,6 +38,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	h.registerPlanRoutes(mux)
 	h.registerSessionRoutes(mux)
 	h.registerChatStreamRoutes(mux)
+	h.registerCockpitRoutes(mux)
 }
 
 type chatRequest struct {

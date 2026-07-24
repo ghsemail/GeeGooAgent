@@ -20,6 +20,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/semantic"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
@@ -45,6 +46,10 @@ type App struct {
 	Workspace   string
 	// P1 SQLite foundation. DB is nil when disabled via GEEGOO_DB=off or open failure.
 	DB       *infra.DB
+	// Optional PostgreSQL platform DB (sessions, cockpit, semantic memory).
+	PG *infra.PostgresDB
+	// Semantic memory chunks when pgvector schema is enabled.
+	Semantic *semantic.PostgresStore
 	Evidence *memory.EvidenceStore
 	// P2c platform-agnostic agent core. Owns the ReAct loop; used by chat,
 	// runtime HTTP, and (later) workflow/scheduler.
@@ -106,6 +111,9 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	if err := app.openDatabase(); err != nil {
 		fmt.Fprintf(os.Stderr, "警告: SQLite 未启用: %v（回退到文件存储）\n", err)
 	}
+	if err := app.openPostgres(); err != nil {
+		fmt.Fprintf(os.Stderr, "警告: PostgreSQL 未连接: %v\n", err)
+	}
 	if err := app.RebuildGateway(); err != nil {
 		fmt.Fprintf(os.Stderr, "警告: LLM 未就绪: %v\n", err)
 	}
@@ -160,10 +168,43 @@ func (a *App) openDatabase() error {
 
 // Close releases resources owned by the App (currently the SQLite handle).
 func (a *App) Close() error {
+	var err error
+	if a.PG != nil {
+		if closeErr := a.PG.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}
 	if a.DB != nil {
-		return a.DB.Close()
+		if closeErr := a.DB.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}
+	return err
+}
+
+func (a *App) openPostgres() error {
+	dsn := infra.PostgresDSN()
+	if dsn == "" {
+		return nil
+	}
+	pg, err := infra.OpenPostgres(dsn)
+	if err != nil {
+		return err
+	}
+	a.PG = pg
+	if vectorEnabled() {
+		if err := pg.ApplyMemorySchema(); err != nil {
+			fmt.Fprintf(os.Stderr, "警告: pgvector schema 未应用 (%v)\n", err)
+		} else {
+			a.Semantic = semantic.NewPostgresStore(pg.SQL())
+		}
 	}
 	return nil
+}
+
+func vectorEnabled() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("GEEGOO_VECTOR_ENABLE")))
+	return v == "1" || v == "true" || v == "yes"
 }
 
 // RebuildGateway recreates the LLM gateway from current config (after /think or /model).

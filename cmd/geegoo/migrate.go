@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ghsemail/GeeGooAgent/internal/app"
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
@@ -15,7 +14,9 @@ import (
 func runMigrate(args []string) {
 	fs := flag.NewFlagSet("migrate", flag.ExitOnError)
 	configPath := fs.String("config", config.DefaultPath(), "path to config.json")
-	dryRun := fs.Bool("dry-run", false, "preview source rows without writing SQLite")
+	dryRun := fs.Bool("dry-run", false, "preview without writing")
+	target := fs.String("to", "sqlite", "target store: sqlite|postgres")
+	source := fs.String("from", "file", "source store: file|sqlite")
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
 	}
@@ -31,62 +32,90 @@ func runMigrate(args []string) {
 		os.Exit(2)
 	}
 
-	fileState := infra.NewStateStore(workspace)
-	fileStore := chatsession.NewChatSessionStore(fileState)
-	ids, err := fileStore.ListSessionIDs()
+	src, err := openSessionStore(*source, workspace)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "migrate: list file sessions: %v\n", err)
+		fmt.Fprintf(os.Stderr, "migrate: source: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("源（文件存储）会话数: %d\n", len(ids))
+	ids, err := src.ListSessionIDs()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "migrate: list sessions: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("源（%s）会话数: %d → 目标 %s\n", *source, len(ids), *target)
 	if *dryRun {
-		fmt.Println("--dry-run: 不写入 SQLite，仅预览。")
 		for _, id := range ids {
-			s, err := fileStore.Load(id)
-			if err != nil || s == nil {
+			s, _ := src.Load(id)
+			if s == nil {
 				continue
 			}
-			fmt.Printf("  %s  %s  status=%s  msgs=%d\n", s.ID, s.Title, s.Status, len(s.Messages))
+			fmt.Printf("  %s  %s  msgs=%d\n", s.ID, s.Title, len(s.Messages))
 		}
 		return
 	}
 
-	dbPath := filepath.Join(workspace, "geegoo.db")
-	db, err := infra.OpenSQLite(dbPath)
+	dest, cleanup, err := openSessionStoreTarget(*target, workspace)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "migrate: open sqlite: %v\n", err)
+		fmt.Fprintf(os.Stderr, "migrate: target: %v\n", err)
 		os.Exit(1)
 	}
-	defer db.Close()
-	sqlStore := chatsession.NewSQLiteSessionStore(db)
+	if cleanup != nil {
+		defer cleanup()
+	}
 
 	migrated, skipped := 0, 0
 	for _, id := range ids {
-		s, err := fileStore.Load(id)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "  跳过 %s: 加载失败 %v\n", id, err)
+		s, err := src.Load(id)
+		if err != nil || s == nil {
 			skipped++
 			continue
 		}
-		if s == nil {
-			skipped++
-			continue
-		}
-		if err := sqlStore.Save(s); err != nil {
-			fmt.Fprintf(os.Stderr, "  跳过 %s: 保存失败 %v\n", id, err)
+		if err := dest.Save(s); err != nil {
+			fmt.Fprintf(os.Stderr, "  跳过 %s: %v\n", id, err)
 			skipped++
 			continue
 		}
 		migrated++
 	}
 	fmt.Printf("迁移完成: 写入 %d，跳过 %d\n", migrated, skipped)
-	fmt.Printf("SQLite: %s\n", dbPath)
+}
 
-	// Verify count.
-	verify, _ := sqlStore.ListSessionIDs()
-	if len(verify) < migrated {
-		fmt.Fprintf(os.Stderr, "警告: 校验失败，SQLite 仅有 %d 条\n", len(verify))
-		os.Exit(1)
+func openSessionStore(kind, workspace string) (chatsession.SessionStore, error) {
+	switch kind {
+	case "file":
+		return chatsession.NewChatSessionStore(infra.NewStateStore(workspace)), nil
+	case "sqlite":
+		dbPath := filepath.Join(workspace, "geegoo.db")
+		db, err := infra.OpenSQLite(dbPath)
+		if err != nil {
+			return nil, err
+		}
+		return chatsession.NewSQLiteSessionStore(db), nil
+	default:
+		return nil, fmt.Errorf("unknown source %q", kind)
 	}
-	_ = app.App{}
+}
+
+func openSessionStoreTarget(kind, workspace string) (chatsession.SessionStore, func(), error) {
+	switch kind {
+	case "sqlite":
+		dbPath := filepath.Join(workspace, "geegoo.db")
+		db, err := infra.OpenSQLite(dbPath)
+		if err != nil {
+			return nil, nil, err
+		}
+		return chatsession.NewSQLiteSessionStore(db), func() { _ = db.Close() }, nil
+	case "postgres":
+		dsn := infra.PostgresDSN()
+		if dsn == "" {
+			return nil, nil, fmt.Errorf("GEEGOO_PG_DSN not set")
+		}
+		pg, err := infra.OpenPostgres(dsn)
+		if err != nil {
+			return nil, nil, err
+		}
+		return chatsession.NewPostgresSessionStore(pg.SQL()), func() { _ = pg.Close() }, nil
+	default:
+		return nil, nil, fmt.Errorf("unknown target %q", kind)
+	}
 }

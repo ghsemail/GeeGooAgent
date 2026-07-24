@@ -44,6 +44,10 @@ func main() {
 	handler := httpserver.NewProtectedHandler(rt.ServiceName, rt.APIKey, rt.AllowInsecure, func(mux *http.ServeMux) {
 		runtimeapi.NewHandler(application).Register(mux)
 	})
+	if len(rt.CORSOrigins) > 0 {
+		handler = httpserver.CORS(rt.CORSOrigins, handler)
+		slog.Info("CORS enabled", "origins", rt.CORSOrigins)
+	}
 	srv := httpserver.New(httpserver.Options{
 		Name: rt.ServiceName,
 		Port: rt.Port,

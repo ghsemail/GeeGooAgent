@@ -115,6 +115,17 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	toolCtx.MCPToken = mcpToken
 	toolCtx.Interactive = true
 	toolCtx.Approved = approveWrites(r)
+	clarifyNotify := func(p PendingClarify) {
+		emit("clarify", map[string]any{
+			"session_id": p.SessionID,
+			"question":   p.Question,
+			"choices":    p.Choices,
+		})
+	}
+	toolCtx.ClarifyFn = h.clarifyFn(r.Context(), chat.ID, clarifyNotify)
+	if h.App.Config != nil {
+		h.App.Agent.SetPlanGate(h.App.Config.EffectivePlanGate())
+	}
 
 	schemas := h.App.Registry.Schemas(h.App.ChatToolNames())
 	result := h.App.Agent.Run(r.Context(), rtSession, message, toolCtx, schemas)
@@ -122,6 +133,15 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	newRecords := stepRecordsFromTurn(result.StepRecords)
 	agent.SyncChatFromRuntime(chat, rtSession, newRecords)
 	_ = store.Save(chat)
+	if h.App.Semantic != nil && strings.TrimSpace(chat.Summary) != "" {
+		userID := ""
+		if chat.Metadata != nil {
+			if v, ok := chat.Metadata["user_id"].(string); ok {
+				userID = v
+			}
+		}
+		_ = h.App.Semantic.UpsertSummary(r.Context(), chat.ID, userID, chat.Summary)
+	}
 	if live != nil {
 		live.EndTurn()
 	}

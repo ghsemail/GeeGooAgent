@@ -72,7 +72,7 @@ Usage:
   %s inspect [--config PATH] [--quick] [--session ID]
   %s chat [--config PATH] [--dry-run] [--message TEXT] [--output-format text|ndjson] [--session ID] [--tui|--cli]
   %s run <skill> [--config PATH] [--dry-run]
-  %s migrate [--config PATH] [--dry-run]
+  %s migrate [--config PATH] [--from file|sqlite] [--to sqlite|postgres] [--dry-run]
   %s skills list
   %s scheduler <run|list> [--config PATH]
   %s verify --codes CODES [--date YYYY-MM-DD] [--config PATH]
