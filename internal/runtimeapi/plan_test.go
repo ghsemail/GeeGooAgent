@@ -34,7 +34,7 @@ func TestPlanHTTPApproveResumesPersistedPlan(t *testing.T) {
 		}),
 	})
 	provider := &llm.MockProvider{
-		Responses: []*llm.Response{{Content: "已完成"}},
+		Responses: []*llm.Response{{Content: "已完�?}},
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
@@ -66,7 +66,7 @@ func TestPlanHTTPApproveResumesPersistedPlan(t *testing.T) {
 	}
 	application.Agent.SetPlanGate(true)
 	mux := httpserver.NewMux("agent-runtime")
-	runtimeapi.NewHandler(application).Register(mux)
+	runtimeapi.NewHandler(application, "").Register(mux)
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 

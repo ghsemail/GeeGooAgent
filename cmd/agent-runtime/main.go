@@ -42,7 +42,7 @@ func main() {
 	}
 
 	handler := httpserver.NewProtectedHandler(rt.ServiceName, rt.APIKey, rt.AllowInsecure, func(mux *http.ServeMux) {
-		runtimeapi.NewHandler(application).Register(mux)
+		runtimeapi.NewHandler(application, rt.ConfigPath).Register(mux)
 	})
 	if len(rt.CORSOrigins) > 0 {
 		handler = httpserver.CORS(rt.CORSOrigins, handler)

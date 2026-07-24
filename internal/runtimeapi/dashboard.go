@@ -26,6 +26,7 @@ func (h *Handler) registerDashboardRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/dashboard/sessions/{id}/messages", h.dashboardSessionMessages)
 	mux.HandleFunc("POST /v1/dashboard/voice", h.dashboardVoice)
 	h.registerCompareRoutes(mux)
+	h.registerSettingsRoutes(mux)
 }
 
 type dashboardTraceEvent struct {
@@ -239,16 +240,14 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 }
 
 func (h *Handler) buildDashboardSettings(provider, model string) map[string]any {
-	keySet := h.App != nil && h.App.Gateway != nil
-	return map[string]any{
-		"provider": provider, "model": model, "small_model": model, "base_url": "",
-		"pinned": []map[string]any{{"provider": provider, "model": model}},
-		"providers": []map[string]any{{
-			"name": provider, "default_model": model, "default_small_model": model,
-			"key_env": "LLM_API_KEY", "key_set": keySet,
-		}},
-		"search_key_env": "TAVILY_API_KEY", "search_key_set": false,
+	info, err := h.buildSettingsInfo()
+	if err != nil {
+		return map[string]any{
+			"provider": provider, "model": model, "small_model": model,
+			"pinned": []map[string]any{{"provider": provider, "model": model}},
+		}
 	}
+	return info
 }
 
 func (h *Handler) buildDBMeta() map[string]any {

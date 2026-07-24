@@ -43,7 +43,7 @@ func testSessionApp(t *testing.T) *app.App {
 func testProtectedHandler(t *testing.T, application *app.App) http.Handler {
 	t.Helper()
 	mux := httpserver.NewMux("agent-runtime")
-	runtimeapi.NewHandler(application).Register(mux)
+	runtimeapi.NewHandler(application, "").Register(mux)
 	return auth.SkipPaths(map[string]struct{}{"/health": {}}, auth.BearerAPIKey("test-runtime-key"))(mux)
 }
 

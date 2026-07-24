@@ -40,17 +40,144 @@ func (a *Agent) Run(
 
 ### 调用链
 
+下图分三层：**启动装配**（进程一次）、**单回合入口**（L5 汇聚）、**RunTurn 内核**（L4 每轮用户输入）。Workflow 不经 `RunTurn`，见 [workflow-engine.md](./workflow-engine.md)。
+
+#### 启动装配（`app.LoadFromConfigPath`）
+
 ```text
-L5  chatrepl / runtimeapi
-        │
-        ▼
-L4  Agent.Run → Loop.RunTurn
-        │
-        ├── Gateway.Chat（L1）          ← 「Planner」逻辑在此
-        ├── ToolExec → Executor（L4）→ Registry（L2）
-        ├── Memory port 压缩 / recall（L3）
-        └── Cognition 注入
+config.json
+  ├─ Registry ← tools.RegisterAll（MCP / Signal / memory / delegate …）
+  ├─ Executor(registry)                    ← L4 薄封装
+  ├─ Gateway                                 ← L1
+  ├─ Agent.New(gateway, executor, registry)
+  │    ├─ Loop.NewLoop + ToolExec(executor)
+  │    ├─ SetMaxSteps / PlanGate / Hooks / EventBus …
+  │    ├─ wireChatMemory → Loop.SetMemory（压缩 / recall）
+  │    ├─ wireCognition → SetCognition（Ranker / Evaluator / PlanPolicy）
+  │    └─ SubAgent → SetSubAgent（delegate 内嵌 Loop）
+  └─ Workflow.SetToolExec(Agent.ToolExec())  ← 与 ReAct 共用 ToolExec
 ```
+
+#### 单回合入口（L5 → L4）
+
+```text
+geegoo chat                    agent-runtime :3400           delegate_task(s)
+  cmd/geegoo/chat.go             cmd/agent-runtime            tools → SubAgent.Run
+       │                              │                              │
+       ▼                              ▼                              │
+  chatrepl.Repl.runTurn         runtimeapi.Handler                    │
+  chattui.Model（TUI 路径）      POST /v1/chat/completions             │
+       │                         plan.go（恢复 PendingPlan）            │
+       │                              │                              │
+       ├─ Chat.SyncChatSystemPrompt()  │                              │
+       ├─ session ← Chat.RuntimeMessages()                            │
+       ├─ schemas ← Registry.Schemas(ChatToolNames)                    │
+       ├─ toolCtx ← App.ToolContext(sessionID)                        │
+       │     Interactive=true, ClarifyFn, Hooks, EventBus, MCPToken   │
+       └──────────────────────────────┼──────────────────────────────┘
+                                      ▼
+                            Agent.Run(ctx, session, userText, toolCtx, schemas)
+                                      │
+                                      ▼
+                            Loop.RunTurn（见下）
+```
+
+#### RunTurn 内核（`loop.go` / `loop_round.go`）
+
+```text
+Loop.RunTurn
+  │
+  ├─ Phase 0  初始化
+  │     AppendMessage(user) → emit turn_start / TurnStarted
+  │     applyHygiene（Memory port，~85% 阈值）
+  │
+  ├─ Phase 1  PendingPlan（mutating 挂起恢复）
+  │     PlanPolicy.IsApproval / IsRejection
+  │     → resumePendingPlan | cancelPendingPlan | 丢弃 stale plan
+  │
+  ├─ Phase 2  ReAct 主循环（round < max_steps）
+  │     runRound ─────────────────────────────────────────────┐
+  │       applyCompression（~50%）→ withBudgetWarning          │
+  │       SanitizeMessages → callLLM                         │
+  │         Gateway.ChatStream（L1）← stream_delta / cache     │
+  │       ├─ 无 tool_calls → finalizeReply ──→ 回合结束        │
+  │       └─ 有 tool_calls → applyToolRound                  │
+  │             partition mutating / readonly                │
+  │             plan_gate? → PendingPlan + plan_proposed（挂起）│
+  │             tool_intercept（Chat 工具兜底）               │
+  │             ToolExec.ExecuteBatch ───────────────────────┤
+  │               timeout · tool_max_parallel · delegate_sem │
+  │               ApprovalGate（mutating + Interactive）       │
+  │               Executor.Execute → Registry.Execute（L2）    │
+  │                 ValidateArguments                          │
+  │                 Hooks tool_before / tool_after             │
+  │                 ToolCalled（EventBus）                     │
+  │                 具体 Tool → MCP HTTP / memory / SubAgent…  │
+  │               append assistant + tool messages           │
+  │             继续下一轮 runRound ◄──────────────────────────┘
+  │     回合结束 → tryEvalRetry?（Evaluator，eval_max_retries）
+  │
+  └─ Phase 3  预算耗尽
+        finishBudgetExhausted（无 tool 终局 LLM）
+```
+
+#### 回合收尾与可观测（L5 / 横切）
+
+```text
+TurnResult
+  ├─ Progress（SetProgress）→ chatui / NDJSON sink（turn_start, tool_done, plan_proposed …）
+  ├─ EventBus → TurnCompleted | TurnFailed
+  └─ chatrepl：SyncChatFromRuntime → SessionStore.Save（chatsession / SQLite）
+```
+
+```mermaid
+flowchart TB
+  subgraph L5["L5 入口"]
+    CHAT["geegoo chat\nchatrepl / chattui"]
+    HTTP["agent-runtime\nruntimeapi"]
+    DEL["delegate_task(s)\nSubAgent"]
+  end
+
+  subgraph APP["装配 app.App"]
+    AG["Agent.Run"]
+  end
+
+  subgraph L4["L4 Loop.RunTurn"]
+    P0["Phase 0\nhygiene"]
+    P1["Phase 1\nPendingPlan"]
+    P2["Phase 2\nrunRound × N"]
+    P3["Phase 3\nbudget exhausted"]
+    RR["runRound"]
+    LLM["callLLM\nGateway.ChatStream"]
+    TOOL["ToolExec.ExecuteBatch"]
+  end
+
+  subgraph DEPS["协作层"]
+    L1["L1 Gateway"]
+    L2["L2 Registry.Execute"]
+    L3["L3 Memory port"]
+    COG["Cognition\nRanker / Evaluator / PlanPolicy"]
+  end
+
+  CHAT --> AG
+  HTTP --> AG
+  DEL --> AG
+  AG --> P0 --> P1 --> P2
+  P2 --> RR
+  RR --> L3
+  RR --> LLM --> L1
+  RR --> TOOL --> L2
+  P2 -->|max_steps| P3 --> L1
+  P2 -->|done| COG
+  P3 --> COG
+```
+
+| 概念 | 代码落点 |
+|------|----------|
+| **Planner** | `runRound` → `callLLM` → `Gateway.ChatStream` |
+| **Executor** | `ToolExec.ExecuteBatch` → `runtime.Executor` → `Registry.Execute` |
+| **Session** | `runtime.Session`；持久化由 L5 `chatsession` 负责，Loop 不直接写 DB |
+| **子 Agent** | `delegate_tool` → `SubAgent` 新建独立 Session，内嵌 `Loop.RunTurn`（禁止嵌套 delegate） |
 
 ### 与 Workflow 的分工
 

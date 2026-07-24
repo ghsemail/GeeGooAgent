@@ -28,7 +28,7 @@ func testChatStreamApp(t *testing.T) *app.App {
 	registry := tools.NewRegistry()
 	provider := &llm.MockProvider{
 		Responses: []*llm.Response{
-			{Content: "SSE 回复内容。", Usage: llm.TokenUsage{Model: "mock"}},
+			{Content: "SSE reply content", Usage: llm.TokenUsage{Model: "mock"}},
 		},
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
@@ -46,10 +46,10 @@ func testChatStreamApp(t *testing.T) *app.App {
 func TestChatStreamTurn(t *testing.T) {
 	application := testChatStreamApp(t)
 	mux := httpserver.NewMux("agent-runtime")
-	runtimeapi.NewHandler(application).Register(mux)
+	runtimeapi.NewHandler(application, "").Register(mux)
 	handler := auth.SkipPaths(map[string]struct{}{"/health": {}}, auth.BearerAPIKey("test-runtime-key"))(mux)
 
-	payload := map[string]string{"message": "你好"}
+	payload := map[string]string{"message": "hello"}
 	raw, _ := json.Marshal(payload)
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/stream", bytes.NewReader(raw))
 	req.Header.Set("Authorization", "Bearer test-runtime-key")
@@ -61,7 +61,7 @@ func TestChatStreamTurn(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	for _, want := range []string{"event: connected", "event: turn_end", "event: done", "SSE 回复内容。"} {
+	for _, want := range []string{"event: connected", "event: turn_end", "event: done", "SSE reply content"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("missing %q in body: %s", want, body)
 		}
@@ -83,7 +83,7 @@ func TestSessionEventsStreamProgress(t *testing.T) {
 	pub.Emit("stream_delta", map[string]any{"content": "chunk"})
 
 	mux := httpserver.NewMux("agent-runtime")
-	runtimeapi.NewHandler(application).Register(mux)
+	runtimeapi.NewHandler(application, "").Register(mux)
 	handler := auth.SkipPaths(map[string]struct{}{"/health": {}}, auth.BearerAPIKey("test-runtime-key"))(mux)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)

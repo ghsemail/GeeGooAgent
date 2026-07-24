@@ -38,12 +38,12 @@ func TestClarifyHTTPE2E(t *testing.T) {
 				ToolCalls: []llm.ToolCall{{
 					ID: "c1", Name: "clarify",
 					Arguments: map[string]any{
-						"question": "选择市场",
-						"choices":  []any{"A股", "港股"},
+						"question": "pick market",
+						"choices":  []any{"A-share", "HK"},
 					},
 				}},
 			},
-			{Content: "你选择了 A股。"},
+			{Content: "you picked A-share"},
 		},
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
@@ -56,7 +56,7 @@ func TestClarifyHTTPE2E(t *testing.T) {
 		EventBus: infra.NewEventBus(),
 	}
 	mux := httpserver.NewMux("agent-runtime")
-	runtimeapi.NewHandler(application).Register(mux)
+	runtimeapi.NewHandler(application, "").Register(mux)
 
 	const sessionID = "e2e-clarify"
 	var sawClarify bool
@@ -72,7 +72,7 @@ func TestClarifyHTTPE2E(t *testing.T) {
 			"model":  "geegoo-agent",
 			"stream": true,
 			"messages": []map[string]string{
-				{"role": "user", "content": "帮我分析"},
+				{"role": "user", "content": "analyze please"},
 			},
 		}
 		body, _ := json.Marshal(payload)
@@ -108,22 +108,21 @@ func TestClarifyHTTPE2E(t *testing.T) {
 			}
 			if obj, ok := envelope["object"]; ok && string(obj) == `"geegoo.agent_event"` {
 				var data struct {
-					Event      string   `json:"event"`
-					SessionID  string   `json:"session_id"`
-					Question   string   `json:"question"`
-					Choices    []string `json:"choices"`
+					Event     string   `json:"event"`
+					SessionID string   `json:"session_id"`
+					Question  string   `json:"question"`
+					Choices   []string `json:"choices"`
 				}
 				_ = json.Unmarshal(envelope["data"], &data)
 				if data.Event == "clarify" {
 					sawClarify = true
 					clarifyBody, _ := json.Marshal(map[string]any{
 						"session_id": sessionID,
-						"answer":     "A股",
+						"answer":     "A-share",
 					})
-					// Handler uses time-based session id; answer the hub by reading session from event.
 					clarifyBody, _ = json.Marshal(map[string]any{
 						"session_id": data.SessionID,
-						"answer":     "A股",
+						"answer":     "A-share",
 					})
 					clarifyReq, _ := http.NewRequest(http.MethodPost, srv.URL+"/v1/chat/clarify", bytes.NewReader(clarifyBody))
 					clarifyReq.Header.Set("Content-Type", "application/json")
@@ -173,7 +172,7 @@ func TestClarifyHTTPNonStreamRequiresCallback(t *testing.T) {
 		Agent: agent.New(gateway, runtime.NewExecutor(registry), registry),
 	}
 	mux := httpserver.NewMux("agent-runtime")
-	runtimeapi.NewHandler(application).Register(mux)
+	runtimeapi.NewHandler(application, "").Register(mux)
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 

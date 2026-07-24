@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deploy GeeGooAgent to geegoo-agent host after git push."""
+"""Update GeeGooAgent on 119.45.16.112 via install.sh."""
 from __future__ import annotations
 
 import json
@@ -8,63 +8,37 @@ from pathlib import Path
 
 import paramiko
 
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-
 DEPLOY = Path(r"C:\Users\ghsemail\.cursor\skills\remote-deploy\deploy.json")
-REPO_ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_HEAD = (
-    __import__("subprocess")
-    .check_output(["git", "rev-parse", "--short", "HEAD"], cwd=REPO_ROOT, text=True)
-    .strip()
-)
-
-
-def ssh_run(host_cfg: dict, cmd: str, timeout: int = 300) -> str:
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(
-        hostname=host_cfg["host"],
-        port=int(host_cfg.get("port", 22)),
-        username=host_cfg["user"],
-        password=host_cfg.get("password"),
-        timeout=30,
-    )
-    _, stdout, stderr = client.exec_command(cmd, timeout=timeout)
-    out = stdout.read().decode("utf-8", errors="replace")
-    err = stderr.read().decode("utf-8", errors="replace")
-    code = stdout.channel.recv_exit_status()
-    client.close()
-    if code != 0:
-        raise RuntimeError(f"exit {code}: {err.strip() or out.strip()}")
-    return out
 
 
 def main() -> int:
     cfg = json.loads(DEPLOY.read_text(encoding="utf-8"))
-    agent = cfg["targets"]["geegoo-agent"]["ssh"]
-    repo = "/home/ubuntu/.geegoo/geegoo-agent"
-
-    cmds = [
-        f"cd {repo} && git fetch origin main && git reset --hard origin/main",
-        f"cd {repo} && git log -1 --oneline",
-        f"cd {repo} && bash start.sh stop-runtime",
-        f"cd {repo} && bash start.sh build",
-        f"cd {repo} && bash start.sh start-runtime",
-        f"cd {repo} && bash start.sh status",
-        "export PATH=$HOME/.geegoo/bin:$PATH; geegoo verify agent-loop --offline 2>&1",
-        "export PATH=$HOME/.geegoo/bin:$PATH; geegoo doctor 2>&1",
-        "curl -sf http://127.0.0.1:3400/health && echo",
-    ]
-    for cmd in cmds:
-        print(f"\n>>> {cmd}")
-        print(ssh_run(agent, cmd))
-
-    head = ssh_run(agent, f"cd {repo} && git rev-parse --short HEAD").strip()
-    if not head.startswith(EXPECTED_HEAD[:7]):
-        print(f"WARN: expected {EXPECTED_HEAD}, got {head}", file=sys.stderr)
+    t = cfg["targets"]["geegoo-agent"]
+    s = t["ssh"]
+    c = paramiko.SSHClient()
+    c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    c.connect(s["host"], username=s["user"], password=s.get("password"), timeout=60)
+    try:
+        install = t.get(
+            "install_cmd",
+            "export GEEGOO_SKIP_SETUP=1 DEBIAN_FRONTEND=noninteractive; "
+            "curl -fsSL https://raw.githubusercontent.com/ghsemail/GeeGooAgent/main/scripts/install.sh | bash",
+        )
+        cmds = [
+            install,
+            "sleep 4",
+            "curl -sf http://127.0.0.1:3400/health || echo HEALTH_FAIL",
+            t.get("verify_cmd", "~/.geegoo/bin/geegoo doctor || true"),
+        ]
+        for cmd in cmds:
+            print(f"\n>>> {cmd[:160]}\n")
+            _, o, e = c.exec_command(cmd, timeout=900)
+            text = (o.read() + e.read()).decode("utf-8", errors="replace")
+            print(text[-4000:])
+    finally:
+        c.close()
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

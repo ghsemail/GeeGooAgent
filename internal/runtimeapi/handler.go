@@ -20,14 +20,15 @@ const defaultModel = "geegoo-agent"
 
 // Handler serves OpenAI-compatible endpoints for GeeGooBot agent-api (:3110).
 type Handler struct {
-	App    *app.App
-	chatMu sync.Mutex // serializes SetProgress wiring for chat SSE turns
-	clarify *ClarifyHub
+	App        *app.App
+	ConfigPath string
+	chatMu     sync.Mutex // serializes SetProgress wiring for chat SSE turns
+	clarify    *ClarifyHub
 }
 
 // NewHandler creates runtime API handlers.
-func NewHandler(application *app.App) *Handler {
-	return &Handler{App: application, clarify: newClarifyHub()}
+func NewHandler(application *app.App, configPath string) *Handler {
+	return &Handler{App: application, ConfigPath: configPath, clarify: newClarifyHub()}
 }
 
 // Register mounts routes on mux.
