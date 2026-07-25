@@ -17,3 +17,11 @@ func TestStripProviderNoiseRedactedThinking(t *testing.T) {
 		t.Fatalf("got %q want ok", got)
 	}
 }
+
+func TestCleanAssistantVisibleTextExported(t *testing.T) {
+	in := "<think>hidden</think>visible"
+	got := CleanAssistantVisibleText(in)
+	if got != "visible" {
+		t.Fatalf("got %q want visible", got)
+	}
+}

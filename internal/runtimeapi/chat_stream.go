@@ -137,21 +137,22 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	newRecords := stepRecordsFromTurn(result.StepRecords)
 	agent.SyncChatFromRuntime(chat, rtSession, newRecords)
 	_ = store.Save(chat)
-	if h.App.Semantic != nil && strings.TrimSpace(chat.Summary) != "" {
-		userID := ""
-		if chat.Metadata != nil {
-			if v, ok := chat.Metadata["user_id"].(string); ok {
-				userID = v
-			}
-		}
-		if err := h.App.Semantic.UpsertSummary(r.Context(), chat.ID, userID, chat.Summary); err == nil {
-			writeSessionSSE(w, flusher, "consolidation", map[string]any{
-				"session_id":    chat.ID,
-				"summary_chars": len(strings.TrimSpace(chat.Summary)),
-				"stored":        true,
-				"kind":          "session_summary",
-			})
-		}
+	userID := resolveUserID(r)
+	mem := h.persistTurnMemory(r.Context(), chat, userID)
+	if mem.SummaryStored {
+		writeSessionSSE(w, flusher, "consolidation", map[string]any{
+			"session_id":    chat.ID,
+			"summary_chars": mem.SummaryChars,
+			"stored":        true,
+			"kind":          "session_summary",
+		})
+	}
+	if mem.EpisodeStored {
+		writeSessionSSE(w, flusher, "consolidation", map[string]any{
+			"session_id": chat.ID,
+			"stored":     true,
+			"kind":       "episode_snapshot",
+		})
 	}
 	if h.App.Consolidator != nil {
 		if res, err := h.App.Consolidator.MaybeConsolidate(r.Context(), chat); err == nil && (res.Facts > 0 || res.Episode) {

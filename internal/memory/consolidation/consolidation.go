@@ -80,6 +80,7 @@ func (d *Distiller) MaybeConsolidate(ctx context.Context, session *chatsession.C
 		}
 	}
 	if ep := strings.TrimSpace(distilled.Episode); ep != "" && d.Episodic != nil {
+		ep = "[consolidated] " + ep
 		if err := d.Episodic.Add(ctx, session.ID, userID, ep, time.Now().UTC()); err == nil {
 			out.Episode = true
 		}

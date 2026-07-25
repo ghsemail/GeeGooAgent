@@ -107,6 +107,11 @@ func readableAssistantText(content, reasoning string) string {
 	return stripProviderNoise(reasoning)
 }
 
+// CleanAssistantVisibleText strips inline think tags and provider noise for storage/UI.
+func CleanAssistantVisibleText(s string) string {
+	return stripProviderNoise(s)
+}
+
 func splitInlineThinking(s string) (visible, extracted string) {
 	s = strings.TrimSpace(s)
 	if s == "" {
