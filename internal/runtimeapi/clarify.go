@@ -49,11 +49,11 @@ func (h *Handler) chatClarify(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	answer := strings.TrimSpace(req.Answer)
-	ok := !req.Skip
-	if !ok && answer == "" {
+	if !req.Skip && answer == "" {
 		writeError(w, http.StatusBadRequest, "answer required unless skip=true")
 		return
 	}
+	ok := !req.Skip
 	if !h.clarify.Answer(sessionID, answer, ok) {
 		writeError(w, http.StatusNotFound, "no pending clarify for session")
 		return

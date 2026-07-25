@@ -20,6 +20,21 @@ type RetrievalGateDecision struct {
 	Query    string
 }
 
+func countRecallKinds(hits []memport.RecallHit) (facts, episodes int) {
+	for _, h := range hits {
+		if h.Data == nil {
+			continue
+		}
+		switch h.Data["kind"] {
+		case "fact":
+			facts++
+		case "episode":
+			episodes++
+		}
+	}
+	return facts, episodes
+}
+
 func formatGateMemory(hits []memport.RecallHit) string {
 	if len(hits) == 0 {
 		return ""
@@ -105,10 +120,13 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 			if block := formatGateMemory(res.Hits); block != "" {
 				l.injectGateMemory(session, block, source)
 			}
+			factsN, episodesN := countRecallKinds(res.Hits)
 			l.emit("gate", map[string]any{
 				"decision":      decision.Decision,
 				"reason":        decision.Reason,
 				"hits":          decision.Hits,
+				"facts":         factsN,
+				"episodes":      episodesN,
 				"query":         query,
 				"recall_source": source,
 			})

@@ -162,6 +162,7 @@ func (e *ToolExec) ExecuteBatch(
 		emitProgress(onProgress, "tool_start", map[string]any{
 			"step": step, "name": call.Name, "arguments": call.Arguments,
 		})
+		toolStarted := time.Now()
 		timedCtx, cancel := context.WithTimeout(ctx, tools.ExecutionTimeout(call.Name, e.timeout))
 		defer cancel()
 		tc.Ctx = timedCtx
@@ -172,9 +173,16 @@ func (e *ToolExec) ExecuteBatch(
 				Summary: fmt.Sprintf("工具超时或已中断: %v", timedCtx.Err()),
 			}
 		}
+		durationMS := time.Since(toolStarted).Milliseconds()
+		if result.Meta != nil {
+			if v, ok := result.Meta["duration_ms"].(int64); ok && v > 0 {
+				durationMS = v
+			}
+		}
 		emitProgress(onProgress, "tool_done", map[string]any{
 			"step": step, "name": call.Name, "status": string(result.Status),
 			"summary": result.Summary, "arguments": call.Arguments,
+			"duration_ms": durationMS,
 		})
 		results[i] = result
 	}

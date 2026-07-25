@@ -16,12 +16,14 @@ import (
 
 // ChatStepRecord is one plan/tool/reply step in a persisted chat session.
 type ChatStepRecord struct {
-	Step       int       `json:"step"`
-	Timestamp  time.Time `json:"timestamp"`
-	Kind       string    `json:"kind"`
-	ToolName   string    `json:"tool_name,omitempty"`
-	ToolStatus string    `json:"tool_status,omitempty"`
-	Summary    string    `json:"summary"`
+	Step             int       `json:"step"`
+	Timestamp        time.Time `json:"timestamp"`
+	Kind             string    `json:"kind"`
+	ToolName         string    `json:"tool_name,omitempty"`
+	ToolStatus       string    `json:"tool_status,omitempty"`
+	Summary          string    `json:"summary"`
+	PromptTokens     int       `json:"prompt_tokens,omitempty"`
+	CompletionTokens int       `json:"completion_tokens,omitempty"`
 }
 
 // ChatSession is a persisted interactive chat session.

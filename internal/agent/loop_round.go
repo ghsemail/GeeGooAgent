@@ -58,9 +58,17 @@ func (l *Loop) runRound(
 	planSummary := planSummaryText(resp, toolNames)
 	*records = append(*records, runtime.StepRecord{
 		Step: step, Timestamp: time.Now().UTC(), Kind: "plan", Summary: planSummary,
+		PromptTokens: resp.Usage.PromptTokens, CompletionTokens: resp.Usage.CompletionTokens,
 	})
 	l.emit("llm_plan", map[string]any{
-		"step": step, "content": resp.Content, "reasoning": resp.ReasoningContent, "tool_names": toolNames,
+		"step":               step,
+		"round":              round + 1,
+		"content":            resp.Content,
+		"reasoning":          resp.ReasoningContent,
+		"tool_names":         toolNames,
+		"prompt_tokens":      resp.Usage.PromptTokens,
+		"completion_tokens":  resp.Usage.CompletionTokens,
+		"model":              resp.Usage.Model,
 	})
 
 	if len(resp.ToolCalls) == 0 {

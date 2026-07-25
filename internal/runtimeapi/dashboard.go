@@ -79,6 +79,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 	facts := []map[string]any{}
 	episodes := []map[string]any{}
 	currentSession := ""
+	totalIn, totalOut := 0, 0
 
 	store, _ := h.safeSessionStore()
 	userID := resolveUserID(r)
@@ -106,6 +107,10 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 							"role":       string(msg.Role),
 							"content":    truncateRunes(msg.Content, 200),
 						})
+					}
+					for _, rec := range sess.StepRecords {
+						totalIn += rec.PromptTokens
+						totalOut += rec.CompletionTokens
 					}
 					turns = append(turns, buildTurnsFromSession(sess)...)
 				}
@@ -252,19 +257,22 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		home = h.App.Workspace
 	}
 
+	calendar := buildCalendarFromTurns(turns)
+	totalCost := estimateUsageCostUSD(totalIn, totalOut)
+
 	return map[string]any{
 		"generated_at": now.Format(time.RFC3339), "provider": provider, "model": model,
 		"small_model": model, "home": home, "current_session": currentSession, "stats": stats,
 		"sessions": sessionsOut, "turns": turns, "chat_log": chatLog, "facts": facts,
 		"episodes": episodes, "skills": skillsOut,
-		"calendar": []map[string]any{}, "outbox": []map[string]any{},
+		"calendar": calendar, "outbox": []map[string]any{},
 		"soul": soulTextForDashboard(firstNonEmpty(home, config.Home()), userID),
 		"consolidate_every": 4, "chat_pending": 0, "tools": toolsPayload,
 		"db": h.buildDBMeta(), "doctor_ok": doctorOK, "doctor_checks": doctorChecks,
 		"eval_report": nil, "eval_history": []map[string]any{},
 		"trace_tail": h.buildTraceTail(store, userID), "trace_file": "",
 		"usage": map[string]any{
-			"total_cost": 0, "calls": len(turns), "total_in": 0, "total_out": 0,
+			"total_cost": totalCost, "calls": len(turns), "total_in": totalIn, "total_out": totalOut,
 			"by_day": []map[string]any{}, "by_provider": []map[string]any{},
 		},
 		"settings": h.buildDashboardSettings(provider, model, userID), "wake_scans": []map[string]any{},
@@ -435,44 +443,108 @@ func buildTurnsFromSession(sess *chatsession.ChatSession) []map[string]any {
 	if sess == nil {
 		return nil
 	}
-	turns := []map[string]any{}
-	var current map[string]any
+	type turnMeta struct {
+		tools    []map[string]any
+		start    time.Time
+		end      time.Time
+		hasReply bool
+	}
+	metas := []turnMeta{}
+	var cur *turnMeta
 	for _, step := range sess.StepRecords {
 		switch step.Kind {
-		case "user", "turn_start":
-			if current != nil {
-				turns = append(turns, current)
-			}
-			current = map[string]any{
-				"user_message": step.Summary,
-				"ts":           step.Timestamp.Format(time.RFC3339),
-				"tools":        []map[string]any{},
-			}
+		case "plan":
+			metas = append(metas, turnMeta{start: step.Timestamp, tools: []map[string]any{}})
+			cur = &metas[len(metas)-1]
 		case "tool":
-			if current == nil {
-				current = map[string]any{"tools": []map[string]any{}}
+			if cur == nil {
+				continue
 			}
-			tools, _ := current["tools"].([]map[string]any)
 			status := "ok"
 			if step.ToolStatus == "error" || step.ToolStatus == "failed" {
 				status = "error"
 			}
-			current["tools"] = append(tools, map[string]any{
+			cur.tools = append(cur.tools, map[string]any{
 				"tool": step.ToolName, "summary": step.Summary, "status": status,
 			})
-		case "reply", "turn_end", "assistant":
-			if current != nil {
-				current["reply"] = step.Summary
-				current["latency_ms"] = 0
-				turns = append(turns, current)
-				current = nil
+		case "reply":
+			if cur == nil {
+				continue
 			}
+			cur.end = step.Timestamp
+			cur.hasReply = true
+			cur = nil
 		}
 	}
-	if current != nil {
-		turns = append(turns, current)
+
+	turns := []map[string]any{}
+	metaIdx := 0
+	for i := 0; i < len(sess.Messages); i++ {
+		if sess.Messages[i].Role != llm.RoleUser {
+			continue
+		}
+		user := sess.Messages[i].Content
+		reply := ""
+		for j := i + 1; j < len(sess.Messages); j++ {
+			if sess.Messages[j].Role == llm.RoleAssistant {
+				reply = sess.Messages[j].Content
+				i = j
+				break
+			}
+		}
+		t := map[string]any{
+			"user_message": truncateRunes(user, 200),
+			"reply":        truncateRunes(reply, 500),
+			"tools":        []map[string]any{},
+			"latency_ms":   0,
+		}
+		if metaIdx < len(metas) {
+			m := metas[metaIdx]
+			t["tools"] = m.tools
+			if m.hasReply && !m.end.IsZero() && !m.start.IsZero() {
+				ms := int(m.end.Sub(m.start).Milliseconds())
+				if ms > 0 {
+					t["latency_ms"] = ms
+				}
+			}
+			if !m.start.IsZero() {
+				t["ts"] = m.start.Format(time.RFC3339)
+			}
+			metaIdx++
+		}
+		turns = append(turns, t)
 	}
 	return turns
+}
+
+func buildCalendarFromTurns(turns []map[string]any) []map[string]any {
+	out := make([]map[string]any, 0, len(turns))
+	for _, t := range turns {
+		ts, _ := t["ts"].(string)
+		if ts == "" {
+			continue
+		}
+		title, _ := t["user_message"].(string)
+		if title == "" {
+			title = "agent turn"
+		}
+		out = append(out, map[string]any{
+			"title": truncateRunes(title, 60),
+			"at":    ts,
+			"kind":  "turn",
+		})
+	}
+	if len(out) > 30 {
+		out = out[:30]
+	}
+	return out
+}
+
+func estimateUsageCostUSD(promptTokens, completionTokens int) float64 {
+	if promptTokens <= 0 && completionTokens <= 0 {
+		return 0
+	}
+	return float64(promptTokens)/1000*0.001 + float64(completionTokens)/1000*0.002
 }
 
 func (h *Handler) buildTraceTail(store chatsession.SessionStore, userID string) []map[string]any {
