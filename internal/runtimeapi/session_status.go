@@ -246,6 +246,13 @@ func hashSessionStatus(payload *SessionStatusPayload) string {
 	return hex.EncodeToString(sum[:])
 }
 
+func setSessionSSEHeaders(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache, no-transform")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+}
+
 func writeSessionSSE(w http.ResponseWriter, flusher http.Flusher, event string, data any) {
 	raw, err := json.Marshal(data)
 	if err != nil {

@@ -79,9 +79,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
+	setSessionSSEHeaders(w)
 	w.WriteHeader(http.StatusOK)
 
 	resolvedFrom := "query"
@@ -223,9 +221,7 @@ func (h *Handler) sessionEventsStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
+	setSessionSSEHeaders(w)
 	w.WriteHeader(http.StatusOK)
 
 	writeSessionSSE(w, flusher, "connected", map[string]any{
