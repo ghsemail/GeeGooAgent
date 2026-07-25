@@ -48,7 +48,10 @@ var (
 		reportCRUD("pre_market", false),
 		reportCRUD("intraday", true),
 		reportCRUD("post_market", true),
-		[]string{"get_stock_daily_reports", "list_today_reports"},
+		[]string{
+			"get_stock_daily_reports", "list_today_reports",
+			"get_bot_yesterday_attitude", "get_bot_log_by_type",
+		},
 	)
 	reportWorkflowTools = map[string]struct{}{
 		"get_report_bot_codes":           {},
@@ -68,36 +71,43 @@ var (
 		"edit_etf_prompt_template":          {},
 		"delete_etf_prompt_template":        {},
 	}
-	marketTools = map[string]struct{}{
-		"check_trading_day":        {},
-		"search_code":              {},
-		"get_current_price":        {},
-		"get_ticker":               {},
-		"get_position":             {},
-		"get_broker":               {},
+	marketDataTools = map[string]struct{}{
+		"check_trading_day":  {},
+		"get_current_price":  {},
+		"get_ticker":         {},
+		"get_broker":         {},
+		"get_position":       {},
+	}
+	researchTools = map[string]struct{}{
 		"get_capital_flow":         {},
 		"get_capital_distribution": {},
-		"get_bot_yesterday_attitude": {},
 		"get_mcp_analysis":         {},
 		"get_single_prompt_template": {},
-		"get_index_signals":        {},
-		"get_signal_combinations":  {},
-		"get_bot_log_by_type":      {},
-		"fetch_market_news":        {},
-		"fetch_stock_news":         {},
-		"web_search":               {},
-		"recall":                   {},
-		"save_note":                {},
-		"manage_memory":            {},
-		"update_soul":              {},
-		"create_skill":             {},
-		"clarify":                  {},
-		"delegate_task":            {},
 	}
+	infoSearchTools = map[string]struct{}{
+		"search_code":       {},
+		"fetch_market_news": {},
+		"fetch_stock_news":  {},
+		"web_search":        {},
+	}
+	agentMetaTools = map[string]struct{}{
+		"recall":         {},
+		"save_note":      {},
+		"manage_memory":  {},
+		"update_soul":    {},
+		"create_skill":   {},
+		"clarify":        {},
+		"delegate_task":  {},
+		"delegate_tasks": {},
+	}
+	// legacyMarketTools is the deprecated market toolset union (alias compatibility).
+	legacyMarketTools = mergeSets(marketDataTools, researchTools, infoSearchTools)
 	strategyTools = map[string]struct{}{
-		"generate_grid_strategy": {},
-		"generate_dca_strategy":  {},
-		"loopback_strategy":      {},
+		"get_index_signals":       {},
+		"get_signal_combinations": {},
+		"generate_grid_strategy":    {},
+		"generate_dca_strategy":   {},
+		"loopback_strategy":       {},
 	}
 )
 
@@ -133,52 +143,65 @@ const (
 	DomainTradingBot      ToolDomain = "trading_bot"
 	DomainHedgeBot        ToolDomain = "hedge_bot"
 	DomainReminderManager ToolDomain = "reminder_manager"
-	DomainMarket          ToolDomain = "market"
+	DomainMarketData      ToolDomain = "market_data"
+	DomainResearch        ToolDomain = "research"
+	DomainInfoSearch      ToolDomain = "info_search"
+	DomainAgentMeta       ToolDomain = "agent_meta"
 	DomainStrategy        ToolDomain = "strategy"
 	DomainPromptTemplate  ToolDomain = "prompt_template"
 	DomainMeta            ToolDomain = "meta"
 )
 
 var domainShortLabels = map[ToolDomain]string{
-	DomainMarket:          "行情与分析",
-	DomainStrategy:        "策略生成与回测",
+	DomainMarketData:      "行情与账户",
+	DomainResearch:        "研究与分析",
+	DomainInfoSearch:      "信息检索",
+	DomainAgentMeta:       "Agent 元能力",
+	DomainStrategy:        "策略与信号",
 	DomainTradingBot:      "交易机器人",
 	DomainHedgeBot:        "对冲机器人",
 	DomainReminderManager: "提醒机器人",
 	DomainReportQuery:     "报告查询",
 	DomainReportWorkflow:  "报告 Workflow",
 	DomainPromptTemplate:  "Prompt 模板",
-	DomainMeta:            "Agent 元能力",
+	DomainMeta:            "其他",
 }
 
 var domainDescriptions = map[ToolDomain]string{
 	DomainReportWorkflow:  "盘前/盘中/盘后自动化写报告（勿用于查 Bot 列表）",
-	DomainReportQuery:     "读盘前/盘中/盘后报告",
+	DomainReportQuery:     "读报告、Bot 态度与运行日志",
 	DomainTradingBot:      "DCA / GRID / SmartTrade 读写",
 	DomainHedgeBot:        "HDG 对冲机器人读写",
 	DomainReminderManager: "DCA / GRID / Smart 提醒读写",
-	DomainMarket:          "行情、新闻、检索与 MCP 分析",
-	DomainStrategy:        "网格/DCA 策略生成与回测",
+	DomainMarketData:      "交易日、现价、逐笔、席位、持仓",
+	DomainResearch:        "资金面、MCP 技术分析、Prompt 模板",
+	DomainInfoSearch:      "搜码、市场/个股新闻、网页搜索",
+	DomainAgentMeta:       "记忆、澄清、委派等横切能力",
+	DomainStrategy:        "信号列表、网格/DCA 生成与回测",
 	DomainPromptTemplate:  "竞品/ETF 分析模板 CRUD",
-	DomainMeta:            "记忆、委派、澄清等横切能力",
+	DomainMeta:            "未归类的注册工具",
 }
 
 // domainLabels kept for CLI /tools listing compatibility.
 var domainLabels = map[ToolDomain]string{
 	DomainReportWorkflow:  "报告 Workflow（盘前/盘中/盘后自动化，勿用于查 Bot 列表）",
-	DomainReportQuery:     "报告查询（读盘前/盘中/盘后报告）",
+	DomainReportQuery:     "报告查询（读报告、Bot 态度与日志）",
 	DomainTradingBot:      "交易机器人（DCA/GRID/SmartTrade）",
 	DomainHedgeBot:        "对冲机器人（HDG）",
 	DomainReminderManager: "提醒机器人（DCA/GRID/Smart 提醒）",
-	DomainMarket:          "行情与分析",
-	DomainStrategy:        "策略生成与回测",
+	DomainMarketData:      "行情与账户",
+	DomainResearch:        "研究与分析",
+	DomainInfoSearch:      "信息检索",
+	DomainAgentMeta:       "Agent 元能力",
+	DomainStrategy:        "策略与信号",
 	DomainPromptTemplate:  "Prompt 模板",
 	DomainMeta:            "其他",
 }
 
 var domainOrderKeys = []ToolDomain{
-	DomainMarket, DomainStrategy, DomainTradingBot, DomainHedgeBot, DomainReminderManager,
-	DomainReportQuery, DomainReportWorkflow, DomainPromptTemplate, DomainMeta,
+	DomainMarketData, DomainResearch, DomainInfoSearch, DomainStrategy,
+	DomainTradingBot, DomainHedgeBot, DomainReminderManager,
+	DomainReportQuery, DomainReportWorkflow, DomainAgentMeta, DomainPromptTemplate, DomainMeta,
 }
 
 // DomainOrder returns stable display order for a tool domain (1-based).
@@ -272,8 +295,14 @@ func TaxonomyLabel(t ToolTaxonomy) string {
 
 func toolDomain(name string) ToolDomain {
 	switch {
-	case inSet(name, marketTools):
-		return DomainMarket
+	case inSet(name, marketDataTools):
+		return DomainMarketData
+	case inSet(name, researchTools):
+		return DomainResearch
+	case inSet(name, infoSearchTools):
+		return DomainInfoSearch
+	case inSet(name, agentMetaTools):
+		return DomainAgentMeta
 	case inSet(name, strategyTools):
 		return DomainStrategy
 	case inSet(name, reportWorkflowTools):
@@ -306,8 +335,9 @@ func FormatToolsListing(names []string, descriptions map[string]string) string {
 		grouped[domain] = append(grouped[domain], name)
 	}
 	order := []ToolDomain{
-		DomainMarket, DomainStrategy, DomainTradingBot, DomainHedgeBot, DomainReminderManager,
-		DomainReportQuery, DomainReportWorkflow, DomainPromptTemplate, DomainMeta,
+		DomainMarketData, DomainResearch, DomainInfoSearch, DomainStrategy,
+		DomainTradingBot, DomainHedgeBot, DomainReminderManager,
+		DomainReportQuery, DomainReportWorkflow, DomainAgentMeta, DomainPromptTemplate, DomainMeta,
 	}
 	var lines []string
 	for _, domain := range order {

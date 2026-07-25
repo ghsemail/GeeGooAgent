@@ -8,21 +8,27 @@
 
 | Toolset ID | 中文 | 默认 chat | 工具数 |
 |------------|------|-----------|--------|
-| `market` | 行情与分析 | ✅ | 18 |
-| `strategy` | 策略生成与回测 | ✅ | 3 |
-| `bot_manager` | 交易 Bot | ✅ | 20 |
-| `reminder_manager` | 提醒 Bot | ✅ | 15 |
-| `report_query` | 报告查询 | ✅ | 13 |
+| `market_data` | 行情与账户 | ✅ | 5 |
+| `research` | 研究与分析 | ✅ | 4 |
+| `info_search` | 信息检索 | ✅ | 4 |
+| `agent_meta` | Agent 元能力 | ✅ | 8 |
+| `strategy` | 策略与信号 | ✅ | 5 |
+| `trading_bot` | 交易机器人 | ✅ | 15 |
+| `hedge_bot` | 对冲机器人 | ✅ | 5 |
+| `reminder_manager` | 提醒机器人 | ✅ | 15 |
+| `report_query` | 报告查询 | ✅ | 15 |
 | `report_workflow` | 报告 Workflow | ❌ | 8 |
 | `prompt_template` | Prompt 模板 CRUD | ❌ | 6 |
 
-**默认 chat 白名单：69**（5 个 ChatDefault toolset，减去 7 个 workflow 独占 tool）。
+**兼容别名**：`market` → `market_data` + `research` + `info_search`；`bot_manager` → `trading_bot` + `hedge_bot`。
 
-Chat 切换：`/toolsets market,strategy` · `/toolsets default` · `/toolsets prompt_template`（高级）
+**默认 chat 白名单：74**（9 个 ChatDefault toolset，减去 7 个 workflow 独占 tool + `recall`）。
+
+Chat 切换：`/toolsets market_data,research` · `/toolsets default` · `/toolsets prompt_template`（高级）
 
 **workflow 独占（7，默认不进 chat）**：`get_report_bot_codes`、`create_pre_market_report`、`save_local_report`、`write_execution_log`、`read_working_state`、`recall_yesterday_summary`、`list_today_post_market_reports`。
 
-**workflow 共享（1）**：`get_bot_yesterday_attitude`（同时在 `market`，默认 chat 可用）。
+**workflow 共享（1）**：`get_bot_yesterday_attitude`（同时在 `report_query`，默认 chat 可用）。
 
 Workflow（`geegoo run`）不按 toolset 过滤，步骤在 `workflow/premarket.go` 硬编码。
 

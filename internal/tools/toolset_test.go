@@ -21,14 +21,17 @@ func TestDefaultChatToolsetsExcludeWorkflow(t *testing.T) {
 		}
 	}
 	if _, ok := set["get_bot_yesterday_attitude"]; !ok {
-		t.Fatal("get_bot_yesterday_attitude should be in default chat (shared with market toolset)")
+		t.Fatal("get_bot_yesterday_attitude should be in default chat (report_query toolset)")
+	}
+	if _, ok := set["get_index_signals"]; !ok {
+		t.Fatal("get_index_signals should be in default chat (strategy toolset)")
 	}
 	if len(names) < 20 {
 		t.Fatalf("expected a substantial chat allowlist, got %d", len(names))
 	}
 }
 
-func TestChatToolNamesForMarketOnly(t *testing.T) {
+func TestChatToolNamesForLegacyMarketAlias(t *testing.T) {
 	t.Parallel()
 	names := tools.ChatToolNamesForToolsets([]string{"market"})
 	set := map[string]struct{}{}
@@ -36,10 +39,13 @@ func TestChatToolNamesForMarketOnly(t *testing.T) {
 		set[n] = struct{}{}
 	}
 	if _, ok := set["search_code"]; !ok {
-		t.Fatal("market toolset should include search_code")
+		t.Fatal("legacy market alias should include search_code")
+	}
+	if _, ok := set["get_mcp_analysis"]; !ok {
+		t.Fatal("legacy market alias should include get_mcp_analysis")
 	}
 	if _, ok := set["list_dca_bots"]; ok {
-		t.Fatal("bot tools should not appear in market-only allowlist")
+		t.Fatal("bot tools should not appear in market alias allowlist")
 	}
 }
 
@@ -49,8 +55,14 @@ func TestNormalizeToolsetIDs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ids) != 3 || ids[0] != "market" || ids[1] != "trading_bot" || ids[2] != "hedge_bot" {
+	want := []string{"market_data", "research", "info_search", "trading_bot", "hedge_bot"}
+	if len(ids) != len(want) {
 		t.Fatalf("got %#v", ids)
+	}
+	for i, id := range want {
+		if ids[i] != id {
+			t.Fatalf("got %#v want %#v", ids, want)
+		}
 	}
 	if _, err := tools.NormalizeToolsetIDs([]string{"nope"}); err == nil {
 		t.Fatal("expected unknown toolset error")
@@ -73,9 +85,9 @@ func TestNormalizeToolsetIDsTradingBotOnly(t *testing.T) {
 
 func TestFormatToolsetsListingMarksActive(t *testing.T) {
 	t.Parallel()
-	text := tools.FormatToolsetsListing([]string{"market"})
-	if !strings.Contains(text, "* market") {
-		t.Fatalf("expected market marked active:\n%s", text)
+	text := tools.FormatToolsetsListing([]string{"market_data"})
+	if !strings.Contains(text, "* market_data") {
+		t.Fatalf("expected market_data marked active:\n%s", text)
 	}
 }
 
@@ -128,8 +140,9 @@ func TestReportWorkflowToolsetIncludesPostMarketIdempotency(t *testing.T) {
 func TestToolsetCountsMatchDocumentation(t *testing.T) {
 	t.Parallel()
 	want := map[string]int{
-		"market": 24, "strategy": 3, "trading_bot": 15, "hedge_bot": 5, "reminder_manager": 15,
-		"report_query": 13, "report_workflow": 8, "prompt_template": 6,
+		"market_data": 5, "research": 4, "info_search": 4, "agent_meta": 8, "strategy": 5,
+		"trading_bot": 15, "hedge_bot": 5, "reminder_manager": 15,
+		"report_query": 15, "report_workflow": 8, "prompt_template": 6,
 	}
 	union := map[string]struct{}{}
 	for _, ts := range tools.AllToolsets() {
@@ -140,11 +153,24 @@ func TestToolsetCountsMatchDocumentation(t *testing.T) {
 			union[name] = struct{}{}
 		}
 	}
-	if len(union) != 88 {
-		t.Fatalf("toolset union want 88, got %d", len(union))
+	if len(union) != 89 {
+		t.Fatalf("toolset union want 89, got %d", len(union))
 	}
 	defaultChat := tools.ChatToolNamesForToolsets(nil)
-	if len(defaultChat) != 74 {
-		t.Fatalf("default chat allowlist want 74, got %d", len(defaultChat))
+	if len(defaultChat) != 75 {
+		t.Fatalf("default chat allowlist want 75, got %d", len(defaultChat))
+	}
+}
+
+func TestResearchToolsExcludeSignals(t *testing.T) {
+	t.Parallel()
+	ts, ok := tools.ToolsetByID("research")
+	if !ok {
+		t.Fatal("missing research toolset")
+	}
+	for _, name := range []string{"get_index_signals", "get_signal_combinations"} {
+		if ts.Contains(name) {
+			t.Fatalf("%s should not be in research toolset", name)
+		}
 	}
 }
