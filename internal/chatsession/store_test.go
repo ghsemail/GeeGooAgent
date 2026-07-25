@@ -43,12 +43,47 @@ func TestChatSessionStoreRoundTripAndRecall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hits, err := chatsession.SearchPastSessions(sessions, "腾讯 股价", current.ID, 5, 30)
+	hits, err := chatsession.SearchPastSessions(sessions, "腾讯 股价", current.ID, "", 5, 30)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(hits) == 0 {
 		t.Fatal("expected recall hit")
+	}
+	if hits[0].SessionID != old.ID {
+		t.Fatalf("session id = %q", hits[0].SessionID)
+	}
+}
+
+func TestSearchPastSessionsMatchesChineseWithoutStockTools(t *testing.T) {
+	root := t.TempDir()
+	store := infra.NewStateStore(filepath.Join(root, "state"))
+	sessions := chatsession.NewChatSessionStore(store)
+
+	old, err := sessions.Create()
+	if err != nil {
+		t.Fatal(err)
+	}
+	chatsession.SetUserID(old, "user-a")
+	old.Messages = append(old.Messages,
+		llm.Message{Role: llm.RoleUser, Content: "我们上次讨论过茅台的投资逻辑"},
+		llm.Message{Role: llm.RoleAssistant, Content: "茅台属于消费龙头，长期看品牌价值…"},
+	)
+	if err := sessions.Save(old); err != nil {
+		t.Fatal(err)
+	}
+
+	current, err := sessions.Create()
+	if err != nil {
+		t.Fatal(err)
+	}
+	chatsession.SetUserID(current, "user-a")
+	hits, err := chatsession.SearchPastSessions(sessions, "上次茅台", current.ID, "user-a", 5, 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) == 0 {
+		t.Fatal("expected recall hit for Chinese conversation")
 	}
 	if hits[0].SessionID != old.ID {
 		t.Fatalf("session id = %q", hits[0].SessionID)

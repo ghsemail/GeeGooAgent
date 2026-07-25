@@ -110,8 +110,8 @@ func ExtractStockEvents(session *ChatSession) []StockEvent {
 	return events
 }
 
-// SearchPastSessions finds recent chat sessions with stock/price activity.
-func SearchPastSessions(store SessionStore, query, excludeSessionID string, limit, scanLimit int) ([]SessionRecallHit, error) {
+// SearchPastSessions finds recent chat sessions matching query text (FTS-style, not vector).
+func SearchPastSessions(store SessionStore, query, excludeSessionID, userID string, limit, scanLimit int) ([]SessionRecallHit, error) {
 	if store == nil {
 		return nil, nil
 	}
@@ -128,6 +128,9 @@ func SearchPastSessions(store SessionStore, query, excludeSessionID string, limi
 		if err != nil || loaded == nil || len(loaded.Messages) <= 1 {
 			continue
 		}
+		if userID != "" && !EnforceAccess(loaded, userID) {
+			continue
+		}
 		sessions = append(sessions, loaded)
 	}
 	sort.Slice(sessions, func(i, j int) bool {
@@ -142,7 +145,7 @@ func SearchPastSessions(store SessionStore, query, excludeSessionID string, limi
 		events := ExtractStockEvents(session)
 		queries := userQueries(session)
 		corpus := sessionCorpus(session, events, queries)
-		if len(events) == 0 && len(queries) == 0 {
+		if len(events) == 0 && len(queries) == 0 && strings.TrimSpace(session.Summary) == "" {
 			continue
 		}
 		score := scoreQuery(corpus, query)
@@ -221,6 +224,19 @@ func userQueries(session *ChatSession) []string {
 
 func sessionCorpus(session *ChatSession, events []StockEvent, queries []string) string {
 	parts := append([]string{}, queries...)
+	if summary := strings.TrimSpace(session.Summary); summary != "" {
+		parts = append(parts, summary)
+	}
+	for _, msg := range session.Messages {
+		if msg.Role != llm.RoleUser && msg.Role != llm.RoleAssistant {
+			continue
+		}
+		text := strings.TrimSpace(msg.Content)
+		if text == "" || strings.HasPrefix(text, "/") {
+			continue
+		}
+		parts = append(parts, text)
+	}
 	for _, event := range events {
 		if event.Code != "" {
 			parts = append(parts, event.Code)
@@ -278,12 +294,38 @@ func scoreQuery(corpus, query string) int {
 			score++
 		}
 	}
+	for _, seg := range querySegments(q) {
+		if strings.Contains(corpus, seg) {
+			score++
+		}
+	}
 	for _, hint := range []string{"股价", "价格", "查", "股票", "腾讯", "茅台", "price"} {
 		if strings.Contains(q, hint) && strings.Contains(corpus, hint) {
 			score++
 		}
 	}
 	return score
+}
+
+// querySegments builds CJK/bigram fragments so recall works without whitespace tokenization.
+func querySegments(q string) []string {
+	runes := []rune(q)
+	if len(runes) < 2 {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	var out []string
+	for n := 2; n <= 4 && n <= len(runes); n++ {
+		for i := 0; i <= len(runes)-n; i++ {
+			seg := string(runes[i : i+n])
+			if _, ok := seen[seg]; ok {
+				continue
+			}
+			seen[seg] = struct{}{}
+			out = append(out, seg)
+		}
+	}
+	return out
 }
 
 func tailStrings(items []string, n int) []string {

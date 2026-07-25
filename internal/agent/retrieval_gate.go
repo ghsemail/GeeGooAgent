@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
@@ -75,11 +74,6 @@ func containsStockHint(text string) bool {
 			return true
 		}
 	}
-	for _, r := range text {
-		if unicode.Is(unicode.Han, r) {
-			return true
-		}
-	}
 	if strings.Contains(text, ".HK") || strings.Contains(text, ".SZ") || strings.Contains(text, ".SS") {
 		return true
 	}
@@ -133,6 +127,7 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 			Kind:             memport.RecallSession,
 			Query:            userText,
 			ExcludeSessionID: session.ID,
+			UserID:           session.UserID,
 			Limit:            3,
 			ScanLimit:        20,
 		})

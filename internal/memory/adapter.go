@@ -76,7 +76,7 @@ func (a *Adapter) recallSessions(ctx context.Context, q memport.RecallQuery) (me
 	if scan <= 0 {
 		scan = 30
 	}
-	hits, err := chatsession.SearchPastSessions(a.sessions, q.Query, q.ExcludeSessionID, limit, scan)
+	hits, err := chatsession.SearchPastSessions(a.sessions, q.Query, q.ExcludeSessionID, q.UserID, limit, scan)
 	if err != nil {
 		return memport.RecallResult{}, err
 	}

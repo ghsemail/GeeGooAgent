@@ -34,6 +34,8 @@ type Session struct {
 	PendingPlan *PendingPlan
 	// LineageChain records each context compression/hygiene event (newest last).
 	LineageChain []lineage.Record
+	// UserID is the tenant owner for session recall scoping (from chat metadata).
+	UserID string
 }
 
 // PendingPlan is a held mutating-tool batch from one LLM round.

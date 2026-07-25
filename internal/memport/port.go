@@ -29,6 +29,7 @@ type RecallQuery struct {
 	ExcludeSessionID string
 	Limit            int
 	ScanLimit        int
+	UserID           string
 	RunID            string
 }
 

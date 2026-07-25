@@ -604,7 +604,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 				return Result{Status: StatusError, Summary: "state_store not configured", ExitCode: 1}
 			}
 			store := chatsession.NewChatSessionStore(ctx.StateStore)
-			hits, err := chatsession.SearchPastSessions(store, query, ctx.SessionID, limit, 30)
+			hits, err := chatsession.SearchPastSessions(store, query, ctx.SessionID, "", limit, 30)
 			if err != nil {
 				return errResult(err)
 			}

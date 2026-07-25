@@ -13,6 +13,7 @@ func RuntimeSessionFromChat(chat *chatsession.ChatSession) *runtime.Session {
 	parentID, lineageRoot, generation := chat.LineageFromMetadata()
 	session := &runtime.Session{
 		ID:                   chat.ID,
+		UserID:               chatsession.UserIDFromSession(chat),
 		Messages:             chat.RuntimeMessages(),
 		StepCounter:          chat.StepCounter,
 		CreatedAt:            chat.CreatedAt,
