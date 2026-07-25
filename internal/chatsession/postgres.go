@@ -122,8 +122,8 @@ func (s *PostgresSessionStore) ListIndexedSessions() ([]ChatSessionIndexEntry, e
 	rows, err := s.db.QueryContext(ctx, `
         SELECT id, user_id, title, tags_json, summary, tool_names_json, status,
                created_at, updated_at, metadata_json,
-               COALESCE(jsonb_array_length(messages_json), 0),
-               COALESCE(jsonb_array_length(step_records_json), 0)
+               `+jsonbSafeArrayLen("messages_json")+`,
+               `+jsonbSafeArrayLen("step_records_json")+`
         FROM chat_sessions ORDER BY updated_at DESC`)
 	if err != nil {
 		return nil, err
@@ -208,4 +208,9 @@ func userIDFromMetadata(m map[string]any) string {
 		return v
 	}
 	return ""
+}
+
+// jsonbSafeArrayLen counts JSON array elements; non-array JSON (scalar/object/null) → 0.
+func jsonbSafeArrayLen(column string) string {
+	return "CASE WHEN jsonb_typeof(" + column + ") = 'array' THEN jsonb_array_length(" + column + ") ELSE 0 END"
 }
