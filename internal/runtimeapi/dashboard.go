@@ -19,6 +19,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	factmem "github.com/ghsemail/GeeGooAgent/internal/memory/facts"
 	"github.com/ghsemail/GeeGooAgent/internal/skills"
+	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
 func (h *Handler) registerDashboardRoutes(mux *http.ServeMux) {
@@ -201,29 +202,16 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 
 	toolsPayload := map[string]any{
 		"catalog": []map[string]any{}, "mcp": map[string]any{"configured": false, "servers": []string{}, "live": false},
-		"apple_on": false, "planned": []map[string]any{},
+		"apple_on": false, "planned": []map[string]any{}, "toolsets": []tools.ToolsetSummary{},
 	}
 	if h.App != nil && h.App.Registry != nil {
-		chatSet := map[string]struct{}{}
-		for _, name := range h.App.ChatToolNames() {
-			chatSet[name] = struct{}{}
-		}
-		catalog := []map[string]any{}
-		for _, name := range h.App.Registry.ListNames() {
-			tool, ok := h.App.Registry.Get(name)
-			if !ok {
-				continue
-			}
-			src := "other"
-			if strings.Contains(strings.ToLower(name), "mcp") {
-				src = "mcp"
-			}
-			_, chat := chatSet[name]
-			catalog = append(catalog, map[string]any{
-				"name": tool.Name, "description": tool.Description, "source": src, "chat": chat,
-			})
+		catalogItems := tools.BuildCatalog(h.App.Registry, h.App.ChatToolNames())
+		catalog := make([]map[string]any, 0, len(catalogItems))
+		for _, item := range catalogItems {
+			catalog = append(catalog, tools.CatalogItemToMap(item))
 		}
 		toolsPayload["catalog"] = catalog
+		toolsPayload["toolsets"] = tools.BuildToolsetSummaries()
 		if h.App.MCP != nil {
 			toolsPayload["mcp"] = map[string]any{"configured": true, "servers": []string{"mcp"}, "live": true}
 		}

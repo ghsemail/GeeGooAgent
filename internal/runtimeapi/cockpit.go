@@ -14,6 +14,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/doctor"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	factmem "github.com/ghsemail/GeeGooAgent/internal/memory/facts"
+	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
 func (h *Handler) registerCockpitRoutes(mux *http.ServeMux) {
@@ -69,8 +70,10 @@ type toolListItem struct {
 }
 
 type toolsResponse struct {
-	Tools []toolListItem `json:"tools"`
-	Total int            `json:"total"`
+	Tools    []toolListItem           `json:"tools"`
+	Catalog  []tools.CatalogItem      `json:"catalog"`
+	Toolsets []tools.ToolsetSummary   `json:"toolsets"`
+	Total    int                      `json:"total"`
 }
 
 type doctorCheckJSON struct {
@@ -190,25 +193,22 @@ func (h *Handler) listTools(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "tool registry not configured")
 		return
 	}
-	chatSet := map[string]struct{}{}
-	for _, name := range h.App.ChatToolNames() {
-		chatSet[name] = struct{}{}
-	}
-	names := h.App.Registry.ListNames()
-	items := make([]toolListItem, 0, len(names))
-	for _, name := range names {
-		tool, ok := h.App.Registry.Get(name)
-		if !ok {
-			continue
-		}
-		_, chatEnabled := chatSet[name]
+	chatNames := h.App.ChatToolNames()
+	catalog := tools.BuildCatalog(h.App.Registry, chatNames)
+	items := make([]toolListItem, 0, len(catalog))
+	for _, item := range catalog {
 		items = append(items, toolListItem{
-			Name:        tool.Name,
-			Description: tool.Description,
-			ChatEnabled: chatEnabled,
+			Name:        item.Name,
+			Description: item.Description,
+			ChatEnabled: item.ChatEnabled,
 		})
 	}
-	writeJSON(w, toolsResponse{Tools: items, Total: len(items)})
+	writeJSON(w, toolsResponse{
+		Tools:    items,
+		Catalog:  catalog,
+		Toolsets: tools.BuildToolsetSummaries(),
+		Total:    len(catalog),
+	})
 }
 
 func (h *Handler) doctorStatus(w http.ResponseWriter, r *http.Request) {
