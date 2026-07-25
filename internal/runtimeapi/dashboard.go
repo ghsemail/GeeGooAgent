@@ -202,7 +202,8 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 
 	toolsPayload := map[string]any{
 		"catalog": []map[string]any{}, "mcp": map[string]any{"configured": false, "servers": []string{}, "live": false},
-		"apple_on": false, "planned": []map[string]any{}, "toolsets": []tools.ToolsetSummary{},
+		"apple_on": false, "planned": []map[string]any{},
+		"toolsets": []tools.ToolsetSummary{}, "taxonomies": []tools.TaxonomySummary{},
 	}
 	if h.App != nil && h.App.Registry != nil {
 		catalogItems := tools.BuildCatalog(h.App.Registry, h.App.ChatToolNames())
@@ -212,6 +213,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		}
 		toolsPayload["catalog"] = catalog
 		toolsPayload["toolsets"] = tools.BuildToolsetSummaries()
+		toolsPayload["taxonomies"] = tools.BuildTaxonomySummaries()
 		if h.App.MCP != nil {
 			toolsPayload["mcp"] = map[string]any{"configured": true, "servers": []string{"mcp"}, "live": true}
 		}

@@ -12,6 +12,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/clients/admin"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
+	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
 type dashboardSettingsRequest struct {
@@ -23,6 +24,8 @@ type dashboardSettingsRequest struct {
 	Temperature    *float64 `json:"temperature"`
 	MaxTokens      *int     `json:"max_tokens"`
 	Pinned         []string `json:"pinned"`
+	ChatToolsets   []string `json:"chat_toolsets"`
+	ResetToolsets  bool     `json:"reset_toolsets"`
 }
 
 func (h *Handler) registerSettingsRoutes(mux *http.ServeMux) {
@@ -132,6 +135,25 @@ func (h *Handler) dashboardApplySettings(w http.ResponseWriter, r *http.Request)
 	if len(req.Pinned) > 0 {
 		_ = savePinnedSpecs(h.App.Config.OutputDir, req.Pinned)
 	}
+	if req.ResetToolsets {
+		h.App.Config.ChatToolsets = nil
+		if h.ConfigPath != "" {
+			_ = config.PersistChatToolsets(h.ConfigPath, nil)
+		}
+	} else if req.ChatToolsets != nil {
+		normalized, err := tools.NormalizeToolsetIDs(req.ChatToolsets)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.App.Config.ChatToolsets = append([]string(nil), normalized...)
+		if h.ConfigPath != "" {
+			if err := config.PersistChatToolsets(h.ConfigPath, normalized); err != nil {
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+	}
 
 	info, err := h.buildSettingsInfo("")
 	if err != nil {
@@ -224,6 +246,23 @@ func (h *Handler) buildSettingsInfo(userID string) (map[string]any, error) {
 		embedding = h.App.Config.ResolvedEmbedding()
 	}
 
+	chatConfigured := []string{}
+	chatActive := tools.DefaultChatToolsetIDs()
+	chatToolCount := 0
+	chatUsingDefaults := true
+	if h.App != nil && h.App.Config != nil {
+		if len(h.App.Config.ChatToolsets) > 0 {
+			chatConfigured = append([]string(nil), h.App.Config.ChatToolsets...)
+			chatUsingDefaults = false
+		}
+		if active, err := tools.NormalizeToolsetIDs(h.App.Config.ChatToolsets); err == nil {
+			chatActive = active
+		}
+		if h.App.Registry != nil {
+			chatToolCount = len(h.App.ChatToolNames())
+		}
+	}
+
 	return map[string]any{
 		"provider": provider, "model": model,
 		"small_model": model,
@@ -237,6 +276,9 @@ func (h *Handler) buildSettingsInfo(userID string) (map[string]any, error) {
 		"embedding_dimensions": embedding.Dimensions,
 		"embedding_configured": embedding.Configured,
 		"pinned": pinned, "providers": providers, "catalog": catalog,
+		"chat_toolsets": chatConfigured, "active_chat_toolsets": chatActive,
+		"chat_toolsets_default": chatUsingDefaults, "chat_tool_count": chatToolCount,
+		"toolsets": tools.BuildToolsetSummaries(),
 	}, nil
 }
 

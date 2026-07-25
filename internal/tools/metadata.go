@@ -13,6 +13,12 @@ type CatalogItem struct {
 	Description       string   `json:"description"`
 	Domain            string   `json:"domain"`
 	DomainLabel       string   `json:"domain_label"`
+	DomainShortLabel  string   `json:"domain_short_label"`
+	DomainOrder       int      `json:"domain_order"`
+	DomainDescription string   `json:"domain_description"`
+	Taxonomy          string   `json:"taxonomy"`
+	TaxonomyLabel     string   `json:"taxonomy_label"`
+	TaxonomyOrder     int      `json:"taxonomy_order"`
 	Toolsets          []string `json:"toolsets"`
 	ChatEnabled       bool     `json:"chat_enabled"`
 	RequiresMCP       bool     `json:"requires_mcp"`
@@ -30,6 +36,13 @@ type ToolsetSummary struct {
 	Description string `json:"description"`
 	ChatDefault bool   `json:"chat_default"`
 	ToolCount   int    `json:"tool_count"`
+}
+
+// TaxonomySummary describes a cognitive-flow tool group for UI.
+type TaxonomySummary struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Order int    `json:"order"`
 }
 
 // BuildCatalog builds tool metadata from the live registry and chat allowlist.
@@ -59,6 +72,7 @@ func BuildCatalog(registry *Registry, chatNames []string) []CatalogItem {
 			continue
 		}
 		domain := toolDomain(name)
+		tax := toolTaxonomy(name)
 		_, chat := chatSet[name]
 		impl := "bespoke"
 		path := ""
@@ -74,6 +88,12 @@ func BuildCatalog(registry *Registry, chatNames []string) []CatalogItem {
 			Description:       tool.Description,
 			Domain:            string(domain),
 			DomainLabel:       domainLabels[domain],
+			DomainShortLabel:  DomainShortLabel(domain),
+			DomainOrder:       DomainOrder(domain),
+			DomainDescription: DomainDescription(domain),
+			Taxonomy:          string(tax),
+			TaxonomyLabel:     TaxonomyLabel(tax),
+			TaxonomyOrder:     TaxonomyOrder(tax),
 			Toolsets:          toolsetIDsFor(name),
 			ChatEnabled:       chat,
 			RequiresMCP:       reqMCP,
@@ -85,8 +105,8 @@ func BuildCatalog(registry *Registry, chatNames []string) []CatalogItem {
 		})
 	}
 	sort.Slice(items, func(i, j int) bool {
-		if items[i].Domain != items[j].Domain {
-			return items[i].Domain < items[j].Domain
+		if items[i].DomainOrder != items[j].DomainOrder {
+			return items[i].DomainOrder < items[j].DomainOrder
 		}
 		return items[i].Name < items[j].Name
 	})
@@ -103,6 +123,19 @@ func BuildToolsetSummaries() []ToolsetSummary {
 			Description: ts.Description,
 			ChatDefault: ts.ChatDefault,
 			ToolCount:   len(ts.names),
+		})
+	}
+	return out
+}
+
+// BuildTaxonomySummaries returns taxonomy metadata for UI grouping.
+func BuildTaxonomySummaries() []TaxonomySummary {
+	out := make([]TaxonomySummary, 0, len(taxonomyOrderKeys))
+	for _, tax := range taxonomyOrderKeys {
+		out = append(out, TaxonomySummary{
+			ID:    string(tax),
+			Label: TaxonomyLabel(tax),
+			Order: TaxonomyOrder(tax),
 		})
 	}
 	return out
@@ -209,6 +242,12 @@ func CatalogItemToMap(item CatalogItem) map[string]any {
 		"description":         item.Description,
 		"domain":              item.Domain,
 		"domain_label":        item.DomainLabel,
+		"domain_short_label":  item.DomainShortLabel,
+		"domain_order":        item.DomainOrder,
+		"domain_description":  item.DomainDescription,
+		"taxonomy":            item.Taxonomy,
+		"taxonomy_label":      item.TaxonomyLabel,
+		"taxonomy_order":      item.TaxonomyOrder,
 		"toolsets":            item.Toolsets,
 		"chat":                item.ChatEnabled,
 		"chat_enabled":        item.ChatEnabled,

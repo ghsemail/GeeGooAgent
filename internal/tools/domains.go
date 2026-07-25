@@ -124,6 +124,29 @@ const (
 	DomainMeta            ToolDomain = "meta"
 )
 
+var domainShortLabels = map[ToolDomain]string{
+	DomainMarket:          "行情与分析",
+	DomainStrategy:        "策略生成与回测",
+	DomainBotManager:      "交易 Bot",
+	DomainReminderManager: "提醒 Bot",
+	DomainReportQuery:     "报告查询",
+	DomainReportWorkflow:  "报告 Workflow",
+	DomainPromptTemplate:  "Prompt 模板",
+	DomainMeta:            "Agent 元能力",
+}
+
+var domainDescriptions = map[ToolDomain]string{
+	DomainReportWorkflow:  "盘前/盘中/盘后自动化写报告（勿用于查 Bot 列表）",
+	DomainReportQuery:     "读盘前/盘中/盘后报告",
+	DomainBotManager:      "DCA/GRID/SmartTrade/HDG 读写",
+	DomainReminderManager: "DCA/GRID/Smart 提醒读写",
+	DomainMarket:          "行情、新闻、检索与 MCP 分析",
+	DomainStrategy:        "网格/DCA 策略生成与回测",
+	DomainPromptTemplate:  "竞品/ETF 分析模板 CRUD",
+	DomainMeta:            "记忆、委派、澄清等横切能力",
+}
+
+// domainLabels kept for CLI /tools listing compatibility.
 var domainLabels = map[ToolDomain]string{
 	DomainReportWorkflow:  "报告 Workflow（盘前/盘中/盘后自动化，勿用于查 Bot 列表）",
 	DomainReportQuery:     "报告查询（读盘前/盘中/盘后报告）",
@@ -133,6 +156,100 @@ var domainLabels = map[ToolDomain]string{
 	DomainStrategy:        "策略生成与回测",
 	DomainPromptTemplate:  "Prompt 模板",
 	DomainMeta:            "其他",
+}
+
+var domainOrderKeys = []ToolDomain{
+	DomainMarket, DomainStrategy, DomainBotManager, DomainReminderManager,
+	DomainReportQuery, DomainReportWorkflow, DomainPromptTemplate, DomainMeta,
+}
+
+// DomainOrder returns stable display order for a tool domain (1-based).
+func DomainOrder(d ToolDomain) int {
+	for i, key := range domainOrderKeys {
+		if key == d {
+			return i + 1
+		}
+	}
+	return len(domainOrderKeys) + 1
+}
+
+// DomainShortLabel returns a concise UI label for the domain.
+func DomainShortLabel(d ToolDomain) string {
+	if s, ok := domainShortLabels[d]; ok {
+		return s
+	}
+	return string(d)
+}
+
+// DomainDescription returns a longer hint for tooltips.
+func DomainDescription(d ToolDomain) string {
+	if s, ok := domainDescriptions[d]; ok {
+		return s
+	}
+	return domainLabels[d]
+}
+
+// ToolTaxonomy is the cognitive-flow grouping (perceive → act).
+type ToolTaxonomy string
+
+const (
+	TaxonomyPerceive ToolTaxonomy = "perceive"
+	TaxonomyAnalyze  ToolTaxonomy = "analyze"
+	TaxonomyDecide   ToolTaxonomy = "decide"
+	TaxonomyAct      ToolTaxonomy = "act"
+	TaxonomyMeta     ToolTaxonomy = "meta"
+	TaxonomyOther    ToolTaxonomy = "other"
+)
+
+var taxonomyLabels = map[ToolTaxonomy]string{
+	TaxonomyPerceive: "感知 Perception",
+	TaxonomyAnalyze:  "分析 Analysis",
+	TaxonomyDecide:   "决策 Decision",
+	TaxonomyAct:      "执行 Action",
+	TaxonomyMeta:     "元能力 Meta",
+	TaxonomyOther:    "其他",
+}
+
+var taxonomyOrderKeys = []ToolTaxonomy{
+	TaxonomyPerceive, TaxonomyAnalyze, TaxonomyDecide, TaxonomyAct, TaxonomyMeta, TaxonomyOther,
+}
+
+func toolTaxonomy(name string) ToolTaxonomy {
+	switch {
+	case strings.HasPrefix(name, "search_"), name == "recall", strings.HasPrefix(name, "fetch_"),
+		name == "web_search", name == "check_trading_day":
+		return TaxonomyPerceive
+	case strings.HasPrefix(name, "get_"), strings.HasPrefix(name, "list_"), strings.Contains(name, "analysis"):
+		return TaxonomyAnalyze
+	case strings.HasPrefix(name, "generate_"), strings.HasPrefix(name, "loopback"):
+		return TaxonomyDecide
+	case strings.HasPrefix(name, "create_"), strings.HasPrefix(name, "update_"), strings.HasPrefix(name, "delete_"):
+		return TaxonomyAct
+	case strings.HasPrefix(name, "read_"), name == "write_execution_log",
+		strings.HasPrefix(name, "save_"), strings.HasPrefix(name, "manage_"),
+		name == "clarify", name == "delegate_task", name == "update_soul", name == "create_skill":
+		return TaxonomyMeta
+	default:
+		return TaxonomyOther
+	}
+}
+
+// TaxonomyOrder returns stable display order for taxonomy (1-based).
+func TaxonomyOrder(t ToolTaxonomy) int {
+	for i, key := range taxonomyOrderKeys {
+		if key == t {
+			return i + 1
+		}
+	}
+	return len(taxonomyOrderKeys) + 1
+}
+
+// TaxonomyLabel returns the display label for a taxonomy id.
+func TaxonomyLabel(t ToolTaxonomy) string {
+	if s, ok := taxonomyLabels[t]; ok {
+		return s
+	}
+	return string(t)
 }
 
 func toolDomain(name string) ToolDomain {

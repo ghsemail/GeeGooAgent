@@ -19,6 +19,18 @@ func TestBuildCatalogGroupsBotTools(t *testing.T) {
 	if found.Domain != string(DomainBotManager) {
 		t.Fatalf("domain=%s", found.Domain)
 	}
+	if found.DomainShortLabel == "" {
+		t.Fatal("expected domain_short_label")
+	}
+	if found.DomainOrder <= 0 {
+		t.Fatalf("domain_order=%d", found.DomainOrder)
+	}
+	if found.Taxonomy != string(TaxonomyAnalyze) {
+		t.Fatalf("taxonomy=%s", found.Taxonomy)
+	}
+	if found.TaxonomyOrder <= 0 {
+		t.Fatalf("taxonomy_order=%d", found.TaxonomyOrder)
+	}
 	if !found.RequiresMCP {
 		t.Fatal("expected requires_mcp")
 	}
@@ -34,5 +46,15 @@ func TestBuildToolsetSummaries(t *testing.T) {
 	summaries := BuildToolsetSummaries()
 	if len(summaries) < 5 {
 		t.Fatalf("want toolsets, got %d", len(summaries))
+	}
+}
+
+func TestBuildTaxonomySummaries(t *testing.T) {
+	summaries := BuildTaxonomySummaries()
+	if len(summaries) != 6 {
+		t.Fatalf("want 6 taxonomies, got %d", len(summaries))
+	}
+	if summaries[0].ID != "perceive" {
+		t.Fatalf("first taxonomy=%s", summaries[0].ID)
 	}
 }
