@@ -44,7 +44,7 @@ func (p *OpenAIProvider) ChatStream(
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/chat/completions", bytes.NewReader(raw))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, chatCompletionsURL(p.baseURL), bytes.NewReader(raw))
 	if err != nil {
 		return nil, err
 	}
