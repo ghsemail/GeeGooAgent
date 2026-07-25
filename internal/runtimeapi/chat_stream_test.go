@@ -122,3 +122,23 @@ func TestChatStreamRequiresMessage(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestChatStreamRequiresMCPTokenWhenUserScoped(t *testing.T) {
+	application := testChatStreamApp(t)
+	handler := testProtectedHandler(t, application)
+
+	payload := map[string]string{"message": "hello"}
+	raw, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/stream", bytes.NewReader(raw))
+	req.Header.Set("Authorization", "Bearer test-runtime-key")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-User-Id", "user-1")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "mcp_token") {
+		t.Fatalf("expected mcp_token error, body=%s", rec.Body.String())
+	}
+}

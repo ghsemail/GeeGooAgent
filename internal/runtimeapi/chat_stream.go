@@ -66,6 +66,9 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "message required")
 		return
 	}
+	if !requireUserMCPTokenForChat(w, r, req.MCPToken) {
+		return
+	}
 
 	h.chatMu.Lock()
 	defer h.chatMu.Unlock()

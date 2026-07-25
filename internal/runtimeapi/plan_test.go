@@ -34,7 +34,7 @@ func TestPlanHTTPApproveResumesPersistedPlan(t *testing.T) {
 		}),
 	})
 	provider := &llm.MockProvider{
-		Responses: []*llm.Response{{Content: "已完�?}},
+		Responses: []*llm.Response{{Content: "done"}},
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
