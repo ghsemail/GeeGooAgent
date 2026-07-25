@@ -210,12 +210,41 @@ func vectorEnabled() bool {
 // RebuildGateway recreates the LLM gateway from current config (after /think or /model).
 // When llm.use_ops_model is true/nil, prefers ops configured model from Signal catalog/admin.
 func (a *App) RebuildGateway() error {
-	providerName := a.Config.LLM.Provider
-	tokenKey := a.Config.LLM.TokenKey
-	model := a.Config.LLM.Model
-	baseURL := strings.TrimSpace(a.Config.LLM.BaseURL)
+	if a == nil || a.Config == nil {
+		return fmt.Errorf("app not configured")
+	}
+	gw, resolved, err := a.BuildGatewayFromLLMConfig(a.Config.LLM, true)
+	if err != nil {
+		return err
+	}
+	if resolved != nil {
+		a.syncLLMConfigFromResolved(resolved.provider, resolved.tokenKey, resolved.model, resolved.baseURL)
+	}
+	a.Gateway = gw
+	if a.Agent != nil {
+		a.Agent.SetGateway(a.Gateway)
+	}
+	a.wireChatMemory()
+	a.wireSynthesizer()
+	return nil
+}
 
-	if a.Config.LLM.OpsModelEnabled() && strings.TrimSpace(a.Config.LLM.CatalogModelID) == "" {
+type resolvedLLMFields struct {
+	provider, tokenKey, model, baseURL string
+}
+
+// BuildGatewayFromLLMConfig builds a gateway from cfg without mutating a.Config unless syncGlobal is true.
+func (a *App) BuildGatewayFromLLMConfig(cfg config.LLMConfig, syncGlobal bool) (*llm.Gateway, *resolvedLLMFields, error) {
+	if a == nil || a.Config == nil {
+		return nil, nil, fmt.Errorf("app not configured")
+	}
+	providerName := cfg.Provider
+	tokenKey := cfg.TokenKey
+	model := cfg.Model
+	baseURL := strings.TrimSpace(cfg.BaseURL)
+	var resolved *resolvedLLMFields
+
+	if cfg.OpsModelEnabled() && strings.TrimSpace(cfg.CatalogModelID) == "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		targets := make([]admin.QueryTarget, 0, len(a.Config.AdminModelQueryTargets()))
@@ -227,10 +256,12 @@ func (a *App) RebuildGateway() error {
 			fmt.Fprintf(os.Stderr, "警告: 拉取运营配置模型失败（回退本地 llm）: %v\n", err)
 		} else {
 			a.applyCatalogModelDoc(&doc, &providerName, &tokenKey, &model, &baseURL)
-			a.syncLLMConfigFromResolved(providerName, tokenKey, model, baseURL)
-			fmt.Fprintf(os.Stderr, "LLM: 使用运营配置 model=%s base_url=%s from %s\n", model, baseURL, src)
+			resolved = &resolvedLLMFields{provider: providerName, tokenKey: tokenKey, model: model, baseURL: baseURL}
+			if syncGlobal {
+				fmt.Fprintf(os.Stderr, "LLM: 使用运营配置 model=%s base_url=%s from %s\n", model, baseURL, src)
+			}
 		}
-	} else if id := strings.TrimSpace(a.Config.LLM.CatalogModelID); id != "" {
+	} else if id := strings.TrimSpace(cfg.CatalogModelID); id != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		targets := make([]admin.QueryTarget, 0, len(a.Config.AdminModelQueryTargets()))
@@ -242,33 +273,30 @@ func (a *App) RebuildGateway() error {
 			fmt.Fprintf(os.Stderr, "警告: 拉取 catalog 模型失败（回退本地 llm）: %v\n", err)
 		} else {
 			a.applyCatalogModelDoc(&doc, &providerName, &tokenKey, &model, &baseURL)
-			a.syncLLMConfigFromResolved(providerName, tokenKey, model, baseURL)
-			fmt.Fprintf(os.Stderr, "LLM: 使用 catalog 模型 model=%s base_url=%s from %s\n", model, baseURL, src)
+			resolved = &resolvedLLMFields{provider: providerName, tokenKey: tokenKey, model: model, baseURL: baseURL}
+			if syncGlobal {
+				fmt.Fprintf(os.Stderr, "LLM: 使用 catalog 模型 model=%s base_url=%s from %s\n", model, baseURL, src)
+			}
 		}
 	}
 
 	provider, err := llm.BuildProviderFromLLMFields(
 		providerName, tokenKey, model,
-		a.Config.LLM.Thinking, a.Config.LLM.ReasoningEffort, baseURL,
-		a.Config.LLM.PromptCache,
+		cfg.Thinking, cfg.ReasoningEffort, baseURL,
+		cfg.PromptCache,
 	)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	thinkingOn := llm.ResolveThinkingEnabled(llm.ProviderName(providerName), model, a.Config.LLM.Thinking)
-	maxTokens := a.Config.LLM.EffectiveMaxTokens(thinkingOn)
-	temp := a.Config.LLM.Temperature
-	a.Gateway = llm.NewGateway(provider, llm.GatewayConfig{
+	thinkingOn := llm.ResolveThinkingEnabled(llm.ProviderName(providerName), model, cfg.Thinking)
+	maxTokens := cfg.EffectiveMaxTokens(thinkingOn)
+	temp := cfg.Temperature
+	gw := llm.NewGateway(provider, llm.GatewayConfig{
 		MaxRetries: 3, RetryWait: time.Second, Temperature: temp, MaxTokens: maxTokens,
 	})
-	a.Gateway.SetPolicy(a.buildModelPolicy(thinkingOn, maxTokens, temp))
-	a.Gateway.SetFallbacks(a.buildFallbackProviders())
-	if a.Agent != nil {
-		a.Agent.SetGateway(a.Gateway)
-	}
-	a.wireChatMemory()
-	a.wireSynthesizer()
-	return nil
+	gw.SetPolicy(a.buildModelPolicy(thinkingOn, maxTokens, temp))
+	gw.SetFallbacks(a.buildFallbackProviders())
+	return gw, resolved, nil
 }
 
 func (a *App) applyCatalogModelDoc(doc *admin.ConfiguredModel, providerName, tokenKey, model, baseURL *string) {

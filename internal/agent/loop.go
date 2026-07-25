@@ -290,6 +290,10 @@ func (l *Loop) RunTurn(
 	l.emitBus("TurnStarted", map[string]any{
 		"session_id": session.ID, "user_text": userText,
 	})
+	l.emitStatus("received", "已收到消息，准备处理")
+	l.runRetrievalGate(ctx, session, userText)
+	messages = session.LLMMessages()
+	l.emitStatus("hygiene", "整理会话上下文…")
 	messages = l.applyHygiene(ctx, session, messages)
 	evalRetriesLeft := l.evalMaxRetries
 

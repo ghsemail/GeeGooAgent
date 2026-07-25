@@ -105,7 +105,7 @@ func (h *Handler) metricsOverview(w http.ResponseWriter, r *http.Request) {
 	}
 	store, err := h.App.SessionStore()
 	if err == nil {
-		entries, listErr := store.ListIndexedSessions()
+		entries, listErr := listSessionsForUser(store, resolveUserID(r))
 		if listErr == nil {
 			payload.SessionCount = len(entries)
 			for _, e := range entries {
@@ -122,7 +122,7 @@ func (h *Handler) listSessions(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	entries, err := store.ListIndexedSessions()
+	entries, err := listSessionsForUser(store, resolveUserID(r))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -169,6 +169,9 @@ func (h *Handler) sessionTrace(w http.ResponseWriter, r *http.Request) {
 	}
 	if session == nil {
 		writeError(w, http.StatusNotFound, "session not found")
+		return
+	}
+	if !enforceSessionAccess(w, session, resolveUserID(r)) {
 		return
 	}
 	writeJSON(w, sessionTraceResponse{

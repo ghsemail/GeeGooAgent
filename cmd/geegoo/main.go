@@ -73,6 +73,7 @@ Usage:
   %s chat [--config PATH] [--dry-run] [--message TEXT] [--output-format text|ndjson] [--session ID] [--tui|--cli]
   %s run <skill> [--config PATH] [--dry-run]
   %s migrate [--config PATH] [--from file|sqlite] [--to sqlite|postgres] [--dry-run]
+  %s migrate tenant --assign-user UID [--session ID] [--compare-from PATH] [--dry-run]
   %s skills list
   %s scheduler <run|list> [--config PATH]
   %s verify --codes CODES [--date YYYY-MM-DD] [--config PATH]

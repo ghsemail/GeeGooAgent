@@ -120,7 +120,7 @@ func (s *PostgresSessionStore) Save(session *ChatSession) error {
 func (s *PostgresSessionStore) ListIndexedSessions() ([]ChatSessionIndexEntry, error) {
 	ctx := context.Background()
 	rows, err := s.db.QueryContext(ctx, `
-        SELECT id, title, tags_json, summary, tool_names_json, status,
+        SELECT id, user_id, title, tags_json, summary, tool_names_json, status,
                created_at, updated_at, metadata_json,
                COALESCE(jsonb_array_length(messages_json), 0),
                COALESCE(jsonb_array_length(step_records_json), 0)
@@ -132,21 +132,28 @@ func (s *PostgresSessionStore) ListIndexedSessions() ([]ChatSessionIndexEntry, e
 	var out []ChatSessionIndexEntry
 	for rows.Next() {
 		var (
-			id, title, status, summary string
-			tagsJSON, toolNamesJSON    []byte
-			metadataJSON               []byte
-			created, updated           time.Time
-			msgCount, stepCount        int
+			id, userID, title, status, summary string
+			tagsJSON, toolNamesJSON            []byte
+			metadataJSON                       []byte
+			created, updated                   time.Time
+			msgCount, stepCount                int
 		)
-		if err := rows.Scan(&id, &title, &tagsJSON, &summary, &toolNamesJSON, &status,
+		if err := rows.Scan(&id, &userID, &title, &tagsJSON, &summary, &toolNamesJSON, &status,
 			&created, &updated, &metadataJSON, &msgCount, &stepCount); err != nil {
 			return nil, err
+		}
+		metadata := decodeMap(string(metadataJSON))
+		if metadata == nil {
+			metadata = map[string]any{}
+		}
+		if userID != "" {
+			metadata["user_id"] = userID
 		}
 		out = append(out, ChatSessionIndexEntry{
 			ID: id, Title: title, Tags: decodeStringSlice(string(tagsJSON)), Summary: summary,
 			ToolNames: decodeStringSlice(string(toolNamesJSON)), Status: status,
 			MessageCount: msgCount, StepCount: stepCount,
-			Metadata: decodeMap(string(metadataJSON)),
+			Metadata: metadata,
 			CreatedAt: created, UpdatedAt: updated,
 		})
 	}

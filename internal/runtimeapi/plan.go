@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
+	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 )
 
 type planRequest struct {
@@ -57,6 +58,9 @@ func (h *Handler) chatPlan(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "session not found")
 		return
 	}
+	if !enforceSessionAccess(w, chat, resolveUserID(r)) {
+		return
+	}
 	if _, _, ok := chat.HeldPlanFromMetadata(); !ok {
 		writeError(w, http.StatusNotFound, "no pending plan for session")
 		return
@@ -90,7 +94,10 @@ func (h *Handler) chatPlan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	schemas := h.App.Registry.Schemas(h.App.ChatToolNames())
-	result := h.App.Agent.Run(r.Context(), rtSession, userText, toolCtx, schemas)
+	var result runtime.TurnResult
+	h.withUserAgentGateway(resolveUserID(r), func() {
+		result = h.App.Agent.Run(r.Context(), rtSession, userText, toolCtx, schemas)
+	})
 
 	newRecords := stepRecordsFromTurn(result.StepRecords)
 	agent.SyncChatFromRuntime(chat, rtSession, newRecords)

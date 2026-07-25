@@ -28,6 +28,9 @@ func (l *Loop) runCompression(ctx context.Context, session *runtime.Session, mes
 	if est <= 0 {
 		est = prompt.EstimateTokens(session.Messages)
 	}
+	if hygiene {
+		l.emitStatus("hygiene", "压缩过长上下文（辅助模型）…")
+	}
 	out, err := mem.Compress(ctx, memport.CompressInput{
 		SessionID:       session.ID,
 		Messages:        session.Messages,
@@ -52,6 +55,7 @@ func (l *Loop) runCompression(ctx context.Context, session *runtime.Session, mes
 	if hygiene {
 		event = "context_hygiene"
 	}
+	l.emitStatus("hygiene", fmt.Sprintf("上下文已整理：%d → %d 条消息", before, len(out.Messages)))
 	l.emit(event, map[string]any{
 		"before_msgs":             before,
 		"after_msgs":              len(out.Messages),

@@ -77,8 +77,9 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 	currentSession := ""
 
 	store, _ := h.safeSessionStore()
+	userID := resolveUserID(r)
 	if store != nil {
-		entries, err := store.ListIndexedSessions()
+		entries, err := listSessionsForUser(store, userID)
 		if err == nil {
 			for i, e := range entries {
 				if i == 0 {
@@ -230,17 +231,17 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		"consolidate_every": 4, "chat_pending": 0, "tools": toolsPayload,
 		"db": h.buildDBMeta(), "doctor_ok": doctorOK, "doctor_checks": doctorChecks,
 		"eval_report": nil, "eval_history": []map[string]any{},
-		"trace_tail": h.buildTraceTail(store), "trace_file": "",
+		"trace_tail": h.buildTraceTail(store, userID), "trace_file": "",
 		"usage": map[string]any{
 			"total_cost": 0, "calls": len(turns), "total_in": 0, "total_out": 0,
 			"by_day": []map[string]any{}, "by_provider": []map[string]any{},
 		},
-		"settings": h.buildDashboardSettings(provider, model), "wake_scans": []map[string]any{},
+		"settings": h.buildDashboardSettings(provider, model, userID), "wake_scans": []map[string]any{},
 	}, nil
 }
 
-func (h *Handler) buildDashboardSettings(provider, model string) map[string]any {
-	info, err := h.buildSettingsInfo()
+func (h *Handler) buildDashboardSettings(provider, model, userID string) map[string]any {
+	info, err := h.buildSettingsInfo(userID)
 	if err != nil {
 		return map[string]any{
 			"provider": provider, "model": model, "small_model": model,
@@ -443,12 +444,12 @@ func buildTurnsFromSession(sess *chatsession.ChatSession) []map[string]any {
 	return turns
 }
 
-func (h *Handler) buildTraceTail(store chatsession.SessionStore) []map[string]any {
+func (h *Handler) buildTraceTail(store chatsession.SessionStore, userID string) []map[string]any {
 	out := []map[string]any{}
 	if store == nil {
 		return out
 	}
-	entries, err := store.ListIndexedSessions()
+	entries, err := listSessionsForUser(store, userID)
 	if err != nil || len(entries) == 0 {
 		return out
 	}
@@ -471,7 +472,7 @@ func (h *Handler) buildTraceTail(store chatsession.SessionStore) []map[string]an
 
 func (h *Handler) dashboardEvents(w http.ResponseWriter, r *http.Request) {
 	cursor := parseEventCursor(r)
-	newEvents := h.collectLiveTraceEvents()
+	newEvents := h.collectLiveTraceEvents(resolveUserID(r))
 	globalDashEvents.mu.Lock()
 	for _, ev := range newEvents {
 		globalDashEvents.events = append(globalDashEvents.events, ev)
@@ -516,7 +517,7 @@ func parseEventCursor(r *http.Request) *int {
 	return &v
 }
 
-func (h *Handler) collectLiveTraceEvents() []dashboardTraceEvent {
+func (h *Handler) collectLiveTraceEvents(userID string) []dashboardTraceEvent {
 	out := []dashboardTraceEvent{}
 	if h.App == nil || h.App.State == nil {
 		return out
@@ -525,7 +526,7 @@ func (h *Handler) collectLiveTraceEvents() []dashboardTraceEvent {
 	if err != nil || store == nil {
 		return out
 	}
-	entries, err := store.ListIndexedSessions()
+	entries, err := listSessionsForUser(store, userID)
 	if err != nil {
 		return out
 	}
@@ -671,6 +672,9 @@ func (h *Handler) dashboardSessionMessages(w http.ResponseWriter, r *http.Reques
 	}
 	if session == nil {
 		writeError(w, http.StatusNotFound, "session not found")
+		return
+	}
+	if !enforceSessionAccess(w, session, resolveUserID(r)) {
 		return
 	}
 	messages := []map[string]any{}

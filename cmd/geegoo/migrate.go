@@ -12,6 +12,10 @@ import (
 )
 
 func runMigrate(args []string) {
+	if len(args) > 0 && args[0] == "tenant" {
+		runMigrateTenant(args[1:])
+		return
+	}
 	fs := flag.NewFlagSet("migrate", flag.ExitOnError)
 	configPath := fs.String("config", config.DefaultPath(), "path to config.json")
 	dryRun := fs.Bool("dry-run", false, "preview without writing")

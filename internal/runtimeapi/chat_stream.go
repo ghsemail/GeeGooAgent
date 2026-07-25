@@ -70,7 +70,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	h.chatMu.Lock()
 	defer h.chatMu.Unlock()
 
-	chat, created, code, msg := h.loadOrCreateChatSession(store, strings.TrimSpace(req.SessionID))
+	chat, created, code, msg := h.loadOrCreateChatSession(store, strings.TrimSpace(req.SessionID), resolveUserID(r))
 	if code != http.StatusOK {
 		writeError(w, code, msg)
 		return
@@ -128,7 +128,10 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	schemas := h.App.Registry.Schemas(h.App.ChatToolNames())
-	result := h.App.Agent.Run(r.Context(), rtSession, message, toolCtx, schemas)
+	var result runtime.TurnResult
+	h.withUserAgentGateway(resolveUserID(r), func() {
+		result = h.App.Agent.Run(r.Context(), rtSession, message, toolCtx, schemas)
+	})
 
 	newRecords := stepRecordsFromTurn(result.StepRecords)
 	agent.SyncChatFromRuntime(chat, rtSession, newRecords)
@@ -174,10 +177,11 @@ func (h *Handler) sessionEventsStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID := resolveUserID(r)
 	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
 	resolvedFrom := "query"
 	if sessionID == "" {
-		id, err := latestSessionID(store)
+		id, err := latestSessionIDForUser(store, userID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -193,6 +197,8 @@ func (h *Handler) sessionEventsStream(w http.ResponseWriter, r *http.Request) {
 		return
 	} else if chat == nil {
 		writeError(w, http.StatusNotFound, "session not found: "+sessionID)
+		return
+	} else if !enforceSessionAccess(w, chat, userID) {
 		return
 	}
 
@@ -243,7 +249,7 @@ func (h *Handler) sessionEventsStream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) loadOrCreateChatSession(store chatsession.SessionStore, sessionID string) (*chatsession.ChatSession, bool, int, string) {
+func (h *Handler) loadOrCreateChatSession(store chatsession.SessionStore, sessionID, userID string) (*chatsession.ChatSession, bool, int, string) {
 	if sessionID != "" {
 		chat, err := store.Load(sessionID)
 		if err != nil {
@@ -252,11 +258,23 @@ func (h *Handler) loadOrCreateChatSession(store chatsession.SessionStore, sessio
 		if chat == nil {
 			return nil, false, http.StatusNotFound, "session not found: " + sessionID
 		}
+		priorOwner := chatsession.UserIDFromSession(chat)
+		if userID != "" && !chatsession.EnforceAccess(chat, userID) {
+			return nil, false, http.StatusForbidden, "session access denied"
+		}
+		if userID != "" && priorOwner == "" {
+			if err := store.Save(chat); err != nil {
+				return nil, false, http.StatusInternalServerError, err.Error()
+			}
+		}
 		return chat, false, http.StatusOK, ""
 	}
 	chat, err := store.Create()
 	if err != nil {
 		return nil, false, http.StatusInternalServerError, err.Error()
+	}
+	if userID != "" {
+		chatsession.SetUserID(chat, userID)
 	}
 	return chat, true, http.StatusOK, ""
 }

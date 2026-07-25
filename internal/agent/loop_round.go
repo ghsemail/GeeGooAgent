@@ -24,6 +24,7 @@ func (l *Loop) runRound(
 	session.StepCounter++
 	step := session.StepCounter
 	l.emit("round_start", map[string]any{"round": round + 1, "step": step})
+	l.emitStatus("round", fmt.Sprintf("第 %d 轮推理", round+1))
 
 	*messages = l.applyCompression(ctx, session, *messages)
 	apiMessages := withBudgetWarning(*messages, round, l.maxToolRounds, session)
@@ -87,6 +88,8 @@ func (l *Loop) callLLM(
 	callCtx := llm.WithCallMeta(ctx, llm.CallMeta{
 		Kind: llm.TaskChat, ToolSchemaCount: len(schemas),
 	})
+	l.emit("llm_start", map[string]any{"step": step, "tool_count": len(schemas)})
+	l.emitStatus("llm", fmt.Sprintf("调用模型规划（%d 个工具）…", len(schemas)))
 	resp, err := l.gateway.ChatStream(callCtx, messages, schemas, sessionID, step, onDelta)
 	if err != nil {
 		return nil, err

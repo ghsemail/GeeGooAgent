@@ -32,6 +32,22 @@ func (h *Handler) chatClarify(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "session_id required")
 		return
 	}
+	if h.App != nil {
+		if store, err := h.App.SessionStore(); err == nil && store != nil {
+			chat, err := store.Load(sessionID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			if chat == nil {
+				writeError(w, http.StatusNotFound, "session not found")
+				return
+			}
+			if !enforceSessionAccess(w, chat, resolveUserID(r)) {
+				return
+			}
+		}
+	}
 	answer := strings.TrimSpace(req.Answer)
 	ok := !req.Skip
 	if !ok && answer == "" {

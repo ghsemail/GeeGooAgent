@@ -23,6 +23,7 @@ type Handler struct {
 	App        *app.App
 	ConfigPath string
 	chatMu     sync.Mutex // serializes SetProgress wiring for chat SSE turns
+	gatewayMu  sync.Mutex // serializes per-user Agent gateway swaps
 	clarify    *ClarifyHub
 }
 
@@ -112,6 +113,7 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mcpToken := resolveMCPToken(r, req, h.App.Config.MCPToken())
+	userID := resolveUserIDWithFallback(r, req.UserID)
 	sessionID := "api-" + time.Now().Format("150405")
 	ctx := h.App.ToolContext(sessionID)
 	ctx.MCPToken = mcpToken
@@ -146,11 +148,16 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	schemas := h.App.Registry.Schemas(h.App.ChatToolNames())
 
 	if req.Stream {
-		h.streamChat(w, r, session, lastUser, ctx, schemas, id, model, sessionID, created)
+		h.withUserAgentGateway(userID, func() {
+			h.streamChat(w, r, session, lastUser, ctx, schemas, id, model, sessionID, created)
+		})
 		return
 	}
 
-	result := h.App.Agent.Run(r.Context(), session, lastUser, ctx, schemas)
+	var result runtime.TurnResult
+	h.withUserAgentGateway(userID, func() {
+		result = h.App.Agent.Run(r.Context(), session, lastUser, ctx, schemas)
+	})
 	finish := "stop"
 	if result.Failed {
 		finish = "error"

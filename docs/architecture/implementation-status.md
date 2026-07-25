@@ -156,6 +156,35 @@
 
 ---
 
+## 多租户（2026-07）
+
+| 能力 | 状态 | 说明 |
+|------|------|------|
+| 会话归属 `user_id` | ✅ | Postgres/SQLite metadata + 访问校验 |
+| Cockpit / Dashboard 列表过滤 | ✅ | `X-User-Id`；无 header 为运维全局模式 |
+| 用户 LLM 设置 | ✅ | `{workspace}/user_llm_settings/{uid}.json` |
+| Chat SSE / Plan | ✅ | `withUserAgentGateway` + `gatewayMu` |
+| Compare 历史与执行 | ✅ | 按用户目录；spec 独立 Gateway |
+| `/v1/chat/completions` | ✅ | 按用户 Gateway |
+| BFF MCP 鉴权扩展 | ✅ | dashboard/sessions/metrics/memory 需 token（`ValidateMCPToken` 时） |
+| 数据迁移 CLI | ✅ | `geegoo migrate tenant --assign-user UID` |
+| 配额 / Cost 按用户 | ❌ | 见 [backlog.md](./backlog.md) |
+
+**迁移（升级后一次性）：**
+
+```bash
+# 将无归属旧会话划归某用户（先 dry-run）
+geegoo migrate tenant --assign-user <user_id> --dry-run
+geegoo migrate tenant --assign-user <user_id>
+
+# 复制旧版全局 Compare 历史
+geegoo migrate tenant --assign-user <user_id> --compare-from /path/to/compare/history.jsonl
+```
+
+**运维：** 生产需同时开启 `GEEGOO_AGENT_VALIDATE_MCP_TOKEN=true`（GeeGooBot agent-api）并重启 agent-runtime。
+
+---
+
 ## 外部依赖
 
 | 依赖 | MVP 需要？ | 说明 |

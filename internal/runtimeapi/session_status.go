@@ -130,10 +130,11 @@ func (h *Handler) sessionStatusStream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) resolveSessionStatus(r *http.Request, store chatsession.SessionStore) (*SessionStatusPayload, int, string) {
+	userID := resolveUserID(r)
 	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
 	resolvedFrom := "query"
 	if sessionID == "" {
-		id, err := latestSessionID(store)
+		id, err := latestSessionIDForUser(store, userID)
 		if err != nil {
 			return nil, http.StatusInternalServerError, err.Error()
 		}
@@ -149,6 +150,11 @@ func (h *Handler) resolveSessionStatus(r *http.Request, store chatsession.Sessio
 	}
 	if payload == nil {
 		return nil, http.StatusNotFound, "session not found: "+sessionID
+	}
+	if chat, err := store.Load(sessionID); err == nil && chat != nil {
+		if !chatsession.EnforceAccess(chat, userID) {
+			return nil, http.StatusForbidden, "session access denied"
+		}
 	}
 	return payload, http.StatusOK, ""
 }
@@ -166,17 +172,6 @@ func (h *Handler) loadSessionStatus(store chatsession.SessionStore, sessionID, r
 		live, _ = chatsession.LoadLiveState(h.App.State, sessionID)
 	}
 	return buildSessionStatus(session, live, resolvedFrom), nil
-}
-
-func latestSessionID(store chatsession.SessionStore) (string, error) {
-	entries, err := store.ListIndexedSessions()
-	if err != nil {
-		return "", err
-	}
-	if len(entries) == 0 {
-		return "", nil
-	}
-	return entries[0].ID, nil
 }
 
 func buildSessionStatus(session *chatsession.ChatSession, live *chatsession.LiveSessionState, resolvedFrom string) *SessionStatusPayload {

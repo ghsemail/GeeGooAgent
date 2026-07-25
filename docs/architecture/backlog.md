@@ -14,7 +14,7 @@ Agent Runtime 控制面改造（Cognition / Model Policy / Memory port / Advisor
 | **向量库 / Semantic Memory 后端** | 挂在 `memport.Port` 下；Session SSOT 仍为 SQLite | 业务需求明确后选型（Chroma / sqlite-vss 等） |
 | **IDE 扩展** | 同 runtimeapi 消费方；优先级可高于 Flutter | Dashboard 契约或独立 API 设计 |
 | **Cost Manager** | 会话级 token / 费用账单 | Model Policy + session 元数据 |
-| **多租户** | 隔离 config / session / 配额 | Cost + auth 设计 |
+| **多租户** | ⚠️ Phase 1–3 已落地 | 会话/设置/Compare/completions 按 `X-User-Id`；BFF `GEEGOO_AGENT_VALIDATE_MCP_TOKEN`；迁移 `geegoo migrate tenant`；配额/Cost 仍待做 |
 | **Webhook 触发** | HTTP 入口触发 skill / chat | runtimeapi 扩展 |
 | **Notify Gateway** | 飞书等通知经 GeeGooBot `internal/notify`，非 Agent 直连 webhook | GeeGooBot 侧实现；Agent 薄转发 |
 

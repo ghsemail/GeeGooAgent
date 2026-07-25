@@ -63,6 +63,30 @@ func (h *Handler) dashboardApplySettings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	userID := resolveUserID(r)
+	if userID != "" {
+		us, err := loadUserLLMSettings(h.userSettingsOutputDir(), userID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if us == nil {
+			us = &userLLMSettings{}
+		}
+		us.applyRequest(req)
+		if err := saveUserLLMSettings(h.userSettingsOutputDir(), userID, us); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		info, err := h.buildSettingsInfo(userID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "settings": info})
+		return
+	}
+
 	llmCfg := h.App.Config.LLM
 	if p := strings.TrimSpace(req.Provider); p != "" {
 		llmCfg.Provider = p
@@ -109,7 +133,7 @@ func (h *Handler) dashboardApplySettings(w http.ResponseWriter, r *http.Request)
 		_ = savePinnedSpecs(h.App.Config.OutputDir, req.Pinned)
 	}
 
-	info, err := h.buildSettingsInfo()
+	info, err := h.buildSettingsInfo("")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -117,20 +141,25 @@ func (h *Handler) dashboardApplySettings(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, map[string]any{"ok": true, "settings": info})
 }
 
-func (h *Handler) buildSettingsInfo() (map[string]any, error) {
+func (h *Handler) buildSettingsInfo(userID string) (map[string]any, error) {
+	effective := h.effectiveLLMConfig(userID)
 	provider := "geegoo"
 	model := defaultModel
-	if h.App != nil && h.App.Config != nil {
-		if p := strings.TrimSpace(h.App.Config.LLM.Provider); p != "" {
-			provider = p
-		}
-		if m := strings.TrimSpace(h.App.Config.LLM.Model); m != "" {
-			model = m
-		}
+	if p := strings.TrimSpace(effective.Provider); p != "" {
+		provider = p
 	}
-	if h.App != nil && h.App.Gateway != nil {
+	if m := strings.TrimSpace(effective.Model); m != "" {
+		model = m
+	}
+	if userID == "" && h.App != nil && h.App.Gateway != nil {
 		if m := strings.TrimSpace(h.App.Gateway.Model()); m != "" {
 			model = m
+		}
+	} else if h.App != nil {
+		if gw, _, err := h.App.BuildGatewayFromLLMConfig(effective, false); err == nil && gw != nil {
+			if m := strings.TrimSpace(gw.Model()); m != "" {
+				model = m
+			}
 		}
 	}
 
@@ -138,24 +167,19 @@ func (h *Handler) buildSettingsInfo() (map[string]any, error) {
 	if provName == "" {
 		provName = llm.ProviderDeepSeek
 	}
-	thinkingState := "auto"
-	if h.App != nil && h.App.Config != nil {
-		if h.App.Config.LLM.Thinking == nil {
-			thinkingState = "auto"
-		} else if *h.App.Config.LLM.Thinking {
-			thinkingState = "on"
-		} else {
-			thinkingState = "off"
-		}
-	}
-	thinkingOn := llm.ResolveThinkingEnabled(provName, model, nil)
-	if h.App != nil && h.App.Config != nil {
-		thinkingOn = llm.ResolveThinkingEnabled(provName, model, h.App.Config.LLM.Thinking)
-	}
+	thinkingState := thinkingStateFromConfig(effective)
+	thinkingOn := llm.ResolveThinkingEnabled(provName, model, effective.Thinking)
 
-	pinned := loadPinnedSpecs("")
-	if h.App != nil && h.App.Config != nil {
-		pinned = loadPinnedSpecs(h.App.Config.OutputDir)
+	var userDoc *userLLMSettings
+	if userID != "" {
+		userDoc, _ = loadUserLLMSettings(h.userSettingsOutputDir(), userID)
+	}
+	pinned := pinnedFromUserSettings(userDoc, provider, model)
+	if len(pinned) == 0 {
+		pinned = loadPinnedSpecs("")
+		if h.App != nil && h.App.Config != nil {
+			pinned = loadPinnedSpecs(h.App.Config.OutputDir)
+		}
 	}
 	if len(pinned) == 0 {
 		pinned = []map[string]any{{"provider": provider, "model": model, "default": true}}
@@ -184,18 +208,16 @@ func (h *Handler) buildSettingsInfo() (map[string]any, error) {
 	maxTok := 4096
 	useOps := true
 	catalogID := ""
-	if h.App != nil && h.App.Config != nil {
-		if h.App.Config.LLM.Temperature > 0 {
-			temp = h.App.Config.LLM.Temperature
-		}
-		if h.App.Config.LLM.MaxTokens > 0 {
-			maxTok = h.App.Config.LLM.MaxTokens
-		}
-		if h.App.Config.LLM.UseOpsModel != nil {
-			useOps = *h.App.Config.LLM.UseOpsModel
-		}
-		catalogID = h.App.Config.LLM.CatalogModelID
+	if effective.Temperature > 0 {
+		temp = effective.Temperature
 	}
+	if effective.MaxTokens > 0 {
+		maxTok = effective.MaxTokens
+	}
+	if effective.UseOpsModel != nil {
+		useOps = *effective.UseOpsModel
+	}
+	catalogID = effective.CatalogModelID
 
 	return map[string]any{
 		"provider": provider, "model": model,

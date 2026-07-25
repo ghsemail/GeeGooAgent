@@ -46,15 +46,23 @@ type compareRun struct {
 	Results []compareRunResult `json:"results"`
 }
 
-func (h *Handler) compareStorePath() string {
+func (h *Handler) compareStorePath(userID string) string {
+	base := os.TempDir()
 	if h.App != nil && h.App.Workspace != "" {
-		return filepath.Join(h.App.Workspace, "compare", "history.jsonl")
+		base = filepath.Join(h.App.Workspace, "compare")
+	} else {
+		base = filepath.Join(base, "geegoo_compare")
 	}
-	return filepath.Join(os.TempDir(), "geegoo_compare_history.jsonl")
+	userID = strings.TrimSpace(userID)
+	if userID != "" {
+		safe := safeUserID.ReplaceAllString(userID, "_")
+		return filepath.Join(base, safe, "history.jsonl")
+	}
+	return filepath.Join(base, "history.jsonl")
 }
 
-func (h *Handler) loadCompareRuns() []compareRun {
-	path := h.compareStorePath()
+func (h *Handler) loadCompareRuns(userID string) []compareRun {
+	path := h.compareStorePath(userID)
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil
@@ -74,8 +82,8 @@ func (h *Handler) loadCompareRuns() []compareRun {
 	return runs
 }
 
-func (h *Handler) appendCompareRun(run compareRun) error {
-	path := h.compareStorePath()
+func (h *Handler) appendCompareRun(userID string, run compareRun) error {
+	path := h.compareStorePath(userID)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -93,7 +101,8 @@ func (h *Handler) appendCompareRun(run compareRun) error {
 }
 
 func (h *Handler) compareHistory(w http.ResponseWriter, r *http.Request) {
-	runs := h.loadCompareRuns()
+	userID := resolveUserID(r)
+	runs := h.loadCompareRuns(userID)
 	writeJSON(w, map[string]any{
 		"runs":      runs,
 		"aggregate": aggregateCompareRuns(runs),
@@ -101,7 +110,8 @@ func (h *Handler) compareHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) compareClear(w http.ResponseWriter, r *http.Request) {
-	path := h.compareStorePath()
+	userID := resolveUserID(r)
+	path := h.compareStorePath(userID)
 	_ = os.Remove(path)
 	writeJSON(w, map[string]any{"runs": []compareRun{}, "aggregate": []map[string]any{}})
 }
@@ -140,11 +150,16 @@ func (h *Handler) compareStream(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	run := compareRun{TS: time.Now().UTC().Format(time.RFC3339Nano), Message: message}
+	userID := resolveUserID(r)
 	for _, spec := range req.Models {
 		provider, model := splitModelSpec(spec)
 		writeCompareSSE(w, flusher, map[string]any{"kind": "start", "spec": spec, "provider": provider, "model": model})
 		start := time.Now()
-		resp, err := h.App.Gateway.Chat(r.Context(), []llm.Message{
+		gw := h.gatewayForCompareSpec(userID, spec)
+		if gw == nil {
+			gw = h.App.Gateway
+		}
+		resp, err := gw.Chat(r.Context(), []llm.Message{
 			{Role: llm.RoleUser, Content: message},
 		}, nil, "compare-"+spec, 0)
 		latency := int(time.Since(start).Milliseconds())
@@ -164,7 +179,7 @@ func (h *Handler) compareStream(w http.ResponseWriter, r *http.Request) {
 			"tokens_in": result.TokensIn, "tokens_out": result.TokensOut, "error": result.Error,
 		})
 	}
-	_ = h.appendCompareRun(run)
+	_ = h.appendCompareRun(userID, run)
 	writeCompareSSE(w, flusher, map[string]any{"kind": "done"})
 }
 
