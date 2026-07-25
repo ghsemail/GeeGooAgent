@@ -101,8 +101,8 @@ func (s *PostgresStore) Count(ctx context.Context) (int, error) {
 	return n, err
 }
 
-// SearchVector finds nearest chunks when embeddings exist.
-func (s *PostgresStore) SearchVector(ctx context.Context, query string, limit int) ([]Chunk, error) {
+// RecallChunks finds nearest semantic chunks, optionally scoped to a user.
+func (s *PostgresStore) RecallChunks(ctx context.Context, query, userID, excludeSessionID string, limit int) ([]Chunk, error) {
 	if s == nil || s.embedder == nil {
 		return nil, fmt.Errorf("embedder not configured")
 	}
@@ -118,13 +118,20 @@ func (s *PostgresStore) SearchVector(ctx context.Context, query string, limit in
         SELECT id, session_id, user_id, source, content, created_at
         FROM agent_memory_chunks
         WHERE embedding IS NOT NULL
+          AND ($2 = '' OR user_id = $2)
+          AND ($3 = '' OR session_id <> $3)
         ORDER BY embedding <=> $1::vector
-        LIMIT $2`, vectorLiteral(emb), limit)
+        LIMIT $4`, vectorLiteral(emb), strings.TrimSpace(userID), strings.TrimSpace(excludeSessionID), limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	return scanChunks(rows)
+}
+
+// SearchVector finds nearest chunks when embeddings exist.
+func (s *PostgresStore) SearchVector(ctx context.Context, query string, limit int) ([]Chunk, error) {
+	return s.RecallChunks(ctx, query, "", "", limit)
 }
 
 func contextOrBackground(ctx context.Context) context.Context {

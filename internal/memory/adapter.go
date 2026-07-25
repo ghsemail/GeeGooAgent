@@ -7,14 +7,21 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/semantic"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 )
+
+// SemanticStore recalls pgvector memory chunks for gate fallback.
+type SemanticStore interface {
+	RecallChunks(ctx context.Context, query, userID, excludeSessionID string, limit int) ([]semantic.Chunk, error)
+}
 
 // AdapterConfig wires existing backends into the Memory port.
 type AdapterConfig struct {
 	Compressor    *prompt.Compressor
 	Sessions      chatsession.SessionStore
 	Evidence      *EvidenceStore
+	Semantic      SemanticStore
 	SessionRanker memport.SessionRanker
 }
 
@@ -23,6 +30,7 @@ type Adapter struct {
 	compressor    *prompt.Compressor
 	sessions      chatsession.SessionStore
 	evidence      *EvidenceStore
+	semantic      SemanticStore
 	sessionRanker memport.SessionRanker
 }
 
@@ -32,6 +40,7 @@ func NewAdapter(cfg AdapterConfig) *Adapter {
 		compressor:    cfg.Compressor,
 		sessions:      cfg.Sessions,
 		evidence:      cfg.Evidence,
+		semantic:      cfg.Semantic,
 		sessionRanker: cfg.SessionRanker,
 	}
 }
@@ -52,6 +61,20 @@ func (a *Adapter) SetSessionRanker(fn memport.SessionRanker) {
 	a.sessionRanker = fn
 }
 
+// SetSessions updates the session store (must match chat API SSOT).
+func (a *Adapter) SetSessions(s chatsession.SessionStore) {
+	if a != nil {
+		a.sessions = s
+	}
+}
+
+// SetSemantic wires pgvector recall for gate fallback.
+func (a *Adapter) SetSemantic(s SemanticStore) {
+	if a != nil {
+		a.semantic = s
+	}
+}
+
 // Recall dispatches by kind. Session recall searches past chat sessions.
 func (a *Adapter) Recall(ctx context.Context, q memport.RecallQuery) (memport.RecallResult, error) {
 	switch q.Kind {
@@ -65,7 +88,7 @@ func (a *Adapter) Recall(ctx context.Context, q memport.RecallQuery) (memport.Re
 }
 
 func (a *Adapter) recallSessions(ctx context.Context, q memport.RecallQuery) (memport.RecallResult, error) {
-	if a == nil || a.sessions == nil {
+	if a == nil {
 		return memport.RecallResult{}, nil
 	}
 	limit := q.Limit
@@ -76,14 +99,32 @@ func (a *Adapter) recallSessions(ctx context.Context, q memport.RecallQuery) (me
 	if scan <= 0 {
 		scan = 30
 	}
-	hits, err := chatsession.SearchPastSessions(a.sessions, q.Query, q.ExcludeSessionID, q.UserID, limit, scan)
-	if err != nil {
-		return memport.RecallResult{}, err
+	var (
+		hits []chatsession.SessionRecallHit
+		err  error
+	)
+	if a.sessions != nil {
+		hits, err = chatsession.SearchPastSessions(a.sessions, q.Query, q.ExcludeSessionID, q.UserID, limit, scan)
+		if err != nil {
+			return memport.RecallResult{}, err
+		}
+	}
+	source := "fts"
+	if len(hits) == 0 && a.semantic != nil {
+		chunks, vErr := a.semantic.RecallChunks(ctx, q.Query, q.UserID, q.ExcludeSessionID, limit)
+		if vErr == nil && len(chunks) > 0 {
+			source = "vector"
+			hits = semanticChunksToSessionHits(chunks)
+		}
 	}
 	out := memport.RecallResult{
 		Hits: make([]memport.RecallHit, 0, len(hits)),
 		Data: chatsession.HitsToData(hits),
 	}
+	if out.Data == nil {
+		out.Data = map[string]any{}
+	}
+	out.Data["recall_source"] = source
 	for _, h := range hits {
 		out.Hits = append(out.Hits, memport.RecallHit{
 			ID: h.SessionID, Score: h.Score, Snippet: h.Snippet,
@@ -97,10 +138,28 @@ func (a *Adapter) recallSessions(ctx context.Context, q memport.RecallQuery) (me
 		ranked, err := a.sessionRanker(ctx, out.Hits)
 		if err == nil && len(ranked) > 0 {
 			out.Hits = ranked
-			out.Data = memport.RecallHitsToData(ranked)
+			rankedData := memport.RecallHitsToData(ranked)
+			rankedData["recall_source"] = source
+			out.Data = rankedData
 		}
 	}
 	return out, nil
+}
+
+func semanticChunksToSessionHits(chunks []semantic.Chunk) []chatsession.SessionRecallHit {
+	out := make([]chatsession.SessionRecallHit, 0, len(chunks))
+	for i, c := range chunks {
+		score := len(chunks) - i
+		if score < 1 {
+			score = 1
+		}
+		out = append(out, chatsession.SessionRecallHit{
+			SessionID: c.SessionID,
+			Score:     score,
+			Snippet:   c.Content,
+		})
+	}
+	return out
 }
 
 func (a *Adapter) recallEvidence(q memport.RecallQuery) (memport.RecallResult, error) {

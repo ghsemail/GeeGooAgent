@@ -412,16 +412,30 @@ func (a *App) wireChatMemory() {
 			})
 		}
 	}
+	sessions, err := a.SessionStore()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "警告: memory 会话存储回退 file: %v\n", err)
+		if a.State != nil {
+			sessions = chatsession.NewChatSessionStore(a.State)
+		}
+	}
+	var semanticStore memory.SemanticStore
+	if a.Semantic != nil {
+		semanticStore = a.Semantic
+	}
 	if ad, ok := a.ChatMemory.(*memory.Adapter); ok && ad != nil {
 		ad.SetCompressor(compressor)
+		ad.SetSessions(sessions)
+		ad.SetSemantic(semanticStore)
 		a.setMemory(ad)
 		a.wireRecallRanker()
 		return
 	}
 	ad := memory.NewAdapter(memory.AdapterConfig{
 		Compressor: compressor,
-		Sessions:   chatsession.NewChatSessionStore(a.State),
+		Sessions:   sessions,
 		Evidence:   a.Evidence,
+		Semantic:   semanticStore,
 	})
 	a.ChatMemory = ad
 	a.setMemory(ad)

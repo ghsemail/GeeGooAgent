@@ -102,14 +102,17 @@ func formatGateMemory(hits []memport.RecallHit) string {
 	return b.String()
 }
 
-func (l *Loop) injectGateMemory(session *runtime.Session, block string) {
+func (l *Loop) injectGateMemory(session *runtime.Session, block, source string) {
 	if session == nil || strings.TrimSpace(block) == "" {
 		return
 	}
+	label := "local FTS"
+	if source == "vector" {
+		label = "semantic vector search"
+	}
 	mem := llm.Message{
 		Role: llm.RoleSystem,
-		Content: "Retrieved from past chat sessions (local FTS, not vector search). " +
-			"Use only if relevant to the user's question:\n" + block,
+		Content: fmt.Sprintf("Retrieved from past chat sessions (%s). Use only if relevant:\n%s", label, block),
 	}
 	n := len(session.Messages)
 	if n >= 1 && session.Messages[n-1].Role == llm.RoleUser {
@@ -138,13 +141,19 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 			decision.Decision = "skip"
 			decision.Reason = "no matching past sessions"
 		} else {
+			source := "fts"
+			if res.Data != nil {
+				if v, ok := res.Data["recall_source"].(string); ok && v != "" {
+					source = v
+				}
+			}
 			l.emitStatus("gate", fmt.Sprintf("检索到 %d 条相关历史会话", len(res.Hits)))
 			if block := formatGateMemory(res.Hits); block != "" {
-				l.injectGateMemory(session, block)
+				l.injectGateMemory(session, block, source)
 			}
 			decision.Hits = len(res.Hits)
 			if decision.Reason == "" {
-				decision.Reason = fmt.Sprintf("matched %d past session(s) via FTS", len(res.Hits))
+				decision.Reason = fmt.Sprintf("matched %d past session(s) via %s", len(res.Hits), source)
 			}
 		}
 	}
