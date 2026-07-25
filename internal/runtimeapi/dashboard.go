@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
+	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/doctor"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/skills"
@@ -185,11 +186,13 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 			episodes = make([]map[string]any, 0, len(eps))
 			for _, ep := range eps {
 				episodes = append(episodes, map[string]any{
-					"session_id": ep.SessionID,
-					"title":      truncateRunes(ep.Summary, 60),
-					"summary":    ep.Summary,
-					"updated_at": ep.HappenedAt.Format(time.RFC3339),
-					"source":     "episodic",
+					"id":          ep.ID,
+					"session_id":  ep.SessionID,
+					"title":       truncateRunes(ep.Summary, 60),
+					"summary":     ep.Summary,
+					"happened_at": ep.HappenedAt.Format(time.RFC3339),
+					"updated_at":  ep.HappenedAt.Format(time.RFC3339),
+					"source":      "episodic",
 				})
 			}
 		}
@@ -228,9 +231,11 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 	if h.App != nil && h.App.Semantic != nil {
 		if chunks, err := h.App.Semantic.List(r.Context(), 80); err == nil {
 			for _, c := range chunks {
+				subject, content := splitFactContent(c.Content)
 				facts = append(facts, map[string]any{
-					"id": c.ID, "subject": c.SessionID, "content": c.Content,
-					"source": c.Source, "user_id": c.UserID,
+					"id": c.ID, "subject": subject, "content": content, "raw": c.Content,
+					"source": c.Source, "user_id": c.UserID, "session_id": c.SessionID,
+					"created_at": c.CreatedAt.Format(time.RFC3339),
 				})
 			}
 		}
@@ -260,7 +265,8 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		"small_model": model, "home": home, "current_session": currentSession, "stats": stats,
 		"sessions": sessionsOut, "turns": turns, "chat_log": chatLog, "facts": facts,
 		"episodes": episodes, "skills": skillsOut,
-		"calendar": []map[string]any{}, "outbox": []map[string]any{}, "soul": "",
+		"calendar": []map[string]any{}, "outbox": []map[string]any{},
+		"soul": soulTextForDashboard(firstNonEmpty(home, config.Home())),
 		"consolidate_every": 4, "chat_pending": 0, "tools": toolsPayload,
 		"db": h.buildDBMeta(), "doctor_ok": doctorOK, "doctor_checks": doctorChecks,
 		"eval_report": nil, "eval_history": []map[string]any{},

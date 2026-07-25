@@ -24,6 +24,8 @@ func (h *Handler) registerCockpitRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/doctor", h.doctorStatus)
 	mux.HandleFunc("GET /v1/memory/status", h.memoryStatus)
 	mux.HandleFunc("GET /v1/memory/chunks", h.memoryChunks)
+	h.registerMemorySoulRoutes(mux)
+	h.registerMemoryCRUDRoutes(mux)
 }
 
 type metricsOverview struct {

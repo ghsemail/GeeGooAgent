@@ -103,6 +103,95 @@ func (s *PostgresStore) AddFact(ctx context.Context, sessionID, userID, subject,
 	return err
 }
 
+// Create stores a manual semantic chunk and returns its id.
+func (s *PostgresStore) Create(ctx context.Context, sessionID, userID, source, content string) (int64, error) {
+	content = strings.TrimSpace(content)
+	source = strings.TrimSpace(source)
+	if content == "" {
+		return 0, fmt.Errorf("content required")
+	}
+	if source == "" {
+		source = "manual"
+	}
+	if s == nil || s.db == nil {
+		return 0, fmt.Errorf("semantic store not configured")
+	}
+	ctx = contextOrBackground(ctx)
+	var vec any
+	if s.embedder != nil {
+		if emb, err := s.embedder.Embed(ctx, content); err == nil && len(emb) > 0 {
+			vec = vectorLiteral(emb)
+		}
+	}
+	var id int64
+	var err error
+	if vec != nil {
+		err = s.db.QueryRowContext(ctx, `
+            INSERT INTO agent_memory_chunks (session_id, user_id, source, content, embedding, created_at)
+            VALUES ($1,$2,$3,$4,$5::vector,NOW()) RETURNING id`,
+			sessionID, userID, source, content, vec).Scan(&id)
+	} else {
+		err = s.db.QueryRowContext(ctx, `
+            INSERT INTO agent_memory_chunks (session_id, user_id, source, content, created_at)
+            VALUES ($1,$2,$3,$4,NOW()) RETURNING id`,
+			sessionID, userID, source, content).Scan(&id)
+	}
+	return id, err
+}
+
+// GetByID returns one chunk row.
+func (s *PostgresStore) GetByID(ctx context.Context, id int64) (*Chunk, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("semantic store not configured")
+	}
+	var c Chunk
+	err := s.db.QueryRowContext(ctx, `
+        SELECT id, session_id, user_id, source, content, created_at
+        FROM agent_memory_chunks WHERE id=$1`, id).Scan(
+		&c.ID, &c.SessionID, &c.UserID, &c.Source, &c.Content, &c.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
+// UpdateContent replaces chunk text (clears embedding for simplicity).
+func (s *PostgresStore) UpdateContent(ctx context.Context, id int64, content string) error {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return fmt.Errorf("content required")
+	}
+	if s == nil || s.db == nil {
+		return fmt.Errorf("semantic store not configured")
+	}
+	res, err := s.db.ExecContext(ctx, `
+        UPDATE agent_memory_chunks SET content=$2, embedding=NULL WHERE id=$1`, id, content)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// Delete removes a chunk row.
+func (s *PostgresStore) Delete(ctx context.Context, id int64) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("semantic store not configured")
+	}
+	res, err := s.db.ExecContext(ctx, `DELETE FROM agent_memory_chunks WHERE id=$1`, id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 // List returns recent chunks.
 func (s *PostgresStore) List(ctx context.Context, limit int) ([]Chunk, error) {
 	if limit <= 0 {

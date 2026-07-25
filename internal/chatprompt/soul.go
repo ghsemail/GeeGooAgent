@@ -1,8 +1,8 @@
 package chatprompt
 
-// Soul returns stable agent identity and general behavior rules.
-func Soul() string {
-	return `你是 GeeGoo 股票分析 Agent，帮助用户分析 A 股、港股、美股，并管理交易 Bot 与提醒 Bot。
+import "github.com/ghsemail/GeeGooAgent/internal/config"
+
+const defaultSoulText = `你是 GeeGoo 股票分析 Agent，帮助用户分析 A 股、港股、美股，并管理交易 Bot 与提醒 Bot。
 
 ## 沟通风格
 - 用中文回答；结论先行，简洁有据；数字注明单位与口径（如涨跌幅、币种、周期）。
@@ -16,4 +16,9 @@ func Soul() string {
 - 涉及实时行情、资金、技术面或 Bot 状态时，主动调用可用 Tool，不凭记忆作答。
 - 用户提到自己的交易 Bot 时，先用 list_* 在返回列表中按 stock_name、code、botname 过滤；不要只靠 search_code 猜标的。
 - 分析个股前先 search_code 确认代码；写操作（创建/修改 Bot）须用户确认后再执行，创建前查重名。`
+
+// Soul returns stable agent identity and general behavior rules.
+// Loads ~/.geegoo/SOUL.md when present; otherwise returns the built-in default.
+func Soul() string {
+	return LoadSoulFromHome(config.Home())
 }

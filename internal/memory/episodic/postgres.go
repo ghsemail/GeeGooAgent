@@ -30,21 +30,90 @@ func NewPostgresStore(db *sql.DB) *PostgresStore {
 
 // Add stores a new episode.
 func (s *PostgresStore) Add(ctx context.Context, sessionID, userID, summary string, happenedAt time.Time) error {
+	if strings.TrimSpace(summary) == "" {
+		return nil
+	}
+	_, err := s.Create(ctx, sessionID, userID, summary, happenedAt)
+	return err
+}
+
+// Create stores a new episode and returns its id.
+func (s *PostgresStore) Create(ctx context.Context, sessionID, userID, summary string, happenedAt time.Time) (int64, error) {
+	if s == nil || s.db == nil {
+		return 0, fmt.Errorf("episodic store not configured")
+	}
+	summary = strings.TrimSpace(summary)
+	if summary == "" {
+		return 0, fmt.Errorf("summary required")
+	}
+	if happenedAt.IsZero() {
+		happenedAt = time.Now().UTC()
+	}
+	var id int64
+	err := s.db.QueryRowContext(ctx, `
+        INSERT INTO agent_episodes (session_id, user_id, happened_at, summary, created_at)
+        VALUES ($1,$2,$3,$4,NOW()) RETURNING id`,
+		sessionID, userID, happenedAt.Format("2006-01-02"), summary).Scan(&id)
+	return id, err
+}
+
+// GetByID returns one episode row.
+func (s *PostgresStore) GetByID(ctx context.Context, id int64) (*Episode, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("episodic store not configured")
+	}
+	var e Episode
+	var happenedAt time.Time
+	err := s.db.QueryRowContext(ctx, `
+        SELECT id, session_id, user_id, happened_at, summary, created_at
+        FROM agent_episodes WHERE id=$1`, id).Scan(
+		&e.ID, &e.SessionID, &e.UserID, &happenedAt, &e.Summary, &e.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	e.HappenedAt = happenedAt
+	return &e, nil
+}
+
+// Update replaces summary and happened_at for an episode.
+func (s *PostgresStore) Update(ctx context.Context, id int64, summary string, happenedAt time.Time) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("episodic store not configured")
 	}
 	summary = strings.TrimSpace(summary)
 	if summary == "" {
-		return nil
+		return fmt.Errorf("summary required")
 	}
 	if happenedAt.IsZero() {
 		happenedAt = time.Now().UTC()
 	}
-	_, err := s.db.ExecContext(ctx, `
-        INSERT INTO agent_episodes (session_id, user_id, happened_at, summary, created_at)
-        VALUES ($1,$2,$3,$4,NOW())`,
-		sessionID, userID, happenedAt.Format("2006-01-02"), summary)
-	return err
+	res, err := s.db.ExecContext(ctx, `
+        UPDATE agent_episodes SET summary=$2, happened_at=$3 WHERE id=$1`,
+		id, summary, happenedAt.Format("2006-01-02"))
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// Delete removes an episode row.
+func (s *PostgresStore) Delete(ctx context.Context, id int64) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("episodic store not configured")
+	}
+	res, err := s.db.ExecContext(ctx, `DELETE FROM agent_episodes WHERE id=$1`, id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 // SearchEpisodes finds episodes matching query text, scoped by user.
