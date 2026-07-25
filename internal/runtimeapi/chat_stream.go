@@ -68,7 +68,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "message required")
 		return
 	}
-	if !requireUserMCPTokenForChat(w, r, req.MCPToken) {
+	if !requireMCPTokenForChat(w, r, req.MCPToken, h.configMCPToken()) {
 		return
 	}
 
@@ -113,7 +113,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 
 	chat.SyncChatSystemPrompt()
 	rtSession := agent.RuntimeSessionFromChat(chat)
-	mcpToken := resolveInteractiveMCPToken(r, req.MCPToken)
+	mcpToken := resolveChatMCPToken(r, req.MCPToken, h.configMCPToken())
 	toolCtx := h.App.ToolContextWithContext(r.Context(), chat.ID)
 	toolCtx.UserID = resolveUserID(r)
 	toolCtx.MCPToken = mcpToken

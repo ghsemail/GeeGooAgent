@@ -15,17 +15,28 @@ func userProvidedMCPToken(r *http.Request, bodyToken string) string {
 	return strings.TrimSpace(bodyToken)
 }
 
-// requireUserMCPTokenForChat rejects interactive HTTP chat when the caller did not supply a user MCP token.
-// Config-file fallback must not be used for web/BFF traffic — each operator needs their own token.
-func requireUserMCPTokenForChat(w http.ResponseWriter, r *http.Request, bodyToken string) bool {
-	if userProvidedMCPToken(r, bodyToken) != "" {
+// resolveChatMCPToken prefers agent-runtime config mcp_token (trading user identity
+// for MCP tools) over caller-supplied tokens. Ops portals may send an admin
+// mcp_token for BFF auth; tool calls must still use the runtime config token.
+func resolveChatMCPToken(r *http.Request, bodyToken, configToken string) string {
+	if v := strings.TrimSpace(configToken); v != "" {
+		return v
+	}
+	return userProvidedMCPToken(r, bodyToken)
+}
+
+// requireMCPTokenForChat allows chat when runtime config or the caller supplies a token.
+func requireMCPTokenForChat(w http.ResponseWriter, r *http.Request, bodyToken, configToken string) bool {
+	if resolveChatMCPToken(r, bodyToken, configToken) != "" {
 		return true
 	}
-	writeError(w, http.StatusUnauthorized, "missing mcp_token: generate one in profile center")
+	writeError(w, http.StatusUnauthorized, "missing mcp_token: set mcp_token in agent-runtime config")
 	return false
 }
 
-// resolveInteractiveMCPToken returns only caller-supplied tokens (header/body), never config fallback.
-func resolveInteractiveMCPToken(r *http.Request, bodyToken string) string {
-	return userProvidedMCPToken(r, bodyToken)
+func (h *Handler) configMCPToken() string {
+	if h == nil || h.App == nil || h.App.Config == nil {
+		return ""
+	}
+	return h.App.Config.MCPToken()
 }

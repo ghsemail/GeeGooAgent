@@ -111,11 +111,11 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "messages required")
 		return
 	}
-	if !requireUserMCPTokenForChat(w, r, req.MCPToken) {
+	if !requireMCPTokenForChat(w, r, req.MCPToken, h.configMCPToken()) {
 		return
 	}
 
-	mcpToken := resolveInteractiveMCPToken(r, req.MCPToken)
+	mcpToken := resolveChatMCPToken(r, req.MCPToken, h.configMCPToken())
 	userID := resolveUserIDWithFallback(r, req.UserID)
 	sessionID := "api-" + time.Now().Format("150405")
 	ctx := h.App.ToolContext(sessionID)

@@ -143,6 +143,23 @@ func TestChatStreamRequiresMCPToken(t *testing.T) {
 	}
 }
 
+func TestChatStreamUsesConfigMCPTokenWithoutCallerToken(t *testing.T) {
+	application := testChatStreamApp(t)
+	application.Config.UserMCPToken = "config-trading-token"
+	handler := testProtectedHandler(t, application)
+
+	payload := map[string]string{"message": "hello"}
+	raw, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/stream", bytes.NewReader(raw))
+	req.Header.Set("Authorization", "Bearer test-runtime-key")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestChatStreamRequiresMCPTokenWhenUserScoped(t *testing.T) {
 	application := testChatStreamApp(t)
 	handler := testProtectedHandler(t, application)

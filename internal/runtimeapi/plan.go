@@ -61,7 +61,7 @@ func (h *Handler) chatPlan(w http.ResponseWriter, r *http.Request) {
 	if !enforceSessionAccess(w, chat, resolveUserID(r)) {
 		return
 	}
-	if !requireUserMCPTokenForChat(w, r, "") {
+	if !requireMCPTokenForChat(w, r, "", h.configMCPToken()) {
 		return
 	}
 	if _, _, ok := chat.HeldPlanFromMetadata(); !ok {
@@ -74,7 +74,7 @@ func (h *Handler) chatPlan(w http.ResponseWriter, r *http.Request) {
 
 	rtSession := agent.RuntimeSessionFromChat(chat)
 	toolCtx := h.App.ToolContextWithContext(r.Context(), chat.ID)
-	toolCtx.MCPToken = resolveInteractiveMCPToken(r, "")
+	toolCtx.MCPToken = resolveChatMCPToken(r, "", h.configMCPToken())
 	toolCtx.Interactive = true
 	if approveWrites(r) {
 		toolCtx.Approved = true
