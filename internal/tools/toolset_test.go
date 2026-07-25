@@ -49,11 +49,25 @@ func TestNormalizeToolsetIDs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ids) != 2 || ids[0] != "market" || ids[1] != "bot_manager" {
+	if len(ids) != 3 || ids[0] != "market" || ids[1] != "trading_bot" || ids[2] != "hedge_bot" {
 		t.Fatalf("got %#v", ids)
 	}
 	if _, err := tools.NormalizeToolsetIDs([]string{"nope"}); err == nil {
 		t.Fatal("expected unknown toolset error")
+	}
+}
+
+func TestNormalizeToolsetIDsTradingBotOnly(t *testing.T) {
+	t.Parallel()
+	ids, err := tools.NormalizeToolsetIDs([]string{"trading_bot"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := tools.ChatToolNamesForToolsets(ids)
+	for _, name := range names {
+		if strings.Contains(name, "hdg") {
+			t.Fatalf("hedge tool %s should not appear in trading_bot only", name)
+		}
 	}
 }
 
@@ -114,7 +128,7 @@ func TestReportWorkflowToolsetIncludesPostMarketIdempotency(t *testing.T) {
 func TestToolsetCountsMatchDocumentation(t *testing.T) {
 	t.Parallel()
 	want := map[string]int{
-		"market": 24, "strategy": 3, "bot_manager": 20, "reminder_manager": 15,
+		"market": 24, "strategy": 3, "trading_bot": 15, "hedge_bot": 5, "reminder_manager": 15,
 		"report_query": 13, "report_workflow": 8, "prompt_template": 6,
 	}
 	union := map[string]struct{}{}

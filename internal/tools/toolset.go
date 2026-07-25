@@ -43,12 +43,25 @@ func newToolset(id, label, desc string, chatDefault bool, names map[string]struc
 	}
 }
 
+// legacyToolsetAliases maps deprecated toolset ids to their replacements.
+var legacyToolsetAliases = map[string][]string{
+	"bot_manager": {"trading_bot", "hedge_bot"},
+}
+
+func expandToolsetAlias(id string) []string {
+	if ids, ok := legacyToolsetAliases[id]; ok {
+		return append([]string(nil), ids...)
+	}
+	return []string{id}
+}
+
 // builtinToolsets is the canonical catalog. Order is display order.
 var builtinToolsets = []Toolset{
 	newToolset("market", "行情与分析", "行情、新闻、检索与 MCP 分析", true, marketTools),
 	newToolset("strategy", "策略生成与回测", "网格/DCA 策略生成与回测", true, strategyTools),
-	newToolset("bot_manager", "交易 Bot", "DCA/GRID/SmartTrade/HDG 读写", true, botManagerTools),
-	newToolset("reminder_manager", "提醒 Bot", "DCA/GRID/Smart 提醒读写", true, reminderManagerTools),
+	newToolset("trading_bot", "交易机器人", "DCA/GRID/SmartTrade 读写", true, tradingBotTools),
+	newToolset("hedge_bot", "对冲机器人", "HDG 对冲机器人读写", true, hedgeBotTools),
+	newToolset("reminder_manager", "提醒机器人", "DCA/GRID/Smart 提醒读写", true, reminderManagerTools),
 	newToolset("report_query", "报告查询", "读盘前/盘中/盘后报告", true, reportQueryTools),
 	newToolset("report_workflow", "报告 Workflow", "盘前/盘后自动化写报告（默认不进 chat）", false, reportWorkflowTools),
 	newToolset("prompt_template", "Prompt 模板", "竞品/ETF 分析模板 CRUD（高级，默认不进 chat）", false, promptTemplateTools),
@@ -92,14 +105,22 @@ func AllToolsets() []Toolset {
 }
 
 // ToolsetByID looks up a toolset by id (case-insensitive).
+// Legacy id bot_manager returns the merged trading + hedge toolset.
 func ToolsetByID(id string) (Toolset, bool) {
 	want := strings.ToLower(strings.TrimSpace(id))
+	if want == "bot_manager" {
+		return mergedLegacyToolset("bot_manager", "交易机器人（兼容）", "DCA/GRID/SmartTrade/HDG 读写", true, botManagerTools), true
+	}
 	for _, ts := range builtinToolsets {
 		if ts.ID == want {
 			return ts, true
 		}
 	}
 	return Toolset{}, false
+}
+
+func mergedLegacyToolset(id, label, desc string, chatDefault bool, names map[string]struct{}) Toolset {
+	return newToolset(id, label, desc, chatDefault, names)
 }
 
 // DefaultChatToolsetIDs returns ids with ChatDefault=true.
@@ -126,14 +147,16 @@ func NormalizeToolsetIDs(ids []string) ([]string, error) {
 		if id == "" || id == "all" || id == "default" {
 			continue
 		}
-		if _, ok := ToolsetByID(id); !ok {
-			return nil, fmt.Errorf("unknown toolset: %s (use /toolsets)", raw)
+		for _, expanded := range expandToolsetAlias(id) {
+			if _, ok := ToolsetByID(expanded); !ok {
+				return nil, fmt.Errorf("unknown toolset: %s (use /toolsets)", raw)
+			}
+			if _, dup := seen[expanded]; dup {
+				continue
+			}
+			seen[expanded] = struct{}{}
+			out = append(out, expanded)
 		}
-		if _, dup := seen[id]; dup {
-			continue
-		}
-		seen[id] = struct{}{}
-		out = append(out, id)
 	}
 	if len(out) == 0 {
 		return DefaultChatToolsetIDs(), nil
@@ -212,6 +235,6 @@ func FormatToolsetsListing(active []string) string {
 			mark, ts.ID, chat, ts.Label, len(ts.names)))
 	}
 	lines = append(lines, "")
-	lines = append(lines, "切换: /toolsets market,bot_manager  或  /toolsets default")
+	lines = append(lines, "切换: /toolsets market,trading_bot  或  /toolsets default（bot_manager 兼容旧配置）")
 	return strings.Join(lines, "\n")
 }

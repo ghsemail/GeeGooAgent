@@ -16,7 +16,7 @@ func TestBuildCatalogGroupsBotTools(t *testing.T) {
 	if found == nil {
 		t.Fatal("list_smart_trades missing from catalog")
 	}
-	if found.Domain != string(DomainBotManager) {
+	if found.Domain != string(DomainTradingBot) {
 		t.Fatalf("domain=%s", found.Domain)
 	}
 	if found.DomainShortLabel == "" {

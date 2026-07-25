@@ -29,12 +29,16 @@ func reportCRUD(slug string, withCreate bool) []string {
 }
 
 var (
-	botManagerTools = union(
+	tradingBotTools = union(
 		botCRUD("dca_bot"),
 		botCRUD("grid_bot"),
 		botCRUD("smart_trade"),
+	)
+	hedgeBotTools = union(
 		botCRUD("hdg_bot"),
 	)
+	// botManagerTools is the legacy union (bot_manager alias).
+	botManagerTools = mergeSets(tradingBotTools, hedgeBotTools)
 	reminderManagerTools = union(
 		botCRUD("dca_reminder"),
 		botCRUD("grid_reminder"),
@@ -107,6 +111,16 @@ func union(slices ...[]string) map[string]struct{} {
 	return out
 }
 
+func mergeSets(sets ...map[string]struct{}) map[string]struct{} {
+	out := map[string]struct{}{}
+	for _, set := range sets {
+		for name := range set {
+			out[name] = struct{}{}
+		}
+	}
+	return out
+}
+
 // ChatToolNames are on-demand tools for geegoo chat (default chat toolsets).
 var ChatToolNames = ChatToolNamesForToolsets(nil)
 
@@ -116,7 +130,8 @@ type ToolDomain string
 const (
 	DomainReportWorkflow  ToolDomain = "report_workflow"
 	DomainReportQuery     ToolDomain = "report_query"
-	DomainBotManager      ToolDomain = "bot_manager"
+	DomainTradingBot      ToolDomain = "trading_bot"
+	DomainHedgeBot        ToolDomain = "hedge_bot"
 	DomainReminderManager ToolDomain = "reminder_manager"
 	DomainMarket          ToolDomain = "market"
 	DomainStrategy        ToolDomain = "strategy"
@@ -127,8 +142,9 @@ const (
 var domainShortLabels = map[ToolDomain]string{
 	DomainMarket:          "行情与分析",
 	DomainStrategy:        "策略生成与回测",
-	DomainBotManager:      "交易 Bot",
-	DomainReminderManager: "提醒 Bot",
+	DomainTradingBot:      "交易机器人",
+	DomainHedgeBot:        "对冲机器人",
+	DomainReminderManager: "提醒机器人",
 	DomainReportQuery:     "报告查询",
 	DomainReportWorkflow:  "报告 Workflow",
 	DomainPromptTemplate:  "Prompt 模板",
@@ -138,8 +154,9 @@ var domainShortLabels = map[ToolDomain]string{
 var domainDescriptions = map[ToolDomain]string{
 	DomainReportWorkflow:  "盘前/盘中/盘后自动化写报告（勿用于查 Bot 列表）",
 	DomainReportQuery:     "读盘前/盘中/盘后报告",
-	DomainBotManager:      "DCA/GRID/SmartTrade/HDG 读写",
-	DomainReminderManager: "DCA/GRID/Smart 提醒读写",
+	DomainTradingBot:      "DCA / GRID / SmartTrade 读写",
+	DomainHedgeBot:        "HDG 对冲机器人读写",
+	DomainReminderManager: "DCA / GRID / Smart 提醒读写",
 	DomainMarket:          "行情、新闻、检索与 MCP 分析",
 	DomainStrategy:        "网格/DCA 策略生成与回测",
 	DomainPromptTemplate:  "竞品/ETF 分析模板 CRUD",
@@ -150,8 +167,9 @@ var domainDescriptions = map[ToolDomain]string{
 var domainLabels = map[ToolDomain]string{
 	DomainReportWorkflow:  "报告 Workflow（盘前/盘中/盘后自动化，勿用于查 Bot 列表）",
 	DomainReportQuery:     "报告查询（读盘前/盘中/盘后报告）",
-	DomainBotManager:      "交易 Bot（DCA/GRID/SmartTrade/HDG）",
-	DomainReminderManager: "提醒 Bot（DCA/GRID/Smart 提醒）",
+	DomainTradingBot:      "交易机器人（DCA/GRID/SmartTrade）",
+	DomainHedgeBot:        "对冲机器人（HDG）",
+	DomainReminderManager: "提醒机器人（DCA/GRID/Smart 提醒）",
 	DomainMarket:          "行情与分析",
 	DomainStrategy:        "策略生成与回测",
 	DomainPromptTemplate:  "Prompt 模板",
@@ -159,7 +177,7 @@ var domainLabels = map[ToolDomain]string{
 }
 
 var domainOrderKeys = []ToolDomain{
-	DomainMarket, DomainStrategy, DomainBotManager, DomainReminderManager,
+	DomainMarket, DomainStrategy, DomainTradingBot, DomainHedgeBot, DomainReminderManager,
 	DomainReportQuery, DomainReportWorkflow, DomainPromptTemplate, DomainMeta,
 }
 
@@ -262,8 +280,10 @@ func toolDomain(name string) ToolDomain {
 		return DomainReportWorkflow
 	case inSet(name, reportQueryTools):
 		return DomainReportQuery
-	case inSet(name, botManagerTools):
-		return DomainBotManager
+	case inSet(name, tradingBotTools):
+		return DomainTradingBot
+	case inSet(name, hedgeBotTools):
+		return DomainHedgeBot
 	case inSet(name, reminderManagerTools):
 		return DomainReminderManager
 	case inSet(name, promptTemplateTools):
@@ -286,7 +306,7 @@ func FormatToolsListing(names []string, descriptions map[string]string) string {
 		grouped[domain] = append(grouped[domain], name)
 	}
 	order := []ToolDomain{
-		DomainMarket, DomainStrategy, DomainBotManager, DomainReminderManager,
+		DomainMarket, DomainStrategy, DomainTradingBot, DomainHedgeBot, DomainReminderManager,
 		DomainReportQuery, DomainReportWorkflow, DomainPromptTemplate, DomainMeta,
 	}
 	var lines []string
