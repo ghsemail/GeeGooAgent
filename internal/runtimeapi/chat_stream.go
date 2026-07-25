@@ -146,7 +146,13 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 				userID = v
 			}
 		}
-		_ = h.App.Semantic.UpsertSummary(r.Context(), chat.ID, userID, chat.Summary)
+		if err := h.App.Semantic.UpsertSummary(r.Context(), chat.ID, userID, chat.Summary); err == nil {
+			writeSessionSSE(w, flusher, "consolidation", map[string]any{
+				"session_id":    chat.ID,
+				"summary_chars": len(strings.TrimSpace(chat.Summary)),
+				"stored":        true,
+			})
+		}
 	}
 	if live != nil {
 		live.EndTurn()

@@ -11,11 +11,11 @@ Agent 的记忆系统：会话历史、工作进度、证据链、上下文压�
 
 | 层 | 生命周期 | Go 实现 | 状态 |
 |----|----------|---------|------|
-| **SessionMemory** | 单次 chat turn / workflow run | `chatsession` messages | ✅ SQLite |
+| **SessionMemory** | 单次 chat turn / workflow run | `chatsession` messages | ✅ PostgreSQL / SQLite |
 | **WorkingMemory** | 单次 workflow，结构化 | `memory/working.go` | ✅ |
 | **Evidence** | 可审计工具结果 | `memory/evidence.go` | ✅ SQLite |
-| **Episodic** | 跨日摘要 | 本地 md + jsonl（规划） | ⚠️ stub |
-| **Semantic** | 向量相似检索 | — | ❌ 见 [backlog.md](../../backlog.md) |
+| **Episodic** | 跨会话摘要（Dashboard episodes） | `chat_sessions.summary` + Gate FTS | ✅ |
+| **Semantic** | 向量相似检索 | `memory/semantic` pgvector | ✅ kinfra 2560-dim |
 
 ## 模块索引
 
@@ -25,7 +25,7 @@ Agent 的记忆系统：会话历史、工作进度、证据链、上下文压�
 | [working-memory.md](./working-memory.md) | 盘前进度、幂等键 | `memory/working.go` |
 | [compaction.md](./compaction.md) | **Hermes 风格压缩** | `prompt/compressor.go` |
 | [episodic-memory.md](./episodic-memory.md) | 昨日摘要 | `recall_yesterday_summary` stub |
-| [semantic-memory.md](./semantic-memory.md) | 向量检索 | 未实现 |
+| [semantic-memory.md](./semantic-memory.md) | 向量检索 + Gate hybrid | `memory/semantic/postgres.go` |
 
 ## SQLite Schema（L0 地基）
 

@@ -107,8 +107,13 @@ func (l *Loop) injectGateMemory(session *runtime.Session, block, source string) 
 		return
 	}
 	label := "local FTS"
-	if source == "vector" {
+	switch source {
+	case "vector":
 		label = "semantic vector search"
+	case "hybrid":
+		label = "FTS + semantic vector (hybrid)"
+	case "fts":
+		label = "local FTS"
 	}
 	mem := llm.Message{
 		Role: llm.RoleSystem,
@@ -147,7 +152,7 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 					source = v
 				}
 			}
-			l.emitStatus("gate", fmt.Sprintf("检索到 %d 条相关历史会话", len(res.Hits)))
+			l.emitStatus("gate", fmt.Sprintf("检索到 %d 条相关历史会话（%s）", len(res.Hits), source))
 			if block := formatGateMemory(res.Hits); block != "" {
 				l.injectGateMemory(session, block, source)
 			}
@@ -155,6 +160,13 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 			if decision.Reason == "" {
 				decision.Reason = fmt.Sprintf("matched %d past session(s) via %s", len(res.Hits), source)
 			}
+			l.emit("gate", map[string]any{
+				"decision":       decision.Decision,
+				"reason":         decision.Reason,
+				"hits":           decision.Hits,
+				"recall_source":  source,
+			})
+			return
 		}
 	}
 	if decision.Decision == "skip" {

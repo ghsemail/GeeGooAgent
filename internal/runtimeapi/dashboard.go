@@ -74,6 +74,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 	turns := []map[string]any{}
 	chatLog := []map[string]any{}
 	facts := []map[string]any{}
+	episodes := []map[string]any{}
 	currentSession := ""
 
 	store, _ := h.safeSessionStore()
@@ -116,6 +117,13 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 					"messages": e.MessageCount, "steps": e.StepCount, "status": e.Status,
 					"sources": sources, "last": lastMsg, "last_at": e.UpdatedAt.Format(time.RFC3339),
 				})
+				if summary := strings.TrimSpace(e.Summary); summary != "" {
+					episodes = append(episodes, map[string]any{
+						"session_id": e.ID, "title": firstNonEmpty(e.Title, e.ID),
+						"summary": summary, "updated_at": e.UpdatedAt.Format(time.RFC3339),
+						"message_count": e.MessageCount,
+					})
+				}
 			}
 		}
 	}
@@ -195,9 +203,10 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 
 	if h.App != nil && h.App.Semantic != nil {
 		if chunks, err := h.App.Semantic.List(r.Context(), 80); err == nil {
-			for i, c := range chunks {
+			for _, c := range chunks {
 				facts = append(facts, map[string]any{
-					"id": i + 1, "subject": c.Source, "content": c.Content, "source": c.Source,
+					"id": c.ID, "subject": c.SessionID, "content": c.Content,
+					"source": c.Source, "user_id": c.UserID,
 				})
 			}
 		}
@@ -226,7 +235,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		"generated_at": now.Format(time.RFC3339), "provider": provider, "model": model,
 		"small_model": model, "home": home, "current_session": currentSession, "stats": stats,
 		"sessions": sessionsOut, "turns": turns, "chat_log": chatLog, "facts": facts,
-		"episodes": []map[string]any{}, "skills": skillsOut,
+		"episodes": episodes, "skills": skillsOut,
 		"calendar": []map[string]any{}, "outbox": []map[string]any{}, "soul": "",
 		"consolidate_every": 4, "chat_pending": 0, "tools": toolsPayload,
 		"db": h.buildDBMeta(), "doctor_ok": doctorOK, "doctor_checks": doctorChecks,

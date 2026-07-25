@@ -162,7 +162,7 @@ func (l *Loop) applyToolRound(
 
 	if len(readonly) > 0 {
 		readonlyResults := l.executeToolCalls(ctx, readonly, toolCtx, step)
-		appendToolResults(session, messages, readonly, readonlyResults, step, records)
+		l.appendToolResults(ctx, session, messages, readonly, readonlyResults, step, records)
 	}
 
 	if shouldHoldPlan(policy, planGate, toolCtx, mutating) {
@@ -186,7 +186,7 @@ func (l *Loop) applyToolRound(
 			execCtx.Approved = true
 		}
 		mutResults := l.executeToolCalls(ctx, mutating, execCtx, step)
-		appendToolResults(session, messages, mutating, mutResults, step, records)
+		l.appendToolResults(ctx, session, messages, mutating, mutResults, step, records)
 	}
 	return runtime.TurnResult{}
 }

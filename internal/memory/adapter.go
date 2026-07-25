@@ -109,14 +109,14 @@ func (a *Adapter) recallSessions(ctx context.Context, q memport.RecallQuery) (me
 			return memport.RecallResult{}, err
 		}
 	}
-	source := "fts"
-	if len(hits) == 0 && a.semantic != nil {
-		chunks, vErr := a.semantic.RecallChunks(ctx, q.Query, q.UserID, q.ExcludeSessionID, limit)
-		if vErr == nil && len(chunks) > 0 {
-			source = "vector"
-			hits = semanticChunksToSessionHits(chunks)
+	ftsHits := append([]chatsession.SessionRecallHit(nil), hits...)
+	var vectorHits []chatsession.SessionRecallHit
+	if a.semantic != nil {
+		if chunks, vErr := a.semantic.RecallChunks(ctx, q.Query, q.UserID, q.ExcludeSessionID, limit); vErr == nil && len(chunks) > 0 {
+			vectorHits = semanticChunksToSessionHits(chunks)
 		}
 	}
+	hits, source := mergeRecallHits(ftsHits, vectorHits, limit)
 	out := memport.RecallResult{
 		Hits: make([]memport.RecallHit, 0, len(hits)),
 		Data: chatsession.HitsToData(hits),

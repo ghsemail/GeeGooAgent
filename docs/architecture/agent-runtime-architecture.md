@@ -154,9 +154,9 @@ Loop（控制平面）
 | 概念 | 实现 |
 |------|------|
 | **Session SSOT** | `chatsession` + SQLite：消息、pending plan、tool 轨迹 |
-| **Memory port** | `memport.Port`：`Recall` / `Store` / `Compress` |
-| **Adapter** | `memory.Adapter` 委托 Compressor、SessionStore、EvidenceStore |
-| **向量 / 语义索引** | 未做 → [backlog.md](./backlog.md) |
+| **Memory port** | `memport.Port`：`Recall`（FTS+vector hybrid）/ `Store` / `Compress` |
+| **Adapter** | `memory.Adapter` 委托 Compressor、SessionStore、SemanticStore、EvidenceStore |
+| **向量 / 语义索引** | `agent_memory_chunks` + `config.embedding`；Gate FTS+vector hybrid |
 
 ---
 

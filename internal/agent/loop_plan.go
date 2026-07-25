@@ -31,22 +31,7 @@ func (l *Loop) resumePendingPlan(
 	l.emit("plan_confirmed", map[string]any{"tools": mutatingToolNamesFromCalls(plan.ToolCalls)})
 
 	results := l.executeToolCalls(ctx, plan.ToolCalls, toolCtx, plan.Step)
-	for i, call := range plan.ToolCalls {
-		result := results[i]
-		summary := result.Summary
-		if len(summary) > 300 {
-			summary = summary[:300]
-		}
-		*records = append(*records, runtime.StepRecord{
-			Step: plan.Step, Timestamp: time.Now().UTC(), Kind: "tool",
-			ToolName: call.Name, ToolStatus: string(result.Status), Summary: summary,
-		})
-		toolMsg := llm.Message{
-			Role: llm.RoleTool, Content: toolResultContent(result), ToolCallID: call.ID,
-		}
-		session.AppendMessage(toolMsg)
-		*messages = append(*messages, toolMsg)
-	}
+	l.appendToolResults(ctx, session, messages, plan.ToolCalls, results, plan.Step, records)
 
 	for round := 0; round < l.maxToolRounds; round++ {
 		if err := ctx.Err(); err != nil {
@@ -80,7 +65,8 @@ func (l *Loop) cancelPendingPlan(session *runtime.Session) runtime.TurnResult {
 	return runtime.TurnResult{AssistantText: "已取消计划中的写操作。", PlanPending: false}
 }
 
-func appendToolResults(
+func (l *Loop) appendToolResults(
+	ctx context.Context,
 	session *runtime.Session,
 	messages *[]llm.Message,
 	calls []llm.ToolCall,
@@ -90,6 +76,7 @@ func appendToolResults(
 ) {
 	for i, call := range calls {
 		result := results[i]
+		l.recordChatEvidence(ctx, session, call, result)
 		summary := result.Summary
 		if len(summary) > 300 {
 			summary = summary[:300]
