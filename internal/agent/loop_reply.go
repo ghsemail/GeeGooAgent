@@ -100,19 +100,43 @@ func emptyReplyMessage(resp *llm.Response, records []runtime.StepRecord) string 
 }
 
 func readableAssistantText(content, reasoning string) string {
-	if text := stripProviderNoise(content); text != "" {
+	visible, _ := splitInlineThinking(content)
+	if text := stripProviderNoise(visible); text != "" {
 		return text
 	}
 	return stripProviderNoise(reasoning)
 }
 
-var sidTokenRE = regexp.MustCompile(`(?i)\[SID=[^\]]+\]`)
+func splitInlineThinking(s string) (visible, extracted string) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", ""
+	}
+	var blocks []string
+	for _, m := range thinkBlockRE.FindAllStringSubmatch(s, -1) {
+		if len(m) > 1 {
+			if body := strings.TrimSpace(m[1]); body != "" {
+				blocks = append(blocks, body)
+			}
+		}
+	}
+	visible = strings.TrimSpace(thinkBlockRE.ReplaceAllString(s, ""))
+	return visible, strings.Join(blocks, "\n")
+}
+
+const thinkTagPattern = `(?:redacted_thinking|think)`
+
+var (
+	sidTokenRE   = regexp.MustCompile(`(?i)\[SID=[^\]]+\]`)
+	thinkBlockRE = regexp.MustCompile(`(?is)<` + thinkTagPattern + `>(.*?)</` + thinkTagPattern + `>`)
+)
 
 func stripProviderNoise(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return ""
 	}
+	s, _ = splitInlineThinking(s)
 	return strings.TrimSpace(sidTokenRE.ReplaceAllString(s, ""))
 }
 
