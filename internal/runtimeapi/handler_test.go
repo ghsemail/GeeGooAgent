@@ -58,7 +58,7 @@ func TestChatCompletionsWithMockLLM(t *testing.T) {
 	registry := tools.NewRegistry()
 	provider := &llm.MockProvider{
 		Responses: []*llm.Response{
-			{Content: "腾讯控股代码 00700.HK�?, Usage: llm.TokenUsage{Model: "mock"}},
+			{Content: "00700.HK", Usage: llm.TokenUsage{Model: "mock"}},
 		},
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
@@ -78,7 +78,7 @@ func TestChatCompletionsWithMockLLM(t *testing.T) {
 	payload := map[string]any{
 		"model": "geegoo-agent",
 		"messages": []map[string]string{
-			{"role": "user", "content": "查腾�?},
+			{"role": "user", "content": "00700.HK"},
 		},
 		"stream": false,
 	}
@@ -106,7 +106,7 @@ func TestChatCompletionsWithMockLLM(t *testing.T) {
 	if len(resp.Choices) == 0 || resp.Choices[0].Message.Content == "" {
 		t.Fatalf("empty response: %+v", resp)
 	}
-	if resp.Choices[0].Message.Content != "腾讯控股代码 00700.HK�? {
+	if resp.Choices[0].Message.Content != "00700.HK" {
 		t.Fatalf("content=%q", resp.Choices[0].Message.Content)
 	}
 }
@@ -116,7 +116,7 @@ func TestChatCompletionsStream(t *testing.T) {
 	provider := &llm.MockProvider{
 		Stream: true,
 		Responses: []*llm.Response{
-			{Content: "流式回复内容足够长以便分块�?, Usage: llm.TokenUsage{Model: "mock"}},
+			{Content: "stream-chunk-payload-ok", Usage: llm.TokenUsage{Model: "mock"}},
 		},
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
@@ -142,6 +142,7 @@ func TestChatCompletionsStream(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(raw))
 	req.Header.Set("Authorization", "Bearer test-runtime-key")
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-MCP-Token", "user-mcp-token")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -176,7 +177,7 @@ func TestChatCompletionsStream(t *testing.T) {
 			rebuilt.WriteString(chunk.Choices[0].Delta.Content)
 		}
 	}
-	if rebuilt.String() != "流式回复内容足够长以便分块�? {
+	if rebuilt.String() != "stream-chunk-payload-ok" {
 		t.Fatalf("rebuilt=%q body=%s", rebuilt.String(), body)
 	}
 }

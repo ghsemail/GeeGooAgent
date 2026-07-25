@@ -79,6 +79,7 @@ func TestPlanHTTPApproveResumesPersistedPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-MCP-Token", "user-mcp-token")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)

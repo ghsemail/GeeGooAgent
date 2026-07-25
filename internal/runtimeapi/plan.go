@@ -61,6 +61,9 @@ func (h *Handler) chatPlan(w http.ResponseWriter, r *http.Request) {
 	if !enforceSessionAccess(w, chat, resolveUserID(r)) {
 		return
 	}
+	if !requireUserMCPTokenForChat(w, r, "") {
+		return
+	}
 	if _, _, ok := chat.HeldPlanFromMetadata(); !ok {
 		writeError(w, http.StatusNotFound, "no pending plan for session")
 		return
@@ -71,7 +74,7 @@ func (h *Handler) chatPlan(w http.ResponseWriter, r *http.Request) {
 
 	rtSession := agent.RuntimeSessionFromChat(chat)
 	toolCtx := h.App.ToolContextWithContext(r.Context(), chat.ID)
-	toolCtx.MCPToken = resolveMCPToken(r, chatRequest{}, h.App.Config.MCPToken())
+	toolCtx.MCPToken = resolveInteractiveMCPToken(r, "")
 	toolCtx.Interactive = true
 	if approveWrites(r) {
 		toolCtx.Approved = true

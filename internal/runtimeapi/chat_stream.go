@@ -113,7 +113,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 
 	chat.SyncChatSystemPrompt()
 	rtSession := agent.RuntimeSessionFromChat(chat)
-	mcpToken := resolveMCPToken(r, chatRequest{MCPToken: req.MCPToken}, h.App.Config.MCPToken())
+	mcpToken := resolveInteractiveMCPToken(r, req.MCPToken)
 	toolCtx := h.App.ToolContextWithContext(r.Context(), chat.ID)
 	toolCtx.MCPToken = mcpToken
 	toolCtx.Interactive = true

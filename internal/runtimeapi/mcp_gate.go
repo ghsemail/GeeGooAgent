@@ -15,15 +15,17 @@ func userProvidedMCPToken(r *http.Request, bodyToken string) string {
 	return strings.TrimSpace(bodyToken)
 }
 
-// requireUserMCPTokenForChat rejects multi-tenant chat when the caller did not supply a user MCP token.
-// CLI / single-tenant calls without X-User-Id may still use config fallback via resolveMCPToken.
+// requireUserMCPTokenForChat rejects interactive HTTP chat when the caller did not supply a user MCP token.
+// Config-file fallback must not be used for web/BFF traffic — each operator needs their own token.
 func requireUserMCPTokenForChat(w http.ResponseWriter, r *http.Request, bodyToken string) bool {
-	if resolveUserID(r) == "" {
-		return true
-	}
 	if userProvidedMCPToken(r, bodyToken) != "" {
 		return true
 	}
 	writeError(w, http.StatusUnauthorized, "missing mcp_token: generate one in profile center")
 	return false
+}
+
+// resolveInteractiveMCPToken returns only caller-supplied tokens (header/body), never config fallback.
+func resolveInteractiveMCPToken(r *http.Request, bodyToken string) string {
+	return userProvidedMCPToken(r, bodyToken)
 }

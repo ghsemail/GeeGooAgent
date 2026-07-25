@@ -82,6 +82,7 @@ func TestClarifyHTTPE2E(t *testing.T) {
 			return
 		}
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-MCP-Token", "user-mcp-token")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Errorf("post chat: %v", err)
@@ -181,7 +182,13 @@ func TestClarifyHTTPNonStreamRequiresCallback(t *testing.T) {
 		"messages": []map[string]string{{"role": "user", "content": "hi"}},
 	}
 	body, _ := json.Marshal(payload)
-	resp, err := http.Post(srv.URL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/v1/chat/completions", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-MCP-Token", "user-mcp-token")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
