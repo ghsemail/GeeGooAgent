@@ -128,9 +128,44 @@ func PingPostgres(dsn string) error {
 	return conn.PingContext(ctx)
 }
 
-// ApplyMemorySchema enables pgvector tables (idempotent).
-func (p *PostgresDB) ApplyMemorySchema() error {
-	return p.execEmbedded("postgres_memory.sql")
+// ApplyMemorySchema enables pgvector tables (idempotent) and aligns vector dimension.
+func (p *PostgresDB) ApplyMemorySchema(dimensions int) error {
+	if dimensions <= 0 {
+		dimensions = 2560
+	}
+	if err := p.execEmbedded("postgres_memory.sql"); err != nil {
+		return err
+	}
+	return p.migrateEmbeddingDimension(dimensions)
+}
+
+func (p *PostgresDB) migrateEmbeddingDimension(dimensions int) error {
+	if p == nil || p.sql == nil || dimensions <= 0 {
+		return nil
+	}
+	var typ string
+	err := p.sql.QueryRowContext(context.Background(), `
+		SELECT format_type(a.atttypid, a.atttypmod)
+		FROM pg_attribute a
+		JOIN pg_class c ON c.oid = a.attrelid
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE n.nspname = 'public' AND c.relname = 'agent_memory_chunks'
+		  AND a.attname = 'embedding' AND NOT a.attisdropped`).Scan(&typ)
+	if err != nil {
+		return nil
+	}
+	want := fmt.Sprintf("vector(%d)", dimensions)
+	if typ == want {
+		return nil
+	}
+	_, err = p.sql.ExecContext(context.Background(), `
+		ALTER TABLE agent_memory_chunks DROP COLUMN IF EXISTS embedding`)
+	if err != nil {
+		return err
+	}
+	_, err = p.sql.ExecContext(context.Background(),
+		fmt.Sprintf(`ALTER TABLE agent_memory_chunks ADD COLUMN embedding vector(%d)`, dimensions))
+	return err
 }
 
 // MemorySchemaEnabled reports whether vector tables exist.

@@ -219,6 +219,11 @@ func (h *Handler) buildSettingsInfo(userID string) (map[string]any, error) {
 	}
 	catalogID = effective.CatalogModelID
 
+	embedding := config.ResolvedEmbedding{}
+	if h.App != nil && h.App.Config != nil {
+		embedding = h.App.Config.ResolvedEmbedding()
+	}
+
 	return map[string]any{
 		"provider": provider, "model": model,
 		"small_model": model,
@@ -226,6 +231,11 @@ func (h *Handler) buildSettingsInfo(userID string) (map[string]any, error) {
 		"thinking_supported": llm.ModelSupportsThinking(provName, model),
 		"temperature": temp, "max_tokens": maxTok,
 		"use_ops_model": useOps, "catalog_model_id": catalogID,
+		"embedding_provider": embedding.Provider,
+		"embedding_model": embedding.Model,
+		"embedding_base_url": embedding.BaseURL,
+		"embedding_dimensions": embedding.Dimensions,
+		"embedding_configured": embedding.Configured,
 		"pinned": pinned, "providers": providers, "catalog": catalog,
 	}, nil
 }

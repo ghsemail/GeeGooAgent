@@ -193,10 +193,14 @@ func (a *App) openPostgres() error {
 	}
 	a.PG = pg
 	if vectorEnabled() {
-		if err := pg.ApplyMemorySchema(); err != nil {
+		dim := config.DefaultEmbeddingDimensions
+		if a.Config != nil {
+			dim = a.Config.ResolvedEmbedding().Dimensions
+		}
+		if err := pg.ApplyMemorySchema(dim); err != nil {
 			fmt.Fprintf(os.Stderr, "警告: pgvector schema 未应用 (%v)\n", err)
 		} else {
-			a.Semantic = semantic.NewPostgresStore(pg.SQL())
+			a.Semantic = semantic.NewPostgresStore(pg.SQL(), a.Config)
 		}
 	}
 	return nil

@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
+
+	"github.com/ghsemail/GeeGooAgent/internal/config"
 )
 
 // Embedder produces dense vectors for semantic memory.
@@ -27,20 +28,30 @@ type OpenAIEmbedder struct {
 
 // NewOpenAIEmbedderFromEnv creates an embedder when OPENAI_API_KEY is set.
 func NewOpenAIEmbedderFromEnv() *OpenAIEmbedder {
-	key := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
-	if key == "" {
-		key = strings.TrimSpace(os.Getenv("GEEGOO_OPENAI_API_KEY"))
+	return NewEmbedderFromResolved((&config.AppConfig{}).ResolvedEmbedding())
+}
+
+// NewEmbedderFromConfig creates an embedder from app config (preferred over env-only).
+func NewEmbedderFromConfig(cfg *config.AppConfig) Embedder {
+	if cfg == nil {
+		return NewOpenAIEmbedderFromEnv()
 	}
+	return NewEmbedderFromResolved(cfg.ResolvedEmbedding())
+}
+
+// NewEmbedderFromResolved builds an OpenAI-compatible embedder.
+func NewEmbedderFromResolved(r config.ResolvedEmbedding) *OpenAIEmbedder {
+	key := strings.TrimSpace(r.TokenKey)
 	if key == "" {
 		return nil
 	}
-	base := strings.TrimRight(strings.TrimSpace(os.Getenv("OPENAI_BASE_URL")), "/")
+	base := strings.TrimRight(strings.TrimSpace(r.BaseURL), "/")
 	if base == "" {
-		base = "https://api.openai.com/v1"
+		base = config.DefaultEmbeddingBaseURL
 	}
-	model := strings.TrimSpace(os.Getenv("GEEGOO_EMBEDDING_MODEL"))
+	model := strings.TrimSpace(r.Model)
 	if model == "" {
-		model = "text-embedding-3-small"
+		model = config.DefaultEmbeddingModel
 	}
 	return &OpenAIEmbedder{
 		apiKey:     key,

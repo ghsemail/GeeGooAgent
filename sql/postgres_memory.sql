@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS agent_memory_chunks (
     user_id     TEXT NOT NULL DEFAULT '',
     source      TEXT NOT NULL DEFAULT 'session_summary',
     content     TEXT NOT NULL,
-    embedding   vector(1536),
+    embedding   vector(2560),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

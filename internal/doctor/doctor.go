@@ -107,6 +107,21 @@ func checkSecrets(cfg *config.AppConfig) []CheckResult {
 	results = append(results, secretCheck("geegoo mcp api_key (sk-)", mask(cfg.MCPAPIKey()), cfg.MCPAPIKey() != "" && cfg.MCPAPIKey() != "sk-REPLACE"))
 	results = append(results, secretCheck("mcp_token", cfg.MCPToken(), cfg.MCPToken() != ""))
 	results = append(results, secretCheck("llm.token_key", mask(cfg.LLM.TokenKey), cfg.LLM.TokenKey != ""))
+	emb := cfg.ResolvedEmbedding()
+	if emb.Configured {
+		results = append(results, secretCheck("embedding.token_key", mask(emb.TokenKey), true))
+		results = append(results, CheckResult{
+			Name:   "embedding.model",
+			OK:     emb.Model != "",
+			Detail: fmt.Sprintf("%s (%d-dim)", emb.Model, emb.Dimensions),
+		})
+	} else {
+		results = append(results, CheckResult{
+			Name:   "embedding.token_key",
+			OK:     true,
+			Detail: "optional — set embedding.token_key for pgvector semantic memory",
+		})
+	}
 	return results
 }
 

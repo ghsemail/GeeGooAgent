@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/ghsemail/GeeGooAgent/internal/config"
 )
 
 // Chunk is one semantic memory row for Cockpit / recall.
@@ -25,8 +27,8 @@ type PostgresStore struct {
 }
 
 // NewPostgresStore creates a semantic store over PostgreSQL.
-func NewPostgresStore(db *sql.DB) *PostgresStore {
-	return &PostgresStore{db: db, embedder: NewOpenAIEmbedderFromEnv()}
+func NewPostgresStore(db *sql.DB, cfg *config.AppConfig) *PostgresStore {
+	return &PostgresStore{db: db, embedder: NewEmbedderFromConfig(cfg)}
 }
 
 // SetEmbedder overrides the default env-based embedder.

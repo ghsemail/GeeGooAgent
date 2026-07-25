@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -67,6 +68,84 @@ type CompressionConfig struct {
 	ProtectFirstN     int     `json:"protect_first_n,omitempty"`
 	ContextLength     int     `json:"context_length,omitempty"`
 	ClearToolMinChars int     `json:"clear_tool_min_chars,omitempty"`
+}
+
+// EmbeddingConfig holds semantic-memory embedding API credentials (OpenAI-compatible).
+type EmbeddingConfig struct {
+	Provider   string `json:"provider,omitempty"`
+	TokenKey   string `json:"token_key"`
+	Model      string `json:"model"`
+	BaseURL    string `json:"base_url,omitempty"`
+	Dimensions int    `json:"dimensions,omitempty"`
+}
+
+// ResolvedEmbedding is EffectiveEmbedding output.
+type ResolvedEmbedding struct {
+	Provider   string
+	TokenKey   string
+	Model      string
+	BaseURL    string
+	Dimensions int
+	Configured bool
+}
+
+const (
+	DefaultEmbeddingProvider   = "tencent-maas"
+	DefaultEmbeddingModel      = "kinfra-text-embedding-4b"
+	DefaultEmbeddingBaseURL    = "https://tokenhub.tencentmaas.com/v1"
+	DefaultEmbeddingDimensions = 2560
+)
+
+// ResolvedEmbedding returns embedding settings from config with env fallbacks.
+func (c *AppConfig) ResolvedEmbedding() ResolvedEmbedding {
+	var cfg EmbeddingConfig
+	if c != nil {
+		cfg = c.Embedding
+	}
+	key := strings.TrimSpace(cfg.TokenKey)
+	if key == "" {
+		key = strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+	}
+	if key == "" {
+		key = strings.TrimSpace(os.Getenv("GEEGOO_OPENAI_API_KEY"))
+	}
+	base := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
+	if base == "" {
+		base = strings.TrimRight(strings.TrimSpace(os.Getenv("OPENAI_BASE_URL")), "/")
+	}
+	if base == "" {
+		base = DefaultEmbeddingBaseURL
+	}
+	model := strings.TrimSpace(cfg.Model)
+	if model == "" {
+		model = strings.TrimSpace(os.Getenv("GEEGOO_EMBEDDING_MODEL"))
+	}
+	if model == "" {
+		model = DefaultEmbeddingModel
+	}
+	dim := cfg.Dimensions
+	if dim <= 0 {
+		if v := strings.TrimSpace(os.Getenv("GEEGOO_EMBEDDING_DIMENSIONS")); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				dim = n
+			}
+		}
+	}
+	if dim <= 0 {
+		dim = DefaultEmbeddingDimensions
+	}
+	provider := strings.TrimSpace(cfg.Provider)
+	if provider == "" {
+		provider = DefaultEmbeddingProvider
+	}
+	return ResolvedEmbedding{
+		Provider:   provider,
+		TokenKey:   key,
+		Model:      model,
+		BaseURL:    base,
+		Dimensions: dim,
+		Configured: key != "",
+	}
 }
 
 // AuxiliaryLLMConfig is optional summarizer credentials.
@@ -141,6 +220,7 @@ type AppConfig struct {
 	ToolMaxParallel  int               `json:"tool_max_parallel"`
 	ToolTimeoutSec   int               `json:"tool_timeout_sec"`
 	LLM              LLMConfig         `json:"llm"`
+	Embedding        EmbeddingConfig   `json:"embedding,omitempty"`
 	Search           SearchConfig      `json:"search"`
 	Sandbox          SandboxConfig     `json:"sandbox"`
 	Compression      CompressionConfig `json:"compression"`
