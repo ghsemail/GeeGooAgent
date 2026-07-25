@@ -8,6 +8,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
@@ -27,6 +28,8 @@ type Loop struct {
 	maxToolRounds int
 	onProgress    runtime.ProgressFunc
 	mem           memport.Port
+	skillLoader   *procedural.Loader
+	maxSkills     int
 	eventBus      tools.EventEmitter
 	ranker         cognition.Ranker
 	evaluator      cognition.Evaluator
@@ -92,6 +95,18 @@ func (l *Loop) SetGateway(gateway *llm.Gateway) {
 // SetCompressor wires optional context compaction (Memory port adapter).
 func (l *Loop) SetCompressor(c *prompt.Compressor) {
 	l.SetMemory(memory.NewAdapter(memory.AdapterConfig{Compressor: c}))
+}
+
+// SetSkillLoader wires procedural memory (SKILL.md keyword match).
+func (l *Loop) SetSkillLoader(loader *procedural.Loader, maxSkills int) {
+	if l == nil {
+		return
+	}
+	l.skillLoader = loader
+	if maxSkills <= 0 {
+		maxSkills = 2
+	}
+	l.maxSkills = maxSkills
 }
 
 // SetMemory replaces the Memory port (compress / recall / store).
@@ -292,6 +307,7 @@ func (l *Loop) RunTurn(
 	})
 	l.emitStatus("received", "已收到消息，准备处理")
 	l.runRetrievalGate(ctx, session, userText)
+	l.runProceduralMemory(session, userText)
 	messages = session.LLMMessages()
 	l.emitStatus("hygiene", "整理会话上下文…")
 	messages = l.applyHygiene(ctx, session, messages)

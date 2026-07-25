@@ -12,3 +12,15 @@ CREATE TABLE IF NOT EXISTS agent_memory_chunks (
 
 CREATE INDEX IF NOT EXISTS idx_memory_chunks_session ON agent_memory_chunks (session_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_memory_chunks_user ON agent_memory_chunks (user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS agent_episodes (
+    id          BIGSERIAL PRIMARY KEY,
+    session_id  TEXT NOT NULL DEFAULT '',
+    user_id     TEXT NOT NULL DEFAULT '',
+    happened_at DATE NOT NULL DEFAULT CURRENT_DATE,
+    summary     TEXT NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_episodes_user_date
+    ON agent_episodes (user_id, happened_at DESC);

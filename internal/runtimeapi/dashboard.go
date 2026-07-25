@@ -164,11 +164,35 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 	}
 
 	skillsOut := []map[string]any{}
-	for _, sk := range skills.Default().List() {
-		skillsOut = append(skillsOut, map[string]any{
-			"name": sk.Name, "description": sk.Description, "body": sk.Description,
-			"path": sk.ManifestPath, "rel": sk.ManifestPath, "editable": false,
-		})
+	if h.App != nil && h.App.SkillLoader != nil {
+		for _, sk := range h.App.SkillLoader.List() {
+			skillsOut = append(skillsOut, map[string]any{
+				"name": sk.Name, "description": sk.Description, "body": sk.Description,
+				"path": sk.Path, "rel": sk.Path, "editable": false,
+			})
+		}
+	} else {
+		for _, sk := range skills.Default().List() {
+			skillsOut = append(skillsOut, map[string]any{
+				"name": sk.Name, "description": sk.Description, "body": sk.Description,
+				"path": sk.ManifestPath, "rel": sk.ManifestPath, "editable": false,
+			})
+		}
+	}
+
+	if h.App != nil && h.App.Episodic != nil {
+		if eps, err := h.App.Episodic.List(r.Context(), userID, 80); err == nil && len(eps) > 0 {
+			episodes = make([]map[string]any, 0, len(eps))
+			for _, ep := range eps {
+				episodes = append(episodes, map[string]any{
+					"session_id": ep.SessionID,
+					"title":      truncateRunes(ep.Summary, 60),
+					"summary":    ep.Summary,
+					"updated_at": ep.HappenedAt.Format(time.RFC3339),
+					"source":     "episodic",
+				})
+			}
+		}
 	}
 
 	toolsPayload := map[string]any{

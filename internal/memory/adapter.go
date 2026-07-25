@@ -7,6 +7,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/episodic"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/semantic"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 )
@@ -16,12 +17,18 @@ type SemanticStore interface {
 	RecallChunks(ctx context.Context, query, userID, excludeSessionID string, limit int) ([]semantic.Chunk, error)
 }
 
+// EpisodicStore searches dated episode summaries.
+type EpisodicStore interface {
+	SearchEpisodes(ctx context.Context, query, userID string, limit int) ([]episodic.Episode, error)
+}
+
 // AdapterConfig wires existing backends into the Memory port.
 type AdapterConfig struct {
 	Compressor    *prompt.Compressor
 	Sessions      chatsession.SessionStore
 	Evidence      *EvidenceStore
 	Semantic      SemanticStore
+	Episodic      EpisodicStore
 	SessionRanker memport.SessionRanker
 }
 
@@ -31,6 +38,7 @@ type Adapter struct {
 	sessions      chatsession.SessionStore
 	evidence      *EvidenceStore
 	semantic      SemanticStore
+	episodic      EpisodicStore
 	sessionRanker memport.SessionRanker
 }
 
@@ -41,6 +49,7 @@ func NewAdapter(cfg AdapterConfig) *Adapter {
 		sessions:      cfg.Sessions,
 		evidence:      cfg.Evidence,
 		semantic:      cfg.Semantic,
+		episodic:      cfg.Episodic,
 		sessionRanker: cfg.SessionRanker,
 	}
 }
@@ -72,6 +81,13 @@ func (a *Adapter) SetSessions(s chatsession.SessionStore) {
 func (a *Adapter) SetSemantic(s SemanticStore) {
 	if a != nil {
 		a.semantic = s
+	}
+}
+
+// SetEpisodic wires episodic recall for the retrieval gate.
+func (a *Adapter) SetEpisodic(s EpisodicStore) {
+	if a != nil {
+		a.episodic = s
 	}
 }
 
@@ -117,6 +133,31 @@ func (a *Adapter) recallSessions(ctx context.Context, q memport.RecallQuery) (me
 		}
 	}
 	hits, source := mergeRecallHits(ftsHits, vectorHits, limit)
+	if a.episodic != nil {
+		eps, eErr := a.episodic.SearchEpisodes(ctx, q.Query, q.UserID, limit)
+		if eErr == nil && len(eps) > 0 {
+			for i, ep := range eps {
+				score := len(eps) - i
+				if score < 1 {
+					score = 1
+				}
+				snippet := fmt.Sprintf("(%s) %s", ep.HappenedAt.Format("2006-01-02"), ep.Summary)
+				hits = append(hits, chatsession.SessionRecallHit{
+					SessionID: ep.SessionID,
+					Score:     score,
+					Snippet:   snippet,
+				})
+			}
+			if source == "none" || source == "" {
+				source = "episodic"
+			} else {
+				source = "hybrid+" + source
+			}
+			if len(hits) > limit {
+				hits = hits[:limit]
+			}
+		}
+	}
 	out := memport.RecallResult{
 		Hits: make([]memport.RecallHit, 0, len(hits)),
 		Data: chatsession.HitsToData(hits),

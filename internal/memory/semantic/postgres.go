@@ -71,6 +71,38 @@ func (s *PostgresStore) UpsertSummary(ctx context.Context, sessionID, userID, su
 	return err
 }
 
+// AddFact stores a distilled semantic fact (multiple per session allowed).
+func (s *PostgresStore) AddFact(ctx context.Context, sessionID, userID, subject, content string) error {
+	subject = strings.TrimSpace(subject)
+	content = strings.TrimSpace(content)
+	if subject == "" || content == "" {
+		return nil
+	}
+	if s == nil || s.db == nil {
+		return fmt.Errorf("semantic store not configured")
+	}
+	ctx = contextOrBackground(ctx)
+	text := fmt.Sprintf("[%s] %s", subject, content)
+	var vec any
+	if s.embedder != nil {
+		if emb, err := s.embedder.Embed(ctx, text); err == nil && len(emb) > 0 {
+			vec = vectorLiteral(emb)
+		}
+	}
+	if vec != nil {
+		_, err := s.db.ExecContext(ctx, `
+            INSERT INTO agent_memory_chunks (session_id, user_id, source, content, embedding, created_at)
+            VALUES ($1,$2,'fact',$3,$4::vector,NOW())`,
+			sessionID, userID, text, vec)
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, `
+        INSERT INTO agent_memory_chunks (session_id, user_id, source, content, created_at)
+        VALUES ($1,$2,'fact',$3,NOW())`,
+		sessionID, userID, text)
+	return err
+}
+
 // List returns recent chunks.
 func (s *PostgresStore) List(ctx context.Context, limit int) ([]Chunk, error) {
 	if limit <= 0 {

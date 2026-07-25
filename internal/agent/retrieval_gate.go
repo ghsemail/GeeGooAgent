@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
@@ -177,4 +178,52 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 		"reason":   decision.Reason,
 		"hits":     decision.Hits,
 	})
+}
+
+func (l *Loop) runProceduralMemory(session *runtime.Session, userText string) {
+	if l == nil || l.skillLoader == nil || session == nil {
+		return
+	}
+	maxSkills := l.maxSkills
+	if maxSkills <= 0 {
+		maxSkills = 2
+	}
+	matched := l.skillLoader.Match(userText, maxSkills)
+	if len(matched) == 0 {
+		return
+	}
+	block := procedural.Format(matched)
+	if block == "" {
+		return
+	}
+	l.emitStatus("gate", fmt.Sprintf("加载 %d 个相关技能 (procedural)", len(matched)))
+	l.emit("memory.procedural", map[string]any{
+		"skills": len(matched),
+		"names":  skillNames(matched),
+	})
+	injectProceduralMemory(session, block)
+}
+
+func skillNames(matched []procedural.Skill) []string {
+	out := make([]string, len(matched))
+	for i, sk := range matched {
+		out[i] = sk.Name
+	}
+	return out
+}
+
+func injectProceduralMemory(session *runtime.Session, block string) {
+	if session == nil || strings.TrimSpace(block) == "" {
+		return
+	}
+	mem := llm.Message{
+		Role: llm.RoleSystem,
+		Content: "Relevant skill instructions (procedural memory). Follow only if applicable:\n" + block,
+	}
+	n := len(session.Messages)
+	if n >= 1 && session.Messages[n-1].Role == llm.RoleUser {
+		session.Messages = append(session.Messages[:n-1], append([]llm.Message{mem}, session.Messages[n-1:]...)...)
+		return
+	}
+	session.AppendMessage(mem)
 }

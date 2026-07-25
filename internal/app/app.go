@@ -20,6 +20,9 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/consolidation"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/episodic"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/semantic"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
@@ -50,6 +53,12 @@ type App struct {
 	PG *infra.PostgresDB
 	// Semantic memory chunks when pgvector schema is enabled.
 	Semantic *semantic.PostgresStore
+	// Episodic memory (dated summaries) when PostgreSQL is enabled.
+	Episodic *episodic.PostgresStore
+	// Consolidator distills chats into semantic facts + episodic rows.
+	Consolidator *consolidation.Distiller
+	// Procedural memory scans SKILL.md under skills/.
+	SkillLoader *procedural.Loader
 	Evidence *memory.EvidenceStore
 	// P2c platform-agnostic agent core. Owns the ReAct loop; used by chat,
 	// runtime HTTP, and (later) workflow/scheduler.
@@ -192,6 +201,7 @@ func (a *App) openPostgres() error {
 		return err
 	}
 	a.PG = pg
+	a.Episodic = episodic.NewPostgresStore(pg.SQL())
 	if vectorEnabled() {
 		dim := config.DefaultEmbeddingDimensions
 		if a.Config != nil {
@@ -427,19 +437,62 @@ func (a *App) wireChatMemory() {
 		ad.SetCompressor(compressor)
 		ad.SetSessions(sessions)
 		ad.SetSemantic(semanticStore)
+		if a.Episodic != nil {
+			ad.SetEpisodic(a.Episodic)
+		}
 		a.setMemory(ad)
 		a.wireRecallRanker()
-		return
-	}
-	ad := memory.NewAdapter(memory.AdapterConfig{
+	a.wireProceduralMemory()
+	a.wireConsolidator()
+	return
+}
+ad := memory.NewAdapter(memory.AdapterConfig{
 		Compressor: compressor,
 		Sessions:   sessions,
 		Evidence:   a.Evidence,
 		Semantic:   semanticStore,
+		Episodic:   a.Episodic,
 	})
 	a.ChatMemory = ad
 	a.setMemory(ad)
 	a.wireRecallRanker()
+	a.wireProceduralMemory()
+	a.wireConsolidator()
+}
+
+func (a *App) wireProceduralMemory() {
+	if a == nil || a.Agent == nil {
+		return
+	}
+	root := findProjectRoot()
+	dirs := []string{filepath.Join(root, "skills")}
+	if a.Workspace != "" {
+		dirs = append(dirs, filepath.Join(a.Workspace, "skills"))
+	}
+	a.SkillLoader = procedural.NewLoader(dirs...)
+	a.Agent.SetSkillLoader(a.SkillLoader, 2)
+}
+
+func (a *App) wireConsolidator() {
+	if a == nil || a.Config == nil {
+		return
+	}
+	aux := a.Config.EffectiveAuxiliaryCompression()
+	provider, err := llm.BuildProviderFromLLMFields(aux.Provider, aux.TokenKey, aux.Model, nil, "", aux.BaseURL, nil)
+	if err != nil {
+		return
+	}
+	var policy llm.Policy
+	if a.Gateway != nil {
+		policy = a.Gateway.Policy()
+	}
+	a.Consolidator = &consolidation.Distiller{
+		Provider: provider,
+		Policy:   policy,
+		Semantic: a.Semantic,
+		Episodic: a.Episodic,
+		EveryN:   3,
+	}
 }
 
 func (a *App) setMemory(m memport.Port) {

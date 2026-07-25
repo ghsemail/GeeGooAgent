@@ -28,6 +28,18 @@ CREATE TABLE IF NOT EXISTS agent_runs (
 CREATE INDEX IF NOT EXISTS idx_agent_runs_session
     ON agent_runs (session_id, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS agent_episodes (
+    id          BIGSERIAL PRIMARY KEY,
+    session_id  TEXT NOT NULL DEFAULT '',
+    user_id     TEXT NOT NULL DEFAULT '',
+    happened_at DATE NOT NULL DEFAULT CURRENT_DATE,
+    summary     TEXT NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_episodes_user_date
+    ON agent_episodes (user_id, happened_at DESC);
+
 CREATE TABLE IF NOT EXISTS agent_approvals (
     id          BIGSERIAL PRIMARY KEY,
     session_id  TEXT NOT NULL,

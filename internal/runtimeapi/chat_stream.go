@@ -151,6 +151,18 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 				"session_id":    chat.ID,
 				"summary_chars": len(strings.TrimSpace(chat.Summary)),
 				"stored":        true,
+				"kind":          "session_summary",
+			})
+		}
+	}
+	if h.App.Consolidator != nil {
+		if res, err := h.App.Consolidator.MaybeConsolidate(r.Context(), chat); err == nil && (res.Facts > 0 || res.Episode) {
+			_ = store.Save(chat)
+			writeSessionSSE(w, flusher, "consolidation", map[string]any{
+				"session_id": chat.ID,
+				"facts":      res.Facts,
+				"episode":    res.Episode,
+				"kind":       "distill",
 			})
 		}
 	}

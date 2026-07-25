@@ -14,6 +14,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
@@ -59,6 +60,13 @@ func (a *Agent) SetCompressor(c *prompt.Compressor) {
 	}
 	if a != nil && a.subAgent != nil {
 		a.subAgent.SetCompressor(c)
+	}
+}
+
+// SetSkillLoader wires procedural memory into the owned loop.
+func (a *Agent) SetSkillLoader(loader *procedural.Loader, maxSkills int) {
+	if a != nil && a.Loop != nil {
+		a.Loop.SetSkillLoader(loader, maxSkills)
 	}
 }
 
