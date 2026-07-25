@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/ghsemail/GeeGooAgent/internal/memory/fts"
 )
 
 // Episode is one episodic memory row.
@@ -26,6 +28,11 @@ type PostgresStore struct {
 // NewPostgresStore creates an episodic store.
 func NewPostgresStore(db *sql.DB) *PostgresStore {
 	return &PostgresStore{db: db}
+}
+
+// Format formats an episode like Waku search results.
+func Format(happenedAt time.Time, summary string) string {
+	return fmt.Sprintf("(%s) %s", happenedAt.Format("2006-01-02"), strings.TrimSpace(summary))
 }
 
 // Add stores a new episode.
@@ -121,7 +128,7 @@ func (s *PostgresStore) SearchEpisodes(ctx context.Context, query, userID string
 	return s.Search(ctx, query, userID, limit)
 }
 
-// Search finds episodes matching query text, scoped by user.
+// Search finds episodes via FTS when query is set (Waku episodes_fts parity).
 func (s *PostgresStore) Search(ctx context.Context, query, userID string, limit int) ([]Episode, error) {
 	if s == nil || s.db == nil {
 		return nil, nil
@@ -129,25 +136,28 @@ func (s *PostgresStore) Search(ctx context.Context, query, userID string, limit 
 	if limit <= 0 {
 		limit = 5
 	}
+	userID = strings.TrimSpace(userID)
 	query = strings.TrimSpace(query)
 	var (
 		rows *sql.Rows
 		err  error
 	)
-	if query == "" {
+	ftsQ := fts.BuildQuery(query)
+	if ftsQ == "" {
 		rows, err = s.db.QueryContext(ctx, `
             SELECT id, session_id, user_id, happened_at, summary, created_at
             FROM agent_episodes
             WHERE ($1 = '' OR user_id = $1)
             ORDER BY happened_at DESC, id DESC LIMIT $2`, userID, limit)
 	} else {
-		pattern := "%" + query + "%"
 		rows, err = s.db.QueryContext(ctx, `
             SELECT id, session_id, user_id, happened_at, summary, created_at
             FROM agent_episodes
-            WHERE ($2 = '' OR user_id = $2)
-              AND summary ILIKE $1
-            ORDER BY happened_at DESC, id DESC LIMIT $3`, pattern, userID, limit)
+            WHERE ($1 = '' OR user_id = $1)
+              AND search_vector @@ to_tsquery('simple', $2)
+            ORDER BY ts_rank(search_vector, to_tsquery('simple', $2)) DESC,
+                     happened_at DESC, id DESC
+            LIMIT $3`, userID, ftsQ, limit)
 	}
 	if err != nil {
 		return nil, err

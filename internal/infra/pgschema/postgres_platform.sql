@@ -34,11 +34,24 @@ CREATE TABLE IF NOT EXISTS agent_episodes (
     user_id     TEXT NOT NULL DEFAULT '',
     happened_at DATE NOT NULL DEFAULT CURRENT_DATE,
     summary     TEXT NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    search_vector tsvector GENERATED ALWAYS AS (
+        to_tsvector('simple', coalesce(summary, ''))
+    ) STORED
 );
 
 CREATE INDEX IF NOT EXISTS idx_agent_episodes_user_date
     ON agent_episodes (user_id, happened_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_episodes_fts ON agent_episodes USING GIN (search_vector);
+
+-- Migrate existing agent_episodes rows created before search_vector existed.
+DO $$ BEGIN
+    ALTER TABLE agent_episodes ADD COLUMN search_vector tsvector
+        GENERATED ALWAYS AS (to_tsvector('simple', coalesce(summary, ''))) STORED;
+EXCEPTION
+    WHEN duplicate_column THEN NULL;
+END $$;
+CREATE INDEX IF NOT EXISTS idx_agent_episodes_fts ON agent_episodes USING GIN (search_vector);
 
 -- Semantic memory: durable facts (Waku facts table parity).
 CREATE TABLE IF NOT EXISTS agent_facts (

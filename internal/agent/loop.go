@@ -35,6 +35,9 @@ type Loop struct {
 	evaluator      cognition.Evaluator
 	planPolicy     cognition.PlanPolicy
 	evalMaxRetries int
+	gateProvider   llm.Provider
+	gatePolicy     llm.Policy
+	retrievalTopK  int
 }
 
 // NewLoop creates an agent loop.
@@ -118,6 +121,18 @@ func (l *Loop) SetMemory(m memport.Port) {
 		l.mem = m
 	} else {
 		l.mem = memport.Noop()
+	}
+}
+
+// SetRetrievalGate wires the Waku-style LLM retrieval gate (auxiliary model).
+func (l *Loop) SetRetrievalGate(provider llm.Provider, policy llm.Policy, topK int) {
+	if l == nil {
+		return
+	}
+	l.gateProvider = provider
+	l.gatePolicy = policy
+	if topK > 0 {
+		l.retrievalTopK = topK
 	}
 }
 

@@ -248,18 +248,18 @@ func (h *Handler) memoryStatus(w http.ResponseWriter, r *http.Request) {
 		resp.Note = "Session SSOT uses " + backend + ". Set GEEGOO_PG_DSN for PostgreSQL."
 	}
 	if h.App != nil && h.App.PG != nil {
-		resp.VectorBackend = "pgvector"
-		resp.VectorEnabled = vectorEnvEnabled()
 		if h.App.Facts != nil {
 			if n, err := h.App.Facts.Count(r.Context(), ""); err == nil {
-				resp.Note += fmt.Sprintf(" %d semantic facts.", n)
+				resp.Note += fmt.Sprintf(" %d semantic facts (Waku FTS).", n)
 			}
 		}
 		if h.App.Semantic != nil {
 			if n, err := h.App.Semantic.Count(r.Context()); err == nil && n > 0 {
-				resp.Note += fmt.Sprintf(" %d session vector chunks.", n)
+				resp.Note += fmt.Sprintf(" %d legacy session-vector chunks (opt-in).", n)
 			}
 		}
+		resp.VectorBackend = "facts-fts"
+		resp.VectorEnabled = h.App.Facts != nil
 	} else if vectorEnvEnabled() {
 		resp.Note += " GEEGOO_VECTOR_ENABLE=1 but pgvector schema not ready."
 	}

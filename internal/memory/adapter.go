@@ -148,7 +148,7 @@ func (a *Adapter) recallMemory(ctx context.Context, q memport.RecallQuery) (memp
 			if score < 1 {
 				score = 1
 			}
-			snippet := fmt.Sprintf("(%s) %s", ep.HappenedAt.Format("2006-01-02"), ep.Summary)
+			snippet := episodic.Format(ep.HappenedAt, ep.Summary)
 			hits = append(hits, memport.RecallHit{
 				ID:      fmt.Sprintf("episode:%d", ep.ID),
 				Score:   score,

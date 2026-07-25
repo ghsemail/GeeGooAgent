@@ -79,6 +79,11 @@ func buildWorkflowExclusiveTools() map[string]struct{} {
 	return exclusive
 }
 
+// chatExcludedTools are registered in toolsets but omitted from default interactive chat (Waku: gate handles recall).
+var chatExcludedTools = map[string]struct{}{
+	"recall": {},
+}
+
 // AllToolsets returns the built-in toolset catalog.
 func AllToolsets() []Toolset {
 	out := make([]Toolset, len(builtinToolsets))
@@ -149,6 +154,9 @@ func ChatToolNamesForToolsets(ids []string) []string {
 			continue
 		}
 		for name := range ts.names {
+			if _, skip := chatExcludedTools[name]; skip {
+				continue
+			}
 			if _, onlyWorkflow := workflowExclusiveTools[name]; onlyWorkflow && id != "report_workflow" {
 				continue
 			}

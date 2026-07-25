@@ -571,8 +571,8 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 	})
 	r.Register(Tool{
 		Name: "recall",
-		Description: "Search past geegoo chat sessions for stock price lookups and user queries. " +
-			"Use when the user asks what they checked before, including after quit/restart.",
+		Description: "Legacy workflow tool: search long-term memory (facts + episodes). " +
+			"Interactive chat uses the retrieval gate automatically; prefer manage_memory for agent-initiated search.",
 		Handle: func(ctx Context, args map[string]any) Result {
 			query := strArg(args, "query", "")
 			limit := intArg(args, "limit", 5)
@@ -585,19 +585,19 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if deps.Memory != nil {
 				res, err := deps.Memory.Recall(ctx.GoContext(), memport.RecallQuery{
 					Kind: memport.RecallSession, Query: query,
-					ExcludeSessionID: ctx.SessionID, Limit: limit, ScanLimit: 30,
+					UserID: ctx.UserID, Limit: limit,
 				})
 				if err != nil {
 					return errResult(err)
 				}
 				if len(res.Hits) == 0 {
 					return Result{
-						Status: StatusOK, Summary: "No matching past chat sessions",
+						Status: StatusOK, Summary: "No matching memories",
 						Data: map[string]any{"count": 0, "matches": []any{}},
 					}
 				}
 				top := res.Hits[0]
-				summary := fmt.Sprintf("Found %d session(s); latest: %s (%s)", len(res.Hits), top.Snippet, top.ID)
+				summary := fmt.Sprintf("Found %d memory hit(s); top: %s", len(res.Hits), top.Snippet)
 				return Result{Status: StatusOK, Summary: summary, Data: res.Data}
 			}
 			if ctx.StateStore == nil {

@@ -52,7 +52,7 @@ type App struct {
 	DB       *infra.DB
 	// Optional PostgreSQL platform DB (sessions, cockpit, semantic memory).
 	PG *infra.PostgresDB
-	// Semantic memory chunks when pgvector schema is enabled (session vectors only; not Waku facts).
+	// Semantic memory chunks when pgvector schema is enabled (legacy opt-in; Waku semantic = agent_facts).
 	Semantic *semantic.PostgresStore
 	// Facts is Waku-style semantic memory (FTS facts table).
 	Facts *facts.PostgresStore
@@ -154,6 +154,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 		FeishuWebhookURL: cfg.EffectiveFeishuWebhookURL(),
 		Delegate: sub, Memory: app.ChatMemory,
 		Facts: app.Facts, Episodic: app.Episodic, Home: config.Home(),
+		SkillLoader: app.SkillLoader,
 	})
 	app.Agent.SetSubAgent(sub)
 	app.Workflow.SetToolExec(app.Agent.ToolExec())
@@ -212,18 +213,24 @@ func (a *App) openPostgres() error {
 			fmt.Fprintf(os.Stderr, "已迁移 %d 条 legacy semantic facts\n", imported)
 		}
 	}
-	if vectorEnabled() {
+	if legacySessionVectorsEnabled() && vectorEnabled() {
 		dim := config.DefaultEmbeddingDimensions
 		if a.Config != nil {
 			dim = a.Config.ResolvedEmbedding().Dimensions
 		}
 		if err := pg.ApplyMemorySchema(dim); err != nil {
-			fmt.Fprintf(os.Stderr, "警告: pgvector schema 未应用 (%v)\n", err)
+			fmt.Fprintf(os.Stderr, "警告: legacy session vector schema 未应用 (%v)\n", err)
 		} else {
 			a.Semantic = semantic.NewPostgresStore(pg.SQL(), a.Config)
+			fmt.Fprintf(os.Stderr, "提示: legacy session vectors 已启用 (GEEGOO_LEGACY_SESSION_VECTORS=1)；Waku semantic 请用 agent_facts\n")
 		}
 	}
 	return nil
+}
+
+func legacySessionVectorsEnabled() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("GEEGOO_LEGACY_SESSION_VECTORS")))
+	return v == "1" || v == "true" || v == "yes"
 }
 
 func vectorEnabled() bool {
@@ -454,6 +461,7 @@ func (a *App) wireChatMemory() {
 		a.wireRecallRanker()
 	a.wireProceduralMemory()
 	a.wireConsolidator()
+	a.wireRetrievalGate()
 	return
 }
 ad := memory.NewAdapter(memory.AdapterConfig{
@@ -468,6 +476,23 @@ ad := memory.NewAdapter(memory.AdapterConfig{
 	a.wireRecallRanker()
 	a.wireProceduralMemory()
 	a.wireConsolidator()
+	a.wireRetrievalGate()
+}
+
+func (a *App) wireRetrievalGate() {
+	if a == nil || a.Config == nil || a.Agent == nil {
+		return
+	}
+	aux := a.Config.EffectiveAuxiliaryCompression()
+	provider, err := llm.BuildProviderFromLLMFields(aux.Provider, aux.TokenKey, aux.Model, nil, "", aux.BaseURL, nil)
+	if err != nil {
+		return
+	}
+	var policy llm.Policy
+	if a.Gateway != nil {
+		policy = a.Gateway.Policy()
+	}
+	a.Agent.SetRetrievalGate(provider, policy, 4)
 }
 
 func (a *App) wireProceduralMemory() {

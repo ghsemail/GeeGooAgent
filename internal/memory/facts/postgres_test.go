@@ -1,12 +1,16 @@
 package facts
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ghsemail/GeeGooAgent/internal/memory/fts"
+)
 
 func TestBuildFTSQuery(t *testing.T) {
-	if got := buildFTSQuery("when am I meeting Alex?"); got != "when | am | meeting | alex" {
+	if got := fts.BuildQuery("when am I meeting Alex?"); got != "when | am | meeting | alex" {
 		t.Fatalf("unexpected fts query: %q", got)
 	}
-	if buildFTSQuery("a") != "" {
+	if fts.BuildQuery("a") != "" {
 		t.Fatal("expected empty for short tokens")
 	}
 }

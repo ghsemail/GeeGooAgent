@@ -150,10 +150,10 @@ func (s *ChatSessionStore) ListIndexedSessions() ([]ChatSessionIndexEntry, error
 // RuntimeMessages at LLM-call time instead.
 func (c *ChatSession) SyncChatSystemPrompt() {
 	if len(c.Messages) > 0 && c.Messages[0].Role == llm.RoleSystem {
-		c.Messages[0].Content = chatprompt.System()
+		c.Messages[0].Content = chatprompt.SystemForUser(UserIDFromSession(c))
 		return
 	}
-	c.Messages = append([]llm.Message{{Role: llm.RoleSystem, Content: chatprompt.System()}}, c.Messages...)
+	c.Messages = append([]llm.Message{{Role: llm.RoleSystem, Content: chatprompt.SystemForUser(UserIDFromSession(c))}}, c.Messages...)
 }
 
 // ToolActivitySummary lists market-related tools already called in this chat.

@@ -24,9 +24,11 @@ func (h *Handler) soulHome() string {
 
 func (h *Handler) memorySoulGet(w http.ResponseWriter, r *http.Request) {
 	home := h.soulHome()
+	userID := resolveUserID(r)
 	writeJSON(w, map[string]any{
-		"content": chatprompt.LoadSoulFromHome(home),
-		"path":    chatprompt.SoulPath(home),
+		"content": chatprompt.LoadSoulForUser(home, userID),
+		"path":    chatprompt.SoulPathForUser(home, userID),
+		"user_id": userID,
 		"default": false,
 	})
 }
@@ -38,7 +40,8 @@ func (h *Handler) memorySoulPut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	home := h.soulHome()
-	if err := chatprompt.SaveSoulToHome(home, req.Content); err != nil {
+	userID := resolveUserID(r)
+	if err := chatprompt.SaveSoulForUser(home, userID, req.Content); err != nil {
 		switch {
 		case errors.Is(err, chatprompt.ErrSoulEmpty()):
 			writeError(w, http.StatusBadRequest, "SOUL cannot be empty")
@@ -51,12 +54,13 @@ func (h *Handler) memorySoulPut(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, map[string]any{
 		"ok":      true,
-		"content": chatprompt.LoadSoulFromHome(home),
-		"path":    chatprompt.SoulPath(home),
+		"content": chatprompt.LoadSoulForUser(home, userID),
+		"path":    chatprompt.SoulPathForUser(home, userID),
+		"user_id": userID,
 		"message": "Saved — live next turn.",
 	})
 }
 
-func soulTextForDashboard(home string) string {
-	return chatprompt.LoadSoulFromHome(home)
+func soulTextForDashboard(home, userID string) string {
+	return chatprompt.LoadSoulForUser(home, userID)
 }

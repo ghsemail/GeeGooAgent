@@ -9,6 +9,8 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
+	"github.com/ghsemail/GeeGooAgent/internal/config"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/exportmarkdown"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 )
 
@@ -150,6 +152,9 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 				"kind":       "distill",
 			})
 		}
+	}
+	if h.App != nil && (h.App.Facts != nil || h.App.Episodic != nil) {
+		_ = exportmarkdown.Export(r.Context(), config.Home(), userID, h.App.Facts, h.App.Episodic)
 	}
 	if live != nil {
 		live.EndTurn()

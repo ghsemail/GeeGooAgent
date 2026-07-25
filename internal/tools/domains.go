@@ -86,6 +86,7 @@ var (
 		"save_note":                {},
 		"manage_memory":            {},
 		"update_soul":              {},
+		"create_skill":             {},
 		"clarify":                  {},
 		"delegate_task":            {},
 	}

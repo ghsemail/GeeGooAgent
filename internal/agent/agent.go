@@ -80,6 +80,13 @@ func (a *Agent) SetMemory(m memport.Port) {
 	}
 }
 
+// SetRetrievalGate wires the Waku LLM retrieval gate on the owned loop.
+func (a *Agent) SetRetrievalGate(provider llm.Provider, policy llm.Policy, topK int) {
+	if a != nil && a.Loop != nil {
+		a.Loop.SetRetrievalGate(provider, policy, topK)
+	}
+}
+
 // SetGateway swaps the LLM gateway and keeps the owned loop in sync.
 func (a *Agent) SetGateway(g *llm.Gateway) {
 	if a == nil {

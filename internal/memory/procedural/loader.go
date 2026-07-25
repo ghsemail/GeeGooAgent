@@ -114,6 +114,13 @@ func Format(matched []Skill) string {
 	return b.String()
 }
 
+// Refresh rescans skill directories (Waku create_skill parity).
+func (l *Loader) Refresh() {
+	if l != nil {
+		l.refresh()
+	}
+}
+
 func (l *Loader) maybeRefresh() {
 	sig := l.scanSignature()
 	if stringSig(sig) != stringSig(l.signature) {
@@ -178,6 +185,11 @@ func stringSig(sig []fileSig) string {
 		parts = append(parts, s.path+":"+strconv.FormatInt(s.mod, 10))
 	}
 	return strings.Join(parts, "|")
+}
+
+// ParseSkillText validates SKILL.md frontmatter + body without reading from disk.
+func ParseSkillText(text string) *Skill {
+	return parseSkill(text, "inline")
 }
 
 func parseSkill(text, path string) *Skill {

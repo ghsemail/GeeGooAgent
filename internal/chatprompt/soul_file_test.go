@@ -33,6 +33,21 @@ func TestSaveAndLoadSoulFromHome(t *testing.T) {
 	}
 }
 
+func TestSaveAndLoadSoulForUser(t *testing.T) {
+	dir := t.TempDir()
+	custom := "You are tenant agent.\n"
+	if err := chatprompt.SaveSoulForUser(dir, "user-1", custom); err != nil {
+		t.Fatal(err)
+	}
+	got := chatprompt.LoadSoulForUser(dir, "user-1")
+	if !strings.Contains(got, "tenant agent") {
+		t.Fatalf("unexpected soul: %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "tenants", "user-1", "SOUL.md")); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSaveSoulRejectsEmpty(t *testing.T) {
 	dir := t.TempDir()
 	if err := chatprompt.SaveSoulToHome(dir, "   "); err == nil {

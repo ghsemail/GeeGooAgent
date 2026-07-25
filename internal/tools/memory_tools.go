@@ -2,18 +2,32 @@ package tools
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatprompt"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/episodic"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/facts"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 )
 
 const soulLearnedRules = "## Learned rules"
+
+var skillSlugRE = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,40}$`)
 
 func registerMemoryTools(r *Registry, deps Deps) {
 	if deps.Facts == nil {
 		return
 	}
+	registerSaveNote(r, deps)
+	registerManageMemory(r, deps)
+	registerUpdateSoul(r, deps)
+	registerCreateSkill(r, deps)
+}
+
+func registerSaveNote(r *Registry, deps Deps) {
 	r.Register(Tool{
 		Name: "save_note",
 		Description: "Save a durable fact to long-term memory. Use when the user tells you something " +
@@ -45,7 +59,9 @@ func registerMemoryTools(r *Registry, deps Deps) {
 			}
 		},
 	})
+}
 
+func registerManageMemory(r *Registry, deps Deps) {
 	r.Register(Tool{
 		Name: "manage_memory",
 		Description: "Search, correct, or delete the user's long-term memory (facts and episodes). " +
@@ -112,7 +128,9 @@ func registerMemoryTools(r *Registry, deps Deps) {
 			}
 		},
 	})
+}
 
+func registerUpdateSoul(r *Registry, deps Deps) {
 	home := strings.TrimSpace(deps.Home)
 	if home == "" {
 		return
@@ -136,7 +154,7 @@ func registerMemoryTools(r *Registry, deps Deps) {
 			if ctx.DryRun {
 				return okDryRun("update_soul", map[string]any{"rule": rule})
 			}
-			text := chatprompt.LoadSoulFromHome(home)
+			text := chatprompt.LoadSoulForUser(home, ctx.UserID)
 			if len(text) > 8000 {
 				return Result{Status: StatusError, Summary: "SOUL.md is at its size limit — edit it in the dashboard instead.", ExitCode: 1}
 			}
@@ -144,10 +162,70 @@ func registerMemoryTools(r *Registry, deps Deps) {
 				text = strings.TrimRight(text, "\n") + "\n\n" + soulLearnedRules + "\n"
 			}
 			text = strings.TrimRight(text, "\n") + fmt.Sprintf("\n- %s\n", rule)
-			if err := chatprompt.SaveSoulToHome(home, text); err != nil {
+			if err := chatprompt.SaveSoulForUser(home, ctx.UserID, text); err != nil {
 				return errResult(err)
 			}
 			return Result{Status: StatusOK, Summary: "Noted, I'll remember to: " + rule}
+		},
+	})
+}
+
+func registerCreateSkill(r *Registry, deps Deps) {
+	home := strings.TrimSpace(deps.Home)
+	if home == "" {
+		return
+	}
+	r.Register(Tool{
+		Name: "create_skill",
+		Description: "Write a new reusable skill (a SKILL.md the agent loads when relevant) so you can repeat a workflow the user taught you. " +
+			"Only call this after the user agrees. body = step-by-step instructions; description = when to use it (include trigger words).",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name":        map[string]any{"type": "string", "description": "short slug, e.g. weekly-review"},
+				"description": map[string]any{"type": "string", "description": "one line: what it does and when to use it"},
+				"body":        map[string]any{"type": "string", "description": "step-by-step instructions (markdown)"},
+			},
+			"required": []any{"name", "description", "body"},
+		},
+		Handle: func(ctx Context, args map[string]any) Result {
+			name := strings.ToLower(strings.TrimSpace(strArg(args, "name", "")))
+			name = strings.ReplaceAll(name, " ", "-")
+			description := strings.TrimSpace(strArg(args, "description", ""))
+			body := strings.TrimSpace(strArg(args, "body", ""))
+			if !skillSlugRE.MatchString(name) {
+				return Result{Status: StatusError, Summary: "Skill name must be a short slug like 'weekly-review' (lowercase, hyphens).", ExitCode: 1}
+			}
+			if description == "" || body == "" {
+				return Result{Status: StatusError, Summary: "description and body required", ExitCode: 1}
+			}
+			if ctx.DryRun {
+				return okDryRun("create_skill", map[string]any{"name": name})
+			}
+			userSkills := filepath.Join(home, "skills", name, "SKILL.md")
+			if _, err := os.Stat(userSkills); err == nil {
+				return Result{Status: StatusError, Summary: fmt.Sprintf("A skill named '%s' already exists — pick another name.", name), ExitCode: 1}
+			}
+			if deps.ProjectRoot != "" {
+				repoSkill := filepath.Join(deps.ProjectRoot, "skills", name, "SKILL.md")
+				if _, err := os.Stat(repoSkill); err == nil {
+					return Result{Status: StatusError, Summary: fmt.Sprintf("A skill named '%s' already exists — pick another name.", name), ExitCode: 1}
+				}
+			}
+			text := fmt.Sprintf("---\nname: %s\ndescription: %s\n---\n\n%s\n", name, description, body)
+			if procedural.ParseSkillText(text) == nil {
+				return Result{Status: StatusError, Summary: "That didn't validate — description must be present and non-trivial.", ExitCode: 1}
+			}
+			if err := os.MkdirAll(filepath.Dir(userSkills), 0o755); err != nil {
+				return errResult(err)
+			}
+			if err := os.WriteFile(userSkills, []byte(text), 0o644); err != nil {
+				return errResult(err)
+			}
+			if deps.SkillLoader != nil {
+				deps.SkillLoader.Refresh()
+			}
+			return Result{Status: StatusOK, Summary: fmt.Sprintf("Created skill '%s'. It will trigger on: %s", name, description)}
 		},
 	})
 }
@@ -157,23 +235,16 @@ func manageMemorySearch(ctx Context, deps Deps, kind, query string) Result {
 		if deps.Episodic == nil {
 			return Result{Status: StatusError, Summary: "episodic memory not enabled", ExitCode: 1}
 		}
-		rows, err := deps.Episodic.List(ctx.GoContext(), ctx.UserID, 20)
+		rows, err := deps.Episodic.Search(ctx.GoContext(), query, ctx.UserID, 8)
 		if err != nil {
 			return errResult(err)
 		}
-		q := strings.ToLower(strings.TrimSpace(query))
+		if len(rows) == 0 {
+			return Result{Status: StatusOK, Summary: "no episodes"}
+		}
 		var lines []string
 		for _, r := range rows {
-			if q != "" && !strings.Contains(strings.ToLower(r.Summary), q) {
-				continue
-			}
-			lines = append(lines, fmt.Sprintf("#%d (%s) %s", r.ID, r.HappenedAt.Format("2006-01-02"), r.Summary))
-			if len(lines) >= 8 {
-				break
-			}
-		}
-		if len(lines) == 0 {
-			return Result{Status: StatusOK, Summary: "no episodes"}
+			lines = append(lines, fmt.Sprintf("#%d %s", r.ID, episodic.Format(r.HappenedAt, r.Summary)))
 		}
 		return Result{Status: StatusOK, Summary: strings.Join(lines, "\n")}
 	}

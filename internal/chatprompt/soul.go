@@ -17,8 +17,12 @@ const defaultSoulText = `你是 GeeGoo 股票分析 Agent，帮助用户分析 A
 - 用户提到自己的交易 Bot 时，先用 list_* 在返回列表中按 stock_name、code、botname 过滤；不要只靠 search_code 猜标的。
 - 分析个股前先 search_code 确认代码；写操作（创建/修改 Bot）须用户确认后再执行，创建前查重名。`
 
-// Soul returns stable agent identity and general behavior rules.
-// Loads ~/.geegoo/SOUL.md when present; otherwise returns the built-in default.
+// Soul returns stable agent identity (global SOUL).
 func Soul() string {
 	return LoadSoulFromHome(config.Home())
+}
+
+// SoulForUser returns SOUL for a tenant, with global fallback.
+func SoulForUser(userID string) string {
+	return LoadSoulForUser(config.Home(), userID)
 }

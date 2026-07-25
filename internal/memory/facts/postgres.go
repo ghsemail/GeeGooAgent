@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
+
+	"github.com/ghsemail/GeeGooAgent/internal/memory/fts"
 )
 
 // Row is one durable semantic fact (Waku facts table parity).
@@ -71,7 +72,7 @@ func (s *PostgresStore) SearchRows(ctx context.Context, userID, query string, to
 		topK = 4
 	}
 	userID = strings.TrimSpace(userID)
-	fts := buildFTSQuery(query)
+	fts := fts.BuildQuery(query)
 	var (
 		sqlRows *sql.Rows
 		err     error
@@ -210,25 +211,6 @@ func Format(subject, content string) string {
 
 func normalizeSubject(subject string) string {
 	return strings.ToLower(strings.TrimSpace(subject))
-}
-
-var tokenRe = regexp.MustCompile(`[a-zA-Z0-9]{2,}`)
-
-func buildFTSQuery(text string) string {
-	text = strings.ToLower(strings.TrimSpace(text))
-	if text == "" {
-		return ""
-	}
-	seen := map[string]struct{}{}
-	var parts []string
-	for _, tok := range tokenRe.FindAllString(text, -1) {
-		if _, ok := seen[tok]; ok {
-			continue
-		}
-		seen[tok] = struct{}{}
-		parts = append(parts, tok)
-	}
-	return strings.Join(parts, " | ")
 }
 
 func splitBracketSubject(raw string) (subject, content string) {
