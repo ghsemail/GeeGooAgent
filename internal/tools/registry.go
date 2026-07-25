@@ -43,6 +43,8 @@ type Context struct {
 	Progress ProgressFunc
 	// ClarifyFn blocks for clarify tool user input (interactive chat).
 	ClarifyFn ClarifyFunc
+	// UserID scopes memory tools and recall to the tenant owner.
+	UserID string
 	// Hooks runs optional audit scripts around tool execution.
 	Hooks *HookRunner
 }

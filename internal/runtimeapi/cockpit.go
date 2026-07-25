@@ -13,7 +13,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/doctor"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
-	"github.com/ghsemail/GeeGooAgent/internal/memory/semantic"
+	factmem "github.com/ghsemail/GeeGooAgent/internal/memory/facts"
 )
 
 func (h *Handler) registerCockpitRoutes(mux *http.ServeMux) {
@@ -247,12 +247,17 @@ func (h *Handler) memoryStatus(w http.ResponseWriter, r *http.Request) {
 	} else {
 		resp.Note = "Session SSOT uses " + backend + ". Set GEEGOO_PG_DSN for PostgreSQL."
 	}
-	if h.App != nil && h.App.PG != nil && h.App.PG.MemorySchemaEnabled() {
+	if h.App != nil && h.App.PG != nil {
 		resp.VectorBackend = "pgvector"
-		resp.VectorEnabled = true
+		resp.VectorEnabled = vectorEnvEnabled()
+		if h.App.Facts != nil {
+			if n, err := h.App.Facts.Count(r.Context(), ""); err == nil {
+				resp.Note += fmt.Sprintf(" %d semantic facts.", n)
+			}
+		}
 		if h.App.Semantic != nil {
-			if n, err := h.App.Semantic.Count(r.Context()); err == nil {
-				resp.Note += fmt.Sprintf(" %d memory chunks.", n)
+			if n, err := h.App.Semantic.Count(r.Context()); err == nil && n > 0 {
+				resp.Note += fmt.Sprintf(" %d session vector chunks.", n)
 			}
 		}
 	} else if vectorEnvEnabled() {
@@ -267,29 +272,31 @@ func vectorEnvEnabled() bool {
 }
 
 func (h *Handler) memoryChunks(w http.ResponseWriter, r *http.Request) {
-	if h.App == nil || h.App.Semantic == nil {
-		writeError(w, http.StatusServiceUnavailable, "semantic memory not enabled (GEEGOO_PG_DSN + GEEGOO_VECTOR_ENABLE)")
+	if h.App == nil || h.App.Facts == nil {
+		writeError(w, http.StatusServiceUnavailable, "semantic memory not enabled (GEEGOO_PG_DSN)")
 		return
 	}
+	userID := resolveUserID(r)
 	limit := parseLimit(r, 30, 200)
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	var (
-		chunks []semantic.Chunk
-		err    error
+		rows []factmem.Row
+		err  error
 	)
 	if query != "" {
-		chunks, err = h.App.Semantic.SearchVector(r.Context(), query, limit)
-		if err != nil || len(chunks) == 0 {
-			chunks, err = h.App.Semantic.SearchText(r.Context(), query, limit)
-		}
+		rows, err = h.App.Facts.SearchRows(r.Context(), userID, query, limit)
 	} else {
-		chunks, err = h.App.Semantic.List(r.Context(), limit)
+		rows, err = h.App.Facts.List(r.Context(), userID, limit)
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, map[string]any{"chunks": chunks, "total": len(chunks)})
+	chunks := make([]map[string]any, 0, len(rows))
+	for i := range rows {
+		chunks = append(chunks, factRow(&rows[i]))
+	}
+	writeJSON(w, map[string]any{"chunks": chunks, "facts": chunks, "total": len(chunks)})
 }
 
 func (h *Handler) sessionStoreOrError(w http.ResponseWriter) (chatsession.SessionStore, error) {

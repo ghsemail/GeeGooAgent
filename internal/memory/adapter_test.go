@@ -2,14 +2,13 @@ package memory_test
 
 import (
 	"context"
+	"strings"
 	"testing"
-	"time"
 
-	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
-	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/facts"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 )
@@ -18,6 +17,27 @@ type stubSummarizer struct{ text string }
 
 func (s stubSummarizer) Summarize(context.Context, []llm.Message, string, int) (string, error) {
 	return s.text, nil
+}
+
+type fakeFactsStore struct {
+	rows []facts.Row
+}
+
+func (f *fakeFactsStore) SearchRows(_ context.Context, _, query string, topK int) ([]facts.Row, error) {
+	if topK <= 0 {
+		topK = len(f.rows)
+	}
+	q := strings.ToLower(strings.TrimSpace(query))
+	out := make([]facts.Row, 0, len(f.rows))
+	for _, r := range f.rows {
+		if q == "" || strings.Contains(strings.ToLower(r.Subject), q) || strings.Contains(strings.ToLower(r.Content), q) {
+			out = append(out, r)
+		}
+	}
+	if len(out) > topK {
+		out = out[:topK]
+	}
+	return out, nil
 }
 
 func TestAdapterCompressDelegatesToCompressor(t *testing.T) {
@@ -49,29 +69,15 @@ func TestAdapterCompressDelegatesToCompressor(t *testing.T) {
 	}
 }
 
-func TestAdapterRecallSession(t *testing.T) {
+func TestAdapterRecallFacts(t *testing.T) {
 	t.Parallel()
-	store := infra.NewStateStore(t.TempDir())
-	sessions := chatsession.NewChatSessionStore(store)
-	s1, err := sessions.Create()
-	if err != nil {
-		t.Fatal(err)
-	}
-	s1.Messages = append(s1.Messages,
-		llm.Message{Role: llm.RoleUser, Content: "查腾讯股价"},
-		llm.Message{Role: llm.RoleAssistant, Content: "ok", ToolCalls: []llm.ToolCall{
-			{ID: "c1", Name: "get_current_price", Arguments: map[string]any{"code": "00700.HK"}},
+	ad := memory.NewAdapter(memory.AdapterConfig{
+		Facts: &fakeFactsStore{rows: []facts.Row{
+			{ID: 1, Subject: "tencent", Content: "user tracks 00700.HK price"},
 		}},
-		llm.Message{Role: llm.RoleTool, ToolCallID: "c1", Content: `{"summary":"price=380","data":{"code":"00700.HK","price":380}}`},
-	)
-	s1.UpdatedAt = time.Now().UTC()
-	if err := sessions.Save(s1); err != nil {
-		t.Fatal(err)
-	}
-
-	ad := memory.NewAdapter(memory.AdapterConfig{Sessions: sessions})
+	})
 	res, err := ad.Recall(context.Background(), memport.RecallQuery{
-		Kind: memport.RecallSession, Query: "腾讯", Limit: 5,
+		Kind: memport.RecallSession, Query: "tencent", Limit: 5,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -79,29 +85,17 @@ func TestAdapterRecallSession(t *testing.T) {
 	if len(res.Hits) == 0 {
 		t.Fatalf("expected hits, data=%+v", res.Data)
 	}
+	if res.Data["recall_source"] != "facts" {
+		t.Fatalf("source=%v", res.Data["recall_source"])
+	}
 }
 
-func TestAdapterRecallSessionRanker(t *testing.T) {
+func TestAdapterRecallFactsRanker(t *testing.T) {
 	t.Parallel()
-	store := infra.NewStateStore(t.TempDir())
-	sessions := chatsession.NewChatSessionStore(store)
-	for i, query := range []string{"查茅台", "查腾讯"} {
-		s, err := sessions.Create()
-		if err != nil {
-			t.Fatal(err)
-		}
-		s.Messages = append(s.Messages,
-			llm.Message{Role: llm.RoleUser, Content: query},
-			llm.Message{Role: llm.RoleAssistant, Content: "ok", ToolCalls: []llm.ToolCall{
-				{ID: "c1", Name: "get_current_price", Arguments: map[string]any{"code": "600519.SS"}},
-			}},
-			llm.Message{Role: llm.RoleTool, ToolCallID: "c1", Content: `{"summary":"price","data":{"code":"600519.SS","price":1800}}`},
-		)
-		s.UpdatedAt = time.Now().UTC().Add(time.Duration(i) * time.Minute)
-		if err := sessions.Save(s); err != nil {
-			t.Fatal(err)
-		}
-	}
+	store := &fakeFactsStore{rows: []facts.Row{
+		{ID: 1, Subject: "maotai", Content: "tracks 600519"},
+		{ID: 2, Subject: "tencent", Content: "tracks 00700"},
+	}}
 	reverse := func(_ context.Context, hits []memport.RecallHit) ([]memport.RecallHit, error) {
 		out := make([]memport.RecallHit, len(hits))
 		for i, h := range hits {
@@ -109,7 +103,7 @@ func TestAdapterRecallSessionRanker(t *testing.T) {
 		}
 		return out, nil
 	}
-	ad := memory.NewAdapter(memory.AdapterConfig{Sessions: sessions, SessionRanker: reverse})
+	ad := memory.NewAdapter(memory.AdapterConfig{Facts: store, SessionRanker: reverse})
 	res, err := ad.Recall(context.Background(), memport.RecallQuery{
 		Kind: memport.RecallSession, Query: "", Limit: 5,
 	})
@@ -119,7 +113,7 @@ func TestAdapterRecallSessionRanker(t *testing.T) {
 	if len(res.Hits) < 2 {
 		t.Fatalf("expected 2+ hits, got %d", len(res.Hits))
 	}
-	adPlain := memory.NewAdapter(memory.AdapterConfig{Sessions: sessions})
+	adPlain := memory.NewAdapter(memory.AdapterConfig{Facts: store})
 	plain, err := adPlain.Recall(context.Background(), memport.RecallQuery{
 		Kind: memport.RecallSession, Query: "", Limit: 5,
 	})

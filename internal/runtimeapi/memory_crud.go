@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory/episodic"
-	"github.com/ghsemail/GeeGooAgent/internal/memory/semantic"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/facts"
 )
 
 func (h *Handler) registerMemoryCRUDRoutes(mux *http.ServeMux) {
@@ -18,9 +18,16 @@ func (h *Handler) registerMemoryCRUDRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/memory/episodes", h.memoryEpisodeCreate)
 	mux.HandleFunc("PUT /v1/memory/episodes/{id}", h.memoryEpisodeUpdate)
 	mux.HandleFunc("DELETE /v1/memory/episodes/{id}", h.memoryEpisodeDelete)
-	mux.HandleFunc("POST /v1/memory/chunks", h.memoryChunkCreate)
-	mux.HandleFunc("PUT /v1/memory/chunks/{id}", h.memoryChunkUpdate)
-	mux.HandleFunc("DELETE /v1/memory/chunks/{id}", h.memoryChunkDelete)
+
+	mux.HandleFunc("GET /v1/memory/facts", h.memoryFactsList)
+	mux.HandleFunc("POST /v1/memory/facts", h.memoryFactCreate)
+	mux.HandleFunc("PUT /v1/memory/facts/{id}", h.memoryFactUpdate)
+	mux.HandleFunc("DELETE /v1/memory/facts/{id}", h.memoryFactDelete)
+
+	// Legacy aliases (dashboard/cockpit may still call chunks).
+	mux.HandleFunc("POST /v1/memory/chunks", h.memoryFactCreate)
+	mux.HandleFunc("PUT /v1/memory/chunks/{id}", h.memoryFactUpdate)
+	mux.HandleFunc("DELETE /v1/memory/chunks/{id}", h.memoryFactDelete)
 }
 
 type episodePayload struct {
@@ -29,11 +36,10 @@ type episodePayload struct {
 	HappenedAt string `json:"happened_at"`
 }
 
-type chunkPayload struct {
-	SessionID string `json:"session_id"`
-	Source    string `json:"source"`
-	Content   string `json:"content"`
-	Subject   string `json:"subject"`
+type factPayload struct {
+	Subject string `json:"subject"`
+	Content string `json:"content"`
+	Source  string `json:"source"`
 }
 
 func (h *Handler) memoryEpisodesList(w http.ResponseWriter, r *http.Request) {
@@ -113,71 +119,108 @@ func (h *Handler) memoryEpisodeDelete(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true, "deleted": id})
 }
 
-func (h *Handler) memoryChunkCreate(w http.ResponseWriter, r *http.Request) {
-	if h.App == nil || h.App.Semantic == nil {
+func (h *Handler) memoryFactsList(w http.ResponseWriter, r *http.Request) {
+	if h.App == nil || h.App.Facts == nil {
+		writeError(w, http.StatusServiceUnavailable, "semantic memory not enabled (GEEGOO_PG_DSN)")
+		return
+	}
+	userID := resolveUserID(r)
+	limit := parseLimit(r, 50, 200)
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	var (
+		rows []facts.Row
+		err  error
+	)
+	if query != "" {
+		rows, err = h.App.Facts.SearchRows(r.Context(), userID, query, limit)
+	} else {
+		rows, err = h.App.Facts.List(r.Context(), userID, limit)
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, map[string]any{"facts": factRows(rows), "total": len(rows)})
+}
+
+func (h *Handler) memoryFactCreate(w http.ResponseWriter, r *http.Request) {
+	if h.App == nil || h.App.Facts == nil {
 		writeError(w, http.StatusServiceUnavailable, "semantic memory not enabled")
 		return
 	}
-	var req chunkPayload
+	var req factPayload
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
 	content := strings.TrimSpace(req.Content)
 	subject := strings.TrimSpace(req.Subject)
-	if subject != "" && !strings.HasPrefix(content, "[") {
-		content = "[" + subject + "] " + content
+	if content == "" {
+		writeError(w, http.StatusBadRequest, "content required")
+		return
+	}
+	source := strings.TrimSpace(req.Source)
+	if source == "" {
+		source = "manual"
 	}
 	userID := resolveUserID(r)
-	id, err := h.App.Semantic.Create(r.Context(), strings.TrimSpace(req.SessionID), userID, req.Source, content)
-	if err != nil {
+	if err := h.App.Facts.Add(r.Context(), userID, subject, content, source); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	chunk, _ := h.App.Semantic.GetByID(r.Context(), id)
-	writeJSON(w, map[string]any{"ok": true, "chunk": chunkRow(chunk)})
+	rows, _ := h.App.Facts.List(r.Context(), userID, 1)
+	var row *facts.Row
+	if len(rows) > 0 {
+		row = &rows[0]
+	}
+	writeJSON(w, map[string]any{"ok": true, "fact": factRow(row), "chunk": factRow(row)})
 }
 
-func (h *Handler) memoryChunkUpdate(w http.ResponseWriter, r *http.Request) {
-	if h.App == nil || h.App.Semantic == nil {
+func (h *Handler) memoryFactUpdate(w http.ResponseWriter, r *http.Request) {
+	if h.App == nil || h.App.Facts == nil {
 		writeError(w, http.StatusServiceUnavailable, "semantic memory not enabled")
 		return
 	}
 	id, err := pathInt64(r, "id")
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid chunk id")
+		writeError(w, http.StatusBadRequest, "invalid fact id")
 		return
 	}
-	var req chunkPayload
+	var req factPayload
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
-	content := strings.TrimSpace(req.Content)
-	subject := strings.TrimSpace(req.Subject)
-	if subject != "" && !strings.HasPrefix(content, "[") {
-		content = "[" + subject + "] " + content
-	}
-	if err := h.App.Semantic.UpdateContent(r.Context(), id, content); err != nil {
-		writeChunkErr(w, err)
+	ok, err := h.App.Facts.Update(r.Context(), id, req.Content, req.Subject)
+	if err != nil {
+		writeFactErr(w, err)
 		return
 	}
-	chunk, _ := h.App.Semantic.GetByID(r.Context(), id)
-	writeJSON(w, map[string]any{"ok": true, "chunk": chunkRow(chunk)})
+	if !ok {
+		writeError(w, http.StatusNotFound, "fact not found")
+		return
+	}
+	row, _ := h.App.Facts.GetByID(r.Context(), id)
+	writeJSON(w, map[string]any{"ok": true, "fact": factRow(row), "chunk": factRow(row)})
 }
 
-func (h *Handler) memoryChunkDelete(w http.ResponseWriter, r *http.Request) {
-	if h.App == nil || h.App.Semantic == nil {
+func (h *Handler) memoryFactDelete(w http.ResponseWriter, r *http.Request) {
+	if h.App == nil || h.App.Facts == nil {
 		writeError(w, http.StatusServiceUnavailable, "semantic memory not enabled")
 		return
 	}
 	id, err := pathInt64(r, "id")
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid chunk id")
+		writeError(w, http.StatusBadRequest, "invalid fact id")
 		return
 	}
-	if err := h.App.Semantic.Delete(r.Context(), id); err != nil {
-		writeChunkErr(w, err)
+	ok, err := h.App.Facts.Delete(r.Context(), id)
+	if err != nil {
+		writeFactErr(w, err)
+		return
+	}
+	if !ok {
+		writeError(w, http.StatusNotFound, "fact not found")
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true, "deleted": id})
@@ -206,35 +249,28 @@ func episodeRow(ep *episodic.Episode) map[string]any {
 	}
 }
 
-func chunkRow(c *semantic.Chunk) map[string]any {
-	if c == nil {
-		return map[string]any{}
+func factRows(rows []facts.Row) []map[string]any {
+	out := make([]map[string]any, 0, len(rows))
+	for i := range rows {
+		out = append(out, factRow(&rows[i]))
 	}
-	subject, content := splitFactContent(c.Content)
-	return map[string]any{
-		"id":         c.ID,
-		"session_id": c.SessionID,
-		"user_id":    c.UserID,
-		"source":     c.Source,
-		"subject":    subject,
-		"content":    content,
-		"raw":        c.Content,
-		"created_at": c.CreatedAt.Format(time.RFC3339),
-	}
+	return out
 }
 
-func splitFactContent(raw string) (subject, content string) {
-	raw = strings.TrimSpace(raw)
-	if !strings.HasPrefix(raw, "[") {
-		return "", raw
+func factRow(f *facts.Row) map[string]any {
+	if f == nil {
+		return map[string]any{}
 	}
-	end := strings.Index(raw, "]")
-	if end <= 1 {
-		return "", raw
+	raw := facts.Format(f.Subject, f.Content)
+	return map[string]any{
+		"id":         f.ID,
+		"user_id":    f.UserID,
+		"subject":    f.Subject,
+		"content":    f.Content,
+		"raw":        raw,
+		"source":     f.Source,
+		"created_at": f.CreatedAt.Format(time.RFC3339),
 	}
-	subject = strings.TrimSpace(raw[1:end])
-	content = strings.TrimSpace(raw[end+1:])
-	return subject, content
 }
 
 func pathInt64(r *http.Request, key string) (int64, error) {
@@ -263,9 +299,9 @@ func writeEpisodeErr(w http.ResponseWriter, err error) {
 	writeError(w, http.StatusInternalServerError, err.Error())
 }
 
-func writeChunkErr(w http.ResponseWriter, err error) {
+func writeFactErr(w http.ResponseWriter, err error) {
 	if errors.Is(err, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "chunk not found")
+		writeError(w, http.StatusNotFound, "fact not found")
 		return
 	}
 	writeError(w, http.StatusInternalServerError, err.Error())

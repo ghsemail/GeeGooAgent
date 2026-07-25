@@ -22,6 +22,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/consolidation"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/episodic"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/facts"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/semantic"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
@@ -51,8 +52,10 @@ type App struct {
 	DB       *infra.DB
 	// Optional PostgreSQL platform DB (sessions, cockpit, semantic memory).
 	PG *infra.PostgresDB
-	// Semantic memory chunks when pgvector schema is enabled.
+	// Semantic memory chunks when pgvector schema is enabled (session vectors only; not Waku facts).
 	Semantic *semantic.PostgresStore
+	// Facts is Waku-style semantic memory (FTS facts table).
+	Facts *facts.PostgresStore
 	// Episodic memory (dated summaries) when PostgreSQL is enabled.
 	Episodic *episodic.PostgresStore
 	// Consolidator distills chats into semantic facts + episodic rows.
@@ -150,6 +153,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 		Working: workingLoader, Search: cfg.EffectiveSearch(),
 		FeishuWebhookURL: cfg.EffectiveFeishuWebhookURL(),
 		Delegate: sub, Memory: app.ChatMemory,
+		Facts: app.Facts, Episodic: app.Episodic, Home: config.Home(),
 	})
 	app.Agent.SetSubAgent(sub)
 	app.Workflow.SetToolExec(app.Agent.ToolExec())
@@ -202,6 +206,12 @@ func (a *App) openPostgres() error {
 	}
 	a.PG = pg
 	a.Episodic = episodic.NewPostgresStore(pg.SQL())
+	a.Facts = facts.NewPostgresStore(pg.SQL())
+	if n, _ := a.Facts.Count(context.Background(), ""); n == 0 {
+		if imported, err := a.Facts.MigrateFromLegacyChunks(context.Background()); err == nil && imported > 0 {
+			fmt.Fprintf(os.Stderr, "已迁移 %d 条 legacy semantic facts\n", imported)
+		}
+	}
 	if vectorEnabled() {
 		dim := config.DefaultEmbeddingDimensions
 		if a.Config != nil {
@@ -429,14 +439,14 @@ func (a *App) wireChatMemory() {
 			sessions = chatsession.NewChatSessionStore(a.State)
 		}
 	}
-	var semanticStore memory.SemanticStore
-	if a.Semantic != nil {
-		semanticStore = a.Semantic
+	var factsStore memory.FactsStore
+	if a.Facts != nil {
+		factsStore = a.Facts
 	}
 	if ad, ok := a.ChatMemory.(*memory.Adapter); ok && ad != nil {
 		ad.SetCompressor(compressor)
 		ad.SetSessions(sessions)
-		ad.SetSemantic(semanticStore)
+		ad.SetFacts(factsStore)
 		if a.Episodic != nil {
 			ad.SetEpisodic(a.Episodic)
 		}
@@ -450,7 +460,7 @@ ad := memory.NewAdapter(memory.AdapterConfig{
 		Compressor: compressor,
 		Sessions:   sessions,
 		Evidence:   a.Evidence,
-		Semantic:   semanticStore,
+		Facts:      factsStore,
 		Episodic:   a.Episodic,
 	})
 	a.ChatMemory = ad
@@ -489,7 +499,7 @@ func (a *App) wireConsolidator() {
 	a.Consolidator = &consolidation.Distiller{
 		Provider: provider,
 		Policy:   policy,
-		Semantic: a.Semantic,
+		Facts:    a.Facts,
 		Episodic: a.Episodic,
 		EveryN:   3,
 	}

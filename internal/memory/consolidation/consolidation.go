@@ -10,7 +10,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/episodic"
-	"github.com/ghsemail/GeeGooAgent/internal/memory/semantic"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/facts"
 )
 
 const metadataConsolidatedPairs = "memory_consolidated_pairs"
@@ -38,7 +38,7 @@ type Result struct {
 type Distiller struct {
 	Provider llm.Provider
 	Policy   llm.Policy
-	Semantic *semantic.PostgresStore
+	Facts    *facts.PostgresStore
 	Episodic *episodic.PostgresStore
 	EveryN   int
 }
@@ -73,8 +73,8 @@ func (d *Distiller) MaybeConsolidate(ctx context.Context, session *chatsession.C
 		if subject == "" || content == "" {
 			continue
 		}
-		if d.Semantic != nil {
-			if err := d.Semantic.AddFact(ctx, session.ID, userID, subject, content); err == nil {
+		if d.Facts != nil {
+			if err := d.Facts.Add(ctx, userID, subject, content, "consolidation"); err == nil {
 				out.Facts++
 			}
 		}

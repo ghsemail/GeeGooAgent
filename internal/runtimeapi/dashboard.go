@@ -17,6 +17,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/doctor"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
+	factmem "github.com/ghsemail/GeeGooAgent/internal/memory/facts"
 	"github.com/ghsemail/GeeGooAgent/internal/skills"
 )
 
@@ -228,14 +229,15 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		}
 	}
 
-	if h.App != nil && h.App.Semantic != nil {
-		if chunks, err := h.App.Semantic.List(r.Context(), 80); err == nil {
-			for _, c := range chunks {
-				subject, content := splitFactContent(c.Content)
+	if h.App != nil && h.App.Facts != nil {
+		userID := resolveUserID(r)
+		if rows, err := h.App.Facts.List(r.Context(), userID, 80); err == nil {
+			for _, f := range rows {
 				facts = append(facts, map[string]any{
-					"id": c.ID, "subject": subject, "content": content, "raw": c.Content,
-					"source": c.Source, "user_id": c.UserID, "session_id": c.SessionID,
-					"created_at": c.CreatedAt.Format(time.RFC3339),
+					"id": f.ID, "subject": f.Subject, "content": f.Content,
+					"raw": factmem.Format(f.Subject, f.Content),
+					"source": f.Source, "user_id": f.UserID,
+					"created_at": f.CreatedAt.Format(time.RFC3339),
 				})
 			}
 		}

@@ -40,6 +40,22 @@ CREATE TABLE IF NOT EXISTS agent_episodes (
 CREATE INDEX IF NOT EXISTS idx_agent_episodes_user_date
     ON agent_episodes (user_id, happened_at DESC);
 
+-- Semantic memory: durable facts (Waku facts table parity).
+CREATE TABLE IF NOT EXISTS agent_facts (
+    id          BIGSERIAL PRIMARY KEY,
+    user_id     TEXT NOT NULL DEFAULT '',
+    subject     TEXT NOT NULL,
+    content     TEXT NOT NULL,
+    source      TEXT NOT NULL DEFAULT 'user',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    search_vector tsvector GENERATED ALWAYS AS (
+        to_tsvector('simple', coalesce(subject, '') || ' ' || coalesce(content, ''))
+    ) STORED
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_facts_user ON agent_facts (user_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_facts_fts ON agent_facts USING GIN (search_vector);
+
 CREATE TABLE IF NOT EXISTS agent_approvals (
     id          BIGSERIAL PRIMARY KEY,
     session_id  TEXT NOT NULL,

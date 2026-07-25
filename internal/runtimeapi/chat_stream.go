@@ -113,6 +113,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	rtSession := agent.RuntimeSessionFromChat(chat)
 	mcpToken := resolveInteractiveMCPToken(r, req.MCPToken)
 	toolCtx := h.App.ToolContextWithContext(r.Context(), chat.ID)
+	toolCtx.UserID = resolveUserID(r)
 	toolCtx.MCPToken = mcpToken
 	toolCtx.Interactive = true
 	toolCtx.Approved = approveWrites(r)
@@ -138,22 +139,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	agent.SyncChatFromRuntime(chat, rtSession, newRecords)
 	_ = store.Save(chat)
 	userID := resolveUserID(r)
-	mem := h.persistTurnMemory(r.Context(), chat, userID)
-	if mem.SummaryStored {
-		writeSessionSSE(w, flusher, "consolidation", map[string]any{
-			"session_id":    chat.ID,
-			"summary_chars": mem.SummaryChars,
-			"stored":        true,
-			"kind":          "session_summary",
-		})
-	}
-	if mem.EpisodeStored {
-		writeSessionSSE(w, flusher, "consolidation", map[string]any{
-			"session_id": chat.ID,
-			"stored":     true,
-			"kind":       "episode_snapshot",
-		})
-	}
+	_ = h.persistTurnMemory(r.Context(), chat, userID)
 	if h.App.Consolidator != nil {
 		if res, err := h.App.Consolidator.MaybeConsolidate(r.Context(), chat); err == nil && (res.Facts > 0 || res.Episode) {
 			_ = store.Save(chat)

@@ -83,6 +83,9 @@ var (
 		"fetch_stock_news":         {},
 		"web_search":               {},
 		"recall":                   {},
+		"save_note":                {},
+		"manage_memory":            {},
+		"update_soul":              {},
 		"clarify":                  {},
 		"delegate_task":            {},
 	}

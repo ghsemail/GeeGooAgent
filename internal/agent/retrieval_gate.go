@@ -98,7 +98,7 @@ func formatGateMemory(hits []memport.RecallHit) string {
 		if i > 0 {
 			b.WriteString("\n\n")
 		}
-		fmt.Fprintf(&b, "- session %s (score %d): %s", h.ID, h.Score, strings.TrimSpace(h.Snippet))
+		fmt.Fprintf(&b, "- %s", strings.TrimSpace(h.Snippet))
 	}
 	return b.String()
 }
@@ -107,8 +107,14 @@ func (l *Loop) injectGateMemory(session *runtime.Session, block, source string) 
 	if session == nil || strings.TrimSpace(block) == "" {
 		return
 	}
-	label := "local FTS"
+	label := "semantic memory (FTS)"
 	switch source {
+	case "facts":
+		label = "semantic facts (FTS)"
+	case "episodic":
+		label = "episodic memory"
+	case "facts+episodic":
+		label = "semantic facts + episodic memory"
 	case "vector":
 		label = "semantic vector search"
 	case "hybrid":
@@ -118,7 +124,7 @@ func (l *Loop) injectGateMemory(session *runtime.Session, block, source string) 
 	}
 	mem := llm.Message{
 		Role: llm.RoleSystem,
-		Content: fmt.Sprintf("Retrieved from past chat sessions (%s). Use only if relevant:\n%s", label, block),
+		Content: fmt.Sprintf("Retrieved from long-term memory (%s). Use only if relevant:\n%s", label, block),
 	}
 	n := len(session.Messages)
 	if n >= 1 && session.Messages[n-1].Role == llm.RoleUser {
@@ -145,7 +151,7 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 			decision.Reason = "recall error: " + err.Error()
 		} else if len(res.Hits) == 0 {
 			decision.Decision = "skip"
-			decision.Reason = "no matching past sessions"
+			decision.Reason = "no matching memories"
 		} else {
 			source := "fts"
 			if res.Data != nil {
@@ -153,7 +159,7 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 					source = v
 				}
 			}
-			l.emitStatus("gate", fmt.Sprintf("检索到 %d 条相关历史会话（%s）", len(res.Hits), source))
+			l.emitStatus("gate", fmt.Sprintf("检索到 %d 条相关记忆（%s）", len(res.Hits), source))
 			if block := formatGateMemory(res.Hits); block != "" {
 				l.injectGateMemory(session, block, source)
 			}

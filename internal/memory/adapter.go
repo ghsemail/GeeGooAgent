@@ -8,13 +8,13 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/episodic"
-	"github.com/ghsemail/GeeGooAgent/internal/memory/semantic"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/facts"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 )
 
-// SemanticStore recalls pgvector memory chunks for gate fallback.
-type SemanticStore interface {
-	RecallChunks(ctx context.Context, query, userID, excludeSessionID string, limit int) ([]semantic.Chunk, error)
+// FactsStore searches durable semantic facts (Waku FTS parity).
+type FactsStore interface {
+	SearchRows(ctx context.Context, userID, query string, topK int) ([]facts.Row, error)
 }
 
 // EpisodicStore searches dated episode summaries.
@@ -27,7 +27,7 @@ type AdapterConfig struct {
 	Compressor    *prompt.Compressor
 	Sessions      chatsession.SessionStore
 	Evidence      *EvidenceStore
-	Semantic      SemanticStore
+	Facts         FactsStore
 	Episodic      EpisodicStore
 	SessionRanker memport.SessionRanker
 }
@@ -37,7 +37,7 @@ type Adapter struct {
 	compressor    *prompt.Compressor
 	sessions      chatsession.SessionStore
 	evidence      *EvidenceStore
-	semantic      SemanticStore
+	facts         FactsStore
 	episodic      EpisodicStore
 	sessionRanker memport.SessionRanker
 }
@@ -48,7 +48,7 @@ func NewAdapter(cfg AdapterConfig) *Adapter {
 		compressor:    cfg.Compressor,
 		sessions:      cfg.Sessions,
 		evidence:      cfg.Evidence,
-		semantic:      cfg.Semantic,
+		facts:         cfg.Facts,
 		episodic:      cfg.Episodic,
 		sessionRanker: cfg.SessionRanker,
 	}
@@ -77,10 +77,10 @@ func (a *Adapter) SetSessions(s chatsession.SessionStore) {
 	}
 }
 
-// SetSemantic wires pgvector recall for gate fallback.
-func (a *Adapter) SetSemantic(s SemanticStore) {
+// SetFacts wires Waku-style semantic FTS recall.
+func (a *Adapter) SetFacts(s FactsStore) {
 	if a != nil {
-		a.semantic = s
+		a.facts = s
 	}
 }
 
@@ -91,11 +91,11 @@ func (a *Adapter) SetEpisodic(s EpisodicStore) {
 	}
 }
 
-// Recall dispatches by kind. Session recall searches past chat sessions.
+// Recall dispatches by kind. Session recall searches facts + episodes (Waku parity).
 func (a *Adapter) Recall(ctx context.Context, q memport.RecallQuery) (memport.RecallResult, error) {
 	switch q.Kind {
 	case memport.RecallSession, "":
-		return a.recallSessions(ctx, q)
+		return a.recallMemory(ctx, q)
 	case memport.RecallEvidence:
 		return a.recallEvidence(q)
 	default:
@@ -103,77 +103,76 @@ func (a *Adapter) Recall(ctx context.Context, q memport.RecallQuery) (memport.Re
 	}
 }
 
-func (a *Adapter) recallSessions(ctx context.Context, q memport.RecallQuery) (memport.RecallResult, error) {
+func (a *Adapter) recallMemory(ctx context.Context, q memport.RecallQuery) (memport.RecallResult, error) {
 	if a == nil {
 		return memport.RecallResult{}, nil
 	}
 	limit := q.Limit
 	if limit <= 0 {
-		limit = 5
+		limit = 4
 	}
-	scan := q.ScanLimit
-	if scan <= 0 {
-		scan = 30
-	}
-	var (
-		hits []chatsession.SessionRecallHit
-		err  error
-	)
-	if a.sessions != nil {
-		hits, err = chatsession.SearchPastSessions(a.sessions, q.Query, q.ExcludeSessionID, q.UserID, limit, scan)
+	var hits []memport.RecallHit
+	source := "none"
+
+	if a.facts != nil {
+		rows, err := a.facts.SearchRows(ctx, q.UserID, q.Query, limit)
 		if err != nil {
 			return memport.RecallResult{}, err
 		}
-	}
-	ftsHits := append([]chatsession.SessionRecallHit(nil), hits...)
-	var vectorHits []chatsession.SessionRecallHit
-	if a.semantic != nil {
-		if chunks, vErr := a.semantic.RecallChunks(ctx, q.Query, q.UserID, q.ExcludeSessionID, limit); vErr == nil && len(chunks) > 0 {
-			vectorHits = semanticChunksToSessionHits(chunks)
+		for i, r := range rows {
+			score := len(rows) - i
+			if score < 1 {
+				score = 1
+			}
+			hits = append(hits, memport.RecallHit{
+				ID:      fmt.Sprintf("fact:%d", r.ID),
+				Score:   score,
+				Snippet: facts.Format(r.Subject, r.Content),
+				Data: map[string]any{
+					"kind": "fact", "id": r.ID, "subject": r.Subject, "content": r.Content,
+				},
+			})
+		}
+		if len(rows) > 0 {
+			source = "facts"
 		}
 	}
-	hits, source := mergeRecallHits(ftsHits, vectorHits, limit)
+
 	if a.episodic != nil {
-		eps, eErr := a.episodic.SearchEpisodes(ctx, q.Query, q.UserID, limit)
-		if eErr == nil && len(eps) > 0 {
-			for i, ep := range eps {
-				score := len(eps) - i
-				if score < 1 {
-					score = 1
-				}
-				snippet := fmt.Sprintf("(%s) %s", ep.HappenedAt.Format("2006-01-02"), ep.Summary)
-				hits = append(hits, chatsession.SessionRecallHit{
-					SessionID: ep.SessionID,
-					Score:     score,
-					Snippet:   snippet,
-				})
+		eps, err := a.episodic.SearchEpisodes(ctx, q.Query, q.UserID, 3)
+		if err != nil {
+			return memport.RecallResult{}, err
+		}
+		for i, ep := range eps {
+			score := len(eps) - i
+			if score < 1 {
+				score = 1
 			}
-			if source == "none" || source == "" {
+			snippet := fmt.Sprintf("(%s) %s", ep.HappenedAt.Format("2006-01-02"), ep.Summary)
+			hits = append(hits, memport.RecallHit{
+				ID:      fmt.Sprintf("episode:%d", ep.ID),
+				Score:   score,
+				Snippet: snippet,
+				Data: map[string]any{
+					"kind": "episode", "id": ep.ID, "session_id": ep.SessionID,
+				},
+			})
+		}
+		if len(eps) > 0 {
+			if source == "none" {
 				source = "episodic"
 			} else {
-				source = "hybrid+" + source
-			}
-			if len(hits) > limit {
-				hits = hits[:limit]
+				source = "facts+episodic"
 			}
 		}
 	}
+
 	out := memport.RecallResult{
 		Hits: make([]memport.RecallHit, 0, len(hits)),
-		Data: chatsession.HitsToData(hits),
+		Data: map[string]any{"recall_source": source},
 	}
-	if out.Data == nil {
-		out.Data = map[string]any{}
-	}
-	out.Data["recall_source"] = source
 	for _, h := range hits {
-		out.Hits = append(out.Hits, memport.RecallHit{
-			ID: h.SessionID, Score: h.Score, Snippet: h.Snippet,
-			Data: map[string]any{
-				"session_id": h.SessionID, "updated_at": h.UpdatedAt, "score": h.Score,
-				"snippet": h.Snippet, "user_queries": h.UserQueries, "stock_events": h.StockEvents,
-			},
-		})
+		out.Hits = append(out.Hits, h)
 	}
 	if a.sessionRanker != nil && len(out.Hits) > 1 {
 		ranked, err := a.sessionRanker(ctx, out.Hits)
@@ -185,22 +184,6 @@ func (a *Adapter) recallSessions(ctx context.Context, q memport.RecallQuery) (me
 		}
 	}
 	return out, nil
-}
-
-func semanticChunksToSessionHits(chunks []semantic.Chunk) []chatsession.SessionRecallHit {
-	out := make([]chatsession.SessionRecallHit, 0, len(chunks))
-	for i, c := range chunks {
-		score := len(chunks) - i
-		if score < 1 {
-			score = 1
-		}
-		out = append(out, chatsession.SessionRecallHit{
-			SessionID: c.SessionID,
-			Score:     score,
-			Snippet:   c.Content,
-		})
-	}
-	return out
 }
 
 func (a *Adapter) recallEvidence(q memport.RecallQuery) (memport.RecallResult, error) {

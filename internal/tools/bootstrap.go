@@ -9,6 +9,8 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/episodic"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/facts"
 	"github.com/ghsemail/GeeGooAgent/internal/tools/catalog"
 )
 
@@ -21,6 +23,9 @@ type Deps struct {
 	Search           config.SearchConfig
 	FeishuWebhookURL string
 	Memory           memport.Port
+	Facts            *facts.PostgresStore
+	Episodic         *episodic.PostgresStore
+	Home             string
 	// Delegate runs delegate_task sub-agent turns (optional; wired by app).
 	Delegate TaskDelegator
 }
