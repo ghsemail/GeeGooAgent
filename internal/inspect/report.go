@@ -23,7 +23,8 @@ type Report struct {
 	Loop       LoopSection
 	Toolsets   []ToolsetSection
 	Tools      ToolsSection
-	Skills     []string
+	Skills           []string
+	ProceduralSkills []ProceduralSkillSection
 	Runtime    RuntimeSection
 	Verify     []string
 }
@@ -64,6 +65,14 @@ type ToolsSection struct {
 	Registered int
 	ChatActive int
 	WorkflowExclusive int
+}
+
+type ProceduralSkillSection struct {
+	Name        string
+	Kind        string
+	Provenance  string
+	Enabled     bool
+	InjectInChat bool
 }
 
 type RuntimeSection struct {
@@ -139,6 +148,14 @@ func Build(application *app.App, opts Options) Report {
 	for _, sk := range app.DefaultSkills.List() {
 		r.Skills = append(r.Skills, sk.Name)
 	}
+	if application.SkillLoader != nil {
+		for _, s := range application.SkillLoader.ListSummaries() {
+			r.ProceduralSkills = append(r.ProceduralSkills, ProceduralSkillSection{
+				Name: s.Name, Kind: string(s.Kind), Provenance: string(s.Provenance),
+				Enabled: s.Enabled, InjectInChat: s.InjectInChat,
+			})
+		}
+	}
 	if opts.QuickLoop && application.Registry != nil {
 		for _, card := range verify.VerifyAgentLoopParity(application.Registry) {
 			r.Verify = append(r.Verify, card.Summary())
@@ -185,11 +202,28 @@ func FormatText(r Report) string {
 		b.WriteString(fmt.Sprintf("  %s %-18s (%d tools) %s\n", flag, ts.ID, ts.ToolCount, ts.Label))
 	}
 	b.WriteByte('\n')
-	b.WriteString("[Skills]\n")
+	b.WriteString("[Workflow Skills (geegoo run)]\n")
 	if len(r.Skills) == 0 {
 		b.WriteString("  (none)\n")
 	} else {
 		b.WriteString("  " + strings.Join(r.Skills, ", ") + "\n")
+	}
+	b.WriteByte('\n')
+	b.WriteString("[Procedural Skills (SKILL.md)]\n")
+	if len(r.ProceduralSkills) == 0 {
+		b.WriteString("  (none)\n")
+	} else {
+		for _, sk := range r.ProceduralSkills {
+			flag := " "
+			if sk.InjectInChat {
+				flag = "*"
+			}
+			en := "on"
+			if !sk.Enabled {
+				en = "off"
+			}
+			b.WriteString(fmt.Sprintf("  %s %-22s %-10s %-8s %s\n", flag, sk.Name, sk.Kind, sk.Provenance, en))
+		}
 	}
 	b.WriteByte('\n')
 	b.WriteString("[Runtime]\n")

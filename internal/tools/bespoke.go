@@ -97,7 +97,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 	})
 	r.Register(Tool{
 		Name:        "web_search",
-		Description: "网页搜索（bundled skill: duckduckgo-search）。仅当 search_code 在 GeeGoo 股票库无结果、且需要外部新闻/时事时使用。",
+		Description: "网页搜索（extension: duckduckgo-search）。仅当 search_code 在 GeeGoo 股票库无结果、且需要外部新闻/时事时使用。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -123,7 +123,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if cfg.MaxResults <= 0 {
 				cfg.MaxResults = 5
 			}
-			hits, err := webSearchHits(ctx.GoContext(), deps.ProjectRoot, cfg, query)
+			hits, err := webSearchHits(ctx.GoContext(), deps.ProjectRoot, cfg, query, proceduralPolicy(deps))
 			if err != nil {
 				return errResult(err)
 			}
@@ -231,7 +231,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 				return newsUnavailableResult("fetch_market_news", market, "", err)
 			}
 			if stockNewsNeedsFallback(text) {
-				if supplement, _ := webSearchMarketFallback(ctx.GoContext(), deps.ProjectRoot, deps.Search, market); supplement != "" {
+				if supplement, _ := webSearchMarketFallback(ctx.GoContext(), deps.ProjectRoot, deps.Search, market, proceduralPolicy(deps)); supplement != "" {
 					text = mergeStockNewsText(text, supplement)
 					source = source + "+web_search"
 				}
@@ -262,7 +262,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 				return newsUnavailableResult("fetch_stock_news", "", code, err)
 			}
 			if stockNewsNeedsFallback(text) {
-				if supplement, _ := webSearchNewsFallback(ctx.GoContext(), deps.ProjectRoot, deps.Search, code); supplement != "" {
+				if supplement, _ := webSearchNewsFallback(ctx.GoContext(), deps.ProjectRoot, deps.Search, code, proceduralPolicy(deps)); supplement != "" {
 					text = mergeStockNewsText(text, supplement)
 					if source == "" {
 						source = "web_search"

@@ -283,8 +283,11 @@ func scanSkills(projectRoot string) map[string][]string {
 		parts := strings.Split(rel, string(os.PathSeparator))
 		category := parts[0]
 		name := parts[len(parts)-1]
-		if category == "bundled" && len(parts) > 1 {
-			category = "bundled"
+		if category == "extensions" && len(parts) > 1 {
+			category = "extensions"
+			name = parts[1]
+		} else if category == "bundled" && len(parts) > 1 {
+			category = "extensions"
 			name = parts[1]
 		}
 		found[category] = append(found[category], name)

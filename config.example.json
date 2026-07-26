@@ -82,5 +82,13 @@
     "mouse_tracking": "off",
     "status_indicator": "emoji",
     "show_reasoning": true
+  },
+  "skills": {
+    "disabled": [],
+    "extensions": {
+      "duckduckgo-search": { "enabled": true },
+      "finance-news": { "enabled": true },
+      "eastmoney-news": { "enabled": true }
+    }
   }
 }

@@ -35,6 +35,8 @@ func main() {
 		runMigrate(os.Args[2:])
 	case "skills":
 		runSkills(os.Args[2:])
+	case "skill":
+		runSkillManage(os.Args[2:])
 	case "scheduler":
 		runScheduler(os.Args[2:])
 	case "verify":
@@ -74,10 +76,11 @@ Usage:
   %s run <skill> [--config PATH] [--dry-run]
   %s migrate [--config PATH] [--from file|sqlite] [--to sqlite|postgres] [--dry-run]
   %s migrate tenant --assign-user UID [--session ID] [--compare-from PATH] [--dry-run]
-  %s skills list
+  %s skills list [--config PATH]
+  %s skill enable|disable <name> [--config PATH]
   %s scheduler <run|list> [--config PATH]
   %s verify --codes CODES [--date YYYY-MM-DD] [--config PATH]
   %s verify agent-loop [--config PATH]
 
-`, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
+`, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
 }

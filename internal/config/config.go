@@ -233,6 +233,7 @@ type AppConfig struct {
 	Hooks            HooksConfig       `json:"hooks,omitempty"`
 	Advisor          AdvisorConfig     `json:"advisor,omitempty"`
 	Display          DisplayConfig     `json:"display,omitempty"`
+	Skills           SkillsConfig      `json:"skills,omitempty"`
 	ActiveProfile    string            `json:"active_profile,omitempty"`
 	Profiles         map[string]ProfileConfig `json:"profiles,omitempty"`
 	ResolvedProfile  string            `json:"-"`

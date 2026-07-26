@@ -14,7 +14,7 @@ func TestWebSearchUsesBundledScript(t *testing.T) {
 	if root == "" {
 		t.Skip("repo root not found")
 	}
-	script := filepath.Join(root, "skills", "bundled", "duckduckgo-search", "scripts", "web_search.py")
+	script := filepath.Join(root, "skills", "extensions", "duckduckgo-search", "scripts", "web_search.py")
 	if _, err := os.Stat(script); err != nil {
 		t.Fatalf("bundled script missing: %v", err)
 	}
@@ -43,7 +43,7 @@ func findRepoRoot(t *testing.T) string {
 		return ""
 	}
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "skills", "bundled", "duckduckgo-search", "scripts", "web_search.py")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "skills", "extensions", "duckduckgo-search", "scripts", "web_search.py")); err == nil {
 			return dir
 		}
 		parent := filepath.Dir(dir)

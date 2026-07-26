@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/search"
 )
 
@@ -24,6 +25,7 @@ type Options struct {
 	ProjectRoot string
 	Timeout     time.Duration
 	BundledOnly bool
+	Policy      procedural.SkillsPolicy
 }
 
 type scriptPayload struct {
@@ -44,6 +46,9 @@ func WebSearch(ctx context.Context, opts Options, query string, maxResults int) 
 	}
 	if maxResults <= 0 {
 		maxResults = 5
+	}
+	if !opts.Policy.ExtensionEnabled("duckduckgo-search") {
+		return nil, ErrUnavailable
 	}
 	hits, err := runScript(ctx, opts, query, maxResults)
 	if err == nil {
@@ -109,10 +114,7 @@ func runScript(ctx context.Context, opts Options, query string, maxResults int) 
 }
 
 func resolveScript(projectRoot string, bundledOnly bool) (string, error) {
-	candidates := []string{}
-	if root := strings.TrimSpace(projectRoot); root != "" {
-		candidates = append(candidates, filepath.Join(root, "skills", "bundled", "duckduckgo-search", "scripts", "web_search.py"))
-	}
+	candidates := procedural.ExtensionScriptCandidates(projectRoot, "duckduckgo-search", "web_search.py")
 	if !bundledOnly {
 		if home, err := os.UserHomeDir(); err == nil {
 			candidates = append(candidates,

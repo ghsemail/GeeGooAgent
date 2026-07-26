@@ -505,6 +505,10 @@ func (a *App) wireProceduralMemory() {
 		dirs = append(dirs, filepath.Join(a.Workspace, "skills"))
 	}
 	a.SkillLoader = procedural.NewLoader(dirs...)
+	if a.Config != nil {
+		skillsCfg := a.Config.EffectiveSkills()
+		a.SkillLoader.SetPolicy(procedural.PolicyFromConfig(&skillsCfg))
+	}
 	a.Agent.SetSkillLoader(a.SkillLoader, 2)
 }
 

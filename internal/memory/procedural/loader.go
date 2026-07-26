@@ -24,6 +24,23 @@ type Loader struct {
 	dirs      []string
 	skills    []Skill
 	signature []fileSig
+	policy    SkillsPolicy
+}
+
+// SetPolicy updates disabled/extension toggles (safe to call after NewLoader).
+func (l *Loader) SetPolicy(p SkillsPolicy) {
+	if l == nil {
+		return
+	}
+	l.policy = p
+}
+
+// Policy returns the active skills policy.
+func (l *Loader) Policy() SkillsPolicy {
+	if l == nil {
+		return SkillsPolicy{disabled: map[string]struct{}{}, extensions: map[string]bool{}}
+	}
+	return l.policy
 }
 
 // Dirs returns configured scan roots (repo skills/, workspace skills/).
@@ -48,7 +65,10 @@ var (
 
 // NewLoader creates a loader over the given directories (repo skills/, workspace skills/).
 func NewLoader(dirs ...string) *Loader {
-	l := &Loader{dirs: dirs}
+	l := &Loader{
+		dirs:   dirs,
+		policy: SkillsPolicy{disabled: map[string]struct{}{}, extensions: map[string]bool{}},
+	}
 	l.refresh()
 	return l
 }
@@ -80,8 +100,10 @@ func (l *Loader) Match(message string, maxSkills int) []Skill {
 		skill Skill
 	}
 	var hits []scored
+	policy := l.Policy()
 	for _, sk := range l.skills {
-		if !InjectInChat(ClassifyPath(sk.Path)) {
+		kind := ClassifyPath(sk.Path)
+		if !InjectInChat(kind) || !policy.Enabled(sk.Name, kind) {
 			continue
 		}
 		score := overlapScore(msgWords, sk.Name+" "+sk.Description)

@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 )
 
 // ErrUnavailable means no Python or bundled fetch_news.py script.
@@ -89,7 +91,7 @@ func runScript(ctx context.Context, opts Options, args []string) (string, error)
 func resolveScript(projectRoot string, bundledOnly bool) (string, error) {
 	candidates := []string{}
 	if root := strings.TrimSpace(projectRoot); root != "" {
-		candidates = append(candidates, filepath.Join(root, "skills", "bundled", "finance-news", "scripts", "fetch_news.py"))
+		candidates = append(candidates, procedural.ExtensionScriptCandidates(root, "finance-news", "fetch_news.py")...)
 	}
 	if !bundledOnly {
 		if home, err := os.UserHomeDir(); err == nil {

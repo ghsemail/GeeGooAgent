@@ -33,10 +33,10 @@ rules:
   - rules/attitude-mapping.md
   - rules/report-format.md
 
-bundled:
-  - skills/bundled/finance-news
-  - skills/bundled/eastmoney-news
-  - skills/bundled/free-stock-global-quotes-news
+extensions:
+  - skills/extensions/finance-news
+  - skills/extensions/eastmoney-news
+  - skills/extensions/free-stock-global-quotes-news
 
 workflow:
   prelude:

@@ -9,10 +9,18 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/search"
 	"github.com/ghsemail/GeeGooAgent/internal/tools/newsrunner"
 	"github.com/ghsemail/GeeGooAgent/internal/tools/searchrunner"
 )
+
+func proceduralPolicy(deps Deps) procedural.SkillsPolicy {
+	if deps.SkillLoader != nil {
+		return deps.SkillLoader.Policy()
+	}
+	return procedural.PolicyFromConfig(nil)
+}
 
 const mcpRetryPause = 2 * time.Second
 
@@ -297,7 +305,7 @@ func shiftDate(date string, days int) string {
 	return t.AddDate(0, 0, days).Format("2006-01-02")
 }
 
-func webSearchHits(ctx context.Context, projectRoot string, cfg config.SearchConfig, query string) ([]search.Hit, error) {
+func webSearchHits(ctx context.Context, projectRoot string, cfg config.SearchConfig, query string, policy procedural.SkillsPolicy) ([]search.Hit, error) {
 	if strings.EqualFold(strings.TrimSpace(cfg.Provider), search.ProviderOff) {
 		return nil, nil
 	}
@@ -309,12 +317,12 @@ func webSearchHits(ctx context.Context, projectRoot string, cfg config.SearchCon
 		max = 5
 	}
 	if strings.EqualFold(cfg.Provider, search.ProviderDuckDuckGo) {
-		return searchrunner.WebSearch(ctx, searchrunner.Options{ProjectRoot: projectRoot}, query, max)
+		return searchrunner.WebSearch(ctx, searchrunner.Options{ProjectRoot: projectRoot, Policy: policy}, query, max)
 	}
 	return search.Search(ctx, search.Config{Provider: cfg.Provider, MaxResults: max}, query)
 }
 
-func webSearchNewsFallback(ctx context.Context, projectRoot string, cfg config.SearchConfig, code string) (string, []map[string]any) {
+func webSearchNewsFallback(ctx context.Context, projectRoot string, cfg config.SearchConfig, code string, policy procedural.SkillsPolicy) (string, []map[string]any) {
 	if strings.TrimSpace(cfg.Provider) == "" {
 		cfg.Provider = search.ProviderDuckDuckGo
 	}
@@ -322,7 +330,7 @@ func webSearchNewsFallback(ctx context.Context, projectRoot string, cfg config.S
 		cfg.MaxResults = 8
 	}
 	query := stockNewsQuery(code)
-	hits, err := webSearchHits(ctx, projectRoot, cfg, query)
+	hits, err := webSearchHits(ctx, projectRoot, cfg, query, policy)
 	if err != nil || len(hits) == 0 {
 		return "", nil
 	}
@@ -335,7 +343,7 @@ func webSearchNewsFallback(ctx context.Context, projectRoot string, cfg config.S
 	return formatWebSearchNews(code, query, items), items
 }
 
-func webSearchMarketFallback(ctx context.Context, projectRoot string, cfg config.SearchConfig, market string) (string, []map[string]any) {
+func webSearchMarketFallback(ctx context.Context, projectRoot string, cfg config.SearchConfig, market string, policy procedural.SkillsPolicy) (string, []map[string]any) {
 	if strings.TrimSpace(cfg.Provider) == "" {
 		cfg.Provider = search.ProviderDuckDuckGo
 	}
@@ -343,7 +351,7 @@ func webSearchMarketFallback(ctx context.Context, projectRoot string, cfg config
 		cfg.MaxResults = 8
 	}
 	query := marketNewsQuery(market)
-	hits, err := webSearchHits(ctx, projectRoot, cfg, query)
+	hits, err := webSearchHits(ctx, projectRoot, cfg, query, policy)
 	if err != nil || len(hits) == 0 {
 		return "", nil
 	}
