@@ -11,6 +11,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/search"
 	"github.com/ghsemail/GeeGooAgent/internal/tools/newsrunner"
+	"github.com/ghsemail/GeeGooAgent/internal/tools/searchrunner"
 )
 
 const mcpRetryPause = 2 * time.Second
@@ -296,7 +297,24 @@ func shiftDate(date string, days int) string {
 	return t.AddDate(0, 0, days).Format("2006-01-02")
 }
 
-func webSearchNewsFallback(ctx context.Context, cfg config.SearchConfig, code string) (string, []map[string]any) {
+func webSearchHits(ctx context.Context, projectRoot string, cfg config.SearchConfig, query string) ([]search.Hit, error) {
+	if strings.EqualFold(strings.TrimSpace(cfg.Provider), search.ProviderOff) {
+		return nil, nil
+	}
+	if strings.TrimSpace(cfg.Provider) == "" {
+		cfg.Provider = search.ProviderDuckDuckGo
+	}
+	max := cfg.MaxResults
+	if max <= 0 {
+		max = 5
+	}
+	if strings.EqualFold(cfg.Provider, search.ProviderDuckDuckGo) {
+		return searchrunner.WebSearch(ctx, searchrunner.Options{ProjectRoot: projectRoot}, query, max)
+	}
+	return search.Search(ctx, search.Config{Provider: cfg.Provider, MaxResults: max}, query)
+}
+
+func webSearchNewsFallback(ctx context.Context, projectRoot string, cfg config.SearchConfig, code string) (string, []map[string]any) {
 	if strings.TrimSpace(cfg.Provider) == "" {
 		cfg.Provider = search.ProviderDuckDuckGo
 	}
@@ -304,9 +322,7 @@ func webSearchNewsFallback(ctx context.Context, cfg config.SearchConfig, code st
 		cfg.MaxResults = 8
 	}
 	query := stockNewsQuery(code)
-	hits, err := search.Search(ctx, search.Config{
-		Provider: cfg.Provider, MaxResults: cfg.MaxResults,
-	}, query)
+	hits, err := webSearchHits(ctx, projectRoot, cfg, query)
 	if err != nil || len(hits) == 0 {
 		return "", nil
 	}
@@ -319,7 +335,7 @@ func webSearchNewsFallback(ctx context.Context, cfg config.SearchConfig, code st
 	return formatWebSearchNews(code, query, items), items
 }
 
-func webSearchMarketFallback(ctx context.Context, cfg config.SearchConfig, market string) (string, []map[string]any) {
+func webSearchMarketFallback(ctx context.Context, projectRoot string, cfg config.SearchConfig, market string) (string, []map[string]any) {
 	if strings.TrimSpace(cfg.Provider) == "" {
 		cfg.Provider = search.ProviderDuckDuckGo
 	}
@@ -327,9 +343,7 @@ func webSearchMarketFallback(ctx context.Context, cfg config.SearchConfig, marke
 		cfg.MaxResults = 8
 	}
 	query := marketNewsQuery(market)
-	hits, err := search.Search(ctx, search.Config{
-		Provider: cfg.Provider, MaxResults: cfg.MaxResults,
-	}, query)
+	hits, err := webSearchHits(ctx, projectRoot, cfg, query)
 	if err != nil || len(hits) == 0 {
 		return "", nil
 	}
