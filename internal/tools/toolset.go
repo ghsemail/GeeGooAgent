@@ -45,8 +45,12 @@ func newToolset(id, label, desc string, chatDefault bool, names map[string]struc
 
 // legacyToolsetAliases maps deprecated toolset ids to their replacements.
 var legacyToolsetAliases = map[string][]string{
-	"bot_manager": {"trading_bot", "hedge_bot"},
-	"market":      {"market_data", "research", "info_search"},
+	"bot_manager":     {"trading_bot", "hedge_bot"},
+	"market":          {"market", "analyst_runtime"},
+	"market_data":     {"market"},
+	"info_search":     {"market"},
+	"research":        {"analyst_runtime"},
+	"prompt_template": {"analyst_runtime", "prompt_admin", "custom_signal"},
 }
 
 func expandToolsetAlias(id string) []string {
@@ -58,21 +62,21 @@ func expandToolsetAlias(id string) []string {
 
 // builtinToolsets is the canonical catalog. Order is display order.
 var builtinToolsets = []Toolset{
-	newToolset("market_data", "行情与账户", "交易日、现价、逐笔、席位、持仓", true, marketDataTools),
-	newToolset("research", "研究与分析", "资金面、MCP 技术分析", true, researchTools),
-	newToolset("info_search", "信息检索", "搜码、市场/个股新闻、网页搜索", true, infoSearchTools),
-	newToolset("agent_meta", "Agent 元能力", "记忆、澄清、委派等横切能力", true, agentMetaTools),
-	newToolset("strategy", "策略与信号", "信号列表、网格/DCA 生成与回测", true, strategyTools),
+	newToolset("market", "行情与资金", "交易日、搜码、行情、持仓、新闻检索", true, marketTools),
+	newToolset("analyst_runtime", "运行时分析", "Prompt 列表、MCP 分析、资金面", true, analystRuntimeTools),
+	newToolset("prompt_admin", "模板运营", "单项/竞品/ETF Prompt 模板 CRUD（高级）", false, promptAdminTools),
+	newToolset("custom_signal", "定制策略", "定制策略定义与 CRUD（Monday · :3210）", true, customSignalTools),
+	newToolset("strategy", "策略与回测", "信号列表、网格/DCA 生成与回测", true, strategyTools),
 	newToolset("trading_bot", "交易机器人", "DCA/GRID/SmartTrade 读写", true, tradingBotTools),
 	newToolset("hedge_bot", "对冲机器人", "HDG 对冲机器人读写", true, hedgeBotTools),
 	newToolset("reminder_manager", "提醒机器人", "DCA/GRID/Smart 提醒读写", true, reminderManagerTools),
-	newToolset("report_query", "报告查询", "读报告、Bot 态度与运行日志", true, reportQueryTools),
-	newToolset("report_workflow", "报告 Workflow", "盘前/盘后自动化写报告（默认不进 chat）", false, reportWorkflowTools),
-	newToolset("prompt_template", "Prompt 模板", "Monday SKILL 模板与定制策略（GeeGooSignal catalog-api :3210）", true, promptTemplateTools),
+	newToolset("report_query", "报告查询", "读已有报告、Bot 态度与运行日志", true, reportQueryTools),
+	newToolset("report_write", "报告写入", "Chat 中补写/修改盘前盘中盘后报告", true, reportWriteTools),
+	newToolset("report_workflow", "报告 Workflow", "盘前/盘后自动化（默认不进 chat）", false, reportWorkflowTools),
+	newToolset("agent_meta", "Agent 元能力", "记忆、澄清、委派等横切能力", true, agentMetaTools),
 }
 
 // workflowExclusiveTools are in report_workflow but not shared with any other toolset.
-// Shared tools (e.g. get_bot_yesterday_attitude in report_query) stay in default chat.
 var workflowExclusiveTools = buildWorkflowExclusiveTools()
 
 func buildWorkflowExclusiveTools() map[string]struct{} {
@@ -96,9 +100,12 @@ func buildWorkflowExclusiveTools() map[string]struct{} {
 	return exclusive
 }
 
-// chatExcludedTools are registered in toolsets but omitted from default interactive chat (Waku: gate handles recall).
+// chatExcludedTools are in ChatDefault toolsets but omitted from default interactive chat.
 var chatExcludedTools = map[string]struct{}{
-	"recall": {},
+	"recall":            {},
+	"add_custom_signal": {},
+	"edit_custom_signal": {},
+	"delete_custom_signal": {},
 }
 
 // AllToolsets returns the built-in toolset catalog.
@@ -115,8 +122,6 @@ func ToolsetByID(id string) (Toolset, bool) {
 	switch want {
 	case "bot_manager":
 		return mergedLegacyToolset("bot_manager", "交易机器人（兼容）", "DCA/GRID/SmartTrade/HDG 读写", true, botManagerTools), true
-	case "market":
-		return mergedLegacyToolset("market", "行情与分析（兼容）", "行情、研究、检索三合一旧配置", true, legacyMarketTools), true
 	}
 	for _, ts := range builtinToolsets {
 		if ts.ID == want {
@@ -172,6 +177,7 @@ func NormalizeToolsetIDs(ids []string) ([]string, error) {
 }
 
 // ChatToolNamesForToolsets returns the chat allowlist for the given toolset ids.
+// Future: filter by per-user entitlements (mcp_token → tool/skill ACL).
 func ChatToolNamesForToolsets(ids []string) []string {
 	normalized, err := NormalizeToolsetIDs(ids)
 	if err != nil {
@@ -242,6 +248,6 @@ func FormatToolsetsListing(active []string) string {
 			mark, ts.ID, chat, ts.Label, len(ts.names)))
 	}
 	lines = append(lines, "")
-	lines = append(lines, "切换: /toolsets market_data,research  或  /toolsets default（market/bot_manager 兼容旧配置）")
+	lines = append(lines, "切换: /toolsets market,strategy  或  /toolsets default（market/bot_manager 兼容旧配置）")
 	return strings.Join(lines, "\n")
 }

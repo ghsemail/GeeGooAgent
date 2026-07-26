@@ -192,7 +192,12 @@ func contextForTool(name, impl string, requiresMCP bool) (injections []string, s
 			injections = append(injections, "mcp_token", "trading_user_id")
 			summaryParts = append(summaryParts, "注入 agent-runtime 配置的 mcp_token，经 GeeGooBot 解析为交易 user_id 后调用 analyze-api。")
 		}
-	case "get_single_prompt_template", "get_single_prompt_template_by_index",
+	case "get_single_prompt_template":
+		if requiresMCP {
+			injections = append(injections, "mcp_token", "trading_user_id")
+			summaryParts = append(summaryParts, "注入 mcp_token，经 GeeGooSignal catalog-api (:3210) 取可用 Prompt 列表（运行时分析前置）。")
+		}
+	case "get_single_prompt_template_by_index",
 		"get_custom_signal", "get_custom_signal_for_skill", "get_all_custom_signal_id", "get_custom_strategy_definitions":
 		if requiresMCP {
 			injections = append(injections, "mcp_token", "trading_user_id")

@@ -46,14 +46,20 @@ if [ "${GO_MAJOR:-0}" -lt 1 ] || { [ "$GO_MAJOR" -eq 1 ] && [ "${GO_MINOR:-0}" -
   exit 1
 fi
 
-echo "==> building geegoo"
+echo "==> building geegoo + agent-runtime"
 (
   cd "$INSTALL_DIR"
   go build -o "$BINARY_PATH" ./cmd/geegoo
+  go build -o "$BIN_DIR/agentRuntimeServer" ./cmd/agent-runtime
 )
 
 echo "==> linking geegoo into $BIN_DIR"
 ln -sf "$BINARY_PATH" "$BIN_DIR/geegoo"
+
+if [ -f "$INSTALL_DIR/start.sh" ] && [ "${GEEGOO_SKIP_RUNTIME_RESTART:-0}" != "1" ]; then
+  echo "==> restarting agent-runtime (:3400, 运营台工具目录依赖此进程)"
+  (cd "$INSTALL_DIR" && bash start.sh restart-runtime) || echo "WARN: agent-runtime restart failed (run: cd $INSTALL_DIR && bash start.sh restart-runtime)" >&2
+fi
 
 PATH_LINE="export PATH=\"$BIN_DIR:\$PATH\""
 CONFIG_LINE="export GEEGOO_CONFIG=\"$CONFIG_PATH\""

@@ -26,7 +26,8 @@ def main() -> int:
         )
         cmds = [
             install,
-            "sleep 4",
+            f"cd {t.get('remote_dir', '/home/ubuntu/.geegoo/geegoo-agent')} && bash start.sh restart-runtime",
+            "sleep 2",
             "curl -sf http://127.0.0.1:3400/health || echo HEALTH_FAIL",
             t.get("verify_cmd", "~/.geegoo/bin/geegoo doctor || true"),
         ]
