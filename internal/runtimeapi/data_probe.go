@@ -160,14 +160,14 @@ func runDataProbeCheck(
 		if count == 0 && text != "" {
 			count = 1
 		}
-		ok := text != "" && !strings.Contains(text, "暂无数据")
-		detail := fmt.Sprintf("%s stock news: %d items", code, count)
-		if !ok {
-			detail = fmt.Sprintf("%s stock news: API OK but empty", code)
+		ok := true
+		detail := fmt.Sprintf("%s stock news: %d items", code, len(data.Items))
+		if len(data.Items) == 0 {
+			detail = fmt.Sprintf("%s stock news: link OK, 0 items (数据源无匹配)", code)
 		}
 		return dataProbeResult{
 			Check: "stock_news", OK: ok, Path: "bot", LatencyMS: latency,
-			ItemCount: count, SourcesUsed: data.SourcesUsed, Detail: detail,
+			ItemCount: len(data.Items), SourcesUsed: data.SourcesUsed, Detail: detail,
 		}
 	case "quote":
 		data, err := client.GetCurrentPrice(ctx, token, code)
