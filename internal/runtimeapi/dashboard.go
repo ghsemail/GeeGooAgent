@@ -16,8 +16,10 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/doctor"
+	"github.com/ghsemail/GeeGooAgent/internal/app"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	factmem "github.com/ghsemail/GeeGooAgent/internal/memory/facts"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/skills"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
@@ -171,22 +173,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		stats["latency_avg"] = sum / len(latencies)
 	}
 
-	skillsOut := []map[string]any{}
-	if h.App != nil && h.App.SkillLoader != nil {
-		for _, sk := range h.App.SkillLoader.List() {
-			skillsOut = append(skillsOut, map[string]any{
-				"name": sk.Name, "description": sk.Description, "body": sk.Description,
-				"path": sk.Path, "rel": sk.Path, "editable": false,
-			})
-		}
-	} else {
-		for _, sk := range skills.Default().List() {
-			skillsOut = append(skillsOut, map[string]any{
-				"name": sk.Name, "description": sk.Description, "body": sk.Description,
-				"path": sk.ManifestPath, "rel": sk.ManifestPath, "editable": false,
-			})
-		}
-	}
+	skillsOut, proceduralMemory := buildProceduralSkillsPayload(h.App)
 
 	if h.App != nil && h.App.Episodic != nil {
 		if eps, err := h.App.Episodic.List(r.Context(), userID, 80); err == nil && len(eps) > 0 {
@@ -264,7 +251,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		"generated_at": now.Format(time.RFC3339), "provider": provider, "model": model,
 		"small_model": model, "home": home, "current_session": currentSession, "stats": stats,
 		"sessions": sessionsOut, "turns": turns, "chat_log": chatLog, "facts": facts,
-		"episodes": episodes, "skills": skillsOut,
+		"episodes": episodes, "skills": skillsOut, "procedural_memory": proceduralMemory,
 		"calendar": calendar, "outbox": []map[string]any{},
 		"soul": soulTextForDashboard(firstNonEmpty(home, config.Home()), userID),
 		"consolidate_every": 4, "chat_pending": 0, "tools": toolsPayload,
@@ -830,4 +817,36 @@ func firstNonEmpty(a, b string) string {
 		return a
 	}
 	return b
+}
+
+func buildProceduralSkillsPayload(app *app.App) ([]map[string]any, map[string]any) {
+	var loader *procedural.Loader
+	if app != nil {
+		loader = app.SkillLoader
+	}
+	cfg := procedural.BuildMemoryConfig(loader, procedural.DefaultMaxSkillsPerTurn)
+	out := make([]map[string]any, 0)
+	if loader != nil {
+		summaries := loader.ListSummaries()
+		sort.Slice(summaries, func(i, j int) bool {
+			if summaries[i].Kind != summaries[j].Kind {
+				return summaries[i].Kind < summaries[j].Kind
+			}
+			return summaries[i].Name < summaries[j].Name
+		})
+		for _, s := range summaries {
+			out = append(out, s.Map())
+		}
+	} else {
+		for _, sk := range skills.Default().List() {
+			out = append(out, map[string]any{
+				"name": sk.Name, "description": sk.Description,
+				"body": sk.Description, "body_preview": sk.Description,
+				"path": sk.ManifestPath, "rel": sk.ManifestPath,
+				"kind": string(procedural.KindWorkflow), "kind_label": procedural.KindLabel(procedural.KindWorkflow),
+				"inject_in_chat": false, "editable": false,
+			})
+		}
+	}
+	return out, cfg.Map()
 }

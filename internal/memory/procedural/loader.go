@@ -26,6 +26,16 @@ type Loader struct {
 	signature []fileSig
 }
 
+// Dirs returns configured scan roots (repo skills/, workspace skills/).
+func (l *Loader) Dirs() []string {
+	if l == nil {
+		return nil
+	}
+	out := make([]string, len(l.dirs))
+	copy(out, l.dirs)
+	return out
+}
+
 type fileSig struct {
 	path string
 	mod  int64
@@ -71,6 +81,9 @@ func (l *Loader) Match(message string, maxSkills int) []Skill {
 	}
 	var hits []scored
 	for _, sk := range l.skills {
+		if !InjectInChat(ClassifyPath(sk.Path)) {
+			continue
+		}
 		score := overlapScore(msgWords, sk.Name+" "+sk.Description)
 		if score < 2 {
 			if strings.Contains(lowerMsg, strings.ToLower(sk.Name)) {
