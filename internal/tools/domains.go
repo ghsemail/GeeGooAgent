@@ -70,6 +70,18 @@ var (
 		"create_etf_prompt_template":        {},
 		"edit_etf_prompt_template":          {},
 		"delete_etf_prompt_template":        {},
+		"get_single_prompt_template_by_index": {},
+		"add_single_prompt_template":          {},
+		"edit_prompt_template":                {},
+		"delete_prompt_template":              {},
+		"switch_prompt_status":                {},
+		"get_custom_signal":                   {},
+		"get_custom_signal_for_skill":         {},
+		"get_all_custom_signal_id":            {},
+		"get_custom_strategy_definitions":     {},
+		"add_custom_signal":                   {},
+		"edit_custom_signal":                  {},
+		"delete_custom_signal":                {},
 	}
 	marketDataTools = map[string]struct{}{
 		"check_trading_day":  {},
@@ -178,7 +190,7 @@ var domainDescriptions = map[ToolDomain]string{
 	DomainInfoSearch:      "搜码、市场/个股新闻、网页搜索",
 	DomainAgentMeta:       "记忆、澄清、委派等横切能力",
 	DomainStrategy:        "信号列表、网格/DCA 生成与回测",
-	DomainPromptTemplate:  "竞品/ETF 分析模板 CRUD",
+	DomainPromptTemplate:  "Monday 模板与定制策略 CRUD",
 	DomainMeta:            "未归类的注册工具",
 }
 

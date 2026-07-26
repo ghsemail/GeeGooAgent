@@ -61,6 +61,7 @@ func AllHTTP() []HTTPSpec {
 	raw = append(raw, botCRUD("dca_reminder", botKindDCAReminder, "DCA 提醒机器人", "/createDCAReminder", "/updateDCAReminder", "/deleteDCAReminder", "/getAllDCAReminders", "/getDCAReminderLog")...)
 	raw = append(raw, botCRUD("grid_reminder", botKindGridReminder, "GRID 提醒机器人", "/createGRIDReminder", "/updateGRIDReminder", "/deleteGRIDReminder", "/getAllGRIDReminders", "/getGRIDReminderLog")...)
 	raw = append(raw, botCRUD("smart_reminder", botKindSmartReminder, "Smart 提醒机器人", "/createSmartReminder", "/updateSmartReminder", "/deleteSmartReminder", "/getAllSmartReminders", "/getSmartReminderLog")...)
+	raw = append(raw, MondayHTTPSpecs()...)
 
 	out := make([]HTTPSpec, 0, len(raw))
 	for _, spec := range raw {

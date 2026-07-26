@@ -36,6 +36,12 @@ func TestHTTPBackendsForTool(t *testing.T) {
 	if b2.ForTool("get_mcp_analysis") != mcpC {
 		t.Fatal("get_mcp_analysis is bespoke and routes via mcp-api")
 	}
+	if b.ForTool("get_custom_signal_for_skill") != catC {
+		t.Fatal("get_custom_signal_for_skill should use catalog-api")
+	}
+	if b.ForTool("create_competitor_prompt_template") != catC {
+		t.Fatal("competitor prompt CRUD should use catalog-api")
+	}
 	if b.ForTool("get_position") != mcpC {
 		t.Fatal("bot tools should use mcp-api")
 	}

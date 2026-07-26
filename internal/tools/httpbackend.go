@@ -1,6 +1,9 @@
 package tools
 
-import "github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
+import (
+	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
+	"github.com/ghsemail/GeeGooAgent/internal/tools/catalog"
+)
 
 // HTTPBackends routes tool HTTP calls to GeeGoo 3xxx services.
 type HTTPBackends struct {
@@ -28,6 +31,11 @@ func (b HTTPBackends) HasMCPFallback(name string) bool {
 	}
 }
 func (b HTTPBackends) ForTool(name string) *mcp.Client {
+	if catalog.UsesSignalCatalog(name) {
+		if b.SignalCatalog != nil {
+			return b.SignalCatalog
+		}
+	}
 	switch name {
 	case "search_code", "loopback_strategy":
 		if b.SignalAPI != nil {

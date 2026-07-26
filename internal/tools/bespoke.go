@@ -914,7 +914,7 @@ func registerPromptTemplateTools(r *Registry, deps Deps) {
 			if period != "" {
 				body["period"] = period
 			}
-			data, err := deps.HTTP.MCP.PostDirect(ctx.GoContext(), "/getSinglePromptTemplate", body)
+			data, err := deps.HTTP.ForTool("get_single_prompt_template").PostDirect(ctx.GoContext(), "/getSinglePromptTemplate", body)
 			if err != nil {
 				return errResult(err)
 			}

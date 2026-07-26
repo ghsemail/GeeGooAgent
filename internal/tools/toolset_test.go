@@ -123,6 +123,12 @@ func TestPromptTemplateToolsetNotInDefaultChat(t *testing.T) {
 		if strings.Contains(name, "prompt_template") && name != "get_single_prompt_template" {
 			t.Fatalf("prompt CRUD %s should not be in default chat", name)
 		}
+		if strings.HasPrefix(name, "add_custom_") || strings.HasPrefix(name, "edit_custom_") || strings.HasPrefix(name, "delete_custom_") {
+			t.Fatalf("custom signal CRUD %s should not be in default chat", name)
+		}
+		if name == "get_custom_signal" || name == "get_custom_signal_for_skill" || name == "get_all_custom_signal_id" || name == "get_custom_strategy_definitions" {
+			t.Fatalf("monday catalog tool %s should not be in default chat", name)
+		}
 	}
 }
 
@@ -142,7 +148,7 @@ func TestToolsetCountsMatchDocumentation(t *testing.T) {
 	want := map[string]int{
 		"market_data": 5, "research": 4, "info_search": 4, "agent_meta": 8, "strategy": 5,
 		"trading_bot": 15, "hedge_bot": 5, "reminder_manager": 15,
-		"report_query": 15, "report_workflow": 8, "prompt_template": 6,
+		"report_query": 15, "report_workflow": 8, "prompt_template": 18,
 	}
 	union := map[string]struct{}{}
 	for _, ts := range tools.AllToolsets() {
@@ -153,8 +159,8 @@ func TestToolsetCountsMatchDocumentation(t *testing.T) {
 			union[name] = struct{}{}
 		}
 	}
-	if len(union) != 89 {
-		t.Fatalf("toolset union want 89, got %d", len(union))
+	if len(union) != 101 {
+		t.Fatalf("toolset union want 101, got %d", len(union))
 	}
 	defaultChat := tools.ChatToolNamesForToolsets(nil)
 	if len(defaultChat) != 75 {

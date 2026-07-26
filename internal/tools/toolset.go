@@ -68,7 +68,7 @@ var builtinToolsets = []Toolset{
 	newToolset("reminder_manager", "提醒机器人", "DCA/GRID/Smart 提醒读写", true, reminderManagerTools),
 	newToolset("report_query", "报告查询", "读报告、Bot 态度与运行日志", true, reportQueryTools),
 	newToolset("report_workflow", "报告 Workflow", "盘前/盘后自动化写报告（默认不进 chat）", false, reportWorkflowTools),
-	newToolset("prompt_template", "Prompt 模板", "竞品/ETF 分析模板 CRUD（高级，默认不进 chat）", false, promptTemplateTools),
+	newToolset("prompt_template", "Prompt 模板", "Monday SKILL 模板与定制策略 CRUD（高级，默认不进 chat）", false, promptTemplateTools),
 }
 
 // workflowExclusiveTools are in report_workflow but not shared with any other toolset.

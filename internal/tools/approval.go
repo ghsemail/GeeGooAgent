@@ -11,7 +11,7 @@ import "strings"
 // tool is considered mutating. Read-only tools (list_/get_/search_) are not.
 var ApprovalRequired = func(toolName string) bool {
 	name := strings.ToLower(toolName)
-	for _, prefix := range []string{"create_", "update_", "delete_", "edit_", "switch_"} {
+	for _, prefix := range []string{"create_", "update_", "delete_", "edit_", "switch_", "add_"} {
 		if strings.HasPrefix(name, prefix) {
 			return true
 		}
