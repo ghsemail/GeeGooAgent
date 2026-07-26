@@ -866,7 +866,7 @@ func shorten(s string, n int) string {
 func registerPromptTemplateTools(r *Registry, deps Deps) {
 	r.Register(Tool{
 		Name:        "get_single_prompt_template",
-		Description: "获取单项分析 Prompt 模板列表。调用 get_mcp_analysis 前必须先取 prompt_id；个股信号/技术面用 type=tech。",
+		Description: "列出已启用（switch=true）的单项分析 Prompt，从 Mongo single_prompt_template 读取；返回 prompt_id 供 get_mcp_analysis。与模板运营的 add/edit/switch 操作同一集合：运营新建或修改后需 switch 启用才会出现在本列表。竞品/ETF 用户模板走 create_*_prompt_template，不在此列表。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

@@ -77,23 +77,23 @@ var (
 		"list_today_post_market_reports": {},
 	}
 	analystRuntimeTools = map[string]struct{}{
-		"get_single_prompt_template": {},
-		"get_mcp_analysis":           {},
-		"get_capital_flow":           {},
-		"get_capital_distribution":   {},
+		"get_single_prompt_template":          {},
+		"get_single_prompt_template_by_index": {},
+		"get_mcp_analysis":                    {},
+		"get_capital_flow":                    {},
+		"get_capital_distribution":            {},
 	}
 	promptAdminTools = map[string]struct{}{
-		"get_single_prompt_template_by_index": {},
-		"add_single_prompt_template":          {},
-		"edit_prompt_template":                {},
-		"delete_prompt_template":              {},
-		"switch_prompt_status":                {},
-		"create_competitor_prompt_template":   {},
-		"edit_competitor_prompt_template":     {},
-		"delete_competitor_prompt_template":   {},
-		"create_etf_prompt_template":          {},
-		"edit_etf_prompt_template":            {},
-		"delete_etf_prompt_template":          {},
+		"add_single_prompt_template":        {},
+		"edit_prompt_template":              {},
+		"delete_prompt_template":            {},
+		"switch_prompt_status":              {},
+		"create_competitor_prompt_template": {},
+		"edit_competitor_prompt_template":   {},
+		"delete_competitor_prompt_template": {},
+		"create_etf_prompt_template":        {},
+		"edit_etf_prompt_template":          {},
+		"delete_etf_prompt_template":        {},
 	}
 	customSignalTools = map[string]struct{}{
 		"get_custom_signal":               {},
@@ -194,8 +194,8 @@ var domainShortLabels = map[ToolDomain]string{
 
 var domainDescriptions = map[ToolDomain]string{
 	DomainMarket:            "交易日、搜码、行情快照、逐笔、席位、持仓、新闻检索",
-	DomainAnalystRuntime:    "Prompt 列表、MCP 技术面分析、资金面（面向用户问股）",
-	DomainPromptAdmin:       "单项/竞品/ETF Prompt 模板 CRUD（GeeGooSignal :3210 / Bot :3120）",
+	DomainAnalystRuntime:    "运行时分析：读 single_prompt_template 启用列表（供 get_mcp_analysis 选 prompt_id）",
+	DomainPromptAdmin:       "模板运营：写 single_prompt_template / 竞品·ETF 用户模板（改完后需 switch 启用才出现在运行时列表）",
 	DomainCustomSignal:      "定制策略定义与 CRUD（Monday · signal_custom_db · :3210）",
 	DomainStrategy:          "信号列表、网格/DCA 生成与回测",
 	DomainReportQuery:       "读已有报告、Bot 态度与运行日志",

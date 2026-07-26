@@ -8,32 +8,27 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
-func TestDefaultChatToolsetsExcludeWorkflow(t *testing.T) {
+func TestDefaultChatIncludesAllToolsetsExceptRecall(t *testing.T) {
 	t.Parallel()
 	names := tools.ChatToolNamesForToolsets(nil)
 	set := map[string]struct{}{}
 	for _, name := range names {
 		set[name] = struct{}{}
 	}
+	if _, ok := set["recall"]; ok {
+		t.Fatal("recall should stay excluded from default chat allowlist")
+	}
 	for _, name := range []string{
-		"create_pre_market_report", "write_execution_log", "list_today_post_market_reports",
-		"add_single_prompt_template", "add_custom_signal",
+		"get_single_prompt_template", "add_single_prompt_template",
+		"get_custom_signal_for_skill", "add_custom_signal",
+		"create_pre_market_report", "get_report_bot_codes",
 	} {
-		if _, ok := set[name]; ok {
-			t.Fatalf("workflow/admin tool %s should not be in default chat allowlist", name)
+		if _, ok := set[name]; !ok {
+			t.Fatalf("%s should be in default chat (all toolsets enabled)", name)
 		}
 	}
-	if _, ok := set["get_bot_yesterday_attitude"]; !ok {
-		t.Fatal("get_bot_yesterday_attitude should be in default chat (report_query toolset)")
-	}
-	if _, ok := set["get_index_signals"]; !ok {
-		t.Fatal("get_index_signals should be in default chat (strategy toolset)")
-	}
-	if _, ok := set["get_custom_signal_for_skill"]; !ok {
-		t.Fatal("get_custom_signal_for_skill should be in default chat (custom_signal reads)")
-	}
-	if len(names) < 20 {
-		t.Fatalf("expected a substantial chat allowlist, got %d", len(names))
+	if len(names) != 100 {
+		t.Fatalf("default chat allowlist want 100, got %d", len(names))
 	}
 }
 
@@ -139,21 +134,17 @@ func TestAllRegisteredToolsBelongToToolset(t *testing.T) {
 	}
 }
 
-func TestAnalystRuntimeInDefaultChat(t *testing.T) {
+func TestAnalystRuntimeIncludesPromptIndexRead(t *testing.T) {
 	t.Parallel()
-	names := tools.ChatToolNamesForToolsets(nil)
-	want := []string{"get_single_prompt_template", "get_mcp_analysis"}
-	for _, name := range want {
-		found := false
-		for _, n := range names {
-			if n == name {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Fatalf("%s should be in default chat via analyst_runtime toolset", name)
-		}
+	ts, ok := tools.ToolsetByID("analyst_runtime")
+	if !ok {
+		t.Fatal("missing analyst_runtime")
+	}
+	if !ts.Contains("get_single_prompt_template_by_index") {
+		t.Fatal("by_index read should live in analyst_runtime with list read")
+	}
+	if ts.Contains("add_single_prompt_template") {
+		t.Fatal("writes should not be in analyst_runtime")
 	}
 }
 
@@ -166,12 +157,15 @@ func TestReportWorkflowToolsetIncludesPostMarketIdempotency(t *testing.T) {
 	if !ts.Contains("list_today_post_market_reports") {
 		t.Fatal("report_workflow should include list_today_post_market_reports")
 	}
+	if !ts.ChatDefault {
+		t.Fatal("report_workflow should be default chat")
+	}
 }
 
 func TestToolsetCountsMatchDocumentation(t *testing.T) {
 	t.Parallel()
 	want := map[string]int{
-		"market": 9, "analyst_runtime": 4, "prompt_admin": 11, "custom_signal": 7,
+		"market": 9, "analyst_runtime": 5, "prompt_admin": 10, "custom_signal": 7,
 		"strategy": 5, "trading_bot": 15, "hedge_bot": 5, "reminder_manager": 15,
 		"report_query": 7, "report_write": 8, "report_workflow": 7, "agent_meta": 8,
 	}
@@ -180,16 +174,15 @@ func TestToolsetCountsMatchDocumentation(t *testing.T) {
 		if got := len(ts.Names()); got != want[ts.ID] {
 			t.Fatalf("toolset %s: want %d tools, got %d", ts.ID, want[ts.ID], got)
 		}
+		if !ts.ChatDefault {
+			t.Fatalf("toolset %s should be ChatDefault", ts.ID)
+		}
 		for _, name := range ts.Names() {
 			union[name] = struct{}{}
 		}
 	}
 	if len(union) != 101 {
 		t.Fatalf("toolset union want 101, got %d", len(union))
-	}
-	defaultChat := tools.ChatToolNamesForToolsets(nil)
-	if len(defaultChat) != 79 {
-		t.Fatalf("default chat allowlist want 79, got %d", len(defaultChat))
 	}
 }
 
@@ -202,16 +195,6 @@ func TestStrategyToolsExcludeAnalysisRuntime(t *testing.T) {
 	for _, name := range []string{"get_mcp_analysis", "get_single_prompt_template"} {
 		if ts.Contains(name) {
 			t.Fatalf("%s should not be in strategy toolset", name)
-		}
-	}
-}
-
-func TestPromptAdminNotInDefaultChat(t *testing.T) {
-	t.Parallel()
-	names := tools.ChatToolNamesForToolsets(nil)
-	for _, name := range names {
-		if name == "edit_prompt_template" || name == "add_single_prompt_template" {
-			t.Fatalf("prompt_admin tool %s should not be in default chat", name)
 		}
 	}
 }

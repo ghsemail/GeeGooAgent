@@ -63,8 +63,8 @@ func expandToolsetAlias(id string) []string {
 // builtinToolsets is the canonical catalog. Order is display order.
 var builtinToolsets = []Toolset{
 	newToolset("market", "行情与资金", "交易日、搜码、行情、持仓、新闻检索", true, marketTools),
-	newToolset("analyst_runtime", "运行时分析", "Prompt 列表、MCP 分析、资金面", true, analystRuntimeTools),
-	newToolset("prompt_admin", "模板运营", "单项/竞品/ETF Prompt 模板 CRUD（高级）", false, promptAdminTools),
+	newToolset("analyst_runtime", "运行时分析", "读 Prompt 列表（同库）、MCP 分析、资金面", true, analystRuntimeTools),
+	newToolset("prompt_admin", "模板运营", "写 single_prompt_template / 竞品·ETF 模板（:3210/:3120）", true, promptAdminTools),
 	newToolset("custom_signal", "定制策略", "定制策略定义与 CRUD（Monday · :3210）", true, customSignalTools),
 	newToolset("strategy", "策略与回测", "信号列表、网格/DCA 生成与回测", true, strategyTools),
 	newToolset("trading_bot", "交易机器人", "DCA/GRID/SmartTrade 读写", true, tradingBotTools),
@@ -72,7 +72,7 @@ var builtinToolsets = []Toolset{
 	newToolset("reminder_manager", "提醒机器人", "DCA/GRID/Smart 提醒读写", true, reminderManagerTools),
 	newToolset("report_query", "报告查询", "读已有报告、Bot 态度与运行日志", true, reportQueryTools),
 	newToolset("report_write", "报告写入", "Chat 中补写/修改盘前盘中盘后报告", true, reportWriteTools),
-	newToolset("report_workflow", "报告 Workflow", "盘前/盘后自动化（默认不进 chat）", false, reportWorkflowTools),
+	newToolset("report_workflow", "报告 Workflow", "盘前/盘后自动化流水线", true, reportWorkflowTools),
 	newToolset("agent_meta", "Agent 元能力", "记忆、澄清、委派等横切能力", true, agentMetaTools),
 }
 
@@ -102,10 +102,7 @@ func buildWorkflowExclusiveTools() map[string]struct{} {
 
 // chatExcludedTools are in ChatDefault toolsets but omitted from default interactive chat.
 var chatExcludedTools = map[string]struct{}{
-	"recall":            {},
-	"add_custom_signal": {},
-	"edit_custom_signal": {},
-	"delete_custom_signal": {},
+	"recall": {},
 }
 
 // AllToolsets returns the built-in toolset catalog.

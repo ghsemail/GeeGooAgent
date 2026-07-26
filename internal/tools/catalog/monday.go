@@ -5,7 +5,7 @@ func MondayHTTPSpecs() []HTTPSpec {
 	return []HTTPSpec{
 		{
 			Name:             "get_single_prompt_template_by_index",
-			Description:      "按指标 variable 与 period 查询已启用的单项分析 Prompt 模板（返回单条或空对象）。",
+			Description:      "按指标 variable 与 period 查询已启用的单项分析 Prompt（single_prompt_template 单条；与 get_single_prompt_template 列表读同一库）。",
 			Path:             "/getSinglePromptTemplateByIndex",
 			RequiresMCPToken: true,
 			DirectResponse:   true,
@@ -22,7 +22,7 @@ func MondayHTTPSpecs() []HTTPSpec {
 		},
 		{
 			Name:             "add_single_prompt_template",
-			Description:      "新增单项分析 Prompt 模板（Monday/运营）。写操作需用户确认。",
+			Description:      "新增单项分析 Prompt 到 Mongo single_prompt_template；默认未启用，需 switch_prompt_status 后 get_single_prompt_template 才可见。写操作需用户确认。",
 			Path:             "/addSinglePromptTemplate",
 			RequiresMCPToken: true,
 			DirectResponse:   true,
