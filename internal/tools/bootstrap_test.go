@@ -64,18 +64,14 @@ func TestAllToolsDryRun(t *testing.T) {
 	}
 }
 
-func TestNewsToolsSkipWhenScriptRunnerUnavailable(t *testing.T) {
+func TestNewsToolsSkipWithoutMCPToken(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("HOME", root)
 	t.Setenv("USERPROFILE", root)
-	t.Setenv("GEEGOO_NEWS_DISABLE_GO", "1")
-	client := mcp.NewClient("http://127.0.0.1:3120", "sk-test", mcp.Options{
-		AllowedHosts: []string{"127.0.0.1"},
-	})
 	r := tools.NewRegistry()
-	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: root, ProjectRoot: root})
+	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(nil), WorkspaceRoot: root, ProjectRoot: root})
 
-	ctx := tools.Context{SessionID: "test", MCPToken: "tok", WorkspaceRoot: root}
+	ctx := tools.Context{SessionID: "test", MCPToken: "", WorkspaceRoot: root}
 	cases := []tools.CallRequest{
 		{Name: "fetch_market_news", Arguments: map[string]any{"market": "US"}},
 		{Name: "fetch_stock_news", Arguments: map[string]any{"code": "00700.HK"}},

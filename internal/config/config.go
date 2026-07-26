@@ -211,7 +211,8 @@ type AppConfig struct {
 	SignalCatalogAPIKeyField string `json:"signal_catalog_api_key,omitempty"`
 	SignalAnalyzeURLField    string `json:"signal_analyze_api_url,omitempty"`
 	SignalAnalyzeAPIKeyField string `json:"signal_analyze_api_key,omitempty"`
-	DataBaseURL              string `json:"data_base_url"`
+	DataBaseURL              string           `json:"data_base_url"`
+	DataNodes                []DataNodeConfig `json:"data_nodes,omitempty"`
 	OutputDir        string            `json:"output_dir"`
 	DryRun           bool              `json:"dry_run"`
 	FeishuWebhookURL *string           `json:"feishu_webhook_url"`

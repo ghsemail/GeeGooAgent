@@ -11,9 +11,11 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/search"
-	"github.com/ghsemail/GeeGooAgent/internal/tools/newsrunner"
 	"github.com/ghsemail/GeeGooAgent/internal/tools/searchrunner"
 )
+
+// ErrNewsUnavailable indicates Bot→GeeGooData news could not be fetched.
+var ErrNewsUnavailable = errors.New("news unavailable via GeeGooData")
 
 func proceduralPolicy(deps Deps) procedural.SkillsPolicy {
 	if deps.SkillLoader != nil {
@@ -157,36 +159,28 @@ func fetchMarketNewsResilient(
 	mcpToken, projectRoot, market string,
 	limit int,
 ) (text, source string, items []any, err error) {
-	if client != nil && strings.TrimSpace(mcpToken) != "" {
-		var lastErr error
-		for attempt := 0; attempt < 2; attempt++ {
-			data, mcpErr := client.GetMarketNews(ctx, mcpToken, market, limit)
-			if mcpErr == nil && data != nil && !stockNewsNeedsFallback(data.Text) {
-				return data.Text, "GeeGooData-via-Bot", newsItemsToAny(data.Items), nil
-			}
-			if mcpErr != nil {
-				lastErr = mcpErr
-			}
-			if attempt == 0 && waitRetry(ctx) {
-				continue
-			}
-			if lastErr != nil {
-				err = lastErr
-			}
-			break
+	_ = projectRoot
+	if client == nil || strings.TrimSpace(mcpToken) == "" {
+		return "", "", nil, ErrNewsUnavailable
+	}
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		data, mcpErr := client.GetMarketNews(ctx, mcpToken, market, limit)
+		if mcpErr == nil && data != nil && !stockNewsNeedsFallback(data.Text) {
+			return data.Text, "GeeGooData-via-Bot", newsItemsToAny(data.Items), nil
 		}
+		if mcpErr != nil {
+			lastErr = mcpErr
+		}
+		if attempt == 0 && waitRetry(ctx) {
+			continue
+		}
+		break
 	}
-	text, localErr := newsrunner.MarketNews(ctx, newsrunner.Options{ProjectRoot: projectRoot}, market, limit)
-	if localErr == nil && !stockNewsNeedsFallback(text) {
-		return text, "finance-news-local", []any{}, nil
+	if lastErr != nil {
+		return "", "", nil, lastErr
 	}
-	if errors.Is(localErr, newsrunner.ErrUnavailable) {
-		return "", "", nil, newsrunner.ErrUnavailable
-	}
-	if localErr != nil && err == nil {
-		err = localErr
-	}
-	return text, "", nil, err
+	return "", "", nil, nil
 }
 
 func fetchStockNewsResilient(
@@ -195,36 +189,28 @@ func fetchStockNewsResilient(
 	mcpToken, projectRoot, code string,
 	limit int,
 ) (text, source string, items []any, err error) {
-	if client != nil && strings.TrimSpace(mcpToken) != "" {
-		var lastErr error
-		for attempt := 0; attempt < 2; attempt++ {
-			data, mcpErr := client.GetStockNews(ctx, mcpToken, code, limit)
-			if mcpErr == nil && data != nil && !stockNewsNeedsFallback(data.Text) {
-				return data.Text, "GeeGooData-via-Bot", newsItemsToAny(data.Items), nil
-			}
-			if mcpErr != nil {
-				lastErr = mcpErr
-			}
-			if attempt == 0 && waitRetry(ctx) {
-				continue
-			}
-			if lastErr != nil {
-				err = lastErr
-			}
-			break
+	_ = projectRoot
+	if client == nil || strings.TrimSpace(mcpToken) == "" {
+		return "", "", nil, ErrNewsUnavailable
+	}
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		data, mcpErr := client.GetStockNews(ctx, mcpToken, code, limit)
+		if mcpErr == nil && data != nil && !stockNewsNeedsFallback(data.Text) {
+			return data.Text, "GeeGooData-via-Bot", newsItemsToAny(data.Items), nil
 		}
+		if mcpErr != nil {
+			lastErr = mcpErr
+		}
+		if attempt == 0 && waitRetry(ctx) {
+			continue
+		}
+		break
 	}
-	text, localErr := newsrunner.StockNews(ctx, newsrunner.Options{ProjectRoot: projectRoot}, code, limit)
-	if localErr == nil && !stockNewsNeedsFallback(text) {
-		return text, "finance-news-local", []any{}, nil
+	if lastErr != nil {
+		return "", "", nil, lastErr
 	}
-	if errors.Is(localErr, newsrunner.ErrUnavailable) {
-		return "", "", nil, newsrunner.ErrUnavailable
-	}
-	if localErr != nil && err == nil {
-		err = localErr
-	}
-	return text, "", nil, err
+	return "", "", nil, nil
 }
 
 func getMCPAnalysisResilient(

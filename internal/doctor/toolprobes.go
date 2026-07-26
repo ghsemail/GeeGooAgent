@@ -8,7 +8,6 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
-	"github.com/ghsemail/GeeGooAgent/internal/tools/newsrunner"
 )
 
 const probeCodeHK = "00700.HK"
@@ -162,19 +161,7 @@ func probeStockNews(ctx context.Context, client *mcp.Client, token string) Check
 	defer cancel()
 	data, err := client.GetStockNews(probeCtx, token, probeCodeHK, 3)
 	if err != nil {
-		// Fall back to local Go probe when Bot route not deployed yet.
-		text, localErr := newsrunner.StockNewsGo(probeCtx, probeCodeHK, 3)
-		if localErr != nil {
-			return CheckResult{Name: name, OK: false, Detail: err.Error()}
-		}
-		text = strings.TrimSpace(text)
-		if text == "" || strings.Contains(text, "暂无数据") {
-			return CheckResult{
-				Name: name, OK: true, Warn: true,
-				Detail: probeCodeHK + ": Bot news unavailable; local probe empty",
-			}
-		}
-		return CheckResult{Name: name, OK: true, Detail: fmt.Sprintf("%s: local fallback %d chars", probeCodeHK, len(text))}
+		return CheckResult{Name: name, OK: false, Detail: err.Error()}
 	}
 	text := strings.TrimSpace(data.Text)
 	if text == "" || strings.Contains(text, "暂无数据") {

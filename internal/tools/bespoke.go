@@ -13,7 +13,6 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/search"
-	"github.com/ghsemail/GeeGooAgent/internal/tools/newsrunner"
 )
 
 const indexPromptID = "69ec7035b9ccd3d9befc6c23"
@@ -212,7 +211,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "fetch_market_news", Description: "拉取市场新闻（经 GeeGooBot→GeeGooData 多源聚合；失败时本地 finance-news / web_search）。",
+		Name: "fetch_market_news", Description: "拉取市场新闻（经 GeeGooBot→GeeGooData 多源聚合；失败时 web_search 兜底）。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -240,7 +239,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "fetch_stock_news", Description: "拉取个股新闻（经 GeeGooBot→GeeGooData；失败时本地多源 / web_search）。",
+		Name: "fetch_stock_news", Description: "拉取个股新闻（经 GeeGooBot→GeeGooData；失败时 web_search 兜底）。",
 		Parameters: map[string]any{
 			"type": "object", "required": []string{"code"},
 			"properties": map[string]any{
@@ -811,7 +810,7 @@ func emptyDataNote(tool, code string) string {
 }
 
 func newsUnavailableResult(tool, market, code string, err error) Result {
-	if errors.Is(err, newsrunner.ErrUnavailable) {
+	if errors.Is(err, ErrNewsUnavailable) {
 		data := map[string]any{"text": "", "source": "unavailable"}
 		if market != "" {
 			data["market"] = market
@@ -822,7 +821,7 @@ func newsUnavailableResult(tool, market, code string, err error) Result {
 		}
 		return Result{
 			Status:  StatusSkip,
-			Summary: tool + ": 新闻获取失败（GeeGooData / 本地回退均不可用）",
+			Summary: tool + ": 新闻获取失败（GeeGooData 不可用且无 mcp_token）",
 			Data:    data,
 		}
 	}

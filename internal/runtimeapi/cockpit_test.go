@@ -18,14 +18,21 @@ import (
 )
 
 func testCockpitHandler(t *testing.T) http.Handler {
+	return testCockpitHandlerWithConfig(t, &config.AppConfig{})
+}
+
+func testCockpitHandlerWithConfig(t *testing.T, cfg *config.AppConfig) http.Handler {
 	t.Helper()
+	if cfg == nil {
+		cfg = &config.AppConfig{}
+	}
 	registry := tools.NewRegistry()
 	provider := &llm.MockProvider{
 		Responses: []*llm.Response{{Content: "ok", Usage: llm.TokenUsage{Model: "mock"}}},
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	application := &app.App{
-		Config:   &config.AppConfig{},
+		Config:   cfg,
 		Registry: registry,
 		Gateway:  gateway,
 		Agent:    agent.New(gateway, runtime.NewExecutor(registry), registry),

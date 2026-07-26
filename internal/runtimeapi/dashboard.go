@@ -1,6 +1,7 @@
 package runtimeapi
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -263,7 +264,26 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 			"by_day": []map[string]any{}, "by_provider": []map[string]any{},
 		},
 		"settings": h.buildDashboardSettings(provider, model, userID), "wake_scans": []map[string]any{},
+		"data_fleet": h.buildDataFleetSummary(r),
 	}, nil
+}
+
+func (h *Handler) buildDataFleetSummary(r *http.Request) map[string]any {
+	ctx, cancel := context.WithTimeout(r.Context(), dataBFFNodeTimeout+4*time.Second)
+	defer cancel()
+	payload, err := h.collectDataOverview(ctx, false)
+	if err != nil {
+		return map[string]any{"ok": false}
+	}
+	out := map[string]any{"ok": payload["ok"] == true}
+	if summary, ok := payload["summary"].(map[string]any); ok {
+		for _, key := range []string{"nodes_total", "nodes_healthy", "sources_total", "sources_healthy"} {
+			if v, exists := summary[key]; exists {
+				out[key] = v
+			}
+		}
+	}
+	return out
 }
 
 func (h *Handler) buildDashboardSettings(provider, model, userID string) map[string]any {
