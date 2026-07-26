@@ -235,10 +235,21 @@ func (c *dataFleetCollector) getFutuHealth(ctx context.Context, node config.Reso
 		return dataNodeFutu{OK: true}, true
 	}
 	return dataNodeFutu{
-		OK:   raw["ok"] == true,
+		OK:   futuHealthOK(raw),
 		Host: stringFromAny(raw["host"]),
 		Port: intFromAny(raw["port"]),
 	}, true
+}
+
+func futuHealthOK(raw map[string]any) bool {
+	if raw["ok"] == true {
+		return true
+	}
+	// GeeGooData returns code:100 on success (see GET /v1/futu/health).
+	if intFromAny(raw["code"]) == 100 {
+		return true
+	}
+	return strings.EqualFold(stringFromAny(raw["message"]), "ok")
 }
 
 func (c *dataFleetCollector) probeBotHealth(ctx context.Context, botURL string) (bool, string) {
