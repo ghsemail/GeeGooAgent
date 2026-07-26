@@ -187,10 +187,16 @@ func contextForTool(name, impl string, requiresMCP bool) (injections []string, s
 	case "read_working_state", "write_execution_log", "save_local_report", "recall_yesterday_summary":
 		injections = append(injections, "workspace_files", "session_id")
 		summaryParts = append(summaryParts, "读写 workspace 工作区文件，用于 report_workflow 自动化。")
-	case "get_mcp_analysis", "get_single_prompt_template":
+	case "get_mcp_analysis":
 		if requiresMCP {
 			injections = append(injections, "mcp_token", "trading_user_id")
 			summaryParts = append(summaryParts, "注入 agent-runtime 配置的 mcp_token，经 GeeGooBot 解析为交易 user_id 后调用 analyze-api。")
+		}
+	case "get_single_prompt_template", "get_single_prompt_template_by_index",
+		"get_custom_signal", "get_custom_signal_for_skill", "get_all_custom_signal_id", "get_custom_strategy_definitions":
+		if requiresMCP {
+			injections = append(injections, "mcp_token", "trading_user_id")
+			summaryParts = append(summaryParts, "注入 mcp_token，经 GeeGooSignal catalog-api (:3210) 鉴权后访问 Monday 模板与定制策略。")
 		}
 	case "list_smart_trades", "list_grid_bots", "list_dca_bots", "list_hdg_bots",
 		"list_dca_reminders", "list_grid_reminders", "list_smart_reminders",

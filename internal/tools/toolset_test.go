@@ -116,18 +116,24 @@ func TestAllRegisteredToolsBelongToToolset(t *testing.T) {
 	}
 }
 
-func TestPromptTemplateToolsetNotInDefaultChat(t *testing.T) {
+func TestPromptTemplateToolsetInDefaultChat(t *testing.T) {
 	t.Parallel()
 	names := tools.ChatToolNamesForToolsets(nil)
-	for _, name := range names {
-		if strings.Contains(name, "prompt_template") && name != "get_single_prompt_template" {
-			t.Fatalf("prompt CRUD %s should not be in default chat", name)
+	want := []string{
+		"get_single_prompt_template",
+		"get_custom_signal_for_skill",
+		"get_custom_strategy_definitions",
+	}
+	for _, name := range want {
+		found := false
+		for _, n := range names {
+			if n == name {
+				found = true
+				break
+			}
 		}
-		if strings.HasPrefix(name, "add_custom_") || strings.HasPrefix(name, "edit_custom_") || strings.HasPrefix(name, "delete_custom_") {
-			t.Fatalf("custom signal CRUD %s should not be in default chat", name)
-		}
-		if name == "get_custom_signal" || name == "get_custom_signal_for_skill" || name == "get_all_custom_signal_id" || name == "get_custom_strategy_definitions" {
-			t.Fatalf("monday catalog tool %s should not be in default chat", name)
+		if !found {
+			t.Fatalf("%s should be in default chat via prompt_template toolset", name)
 		}
 	}
 }
@@ -146,9 +152,9 @@ func TestReportWorkflowToolsetIncludesPostMarketIdempotency(t *testing.T) {
 func TestToolsetCountsMatchDocumentation(t *testing.T) {
 	t.Parallel()
 	want := map[string]int{
-		"market_data": 5, "research": 4, "info_search": 4, "agent_meta": 8, "strategy": 5,
+		"market_data": 5, "research": 3, "info_search": 4, "agent_meta": 8, "strategy": 5,
 		"trading_bot": 15, "hedge_bot": 5, "reminder_manager": 15,
-		"report_query": 15, "report_workflow": 8, "prompt_template": 18,
+		"report_query": 15, "report_workflow": 8, "prompt_template": 19,
 	}
 	union := map[string]struct{}{}
 	for _, ts := range tools.AllToolsets() {
@@ -163,8 +169,8 @@ func TestToolsetCountsMatchDocumentation(t *testing.T) {
 		t.Fatalf("toolset union want 101, got %d", len(union))
 	}
 	defaultChat := tools.ChatToolNamesForToolsets(nil)
-	if len(defaultChat) != 75 {
-		t.Fatalf("default chat allowlist want 75, got %d", len(defaultChat))
+	if len(defaultChat) != 93 {
+		t.Fatalf("default chat allowlist want 93, got %d", len(defaultChat))
 	}
 }
 

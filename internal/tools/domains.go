@@ -82,6 +82,7 @@ var (
 		"add_custom_signal":                   {},
 		"edit_custom_signal":                  {},
 		"delete_custom_signal":                {},
+		"get_single_prompt_template":          {},
 	}
 	marketDataTools = map[string]struct{}{
 		"check_trading_day":  {},
@@ -94,7 +95,6 @@ var (
 		"get_capital_flow":         {},
 		"get_capital_distribution": {},
 		"get_mcp_analysis":         {},
-		"get_single_prompt_template": {},
 	}
 	infoSearchTools = map[string]struct{}{
 		"search_code":       {},
@@ -190,7 +190,7 @@ var domainDescriptions = map[ToolDomain]string{
 	DomainInfoSearch:      "搜码、市场/个股新闻、网页搜索",
 	DomainAgentMeta:       "记忆、澄清、委派等横切能力",
 	DomainStrategy:        "信号列表、网格/DCA 生成与回测",
-	DomainPromptTemplate:  "Monday 模板与定制策略 CRUD",
+	DomainPromptTemplate:  "Monday 模板与定制策略（GeeGooSignal :3210）",
 	DomainMeta:            "未归类的注册工具",
 }
 
@@ -321,14 +321,14 @@ func toolDomain(name string) ToolDomain {
 		return DomainReportWorkflow
 	case inSet(name, reportQueryTools):
 		return DomainReportQuery
+	case inSet(name, promptTemplateTools):
+		return DomainPromptTemplate
 	case inSet(name, tradingBotTools):
 		return DomainTradingBot
 	case inSet(name, hedgeBotTools):
 		return DomainHedgeBot
 	case inSet(name, reminderManagerTools):
 		return DomainReminderManager
-	case inSet(name, promptTemplateTools):
-		return DomainPromptTemplate
 	default:
 		return DomainMeta
 	}

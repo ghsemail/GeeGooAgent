@@ -59,7 +59,7 @@ func expandToolsetAlias(id string) []string {
 // builtinToolsets is the canonical catalog. Order is display order.
 var builtinToolsets = []Toolset{
 	newToolset("market_data", "行情与账户", "交易日、现价、逐笔、席位、持仓", true, marketDataTools),
-	newToolset("research", "研究与分析", "资金面、MCP 技术分析、Prompt 模板", true, researchTools),
+	newToolset("research", "研究与分析", "资金面、MCP 技术分析", true, researchTools),
 	newToolset("info_search", "信息检索", "搜码、市场/个股新闻、网页搜索", true, infoSearchTools),
 	newToolset("agent_meta", "Agent 元能力", "记忆、澄清、委派等横切能力", true, agentMetaTools),
 	newToolset("strategy", "策略与信号", "信号列表、网格/DCA 生成与回测", true, strategyTools),
@@ -68,7 +68,7 @@ var builtinToolsets = []Toolset{
 	newToolset("reminder_manager", "提醒机器人", "DCA/GRID/Smart 提醒读写", true, reminderManagerTools),
 	newToolset("report_query", "报告查询", "读报告、Bot 态度与运行日志", true, reportQueryTools),
 	newToolset("report_workflow", "报告 Workflow", "盘前/盘后自动化写报告（默认不进 chat）", false, reportWorkflowTools),
-	newToolset("prompt_template", "Prompt 模板", "Monday SKILL 模板与定制策略 CRUD（高级，默认不进 chat）", false, promptTemplateTools),
+	newToolset("prompt_template", "Prompt 模板", "Monday SKILL 模板与定制策略（GeeGooSignal catalog-api :3210）", true, promptTemplateTools),
 }
 
 // workflowExclusiveTools are in report_workflow but not shared with any other toolset.
