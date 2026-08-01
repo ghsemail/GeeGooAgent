@@ -75,7 +75,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	h.chatMu.Lock()
 	defer h.chatMu.Unlock()
 
-	chat, created, code, msg := h.loadOrCreateChatSession(store, strings.TrimSpace(req.SessionID), resolveUserID(r))
+	chat, created, code, msg := h.loadOrCreateChatSession(store, strings.TrimSpace(req.SessionID), resolveUserID(r), resolveClientSource(r))
 	if code != http.StatusOK {
 		writeError(w, code, msg)
 		return
@@ -258,7 +258,7 @@ func (h *Handler) sessionEventsStream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) loadOrCreateChatSession(store chatsession.SessionStore, sessionID, userID string) (*chatsession.ChatSession, bool, int, string) {
+func (h *Handler) loadOrCreateChatSession(store chatsession.SessionStore, sessionID, userID, source string) (*chatsession.ChatSession, bool, int, string) {
 	if sessionID != "" {
 		chat, err := store.Load(sessionID)
 		if err != nil {
@@ -284,6 +284,15 @@ func (h *Handler) loadOrCreateChatSession(store chatsession.SessionStore, sessio
 	}
 	if userID != "" {
 		chatsession.SetUserID(chat, userID)
+	}
+	source = strings.TrimSpace(source)
+	if source != "" {
+		if chat.Metadata == nil {
+			chat.Metadata = map[string]any{}
+		}
+		if v, ok := chat.Metadata["source"].(string); !ok || strings.TrimSpace(v) == "" {
+			chat.Metadata["source"] = source
+		}
 	}
 	return chat, true, http.StatusOK, ""
 }

@@ -48,6 +48,7 @@ type sessionListItem struct {
 	StepCount    int       `json:"step_count"`
 	UpdatedAt    time.Time `json:"updated_at"`
 	Source       string    `json:"source,omitempty"`
+	UserID       string    `json:"user_id,omitempty"`
 }
 
 type sessionListResponse struct {
@@ -140,6 +141,7 @@ func (h *Handler) listSessions(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		source := ""
+		userID := chatsession.UserIDFromEntry(e)
 		if e.Metadata != nil {
 			if v, ok := e.Metadata["source"].(string); ok {
 				source = v
@@ -153,6 +155,7 @@ func (h *Handler) listSessions(w http.ResponseWriter, r *http.Request) {
 			StepCount:    e.StepCount,
 			UpdatedAt:    e.UpdatedAt,
 			Source:       source,
+			UserID:       userID,
 		})
 	}
 	writeJSON(w, sessionListResponse{Sessions: items, Total: len(entries)})

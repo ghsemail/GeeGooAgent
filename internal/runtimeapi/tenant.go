@@ -24,6 +24,17 @@ func resolveUserIDWithFallback(r *http.Request, bodyUserID string) string {
 	return strings.TrimSpace(bodyUserID)
 }
 
+func resolveClientSource(r *http.Request) string {
+	if r == nil {
+		return "web"
+	}
+	s := strings.TrimSpace(r.Header.Get("X-Client-Source"))
+	if s == "" {
+		return "web"
+	}
+	return s
+}
+
 func bindSessionUser(chat *chatsession.ChatSession, userID string) {
 	chatsession.SetUserID(chat, userID)
 }
