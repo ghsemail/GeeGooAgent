@@ -147,6 +147,7 @@ func (h *Handler) listSessions(w http.ResponseWriter, r *http.Request) {
 				source = v
 			}
 		}
+		source = NormalizeSessionSource(source)
 		items = append(items, sessionListItem{
 			ID:           e.ID,
 			Title:        e.Title,

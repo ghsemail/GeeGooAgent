@@ -32,7 +32,23 @@ func resolveClientSource(r *http.Request) string {
 	if s == "" {
 		return "web"
 	}
-	return s
+	return NormalizeSessionSource(s)
+}
+
+// NormalizeSessionSource maps legacy/alias channel ids to Gateway SSOT: web | trading_app.
+func NormalizeSessionSource(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "web"
+	}
+	switch strings.ToLower(s) {
+	case "web", "trading_operation":
+		return "web"
+	case "trading_app", "geegoo_agent", "geegoo-app":
+		return "trading_app"
+	default:
+		return s
+	}
 }
 
 func bindSessionUser(chat *chatsession.ChatSession, userID string) {

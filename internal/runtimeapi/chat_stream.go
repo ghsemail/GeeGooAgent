@@ -270,7 +270,7 @@ func (h *Handler) loadOrCreateChatSession(store chatsession.SessionStore, sessio
 		if v, ok := chat.Metadata["source"].(string); ok && strings.TrimSpace(v) != "" {
 			return false
 		}
-		chat.Metadata["source"] = source
+		chat.Metadata["source"] = NormalizeSessionSource(source)
 		return true
 	}
 
