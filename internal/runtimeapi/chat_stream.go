@@ -259,6 +259,21 @@ func (h *Handler) sessionEventsStream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) loadOrCreateChatSession(store chatsession.SessionStore, sessionID, userID, source string) (*chatsession.ChatSession, bool, int, string) {
+	applyChannelMeta := func(chat *chatsession.ChatSession) bool {
+		source = strings.TrimSpace(source)
+		if source == "" || chat == nil {
+			return false
+		}
+		if chat.Metadata == nil {
+			chat.Metadata = map[string]any{}
+		}
+		if v, ok := chat.Metadata["source"].(string); ok && strings.TrimSpace(v) != "" {
+			return false
+		}
+		chat.Metadata["source"] = source
+		return true
+	}
+
 	if sessionID != "" {
 		chat, err := store.Load(sessionID)
 		if err != nil {
@@ -271,7 +286,11 @@ func (h *Handler) loadOrCreateChatSession(store chatsession.SessionStore, sessio
 		if userID != "" && !chatsession.EnforceAccess(chat, userID) {
 			return nil, false, http.StatusForbidden, "session access denied"
 		}
+		changed := applyChannelMeta(chat)
 		if userID != "" && priorOwner == "" {
+			changed = true
+		}
+		if changed {
 			if err := store.Save(chat); err != nil {
 				return nil, false, http.StatusInternalServerError, err.Error()
 			}
@@ -285,14 +304,9 @@ func (h *Handler) loadOrCreateChatSession(store chatsession.SessionStore, sessio
 	if userID != "" {
 		chatsession.SetUserID(chat, userID)
 	}
-	source = strings.TrimSpace(source)
-	if source != "" {
-		if chat.Metadata == nil {
-			chat.Metadata = map[string]any{}
-		}
-		if v, ok := chat.Metadata["source"].(string); !ok || strings.TrimSpace(v) == "" {
-			chat.Metadata["source"] = source
-		}
+	applyChannelMeta(chat)
+	if err := store.Save(chat); err != nil {
+		return nil, false, http.StatusInternalServerError, err.Error()
 	}
 	return chat, true, http.StatusOK, ""
 }
