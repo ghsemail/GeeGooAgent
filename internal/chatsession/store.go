@@ -335,9 +335,7 @@ func (c *ChatSession) RuntimeMessages() []llm.Message {
 
 // RefreshMetadata derives searchable fields from persisted chat content.
 func (c *ChatSession) RefreshMetadata() {
-	if strings.TrimSpace(c.Title) == "" || c.Title == c.ID {
-		c.Title = deriveSessionTitle(c)
-	}
+	c.Title = deriveSessionTitle(c)
 	c.ToolNames = uniqueSortedStrings(append(c.ToolNames, deriveToolNames(c)...))
 	c.Tags = uniqueSortedStrings(append(c.Tags, deriveSessionTags(c)...))
 	if strings.TrimSpace(c.Summary) == "" {
@@ -617,10 +615,16 @@ func (idx *ChatSessionIndex) toMap() map[string]any {
 }
 
 func deriveSessionTitle(session *ChatSession) string {
-	for _, msg := range session.Messages {
-		if msg.Role == llm.RoleUser && strings.TrimSpace(msg.Content) != "" {
-			return truncateRunes(strings.TrimSpace(msg.Content), 80)
+	for i := len(session.Messages) - 1; i >= 0; i-- {
+		msg := session.Messages[i]
+		if msg.Role != llm.RoleUser {
+			continue
 		}
+		content := strings.TrimSpace(msg.Content)
+		if content == "" || strings.HasPrefix(content, "本会话 Tool 活动") {
+			continue
+		}
+		return truncateRunes(content, 80)
 	}
 	return session.ID
 }

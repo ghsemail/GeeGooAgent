@@ -288,7 +288,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 	registerPromptTemplateTools(r, deps)
 	r.Register(Tool{
 		Name:        "get_mcp_analysis",
-		Description: "执行 MCP 技术面/指数 LLM 分析（经 GeeGooBot :3120，mcp_token 解析用户）。个股：先 get_single_prompt_template(type=tech) 取 prompt_id。",
+		Description: "执行 MCP LLM 个股/标的分析（GeeGooBot mcp-api→analyze-api）。须先有 prompt_id：技术分析 type=tech（走势/趋势/K线，默认路径）；指标分析 type=index 或 by_index（仅当用户点名 MACD/EMA 等）；基本面 type=fundamental。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -307,7 +307,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 				},
 				"prompt_id": map[string]any{
 					"type":        "string",
-					"description": "分析模板 ID，来自 get_single_prompt_template；指数可用默认",
+					"description": "分析模板 ID（来自 get_single_prompt_template / by_index）；技术面默认从 type=tech 选取，勿对泛化趋势问题默认用 MACD",
 				},
 				"language": map[string]any{
 					"type":        "string",
@@ -325,7 +325,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if name == "" || code == "" {
 				return Result{
 					Status: StatusError, ExitCode: 1,
-					Summary: "get_mcp_analysis 需要 name 与 code（先 search_code 确认标的）；个股技术面请先 get_single_prompt_template(type=tech) 获取 prompt_id",
+					Summary: "get_mcp_analysis 需要 name 与 code（先 search_code）；prompt_id 来自 get_single_prompt_template：技术面 type=tech，指标 type=index，基本面 type=fundamental",
 				}
 			}
 			if ctx.DryRun {
@@ -863,14 +863,14 @@ func shorten(s string, n int) string {
 func registerPromptTemplateTools(r *Registry, deps Deps) {
 	r.Register(Tool{
 		Name:        "get_single_prompt_template",
-		Description: "列出已启用（switch=true）的单项分析 Prompt，从 Mongo single_prompt_template 读取；返回 prompt_id 供 get_mcp_analysis。与模板运营的 add/edit/switch 操作同一集合：运营新建或修改后需 switch 启用才会出现在本列表。竞品/ETF 用户模板走 create_*_prompt_template，不在此列表。",
+		Description: "列出已启用（switch=true）的单项分析 Prompt，供 get_mcp_analysis 选 prompt_id。type 筛选项：tech=技术分析（价格/K线/趋势/资金等，泛化技术面默认此项）；index=指标分析（MACD/EMA 等单一指标，仅用户点名指标时用）；fundamental=基本面（财报/估值/风险）。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"type": map[string]any{
-					"type":        "string",
-					"enum":        []any{"index", "tech", "fundamental"},
-					"description": "模板类型：个股技术面/信号趋势用 tech，指数用 index，基本面用 fundamental",
+					"type": "string",
+					"enum": []any{"index", "tech", "fundamental"},
+					"description": "tech=技术分析（走势/趋势/K线/资金，默认）；index=指标分析（MACD/EMA 等，用户点名指标时）；fundamental=基本面（财报/估值/风险）",
 				},
 				"period": map[string]any{
 					"type":        "string",

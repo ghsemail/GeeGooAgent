@@ -18,6 +18,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/doctor"
 	"github.com/ghsemail/GeeGooAgent/internal/app"
+	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	factmem "github.com/ghsemail/GeeGooAgent/internal/memory/facts"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
@@ -446,6 +447,22 @@ func quoteIdent(s string) string {
 	return `"` + s + `"`
 }
 
+func assistantReplyForUserTurn(messages []llm.Message, userIdx int) string {
+	var reply string
+	for j := userIdx + 1; j < len(messages); j++ {
+		if messages[j].Role == llm.RoleUser {
+			break
+		}
+		if messages[j].Role != llm.RoleAssistant {
+			continue
+		}
+		if text := strings.TrimSpace(messages[j].Content); text != "" {
+			reply = text
+		}
+	}
+	return reply
+}
+
 func buildTurnsFromSession(sess *chatsession.ChatSession) []map[string]any {
 	if sess == nil {
 		return nil
@@ -491,13 +508,15 @@ func buildTurnsFromSession(sess *chatsession.ChatSession) []map[string]any {
 			continue
 		}
 		user := sess.Messages[i].Content
-		reply := ""
+		reply := assistantReplyForUserTurn(sess.Messages, i)
+		if reply != "" {
+			reply = agent.CleanAssistantVisibleText(reply)
+		}
 		for j := i + 1; j < len(sess.Messages); j++ {
-			if sess.Messages[j].Role == llm.RoleAssistant {
-				reply = sess.Messages[j].Content
-				i = j
+			if sess.Messages[j].Role == llm.RoleUser {
 				break
 			}
+			i = j
 		}
 		t := map[string]any{
 			"user_message": truncateRunes(user, 200),
@@ -788,13 +807,29 @@ func (h *Handler) dashboardSessionMessages(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	messages := []map[string]any{}
+	visibleOnly := strings.EqualFold(r.URL.Query().Get("visible"), "1") ||
+		strings.EqualFold(r.URL.Query().Get("visible"), "true")
 	for _, msg := range session.Messages {
 		if msg.Role == llm.RoleSystem {
 			continue
 		}
+		if visibleOnly {
+			switch msg.Role {
+			case llm.RoleTool:
+				continue
+			case llm.RoleAssistant:
+				if strings.TrimSpace(msg.Content) == "" {
+					continue
+				}
+			}
+		}
+		content := msg.Content
+		if msg.Role == llm.RoleAssistant {
+			content = agent.CleanAssistantVisibleText(content)
+		}
 		messages = append(messages, map[string]any{
 			"role":              string(msg.Role),
-			"content":           msg.Content,
+			"content":           content,
 			"reasoning_content": msg.ReasoningContent,
 			"tool_call_count":   len(msg.ToolCalls),
 		})

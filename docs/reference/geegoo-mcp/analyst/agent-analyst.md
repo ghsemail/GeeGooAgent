@@ -15,13 +15,15 @@
 
 ## 约定与枚举（三类 type · TemplateType · creator · period）
 
+> **Agent 路由（技术分析 / 指标分析 / 基本面）的完整决策树见：[`analysis-routing.md`](analysis-routing.md)**（内嵌自 `internal/chatprompt/analysis_routing.md`）。
+
 ### 三类筛选（`getSinglePromptTemplate` 请求参数 `type`）
 
-| 值 | 说明 |
-|----|------|
-| **index** | 指数类模板（库内文档字段 **`type`** 见下表 **TemplateType**） |
-| **tech** | 技术类模板（机器人 **`attitude.analysis_prompt_list`** / **`analysis_period`** 常用） |
-| **fundamental** | 基本面类模板 |
+| 值 | 产品叫法 | 说明 |
+|----|----------|------|
+| **tech** | 技术分析 | 价格、K 线、趋势、资金流向等（见 analysis-routing.md） |
+| **index** | 指标分析 | MACD/EMA 等单一技术指标模板（**非**「股票指数」含义） |
+| **fundamental** | 基本面分析 | 财报、估值、风险、行业基本面 |
 
 调用 **`POST /getSinglePromptTemplate`** 时需 **`mcp_token`** + 上述 **`type`** 之一；可选 **`period`** 缩小返回范围。
 

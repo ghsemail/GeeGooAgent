@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
+	"github.com/ghsemail/GeeGooAgent/internal/markdownnorm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
@@ -102,14 +103,22 @@ func emptyReplyMessage(resp *llm.Response, records []runtime.StepRecord) string 
 func readableAssistantText(content, reasoning string) string {
 	visible, _ := splitInlineThinking(content)
 	if text := stripProviderNoise(visible); text != "" {
-		return text
+		return formatAssistantReplyForStorage(text)
 	}
-	return stripProviderNoise(reasoning)
+	return formatAssistantReplyForStorage(stripProviderNoise(reasoning))
 }
 
 // CleanAssistantVisibleText strips inline think tags and provider noise for storage/UI.
 func CleanAssistantVisibleText(s string) string {
-	return stripProviderNoise(s)
+	return formatAssistantReplyForStorage(stripProviderNoise(s))
+}
+
+func formatAssistantReplyForStorage(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	return markdownnorm.NormalizeAssistantReply(s)
 }
 
 func splitInlineThinking(s string) (visible, extracted string) {

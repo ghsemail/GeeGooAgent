@@ -5,7 +5,7 @@ func MondayHTTPSpecs() []HTTPSpec {
 	return []HTTPSpec{
 		{
 			Name:             "get_single_prompt_template_by_index",
-			Description:      "按指标 variable 与 period 查询已启用的单项分析 Prompt（single_prompt_template 单条；与 get_single_prompt_template 列表读同一库）。",
+			Description:      "按指标 variable（如 MACD、EMA）与 period 查询已启用的指标分析 Prompt（API type=index 类；用户已点名具体指标时用，泛化「技术面/趋势」勿默认走此工具）。",
 			Path:             "/getSinglePromptTemplateByIndex",
 			RequiresMCPToken: true,
 			DirectResponse:   true,

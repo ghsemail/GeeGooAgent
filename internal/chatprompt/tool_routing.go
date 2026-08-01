@@ -12,13 +12,7 @@ func ToolRouting() string {
 - **禁止**用 get_report_bot_codes 回答「有哪些机器人」——它仅用于盘前/盘后 Workflow，返回的是「开了态度监控、待写报告的标的」，不是 Reminder/Bot 全量列表
 - 创建/修改 Bot 前先 search_code 确认标的，并向用户确认配置后再调用 create_*
 
-### 行情与技术分析
-- 分析个股：search_code → get_current_price / get_mcp_analysis
-- 用户问个股「信号趋势 / 技术面 / 走势分析」：search_code → get_single_prompt_template(type=tech, period=daily) 取 prompt_id → get_mcp_analysis(name, code, prompt_id, period)
-- get_mcp_analysis 的 period 必填（daily / weekly / hourly 等），name 填股票名，code 填如 SPCX.US
-- get_single_prompt_template 的 type 必填：个股用 tech，指数用 index，基本面用 fundamental
-- get_mcp_analysis 经 GeeGooBot mcp-api（mcp_token→user_id→analyze-api LLM），勿直连 :3230
-- 资金流向 get_capital_*：经 GeeGooBot → GeeGooData（A 股 CN 节点，港/美 HK/US 节点）；无数据时 skip，勿编造
+` + AnalysisRouting() + `
 
 ### DCA 定投
 - 用户要 DCA 定投方案时：若未说明用哪种信号，**先 clarify** 询问偏好「单指标信号」还是「组合信号」，不要默认猜
