@@ -18,6 +18,8 @@ export GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
 PORT_RUNTIME="${GEEGOO_AGENT_RUNTIME_PORT:-3400}"
 LOG_RUNTIME="${APP_DIR}/agent-runtime.out"
 PID_RUNTIME="${APP_DIR}/agent-runtime.pid"
+LOG_SCHEDULER="${APP_DIR}/scheduler.out"
+PID_SCHEDULER="${APP_DIR}/scheduler.pid"
 
 log() { echo "[GeeGooAgent] $*"; }
 
@@ -76,14 +78,50 @@ status_runtime() {
   fi
 }
 
+start_scheduler() {
+  if [[ -f "$PID_SCHEDULER" ]] && kill -0 "$(cat "$PID_SCHEDULER")" 2>/dev/null; then
+    log "scheduler already running (PID $(cat "$PID_SCHEDULER"))"
+    return 0
+  fi
+  export GEEGOO_CONFIG="$CONFIG_PATH"
+  nohup "$BIN_DIR/geegoo" scheduler run --config "$CONFIG_PATH" > "$LOG_SCHEDULER" 2>&1 &
+  echo $! > "$PID_SCHEDULER"
+  log "scheduler started PID=$(cat "$PID_SCHEDULER") log=${LOG_SCHEDULER}"
+}
+
+stop_scheduler() {
+  if [[ -f "$PID_SCHEDULER" ]]; then
+    kill "$(cat "$PID_SCHEDULER")" 2>/dev/null || true
+    rm -f "$PID_SCHEDULER"
+  fi
+  pkill -f 'geegoo.*scheduler run' 2>/dev/null || true
+  pkill -f 'geegoo.bin scheduler run' 2>/dev/null || true
+  log "scheduler stopped"
+}
+
+status_scheduler() {
+  if [[ -f "$PID_SCHEDULER" ]] && kill -0 "$(cat "$PID_SCHEDULER")" 2>/dev/null; then
+    echo "scheduler running PID=$(cat "$PID_SCHEDULER")"
+    "$BIN_DIR/geegoo" scheduler list --config "$CONFIG_PATH" 2>/dev/null || true
+  else
+    echo "scheduler not running"
+  fi
+}
+
 case "${1:-help}" in
   build) build ;;
   start-runtime) start_runtime ;;
   stop-runtime) stop_runtime ;;
   restart-runtime) stop_runtime; build; start_runtime ;;
-  status) status_runtime ;;
+  status) status_runtime; status_scheduler ;;
+  start-scheduler) start_scheduler ;;
+  stop-scheduler) stop_scheduler ;;
+  restart-scheduler) stop_scheduler; build; start_scheduler ;;
+  start-all) start_runtime; start_scheduler ;;
+  stop-all) stop_scheduler; stop_runtime ;;
+  restart-all) stop_scheduler; stop_runtime; build; start_runtime; start_scheduler ;;
   *)
-    echo "Usage: $0 {build|start-runtime|stop-runtime|restart-runtime|status}"
+    echo "Usage: $0 {build|start-runtime|stop-runtime|restart-runtime|start-scheduler|stop-scheduler|restart-scheduler|start-all|stop-all|restart-all|status}"
     exit 1
     ;;
 esac

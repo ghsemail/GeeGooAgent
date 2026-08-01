@@ -57,8 +57,8 @@ echo "==> linking geegoo into $BIN_DIR"
 ln -sf "$BINARY_PATH" "$BIN_DIR/geegoo"
 
 if [ -f "$INSTALL_DIR/start.sh" ] && [ "${GEEGOO_SKIP_RUNTIME_RESTART:-0}" != "1" ]; then
-  echo "==> restarting agent-runtime (:3400, 运营台工具目录依赖此进程)"
-  (cd "$INSTALL_DIR" && bash start.sh restart-runtime) || echo "WARN: agent-runtime restart failed (run: cd $INSTALL_DIR && bash start.sh restart-runtime)" >&2
+  echo "==> restarting agent-runtime + scheduler"
+  (cd "$INSTALL_DIR" && bash start.sh restart-all) || echo "WARN: agent services restart failed (run: cd $INSTALL_DIR && bash start.sh restart-all)" >&2
 fi
 
 PATH_LINE="export PATH=\"$BIN_DIR:\$PATH\""

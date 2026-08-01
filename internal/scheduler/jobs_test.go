@@ -31,22 +31,36 @@ func TestSaveAndReloadJobs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(loaded.Jobs) != 1 || loaded.Jobs[0].Skill != "pre_market" {
-		t.Fatalf("unexpected: %+v", loaded)
+	if len(loaded.Jobs) != 3 {
+		t.Fatalf("expected 3 default jobs, got %d: %+v", len(loaded.Jobs), loaded.Jobs)
+	}
+	skills := map[string]bool{}
+	for _, j := range loaded.Jobs {
+		skills[j.Skill] = true
+	}
+	if !skills["pre_market"] || !skills["post_market"] {
+		t.Fatalf("missing pre/post market jobs: %+v", loaded.Jobs)
 	}
 }
 
 func TestDefaultJobsHasWeekdayPreMarket(t *testing.T) {
 	t.Parallel()
 	jf := scheduler.DefaultJobs()
-	found := false
+	foundPre := false
+	foundPost := false
 	for _, j := range jf.Jobs {
 		if j.Skill == "pre_market" && j.Enabled && j.Cron == "0 8 * * 1-5" {
-			found = true
+			foundPre = true
+		}
+		if j.Skill == "post_market" && j.Enabled && j.Cron == "0 17 * * 1-5" {
+			foundPost = true
 		}
 	}
-	if !found {
+	if !foundPre {
 		t.Fatal("default jobs missing enabled pre_market weekday job")
+	}
+	if !foundPost {
+		t.Fatal("default jobs missing enabled post_market weekday job")
 	}
 }
 

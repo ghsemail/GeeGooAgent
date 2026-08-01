@@ -61,12 +61,16 @@ func SaveJobs(dir string, jf *JobsFile) error {
 	return os.WriteFile(filepath.Join(dir, "jobs.json"), append(raw, '\n'), 0o644)
 }
 
-// DefaultJobs returns a sensible default job set (pre_market weekdays 08:00).
+// DefaultJobs returns the production weekday schedule (Asia/Shanghai local cron).
 func DefaultJobs() *JobsFile {
 	return &JobsFile{
 		Version: 1,
 		Jobs: []Job{
 			{Name: "pre_market_weekday", Skill: "pre_market", Cron: "0 8 * * 1-5",
+				Enabled: true, Platform: "log"},
+			{Name: "post_market_weekday", Skill: "post_market", Cron: "0 17 * * 1-5",
+				Enabled: true, Platform: "log"},
+			{Name: "pre_market_us", Skill: "pre_market", Cron: "0 21 * * 1-5",
 				Enabled: true, Platform: "log"},
 		},
 	}
