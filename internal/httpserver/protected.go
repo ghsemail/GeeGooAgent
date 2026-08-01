@@ -16,6 +16,10 @@ func NewProtectedHandler(serviceName, apiKey string, allowInsecure bool, registe
 	if allowInsecure {
 		key = ""
 	}
-	skip := map[string]struct{}{"/health": {}, "/ready": {}}
+	skip := map[string]struct{}{
+		"/health":                {},
+		"/ready":                 {},
+		"/v1/scheduler/status":   {},
+	}
 	return auth.SkipPaths(skip, auth.BearerAPIKey(key))(mux)
 }

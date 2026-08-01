@@ -41,6 +41,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	h.registerSessionRoutes(mux)
 	h.registerChatStreamRoutes(mux)
 	h.registerCockpitRoutes(mux)
+	h.registerSchedulerStatusRoutes(mux)
 	h.registerDashboardRoutes(mux)
 	h.registerDataRoutes(mux)
 }
