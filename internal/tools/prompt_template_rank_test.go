@@ -45,4 +45,9 @@ func TestApplyTechPromptRouting_RecommendedField(t *testing.T) {
 	if !strings.Contains(note, "kline") && !strings.Contains(note, "K线形态") {
 		t.Fatalf("note=%q", note)
 	}
+	items, _ := out["items"].([]any)
+	first, _ := items[0].(map[string]any)
+	if _, ok := first["template"]; ok {
+		t.Fatal("items should be compact")
+	}
 }

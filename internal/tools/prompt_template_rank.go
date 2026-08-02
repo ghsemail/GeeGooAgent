@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 )
@@ -26,6 +25,15 @@ func parseTechPromptFocus(raw string) techPromptFocus {
 func promptItemTags(item map[string]any) []string {
 	raw, ok := item["tag"].([]any)
 	if !ok {
+		if ss, ok := item["tag"].([]string); ok {
+			out := make([]string, 0, len(ss))
+			for _, s := range ss {
+				if t := strings.ToLower(strings.TrimSpace(s)); t != "" {
+					out = append(out, t)
+				}
+			}
+			return out
+		}
 		return nil
 	}
 	out := make([]string, 0, len(raw))
@@ -151,61 +159,5 @@ func rankTechPromptItems(items []any, focus techPromptFocus) []any {
 }
 
 func applyTechPromptRouting(data map[string]any, focus techPromptFocus) (map[string]any, string) {
-	if data == nil {
-		return data, ""
-	}
-	items, ok := data["items"].([]any)
-	if !ok || len(items) == 0 {
-		return data, ""
-	}
-	ranked := rankTechPromptItems(items, focus)
-	data["items"] = ranked
-	data["count"] = len(ranked)
-
-	var pick map[string]any
-	for _, raw := range ranked {
-		item, ok := raw.(map[string]any)
-		if !ok {
-			continue
-		}
-		if techPromptRank(promptItemTags(item), focus) >= 90 {
-			continue
-		}
-		pick = item
-		break
-	}
-	if pick == nil {
-		if first, ok := ranked[0].(map[string]any); ok {
-			pick = first
-		}
-	}
-	if pick == nil {
-		return data, ""
-	}
-
-	id := promptItemID(pick)
-	name := promptItemNameCN(pick)
-	tags := promptItemTags(pick)
-	rec := map[string]any{
-		"prompt_id": id,
-		"tags":      tags,
-	}
-	if name != "" {
-		rec["name_cn"] = name
-	}
-	switch focus {
-	case techFocusCapitalFlow:
-		rec["note"] = "用户明确问资金/主力/净流入时使用"
-		data["recommended_for_capital_flow"] = rec
-		if id != "" {
-			return data, fmt.Sprintf("资金分析推荐 prompt_id=%s（%s）", id, name)
-		}
-	default:
-		rec["note"] = "用户问价格/走势/涨跌时优先使用；勿默认 capital_flow 模板"
-		data["recommended_for_price_trend"] = rec
-		if id != "" {
-			return data, fmt.Sprintf("价格/走势推荐 prompt_id=%s（%s）", id, name)
-		}
-	}
-	return data, ""
+	return processPromptTemplateResponse(data, focus, true)
 }

@@ -57,7 +57,7 @@
 ## 3. 标准工具链（必须按序）
 
 1. **search_code** — 确认 code、name（如 00700.HK、01810.HK）
-2. **get_single_prompt_template** 或 **get_single_prompt_template_by_index** — 取 `prompt_id`
+2. **get_single_prompt_template** 或 **get_single_prompt_template_by_index** — 取 `prompt_id`（列表仅含 `name_cn` / **`brief`（来自 intro）** / `tag`，**不含** `template` 正文）
 3. **get_mcp_analysis**(name, code, prompt_id, period) — period 必填；经 GeeGooBot mcp-api → analyze-api，**勿直连 :3230**
 4. 可选组合（有数据再用，禁止编造）：
    - **get_current_price** — 现价

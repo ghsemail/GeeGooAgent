@@ -866,7 +866,7 @@ func shorten(s string, n int) string {
 func registerPromptTemplateTools(r *Registry, deps Deps) {
 	r.Register(Tool{
 		Name:        "get_single_prompt_template",
-		Description: "列出已启用（switch=true）的单项分析 Prompt，供 get_mcp_analysis 选 prompt_id。type=tech 时：用户问价格/走势/趋势优先选 flag/kline/price 模板，勿默认 capital_flow（除非用户明确问资金）；index=指标分析；fundamental=基本面。返回含 recommended_for_price_trend。",
+		Description: "列出已启用（switch=true）的单项分析 Prompt，供 get_mcp_analysis 选 prompt_id。返回精简列表（prompt_id/name_cn/brief/tag，不含 template 正文）；type=tech 时按 tag 排序并附 recommended_for_price_trend 参考项。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -930,10 +930,12 @@ func registerPromptTemplateTools(r *Registry, deps Deps) {
 			if type_ == "tech" {
 				focus := parseTechPromptFocus(strArg(args, "focus", "price_trend"))
 				var routingNote string
-				normalized, routingNote = applyTechPromptRouting(normalized, focus)
+				normalized, routingNote = processPromptTemplateResponse(normalized, focus, true)
 				if routingNote != "" {
 					summary = summary + "; " + routingNote
 				}
+			} else {
+				normalized, _ = processPromptTemplateResponse(normalized, techFocusPriceTrend, false)
 			}
 			return Result{Status: StatusOK, Summary: summary, Data: normalized}
 		},
