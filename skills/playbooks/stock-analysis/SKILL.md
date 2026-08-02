@@ -15,7 +15,7 @@ description: 个股技术面分析、指数分析、prompt_id、get_mcp_analysis
 2. **选分析周期** — 未说明时 `clarify`：`daily` / `weekly` / `monthly` 等（与下文 `period` 枚举一致）
 3. **选 Prompt 模板**（`type=tech` 时按用户意图选 **price / kline / flag**，勿默认 capital_flow）
    - 列表：`get_single_prompt_template`，`type` 取 `tech`（个股技术）/ `index`（指标）/ `fundamental`（基本面）
-   - 用户问价格/走势/这周涨跌 → 在 tech 列表中优先 **flag > kline > price**；**只有**用户点名资金时才选 capital_flow 模板
+   - 用户问价格/走势/这周涨跌 → 在 tech 列表中优先 **flag > kline > price**；**直接采用**返回的 `recommended_for_price_trend.prompt_id`；**只有**用户点名资金时才选 capital_flow 模板
    - 已知指标名：`get_single_prompt_template_by_index`（`index`=variable 如 `EMA`，`period` 必填）
    - 从返回项取 **`prompt_id`**；`period` 与第 2 步一致
 4. **执行分析** — `get_mcp_analysis`（`name`、`code`、`prompt_id`、`period`；`language` 默认 `cn`）

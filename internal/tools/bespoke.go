@@ -866,7 +866,7 @@ func shorten(s string, n int) string {
 func registerPromptTemplateTools(r *Registry, deps Deps) {
 	r.Register(Tool{
 		Name:        "get_single_prompt_template",
-		Description: "列出已启用（switch=true）的单项分析 Prompt，供 get_mcp_analysis 选 prompt_id。type=tech 时：用户问价格/走势/趋势优先选 flag/kline/price 模板，勿默认 capital_flow（除非用户明确问资金）；index=指标分析；fundamental=基本面。",
+		Description: "列出已启用（switch=true）的单项分析 Prompt，供 get_mcp_analysis 选 prompt_id。type=tech 时：用户问价格/走势/趋势优先选 flag/kline/price 模板，勿默认 capital_flow（除非用户明确问资金）；index=指标分析；fundamental=基本面。返回含 recommended_for_price_trend。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -878,6 +878,11 @@ func registerPromptTemplateTools(r *Registry, deps Deps) {
 				"period": map[string]any{
 					"type":        "string",
 					"description": "可选周期过滤，如 daily、weekly、hourly",
+				},
+				"focus": map[string]any{
+					"type":        "string",
+					"enum":        []any{"price_trend", "capital_flow"},
+					"description": "type=tech 时排序与推荐：price_trend=价格/走势（默认）；capital_flow=仅用户明确问资金/主力时用",
 				},
 			},
 			"required": []any{"type"},
@@ -921,6 +926,14 @@ func registerPromptTemplateTools(r *Registry, deps Deps) {
 			normalized, summary := normalizeHTTPResponse("get_single_prompt_template", data)
 			if status, note, _ := ClassifyHTTPPayload("get_single_prompt_template", normalized, nil); status != StatusOK {
 				return Result{Status: status, Summary: note, Data: normalized}
+			}
+			if type_ == "tech" {
+				focus := parseTechPromptFocus(strArg(args, "focus", "price_trend"))
+				var routingNote string
+				normalized, routingNote = applyTechPromptRouting(normalized, focus)
+				if routingNote != "" {
+					summary = summary + "; " + routingNote
+				}
 			}
 			return Result{Status: StatusOK, Summary: summary, Data: normalized}
 		},

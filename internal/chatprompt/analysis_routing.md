@@ -40,6 +40,7 @@
             → get_single_prompt_template(type=tech, period=…)
             → 在返回列表中选最匹配模板（**flag 趋势 > kline 形态 > price 价格**）
             → **禁止**仅因列表里有「资金流向」就选 tag=capital_flow 模板；资金是补充项，不是价格/走势主分析
+            → **优先**使用 `get_single_prompt_template` 返回的 **`recommended_for_price_trend.prompt_id`**（列表已重排，capital_flow 靠后）
 ```
 
 **周期 period：**
@@ -63,7 +64,7 @@
    - **get_capital_flow** / **get_capital_distribution** — 资金（GeeGooData）
    - **fetch_stock_news** / **fetch_market_news** — 新闻
 
-若 get_mcp_analysis 返回数据字段不全（仅 trade_date 等），如实说明限制，可改用资金/新闻/现价做补充判断，**不得虚构指标数值**。
+若 get_mcp_analysis 返回数据字段不全（仅 trade_date 等），如实说明限制，可改用 **get_current_price** / 新闻做补充，**不得**默认改用 capital_flow 模板或 `get_capital_flow` 冒充股价分析（除非用户明确问资金）。
 
 ---
 
