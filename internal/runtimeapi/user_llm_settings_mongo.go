@@ -122,6 +122,21 @@ func (h *Handler) loadUserLLMSettings(userID string) (*userLLMSettings, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 
+	if h.botServiceAPIEnabled() {
+		doc, err := h.loadUserLLMSettingsHTTP(ctx, userID)
+		if err == nil {
+			if doc != nil {
+				return doc, nil
+			}
+			fileDoc, fileErr := loadUserLLMSettings(h.userSettingsOutputDir(), userID)
+			if fileDoc != nil {
+				_ = h.saveUserLLMSettings(userID, fileDoc)
+				return fileDoc, nil
+			}
+			return nil, fileErr
+		}
+	}
+
 	if h.userLLMMongoEnabled() {
 		doc, err := h.loadUserLLMSettingsMongo(ctx, userID)
 		if err == nil && doc != nil {
@@ -146,6 +161,12 @@ func (h *Handler) saveUserLLMSettings(userID string, doc *userLLMSettings) error
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
+
+	if h.botServiceAPIEnabled() {
+		if err := h.saveUserLLMSettingsHTTP(ctx, userID, doc); err == nil {
+			return nil
+		}
+	}
 
 	if h.userLLMMongoEnabled() {
 		if err := h.saveUserLLMSettingsMongo(ctx, userID, doc); err == nil {

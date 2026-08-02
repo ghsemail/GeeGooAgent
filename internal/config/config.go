@@ -213,8 +213,10 @@ type AppConfig struct {
 	SignalAnalyzeAPIKeyField string `json:"signal_analyze_api_key,omitempty"`
 	DataBaseURL              string           `json:"data_base_url"`
 	DataNodes                []DataNodeConfig `json:"data_nodes,omitempty"`
-	BotMongoURI              string           `json:"bot_mongo_uri,omitempty"`
-	BotMongoDB               string           `json:"bot_mongo_db,omitempty"`
+	BotMongoURI              string `json:"bot_mongo_uri,omitempty"`
+	BotMongoDB               string `json:"bot_mongo_db,omitempty"`
+	BotServiceAPIURL         string `json:"bot_service_api_url,omitempty"`
+	BotServiceAPIKey         string `json:"bot_service_api_key,omitempty"`
 	OutputDir        string            `json:"output_dir"`
 	DryRun           bool              `json:"dry_run"`
 	FeishuWebhookURL *string           `json:"feishu_webhook_url"`
@@ -329,6 +331,12 @@ func applyEnv(cfg *AppConfig) {
 	}
 	if v := strings.TrimSpace(os.Getenv("GEEGOO_BOT_MONGO_DB")); v != "" {
 		cfg.BotMongoDB = v
+	}
+	if v := strings.TrimSpace(os.Getenv("GEEGOO_BOT_SERVICE_API_URL")); v != "" {
+		cfg.BotServiceAPIURL = v
+	}
+	if v := strings.TrimSpace(os.Getenv("GEEGOO_BOT_SERVICE_API_KEY")); v != "" {
+		cfg.BotServiceAPIKey = v
 	}
 }
 
