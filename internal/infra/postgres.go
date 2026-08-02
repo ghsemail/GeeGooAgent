@@ -70,7 +70,7 @@ func OpenPostgres(dsn string) (*PostgresDB, error) {
 }
 
 func (p *PostgresDB) applyCoreSchemas() error {
-	for _, name := range []string{"postgres_platform.sql", "postgres_sessions.sql"} {
+	for _, name := range []string{"postgres_platform.sql", "postgres_sessions.sql", "postgres_eval.sql"} {
 		if err := p.execEmbedded(name); err != nil {
 			return err
 		}
