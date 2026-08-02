@@ -150,6 +150,7 @@ func PreprocessWebMarkdown(text string) string {
 	text = normalizeLoosePipeTablesInline(text)
 	text = normalizeGluedMarkdownTables(text)
 	text = NormalizeAssistantLayout(text)
+	text = demoteNumberedKeyLevels(text)
 	text = ensureListSpacing(text)
 	return tightenParagraphSpacing(text)
 }
@@ -722,6 +723,44 @@ func ensureListSpacing(text string) string {
 
 func isListLine(line string) bool {
 	return strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") || strings.HasPrefix(line, "+ ")
+}
+
+var (
+	reNumberedItem   = regexp.MustCompile(`^(\d+)[\.、]\s*(.+)$`)
+	reKeyLevelHeader = regexp.MustCompile(`关键价位|支撑|阻力|目标价|压力位|支撑位`)
+)
+
+func demoteNumberedKeyLevels(text string) string {
+	lines := strings.Split(text, "\n")
+	var out []string
+	inSection := false
+	for _, line := range lines {
+		trim := strings.TrimSpace(line)
+		if trim == "" {
+			inSection = false
+			out = append(out, line)
+			continue
+		}
+		if reKeyLevelHeader.MatchString(trim) && !regexp.MustCompile(`^\d`).MatchString(trim) {
+			inSection = true
+			out = append(out, line)
+			continue
+		}
+		if inSection {
+			if m := reNumberedItem.FindStringSubmatch(trim); len(m) == 3 {
+				if len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
+					out = append(out, "")
+				}
+				out = append(out, strings.TrimSpace(m[2]))
+				continue
+			}
+			if strings.HasPrefix(trim, "#") {
+				inSection = false
+			}
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
 }
 
 func convertMarkdownTables(text string) string {

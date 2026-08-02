@@ -103,7 +103,7 @@ func (u *userLLMSettings) applyRequest(req dashboardSettingsRequest) {
 	}
 	if id := strings.TrimSpace(req.CatalogModelID); id != "" {
 		u.CatalogModelID = id
-		useOps := true
+		useOps := false
 		u.UseOpsModel = &useOps
 	} else if req.UseOpsModel != nil {
 		u.UseOpsModel = req.UseOpsModel
@@ -137,7 +137,7 @@ func (g *gatewayLLMSettings) applyRequest(req dashboardSettingsRequest) {
 	}
 	if id := strings.TrimSpace(req.CatalogModelID); id != "" {
 		g.CatalogModelID = id
-		useOps := true
+		useOps := false
 		g.UseOpsModel = &useOps
 	} else if req.UseOpsModel != nil {
 		g.UseOpsModel = req.UseOpsModel

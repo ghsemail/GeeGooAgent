@@ -28,7 +28,7 @@ func QueryModelFromTargets(ctx context.Context, targets []QueryTarget, modelID s
 	var doc ConfiguredModel
 	switch {
 	case strings.TrimSpace(modelID) != "":
-		doc, err = QueryModelByID(ctx, t.BaseURL, t.Bearer, modelID)
+		doc, _, err = queryModelFromTargetsResolved(ctx, targets, modelID)
 	case useConfigured:
 		doc, err = QueryConfiguredWithBearer(ctx, t.BaseURL, t.Bearer)
 	default:
