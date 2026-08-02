@@ -5,6 +5,17 @@ import (
 	"testing"
 )
 
+func TestStripOrderedListMarkers_KeyLevels(t *testing.T) {
+	in := "关键价位\n1. 支撑位 450\n2. 阻力位 480"
+	out := stripOrderedListMarkers(in)
+	if strings.Contains(out, "1. ") || strings.Contains(out, "2. ") {
+		t.Fatalf("numbered markers should be removed: %q", out)
+	}
+	if !strings.Contains(out, "支撑位 450") || !strings.Contains(out, "阻力位 480") {
+		t.Fatalf("content missing: %q", out)
+	}
+}
+
 func TestPreprocessWebMarkdown_StockAnalysisKeepsTableRows(t *testing.T) {
 	in := `|---## 腾讯控股（00700.HK）综合分析>现价：461.6港元---###一、近期新闻面|日期|事件|
 |  7/16|腾讯为港股通（深）10大活跃成交股榜首|
@@ -34,7 +45,7 @@ func TestPreprocessTerminalMarkdown_TableToCards(t *testing.T) {
 	if strings.Contains(out, "|---|") {
 		t.Fatalf("table separator should be removed: %q", out)
 	}
-	if !strings.Contains(out, "**1. 腾讯控股机器人**") {
+	if !strings.Contains(out, "**腾讯控股机器人**") {
 		t.Fatalf("missing card title: %q", out)
 	}
 	if !strings.Contains(out, "网格区间：315.7–506.8") {
@@ -148,13 +159,13 @@ func TestPreprocessTerminalMarkdown_GluedTableRows(t *testing.T) {
 	if !strings.Contains(out, "## 📌 DCA提醒机器人（6个）") {
 		t.Fatalf("missing section title: %q", out)
 	}
-	if !strings.Contains(out, "**1. 黄金ETF提醒器**") {
+	if !strings.Contains(out, "**黄金ETF提醒器**") {
 		t.Fatalf("missing first card: %q", out)
 	}
-	if !strings.Contains(out, "**2. 中国船舶提醒机器人**") {
+	if !strings.Contains(out, "**中国船舶提醒机器人**") {
 		t.Fatalf("missing second card: %q", out)
 	}
-	if !strings.Contains(out, "**3. 中航沈飞提醒机器人**") {
+	if !strings.Contains(out, "**中航沈飞提醒机器人**") {
 		t.Fatalf("missing third card: %q", out)
 	}
 	if !strings.Contains(out, "频率：60m") {
@@ -171,10 +182,10 @@ func TestPreprocessTerminalMarkdown_GluedTableWithSectionBreak(t *testing.T) {
 	if !strings.Contains(out, "## 📌 Smart提醒机器人（1个）") {
 		t.Fatalf("missing glued section header: %q", out)
 	}
-	if !strings.Contains(out, "**1. 五粮液提醒机器人**") {
+	if !strings.Contains(out, "**五粮液提醒机器人**") {
 		t.Fatalf("missing grid card: %q", out)
 	}
-	if !strings.Contains(out, "**1. 腾讯控股提醒机器人**") {
+	if !strings.Contains(out, "**腾讯控股提醒机器人**") {
 		t.Fatalf("missing smart card: %q", out)
 	}
 }

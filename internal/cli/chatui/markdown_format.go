@@ -150,7 +150,7 @@ func PreprocessWebMarkdown(text string) string {
 	text = normalizeLoosePipeTablesInline(text)
 	text = normalizeGluedMarkdownTables(text)
 	text = NormalizeAssistantLayout(text)
-	text = demoteNumberedKeyLevels(text)
+	text = stripOrderedListMarkers(text)
 	text = ensureListSpacing(text)
 	return tightenParagraphSpacing(text)
 }
@@ -726,37 +726,29 @@ func isListLine(line string) bool {
 }
 
 var (
-	reNumberedItem   = regexp.MustCompile(`^(\d+)[\.、]\s*(.+)$`)
-	reKeyLevelHeader = regexp.MustCompile(`关键价位|支撑|阻力|目标价|压力位|支撑位`)
+	reNumberedItem = regexp.MustCompile(`^(\d+)[\.、]\s*(.+)$`)
 )
 
-func demoteNumberedKeyLevels(text string) string {
+// stripOrderedListMarkers removes "1. / 1、" prefixes so lists render as plain line breaks.
+func stripOrderedListMarkers(text string) string {
 	lines := strings.Split(text, "\n")
 	var out []string
-	inSection := false
 	for _, line := range lines {
 		trim := strings.TrimSpace(line)
 		if trim == "" {
-			inSection = false
 			out = append(out, line)
 			continue
 		}
-		if reKeyLevelHeader.MatchString(trim) && !regexp.MustCompile(`^\d`).MatchString(trim) {
-			inSection = true
+		if strings.HasPrefix(trim, "#") {
 			out = append(out, line)
 			continue
 		}
-		if inSection {
-			if m := reNumberedItem.FindStringSubmatch(trim); len(m) == 3 {
-				if len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
-					out = append(out, "")
-				}
-				out = append(out, strings.TrimSpace(m[2]))
-				continue
+		if m := reNumberedItem.FindStringSubmatch(trim); len(m) == 3 {
+			if len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
+				out = append(out, "")
 			}
-			if strings.HasPrefix(trim, "#") {
-				inSection = false
-			}
+			out = append(out, strings.TrimSpace(m[2]))
+			continue
 		}
 		out = append(out, line)
 	}
@@ -1108,7 +1100,7 @@ func formatTableRowCard(fallbackNum int, headers, cells []string) string {
 	}
 
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("**%d. %s**", num, title))
+	b.WriteString("**" + title + "**")
 	if code != "" {
 		b.WriteString(" · `")
 		b.WriteString(code)

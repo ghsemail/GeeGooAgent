@@ -60,6 +60,10 @@ func (l *Loop) runRound(
 		Step: step, Timestamp: time.Now().UTC(), Kind: "plan", Summary: planSummary,
 		PromptTokens: resp.Usage.PromptTokens, CompletionTokens: resp.Usage.CompletionTokens,
 	})
+	planModel := strings.TrimSpace(resp.Usage.Model)
+	if planModel == "" && l.gateway != nil {
+		planModel = l.gateway.Model()
+	}
 	l.emit("llm_plan", map[string]any{
 		"step":               step,
 		"round":              round + 1,
@@ -68,7 +72,7 @@ func (l *Loop) runRound(
 		"tool_names":         toolNames,
 		"prompt_tokens":      resp.Usage.PromptTokens,
 		"completion_tokens":  resp.Usage.CompletionTokens,
-		"model":              resp.Usage.Model,
+		"model":              planModel,
 	})
 
 	if len(resp.ToolCalls) == 0 {
@@ -96,7 +100,11 @@ func (l *Loop) callLLM(
 	callCtx := llm.WithCallMeta(ctx, llm.CallMeta{
 		Kind: llm.TaskChat, ToolSchemaCount: len(schemas),
 	})
-	l.emit("llm_start", map[string]any{"step": step, "tool_count": len(schemas)})
+	modelName := ""
+	if l.gateway != nil {
+		modelName = l.gateway.Model()
+	}
+	l.emit("llm_start", map[string]any{"step": step, "tool_count": len(schemas), "model": modelName})
 	l.emitStatus("llm", fmt.Sprintf("调用模型规划（%d 个工具）…", len(schemas)))
 	resp, err := l.gateway.ChatStream(callCtx, messages, schemas, sessionID, step, onDelta)
 	if err != nil {
