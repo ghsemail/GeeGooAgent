@@ -27,6 +27,7 @@ type CatalogItem struct {
 	HTTPPath          string   `json:"http_path,omitempty"`
 	ContextSummary    string   `json:"context_summary"`
 	ContextInjections []string `json:"context_injections"`
+	RoutingDocIDs     []string `json:"routing_doc_ids"`
 }
 
 // ToolsetSummary describes a builtin toolset for UI grouping.
@@ -83,6 +84,7 @@ func BuildCatalog(registry *Registry, chatNames []string) []CatalogItem {
 			reqMCP = httpMCP[name]
 		}
 		injections, summary := contextForTool(name, impl, reqMCP)
+		routingIDs := routingDocIDsForTool(name)
 		items = append(items, CatalogItem{
 			Name:              tool.Name,
 			Description:       tool.Description,
@@ -102,6 +104,7 @@ func BuildCatalog(registry *Registry, chatNames []string) []CatalogItem {
 			HTTPPath:          path,
 			ContextSummary:    summary,
 			ContextInjections: injections,
+			RoutingDocIDs:     routingIDs,
 		})
 	}
 	sort.Slice(items, func(i, j int) bool {
@@ -267,6 +270,7 @@ func CatalogItemToMap(item CatalogItem) map[string]any {
 		"http_path":           item.HTTPPath,
 		"context_summary":     item.ContextSummary,
 		"context_injections":  item.ContextInjections,
+		"routing_doc_ids":     item.RoutingDocIDs,
 		"source":              item.Implementation,
 	}
 }

@@ -33,6 +33,7 @@ func (h *Handler) registerDashboardRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/dashboard/sessions/{id}/messages", h.dashboardSessionMessages)
 	mux.HandleFunc("POST /v1/dashboard/voice", h.dashboardVoice)
 	h.registerCompareRoutes(mux)
+	h.registerEvalRoutes(mux)
 	h.registerSettingsRoutes(mux)
 }
 
@@ -198,6 +199,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		"catalog": []map[string]any{}, "mcp": map[string]any{"configured": false, "servers": []string{}, "live": false},
 		"apple_on": false, "planned": []map[string]any{},
 		"toolsets": []tools.ToolsetSummary{}, "taxonomies": []tools.TaxonomySummary{},
+		"routing_docs": []tools.RoutingDoc{},
 	}
 	if h.App != nil && h.App.Registry != nil {
 		catalogItems := tools.BuildCatalog(h.App.Registry, h.App.ChatToolNames())
@@ -206,6 +208,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 			catalog = append(catalog, tools.CatalogItemToMap(item))
 		}
 		toolsPayload["catalog"] = catalog
+		toolsPayload["routing_docs"] = tools.AllRoutingDocs()
 		toolsPayload["toolsets"] = tools.BuildToolsetSummaries()
 		toolsPayload["taxonomies"] = tools.BuildTaxonomySummaries()
 		if h.App.MCP != nil {

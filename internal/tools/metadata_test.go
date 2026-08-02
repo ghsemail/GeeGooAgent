@@ -42,6 +42,31 @@ func TestBuildCatalogGroupsBotTools(t *testing.T) {
 	}
 }
 
+func TestBuildCatalogAnalysisRoutingDocs(t *testing.T) {
+	r := NewRegistry()
+	RegisterAll(r, Deps{})
+	items := BuildCatalog(r, ChatToolNames)
+	for _, name := range []string{"get_mcp_analysis", "get_single_prompt_template", "get_single_prompt_template_by_index"} {
+		var found *CatalogItem
+		for i := range items {
+			if items[i].Name == name {
+				found = &items[i]
+				break
+			}
+		}
+		if found == nil {
+			t.Fatalf("%s missing from catalog", name)
+		}
+		if len(found.RoutingDocIDs) != 1 || found.RoutingDocIDs[0] != routingDocAnalysis {
+			t.Fatalf("%s routing_doc_ids=%v", name, found.RoutingDocIDs)
+		}
+	}
+	docs := AllRoutingDocs()
+	if len(docs) == 0 || docs[0].Content == "" {
+		t.Fatal("expected routing doc content")
+	}
+}
+
 func TestBuildToolsetSummaries(t *testing.T) {
 	summaries := BuildToolsetSummaries()
 	if len(summaries) < 5 {

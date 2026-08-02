@@ -71,11 +71,12 @@ type toolListItem struct {
 }
 
 type toolsResponse struct {
-	Tools      []toolListItem           `json:"tools"`
-	Catalog    []tools.CatalogItem      `json:"catalog"`
-	Toolsets   []tools.ToolsetSummary   `json:"toolsets"`
-	Taxonomies []tools.TaxonomySummary  `json:"taxonomies"`
-	Total      int                      `json:"total"`
+	Tools       []toolListItem           `json:"tools"`
+	Catalog     []tools.CatalogItem      `json:"catalog"`
+	RoutingDocs []tools.RoutingDoc       `json:"routing_docs"`
+	Toolsets    []tools.ToolsetSummary   `json:"toolsets"`
+	Taxonomies  []tools.TaxonomySummary  `json:"taxonomies"`
+	Total       int                      `json:"total"`
 }
 
 type doctorCheckJSON struct {
@@ -209,11 +210,12 @@ func (h *Handler) listTools(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, toolsResponse{
-		Tools:      items,
-		Catalog:    catalog,
-		Toolsets:   tools.BuildToolsetSummaries(),
-		Taxonomies: tools.BuildTaxonomySummaries(),
-		Total:      len(catalog),
+		Tools:       items,
+		Catalog:     catalog,
+		RoutingDocs: tools.AllRoutingDocs(),
+		Toolsets:    tools.BuildToolsetSummaries(),
+		Taxonomies:  tools.BuildTaxonomySummaries(),
+		Total:       len(catalog),
 	})
 }
 
