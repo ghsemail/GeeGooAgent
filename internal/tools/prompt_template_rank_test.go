@@ -34,7 +34,7 @@ func TestApplyTechPromptRouting_RecommendedField(t *testing.T) {
 			map[string]any{"prompt_id": "kline", "name": map[string]any{"cn": "K线形态"}, "tag": []any{"kline"}},
 		},
 	}
-	out, note := applyTechPromptRouting(data, techFocusPriceTrend)
+	out, note := processPromptTemplateResponse(data, techFocusPriceTrend, true, "")
 	rec, _ := out["recommended_for_price_trend"].(map[string]any)
 	if rec == nil {
 		t.Fatal("missing recommended_for_price_trend")

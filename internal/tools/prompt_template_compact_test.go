@@ -50,7 +50,7 @@ func TestProcessPromptTemplateResponse_AdminPreferredOverUserETF(t *testing.T) {
 			},
 		},
 	}
-	out, _ := processPromptTemplateResponse(data, techFocusPriceTrend, true)
+	out, _ := processPromptTemplateResponse(data, techFocusPriceTrend, true, "")
 	rec, _ := out["recommended_for_price_trend"].(map[string]any)
 	if rec == nil {
 		t.Fatal("missing recommendation")
@@ -81,7 +81,7 @@ func TestProcessPromptTemplateResponse_FitsAgentToolBudget(t *testing.T) {
 			"template":  []any{map[string]any{"Role": strings.Repeat("X", 2000)}},
 		})
 	}
-	out, _ := processPromptTemplateResponse(map[string]any{"items": items}, techFocusPriceTrend, true)
+	out, _ := processPromptTemplateResponse(map[string]any{"items": items}, techFocusPriceTrend, true, "")
 	payload := map[string]any{"status": StatusOK, "summary": "x", "data": out}
 	raw, _ := json.Marshal(payload)
 	if len(raw) > 6000 {
@@ -92,6 +92,35 @@ func TestProcessPromptTemplateResponse_FitsAgentToolBudget(t *testing.T) {
 	}
 	if strings.Contains(string(raw), `"template"`) {
 		t.Fatal("template body should not appear in payload")
+	}
+}
+
+func TestProcessPromptTemplateResponse_TagPriceSelectsOne(t *testing.T) {
+	t.Parallel()
+	data := map[string]any{
+		"items": []any{
+			map[string]any{
+				"prompt_id": "price-admin", "creator": "admin",
+				"name": map[string]any{"cn": "价格结构分析"}, "tag": []any{"price"},
+				"intro": map[string]any{"cn": "价格简介"}, "template": []any{map[string]any{"Role": "x"}},
+			},
+			map[string]any{
+				"prompt_id": "flag-admin", "creator": "admin",
+				"name": map[string]any{"cn": "趋势分析"}, "tag": []any{"flag"},
+				"intro": map[string]any{"cn": "趋势简介"}, "template": []any{map[string]any{"Role": "y"}},
+			},
+		},
+	}
+	out, note := processPromptTemplateResponse(data, techFocusPriceTrend, true, "price")
+	if out["selected_prompt_id"] != "price-admin" {
+		t.Fatalf("selected=%v", out["selected_prompt_id"])
+	}
+	items, _ := out["items"].([]any)
+	if len(items) != 1 {
+		t.Fatalf("items len=%d want 1", len(items))
+	}
+	if !strings.Contains(note, "price-admin") {
+		t.Fatalf("note=%q", note)
 	}
 }
 

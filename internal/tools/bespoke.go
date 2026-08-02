@@ -288,7 +288,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 	registerPromptTemplateTools(r, deps)
 	r.Register(Tool{
 		Name:        "get_mcp_analysis",
-		Description: "执行 MCP LLM 个股/标的分析（GeeGooBot mcp-api→analyze-api）。须先有 prompt_id：技术分析 type=tech（走势/趋势/K线/价格，默认路径）；用户问价格/涨跌时从 tech 列表选 flag/kline/price，勿默认 capital_flow；指标分析 type=index（仅当用户点名 MACD/EMA 等）；基本面 type=fundamental。",
+		Description: "执行个股 LLM 分析（mcp-api→analyze-api）。须先有 prompt_id（来自 get_single_prompt_template）。路由：股价/涨跌→先 get_single_prompt_template(type=tech,tag=price)；K线→tag=kline；趋势→tag=flag；MACD/EMA→type=index；财报→fundamental。拿到 selected_prompt_id 或 prompt_id 后调用本工具。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -866,23 +866,28 @@ func shorten(s string, n int) string {
 func registerPromptTemplateTools(r *Registry, deps Deps) {
 	r.Register(Tool{
 		Name:        "get_single_prompt_template",
-		Description: "列出已启用（switch=true）的单项分析 Prompt，供 get_mcp_analysis 选 prompt_id。返回精简列表（prompt_id/name_cn/brief/tag，不含 template 正文）；type=tech 时按 tag 排序并附 recommended_for_price_trend 参考项。",
+		Description: "列出已启用分析 Prompt（精简：prompt_id/name_cn/brief/tag，无 template 正文）。用户意图明确时传 tag 缩小范围：股价/涨跌→tag=price；K线/形态→kline；趋势/走势→flag；资金/主力→capital_flow。勿无 tag 拉全量 tech。仅当 tag 无唯一匹配时才看 items 列表。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"type": map[string]any{
 					"type": "string",
 					"enum": []any{"index", "tech", "fundamental"},
-					"description": "tech=技术分析（走势/趋势/K线/资金，默认）；index=指标分析（MACD/EMA 等，用户点名指标时）；fundamental=基本面（财报/估值/风险）",
+					"description": "tech=技术分析；index=指标（MACD/EMA）；fundamental=基本面",
 				},
 				"period": map[string]any{
 					"type":        "string",
-					"description": "可选周期过滤，如 daily、weekly、hourly",
+					"description": "可选周期：daily、weekly、hourly",
+				},
+				"tag": map[string]any{
+					"type":        "string",
+					"enum":        []any{"price", "kline", "flag", "capital_flow"},
+					"description": "技术面子类：用户说股价/价格→price；K线→kline；趋势→flag；资金→capital_flow。传了则只返回匹配项，唯一时给 selected_prompt_id",
 				},
 				"focus": map[string]any{
 					"type":        "string",
 					"enum":        []any{"price_trend", "capital_flow"},
-					"description": "type=tech 时排序与推荐：price_trend=价格/走势（默认）；capital_flow=仅用户明确问资金/主力时用",
+					"description": "仅 type=tech 且无 tag 时排序参考；有 tag 时可省略",
 				},
 			},
 			"required": []any{"type"},
@@ -929,13 +934,14 @@ func registerPromptTemplateTools(r *Registry, deps Deps) {
 			}
 			if type_ == "tech" {
 				focus := parseTechPromptFocus(strArg(args, "focus", "price_trend"))
+				tagFilter := parseTemplateTagFilter(strArg(args, "tag", ""))
 				var routingNote string
-				normalized, routingNote = processPromptTemplateResponse(normalized, focus, true)
+				normalized, routingNote = processPromptTemplateResponse(normalized, focus, true, tagFilter)
 				if routingNote != "" {
 					summary = summary + "; " + routingNote
 				}
 			} else {
-				normalized, _ = processPromptTemplateResponse(normalized, techFocusPriceTrend, false)
+				normalized, _ = processPromptTemplateResponse(normalized, techFocusPriceTrend, false, "")
 			}
 			return Result{Status: StatusOK, Summary: summary, Data: normalized}
 		},

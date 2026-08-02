@@ -9,6 +9,9 @@ import (
 
 // promptTemplateListResponse keeps recommendation fields before items in JSON output.
 type promptTemplateListResponse struct {
+	TagFilter                 string           `json:"tag_filter,omitempty"`
+	SelectedPromptID          string           `json:"selected_prompt_id,omitempty"`
+	SelectedNameCN            string           `json:"selected_name_cn,omitempty"`
 	RecommendedForPriceTrend  map[string]any   `json:"recommended_for_price_trend,omitempty"`
 	RecommendedForCapitalFlow map[string]any   `json:"recommended_for_capital_flow,omitempty"`
 	Count                     int              `json:"count"`
@@ -175,36 +178,114 @@ func recommendationRecord(item map[string]any, focus techPromptFocus) map[string
 	return rec
 }
 
-func processPromptTemplateResponse(data map[string]any, focus techPromptFocus, applyRouting bool) (map[string]any, string) {
+func parseTemplateTagFilter(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "price", "价格", "股价", "涨跌":
+		return "price"
+	case "kline", "k线", "k 线", "形态":
+		return "kline"
+	case "flag", "趋势", "走势":
+		return "flag"
+	case "capital_flow", "capital", "flow", "资金", "主力", "净流入":
+		return "capital_flow"
+	default:
+		return ""
+	}
+}
+
+func itemHasTemplateTag(item map[string]any, tag string) bool {
+	if tag == "" {
+		return true
+	}
+	for _, t := range promptItemTags(item) {
+		if t == tag {
+			return true
+		}
+	}
+	return false
+}
+
+func filterCompactItemsByTag(items []map[string]any, tag string) []map[string]any {
+	if tag == "" {
+		return items
+	}
+	out := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		if itemHasTemplateTag(item, tag) {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func pickUnambiguousPrompt(items []map[string]any) (map[string]any, bool) {
+	if len(items) == 0 {
+		return nil, false
+	}
+	admins := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		if promptItemCreator(item) == "admin" {
+			admins = append(admins, item)
+		}
+	}
+	if len(admins) == 1 {
+		return admins[0], true
+	}
+	if len(items) == 1 {
+		return items[0], true
+	}
+	return nil, false
+}
+
+func processPromptTemplateResponse(data map[string]any, focus techPromptFocus, applyRouting bool, tagFilter string) (map[string]any, string) {
 	if data == nil {
 		return data, ""
 	}
 	compact := compactPromptTemplateItems(promptTemplateItemsFromData(data))
+	if tagFilter != "" {
+		compact = filterCompactItemsByTag(compact, tagFilter)
+	}
+	if tagFilter == "capital_flow" {
+		focus = techFocusCapitalFlow
+	}
 	if !applyRouting {
-		resp := promptTemplateListResponse{Count: len(compact), Items: compact}
+		resp := promptTemplateListResponse{TagFilter: tagFilter, Count: len(compact), Items: compact}
 		return marshalPromptTemplateResponse(resp), ""
 	}
 
 	ranked := rankCompactPromptItems(compact, focus)
 	pick := pickRecommendedPrompt(ranked, focus)
-	resp := promptTemplateListResponse{Count: len(ranked), Items: ranked}
+	if selected, ok := pickUnambiguousPrompt(ranked); ok {
+		pick = selected
+	}
+	resp := promptTemplateListResponse{TagFilter: tagFilter, Count: len(ranked), Items: ranked}
 	var note string
 	if pick != nil {
-		rec := recommendationRecord(pick, focus)
 		id := promptItemID(pick)
 		name := promptItemNameCN(pick)
+		if _, unambiguous := pickUnambiguousPrompt(ranked); unambiguous && id != "" {
+			resp.SelectedPromptID = id
+			if name != "" {
+				resp.SelectedNameCN = name
+			}
+			note = fmt.Sprintf("已选定 prompt_id=%s（%s），可直接 get_mcp_analysis", id, name)
+		}
+		rec := recommendationRecord(pick, focus)
 		switch focus {
 		case techFocusCapitalFlow:
 			resp.RecommendedForCapitalFlow = rec
-			if id != "" {
+			if note == "" && id != "" {
 				note = fmt.Sprintf("资金分析推荐 prompt_id=%s（%s）", id, name)
 			}
 		default:
 			resp.RecommendedForPriceTrend = rec
-			if id != "" {
+			if note == "" && id != "" {
 				note = fmt.Sprintf("价格/走势参考 prompt_id=%s（%s）", id, name)
 			}
 		}
+	}
+	if tagFilter != "" && len(ranked) == 0 {
+		note = fmt.Sprintf("tag=%s 无匹配模板，可去掉 tag 重试或换 flag/kline/price", tagFilter)
 	}
 	return marshalPromptTemplateResponse(resp), note
 }

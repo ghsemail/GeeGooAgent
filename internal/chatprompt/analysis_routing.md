@@ -17,11 +17,13 @@
 
 - API 参数 `type=index` 表示 **指标分析**（MACD 类），**不是**「恒生指数 / 上证指数」等指数标的。
 - 分析任意标的（含指数成分股）均先 `search_code`，再按用户意图选上表 type。
-- 用户只说「分析趋势 / 技术面 / 走势」时 **禁止默认 MACD**；应走 **tech**，在模板列表中优先选名称/简介含「趋势」「K 线」「价格」的项（优先级：flag > kline > price）。
+- 用户只说「分析趋势 / 技术面 / 走势」时 **禁止默认 MACD**；应走 **tech**，并 **必须传 `tag`**（见 §2），勿无 tag 拉全量 tech 列表。
 
 ---
 
 ## 2. 路由决策（按用户意图）
+
+**`tag` 说明：** Mongo 模板上的业务标签（`price` / `kline` / `flag` / `capital_flow` 等）。catalog API 仅支持 `type`；**`get_single_prompt_template` 的 `tag` 参数在 Agent 工具层过滤**，只返回匹配项。返回字段含 `brief`（= intro.cn）、`selected_prompt_id`（唯一匹配时）。
 
 ```
 用户要分析某只股票
@@ -35,12 +37,17 @@
     │       → type=fundamental
     │       → get_single_prompt_template(type=fundamental, period=…)
     │
-    └─ 技术面 / 趋势 / 走势 / 形态 / 涨跌 / **价格** / **这周价格**（未点名具体指标）【默认】
-            → type=tech
-            → get_single_prompt_template(type=tech, period=…)
-            → 在返回列表中选最匹配模板（**flag 趋势 > kline 形态 > price 价格**）
-            → **禁止**仅因列表里有「资金流向」就选 tag=capital_flow 模板；资金是补充项，不是价格/走势主分析
-            → **优先**使用 `get_single_prompt_template` 返回的 **`recommended_for_price_trend.prompt_id`**（列表已重排，capital_flow 靠后）
+    └─ 技术面（默认路径）→ type=tech + **必传 tag**（禁止无 tag 拉全量）
+            │
+            ├─ 股价 / 价格 / 涨跌 / 「分析股价」     → tag=price
+            ├─ K线 / 形态 / 「K线呢」               → tag=kline
+            ├─ 趋势 / 走势 / 方向                   → tag=flag
+            └─ 资金 / 主力 / 净流入（仅用户明确时） → tag=capital_flow
+            │
+            → get_single_prompt_template(type=tech, tag=…, period=…)
+            → 若有 **selected_prompt_id** → 直接 get_mcp_analysis
+            → 若 items 多条 → 看 brief + tag 选一条，再 get_mcp_analysis
+            → **禁止**用 get_capital_flow 或 capital_flow 模板冒充股价/走势分析
 ```
 
 **周期 period：**
@@ -57,8 +64,10 @@
 ## 3. 标准工具链（必须按序）
 
 1. **search_code** — 确认 code、name（如 00700.HK、01810.HK）
-2. **get_single_prompt_template** 或 **get_single_prompt_template_by_index** — 取 `prompt_id`（列表仅含 `name_cn` / **`brief`（来自 intro）** / `tag`，**不含** `template` 正文）
-3. **get_mcp_analysis**(name, code, prompt_id, period) — period 必填；经 GeeGooBot mcp-api → analyze-api，**勿直连 :3230**
+2. **get_single_prompt_template**（或 **by_index**）— 取 `prompt_id`：
+   - 技术面：**必传 `tag`**（price/kline/flag/capital_flow）；返回 `brief` + 可选 `selected_prompt_id`
+   - 勿无 tag 拉全量 `type=tech`
+3. **get_mcp_analysis**(name, code, prompt_id, period) — 优先用 `selected_prompt_id`；经 mcp-api → analyze-api
 4. 可选组合（有数据再用，禁止编造）：
    - **get_current_price** — 现价
    - **get_capital_flow** / **get_capital_distribution** — 资金（GeeGooData）

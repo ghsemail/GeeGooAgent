@@ -46,6 +46,9 @@ func promptItemTags(item map[string]any) []string {
 }
 
 func promptItemNameCN(item map[string]any) string {
+	if s, ok := item["name_cn"].(string); ok && strings.TrimSpace(s) != "" {
+		return strings.TrimSpace(s)
+	}
 	name, _ := item["name"].(map[string]any)
 	if name == nil {
 		return ""
@@ -159,5 +162,5 @@ func rankTechPromptItems(items []any, focus techPromptFocus) []any {
 }
 
 func applyTechPromptRouting(data map[string]any, focus techPromptFocus) (map[string]any, string) {
-	return processPromptTemplateResponse(data, focus, true)
+	return processPromptTemplateResponse(data, focus, true, "")
 }
