@@ -143,15 +143,21 @@ func breakInlinePipeFields(text string) string {
 	return strings.Join(out, "\n")
 }
 
-// PreprocessTerminalMarkdown adapts assistant markdown for narrow terminals.
-// Not used on the default glamour render path; kept for tests and optional future use.
-func PreprocessTerminalMarkdown(text string) string {
+// PreprocessWebMarkdown fixes glued markdown for Web/API storage and clients.
+// Keeps pipe tables as Markdown (react-markdown etc. can render them).
+func PreprocessWebMarkdown(text string) string {
 	text = normalizeGluedAnalysisMarkdown(text)
-	text = normalizeBotSummaryTablesInline(text)
 	text = normalizeLoosePipeTablesInline(text)
 	text = normalizeGluedMarkdownTables(text)
 	text = NormalizeAssistantLayout(text)
 	text = ensureListSpacing(text)
+	return tightenParagraphSpacing(text)
+}
+
+// PreprocessTerminalMarkdown applies web fixes plus narrow-terminal table→card conversion.
+func PreprocessTerminalMarkdown(text string) string {
+	text = PreprocessWebMarkdown(text)
+	text = normalizeBotSummaryTablesInline(text)
 	if strings.Contains(text, "|") {
 		text = convertBotSummaryTables(text)
 		text = convertLoosePipeTables(text)

@@ -98,7 +98,7 @@ func (h *Handler) chatPlan(w http.ResponseWriter, r *http.Request) {
 
 	schemas := h.App.Registry.Schemas(h.App.ChatToolNames())
 	var result runtime.TurnResult
-	h.withUserAgentGateway(resolveUserID(r), func() {
+	h.withUserAgentGateway(resolveUserID(r), resolveClientSource(r), func() {
 		result = h.App.Agent.Run(r.Context(), rtSession, userText, toolCtx, schemas)
 	})
 

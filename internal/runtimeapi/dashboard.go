@@ -288,7 +288,7 @@ func (h *Handler) buildDataFleetSummary(r *http.Request) map[string]any {
 }
 
 func (h *Handler) buildDashboardSettings(provider, model, userID string) map[string]any {
-	info, err := h.buildSettingsInfo(userID)
+	info, err := h.buildSettingsInfo(userID, "")
 	if err != nil {
 		return map[string]any{
 			"provider": provider, "model": model, "small_model": model,

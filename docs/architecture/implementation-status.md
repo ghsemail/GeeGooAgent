@@ -162,7 +162,7 @@
 |------|------|------|
 | 会话归属 `user_id` | ✅ | Postgres/SQLite metadata + 访问校验 |
 | Cockpit / Dashboard 列表过滤 | ✅ | `X-User-Id`；无 header 为运维全局模式 |
-| 用户 LLM 设置 | ✅ | `{workspace}/user_llm_settings/{uid}.json` |
+| 用户 LLM 设置 | ✅ | `QT_DB.user.llm_settings`（Mongo，按 gateway 分场景）；旧 JSON 自动迁移 |
 | Chat SSE / Plan | ✅ | `withUserAgentGateway` + `gatewayMu` |
 | Compare 历史与执行 | ✅ | 按用户目录；spec 独立 Gateway |
 | `/v1/chat/completions` | ✅ | 按用户 Gateway |

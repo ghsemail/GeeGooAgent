@@ -19,6 +19,7 @@ type dashboardSettingsRequest struct {
 	Provider       string   `json:"provider"`
 	Model          string   `json:"model"`
 	CatalogModelID string   `json:"catalog_model_id"`
+	Gateway        string   `json:"gateway"`
 	UseOpsModel    *bool    `json:"use_ops_model"`
 	Thinking       string   `json:"thinking"` // on | off | auto
 	Temperature    *float64 `json:"temperature"`
@@ -29,8 +30,23 @@ type dashboardSettingsRequest struct {
 }
 
 func (h *Handler) registerSettingsRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /v1/dashboard/settings", h.dashboardGetSettings)
 	mux.HandleFunc("POST /v1/dashboard/settings", h.dashboardApplySettings)
 	mux.HandleFunc("GET /v1/dashboard/models", h.dashboardListModels)
+}
+
+func (h *Handler) dashboardGetSettings(w http.ResponseWriter, r *http.Request) {
+	userID := resolveUserID(r)
+	if userID == "" {
+		writeError(w, http.StatusUnauthorized, "missing X-User-Id")
+		return
+	}
+	info, err := h.buildSettingsInfo(userID, r.URL.Query().Get("gateway"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, info)
 }
 
 func (h *Handler) dashboardListModels(w http.ResponseWriter, r *http.Request) {
@@ -68,7 +84,7 @@ func (h *Handler) dashboardApplySettings(w http.ResponseWriter, r *http.Request)
 
 	userID := resolveUserID(r)
 	if userID != "" {
-		us, err := loadUserLLMSettings(h.userSettingsOutputDir(), userID)
+		us, err := h.loadUserLLMSettings(userID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -77,11 +93,11 @@ func (h *Handler) dashboardApplySettings(w http.ResponseWriter, r *http.Request)
 			us = &userLLMSettings{}
 		}
 		us.applyRequest(req)
-		if err := saveUserLLMSettings(h.userSettingsOutputDir(), userID, us); err != nil {
+		if err := h.saveUserLLMSettings(userID, us); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		info, err := h.buildSettingsInfo(userID)
+		info, err := h.buildSettingsInfo(userID, req.Gateway)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -155,7 +171,7 @@ func (h *Handler) dashboardApplySettings(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	info, err := h.buildSettingsInfo("")
+	info, err := h.buildSettingsInfo("", "")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -163,8 +179,9 @@ func (h *Handler) dashboardApplySettings(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, map[string]any{"ok": true, "settings": info})
 }
 
-func (h *Handler) buildSettingsInfo(userID string) (map[string]any, error) {
-	effective := h.effectiveLLMConfig(userID)
+func (h *Handler) buildSettingsInfo(userID, gateway string) (map[string]any, error) {
+	gwKey := NormalizeSessionSource(gateway)
+	effective := h.effectiveLLMConfig(userID, gwKey)
 	provider := "geegoo"
 	model := defaultModel
 	if p := strings.TrimSpace(effective.Provider); p != "" {
@@ -194,7 +211,7 @@ func (h *Handler) buildSettingsInfo(userID string) (map[string]any, error) {
 
 	var userDoc *userLLMSettings
 	if userID != "" {
-		userDoc, _ = loadUserLLMSettings(h.userSettingsOutputDir(), userID)
+		userDoc, _ = h.loadUserLLMSettings(userID)
 	}
 	pinned := pinnedFromUserSettings(userDoc, provider, model)
 	if len(pinned) == 0 {
@@ -263,6 +280,18 @@ func (h *Handler) buildSettingsInfo(userID string) (map[string]any, error) {
 		}
 	}
 
+	gatewaysOut := map[string]any{}
+	if userDoc != nil && len(userDoc.Gateways) > 0 {
+		for key, gw := range userDoc.Gateways {
+			gatewaysOut[key] = map[string]any{
+				"catalog_model_id": gw.CatalogModelID,
+				"provider":         gw.Provider,
+				"model":            gw.Model,
+				"use_ops_model":    gw.UseOpsModel != nil && *gw.UseOpsModel,
+			}
+		}
+	}
+
 	return map[string]any{
 		"provider": provider, "model": model,
 		"small_model": model,
@@ -270,6 +299,8 @@ func (h *Handler) buildSettingsInfo(userID string) (map[string]any, error) {
 		"thinking_supported": llm.ModelSupportsThinking(provName, model),
 		"temperature": temp, "max_tokens": maxTok,
 		"use_ops_model": useOps, "catalog_model_id": catalogID,
+		"gateway": gwKey,
+		"gateways": gatewaysOut,
 		"embedding_provider": embedding.Provider,
 		"embedding_model": embedding.Model,
 		"embedding_base_url": embedding.BaseURL,

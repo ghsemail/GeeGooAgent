@@ -487,13 +487,17 @@ func stripStreamNoise(s string) string {
 	return streamSIDRE.ReplaceAllString(s, "")
 }
 
-// FinishAssistantStream closes a live reply stream. Returns true when the
-// final answer was already printed (caller should skip PrintAssistant).
-func (u *ChatUI) FinishAssistantStream() bool {
+// FinishAssistantStream closes a live reply stream. When finalText is non-empty it
+// is preferred over the raw stream buffer (normalized AssistantText from the agent).
+// Returns true when the final answer was already printed (caller should skip PrintAssistant).
+func (u *ChatUI) FinishAssistantStream(finalText string) bool {
 	if u.streamActive {
 		u.streamActive = false
-		if u.streamBuf.Len() > 0 {
-			final := strings.TrimRight(u.streamBuf.String(), "\n")
+		final := strings.TrimSpace(finalText)
+		if final == "" && u.streamBuf.Len() > 0 {
+			final = strings.TrimRight(u.streamBuf.String(), "\n")
+		}
+		if final != "" {
 			if u.plain {
 				u.write("\n")
 				u.println("")

@@ -5,6 +5,23 @@ import (
 	"testing"
 )
 
+func TestPreprocessWebMarkdown_StockAnalysisKeepsTableRows(t *testing.T) {
+	in := `|---## 腾讯控股（00700.HK）综合分析>现价：461.6港元---###一、近期新闻面|日期|事件|
+|  7/16|腾讯为港股通（深）10大活跃成交股榜首|
+|维度|信号|
+|AI基本面|积极|`
+	out := PreprocessWebMarkdown(in)
+	if !strings.Contains(out, "## 腾讯控股") && !strings.Contains(out, "##腾讯控股") {
+		t.Fatalf("missing title: %q", out)
+	}
+	if !strings.Contains(out, "|") {
+		t.Fatalf("web preprocess should keep pipe tables: %q", out)
+	}
+	if strings.Contains(out, "**AI基本面**：积极") {
+		t.Fatalf("web preprocess should not convert tables to kv cards: %q", out)
+	}
+}
+
 func TestPreprocessTerminalMarkdown_TableToCards(t *testing.T) {
 	in := `## 网格交易 Bot
 

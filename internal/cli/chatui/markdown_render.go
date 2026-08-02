@@ -65,24 +65,44 @@ func RenderAssistantMarkdownAt(text string, innerW int) string {
 	if w < 32 {
 		w = 32
 	}
+	if out := tryGlamourRender(text, w); out != "" {
+		return out
+	}
+	preprocessed := PreprocessTerminalMarkdown(text)
+	if out := tryGlamourRender(preprocessed, w); out != "" {
+		return out
+	}
+	return RenderPlainAssistantBody(preprocessed, w)
+}
+
+func tryGlamourRender(text string, w int) string {
 	r, err := newMarkdownRenderer(w)
 	if err != nil {
-		return RenderPlainAssistantBody(text, w)
+		return ""
 	}
 	out, err := r.Render(text)
 	if err != nil || markdownLooksUnrendered(out, text) {
-		return RenderPlainAssistantBody(text, w)
+		return ""
 	}
 	return strings.TrimRight(out, "\n")
 }
 
 func markdownLooksUnrendered(rendered, source string) bool {
 	plain := strings.ReplaceAll(rendered, "\x1b[0m", "")
-	if strings.Contains(plain, "##") && strings.Contains(source, "##") {
-		return true
+	// Headings must not survive as raw ATX markers after glamour.
+	if strings.Contains(plain, "##") {
+		for _, line := range strings.Split(plain, "\n") {
+			trim := strings.TrimSpace(line)
+			if strings.HasPrefix(trim, "##") {
+				return true
+			}
+		}
 	}
-	if strings.Contains(plain, "**") && strings.Contains(source, "**") {
-		return true
+	// Unpaired bold markers on a line mean glamour did not parse inline emphasis.
+	for _, line := range strings.Split(plain, "\n") {
+		if strings.Count(line, "**")%2 != 0 {
+			return true
+		}
 	}
 	return false
 }

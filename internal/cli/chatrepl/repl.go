@@ -284,7 +284,7 @@ func (r *Repl) Run() int {
 }
 
 func (r *Repl) finishAssistant(result runtime.TurnResult) {
-	if r.UI.FinishAssistantStream() {
+	if r.UI.FinishAssistantStream(result.AssistantText) {
 		return
 	}
 	if strings.TrimSpace(result.AssistantText) == "" {

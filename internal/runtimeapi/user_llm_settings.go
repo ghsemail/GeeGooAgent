@@ -15,15 +15,23 @@ import (
 var safeUserID = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 
 type userLLMSettings struct {
-	Provider       string   `json:"provider,omitempty"`
-	Model          string   `json:"model,omitempty"`
-	CatalogModelID string   `json:"catalog_model_id,omitempty"`
-	UseOpsModel    *bool    `json:"use_ops_model,omitempty"`
-	Thinking       string   `json:"thinking,omitempty"` // on | off | auto
-	Temperature    *float64 `json:"temperature,omitempty"`
-	MaxTokens      *int     `json:"max_tokens,omitempty"`
-	Pinned         []string `json:"pinned,omitempty"`
-	UpdatedAt      string   `json:"updated_at,omitempty"`
+	Provider       string                        `json:"provider,omitempty" bson:"provider,omitempty"`
+	Model          string                        `json:"model,omitempty" bson:"model,omitempty"`
+	CatalogModelID string                        `json:"catalog_model_id,omitempty" bson:"catalog_model_id,omitempty"`
+	UseOpsModel    *bool                         `json:"use_ops_model,omitempty" bson:"use_ops_model,omitempty"`
+	Thinking       string                        `json:"thinking,omitempty" bson:"thinking,omitempty"` // on | off | auto
+	Temperature    *float64                      `json:"temperature,omitempty" bson:"temperature,omitempty"`
+	MaxTokens      *int                          `json:"max_tokens,omitempty" bson:"max_tokens,omitempty"`
+	Pinned         []string                      `json:"pinned,omitempty" bson:"pinned,omitempty"`
+	Gateways       map[string]gatewayLLMSettings `json:"gateways,omitempty" bson:"gateways,omitempty"`
+	UpdatedAt      string                        `json:"updated_at,omitempty" bson:"updated_at,omitempty"`
+}
+
+type gatewayLLMSettings struct {
+	Provider       string `json:"provider,omitempty" bson:"provider,omitempty"`
+	Model          string `json:"model,omitempty" bson:"model,omitempty"`
+	CatalogModelID string `json:"catalog_model_id,omitempty" bson:"catalog_model_id,omitempty"`
+	UseOpsModel    *bool  `json:"use_ops_model,omitempty" bson:"use_ops_model,omitempty"`
 }
 
 func userLLMSettingsPath(outputDir, userID string) string {
@@ -77,6 +85,16 @@ func (u *userLLMSettings) applyRequest(req dashboardSettingsRequest) {
 	if u == nil {
 		return
 	}
+	gwKey := NormalizeSessionSource(req.Gateway)
+	if strings.TrimSpace(req.Gateway) != "" && gwKey != "" {
+		if u.Gateways == nil {
+			u.Gateways = map[string]gatewayLLMSettings{}
+		}
+		entry := u.Gateways[gwKey]
+		entry.applyRequest(req)
+		u.Gateways[gwKey] = entry
+		return
+	}
 	if p := strings.TrimSpace(req.Provider); p != "" {
 		u.Provider = p
 	}
@@ -105,6 +123,47 @@ func (u *userLLMSettings) applyRequest(req dashboardSettingsRequest) {
 	if len(req.Pinned) > 0 {
 		u.Pinned = append([]string(nil), req.Pinned...)
 	}
+}
+
+func (g *gatewayLLMSettings) applyRequest(req dashboardSettingsRequest) {
+	if g == nil {
+		return
+	}
+	if p := strings.TrimSpace(req.Provider); p != "" {
+		g.Provider = p
+	}
+	if m := strings.TrimSpace(req.Model); m != "" {
+		g.Model = m
+	}
+	if id := strings.TrimSpace(req.CatalogModelID); id != "" {
+		g.CatalogModelID = id
+		useOps := true
+		g.UseOpsModel = &useOps
+	} else if req.UseOpsModel != nil {
+		g.UseOpsModel = req.UseOpsModel
+		if *req.UseOpsModel {
+			g.CatalogModelID = ""
+		}
+	}
+}
+
+func (g gatewayLLMSettings) mergeInto(base config.LLMConfig) config.LLMConfig {
+	out := base
+	if p := strings.TrimSpace(g.Provider); p != "" {
+		out.Provider = p
+	}
+	if m := strings.TrimSpace(g.Model); m != "" {
+		out.Model = m
+	}
+	if id := strings.TrimSpace(g.CatalogModelID); id != "" {
+		out.CatalogModelID = id
+	} else if g.UseOpsModel != nil && *g.UseOpsModel {
+		out.CatalogModelID = ""
+	}
+	if g.UseOpsModel != nil {
+		out.UseOpsModel = g.UseOpsModel
+	}
+	return out
 }
 
 func (u *userLLMSettings) mergeInto(base config.LLMConfig) config.LLMConfig {
@@ -188,7 +247,7 @@ func (h *Handler) userSettingsOutputDir() string {
 	return "."
 }
 
-func (h *Handler) effectiveLLMConfig(userID string) config.LLMConfig {
+func (h *Handler) effectiveLLMConfig(userID, gateway string) config.LLMConfig {
 	if h.App == nil || h.App.Config == nil {
 		return config.LLMConfig{}
 	}
@@ -197,20 +256,27 @@ func (h *Handler) effectiveLLMConfig(userID string) config.LLMConfig {
 	if userID == "" {
 		return base
 	}
-	us, err := loadUserLLMSettings(h.userSettingsOutputDir(), userID)
+	us, err := h.loadUserLLMSettings(userID)
 	if err != nil || us == nil {
 		return base
 	}
-	return us.mergeInto(base)
+	out := us.mergeInto(base)
+	gwKey := NormalizeSessionSource(gateway)
+	if gwKey != "" && us.Gateways != nil {
+		if gw, ok := us.Gateways[gwKey]; ok {
+			out = gw.mergeInto(out)
+		}
+	}
+	return out
 }
 
-func (h *Handler) withUserAgentGateway(userID string, fn func()) {
+func (h *Handler) withUserAgentGateway(userID, gateway string, fn func()) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" || h.App == nil || h.App.Agent == nil {
 		fn()
 		return
 	}
-	cfg := h.effectiveLLMConfig(userID)
+	cfg := h.effectiveLLMConfig(userID, gateway)
 	gw, _, err := h.App.BuildGatewayFromLLMConfig(cfg, false)
 	if err != nil || gw == nil {
 		fn()
@@ -224,7 +290,7 @@ func (h *Handler) withUserAgentGateway(userID string, fn func()) {
 	fn()
 }
 
-func (h *Handler) userGateway(userID string) *llm.Gateway {
+func (h *Handler) userGateway(userID, gateway string) *llm.Gateway {
 	if h.App == nil {
 		return nil
 	}
@@ -232,7 +298,7 @@ func (h *Handler) userGateway(userID string) *llm.Gateway {
 	if userID == "" {
 		return h.App.Gateway
 	}
-	cfg := h.effectiveLLMConfig(userID)
+	cfg := h.effectiveLLMConfig(userID, gateway)
 	gw, _, err := h.App.BuildGatewayFromLLMConfig(cfg, false)
 	if err != nil || gw == nil {
 		return h.App.Gateway
@@ -240,12 +306,12 @@ func (h *Handler) userGateway(userID string) *llm.Gateway {
 	return gw
 }
 
-func (h *Handler) gatewayForCompareSpec(userID, spec string) *llm.Gateway {
+func (h *Handler) gatewayForCompareSpec(userID, gateway, spec string) *llm.Gateway {
 	if h.App == nil {
 		return nil
 	}
 	provider, model := splitModelSpec(spec)
-	cfg := h.effectiveLLMConfig(userID)
+	cfg := h.effectiveLLMConfig(userID, gateway)
 	cfg.Provider = provider
 	cfg.Model = model
 	cfg.CatalogModelID = ""
@@ -253,7 +319,7 @@ func (h *Handler) gatewayForCompareSpec(userID, spec string) *llm.Gateway {
 	cfg.UseOpsModel = &useOps
 	gw, _, err := h.App.BuildGatewayFromLLMConfig(cfg, false)
 	if err != nil || gw == nil {
-		return h.userGateway(userID)
+		return h.userGateway(userID, gateway)
 	}
 	return gw
 }

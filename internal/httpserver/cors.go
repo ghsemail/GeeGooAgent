@@ -40,7 +40,7 @@ func CORS(allowedOrigins []string, next http.Handler) http.Handler {
 			}
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-MCP-Token, X-User-Id, X-Approve-Writes")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-MCP-Token, X-User-Id, X-Approve-Writes, X-Client-Source")
 		w.Header().Set("Access-Control-Max-Age", "86400")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

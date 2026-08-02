@@ -44,7 +44,7 @@ func NormalizeSessionSource(s string) string {
 	switch strings.ToLower(s) {
 	case "web", "trading_operation":
 		return "web"
-	case "trading_app", "geegoo_agent", "geegoo-app":
+	case "trading_app", "geegoo_agent", "geegoo-app", "app":
 		return "trading_app"
 	default:
 		return s

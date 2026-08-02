@@ -24,7 +24,7 @@ func TestTypewriterStreamFinalReply(t *testing.T) {
 	ui.EmitProgress("turn_start", nil)
 	ui.EmitProgress("stream_delta", map[string]any{"content": "你好"})
 	ui.EmitProgress("stream_delta", map[string]any{"content": "世界"})
-	if !ui.FinishAssistantStream() {
+	if !ui.FinishAssistantStream("") {
 		t.Fatal("expected streamed final reply")
 	}
 	out := buf.String()
@@ -46,7 +46,7 @@ func TestTypewriterAbortedBeforeTools(t *testing.T) {
 	ui.EmitProgress("stream_delta", map[string]any{"content": "先查一下"})
 	ui.EmitProgress("llm_tools", map[string]any{"tool_names": []string{"search_code"}})
 	ui.EmitProgress("stream_delta", map[string]any{"content": "腾讯是 00700"})
-	if !ui.FinishAssistantStream() {
+	if !ui.FinishAssistantStream("") {
 		t.Fatal("expected final streamed reply after tools")
 	}
 	out := buf.String()

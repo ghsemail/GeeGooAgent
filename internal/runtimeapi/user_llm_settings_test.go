@@ -42,6 +42,39 @@ func TestUserLLMSettingsMergeAndPersist(t *testing.T) {
 	_ = os.Remove(path)
 }
 
+func TestUserLLMSettingsGatewayOverlay(t *testing.T) {
+	dir := t.TempDir()
+	us := &userLLMSettings{
+		CatalogModelID: "global-model",
+		Gateways: map[string]gatewayLLMSettings{
+			"web":         {CatalogModelID: "web-model"},
+			"trading_app": {CatalogModelID: "app-model"},
+		},
+	}
+	base := config.LLMConfig{Provider: "geegoo", Model: "base"}
+	web := us.mergeInto(base)
+	web = us.Gateways["web"].mergeInto(web)
+	if web.CatalogModelID != "web-model" {
+		t.Fatalf("web catalog=%q", web.CatalogModelID)
+	}
+	app := us.mergeInto(base)
+	app = us.Gateways["trading_app"].mergeInto(app)
+	if app.CatalogModelID != "app-model" {
+		t.Fatalf("app catalog=%q", app.CatalogModelID)
+	}
+	us.applyRequest(dashboardSettingsRequest{
+		Gateway:        "trading_app",
+		CatalogModelID: "new-app-model",
+	})
+	if us.Gateways["trading_app"].CatalogModelID != "new-app-model" {
+		t.Fatalf("gateways=%+v", us.Gateways)
+	}
+	if us.CatalogModelID != "global-model" {
+		t.Fatalf("global should be unchanged: %q", us.CatalogModelID)
+	}
+	_ = dir
+}
+
 func TestPinnedFromUserSettings(t *testing.T) {
 	us := &userLLMSettings{Pinned: []string{"a:m1", "b:m2"}}
 	got := pinnedFromUserSettings(us, "x", "y")

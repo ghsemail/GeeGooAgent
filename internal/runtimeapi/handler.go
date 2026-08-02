@@ -153,14 +153,14 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	schemas := h.App.Registry.Schemas(h.App.ChatToolNames())
 
 	if req.Stream {
-		h.withUserAgentGateway(userID, func() {
+		h.withUserAgentGateway(userID, resolveClientSource(r), func() {
 			h.streamChat(w, r, session, lastUser, ctx, schemas, id, model, sessionID, created)
 		})
 		return
 	}
 
 	var result runtime.TurnResult
-	h.withUserAgentGateway(userID, func() {
+	h.withUserAgentGateway(userID, resolveClientSource(r), func() {
 		result = h.App.Agent.Run(r.Context(), session, lastUser, ctx, schemas)
 	})
 	finish := "stop"

@@ -29,7 +29,8 @@ type chatStreamRequest struct {
 
 type chatTurnEndPayload struct {
 	SessionID     string `json:"session_id"`
-	AssistantText string `json:"assistant_text,omitempty"`
+	AssistantText string `json:"assistant_text,omitempty"` // normalized Markdown; Web clients should replace stream_delta accumulation with this
+	ContentFormat string `json:"content_format,omitempty"` // "markdown"
 	Failed        bool   `json:"failed"`
 	Error         string `json:"error,omitempty"`
 	StepCount     int    `json:"step_count"`
@@ -133,7 +134,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 
 	schemas := h.App.Registry.Schemas(h.App.ChatToolNames())
 	var result runtime.TurnResult
-	h.withUserAgentGateway(resolveUserID(r), func() {
+	h.withUserAgentGateway(resolveUserID(r), resolveClientSource(r), func() {
 		result = h.App.Agent.Run(r.Context(), rtSession, message, toolCtx, schemas)
 	})
 
@@ -163,6 +164,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	writeSessionSSE(w, flusher, "turn_end", chatTurnEndPayload{
 		SessionID:     chat.ID,
 		AssistantText: result.AssistantText,
+		ContentFormat: "markdown",
 		Failed:        result.Failed,
 		Error:         result.Error,
 		StepCount:     len(chat.StepRecords),

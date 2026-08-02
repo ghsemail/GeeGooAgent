@@ -155,7 +155,7 @@ func (h *Handler) compareStream(w http.ResponseWriter, r *http.Request) {
 		provider, model := splitModelSpec(spec)
 		writeCompareSSE(w, flusher, map[string]any{"kind": "start", "spec": spec, "provider": provider, "model": model})
 		start := time.Now()
-		gw := h.gatewayForCompareSpec(userID, spec)
+		gw := h.gatewayForCompareSpec(userID, resolveClientSource(r), spec)
 		if gw == nil {
 			gw = h.App.Gateway
 		}
