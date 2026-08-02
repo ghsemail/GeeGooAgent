@@ -38,3 +38,5 @@ description: 个股技术面分析、指数分析、prompt_id、get_mcp_analysis
 ## 输出
 
 结论先行；注明周期、模板名、`prompt_id`；附 1～3 条可操作建议（非必须调 Tool）。
+
+**排版（与 SOUL 一致）**：`analysis_result` 仅作事实来源；给用户时须改写为 `##`/`###` + 列表，**勿照抄**其中的 `|表格|`、`---` 或粘连一行。

@@ -141,11 +141,11 @@ func TestRenderAssistantMarkdown_ValidTable(t *testing.T) {
 func TestNormalizeAssistantLayout_InlineH3Sections(t *testing.T) {
 	in := "## 腾讯控股机器人 (00700.HK) — GRID 网络 Bot ### 1. 基本信息 - 代码: 00700.HK ### 2. 网格配置"
 	out := NormalizeAssistantLayout(in)
-	if strings.Contains(out, "###") {
-		t.Fatalf("hash markers should be split/stripped: %q", out)
+	if !strings.Contains(out, "\n1. 基本信息") || !strings.Contains(out, "\n2. 网格配置") {
+		t.Fatalf("sections should be split onto separate lines: %q", out)
 	}
-	if !strings.Contains(out, "1. 基本信息") || !strings.Contains(out, "2. 网格配置") {
-		t.Fatalf("sections missing: %q", out)
+	if strings.Contains(out, "Bot ###") {
+		t.Fatalf("inline glued heading should be split: %q", out)
 	}
 }
 
@@ -234,7 +234,7 @@ func TestPreprocessTerminalMarkdown_StockAnalysisGlue(t *testing.T) {
 	if !strings.Contains(out, "**AI基本面**：积极") {
 		t.Fatalf("missing signal kv row: %q", out)
 	}
-	if !strings.Contains(out, ">AI催化密集") {
+	if !strings.Contains(out, "AI催化密集") || !strings.Contains(out, ">") {
 		t.Fatalf("missing blockquote: %q", out)
 	}
 	if !strings.Contains(out, "操作建议：") || !strings.Contains(out, "- 持仓者") || !strings.Contains(out, "- 观望者") {
@@ -343,6 +343,29 @@ Bot开关|✅开启
 	}
 	if !strings.Contains(out, "小结：你账号下只有一个腾讯的GRID网格交易机器人") {
 		t.Fatalf("summary paragraph should be preserved: %q", out)
+	}
+}
+
+func TestPreprocessWebMarkdown_MeituanGluedAnalysis(t *testing.T) {
+	in := `##美团-W（03690.HK）走势分析>**最新现价：92.50港元**|数据截至2025-11-24---###一、趋势判断：中期偏多，短期高位整固-**主力资金持续沉淀**：近30个交易日主力累计净流入约**+45亿港元**。-**散户反向指标明显**：多次出现"主力买、散户卖"结构。---###二、关键价位参考|类型|参考逻辑||------|----------||**短期支撑**|88～90港元区间||**中期支撑**|82～85港元区间。>**一句话总结**：美团主力资金面中期偏多未变。`
+	out := PreprocessWebMarkdown(in)
+	if !strings.Contains(out, "## 美团-W") {
+		t.Fatalf("missing h2: %q", out)
+	}
+	if !strings.Contains(out, "### 一、趋势判断") {
+		t.Fatalf("missing h3 section: %q", out)
+	}
+	if !strings.Contains(out, "> **最新现价") {
+		t.Fatalf("missing blockquote: %q", out)
+	}
+	if !strings.Contains(out, "\n- **主力资金") {
+		t.Fatalf("missing list item: %q", out)
+	}
+	if strings.Contains(out, "||") {
+		t.Fatalf("double-pipe glue should be expanded: %q", out)
+	}
+	if strings.Contains(out, "---") {
+		t.Fatalf("horizontal rules should be removed: %q", out)
 	}
 }
 

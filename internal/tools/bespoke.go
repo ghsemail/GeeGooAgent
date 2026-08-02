@@ -346,7 +346,10 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if status, note, _ := ClassifyHTTPPayload("get_mcp_analysis", data, nil); status != StatusOK {
 				return Result{Status: status, Summary: note, Data: data}
 			}
-			return Result{Status: StatusOK, Summary: fmt.Sprintf("MCP analysis %s (%s)", code, period), Data: data}
+			return Result{Status: StatusOK, Summary: fmt.Sprintf(
+				"MCP analysis %s (%s)。答复用户时请按 SOUL 将 analysis_result 改写为标题+列表，勿照抄 |表格| 或 ---。",
+				code, period,
+			), Data: data}
 		},
 	})
 	r.Register(Tool{

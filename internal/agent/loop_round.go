@@ -28,6 +28,7 @@ func (l *Loop) runRound(
 
 	*messages = l.applyCompression(ctx, session, *messages)
 	apiMessages := withBudgetWarning(*messages, round, l.maxToolRounds, session)
+	apiMessages = withReplyFormatReminder(apiMessages, round)
 	apiMessages = llm.SanitizeMessages(apiMessages)
 	if len(apiMessages) > len(*messages) {
 		l.emit("budget_warning", map[string]any{

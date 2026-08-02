@@ -6,7 +6,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ghsemail/GeeGooAgent/internal/chatprompt"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
+	"github.com/ghsemail/GeeGooAgent/internal/markdownnorm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
@@ -48,6 +50,19 @@ func budgetWarningText(round, maxRounds int, session *runtime.Session) string {
 		))
 	}
 	return strings.Join(parts, "\n")
+}
+
+// withReplyFormatReminder appends a temporary user prompt after tool rounds so the model
+// formats the final user-visible answer per SOUL. Not persisted to session history.
+func withReplyFormatReminder(messages []llm.Message, toolRound int) []llm.Message {
+	reminder := chatprompt.ReplyFormatReminder(toolRound)
+	if reminder == "" {
+		return messages
+	}
+	out := make([]llm.Message, len(messages)+1)
+	copy(out, messages)
+	out[len(messages)] = llm.Message{Role: llm.RoleUser, Content: reminder}
+	return out
 }
 
 func toolResultContent(result tools.Result) string {
@@ -113,7 +128,7 @@ func CleanAssistantVisibleText(s string) string {
 }
 
 func formatAssistantReplyForStorage(s string) string {
-	return strings.TrimSpace(s)
+	return markdownnorm.NormalizeAssistantReply(strings.TrimSpace(s))
 }
 
 func splitInlineThinking(s string) (visible, extracted string) {

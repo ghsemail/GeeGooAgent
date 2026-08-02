@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	reGlueHeading = regexp.MustCompile(`([^\n])(#{2,6}\s)`)
+	reGlueHeading = regexp.MustCompile(`([^\n#])(#{2,6}\s)`)
 	reGlueH3Num   = regexp.MustCompile(`([^\n#])(#{3,6}\s*\d+\.\s)`)
 	reGlueHeadingCN = regexp.MustCompile(`([！。!?；:，,])(#{2,6})`)
 	reGlueHeadingMid = regexp.MustCompile(`([^\n#])(#{2,6}\d+\.)`)
@@ -37,7 +37,7 @@ var (
 	reGlueEmojiHeading = regexp.MustCompile(`([^\n#])(#{2,6})([\p{So}])`)
 	reGluePipeSection = regexp.MustCompile(`(\|[^\n#]{3,})(#{2,6})`)
 	reLooseTableHeaderSep = regexp.MustCompile(`(\|?(?:类型\|说明|日期\|事件|维度\|信号|字段\|详情)\|?)\s*([-]{2,}\|[-]{2,})`)
-	reLooseSepRow         = regexp.MustCompile(`([-]{2,}\|[-]{2,})\s*([\p{Han}A-Za-z][^\n|]{0,24}\|)`)
+	reLooseSepRow         = regexp.MustCompile(`([-]{2,}\|[-]{2,})\s*([\p{Han}A-Za-z][^\n|*]{0,24}\|)`)
 	reLooseRowAfterBacktest = regexp.MustCompile(`(回测)(GRID[^\n|]*\|)`)
 	reGlueBeforeTypeTable   = regexp.MustCompile(`(Bot管理|分析模板)(\|类型\|说明\|)`)
 	reGlueFeatureDash     = regexp.MustCompile(`(股票分析|经纪席位|新闻资讯)(-)([\p{Han}])`)
@@ -47,6 +47,14 @@ var (
 	reFieldDetailHeader   = regexp.MustCompile(`([^\n|]{2,})(\|字段\|详情\|?)`)
 	reBrokenMarkdownTail  = regexp.MustCompile(`(?m)^\d+\.\s+✅开启[^\n]*\*\*\s*·\s*` + "`" + `\s*$`)
 	reOrphanFieldLabel    = regexp.MustCompile(`^：[^\n]{1,20}\s*$`)
+	reGlueTitleBlockquote = regexp.MustCompile(`([\p{Han}）)）\w%])(>\*\*)`)
+	reGlueSummaryBlockquote = regexp.MustCompile(`([。；;！？\)）])(>\*\*)`)
+	reGlueStarPipeMeta    = regexp.MustCompile(`(\*\*)\|([^\|\n#\d])`)
+	reGlueTightBullet     = regexp.MustCompile(`([^\n])-(✅|🟡|🔍|\*\*)`)
+	reGlueEmojiCallout    = regexp.MustCompile(`([。；;！？\)）])(⚠️\*\*)`)
+	reGlueHeadingTypeTable = regexp.MustCompile(`([^\n|]{2,}参考)(\|类型\|参考逻辑\|?)`)
+	reFixBlockquoteLine   = regexp.MustCompile(`(?m)^>(\S)`)
+	reISODateCell         = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 )
 
 // NormalizeAssistantLayout inserts line breaks when the model glues markdown blocks
@@ -147,8 +155,8 @@ func breakInlinePipeFields(text string) string {
 // Keeps pipe tables as Markdown (react-markdown etc. can render them).
 func PreprocessWebMarkdown(text string) string {
 	text = normalizeGluedAnalysisMarkdown(text)
-	text = normalizeLoosePipeTablesInline(text)
 	text = normalizeGluedMarkdownTables(text)
+	text = normalizeLoosePipeTablesInline(text)
 	text = NormalizeAssistantLayout(text)
 	text = stripOrderedListMarkers(text)
 	text = ensureListSpacing(text)
@@ -176,6 +184,21 @@ func normalizeGluedAnalysisMarkdown(text string) string {
 	text = reHRHeading.ReplaceAllString(text, "\n$1")
 	text = reCNHeadingSpace.ReplaceAllString(text, "$1 $2")
 	text = reHeadingTableGlue.ReplaceAllString(text, "$1\n\n|$2")
+	text = reGlueHeadingTypeTable.ReplaceAllString(text, "$1\n\n$2\n")
+	text = reGlueTitleBlockquote.ReplaceAllString(text, "$1\n\n> **")
+	text = reGlueSummaryBlockquote.ReplaceAllString(text, "$1\n\n> **")
+	text = reGlueStarPipeMeta.ReplaceAllString(text, "$1\n\n$2")
+	text = reGlueTightBullet.ReplaceAllStringFunc(text, func(m string) string {
+		sub := reGlueTightBullet.FindStringSubmatch(m)
+		if len(sub) < 3 {
+			return m
+		}
+		if sub[2] == "**" {
+			return sub[1] + "\n- **"
+		}
+		return sub[1] + "\n- " + sub[2]
+	})
+	text = reGlueEmojiCallout.ReplaceAllString(text, "$1\n\n⚠️ **")
 	text = reGlueBlockquote.ReplaceAllString(text, "$1\n$2")
 	text = rePipeBlockquote.ReplaceAllString(text, "\n$1")
 	text = reTitleBlockquote.ReplaceAllString(text, "$1\n$2")
@@ -183,6 +206,7 @@ func normalizeGluedAnalysisMarkdown(text string) string {
 	text = reAdviceDash.ReplaceAllString(text, "$1\n-$2")
 	text = reFixTightDashList.ReplaceAllString(text, "\n- $1")
 	text = reBrokenMarkdownTail.ReplaceAllString(text, "")
+	text = reFixBlockquoteLine.ReplaceAllString(text, "> $1")
 	text = strings.ReplaceAll(text, "|  |", "\n|")
 	return strings.TrimSpace(text)
 }
@@ -519,11 +543,14 @@ func isLooseTableHeaderLine(line string) ([]string, bool) {
 			return nil, false
 		}
 	}
+	if looksLikeDateCell(cells[0]) {
+		return nil, false
+	}
 	if isKeyValueTableHeaders(cells) {
 		return cells, true
 	}
 	a, b := strings.TrimSpace(cells[0]), strings.TrimSpace(cells[1])
-	if (strings.Contains(a, "类型") && strings.Contains(b, "说明")) ||
+	if (strings.Contains(a, "类型") && (strings.Contains(b, "说明") || strings.Contains(b, "参考逻辑"))) ||
 		(looksLikeColumnName(a) && looksLikeColumnName(b)) {
 		return cells, true
 	}
@@ -663,7 +690,7 @@ func looksLikeGluedTableLine(line string) bool {
 
 func findInlineTableHeaderStart(line string) int {
 	best := -1
-	for _, marker := range []string{"|#|", "| # |", "|序号|"} {
+	for _, marker := range []string{"|#|", "| # |", "|序号|", "|类型|"} {
 		if i := strings.Index(line, marker); i > 0 {
 			if best < 0 || i < best {
 				best = i
@@ -686,6 +713,10 @@ func expandGluedPipeRows(s string) []string {
 			continue
 		}
 		if strings.Count(part, "|") < 2 {
+			if strings.Contains(part, "|") {
+				out = append(out, normalizeTableRowLine(part))
+				continue
+			}
 			out = append(out, part)
 			continue
 		}
@@ -978,7 +1009,8 @@ func looksLikeColumnName(s string) bool {
 }
 
 func looksLikeDateCell(s string) bool {
-	return reDateCell.MatchString(strings.TrimSpace(s))
+	s = strings.TrimSpace(s)
+	return reDateCell.MatchString(s) || reISODateCell.MatchString(s)
 }
 
 func isKeyValueTableHeaders(headers []string) bool {
@@ -992,7 +1024,7 @@ func isKeyValueTableHeaders(headers []string) bool {
 		return true
 	case strings.Contains(a, "维度") || strings.Contains(b, "信号"):
 		return true
-	case strings.Contains(a, "类型") || strings.Contains(b, "说明"):
+	case strings.Contains(a, "类型") || strings.Contains(b, "说明") || strings.Contains(b, "参考逻辑"):
 		return true
 	case strings.Contains(a, "字段") || strings.Contains(b, "详情"):
 		return true
@@ -1013,7 +1045,7 @@ func formatKeyValueTable(rows [][]string) string {
 		if isSeparatorCells(row) {
 			continue
 		}
-		k := strings.TrimSpace(row[0])
+		k := strings.TrimSpace(strings.ReplaceAll(row[0], "**", ""))
 		v := strings.TrimSpace(row[1])
 		if k == "" && v == "" {
 			continue
