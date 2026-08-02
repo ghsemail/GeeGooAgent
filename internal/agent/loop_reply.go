@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
-	"github.com/ghsemail/GeeGooAgent/internal/markdownnorm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
@@ -114,11 +113,7 @@ func CleanAssistantVisibleText(s string) string {
 }
 
 func formatAssistantReplyForStorage(s string) string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return ""
-	}
-	return markdownnorm.NormalizeAssistantReply(s)
+	return strings.TrimSpace(s)
 }
 
 func splitInlineThinking(s string) (visible, extracted string) {

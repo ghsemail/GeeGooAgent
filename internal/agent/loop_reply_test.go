@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -29,13 +28,10 @@ func TestCleanAssistantVisibleTextExported(t *testing.T) {
 	}
 }
 
-func TestFormatAssistantReplyForStorage_GluedMarkdown(t *testing.T) {
+func TestFormatAssistantReplyForStorage_Passthrough(t *testing.T) {
 	in := "以下是小米集团-W（**01810.HK**）的综合分析：---##📊小米集团-W价格趋势分析**当前价格**：**28.78港元**"
 	got := formatAssistantReplyForStorage(in)
-	if !strings.Contains(got, "\n") {
-		t.Fatalf("expected line breaks, got %q", got)
-	}
-	if !strings.Contains(got, "##") {
-		t.Fatalf("expected heading preserved, got %q", got)
+	if got != in {
+		t.Fatalf("storage should keep model markdown as-is, got %q", got)
 	}
 }
