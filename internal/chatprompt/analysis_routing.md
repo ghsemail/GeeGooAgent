@@ -35,10 +35,11 @@
     │       → type=fundamental
     │       → get_single_prompt_template(type=fundamental, period=…)
     │
-    └─ 技术面 / 趋势 / 走势 / 形态 / 涨跌（未点名具体指标）【默认】
+    └─ 技术面 / 趋势 / 走势 / 形态 / 涨跌 / **价格** / **这周价格**（未点名具体指标）【默认】
             → type=tech
             → get_single_prompt_template(type=tech, period=…)
-            → 在返回列表中选最匹配模板（flag 趋势 > kline 形态 > price 价格）
+            → 在返回列表中选最匹配模板（**flag 趋势 > kline 形态 > price 价格**）
+            → **禁止**仅因列表里有「资金流向」就选 tag=capital_flow 模板；资金是补充项，不是价格/走势主分析
 ```
 
 **周期 period：**
@@ -72,8 +73,8 @@
 |--------------|------|----------|
 | **flag** | 综合趋势类信号 | 用户问「趋势」「走势方向」 |
 | **kline** | K 线形态 | 用户问「形态」「K 线」 |
-| **price** | 价格走势结构 | 用户问「价格」「涨跌」 |
-| **capital_flow** | 资金流向（模板内嵌） | 与趋势一并分析资金博弈 |
+| **price** | 价格走势结构 | 用户问「价格」「涨跌」「这周价格」「分析价格」 |
+| **capital_flow** | 资金流向（模板内嵌） | **仅**用户明确问「资金」「主力」「净流入」时；勿替代 price/kline/flag |
 | competitor / etf / industry | 竞品、ETF、行业对比 | 用户明确对比需求 |
 
 ---

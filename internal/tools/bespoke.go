@@ -288,7 +288,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 	registerPromptTemplateTools(r, deps)
 	r.Register(Tool{
 		Name:        "get_mcp_analysis",
-		Description: "执行 MCP LLM 个股/标的分析（GeeGooBot mcp-api→analyze-api）。须先有 prompt_id：技术分析 type=tech（走势/趋势/K线，默认路径）；指标分析 type=index 或 by_index（仅当用户点名 MACD/EMA 等）；基本面 type=fundamental。",
+		Description: "执行 MCP LLM 个股/标的分析（GeeGooBot mcp-api→analyze-api）。须先有 prompt_id：技术分析 type=tech（走势/趋势/K线/价格，默认路径）；用户问价格/涨跌时从 tech 列表选 flag/kline/price，勿默认 capital_flow；指标分析 type=index（仅当用户点名 MACD/EMA 等）；基本面 type=fundamental。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -866,7 +866,7 @@ func shorten(s string, n int) string {
 func registerPromptTemplateTools(r *Registry, deps Deps) {
 	r.Register(Tool{
 		Name:        "get_single_prompt_template",
-		Description: "列出已启用（switch=true）的单项分析 Prompt，供 get_mcp_analysis 选 prompt_id。type 筛选项：tech=技术分析（价格/K线/趋势/资金等，泛化技术面默认此项）；index=指标分析（MACD/EMA 等单一指标，仅用户点名指标时用）；fundamental=基本面（财报/估值/风险）。",
+		Description: "列出已启用（switch=true）的单项分析 Prompt，供 get_mcp_analysis 选 prompt_id。type=tech 时：用户问价格/走势/趋势优先选 flag/kline/price 模板，勿默认 capital_flow（除非用户明确问资金）；index=指标分析；fundamental=基本面。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
