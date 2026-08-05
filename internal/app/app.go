@@ -606,6 +606,7 @@ func (a *App) RunSkill(skill string) (workflow.RunResult, error) {
 // SkillRunOptions carries per-run inputs for signal-triggered skills.
 type SkillRunOptions struct {
 	Intraday *workflow.IntradayInput
+	MCPToken string
 }
 
 // RunSkillContext executes a named skill with cancellation propagated to tools
@@ -644,6 +645,9 @@ func (a *App) RunSkillContext(ctx context.Context, skill string, runOpts ...Skil
 		}
 	}
 	toolCtx := a.ToolContextWithContext(ctx, sessionID)
+	if strings.TrimSpace(opts.MCPToken) != "" {
+		toolCtx.MCPToken = strings.TrimSpace(opts.MCPToken)
+	}
 	result := a.Workflow.Run(sessionID, skill, phaseA, perStock, toolCtx, working)
 	a.emitSkillRunResult(sessionID, skill, result)
 	return result, nil
