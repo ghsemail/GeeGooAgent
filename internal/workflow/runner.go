@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
@@ -130,6 +131,9 @@ func (r *Runner) RunFrom(
 		}
 	}
 
+	finalizePhaseA(working)
+	_ = r.working.Save(working)
+
 	if perStock != nil && (working.IsTradingDay == nil || *working.IsTradingDay) {
 		working.Phase = "phase_b"
 		_ = r.working.Save(working)
@@ -244,6 +248,23 @@ func (r *Runner) processStep(
 		return working, &RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: err.Error()}
 	}
 	if result.Status == tools.StatusError {
+		if optionalStep(step) {
+			code := indexCodeFromStep(step, goCtx, working)
+			working = memory.RecordIndexSkip(working, code)
+			skipSummary := "skipped optional index analysis: " + result.Summary
+			logResult := r.dispatchTool(goCtx, tools.CallRequest{
+				Name: "write_execution_log",
+				Arguments: map[string]any{
+					"step": step.Name, "message": skipSummary, "status": "skip",
+				},
+			}, ctx)
+			working, _ = r.working.Apply(working, "write_execution_log", logResult)
+			if err := r.checkpts.Save(sessionID, skill, "running", step.Tool, stepIndex, working); err != nil {
+				return working, &RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: err.Error()}
+			}
+			markStepComplete(working, stepKey(step.Name, step.Tool))
+			return working, nil
+		}
 		kind := classifyError(step.Tool, result.Summary)
 		if kind == ErrorRecoverable {
 			// One retry for transient errors before giving up.
@@ -307,6 +328,38 @@ func IsStepCompleteForTest(w *memory.PreMarketWorking, key string) bool {
 }
 func MarkStepCompleteForTest(w *memory.PreMarketWorking, key string) { markStepComplete(w, key) }
 func StepKeyForTest(name, tool string) string                        { return stepKey(name, tool) }
+func OptionalStepForTest(step Step) bool                              { return optionalStep(step) }
+func FinalizePhaseAForTest(working *memory.PreMarketWorking)          { finalizePhaseA(working) }
+
+// optionalStep marks workflow steps that may fail without aborting the run.
+func optionalStep(step Step) bool {
+	return strings.HasPrefix(step.Name, "index_")
+}
+
+func indexCodeFromStep(step Step, ctx context.Context, working *memory.PreMarketWorking) string {
+	args := step.Args(ctx, working)
+	if c, ok := args["code"].(string); ok && c != "" {
+		return c
+	}
+	if strings.HasPrefix(step.Name, "index_") {
+		return strings.TrimPrefix(step.Name, "index_")
+	}
+	return ""
+}
+
+// finalizePhaseA marks phase A complete when there is no per-stock work.
+func finalizePhaseA(working *memory.PreMarketWorking) {
+	if working == nil || working.IsTradingDay == nil || !*working.IsTradingDay {
+		return
+	}
+	if len(working.BotCodes) == 0 {
+		working.Phase = "done"
+		return
+	}
+	if !working.MarketContext.IndicesDone && isStepComplete(working, stepKey("phase_a_complete", "write_execution_log")) {
+		working.MarketContext.IndicesDone = true
+	}
+}
 
 // CheckpointAdapter bridges infra checkpoint manager.
 type CheckpointAdapter struct {

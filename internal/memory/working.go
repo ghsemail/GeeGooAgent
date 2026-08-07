@@ -591,3 +591,18 @@ func floatField(m map[string]any, k string) float64 {
 	}
 	return 0
 }
+
+// RecordIndexSkip marks an index analysis step as skipped while advancing phase-A progress.
+func RecordIndexSkip(w *PreMarketWorking, code string) *PreMarketWorking {
+	if w == nil || code == "" {
+		return w
+	}
+	updated := cloneWorking(w)
+	if !contains(updated.MarketContext.IndexCodesDone, code) {
+		updated.MarketContext.IndexCodesDone = append(updated.MarketContext.IndexCodesDone, code)
+	}
+	if len(updated.MarketContext.IndexCodesDone) >= len(preMarketIndexCodes) {
+		updated.MarketContext.IndicesDone = true
+	}
+	return updated
+}
