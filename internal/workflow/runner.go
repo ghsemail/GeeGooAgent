@@ -333,7 +333,10 @@ func FinalizePhaseAForTest(working *memory.PreMarketWorking)          { finalize
 
 // optionalStep marks workflow steps that may fail without aborting the run.
 func optionalStep(step Step) bool {
-	return strings.HasPrefix(step.Name, "index_")
+	if strings.HasPrefix(step.Name, "index_") {
+		return true
+	}
+	return strings.HasPrefix(step.Name, "market_news_")
 }
 
 func indexCodeFromStep(step Step, ctx context.Context, working *memory.PreMarketWorking) string {

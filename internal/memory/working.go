@@ -77,19 +77,13 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 			}
 		}
 	case "get_report_bot_codes":
-		if bots, ok := data["bots"].([]any); ok {
-			updated.BotCodes = nil
-			for _, item := range bots {
-				if m, ok := item.(map[string]any); ok {
-					bot := botFromMap(m)
-					updated.BotCodes = append(updated.BotCodes, bot)
-					if _, exists := updated.Stocks[bot.Code]; !exists {
-						updated.Stocks[bot.Code] = StockWorkspace{
-							Code: bot.Code, StockName: bot.StockName,
-							BotID: bot.BotID, BotName: bot.BotName, BotType: bot.BotType,
-							Status: "pending",
-						}
-					}
+		for _, bot := range coerceBotMaps(data["bots"]) {
+			updated.BotCodes = append(updated.BotCodes, bot)
+			if _, exists := updated.Stocks[bot.Code]; !exists {
+				updated.Stocks[bot.Code] = StockWorkspace{
+					Code: bot.Code, StockName: bot.StockName,
+					BotID: bot.BotID, BotName: bot.BotName, BotType: bot.BotType,
+					Status: "pending",
 				}
 			}
 		}
@@ -351,6 +345,27 @@ func botFromMap(m map[string]any) BotStock {
 		BotID:     str(m, "bot_id"),
 		BotName:   str(m, "bot_name"),
 		BotType:   str(m, "bot_type"),
+	}
+}
+
+func coerceBotMaps(v any) []BotStock {
+	switch items := v.(type) {
+	case []map[string]any:
+		out := make([]BotStock, 0, len(items))
+		for _, m := range items {
+			out = append(out, botFromMap(m))
+		}
+		return out
+	case []any:
+		out := make([]BotStock, 0, len(items))
+		for _, item := range items {
+			if m, ok := item.(map[string]any); ok {
+				out = append(out, botFromMap(m))
+			}
+		}
+		return out
+	default:
+		return nil
 	}
 }
 

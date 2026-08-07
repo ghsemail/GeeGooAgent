@@ -11,6 +11,9 @@ func TestOptionalStepIndexPrefix(t *testing.T) {
 	if !workflow.OptionalStepForTest(workflow.Step{Name: "index_^DJI.US", Tool: "get_mcp_analysis"}) {
 		t.Fatal("expected index step to be optional")
 	}
+	if !workflow.OptionalStepForTest(workflow.Step{Name: "market_news_cn", Tool: "fetch_market_news"}) {
+		t.Fatal("expected market news step to be optional")
+	}
 	if workflow.OptionalStepForTest(workflow.Step{Name: "weekly_analysis", Tool: "get_mcp_analysis"}) {
 		t.Fatal("stock analysis must not be optional")
 	}

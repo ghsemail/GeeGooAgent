@@ -93,10 +93,31 @@ func (p *PostgresDB) execSQL(raw string) error {
 			continue
 		}
 		if _, err := p.sql.ExecContext(context.Background(), stmt); err != nil {
+			if isIgnorablePostgresDDLError(err) {
+				continue
+			}
 			return fmt.Errorf("postgres ddl: %w", err)
 		}
 	}
 	return nil
+}
+
+func isIgnorablePostgresDDLError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	// Concurrent startup or re-apply: type/table already exists.
+	for _, hint := range []string{
+		"pg_type_typname_nsp_index",
+		"already exists",
+		"duplicate key value violates unique constraint",
+	} {
+		if strings.Contains(msg, hint) {
+			return true
+		}
+	}
+	return false
 }
 
 // SQL returns the underlying database handle.
