@@ -31,8 +31,8 @@ func TestSaveAndReloadJobs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(loaded.Jobs) != 7 {
-		t.Fatalf("expected 7 default jobs, got %d: %+v", len(loaded.Jobs), loaded.Jobs)
+	if len(loaded.Jobs) != 9 {
+		t.Fatalf("expected 9 default jobs, got %d: %+v", len(loaded.Jobs), loaded.Jobs)
 	}
 	skills := map[string]bool{}
 	for _, j := range loaded.Jobs {
@@ -50,7 +50,9 @@ func TestDefaultJobsHasWeekdayPreMarket(t *testing.T) {
 	jf := scheduler.DefaultJobs()
 	foundMarketCN := false
 	foundStockCN := false
-	foundPost := false
+	foundPostCN := false
+	foundPostHK := false
+	foundPostUS := false
 	for _, j := range jf.Jobs {
 		if j.Skill == "premarket_market" && j.Market == "CN" && j.Enabled && j.Cron == "0 8 * * 1-5" {
 			foundMarketCN = true
@@ -58,8 +60,14 @@ func TestDefaultJobsHasWeekdayPreMarket(t *testing.T) {
 		if j.Skill == "premarket_stock" && j.Market == "CN" && j.Enabled && j.Cron == "10 8 * * 1-5" {
 			foundStockCN = true
 		}
-		if j.Skill == "postmarket_stock" && j.Enabled && j.Cron == "0 17 * * 1-5" {
-			foundPost = true
+		if j.Skill == "postmarket_stock" && j.Market == "CN" && j.Enabled && j.Cron == "0 17 * * 1-5" {
+			foundPostCN = true
+		}
+		if j.Skill == "postmarket_stock" && j.Market == "HK" && j.Enabled && j.Cron == "0 17 * * 1-5" {
+			foundPostHK = true
+		}
+		if j.Skill == "postmarket_stock" && j.Market == "US" && j.Enabled && j.Cron == "0 5 * * 2-6" {
+			foundPostUS = true
 		}
 	}
 	if !foundMarketCN {
@@ -68,8 +76,40 @@ func TestDefaultJobsHasWeekdayPreMarket(t *testing.T) {
 	if !foundStockCN {
 		t.Fatal("default jobs missing enabled premarket_stock CN job")
 	}
-	if !foundPost {
-		t.Fatal("default jobs missing enabled postmarket_stock weekday job")
+	if !foundPostCN || !foundPostHK {
+		t.Fatal("default jobs missing enabled postmarket_stock CN/HK weekday jobs")
+	}
+	if !foundPostUS {
+		t.Fatal("default jobs missing enabled postmarket_stock US job")
+	}
+}
+
+func TestMigratePostmarketWeekdaySplit(t *testing.T) {
+	t.Parallel()
+	jf := &scheduler.JobsFile{
+		Jobs: []scheduler.Job{
+			{Name: "postmarket_stock_weekday", Skill: "postmarket_stock", Cron: "0 17 * * 1-5", Enabled: true},
+		},
+	}
+	if !scheduler.MigrateJobs(jf) {
+		t.Fatal("expected migration")
+	}
+	enabled := map[string]string{}
+	for _, j := range jf.Jobs {
+		if j.Skill == "postmarket_stock" && j.Enabled {
+			enabled[j.Market] = j.Cron
+		}
+	}
+	if enabled["CN"] != "0 17 * * 1-5" || enabled["HK"] != "0 17 * * 1-5" {
+		t.Fatalf("cn/hk postmarket jobs: %+v", enabled)
+	}
+	if enabled["US"] != "0 5 * * 2-6" {
+		t.Fatalf("us postmarket job: %+v", enabled)
+	}
+	for _, j := range jf.Jobs {
+		if j.Name == "postmarket_stock_weekday" && j.Enabled {
+			t.Fatal("legacy weekday job should be disabled")
+		}
 	}
 }
 

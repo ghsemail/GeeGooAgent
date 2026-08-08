@@ -76,7 +76,11 @@ func DefaultJobs() *JobsFile {
 				Enabled: true, Platform: "log"},
 			{Name: "premarket_stock_hk", Skill: "premarket_stock", Market: "HK", Cron: "10 9 * * 1-5",
 				Enabled: true, Platform: "log"},
-			{Name: "postmarket_stock_weekday", Skill: "postmarket_stock", Cron: "0 17 * * 1-5",
+			{Name: "postmarket_stock_cn", Skill: "postmarket_stock", Market: "CN", Cron: "0 17 * * 1-5",
+				Enabled: true, Platform: "log"},
+			{Name: "postmarket_stock_hk", Skill: "postmarket_stock", Market: "HK", Cron: "0 17 * * 1-5",
+				Enabled: true, Platform: "log"},
+			{Name: "postmarket_stock_us", Skill: "postmarket_stock", Market: "US", Cron: "0 5 * * 2-6",
 				Enabled: true, Platform: "log"},
 			{Name: "premarket_market_us", Skill: "premarket_market", Market: "US", Cron: "0 21 * * 1-5",
 				Enabled: true, Platform: "log"},
@@ -104,6 +108,11 @@ func MigrateJobs(jf *JobsFile) bool {
 			j.Skill = newSkill
 			changed = true
 		}
+		if j.Skill == "postmarket_stock" && strings.TrimSpace(j.Market) == "" &&
+			(j.Name == "postmarket_stock_weekday" || j.Cron == "0 17 * * 1-5") {
+			j.Enabled = false
+			changed = true
+		}
 		if strings.TrimSpace(j.Market) != "" {
 			continue
 		}
@@ -120,7 +129,36 @@ func MigrateJobs(jf *JobsFile) bool {
 			changed = true
 		}
 	}
+	if changed {
+		ensurePostmarketMarketJobs(jf)
+	}
 	return changed
+}
+
+func ensurePostmarketMarketJobs(jf *JobsFile) {
+	if jf == nil {
+		return
+	}
+	has := map[string]bool{}
+	for _, j := range jf.Jobs {
+		if j.Skill != "postmarket_stock" || !j.Enabled {
+			continue
+		}
+		has[strings.ToUpper(strings.TrimSpace(j.Market))] = true
+	}
+	add := func(name, market, cron string) {
+		if has[market] {
+			return
+		}
+		jf.Jobs = append(jf.Jobs, Job{
+			Name: name, Skill: "postmarket_stock", Market: market, Cron: cron,
+			Enabled: true, Platform: "log",
+		})
+		has[market] = true
+	}
+	add("postmarket_stock_cn", "CN", "0 17 * * 1-5")
+	add("postmarket_stock_hk", "HK", "0 17 * * 1-5")
+	add("postmarket_stock_us", "US", "0 5 * * 2-6")
 }
 
 // SortJobs orders jobs by name for stable display.

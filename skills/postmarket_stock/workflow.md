@@ -1,6 +1,6 @@
 # Post-Market Analysis Workflow
 
-**Trigger:** 17:00 Asia/Shanghai on trading weekdays (A-share/HK); US market uses separate cron per geegoo skill.
+**Trigger:** 17:00 Asia/Shanghai on trading weekdays for CN/HK (`0 17 * * 1-5`); US after close at 05:00 Tue–Sat (`0 5 * * 2-6`, Asia/Shanghai).
 
 **Goal:** Summarize session price action, bot execution, and alignment with pre-market view.
 
