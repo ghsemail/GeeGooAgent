@@ -4,7 +4,7 @@
 
 ## 文档概述
 
-本文档描述 **确定性工作流引擎**：由 Go 硬编码步骤顺序（非 LLM 选步），用于 `geegoo run pre_market` 等 Skill。涵盖 Runner 流程、checkpoint 幂等 resume、Supervisor 质检、报告合成与 Run 生命周期。与对话式 ReAct 的分工见 [agent-loop.md](./agent-loop.md)。
+本文档描述 **确定性工作流引擎**：由 Go 硬编码步骤顺序（非 LLM 选步），用于 `geegoo run premarket_market` 等 Skill。涵盖 Runner 流程、checkpoint 幂等 resume、Supervisor 质检、报告合成与 Run 生命周期。与对话式 ReAct 的分工见 [agent-loop.md](./agent-loop.md)。
 
 确定性工作流编排：**非** LLM 选步，按 Skill 注册的 Phase A / PerStock 步骤顺序执行。
 
@@ -16,12 +16,12 @@
 | 幂等 resume | 按 `CompletedStepKeys` 跳过已完成步骤 |
 | Checkpoint | 每步落盘，支持 `geegoo resume` |
 | Supervisor | 跑后 verdict → scheduler 退避 |
-| 报告合成 | `report.Synthesizer` → `create_pre_market_report` |
+| 报告合成 | `report.Synthesizer` → `create_stock_premarket_report` |
 
 ## 入口
 
 ```text
-geegoo run pre_market
+geegoo run premarket_market
   → internal/app.App.RunSkill(name)
   → skills.Registry.Get(name)
   → workflow.Runner.Run(spec)
@@ -67,7 +67,7 @@ Run(skill Spec):
 | | Workflow | ReAct |
 |---|----------|-------|
 | 编排 | Go 硬编码 | LLM tool_calls |
-| 用于 | pre_market | geegoo chat |
+| 用于 | premarket_market | geegoo chat |
 | 可预测性 | 高 | 灵活 |
 | resume | step key 幂等 | 会话历史 + PendingPlan |
 
@@ -81,10 +81,10 @@ Supervisor 在结束时校验缺步（`pass` / `recoverable` / `terminal`），*
 
 Chat 回合状态机见 [agent-loop.md §2.4](./agent-loop.md#24-session-与回合状态)。
 
-## pre_market 步骤
+## premarket_market 步骤
 
 定义：`internal/workflow/premarket.go`  
-文档对齐：`skills/pre_market/manifest.yaml`  
+文档对齐：`skills/premarket_market/manifest.yaml`  
 领域映射：[domains/geegoo-skill-mapping.md](../../domains/geegoo-skill-mapping.md)
 
 ## Supervisor

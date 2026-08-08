@@ -36,7 +36,7 @@ func TestPreMarketDryRunE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer application.Close()
-	result, err := application.RunSkillContext(context.Background(), "pre_market", app.SkillRunOptions{Market: "CN"})
+	result, err := application.RunSkillContext(context.Background(), "premarket_market", app.SkillRunOptions{Market: "CN"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestPreMarketDryRunE2E(t *testing.T) {
 		t.Fatalf("market=%s", w.Market)
 	}
 	today := time.Now().Format("2006-01-02")
-	reportPath := filepath.Join(application.Workspace, "reports", today, "market-CN-market-premarket.md")
+	reportPath := filepath.Join(application.Workspace, "reports", today, "market-CN-market_premarket.md")
 	if _, err := os.Stat(reportPath); err != nil {
 		t.Fatalf("missing market report %s: %v", reportPath, err)
 	}
@@ -89,7 +89,7 @@ func TestPreMarketStockDryRunE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer application.Close()
-	result, err := application.RunSkillContext(context.Background(), "pre_market_stock", app.SkillRunOptions{Market: "HK", MCPToken: "user-token"})
+	result, err := application.RunSkillContext(context.Background(), "premarket_stock", app.SkillRunOptions{Market: "HK", MCPToken: "user-token"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestPreMarketStockDryRunE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	content := string(raw)
-	for _, step := range []string{"get_market_pre_market_report", "phase_a_complete", "stock_complete:00700.HK"} {
+	for _, step := range []string{"get_market_premarket_report", "phase_a_complete", "stock_complete:00700.HK"} {
 		if !strings.Contains(content, step) {
 			t.Fatalf("missing log step %s", step)
 		}

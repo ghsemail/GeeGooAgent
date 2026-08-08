@@ -103,10 +103,10 @@ func MarketPhaseSteps(market string) []Step {
 			bundle := ensureMarketReportBundle(ctx, w, market)
 			return map[string]any{
 				"code": fmt.Sprintf("market-%s", market), "content": bundle.Report,
-				"report_type": "market-premarket", "report_date": ReportDateFor(w),
+				"report_type": "market_premarket", "report_date": ReportDateFor(w),
 			}
 		}},
-		Step{Name: "create_market_pre_market_report", Tool: "create_market_pre_market_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
+		Step{Name: "create_market_premarket_report", Tool: "create_market_premarket_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
 			return BuildCreateMarketReportArgsContext(ctx, w, market)
 		}},
 		Step{Name: "phase_a_complete", Tool: "write_execution_log", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
@@ -123,7 +123,7 @@ func MarketPhaseSteps(market string) []Step {
 func StockPhaseASteps(market string) []Step {
 	market = NormalizeMarket(market)
 	return []Step{
-		{Name: "get_market_pre_market_report", Tool: "get_market_pre_market_report", Arguments: map[string]any{"market": market}},
+		{Name: "get_market_premarket_report", Tool: "get_market_premarket_report", Arguments: map[string]any{"market": market}},
 		{Name: "get_report_bot_codes", Tool: "get_report_bot_codes"},
 		Step{Name: "phase_a_complete", Tool: "write_execution_log", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			return map[string]any{
@@ -187,7 +187,7 @@ func buildMarketReportDraft(w *memory.PreMarketWorking, market string) string {
 		"",
 		"---",
 		"",
-		"**报告生成**: geegoo-agent · skill `pre_market`",
+		"**报告生成**: geegoo-agent · skill `premarket_market`",
 	)
 	return strings.Join(lines, "\n")
 }
@@ -240,12 +240,12 @@ func ensureMarketReportBundle(ctx context.Context, w *memory.PreMarketWorking, m
 	return bundle
 }
 
-// BuildCreateMarketReportArgs builds MCP createMarketPreMarketReport body.
+// BuildCreateMarketReportArgs builds MCP createMarketPremarketReport body.
 func BuildCreateMarketReportArgs(w *memory.PreMarketWorking, market string) map[string]any {
 	return BuildCreateMarketReportArgsContext(context.Background(), w, market)
 }
 
-// BuildCreateMarketReportArgsContext builds MCP createMarketPreMarketReport body with optional LLM synthesis.
+// BuildCreateMarketReportArgsContext builds MCP createMarketPremarketReport body with optional LLM synthesis.
 func BuildCreateMarketReportArgsContext(ctx context.Context, w *memory.PreMarketWorking, market string) map[string]any {
 	bundle := ensureMarketReportBundle(ctx, w, market)
 	market = NormalizeMarket(market)
@@ -300,7 +300,7 @@ func fallbackMarketJudgement(w *memory.PreMarketWorking, market string) MarketRe
 }
 
 func loadMarketReportTemplate() string {
-	const rel = "skills/pre_market/template.md"
+	const rel = "skills/premarket_market/template.md"
 	wd, err := os.Getwd()
 	if err != nil {
 		return ""

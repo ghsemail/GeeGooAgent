@@ -25,7 +25,7 @@ BESPOKE = {
     "get_stock_daily_reports": "/getStockDailyReports",
     "list_today_reports": "/getStockDailyReports",
     "get_bot_yesterday_attitude": "/getBotYesterdayAttitude",
-    "create_pre_market_report": "/createPreMarketReport",
+    "create_stock_premarket_report": "/createStockPremarketReport",
 }
 
 

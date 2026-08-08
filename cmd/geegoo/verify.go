@@ -74,7 +74,7 @@ func runVerifyReports(args []string) {
 	}
 
 	if len(allCards) == 0 {
-		fmt.Println("(no pre_market reports found for the given date/codes)")
+		fmt.Println("(no premarket_market reports found for the given date/codes)")
 		os.Exit(1)
 	}
 	if !verify.AllPass(allCards) {

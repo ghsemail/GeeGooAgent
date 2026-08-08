@@ -21,7 +21,7 @@ func (failingCheckpointSaver) Save(string, string, string, string, int, *memory.
 func TestRunnerFailsWhenCheckpointSaveFails(t *testing.T) {
 	store := infra.NewStateStore(t.TempDir())
 	workingStore := memory.NewWorkingStore(store)
-	working, err := workingStore.Create("session-1", "pre_market")
+	working, err := workingStore.Create("session-1", "premarket_stock")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestRunnerFailsWhenCheckpointSaveFails(t *testing.T) {
 	runner := workflow.NewRunner(runtime.NewExecutor(registry), workingStore, failingCheckpointSaver{})
 	result := runner.Run(
 		"session-1",
-		"pre_market",
+		"stock_premarket",
 		[]workflow.Step{{Name: "noop", Tool: "noop"}},
 		nil,
 		tools.Context{SessionID: "session-1"},

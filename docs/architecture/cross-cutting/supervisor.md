@@ -34,7 +34,7 @@ flowchart TD
 
 ## 盘前示例
 
-见 `skills/pre_market/supervisor_checks.yaml`（实现时创建）。
+见 `skills/premarket_market/supervisor_checks.yaml`（实现时创建）。
 
 ## 代码
 

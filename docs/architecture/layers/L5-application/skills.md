@@ -13,7 +13,7 @@ Skill **不是** LLM 可调用的 function；它是运维与开发侧的**任务
 ## 架构关系
 
 ```text
-skills/pre_market/manifest.yaml     ← 人类可读 SSOT（tools 白名单、workflow 结构）
+skills/premarket_market/manifest.yaml     ← 人类可读 SSOT（tools 白名单、workflow 结构）
         ↓ 对齐
 internal/skills/loader.go           ← RegisterBuiltins → Spec
         ↓ 引用
@@ -34,8 +34,8 @@ type Spec struct {
     Description  string
     PhaseA       func() []workflow.Step
     PerStock     func() []workflow.Step
-    TemplatePath string   // skills/pre_market/template.md
-    ManifestPath string   // skills/pre_market/manifest.yaml
+    TemplatePath string   // skills/premarket_market/template.md
+    ManifestPath string   // skills/premarket_market/manifest.yaml
 }
 ```
 
@@ -43,9 +43,9 @@ type Spec struct {
 
 | Name | PhaseA | PerStock | 状态 |
 |------|--------|----------|------|
-| `pre_market` | `workflow.PhaseASteps` | `workflow.PerStockSteps` | ✅ |
+| `premarket_market` | `workflow.PhaseASteps` | `workflow.PerStockSteps` | ✅ |
 | `intraday` | `emptySteps` | `emptySteps` | 📋 占位 |
-| `post_market` | `emptySteps` | `emptySteps` | 📋 占位 |
+| `postmarket_stock` | `emptySteps` | `emptySteps` | 📋 占位 |
 
 列出：`geegoo skills list`
 
@@ -60,7 +60,7 @@ skills/<name>/
 └── supervisor_checks.yaml   # 机器可读验收项
 ```
 
-### manifest.yaml 示例（pre_market）
+### manifest.yaml 示例（premarket_market）
 
 - `tools[]` — 文档白名单（~19 MVP 工具）
 - `workflow.prelude / phase_a / phase_b` — 与 Go 步骤对齐
@@ -92,7 +92,7 @@ Workflow 路径不经过 LLM 选步；仅在 `report.Synthesizer` 阶段调用 L
 
 ## Supervisor
 
-`skills/pre_market/supervisor_checks.yaml` 定义检查项；运行时由 `workflow/supervisor.go` 执行：
+`skills/premarket_market/supervisor_checks.yaml` 定义检查项；运行时由 `workflow/supervisor.go` 执行：
 
 - phase 完成标记
 - 本地 md 存在
@@ -112,7 +112,7 @@ Verdict 驱动 scheduler 退避重试。
 
 | Cursor / geegoo Skill | Agent 内 |
 |-----------------------|----------|
-| geegoo 盘前 workflow | `pre_market` |
+| geegoo 盘前 workflow | `premarket_market` |
 | finance-news | `skills/bundled/finance-news` |
 | geegoo 按需分析 | chat + `market` toolset |
 

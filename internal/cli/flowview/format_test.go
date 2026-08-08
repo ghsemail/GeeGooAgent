@@ -12,10 +12,10 @@ func TestFormatRunCompleted(t *testing.T) {
 	line := flowview.Format(infra.EventRecord{
 		Event: "RunCompleted",
 		Payload: map[string]any{
-			"skill": "pre_market", "session_id": "sess-1", "status": "completed", "verdict": "pass",
+			"skill": "premarket_stock", "session_id": "sess-1", "status": "completed", "verdict": "pass",
 		},
 	})
-	if !strings.Contains(line, "Skill 完成") || !strings.Contains(line, "pre_market") {
+	if !strings.Contains(line, "Skill 完成") || !strings.Contains(line, "premarket_stock") {
 		t.Fatalf("got %q", line)
 	}
 }

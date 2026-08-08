@@ -38,10 +38,10 @@
 
 | 项目 | 值 |
 |------|-----|
-| 盘前 report_id | {{pre_market_report_id}} |
+| 盘前 report_id | {{stock_premarket_report_id}} |
 | 盘前 result | {{pre_result}} |
 | 今日 session_bias | {{session_bias}} |
-| 对照 vs_pre_market | {{vs_pre_market}} |
+| 对照 vs_stock_premarket | {{vs_stock_premarket}} |
 
 ---
 

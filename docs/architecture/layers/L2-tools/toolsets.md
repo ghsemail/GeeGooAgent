@@ -26,7 +26,7 @@
 
 Chat 切换：`/toolsets market_data,research` · `/toolsets default` · `/toolsets prompt_template`（高级）
 
-**workflow 独占（7，默认不进 chat）**：`get_report_bot_codes`、`create_pre_market_report`、`save_local_report`、`write_execution_log`、`read_working_state`、`recall_yesterday_summary`、`list_today_post_market_reports`。
+**workflow 独占（7，默认不进 chat）**：`get_report_bot_codes`、`create_stock_premarket_report`、`save_local_report`、`write_execution_log`、`read_working_state`、`recall_yesterday_summary`、`list_today_stock_postmarket_reports`。
 
 **workflow 共享（1）**：`get_bot_yesterday_attitude`（同时在 `report_query`，默认 chat 可用）。
 
@@ -67,14 +67,14 @@ Workflow（`geegoo run`）不按 toolset 过滤，步骤在 `workflow/premarket.
 
 | Skill Pack | Tool 组 | Phase |
 |------------|---------|-------|
-| `pre_market` | 感知+分析+报告 workflow | 1 |
-| `post_market` | pre 子集 + post 报告 | 2 |
+| `premarket_market` | 感知+分析+报告 workflow | 1 |
+| `postmarket_stock` | pre 子集 + post 报告 | 2 |
 | `intraday` | 持仓 + intraday 报告 | 3 |
 | `on_demand_analysis` | market 核心 | 4 |
 | `strategy` | §2.3 策略 | 5 |
 | `bot_manager` | Bot CRUD + logs | 6 |
 
-manifest 白名单：`skills/<skill>/manifest.yaml`（`pre_market` / `intraday` / `post_market`）。Skill 文档 → [L5 skills](../L5-application/skills.md)。
+manifest 白名单：`skills/<skill>/manifest.yaml`（`premarket_market` / `intraday` / `postmarket_stock`）。Skill 文档 → [L5 skills](../L5-application/skills.md)。
 
 ## 扩展：新增 Tool
 

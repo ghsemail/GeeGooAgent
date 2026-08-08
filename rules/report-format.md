@@ -1,10 +1,10 @@
 # 盘前报告格式与 API 校验
 
-## 市场盘前 (`pre_market`)
+## 市场盘前 (`premarket_market`)
 
-**Skill:** `pre_market` — 单次运行一个市场（CN/HK/US），每日每市场全局 **1 份**。
+**Skill:** `premarket_market` — 单次运行一个市场（CN/HK/US），每日每市场全局 **1 份**。
 
-**API:** `create_market_pre_market_report`
+**API:** `create_market_premarket_report`
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -16,23 +16,23 @@
 | `confidence` | string | 可选，`high` / `medium` / `low` |
 | `report_date` | string | 可选，`YYYY-MM-DD`，默认当天 |
 
-**模板:** `skills/pre_market/template.md` — 仅当前市场指数 + 当前市场新闻 + 市场综合预判。
+**模板:** `skills/premarket_market/template.md` — 仅当前市场指数 + 当前市场新闻 + 市场综合预判。
 
-**LLM 合成:** 在 `save_local_report` / `create_market_pre_market_report` 前，用指数与新闻证据 + 模板生成完整 `report`，并输出 `result` / `confidence` / `summary`。LLM 不可用或失败时回退规则草稿。
+**LLM 合成:** 在 `save_local_report` / `create_market_premarket_report` 前，用指数与新闻证据 + 模板生成完整 `report`，并输出 `result` / `confidence` / `summary`。LLM 不可用或失败时回退规则草稿。
 
 **本地留档:**
 
 ```text
-{workspace_root}/reports/<YYYYMMDD>/market-<MARKET>-market-premarket.md
+{workspace_root}/reports/<YYYYMMDD>/market-<MARKET>-market_premarket.md
 ```
 
 ---
 
-## 个股盘前 (`pre_market_stock`)
+## 个股盘前 (`premarket_stock`)
 
-**Skill:** `pre_market_stock` — 引用市场报告后，为 attitude 订阅标的逐股生成报告。
+**Skill:** `premarket_stock` — 引用市场报告后，为 attitude 订阅标的逐股生成报告。
 
-### create_pre_market_report 必填字段
+### create_stock_premarket_report 必填字段
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -47,15 +47,15 @@
 | `reason` | string | 判定依据（≥80字，含具体参数引用），非空 |
 | `suggestion` | string | `buy` / `sell` / `hold` |
 | `report` | string | 报告原文，非空 |
-| `market_pre_market_report_id` | string | 关联当日市场盘前报告 ID |
+| `market_premarket_report_id` | string | 关联当日市场盘前报告 ID |
 
 建议同时提供：`summary`、`support`、`resistance`。
 
 ### 报告模板（七章）
 
-模板文件：`skills/pre_market_stock/template.md`
+模板文件：`skills/premarket_stock/template.md`
 
-1. **市场背景** — 引用 `get_market_pre_market_report`，不重复三市场指数
+1. **市场背景** — 引用 `get_market_premarket_report`，不重复三市场指数
 2. **个股新闻**
 3. **资金流向与分布**（**必须有定量分析结论**）
 4. **周线技术分析**（均线/支撑/阻力/趋势；RSI/MACD 无数据填「暂无」）

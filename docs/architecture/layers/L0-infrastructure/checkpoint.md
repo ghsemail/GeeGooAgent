@@ -12,7 +12,7 @@ Step 级快照：**Step87 API 超时 → 从 Step87 恢复**，无需从 Step1 �
   "task_id": "sess-abc",
   "step": 87,
   "status": "running",
-  "skill": "pre_market",
+  "skill": "stock_premarket",
   "plan_snapshot": "working summary text",
   "memory_snapshot_ref": "working/sess-abc.json",
   "messages_tail_ref": "sessions/sess-abc-archive-087.json",

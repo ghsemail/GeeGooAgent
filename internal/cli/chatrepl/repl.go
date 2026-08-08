@@ -529,7 +529,7 @@ func (r *Repl) handleSlash(line string) bool {
 	case "/reply":
 		r.handleReplyDisplay("/reply", args)
 	case "/run":
-		skill := "pre_market"
+		skill := "premarket_stock"
 		if len(args) > 0 {
 			skill = args[0]
 		}

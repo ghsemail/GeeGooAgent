@@ -62,7 +62,7 @@ src/geegoo/
 ### 3.1 必须使用 Pydantic v2 的场景
 
 - Tool 入参 / 出参 schema
-- `create_pre_market_report` 请求体
+- `create_stock_premarket_report` 请求体
 - `PreMarketWorking` 等工作状态
 - LLM 结构化输出（`llm_tasks`）
 

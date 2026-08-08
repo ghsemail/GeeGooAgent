@@ -61,16 +61,16 @@ type BotYesterdayAttitude struct {
 	Found          bool   `json:"-"`
 }
 
-// PreMarketReportResult from /createPreMarketReport.
-type PreMarketReportResult struct {
+// StockPremarketReportResult from /createStockPremarketReport.
+type StockPremarketReportResult struct {
 	ReportID string `json:"report_id"`
 }
 
 // DailyReportsData from /getStockDailyReports.
 type DailyReportsData struct {
-	PreMarket  []map[string]any `json:"pre_market"`
-	Intraday   []map[string]any `json:"intraday"`
-	PostMarket []map[string]any `json:"post_market"`
+	PreMarket  []map[string]any `json:"stock_premarket"`
+	Intraday   []map[string]any `json:"stock_intraday"`
+	PostMarket []map[string]any `json:"stock_postmarket"`
 }
 
 // SearchCodeItem from /searchCode.

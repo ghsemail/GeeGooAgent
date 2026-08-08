@@ -13,7 +13,7 @@ import (
 
 func TestBuildMarketReportContentCN(t *testing.T) {
 	t.Parallel()
-	w := memory.NewPreMarketWorking("s1", "pre_market")
+	w := memory.NewPreMarketWorking("s1", "premarket_market")
 	w.Market = "CN"
 	w.MarketContext.IndexAnalysisRefs = map[string]string{
 		"000001.SH": "上证偏强，量能温和放大",
@@ -37,7 +37,7 @@ func TestSupervisorMarketPreMarketPass(t *testing.T) {
 	date := "2026-08-08"
 	market := "CN"
 	eng := workflow.NewEngine(dir, workflow.DefaultMarketPreMarketChecks())
-	w := memory.NewPreMarketWorking("s1", "pre_market")
+	w := memory.NewPreMarketWorking("s1", "premarket_market")
 	w.Phase = "done"
 	w.Market = market
 	w.MarketReportID = "mkt-1"
@@ -47,7 +47,7 @@ func TestSupervisorMarketPreMarketPass(t *testing.T) {
 	if err := os.MkdirAll(mdDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	mdPath := filepath.Join(mdDir, "market-"+market+"-market-premarket.md")
+	mdPath := filepath.Join(mdDir, "market-"+market+"-market_premarket.md")
 	if err := os.WriteFile(mdPath, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestSupervisorMarketPreMarketRecoverableMissingReportID(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	eng := workflow.NewEngine(dir, workflow.DefaultMarketPreMarketChecks())
-	w := memory.NewPreMarketWorking("s2", "pre_market")
+	w := memory.NewPreMarketWorking("s2", "premarket_market")
 	w.Phase = "done"
 	w.Market = "HK"
 	w.MarketContext.IndicesDone = true

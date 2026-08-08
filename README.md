@@ -62,7 +62,7 @@ TTY 下 `geegoo chat` 默认进入 Hermes 风格 Bubble Tea TUI：
 | `geegoo doctor` | Check config, MCP connectivity, and LLM readiness. |
 | `geegoo update` | Pull the latest code and rebuild the Go binary. |
 | `geegoo chat` | Interactive ReAct chat. TTY 默认 Bubble Tea TUI（思考/工具可折叠）；`--cli` 旧界面；`--tui` 强制 TUI。 |
-| `geegoo run <skill>` | Run a skill workflow (e.g. `pre_market`). See `geegoo skills list`. |
+| `geegoo run <skill>` | Run a skill workflow (e.g. `premarket_market`). See `geegoo skills list`. |
 | `geegoo resume --session <id>` | Resume a checkpointed workflow (idempotent by step key). |
 | `geegoo migrate [--dry-run]` | Migrate legacy file-based chat sessions to SQLite. |
 | `geegoo skills list` | List registered skills. |
@@ -132,7 +132,7 @@ sudo systemctl start geegoo-agent-pre-market.service
 journalctl -u geegoo-agent-pre-market.service -n 30 --no-pager
 ```
 
-The timer runs `geegoo run pre_market` at 08:00 Asia/Shanghai on weekdays.
+The timer runs `geegoo run premarket_market` at 08:00 Asia/Shanghai on weekdays.
 
 ## Verification
 
@@ -153,7 +153,7 @@ internal/
   tools/        registry, contract, approval, catalog, bespoke
   session/      (named chatsession/ today) SQLite + FTS5 session store
   memory/       working memory + EvidenceStore (SQLite)
-  workflow/     runner, pre_market steps, supervisor, errors
+  workflow/     runner, premarket_market steps, supervisor, errors
   skills/       manifest-driven skill registry
   scheduler/    in-process cron + supervisor-driven retry
   report/       LLM evidence-only synthesis (result/confidence stay rule-based)
@@ -171,7 +171,7 @@ Key capabilities delivered in P1–P8:
 - **Prompt stability**: system message stays byte-identical across turns; tool activity injected as dynamic user-side context → DeepSeek prefix cache friendly.
 - **Interruptible**: `context.Context` threaded through provider/gateway/tools/loop; Ctrl+C aborts in-flight LLM + tool calls.
 - **Supervisor + idempotent resume**: post-run verdict (pass/recoverable/terminal); resume skips by step key, not step number; recoverable errors auto-retry once.
-- **Skill registry**: `geegoo run <skill>` dispatches via manifest; intraday/post_market placeholders registered.
+- **Skill registry**: `geegoo run <skill>` dispatches via manifest; intraday/postmarket_stock placeholders registered.
 - **LLM report synthesis**: LLM writes reason/suggestion/summary strictly from evidence; result/confidence stay rule-based so it cannot flip a decision.
 - **Tool contracts**: `Result.Meta`, empty-success detection (code=100 but empty → Skip), approval gate for mutating tools, fixture replay tests.
 - **In-process scheduler**: cron-driven skill execution with exponential-backoff retry on non-pass verdicts.

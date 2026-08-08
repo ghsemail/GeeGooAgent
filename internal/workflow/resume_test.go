@@ -9,7 +9,7 @@ import (
 
 func TestStepKeyAndCompletionHelpers(t *testing.T) {
 	t.Parallel()
-	w := memory.NewPreMarketWorking("s1", "pre_market")
+	w := memory.NewPreMarketWorking("s1", "premarket_market")
 	if workflow.IsStepCompleteForTest(w, "00700.HK/weekly_analysis") {
 		t.Fatal("should not be complete initially")
 	}

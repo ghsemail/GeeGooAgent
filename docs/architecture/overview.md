@@ -71,8 +71,8 @@ Kernel 与 Cognition 分离、Memory port 与 Session SSOT 分离 → [agent-run
         ▼                 ▼                 ▼
 ┌───────────────┐ ┌───────────────┐ ┌───────────────────────────────┐
 │ cognition     │ │ runtime       │ │ workflow                      │
-│ Ranker        │ │ Session       │ │ pre_market / intraday /       │
-│ Evaluator     │ │ Executor      │ │ post_market + Supervisor      │
+│ Ranker        │ │ Session       │ │ premarket_market / intraday /       │
+│ Evaluator     │ │ Executor      │ │ postmarket_stock + Supervisor      │
 │ PlanPolicy    │ │ events        │ └───────────────────────────────┘
 │ (+Advisor opt)│ └───────────────┘
 └───────┬───────┘
@@ -113,8 +113,8 @@ Kernel 与 Cognition 分离、Memory port 与 Session SSOT 分离 → [agent-run
 ### Pre-market Workflow
 
 ```text
-geegoo run pre_market
-  → App.RunSkill("pre_market")（从 skills registry 查 Spec）
+geegoo run premarket_market
+  → App.RunSkill("stock_premarket")（从 skills registry 查 Spec）
   → Workflow.Run(phaseA, perStock)
     → 每步 processStep：Execute → Working.Apply → write_execution_log → checkpoint
     → 按 CompletedStepKeys 幂等跳过（resume 不因 bot 列表变化而错位）
@@ -123,14 +123,14 @@ geegoo run pre_market
   → 报告生成：report.Synthesizer（CallMeta TaskSynthesis，经 Policy → Gateway）
     → result/confidence 规则锁定；reason/suggestion/summary 由 LLM 综合
     → LLM 失败回退规则版，不阻塞
-  → create_pre_market_report 入库 + save_local_report 留档
+  → create_stock_premarket_report 入库 + save_local_report 留档
 ```
 
 ### Scheduler 任务
 
 ```text
 geegoo scheduler run
-  → LoadJobs(jobs.json)（默认 pre_market 工作日 08:00）
+  → LoadJobs(jobs.json)（默认 premarket_market 工作日 08:00）
   → robfig/cron 注册 enabled jobs
   → tick → runJob → App.RunSkill(skill) → supervisor verdict
   → pass：不动
@@ -209,7 +209,7 @@ POST /v1/chat/completions（Bearer + X-MCP-Token）
 
 ### Skills
 
-`internal/skills/registry.go` + `loader.go`：`geegoo run <skill>` 从 registry 查 Spec。`pre_market`、`intraday`、`post_market` 均已注册步骤与资源目录。
+`internal/skills/registry.go` + `loader.go`：`geegoo run <skill>` 从 registry 查 Spec。`premarket_market`、`intraday`、`postmarket_stock` 均已注册步骤与资源目录。
 
 详见 [layers/L5-application/skills.md](./layers/L5-application/skills.md)。Tool 体系见 [layers/L2-tools/README.md](./layers/L2-tools/README.md)。
 
@@ -297,11 +297,11 @@ GeeGooAgent 能力由 **Skill（任务包）** 与 **Tool（原子 API）** 两�
 | 层 | 数量 | 文档 |
 |----|------|------|
 | 已注册 Tool | **82** | [layers/L2-tools/tools-status.md](./layers/L2-tools/tools-status.md) |
-| 内置 Skill | 3（pre_market 完整） | [layers/L5-application/skills.md](./layers/L5-application/skills.md) |
+| 内置 Skill | 3（premarket_market 完整） | [layers/L5-application/skills.md](./layers/L5-application/skills.md) |
 | Chat toolset | 6 组 | [layers/L2-tools/toolsets.md](./layers/L2-tools/toolsets.md) |
 
 - **Chat**：LLM 经 ReAct 调用 toolset 白名单内 Tool  
-- **Workflow**：`geegoo run pre_market` 硬编码步骤  
+- **Workflow**：`geegoo run premarket_market` 硬编码步骤  
 
 Tool 文档入口 → **[layers/L2-tools/README.md](./layers/L2-tools/README.md)**
 

@@ -1,12 +1,12 @@
 ---
-name: post_market
+name: postmarket_stock
 description: Post-market session summary reports on trading days.
 version: "1.0.0"
 ---
 
-# post_market Skill Pack
+# postmarket_stock Skill Pack
 
-Scheduled post-market workflow per geegoo `post-market-workflow.md`. `session_bias` and `vs_pre_market` are computed in Go, not by LLM.
+Scheduled post-market workflow per geegoo `post-market-workflow.md`. `session_bias` and `vs_stock_premarket` are computed in Go, not by LLM.
 
 ## Assets
 
@@ -19,6 +19,6 @@ Scheduled post-market workflow per geegoo `post-market-workflow.md`. `session_bi
 ## Run
 
 ```bash
-geegoo run post_market --config config.json
-geegoo run post_market --dry-run
+geegoo run postmarket_stock --config config.json
+geegoo run postmarket_stock --dry-run
 ```

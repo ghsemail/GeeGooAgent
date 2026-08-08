@@ -15,15 +15,15 @@ description: 写入报告、保存报告、创建盘中报告、创建盘后报�
 |----------|-----|
 | 查已有报告 | `report-lookup` → `report_query` |
 | Chat 写入/修改报告正文 | **本 playbook** → `report_write` |
-| 自动生成完整盘前流水线 | `geegoo run pre_market`（**不要**在 chat 调 `create_pre_market_report`） |
+| 自动生成完整盘前流水线 | `geegoo run premarket_market`（**不要**在 chat 调 `create_stock_premarket_report`） |
 
 ## 可写范围
 
 | 类型 | create | update | delete |
 |------|--------|--------|--------|
-| 盘中 | `create_intraday_report` ✅ | `update_intraday_report` | `delete_intraday_report` |
-| 盘后 | `create_post_market_report` ✅ | `update_post_market_report` | `delete_post_market_report` |
-| 盘前 | ❌ Chat 无 create | `update_pre_market_report` | `delete_pre_market_report` |
+| 盘中 | `create_stock_intraday_report` ✅ | `update_intraday_report` | `delete_intraday_report` |
+| 盘后 | `create_stock_postmarket_report` ✅ | `update_stock_postmarket_report` | `delete_stock_postmarket_report` |
+| 盘前 | ❌ Chat 无 create | `update_stock_premarket_report` | `delete_stock_premarket_report` |
 
 ## 标准流程（新建盘中/盘后）
 
@@ -33,7 +33,7 @@ description: 写入报告、保存报告、创建盘中报告、创建盘后报�
    - 可选：`fetch_stock_news`、`get_capital_flow`
    - 将分析整理为 Markdown（符合 SOUL：## 标题、列表，无宽表格）
 3. **向用户展示摘要** — 确认类型（盘中/盘后）、日期、正文要点
-4. **用户批准后写入** — `create_intraday_report` 或 `create_post_market_report`：
+4. **用户批准后写入** — `create_stock_intraday_report` 或 `create_stock_postmarket_report`：
    - `code`、`stock_name` 必填
    - `report_date` 可选，默认今天（`YYYY-MM-DD`）
    - `content` = 报告正文 markdown
@@ -41,21 +41,21 @@ description: 写入报告、保存报告、创建盘中报告、创建盘后报�
 
 ## 标准流程（修改已有）
 
-1. `get_pre_market_reports` / `get_intraday_reports` / `get_post_market_reports`（或 `get_stock_daily_reports`）定位 **`report_id`**
+1. `get_stock_premarket_reports` / `get_intraday_reports` / `get_stock_postmarket_reports`（或 `get_stock_daily_reports`）定位 **`report_id`**
 2. 展示变更 diff 要点 → 用户确认
 3. `update_*_report`（`report_id` + `content`）
 
 ## 硬规则
 
 - 所有 create/update/delete 须 **用户明确批准**
-- **禁止**在 interactive chat 调用 `create_pre_market_report`（会被拦截；盘前新建仅 workflow）
+- **禁止**在 interactive chat 调用 `create_stock_premarket_report`（会被拦截；盘前新建仅 workflow）
 - 写入前尽量先查是否已有同日同标的报告，避免重复（`list_today_*` / `get_*_reports`）
 - `content` 须完整 markdown，不要只写一句话占位
 
 ## 反模式
 
 - 未生成/未确认正文就 create
-- 把「帮我跑盘前自动化」当成 create_pre_market_report
+- 把「帮我跑盘前自动化」当成 create_stock_premarket_report
 - 用 `save_local_report` 代替 API 落库（`save_local_report` 仅 workflow 本地留档）
 
 ## 输出

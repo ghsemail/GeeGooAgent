@@ -52,6 +52,6 @@ func TestIntradayPerStockStepsNonEmpty(t *testing.T) {
 
 func TestPostMarketPerStockStepsNonEmpty(t *testing.T) {
 	if len(workflow.PostMarketPerStockSteps()) == 0 {
-		t.Fatal("post_market steps empty")
+		t.Fatal("postmarket_stock steps empty")
 	}
 }

@@ -58,9 +58,9 @@
 | Phase | 主题 | 状态 | 说明 |
 |-------|------|------|------|
 | 0 | 平台内核 | ✅ | 见上表 |
-| 1 | 盘前 `pre_market` | ✅ | `workflow/premarket.go` + `skills/pre_market/` |
-| 2 | 盘后 `post_market` | ✅ | `workflow/postmarket.go` + `skills/post_market/` |
-| 3 | 盘中 `intraday` | ✅ | `workflow/intraday.go` + `skills/intraday/`；富途三接口已接通 |
+| 1 | 盘前 `premarket_market` | ✅ | `workflow/premarket.go` + `skills/premarket_market/` |
+| 2 | 盘后 `postmarket_stock` | ✅ | `workflow/postmarket.go` + `skills/postmarket_stock/` |
+| 3 | 盘中 `intraday` | ✅ | `workflow/intraday.go` + `skills/intraday_stock/`；富途三接口已接通 |
 | 4 | 按需分析（chat） | ⚠️ | `market` toolset + ReAct；无独立 Skill 包 |
 | 5 | 策略 | ✅ | Grid/DCA/MCP 分析 LLM；loopback 原生 Go 回测 |
 | 6 | Bot / Reminder 管理 | ⚠️ | CRUD ✅ + schema/prompt；GeeGooBot 无 scheduler |
@@ -72,9 +72,9 @@
 
 | Skill | 注册 | 步骤 | 资源目录 | 状态 |
 |-------|------|------|----------|------|
-| `pre_market` | ✅ | PhaseA + PerStock | `skills/pre_market/` | ✅ |
-| `intraday` | ✅ | PerStock + hourly 分析 | `skills/intraday/` | ✅ |
-| `post_market` | ✅ | PhaseB + 3× hourly | `skills/post_market/` | ✅ |
+| `premarket_market` | ✅ | PhaseA + PerStock | `skills/premarket_market/` | ✅ |
+| `intraday` | ✅ | PerStock + hourly 分析 | `skills/intraday_stock/` | ✅ |
+| `postmarket_stock` | ✅ | PhaseB + 3× hourly | `skills/postmarket_stock/` | ✅ |
 
 ---
 
@@ -100,7 +100,7 @@
 | `get_mcp_analysis` | 缺 `period` → 400 | 先 `get_single_prompt_template`，确认 `period` |
 | `get_bot_yesterday_attitude` | 缺 `bot_id` | 先 list 对应 Bot，让用户指定 |
 | `get_stock_daily_reports` | 缺 `report_date` | 向用户确认日期 |
-| `create_pre_market_report` 等 | 缺 `stock_name` 等 | report_workflow 🔒；逐项向用户确认 |
+| `create_stock_premarket_report` 等 | 缺 `stock_name` 等 | report_workflow 🔒；逐项向用户确认 |
 
 ### 已知降级（⚠️）
 
@@ -117,7 +117,7 @@
 
 | 原 Tool | 处置 | 说明 |
 |---------|------|------|
-| `send_feishu_summary` | **待办，非 L2 Tool** | 当前实现为 Agent 本地直连 webhook，未走 GeeGooBot；`pre_market` manifest 未纳入；Notify Gateway（GeeGooBot `internal/notify`）就绪后以 `send_notification` 或 workflow 固定步骤恢复 |
+| `send_feishu_summary` | **待办，非 L2 Tool** | 当前实现为 Agent 本地直连 webhook，未走 GeeGooBot；`premarket_market` manifest 未纳入；Notify Gateway（GeeGooBot `internal/notify`）就绪后以 `send_notification` 或 workflow 固定步骤恢复 |
 
 **Notify Gateway 待办（与 scheduler 并列，整体切换前实现）：**
 

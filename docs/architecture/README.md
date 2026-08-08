@@ -69,7 +69,7 @@ architecture/
 | 能力 | 状态 |
 |------|------|
 | Agent OS（Cognition / Policy / Memory port） | ✅ |
-| `pre_market` / `intraday` / `post_market` workflow | ✅ |
+| `premarket_market` / `intraday` / `postmarket_stock` workflow | ✅ |
 | Chat + TUI + 压缩 + recall | ✅ |
 | 82 Tools | ✅（部分 ⚠️，见 tools-status） |
 | SQLite + Evidence | ✅ |

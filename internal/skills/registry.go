@@ -1,6 +1,6 @@
 // Package skills provides manifest-driven skill registration and lookup.
 //
-// A Skill is a named, runnable workflow (e.g. pre_market) with a fixed set
+// A Skill is a named, runnable workflow (e.g. premarket_market) with a fixed set
 // of phase A and per-stock phase B steps, a report template reference, and
 // supervisor checks. Skills are registered in Go (the skills/*/manifest.yaml
 // files remain the human-readable source of truth) so that `geegoo run <skill>`

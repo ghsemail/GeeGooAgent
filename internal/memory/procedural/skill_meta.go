@@ -38,10 +38,10 @@ func ClassifyPath(path string) Kind {
 		return KindExtension
 	case strings.Contains(p, "/playbooks/"):
 		return KindPlaybook
-	case strings.Contains(p, "/skills/pre_market/"), strings.Contains(p, "skills/pre_market/"),
-		strings.Contains(p, "/skills/pre_market_stock/"), strings.Contains(p, "skills/pre_market_stock/"),
-		strings.Contains(p, "/skills/intraday/"), strings.Contains(p, "skills/intraday/"),
-		strings.Contains(p, "/skills/post_market/"), strings.Contains(p, "skills/post_market/"):
+	case strings.Contains(p, "/skills/premarket_market/"), strings.Contains(p, "skills/premarket_market/"),
+		strings.Contains(p, "/skills/premarket_stock/"), strings.Contains(p, "skills/premarket_stock/"),
+		strings.Contains(p, "/skills/intraday_stock/"), strings.Contains(p, "skills/intraday_stock/"),
+		strings.Contains(p, "/skills/postmarket_stock/"), strings.Contains(p, "skills/postmarket_stock/"):
 		return KindWorkflow
 	case strings.Contains(p, "/.geegoo/") && strings.Contains(p, "/skills/"):
 		return KindUser
@@ -60,10 +60,10 @@ func ClassifyProvenance(path string) Provenance {
 		return ProvenanceOptional
 	case strings.Contains(p, "/playbooks/"):
 		return ProvenanceCore
-	case strings.Contains(p, "/skills/pre_market/"), strings.Contains(p, "skills/pre_market/"),
-		strings.Contains(p, "/skills/pre_market_stock/"), strings.Contains(p, "skills/pre_market_stock/"),
-		strings.Contains(p, "/skills/intraday/"), strings.Contains(p, "skills/intraday/"),
-		strings.Contains(p, "/skills/post_market/"), strings.Contains(p, "skills/post_market/"):
+	case strings.Contains(p, "/skills/premarket_market/"), strings.Contains(p, "skills/premarket_market/"),
+		strings.Contains(p, "/skills/premarket_stock/"), strings.Contains(p, "skills/premarket_stock/"),
+		strings.Contains(p, "/skills/intraday_stock/"), strings.Contains(p, "skills/intraday_stock/"),
+		strings.Contains(p, "/skills/postmarket_stock/"), strings.Contains(p, "skills/postmarket_stock/"):
 		return ProvenanceCore
 	default:
 		return ProvenanceOther

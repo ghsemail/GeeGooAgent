@@ -10,7 +10,7 @@ func applyPreMarketFromDaily(w *PreMarketWorking, code string, data map[string]a
 	if !ok {
 		return
 	}
-	items, _ := data["pre_market"].([]any)
+	items, _ := data["stock_premarket"].([]any)
 	if len(items) == 0 {
 		return
 	}
@@ -82,11 +82,11 @@ func botLogSummary(data map[string]any) string {
 
 func finalizeDerivedFields(w *PreMarketWorking, ws *StockWorkspace, code string) {
 	switch w.Skill {
-	case "intraday":
+	case "stock_intraday":
 		if ws.IntradayResult == "" {
 			ws.IntradayResult, ws.IntradayConfidence = decideIntradayLocal(*ws)
 		}
-	case "post_market":
+	case "stock_postmarket":
 		if ws.SessionBias == "" {
 			ws.SessionBias = sessionBiasFromPct(ws.ChangePct)
 		}

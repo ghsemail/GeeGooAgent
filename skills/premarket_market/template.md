@@ -71,5 +71,5 @@
 
 ---
 
-**报告生成**: geegoo-agent · skill `pre_market`
+**报告生成**: geegoo-agent · skill `premarket_market`
 **下次更新**: 同市场下一交易日盘前 job

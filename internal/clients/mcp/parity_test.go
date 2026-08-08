@@ -133,9 +133,9 @@ func TestParityHighFrequencyTools(t *testing.T) {
 		}
 	})
 
-	t.Run("createPreMarketReport", func(t *testing.T) {
-		client := newTestClient(t, envelopeHandler("/createPreMarketReport", "create_pre_market_report_ok.json"))
-		result, err := client.CreatePreMarketReport(ctx, testMCPToken, map[string]any{
+	t.Run("createStockPremarketReport", func(t *testing.T) {
+		client := newTestClient(t, envelopeHandler("/createStockPremarketReport", "create_stock_premarket_report_ok.json"))
+		result, err := client.CreateStockPremarketReport(ctx, testMCPToken, map[string]any{
 			"code": "00700.HK", "stock_name": "腾讯控股", "bot_id": "bot-1",
 			"bot_name": "DCA", "bot_type": "DCA", "result": "long",
 			"confidence": "high", "reason": "test", "suggestion": "buy", "report": "report body",
@@ -301,7 +301,7 @@ func TestFixturesLoadable(t *testing.T) {
 		"get_capital_distribution_ok.json",
 		"get_bot_yesterday_attitude_ok.json",
 		"get_mcp_analysis_ok.json",
-		"create_pre_market_report_ok.json",
+		"create_stock_premarket_report_ok.json",
 		"get_stock_daily_reports_ok.json",
 	}
 	for _, name := range names {

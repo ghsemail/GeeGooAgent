@@ -14,7 +14,7 @@
 
 ### 默认任务
 
-`DefaultJobs()` 含 `pre_market` 交易日 08:00（可配置 `jobs.json`）。
+`DefaultJobs()` 含 `premarket_market` 交易日 08:00（可配置 `jobs.json`）。
 
 ### 运行语义
 
@@ -34,8 +34,8 @@
 ```json
 [
   {
-    "name": "pre_market",
-    "skill": "pre_market",
+    "name": "stock_premarket",
+    "skill": "stock_premarket",
     "cron": "0 8 * * 1-5",
     "enabled": true
   }

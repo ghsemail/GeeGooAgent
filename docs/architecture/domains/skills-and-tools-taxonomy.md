@@ -16,7 +16,7 @@
 ```text
 geegoo-mcp 文档领域（12）     →  GeeGoo Agent 归类
 ─────────────────────────────────────────────
-reports / trading           →  pre_market · intraday · post_market Skill
+reports / trading           →  premarket_market · intraday · postmarket_stock Skill
 analyst                       →  Tool 池（分析原子）
 common / trading              →  Tool 池（账户 · 行情 · 搜码）
 strategy                      →  Tool 池（策略 Skill）
@@ -32,9 +32,9 @@ bot / reminder ×6             →  Tool 池（bot_manager）
 
 | Skill | GeeGooBot 依据 | 触发 | Phase | 状态 |
 |-------|-----------------|------|-------|------|
-| **`pre_market`** | `geegoo-mcp/market/reports.md` §盘前 | timer 08:00 | 1 | ✅ 已实现 |
+| **`premarket_market`** | `geegoo-mcp/market/reports.md` §盘前 | timer 08:00 | 1 | ✅ 已实现 |
 | **`intraday`** | `geegoo-mcp/market/reports.md` §盘中交易决策 | webhook / 信号 | 3 | 📋 规划 |
-| **`post_market`** | `geegoo-mcp/market/reports.md` §盘后 | timer 17:00 | 2 | 📋 规划 |
+| **`postmarket_stock`** | `geegoo-mcp/market/reports.md` §盘后 | timer 17:00 | 2 | 📋 规划 |
 | **`on_demand_analysis`** | `geegoo-mcp/analyst/agent-analyst.md` | chat 按需 | 4 | 📋 规划 |
 | **`strategy`** | `geegoo-mcp/strategy/` | chat 按需 | 5 | 📋 规划 |
 | **`bot_manager`** | `geegoo-mcp/bot/` · `reminder/` | chat + ApprovalGate | 6 | 📋 规划 |
@@ -43,13 +43,13 @@ bot / reminder ×6             →  Tool 池（bot_manager）
 
 三者共用部分 Tool，但 **workflow、模板、supervisor、入库 API 不同**：
 
-| | 盘前 `pre_market` | 盘中 `intraday` | 盘后 `post_market` |
+| | 盘前 `premarket_market` | 盘中 `intraday` | 盘后 `postmarket_stock` |
 |--|-------------------|-----------------|---------------------|
 | **目的** | 开盘前综合预判 | 交易决策 / 执行摘要 | 收盘复盘 |
-| **核心写库** | `createPreMarketReport` | `createIntradayTradeDecisionReport` | `createPostMarketReport` |
+| **核心写库** | `createStockPremarketReport` | `createStockIntradayReport` | `createStockPostmarketReport` |
 | **bot_id** | 可选（来自监控列表） | **必填** | 可选 |
-| **典型独有数据** | 指数 hourly、市场新闻、周线 | 实时价、持仓、信号 | vs_pre_market 对照 |
-| **Phase 1 Tool 子集** | 见 `skills/pre_market/manifest.yaml` | 待定义 | 待定义 |
+| **典型独有数据** | 指数 hourly、市场新闻、周线 | 实时价、持仓、信号 | vs_stock_premarket 对照 |
+| **Phase 1 Tool 子集** | 见 `skills/premarket_market/manifest.yaml` | 待定义 | 待定义 |
 
 ### 2.2 非报告类 Skill（对话/按需）
 
@@ -72,14 +72,14 @@ Tool **不属于某个 Skill 独占**；Skill 通过 `manifest.yaml` 的 `tools:
 | Tool | API | 典型消费者 |
 |------|-----|------------|
 | `check_trading_day` | `/checkTradingDay` | 三个报告 Skill 前置 |
-| `get_report_bot_codes` | `/getReportBotCodes` | pre_market / post_market |
-| `get_capital_flow` | `/getCapitalFlow` | pre_market, post_market |
-| `get_capital_distribution` | `/getCapitalDistribution` | pre_market, post_market |
-| `get_bot_yesterday_attitude` | `/getBotYesterdayAttitude` | pre_market |
-| `create_pre_market_report` | `/createPreMarketReport` | **pre_market** |
-| `create_intraday_trade_decision_report` | `/createIntradayTradeDecisionReport` | **intraday**（未实现） |
-| `create_post_market_report` | `/createPostMarketReport` | **post_market**（未实现） |
-| `get_pre_market_reports` / update / delete | 3120 | 查询维护（Tool，非 Skill） |
+| `get_report_bot_codes` | `/getReportBotCodes` | premarket_market / postmarket_stock |
+| `get_capital_flow` | `/getCapitalFlow` | premarket_market, postmarket_stock |
+| `get_capital_distribution` | `/getCapitalDistribution` | premarket_market, postmarket_stock |
+| `get_bot_yesterday_attitude` | `/getBotYesterdayAttitude` | premarket_market |
+| `create_stock_premarket_report` | `/createStockPremarketReport` | **premarket_market** |
+| `create_stock_intraday_report` | `/createStockIntradayReport` | **intraday**（未实现） |
+| `create_stock_postmarket_report` | `/createStockPostmarketReport` | **postmarket_stock**（未实现） |
+| `get_stock_premarket_reports` / update / delete | 3120 | 查询维护（Tool，非 Skill） |
 
 ### 3.2 AgentAnalyst 分析原子 — **Tool，不是 Skill**
 
@@ -142,10 +142,10 @@ Phase 1 **scheduled Skill 不得暴露**上述 CRUD（见 `skills.md` Tool 过�
 
 | 任务 | 归属 Skill | 状态 |
 |------|------------|------|
-| `parse_weekly_analysis` | pre_market | ✅ |
-| `synthesize_pre_market_report` | pre_market | ✅ |
-| `parse_market_sentiment` | pre_market | 📋 |
-| （盘中/盘后合成） | intraday / post_market | 📋 |
+| `parse_weekly_analysis` | premarket_market | ✅ |
+| `synthesize_stock_premarket_report` | premarket_market | ✅ |
+| `parse_market_sentiment` | premarket_market | 📋 |
+| （盘中/盘后合成） | intraday / postmarket_stock | 📋 |
 
 ---
 
@@ -153,8 +153,8 @@ Phase 1 **scheduled Skill 不得暴露**上述 CRUD（见 `skills.md` Tool 过�
 
 | 原 Cursor Skill | 现 GeeGoo Agent |
 |-----------------|---------------|
-| **geegoo** 盘前 cron | → **`pre_market` Skill** + 一组 Market/News Tool |
-| **geegoo** 盘中/盘后（若有） | → **`intraday` / `post_market` Skill**（待建） |
+| **geegoo** 盘前 cron | → **`premarket_market` Skill** + 一组 Market/News Tool |
+| **geegoo** 盘中/盘后（若有） | → **`intraday` / `postmarket_stock` Skill**（待建） |
 | **geegoo** 技术分析问答 | → **`on_demand_analysis` Skill** + AgentAnalyst **Tool** |
 | **geegoo** 策略/回测 | → **`strategy` Skill** + Strategy **Tool** |
 | **geegoo** Bot CRUD | → **`bot_manager` Skill** + Bot **Tool** |
@@ -168,17 +168,17 @@ Phase 1 **scheduled Skill 不得暴露**上述 CRUD（见 `skills.md` Tool 过�
 
 ```
 skills/
-├── pre_market/          ← 唯一完整 Skill
+├── premarket_market/          ← 唯一完整 Skill
 ├── bundled/             ← 新闻脚本（非 Skill）
 │   ├── finance-news/
 │   ├── eastmoney-news/
 │   └── free-stock-global-quotes-news/
-└── (intraday, post_market, … 待建)
+└── (intraday, postmarket_stock, … 待建)
 
 src/geegoo/tools/    ← 16 个 Tool 全部注册，manifest 白名单过滤
 ```
 
-| 已注册 Tool | 在 pre_market workflow 中使用 |
+| 已注册 Tool | 在 premarket_market workflow 中使用 |
 |-------------|------------------------------|
 | 14 个 | ✅ |
 | `recall_yesterday_summary` | ❌ 仅注册 |
@@ -190,7 +190,7 @@ src/geegoo/tools/    ← 16 个 Tool 全部注册，manifest 白名单过滤
 
 ## 6. 推荐目录演进（消除「乱」）
 
-1. **新增 Skill 壳**：`skills/intraday/`、`skills/post_market/`（manifest + workflow 占位 + supervisor 占位）。
+1. **新增 Skill 壳**：`skills/intraday_stock/`、`skills/postmarket_stock/`（manifest + workflow 占位 + supervisor 占位）。
 2. **manifest 只列本 Skill 需要的 Tool**，不要复制 16 个全集。
 3. **tool-catalog.md** 表头增加列：`GeeGooBot 文档` | `默认归属 Skill` | `实现状态`。
 4. **bundled 保持不在 Skill 列表**，仅在 manifest `bundled:` 声明依赖。
@@ -201,13 +201,13 @@ src/geegoo/tools/    ← 16 个 Tool 全部注册，manifest 白名单过滤
 
 ```text
 问：用户要在 8:00 自动出一份盘前报告？
-答：Skill（pre_market）+ 若干 Tool
+答：Skill（premarket_market）+ 若干 Tool
 
 问：用户聊天说「帮我用周线模板分析腾讯」？
 答：on_demand Skill（或临时 workflow）+ get_mcp_analysis Tool
 
 问：新增「查询资金分布」能力？
-答：只加 Tool；被 pre_market / post_market 引用
+答：只加 Tool；被 premarket_market / postmarket_stock 引用
 
 问：新增「创建 DCA 机器人」？
 答：Tool + bot_manager Skill（交互式）；scheduled Skill 禁用

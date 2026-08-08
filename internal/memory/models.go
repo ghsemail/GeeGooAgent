@@ -57,11 +57,11 @@ type StockWorkspace struct {
 	ReportDate                 string  `json:"report_date,omitempty"`
 	PositionSummary            string  `json:"position_summary,omitempty"`
 	HasPosition                bool    `json:"has_position,omitempty"`
-	PreMarketResult            string  `json:"pre_market_result,omitempty"`
-	PreMarketConfidence        string  `json:"pre_market_confidence,omitempty"`
-	PreMarketReason            string  `json:"pre_market_reason,omitempty"`
-	PreMarketSuggestion        string  `json:"pre_market_suggestion,omitempty"`
-	PreMarketReportID          string  `json:"pre_market_report_id,omitempty"`
+	PreMarketResult            string  `json:"premarket_market_result,omitempty"`
+	PreMarketConfidence        string  `json:"premarket_market_confidence,omitempty"`
+	PreMarketReason            string  `json:"premarket_market_reason,omitempty"`
+	PreMarketSuggestion        string  `json:"premarket_market_suggestion,omitempty"`
+	PreMarketReportID          string  `json:"stock_premarket_report_id,omitempty"`
 	HourlyPriceAnalysis        string  `json:"hourly_price_analysis,omitempty"`
 	HourlySignalAnalysis       string  `json:"hourly_signal_analysis,omitempty"`
 	HourlyKlineAnalysis        string  `json:"hourly_kline_analysis,omitempty"`
@@ -73,7 +73,7 @@ type StockWorkspace struct {
 	BotLogSummary              string  `json:"bot_log_summary,omitempty"`
 	ChangePct                  float64 `json:"change_pct,omitempty"`
 	SessionBias                string  `json:"session_bias,omitempty"`
-	VsPreMarket                string  `json:"vs_pre_market,omitempty"`
+	VsPreMarket                string  `json:"vs_stock_premarket,omitempty"`
 }
 
 // PreMarketWorking is workflow working memory.

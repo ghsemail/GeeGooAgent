@@ -591,7 +591,7 @@ func (a *App) wireCompressor() { a.wireChatMemory() }
 // Skills is the registry of runnable skills (built-in + any registered at runtime).
 var DefaultSkills = skills.Default()
 
-// RunPreMarket executes the pre_market skill workflow.
+// RunPreMarket executes the premarket_market skill workflow.
 // Kept for backward compatibility; new callers should use RunSkill.
 func (a *App) RunPreMarket(skill string) (workflow.RunResult, error) {
 	return a.RunSkill(skill)
@@ -618,10 +618,10 @@ func (a *App) RunSkillContext(ctx context.Context, skill string, runOpts ...Skil
 	if len(runOpts) > 0 {
 		opts = runOpts[0]
 	}
-	if skill == "pre_market_stock" {
+	if skill == "premarket_stock" {
 		market := workflow.NormalizeMarket(opts.Market)
 		if market == "" {
-			return workflow.RunResult{}, fmt.Errorf("pre_market_stock requires market=CN|HK|US")
+			return workflow.RunResult{}, fmt.Errorf("premarket_stock requires market=CN|HK|US")
 		}
 		return a.runPreMarketStockForMarket(ctx, market)
 	}
@@ -634,16 +634,16 @@ func (a *App) RunSkillContext(ctx context.Context, skill string, runOpts ...Skil
 
 func (a *App) resolveSkillSteps(skill, market string) ([]workflow.Step, []workflow.Step, error) {
 	switch skill {
-	case "pre_market":
+	case "premarket_market":
 		m := workflow.NormalizeMarket(market)
 		if m == "" {
-			return nil, nil, fmt.Errorf("pre_market requires market=CN|HK|US")
+			return nil, nil, fmt.Errorf("premarket_market requires market=CN|HK|US")
 		}
 		return workflow.MarketPhaseSteps(m), nil, nil
-	case "pre_market_stock":
+	case "premarket_stock":
 		m := workflow.NormalizeMarket(market)
 		if m == "" {
-			return nil, nil, fmt.Errorf("pre_market_stock requires market=CN|HK|US")
+			return nil, nil, fmt.Errorf("premarket_stock requires market=CN|HK|US")
 		}
 		return workflow.StockPhaseASteps(m), workflow.PerStockSteps(), nil
 	default:
@@ -675,7 +675,7 @@ func (a *App) runSkillWithSteps(ctx context.Context, skill string, phaseA, perSt
 	}
 	workflow.SeedMarketWorking(working, opts.Market)
 	workflow.SeedReportDate(working, opts.ReportDate)
-	if skill == "intraday" {
+	if skill == "intraday_stock" {
 		in := workflow.IntradayInputFromEnv()
 		if opts.Intraday != nil {
 			in = *opts.Intraday
@@ -707,7 +707,7 @@ func (a *App) runPreMarketStockForMarket(ctx context.Context, market string) (wo
 	}
 	users, err := a.MCP.ListReportUsers(ctx, token, market)
 	if err != nil || len(users) == 0 {
-		return a.runSkillWithSteps(ctx, "pre_market_stock", workflow.StockPhaseASteps(market), workflow.PerStockSteps(), SkillRunOptions{Market: market, MCPToken: token})
+		return a.runSkillWithSteps(ctx, "premarket_stock", workflow.StockPhaseASteps(market), workflow.PerStockSteps(), SkillRunOptions{Market: market, MCPToken: token})
 	}
 	var last workflow.RunResult
 	var lastErr error
@@ -716,7 +716,7 @@ func (a *App) runPreMarketStockForMarket(ctx context.Context, market string) (wo
 		if userToken == "" {
 			continue
 		}
-		result, runErr := a.runSkillWithSteps(ctx, "pre_market_stock", workflow.StockPhaseASteps(market), workflow.PerStockSteps(), SkillRunOptions{
+		result, runErr := a.runSkillWithSteps(ctx, "premarket_stock", workflow.StockPhaseASteps(market), workflow.PerStockSteps(), SkillRunOptions{
 			Market:   market,
 			MCPToken: userToken,
 		})
@@ -865,7 +865,7 @@ func findProjectRoot() string {
 	}
 	dir := wd
 	for i := 0; i < 8; i++ {
-		if _, err := os.Stat(filepath.Join(dir, "skills", "pre_market", "manifest.yaml")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "skills", "premarket_market", "manifest.yaml")); err == nil {
 			return dir
 		}
 		parent := filepath.Dir(dir)

@@ -9,7 +9,7 @@ import (
 
 func TestWorkingStoreApplyReportBotCodesTypedSlice(t *testing.T) {
 	store := NewWorkingStore(infra.NewStateStore(t.TempDir()))
-	w, err := store.Create("run-bots", "pre_market")
+	w, err := store.Create("run-bots", "stock_premarket")
 	if err != nil {
 		t.Fatal(err)
 	}

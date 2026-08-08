@@ -30,8 +30,8 @@ GeeGoo Agent (Tool snake_case — 自动化 workflow / chat 编排)
 | --- | --- | --- | --- | --- |
 | common | 公共与账户 | 2 | [common.md](./common.md) | bot_manager（账户） |
 | trading | 行情与资金 | 10 | [market/trading-data.md](./market/trading-data.md) | 全场景 · workflow |
-| reports | 报告与 Workflow | 15 | [market/reports.md](./market/reports.md) | pre_market · intraday · post_market |
-| analyst | 分析与 Prompt 模板 | 8 | [analyst/agent-analyst.md](./analyst/agent-analyst.md) | pre_market · on_demand |
+| reports | 报告与 Workflow | 15 | [market/reports.md](./market/reports.md) | premarket_market · intraday · postmarket_stock |
+| analyst | 分析与 Prompt 模板 | 8 | [analyst/agent-analyst.md](./analyst/agent-analyst.md) | premarket_market · on_demand |
 | strategy | 策略生成与回测 | 3 | [strategy/README.md](./strategy/README.md) | strategy Skill |
 | dca_bot | DCA 交易 Bot | 5 | [bot/dca-bot.md](./bot/dca-bot.md) | bot_manager |
 | grid_bot | GRID 交易 Bot | 5 | [bot/grid-bot.md](./bot/grid-bot.md) | bot_manager |
@@ -47,7 +47,7 @@ GeeGoo Agent (Tool snake_case — 自动化 workflow / chat 编排)
 
 | HTTP | mcp_token | GeeGoo Agent Tool | Tool 类型 | geegoo Skill | Agent 场景 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `/getBotLogByType` | 是 | `get_bot_log_by_type` | http | 账户 · Bot 运行日志 | post_market · bot_manager |  |
+| `/getBotLogByType` | 是 | `get_bot_log_by_type` | http | 账户 · Bot 运行日志 | postmarket_stock · bot_manager |  |
 | `/getPosition` | 是 | `get_position` | http | 账户 · 持仓查询 | bot_manager |  |
 
 ## 行情与资金 (`trading`)
@@ -56,12 +56,12 @@ GeeGoo Agent (Tool snake_case — 自动化 workflow / chat 编排)
 
 | HTTP | mcp_token | GeeGoo Agent Tool | Tool 类型 | geegoo Skill | Agent 场景 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `/checkTradingDay` | 是 | `check_trading_day` | bespoke | Workflow · 交易日 | pre_market · post_market |  |
-| `/getBotYesterdayAttitude` | 是 | `get_bot_yesterday_attitude` | bespoke | Workflow · 盘前 | pre_market |  |
+| `/checkTradingDay` | 是 | `check_trading_day` | bespoke | Workflow · 交易日 | premarket_market · postmarket_stock |  |
+| `/getBotYesterdayAttitude` | 是 | `get_bot_yesterday_attitude` | bespoke | Workflow · 盘前 | premarket_market |  |
 | `/getBroker` | 是 | `get_broker` | http | Workflow · 盘中 | intraday |  |
-| `/getCapitalDistribution` | 是 | `get_capital_distribution` | bespoke | Workflow · 盘前 | pre_market |  |
-| `/getCapitalFlow` | 是 | `get_capital_flow` | bespoke | Workflow · 盘前 | pre_market |  |
-| `/getCurrentPrice` | 是 | `get_current_price` | bespoke | 行情 · 最新价 | pre_market · on_demand | 失败时 Agent 回退 /getTicker |
+| `/getCapitalDistribution` | 是 | `get_capital_distribution` | bespoke | Workflow · 盘前 | premarket_market |  |
+| `/getCapitalFlow` | 是 | `get_capital_flow` | bespoke | Workflow · 盘前 | premarket_market |  |
+| `/getCurrentPrice` | 是 | `get_current_price` | bespoke | 行情 · 最新价 | premarket_market · on_demand | 失败时 Agent 回退 /getTicker |
 | `/getIndexSignalForSkill` | 否 | `get_index_signals` | http | 行情 · 指标信号列表 | strategy · bot_manager |  |
 | `/getSignalCombinationForSkill` | 否 | `get_signal_combinations` | http | 行情 · 组合信号列表 | strategy · bot_manager |  |
 | `/getTicker` | 是 | `get_ticker` | http | Workflow · 盘中 | intraday · on_demand |  |
@@ -73,21 +73,21 @@ GeeGoo Agent (Tool snake_case — 自动化 workflow / chat 编排)
 
 | HTTP | mcp_token | GeeGoo Agent Tool | Tool 类型 | geegoo Skill | Agent 场景 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `/createIntradayTradeDecisionReport` | 是 | `create_intraday_report` | http | Workflow · 盘中决策报告 | intraday |  |
-| `/createPostMarketReport` | 是 | `create_post_market_report` | http | Workflow · 盘后报告 | post_market |  |
-| `/createPreMarketReport` | 是 | `create_pre_market_report` | bespoke | Workflow · 盘前报告 | pre_market |  |
-| `/deleteIntradayTradeDecisionReport` | 是 | `delete_intraday_report` | http | Workflow · 盘中决策报告 | intraday |  |
-| `/deletePostMarketReport` | 是 | `delete_post_market_report` | http | Workflow · 盘后报告 | post_market |  |
-| `/deletePreMarketReport` | 是 | `delete_pre_market_report` | http | Workflow · 盘前报告 | pre_market |  |
-| `/getIntradayTradeDecisionReports` | 是 | `get_intraday_reports` | http | Workflow · 盘中决策报告 | intraday |  |
-| `/getPostMarketReports` | 是 | `get_post_market_reports` | http | Workflow · 盘后报告 | post_market |  |
-| `/getPreMarketReports` | 是 | `get_pre_market_reports` | http | Workflow · 盘前报告 | pre_market |  |
-| `/getReportBotCodes` | 是 | `get_report_bot_codes` | bespoke | Workflow · 报告待分析标的 | pre_market · post_market | 推荐路径；与 /getUserBotCodes 同实现 |
-| `/getStockDailyReports` | 是 | `get_stock_daily_reports · list_today_reports` | bespoke | Workflow · 按日聚合查询 | pre_market · post_market | list_today_reports 幂等检查也走此接口 |
-| `/getUserBotCodes` | 是 | `get_report_bot_codes` | bespoke | Workflow · 报告待分析标的 | pre_market · post_market | Deprecated，请改用 /getReportBotCodes（避免与「查 Bot 列表」混淆） |
-| `/updateIntradayTradeDecisionReport` | 是 | `update_intraday_report` | http | Workflow · 盘中决策报告 | intraday |  |
-| `/updatePostMarketReport` | 是 | `update_post_market_report` | http | Workflow · 盘后报告 | post_market |  |
-| `/updatePreMarketReport` | 是 | `update_pre_market_report` | http | Workflow · 盘前报告 | pre_market |  |
+| `/createStockIntradayReport` | 是 | `create_stock_intraday_report` | http | Workflow · 盘中决策报告 | intraday |  |
+| `/createStockPostmarketReport` | 是 | `create_stock_postmarket_report` | http | Workflow · 盘后报告 | postmarket_stock |  |
+| `/createStockPremarketReport` | 是 | `create_stock_premarket_report` | bespoke | Workflow · 盘前报告 | premarket_market |  |
+| `/deleteStockIntradayReport` | 是 | `delete_intraday_report` | http | Workflow · 盘中决策报告 | intraday |  |
+| `/deleteStockPostmarketReport` | 是 | `delete_stock_postmarket_report` | http | Workflow · 盘后报告 | postmarket_stock |  |
+| `/deleteStockPremarketReport` | 是 | `delete_stock_premarket_report` | http | Workflow · 盘前报告 | premarket_market |  |
+| `/getStockIntradayReports` | 是 | `get_intraday_reports` | http | Workflow · 盘中决策报告 | intraday |  |
+| `/getStockPostmarketReports` | 是 | `get_stock_postmarket_reports` | http | Workflow · 盘后报告 | postmarket_stock |  |
+| `/getStockPremarketReports` | 是 | `get_stock_premarket_reports` | http | Workflow · 盘前报告 | premarket_market |  |
+| `/getReportBotCodes` | 是 | `get_report_bot_codes` | bespoke | Workflow · 报告待分析标的 | premarket_market · postmarket_stock | 推荐路径；与 /getUserBotCodes 同实现 |
+| `/getStockDailyReports` | 是 | `get_stock_daily_reports · list_today_reports` | bespoke | Workflow · 按日聚合查询 | premarket_market · postmarket_stock | list_today_reports 幂等检查也走此接口 |
+| `/getUserBotCodes` | 是 | `get_report_bot_codes` | bespoke | Workflow · 报告待分析标的 | premarket_market · postmarket_stock | Deprecated，请改用 /getReportBotCodes（避免与「查 Bot 列表」混淆） |
+| `/updateStockIntradayReport` | 是 | `update_intraday_report` | http | Workflow · 盘中决策报告 | intraday |  |
+| `/updateStockPostmarketReport` | 是 | `update_stock_postmarket_report` | http | Workflow · 盘后报告 | postmarket_stock |  |
+| `/updateStockPremarketReport` | 是 | `update_stock_premarket_report` | http | Workflow · 盘前报告 | premarket_market |  |
 
 ## 分析与 Prompt 模板 (`analyst`)
 
@@ -101,8 +101,8 @@ GeeGoo Agent (Tool snake_case — 自动化 workflow / chat 编排)
 | `/deleteEtfPromptTemplate` | 是 | `delete_etf_prompt_template` | http | 股票技术面分析 | on_demand |  |
 | `/editCompetitorPromptTemplate` | 是 | `edit_competitor_prompt_template` | http | 股票技术面分析 | on_demand |  |
 | `/editEtfPromptTemplate` | 是 | `edit_etf_prompt_template` | http | 股票技术面分析 | on_demand |  |
-| `/getMCPAnalysis` | 是 | `get_mcp_analysis` | bespoke | 股票技术面分析 | pre_market · on_demand |  |
-| `/getSinglePromptTemplate` | 是 | `get_single_prompt_template` | http | 股票技术面分析 | pre_market · on_demand |  |
+| `/getMCPAnalysis` | 是 | `get_mcp_analysis` | bespoke | 股票技术面分析 | premarket_market · on_demand |  |
+| `/getSinglePromptTemplate` | 是 | `get_single_prompt_template` | http | 股票技术面分析 | premarket_market · on_demand |  |
 
 ## 策略生成与回测 (`strategy`)
 
@@ -202,14 +202,14 @@ GeeGoo Agent (Tool snake_case — 自动化 workflow / chat 编排)
 
 | Tool | 类型 | geegoo Skill | Agent 场景 |
 | --- | --- | --- | --- |
-| `fetch_market_news` | local | finance-news Skill | pre_market |
-| `fetch_stock_news` | local | finance-news Skill | pre_market |
-| `save_local_report` | local | Workflow · 本地 Markdown | pre_market · post_market |
-| `send_feishu_summary` | local | Workflow · 通知 | pre_market |
-| `write_execution_log` | local | Workflow · 审计 | pre_market |
+| `fetch_market_news` | local | finance-news Skill | premarket_market |
+| `fetch_stock_news` | local | finance-news Skill | premarket_market |
+| `save_local_report` | local | Workflow · 本地 Markdown | premarket_market · postmarket_stock |
+| `send_feishu_summary` | local | Workflow · 通知 | premarket_market |
+| `write_execution_log` | local | Workflow · 审计 | premarket_market |
 | `recall` | local | chat 会话记忆 | chat |
-| `recall_yesterday_summary` | local | Workflow · 记忆 | pre_market |
-| `read_working_state` | local | Workflow · 状态 | pre_market |
+| `recall_yesterday_summary` | local | Workflow · 记忆 | premarket_market |
+| `read_working_state` | local | Workflow · 状态 | premarket_market |
 
 ---
 

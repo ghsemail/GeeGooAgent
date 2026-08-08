@@ -23,7 +23,7 @@ Persistent=true
 # geegoo-agent.service
 [Service]
 Type=oneshot
-ExecStart=/opt/geegoo-agent/venv/bin/geegoo-agent run pre_market
+ExecStart=/opt/geegoo-agent/venv/bin/geegoo-agent run premarket_market
 EnvironmentFile=/etc/geegoo-agent/env
 ```
 

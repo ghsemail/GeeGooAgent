@@ -20,7 +20,7 @@
 - Anthropic prompt caching 断点。
 - `ContextEngine` 插件 ABC / 无损 LCM。
 - 压缩中间轮次另存 archive 表（已选方案 A：直接写回，不保留完整中间原文）。
-- 确定性 `workflow` / `pre_market` 路径改造（不受影响）。
+- 确定性 `workflow` / `premarket_market` 路径改造（不受影响）。
 - 盘中 / 盘后 skill、scheduler 常驻（后续子项目）。
 
 > 对齐更新（2026-07-12）：在 **无 IM Gateway** 前提下，于每轮 `RunTurn` 开头增加 Hermes 同语义的 **85% session hygiene**（`hygiene_threshold`）；`context_length` 可按当前模型自动解析。

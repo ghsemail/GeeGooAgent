@@ -13,7 +13,7 @@ import (
 type Job struct {
 	Name        string `json:"name"`
 	Skill       string `json:"skill"`
-	Market      string `json:"market,omitempty"` // CN/HK/US for pre_market / pre_market_stock
+	Market      string `json:"market,omitempty"` // CN/HK/US for premarket_market / premarket_stock
 	Cron        string `json:"cron"`               // standard 5-field cron: "0 8 * * 1-5"
 	Prompt      string `json:"prompt"`             // optional prompt context injected into the run
 	Enabled     bool   `json:"enabled"`
@@ -67,19 +67,19 @@ func DefaultJobs() *JobsFile {
 	return &JobsFile{
 		Version: 1,
 		Jobs: []Job{
-			{Name: "pre_market_cn", Skill: "pre_market", Market: "CN", Cron: "0 8 * * 1-5",
+			{Name: "premarket_market_cn", Skill: "premarket_market", Market: "CN", Cron: "0 8 * * 1-5",
 				Enabled: true, Platform: "log"},
-			{Name: "pre_market_stock_cn", Skill: "pre_market_stock", Market: "CN", Cron: "10 8 * * 1-5",
+			{Name: "premarket_stock_cn", Skill: "premarket_stock", Market: "CN", Cron: "10 8 * * 1-5",
 				Enabled: true, Platform: "log"},
-			{Name: "pre_market_hk", Skill: "pre_market", Market: "HK", Cron: "0 9 * * 1-5",
+			{Name: "premarket_market_hk", Skill: "premarket_market", Market: "HK", Cron: "0 9 * * 1-5",
 				Enabled: true, Platform: "log"},
-			{Name: "pre_market_stock_hk", Skill: "pre_market_stock", Market: "HK", Cron: "10 9 * * 1-5",
+			{Name: "premarket_stock_hk", Skill: "premarket_stock", Market: "HK", Cron: "10 9 * * 1-5",
 				Enabled: true, Platform: "log"},
-			{Name: "post_market_weekday", Skill: "post_market", Cron: "0 17 * * 1-5",
+			{Name: "postmarket_stock_weekday", Skill: "postmarket_stock", Cron: "0 17 * * 1-5",
 				Enabled: true, Platform: "log"},
-			{Name: "pre_market_us", Skill: "pre_market", Market: "US", Cron: "0 21 * * 1-5",
+			{Name: "premarket_market_us", Skill: "premarket_market", Market: "US", Cron: "0 21 * * 1-5",
 				Enabled: true, Platform: "log"},
-			{Name: "pre_market_stock_us", Skill: "pre_market_stock", Market: "US", Cron: "10 21 * * 1-5",
+			{Name: "premarket_stock_us", Skill: "premarket_stock", Market: "US", Cron: "10 21 * * 1-5",
 				Enabled: true, Platform: "log"},
 		},
 	}

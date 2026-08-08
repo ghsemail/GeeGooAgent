@@ -42,7 +42,7 @@ func PerStockSteps() []Step {
 				"code": w.CurrentStock, "content": BuildReportContent(w, w.CurrentStock), "report_type": "premarket",
 			}
 		}},
-		{Name: "create_pre_market_report", Tool: "create_pre_market_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
+		{Name: "create_stock_premarket_report", Tool: "create_stock_premarket_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
 			return BuildCreateReportArgsContext(ctx, w, w.CurrentStock)
 		}},
 		{Name: "stock_complete", Tool: "write_execution_log", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
@@ -115,12 +115,12 @@ func buildReportContent(w *memory.PreMarketWorking, code string, v *verdict.Verd
 	return strings.Join(lines, "\n")
 }
 
-// BuildCreateReportArgs builds MCP createPreMarketReport body.
+// BuildCreateReportArgs builds MCP createStockPremarketReport body.
 func BuildCreateReportArgs(w *memory.PreMarketWorking, code string) map[string]any {
 	return BuildCreateReportArgsContext(context.Background(), w, code)
 }
 
-// BuildCreateReportArgsContext builds MCP createPreMarketReport body using ctx
+// BuildCreateReportArgsContext builds MCP createStockPremarketReport body using ctx
 // for optional LLM synthesis cancellation.
 func BuildCreateReportArgsContext(ctx context.Context, w *memory.PreMarketWorking, code string) map[string]any {
 	ws := w.Stocks[code]
@@ -168,7 +168,7 @@ func BuildCreateReportArgsContext(ctx context.Context, w *memory.PreMarketWorkin
 		"result": final.Result, "confidence": final.Confidence,
 		"reason": reason, "suggestion": suggestion, "report": reportBody, "summary": summary,
 		"evidence_refs": evidenceIDs(evidence),
-		"market_pre_market_report_id": strings.TrimSpace(w.MarketReportID),
+		"market_premarket_report_id": strings.TrimSpace(w.MarketReportID),
 	}
 }
 

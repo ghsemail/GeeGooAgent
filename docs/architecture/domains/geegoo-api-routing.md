@@ -22,15 +22,15 @@
 | Bot 运行日志 | `/getBotLogByType` | `get_bot_log_by_type` |
 | 技术分析 | `/getMCPAnalysis` | `get_mcp_analysis` |
 | 按日聚合报告 | `/getStockDailyReports` | `get_stock_daily_reports` |
-| 创建盘前报告 | `/createPreMarketReport` | `create_pre_market_report` |
+| 创建盘前报告 | `/createStockPremarketReport` | `create_stock_premarket_report` |
 
 ## 报告查询优先级
 
 | 场景 | 首选 |
 |------|------|
 | 按日期聚合 pre/intraday/post | `getStockDailyReports` |
-| 按 code 查盘前报告列表 | `getPreMarketReports` |
-| 盘后本地缺失兜底 | `getPreMarketReports` |
+| 按 code 查盘前报告列表 | `getStockPremarketReports` |
+| 盘后本地缺失兜底 | `getStockPremarketReports` |
 
 ## 文档领域（12）
 

@@ -120,7 +120,7 @@ Bot 路由（与资金一致）：
 |------|--------|
 | `skills/bundled/finance-news` | 逻辑迁入 GeeGooData；Agent 不再 `exec` Python |
 | `skills/bundled/eastmoney-news` | 作为 Data 源 `eastmoney_search`（需 API key 环境变量） |
-| `pre_market` manifest `bundled:` | 可保留文档引用，或改为「依赖 Data 新闻服务」 |
+| `premarket_market` manifest `bundled:` | 可保留文档引用，或改为「依赖 Data 新闻服务」 |
 
 ## 运维与 doctor
 

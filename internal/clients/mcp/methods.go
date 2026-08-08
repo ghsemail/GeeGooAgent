@@ -154,26 +154,26 @@ func (c *Client) GetBotYesterdayAttitude(ctx context.Context, mcpToken, botID, l
 	return &attitude, nil
 }
 
-// CreatePreMarketReport calls POST /createPreMarketReport.
-func (c *Client) CreatePreMarketReport(ctx context.Context, mcpToken string, body map[string]any) (*PreMarketReportResult, error) {
+// CreateStockPremarketReport calls POST /createStockPremarketReport.
+func (c *Client) CreateStockPremarketReport(ctx context.Context, mcpToken string, body map[string]any) (*StockPremarketReportResult, error) {
 	req := map[string]any{"mcp_token": mcpToken}
 	for k, v := range body {
 		req[k] = v
 	}
-	payload, err := c.Post(ctx, "/createPreMarketReport", req)
+	payload, err := c.Post(ctx, "/createStockPremarketReport", req)
 	if err != nil {
 		return nil, err
 	}
 	dataRaw, ok := payload["data"].(map[string]any)
 	if !ok {
-		return &PreMarketReportResult{}, nil
+		return &StockPremarketReportResult{}, nil
 	}
 	reportID, _ := dataRaw["report_id"].(string)
-	return &PreMarketReportResult{ReportID: reportID}, nil
+	return &StockPremarketReportResult{ReportID: reportID}, nil
 }
 
-// MarketPreMarketReportData is a global market pre-market report row.
-type MarketPreMarketReportData struct {
+// MarketPremarketReportData is a global market pre-market report row.
+type MarketPremarketReportData struct {
 	ReportID   string `json:"report_id"`
 	Market     string `json:"market"`
 	ReportDate string `json:"report_date"`
@@ -188,22 +188,22 @@ type ReportUser struct {
 	Market    string `json:"market"`
 }
 
-// CreateMarketPreMarketReport calls POST /createMarketPreMarketReport.
-func (c *Client) CreateMarketPreMarketReport(ctx context.Context, mcpToken string, body map[string]any) (*MarketPreMarketReportData, error) {
+// CreateMarketPremarketReport calls POST /createMarketPremarketReport.
+func (c *Client) CreateMarketPremarketReport(ctx context.Context, mcpToken string, body map[string]any) (*MarketPremarketReportData, error) {
 	req := map[string]any{"mcp_token": mcpToken}
 	for k, v := range body {
 		req[k] = v
 	}
-	payload, err := c.Post(ctx, "/createMarketPreMarketReport", req)
+	payload, err := c.Post(ctx, "/createMarketPremarketReport", req)
 	if err != nil {
 		return nil, err
 	}
 	dataRaw, ok := payload["data"].(map[string]any)
 	if !ok {
-		return &MarketPreMarketReportData{}, nil
+		return &MarketPremarketReportData{}, nil
 	}
 	b, _ := json.Marshal(dataRaw)
-	var out MarketPreMarketReportData
+	var out MarketPremarketReportData
 	_ = json.Unmarshal(b, &out)
 	if out.ReportID == "" {
 		out.ReportID, _ = dataRaw["report_id"].(string)
@@ -211,22 +211,22 @@ func (c *Client) CreateMarketPreMarketReport(ctx context.Context, mcpToken strin
 	return &out, nil
 }
 
-// GetMarketPreMarketReport calls POST /getMarketPreMarketReport.
-func (c *Client) GetMarketPreMarketReport(ctx context.Context, mcpToken, market, reportDate string) (*MarketPreMarketReportData, error) {
+// GetMarketPremarketReport calls POST /getMarketPremarketReport.
+func (c *Client) GetMarketPremarketReport(ctx context.Context, mcpToken, market, reportDate string) (*MarketPremarketReportData, error) {
 	body := map[string]any{"mcp_token": mcpToken, "market": market}
 	if reportDate != "" {
 		body["report_date"] = reportDate
 	}
-	payload, err := c.Post(ctx, "/getMarketPreMarketReport", body)
+	payload, err := c.Post(ctx, "/getMarketPremarketReport", body)
 	if err != nil {
 		return nil, err
 	}
 	dataRaw, ok := payload["data"].(map[string]any)
 	if !ok {
-		return nil, newClientError("missing data in getMarketPreMarketReport response", nil, 0)
+		return nil, newClientError("missing data in getMarketPremarketReport response", nil, 0)
 	}
 	b, _ := json.Marshal(dataRaw)
-	var out MarketPreMarketReportData
+	var out MarketPremarketReportData
 	_ = json.Unmarshal(b, &out)
 	if out.ReportID == "" {
 		out.ReportID, _ = dataRaw["report_id"].(string)

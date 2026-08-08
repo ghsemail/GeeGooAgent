@@ -1,5 +1,5 @@
-skill: pre_market
-description: Post-run acceptance checks for market-level pre_market workflow (one market per run)
+skill: premarket_market
+description: Post-run acceptance checks for market-level premarket_market workflow (one market per run)
 checks:
   - name: workflow_phase_done
     type: stocks_status
@@ -18,4 +18,4 @@ checks:
 
   - name: market_report_local_md
     type: market_file_exists
-    pattern: "reports/{date}/market-{market}-market-premarket.md"
+    pattern: "reports/{date}/market-{market}-market_premarket.md"

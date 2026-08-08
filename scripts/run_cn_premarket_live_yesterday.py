@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fix CN mcp-api token load, deploy agent, run live CN pre_market for yesterday."""
+"""Fix CN mcp-api token load, deploy agent, run live CN premarket_market for yesterday."""
 from __future__ import annotations
 
 import json
@@ -63,16 +63,16 @@ except urllib.error.HTTPError as e:
     install = json.loads(DEPLOY.read_text(encoding="utf-8"))["targets"]["geegoo-agent"]["install_cmd"]
     print(ssh_run("geegoo-agent", install, timeout=900))
 
-    print(f"\n=== 4) Run live CN pre_market for {yesterday} ===")
+    print(f"\n=== 4) Run live CN premarket_market for {yesterday} ===")
     run_cmd = (
         f"export PATH=$HOME/.geegoo/bin:$PATH; "
         f"timeout 900 $HOME/.geegoo/bin/geegoo run "
-        f"--config $HOME/.geegoo/config.json --market CN --report-date {yesterday} pre_market 2>&1"
+        f"--config $HOME/.geegoo/config.json --market CN --report-date {yesterday} premarket_market 2>&1"
     )
     print(ssh_run("geegoo-agent", run_cmd, timeout=920))
 
     print(f"\n=== 5) Fetch report ===")
-    report_path = f"/home/ubuntu/.geegoo/data/reports/{yesterday}/market-CN-market-premarket.md"
+    report_path = f"/home/ubuntu/.geegoo/data/reports/{yesterday}/market-CN-market_premarket.md"
     report = ssh_run("geegoo-agent", f"cat {report_path} 2>/dev/null || echo MISSING", timeout=30)
     print(report_path)
     print("=" * 60)
@@ -84,7 +84,7 @@ import json, os, urllib.request
 cfg=json.load(open(os.path.expanduser("~/.geegoo/config.json")))
 tok=cfg.get("mcp_token",""); key=cfg.get("geegoo_api_key") or cfg.get("api_key","")
 body=json.dumps({{"mcp_token":tok,"market":"CN","report_date":"{yesterday}"}}).encode()
-req=urllib.request.Request("http://118.195.135.97:3120/getMarketPreMarketReport", data=body,
+req=urllib.request.Request("http://118.195.135.97:3120/getMarketPremarketReport", data=body,
     headers={{"Content-Type":"application/json","Authorization":"Bearer "+key}}, method="POST")
 with urllib.request.urlopen(req, timeout=30) as r:
     d=json.loads(r.read().decode())

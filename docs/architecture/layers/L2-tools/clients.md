@@ -40,17 +40,17 @@ Tools
 | get_bot_yesterday_attitude | /getBotYesterdayAttitude           | ✓              |
 | get_bot_log_by_type        | /getBotLogByType                   | Phase 2        |
 | get_single_prompt_template | /getSinglePromptTemplate           |                |
-| create_pre_market_report   | /createPreMarketReport             | ✓              |
-| update_pre_market_report   | /updatePreMarketReport             |                |
-| create_post_market_report  | /createPostMarketReport            |                |
-| create_intraday_report     | /createIntradayTradeDecisionReport |                |
+| create_stock_premarket_report   | /createStockPremarketReport             | ✓              |
+| update_stock_premarket_report   | /updateStockPremarketReport             |                |
+| create_stock_postmarket_report  | /createStockPostmarketReport            |                |
+| create_stock_intraday_report     | /createStockIntradayReport |                |
 | get_ticker                 | /getTicker                         | Phase 3        |
 | get_broker                 | /getBroker                         | Phase 3        |
 | get_mcp_analysis           | /getMCPAnalysis                    | ✓（盘前 workflow） |
-| get_pre_market_reports     | /getPreMarketReports               | Phase 2        |
-| delete_pre_market_report   | /deletePreMarketReport             |                |
-| get_post_market_reports    | /getPostMarketReports              |                |
-| get_intraday_reports       | /getIntradayTradeDecisionReports   |                |
+| get_stock_premarket_reports     | /getStockPremarketReports               | Phase 2        |
+| delete_stock_premarket_report   | /deleteStockPremarketReport             |                |
+| get_stock_postmarket_reports    | /getStockPostmarketReports              |                |
+| get_intraday_reports       | /getStockIntradayReports   |                |
 
 ## GeeGooBotClient（3120）— geegoo
 
@@ -119,7 +119,7 @@ Tools
 | 接口                      | 历史问题                               | 当前状态    | 推荐用法                                                |
 | ----------------------- | ---------------------------------- | ------- | --------------------------------------------------- |
 | `/getCapitalFlow`       | `PeriodType.YEAR` 枚举缺失导致全部 500     | ✅ 已修复   | 盘前 `period=DAY`；与 `getCapitalDistribution` **同时调用** |
-| `/getPreMarketReports`  | `bot_id` ObjectId 未 JSON 序列化导致 500 | ✅ 已修复   | 5900 按 code/report_id 查盘前报告；盘后兜底                    |
+| `/getStockPremarketReports`  | `bot_id` ObjectId 未 JSON 序列化导致 500 | ✅ 已修复   | 5900 按 code/report_id 查盘前报告；盘后兜底                    |
 | `/getStockDailyReports` | —                                  | 3120 正常 | **按日期聚合** pre/intraday/post 时优先用此接口                 |
 
 ## 代码路径

@@ -2,7 +2,7 @@
 
 ## 枚举映射（强制）
 
-| `get_bot_yesterday_attitude` | `create_pre_market_report.result` |
+| `get_bot_yesterday_attitude` | `create_stock_premarket_report.result` |
 |------------------------------|-----------------------------------|
 | `bullish` | `long` |
 | `bearish` | `short` |

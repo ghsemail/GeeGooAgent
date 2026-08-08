@@ -1,6 +1,6 @@
 package verdict
 
-// ArbitrateMarketPreMarket finalizes market-level pre_market result/confidence.
+// ArbitrateMarketPreMarket finalizes market-level premarket_market result/confidence.
 // Baseline is neutral with confidence from data completeness; LLM may upgrade
 // when indices and news are captured.
 func ArbitrateMarketPreMarket(in MarketPreMarketInput) Verdict {

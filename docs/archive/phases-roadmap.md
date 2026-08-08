@@ -9,20 +9,20 @@
 | L4  | Planner, Executor, StateMachine, WorkflowEngine, ReAct Loop                       |
 | L3  | Session/Working Memory + Compaction L1-L2                                         |
 | L2  | ToolRegistry 框架 + Clients 骨架                                                      |
-| L5  | SkillLoader + pre_market stub                                                     |
+| L5  | SkillLoader + premarket_market stub                                                     |
 
 **不含**盘前业务端到端。
 
 ## Phase 1 — MVP 盘前
 
 - 全部盘前 Tool
-- `skills/pre_market` 完整
+- `skills/premarket_market` 完整
 - Supervisor + systemd 08:00
 - 替代 Hermes cron
 
 ## Phase 2-3
 
-- post_market / intraday
+- postmarket_stock / intraday
 - StockAnalyst 默认、webhook
 
 ## Phase 4-6

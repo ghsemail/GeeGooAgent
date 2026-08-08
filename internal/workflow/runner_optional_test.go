@@ -21,7 +21,7 @@ func TestOptionalStepIndexPrefix(t *testing.T) {
 
 func TestFinalizePhaseAZeroBots(t *testing.T) {
 	trading := true
-	w := memory.NewPreMarketWorking("s1", "post_market")
+	w := memory.NewPreMarketWorking("s1", "postmarket_stock")
 	w.IsTradingDay = &trading
 	w.Phase = "phase_a"
 	workflow.FinalizePhaseAForTest(w)
@@ -31,7 +31,7 @@ func TestFinalizePhaseAZeroBots(t *testing.T) {
 }
 
 func TestRecordIndexSkipCompletesIndices(t *testing.T) {
-	w := memory.NewPreMarketWorking("s1", "pre_market")
+	w := memory.NewPreMarketWorking("s1", "premarket_market")
 	for _, code := range []string{"^DJI.US", "^IXIC.US", "000001.SH", "399001.SZ", "800000.HK"} {
 		w = memory.RecordIndexSkip(w, code)
 	}

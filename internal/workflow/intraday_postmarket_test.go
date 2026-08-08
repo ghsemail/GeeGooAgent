@@ -30,7 +30,7 @@ func TestIntradayDryRunE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer application.Close()
-	result, err := application.RunSkill("intraday")
+	result, err := application.RunSkill("intraday_stock")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestPostMarketDryRunE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer application.Close()
-	result, err := application.RunSkill("post_market")
+	result, err := application.RunSkill("postmarket_stock")
 	if err != nil {
 		t.Fatal(err)
 	}

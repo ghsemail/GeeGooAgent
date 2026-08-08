@@ -58,7 +58,7 @@ FTS5 索引支持 `recall` 跨会话搜索。
 
 每条 workflow 工具结果写入 `evidence_records`（payload + hash）。
 
-报告 `create_pre_market_report` 只存 evidence ID；`geegoo verify` 校验引用完整。
+报告 `create_stock_premarket_report` 只存 evidence ID；`geegoo verify` 校验引用完整。
 
 ## 与 StateStore 分工
 

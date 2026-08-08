@@ -9,7 +9,7 @@ ssh = cfg["targets"]["geegoo-agent"]["ssh"]
 cmds = [
     "ps aux | grep -E 'geegoo|agent-runtime|scheduler' | grep -v grep | head -10",
     "ls -la /home/ubuntu/.geegoo/geegoo-agent/*.out 2>/dev/null | tail -5",
-    "tail -n 40 /home/ubuntu/.geegoo/geegoo-agent/agent-runtime.out 2>/dev/null | grep -iE 'pre_market|post_market|error|fail|scheduler' || tail -n 15 /home/ubuntu/.geegoo/geegoo-agent/agent-runtime.out 2>/dev/null",
+    "tail -n 40 /home/ubuntu/.geegoo/geegoo-agent/agent-runtime.out 2>/dev/null | grep -iE 'premarket_market|postmarket_stock|error|fail|scheduler' || tail -n 15 /home/ubuntu/.geegoo/geegoo-agent/agent-runtime.out 2>/dev/null",
     "curl -s -m 5 http://127.0.0.1:3400/health || echo health_fail",
 ]
 c = paramiko.SSHClient()

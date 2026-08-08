@@ -10,7 +10,7 @@ import (
 
 func TestWorkingStoreApplyCapturesEvidenceRefs(t *testing.T) {
 	store := NewWorkingStore(infra.NewStateStore(t.TempDir()))
-	w, err := store.Create("run-test", "pre_market")
+	w, err := store.Create("run-test", "stock_premarket")
 	if err != nil {
 		t.Fatal(err)
 	}

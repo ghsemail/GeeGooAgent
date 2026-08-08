@@ -25,7 +25,7 @@ func TestRunnerInjectsSynthesizerIntoContext(t *testing.T) {
 	rec := &recordingSynthesizer{}
 	store := infra.NewStateStore(t.TempDir())
 	workingStore := memory.NewWorkingStore(store)
-	working, err := workingStore.Create("sess-synth", "pre_market")
+	working, err := workingStore.Create("sess-synth", "premarket_stock")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestRunnerInjectsSynthesizerIntoContext(t *testing.T) {
 
 	registry := tools.NewRegistry()
 	registry.Register(tools.Tool{
-		Name: "create_pre_market_report",
+		Name: "create_stock_premarket_report",
 		Handle: func(ctx tools.Context, args map[string]any) tools.Result {
 			if workflow.SynthesizerFrom(ctx.GoContext()) == nil {
 				t.Fatal("synthesizer not injected into tool context")
@@ -61,7 +61,7 @@ func TestRunnerInjectsSynthesizerIntoContext(t *testing.T) {
 	runner.SetSynthesizer(rec)
 
 	steps := []workflow.Step{{
-		Name: "create_pre_market_report", Tool: "create_pre_market_report",
+		Name: "create_stock_premarket_report", Tool: "create_stock_premarket_report",
 		ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
 			if workflow.SynthesizerFrom(ctx) != rec {
 				t.Fatal("step args ctx missing synthesizer")
@@ -70,7 +70,7 @@ func TestRunnerInjectsSynthesizerIntoContext(t *testing.T) {
 		},
 	}}
 
-	result := runner.Run("sess-synth", "pre_market", nil, steps, tools.Context{SessionID: "sess-synth"}, working)
+	result := runner.Run("sess-synth", "premarket_stock", nil, steps, tools.Context{SessionID: "sess-synth"}, working)
 	if result.Status == "failed" && result.LastError != "" {
 		t.Fatalf("run failed: %s", result.LastError)
 	}

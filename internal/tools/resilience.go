@@ -263,10 +263,10 @@ func recallFromMCPReports(
 			continue
 		}
 		if text := firstReportField(reports.PreMarket); text != "" {
-			return truncateRecall(text, 4000), fmt.Sprintf("mcp:pre_market:%s", reportDate), true
+			return truncateRecall(text, 4000), fmt.Sprintf("mcp:premarket_market:%s", reportDate), true
 		}
 		if text := firstReportField(reports.PostMarket); text != "" {
-			return truncateRecall(text, 4000), fmt.Sprintf("mcp:post_market:%s", reportDate), true
+			return truncateRecall(text, 4000), fmt.Sprintf("mcp:postmarket_stock:%s", reportDate), true
 		}
 	}
 	return "", "", false

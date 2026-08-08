@@ -18,7 +18,7 @@ req=urllib.request.Request("http://127.0.0.1:3140/reports/daily",data=body,heade
 data=json.loads(urllib.request.urlopen(req,timeout=60).read())
 today=datetime.now().strftime("%Y-%m-%d")
 print("today", today, "api_code", data.get("code"))
-for phase in ["pre_market","post_market","intraday"]:
+for phase in ["stock_premarket","stock_postmarket","intraday"]:
     rows=data.get("data",{{}}).get(phase) or []
     today_n=0
     missing_date=0
@@ -29,7 +29,7 @@ for phase in ["pre_market","post_market","intraday"]:
         if not rd: missing_date+=1
         rep=str(r.get("report") or "")
         summ=str(r.get("summary") or "")
-        if phase=="post_market":
+        if phase=="stock_postmarket":
             body_ok=bool(summ or r.get("trade_summary") or r.get("market_summary") or rep)
         else:
             body_ok=bool(rep or summ or r.get("reason"))

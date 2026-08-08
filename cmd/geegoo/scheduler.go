@@ -75,7 +75,7 @@ func runSchedulerList(args []string) {
 		os.Exit(1)
 	}
 	if len(jf.Jobs) == 0 {
-		fmt.Println("(no jobs; defaults would be: pre_market_weekday @ 0 8 * * 1-5)")
+		fmt.Println("(no jobs; defaults would be: premarket_market_weekday @ 0 8 * * 1-5)")
 		return
 	}
 	fmt.Printf("%-22s  %-12s  %-14s  %-8s  %-16s  %s\n",

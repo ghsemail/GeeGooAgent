@@ -16,7 +16,7 @@ func PostMarketPhaseASteps() []Step {
 		{Name: "phase_a_complete", Tool: "write_execution_log", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			return map[string]any{
 				"step": "phase_a_complete", "status": "ok",
-				"message": fmt.Sprintf("post_market bots=%d", len(w.BotCodes)),
+				"message": fmt.Sprintf("postmarket_stock bots=%d", len(w.BotCodes)),
 			}
 		}},
 	}
@@ -25,7 +25,7 @@ func PostMarketPhaseASteps() []Step {
 // PostMarketPerStockSteps returns per-bot post-market analysis steps.
 func PostMarketPerStockSteps() []Step {
 	return []Step{
-		{Name: "list_today_post_market", Tool: "list_today_post_market_reports", ArgFunc: stockReportDateArg},
+		{Name: "list_today_postmarket_stock", Tool: "list_today_stock_postmarket_reports", ArgFunc: stockReportDateArg},
 		{Name: "hourly_price_analysis", Tool: "get_mcp_analysis", ArgFunc: mcpHourlyArg(hourlyPricePromptID, "hourly_price")},
 		{Name: "hourly_signal_analysis", Tool: "get_mcp_analysis", ArgFunc: mcpHourlyArg(hourlySignalPromptID, "hourly_signal")},
 		{Name: "hourly_kline_analysis", Tool: "get_mcp_analysis", ArgFunc: mcpHourlyArg(hourlyKlinePromptID, "hourly_kline")},
@@ -33,7 +33,7 @@ func PostMarketPerStockSteps() []Step {
 			ws := w.Stocks[w.CurrentStock]
 			return map[string]any{"bot_id": ws.BotID, "type": BotLogType(ws.BotType)}
 		}},
-		{Name: "read_pre_market", Tool: "get_stock_daily_reports", ArgFunc: stockReportDateArg},
+		{Name: "read_stock_premarket", Tool: "get_stock_daily_reports", ArgFunc: stockReportDateArg},
 		{Name: "current_price", Tool: "get_current_price", ArgFunc: stockCodeArg},
 		{Name: "save_local_report", Tool: "save_local_report", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			return map[string]any{
@@ -41,8 +41,8 @@ func PostMarketPerStockSteps() []Step {
 				"report_type": "postmarket", "report_date": reportDateFor(w, w.CurrentStock),
 			}
 		}},
-		{Name: "create_post_market_report", Tool: "create_post_market_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
-			return BuildCreatePostMarketReportArgs(ctx, w, w.CurrentStock)
+		{Name: "create_stock_postmarket_report", Tool: "create_stock_postmarket_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
+			return BuildCreateStockPostmarketReportArgs(ctx, w, w.CurrentStock)
 		}},
 		{Name: "stock_complete", Tool: "write_execution_log", ArgFunc: stockCompleteArg},
 	}
@@ -85,13 +85,13 @@ func BuildPostMarketReportContent(w *memory.PreMarketWorking, code string) strin
 		fmt.Sprintf("| 盘前 report_id | %s |", ws.PreMarketReportID),
 		fmt.Sprintf("| 盘前 result | %s |", ws.PreMarketResult),
 		fmt.Sprintf("| session_bias | %s |", bias),
-		fmt.Sprintf("| vs_pre_market | %s |", vs), "")
+		fmt.Sprintf("| vs_stock_premarket | %s |", vs), "")
 	lines = append(lines, "## 四、经验与教训", "", ExperienceSummaryDefault(ws, vs), "")
 	return strings.Join(lines, "\n")
 }
 
-// BuildCreatePostMarketReportArgs builds createPostMarketReport body.
-func BuildCreatePostMarketReportArgs(ctx context.Context, w *memory.PreMarketWorking, code string) map[string]any {
+// BuildCreateStockPostmarketReportArgs builds createStockPostmarketReport body.
+func BuildCreateStockPostmarketReportArgs(ctx context.Context, w *memory.PreMarketWorking, code string) map[string]any {
 	ws := w.Stocks[code]
 	sessionDate := reportDateFor(w, code)
 	bias := ws.SessionBias
@@ -113,8 +113,8 @@ func BuildCreatePostMarketReportArgs(ctx context.Context, w *memory.PreMarketWor
 		"experience_summary": experience, "report": report,
 		"summary": plainSummary(report, 200),
 		"bot_id": ws.BotID, "bot_name": ws.BotName, "bot_type": ws.BotType,
-		"vs_pre_market": vs, "pre_market_report_id": ws.PreMarketReportID,
-		"tags": []any{"post_market"},
+		"vs_stock_premarket": vs, "stock_premarket_report_id": ws.PreMarketReportID,
+		"tags": []any{"stock_postmarket"},
 	}
 	_ = ctx
 	return body

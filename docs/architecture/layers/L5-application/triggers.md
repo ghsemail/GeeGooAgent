@@ -18,8 +18,8 @@
 
 | 命令 | 说明 |
 |------|------|
-| `geegoo run pre_market` | 盘前 Workflow |
-| `geegoo run pre_market --dry-run` | 不写远端 API |
+| `geegoo run premarket_market` | 盘前 Workflow |
+| `geegoo run premarket_market --dry-run` | 不写远端 API |
 | `geegoo resume --session <id>` | 从 checkpoint 幂等续跑 |
 | `geegoo chat` | ReAct 对话（TTY 默认 TUI） |
 | `geegoo verify --codes ...` | 报告字段验收 |

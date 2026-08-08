@@ -4,7 +4,7 @@
 
 **Goal:** Decide whether to approve the current buy/sell signal and persist an intraday decision report.
 
-**Output:** Local `{code}-intraday.md` + `createIntradayTradeDecisionReport`.
+**Output:** Local `{code}-intraday.md` + `createStockIntradayReport`.
 
 Tool allowlist and step IDs are in `manifest.yaml`. Decision rules follow geegoo `intraday-workflow.md` Step 5.5.
 
@@ -33,12 +33,12 @@ Environment variables `GEEGOO_INTRADAY_*` are also supported.
 ## Steps (per stock)
 
 1. `get_position` — skip constraint for `*Reminder`
-2. `get_stock_daily_reports` — read `pre_market[0]`
+2. `get_stock_daily_reports` — read `premarket_market[0]`
 3. `get_capital_distribution` — skip A-shares (`.SH`/`.SZ`)
 4. `get_mcp_analysis` hourly — frequency rules in manifest
 5. `get_current_price` → `get_ticker` fallback
 6. Rule-based `result` / `confidence` / `reason` (≥80 chars)
-7. `save_local_report` + `create_intraday_report`
+7. `save_local_report` + `create_stock_intraday_report`
 
 `update_intraday_report` (Step 7 in geegoo) is executed by the trade executor after fills, not by this workflow.
 

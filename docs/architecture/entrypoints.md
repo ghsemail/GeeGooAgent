@@ -17,7 +17,7 @@ GeeGooAgent 与 Hermes 一样，**平台差异在入口点，不在 Agent 核心
                     │         Entry Points                 │
                     ├─────────────┬───────────────┬───────┤
                     │ geegoo chat │ geegoo run    │ :3400 │
-                    │ + toolsets  │ pre_market    │ HTTP  │
+                    │ + toolsets  │ premarket_market    │ HTTP  │
                     │ + /commands │ scheduler     │       │
                     └──────┬──────┴───────┬───────┴───┬───┘
                            │              │           │
@@ -95,7 +95,7 @@ GeeGooAgent 与 Hermes 一样，**平台差异在入口点，不在 Agent 核心
 
 `geegoo scheduler run` 长驻进程：
 
-1. 读 `jobs.json`（默认工作日 08:00 `pre_market`）
+1. 读 `jobs.json`（默认工作日 08:00 `premarket_market`）
 2. `robfig/cron` 触发 `App.RunSkill`
 3. 按 `supervisor` verdict 指数退避重试（30m → 60m，最多 2 次）
 4. SIGTERM 优雅停机

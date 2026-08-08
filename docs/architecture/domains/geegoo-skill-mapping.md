@@ -31,11 +31,11 @@
 3. GRID Reminder 显式 `frequency: 60m`
 4. SmartTrade sell_only：创建前 `get_position`，不传 price
 
-## 资产与代码对齐（pre_market）
+## 资产与代码对齐（premarket_market）
 
 | 原 geegoo 资产 | GeeGooAgent 现状 |
 |----------------|------------------|
-| pre-market workflow / template | `skills/pre_market/` + `internal/workflow/premarket.go` |
+| pre-market workflow / template | `skills/premarket_market/` + `internal/workflow/premarket.go` |
 | post-market / intraday 参考 | **未迁移**；Skill 名已注册，步骤为空 |
 | finance-news 等脚本 | `skills/bundled/`（Tool 侧 script runner **未实现**） |
 | cron JSON | **废弃** → `geegoo scheduler` + `jobs.json` |

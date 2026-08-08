@@ -344,6 +344,6 @@ GeeGoo 映射示例见 [../overview.md](../overview.md)。
 | Workflow | `internal/workflow/runner.go` |
 | Working Apply | `internal/memory/working.go` |
 | App wiring | `internal/app/app.go` |
-| manifest 示例 | `skills/pre_market/manifest.yaml` |
+| manifest 示例 | `skills/premarket_market/manifest.yaml` |
 
 实现 GeeGoo 域：叠加 [engineering/requirements.md](../../engineering/requirements.md) 与 [domains/](../domains/)。

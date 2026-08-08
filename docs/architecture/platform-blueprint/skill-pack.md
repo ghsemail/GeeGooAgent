@@ -168,4 +168,4 @@ bundled:
 
 ## GeeGoo 参考
 
-见 [skills/pre_market/manifest.yaml](../../../skills/pre_market/manifest.yaml)（完整盘前示例）。
+见 [skills/premarket_market/manifest.yaml](../../../skills/premarket_market/manifest.yaml)（完整盘前示例）。

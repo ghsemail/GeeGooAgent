@@ -101,7 +101,7 @@ func SessionBiasFromChangePct(pct float64) string {
 	return "neutral"
 }
 
-// VsPreMarket compares pre_market result with session_bias.
+// VsPreMarket compares premarket_market result with session_bias.
 func VsPreMarket(preResult, sessionBias string) string {
 	if preResult == "" {
 		return "na"

@@ -60,7 +60,7 @@ func TestBuildCreateReportArgsUsesSynthesisWhenSuccessful(t *testing.T) {
 
 func TestBuildCreateMarketReportArgsFallsBackOnSynthesisError(t *testing.T) {
 	ctx := workflow.ContextWithSynthesizer(context.Background(), &failingSynthesizer{})
-	w := memory.NewPreMarketWorking("s1", "pre_market")
+	w := memory.NewPreMarketWorking("s1", "premarket_market")
 	w.Market = "CN"
 	w.MarketContext.IndicesDone = true
 	w.MarketContext.MarketNewsDone = true
@@ -86,7 +86,7 @@ func (h *happySynthesizer) SynthesizeMarket(ctx context.Context, market, draft s
 
 func TestBuildCreateMarketReportArgsUsesMarketSynthesisWhenSuccessful(t *testing.T) {
 	ctx := workflow.ContextWithSynthesizer(context.Background(), &happySynthesizer{})
-	w := memory.NewPreMarketWorking("s2", "pre_market")
+	w := memory.NewPreMarketWorking("s2", "premarket_market")
 	w.Market = "CN"
 	w.MarketContext.IndicesDone = true
 	w.MarketContext.MarketNewsDone = true

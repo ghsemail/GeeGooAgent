@@ -1,11 +1,11 @@
-name: pre_market_stock
+name: premarket_stock
 version: "1.0.0"
 description: 股票盘前报告 — 引用市场报告，为 attitude 订阅标的逐股生成报告
 phase: 1
 mode: scheduled
 
 tools:
-  - get_market_pre_market_report
+  - get_market_premarket_report
   - get_report_bot_codes
   - fetch_stock_news
   - get_mcp_analysis
@@ -13,7 +13,7 @@ tools:
   - get_capital_distribution
   - get_bot_yesterday_attitude
   - list_today_reports
-  - create_pre_market_report
+  - create_stock_premarket_report
   - save_local_report
   - write_execution_log
 
@@ -24,8 +24,8 @@ rules:
 
 workflow:
   prelude:
-    - id: get_market_pre_market_report
-      tool: get_market_pre_market_report
+    - id: get_market_premarket_report
+      tool: get_market_premarket_report
     - id: get_report_bot_codes
       tool: get_report_bot_codes
   phase_b:
@@ -42,7 +42,7 @@ workflow:
         tool: get_bot_yesterday_attitude
       - id: synthesize_and_submit
         tools:
-          - create_pre_market_report
+          - create_stock_premarket_report
           - save_local_report
 
 markets: [CN, HK, US]

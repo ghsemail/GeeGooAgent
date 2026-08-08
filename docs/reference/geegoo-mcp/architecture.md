@@ -15,7 +15,7 @@ flowchart TB
 
     subgraph Agent["GeeGoo Agent · Python"]
         TOOLS["~82 Tools snake_case"]
-        WF["Workflow: pre_market / intraday / post_market"]
+        WF["Workflow: premarket_market / intraday / postmarket_stock"]
     end
 
     HTTP --> Skill

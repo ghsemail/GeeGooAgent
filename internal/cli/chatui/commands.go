@@ -23,7 +23,7 @@ func BuildHelpText() string {
   /toolsets          列出或切换 toolset 分组
   /trace             最近执行步骤（可加数量）
   /flow              最近事件总线（Run/Turn/Tool/Synthesis，可加数量）
-  /run pre_market    运行盘前 workflow
+  /run premarket_market    运行盘前 workflow
   /dry-run on        开启 dry-run（跳过写 API）
   /dry-run off       关闭 dry-run
   /model             列出或切换模型管理中的模型（默认 trading_operation 运营配置）
@@ -52,7 +52,7 @@ var SlashCommands = []SlashCommand{
 	{"/toolsets", "列出或切换 toolset"},
 	{"/trace", "最近执行步骤"},
 	{"/flow", "最近事件总线（Run/Turn/Tool/Synthesis）"},
-	{"/run pre_market", "运行盘前 workflow"},
+	{"/run premarket_market", "运行盘前 workflow"},
 	{"/dry-run on", "开启 dry-run"},
 	{"/dry-run off", "关闭 dry-run"},
 	{"/model", "列出或切换 LLM 模型"},

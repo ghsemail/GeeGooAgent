@@ -456,19 +456,19 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			code := strArg(args, "code", "")
 			reportDate := strArg(args, "report_date", today())
 			if ctx.DryRun {
-				return okDryRun("get_stock_daily_reports", map[string]any{"pre_market": []any{}, "intraday": []any{}, "post_market": []any{}})
+				return okDryRun("get_stock_daily_reports", map[string]any{"stock_premarket": []any{}, "stock_intraday": []any{}, "stock_postmarket": []any{}})
 			}
 			reports, err := deps.HTTP.MCP.GetStockDailyReports(ctx.GoContext(), ctx.MCPToken, code, reportDate)
 			if err != nil {
 				return errResult(err)
 			}
 			return Result{Status: StatusOK, Summary: fmt.Sprintf("daily reports %s", code), Data: map[string]any{
-				"pre_market": reports.PreMarket, "intraday": reports.Intraday, "post_market": reports.PostMarket,
+				"stock_premarket": reports.PreMarket, "stock_intraday": reports.Intraday, "stock_postmarket": reports.PostMarket,
 			}}
 		},
 	})
 	r.Register(Tool{
-		Name: "list_today_reports", Description: "Idempotency check for today's pre_market reports.",
+		Name: "list_today_reports", Description: "Idempotency check for today's premarket_market reports.",
 		Handle: func(ctx Context, args map[string]any) Result {
 			code := strArg(args, "code", "")
 			reportDate := strArg(args, "report_date", today())
@@ -481,19 +481,19 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 				return errResult(err)
 			}
 			count := len(reports.PreMarket)
-			return Result{Status: StatusOK, Summary: fmt.Sprintf("Found %d pre_market report(s)", count), Data: map[string]any{
+			return Result{Status: StatusOK, Summary: fmt.Sprintf("Found %d premarket_market report(s)", count), Data: map[string]any{
 				"code": code, "report_date": reportDate, "count": count,
 				"reports": reports.PreMarket, "already_reported": count > 0,
 			}}
 		},
 	})
 	r.Register(Tool{
-		Name: "list_today_post_market_reports", Description: "Idempotency check for today's post_market reports.",
+		Name: "list_today_stock_postmarket_reports", Description: "Idempotency check for today's postmarket_stock reports.",
 		Handle: func(ctx Context, args map[string]any) Result {
 			code := strArg(args, "code", "")
 			reportDate := strArg(args, "report_date", today())
 			if ctx.DryRun {
-				return Result{Status: StatusDryRun, Summary: fmt.Sprintf("dry-run: no existing post_market for %s", code),
+				return Result{Status: StatusDryRun, Summary: fmt.Sprintf("dry-run: no existing postmarket_stock for %s", code),
 					Data: map[string]any{"code": code, "report_date": reportDate, "count": 0, "already_reported": false}}
 			}
 			reports, err := deps.HTTP.MCP.GetStockDailyReports(ctx.GoContext(), ctx.MCPToken, code, reportDate)
@@ -501,7 +501,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 				return errResult(err)
 			}
 			count := len(reports.PostMarket)
-			return Result{Status: StatusOK, Summary: fmt.Sprintf("Found %d post_market report(s)", count), Data: map[string]any{
+			return Result{Status: StatusOK, Summary: fmt.Sprintf("Found %d postmarket_stock report(s)", count), Data: map[string]any{
 				"code": code, "report_date": reportDate, "count": count,
 				"reports": reports.PostMarket, "already_reported": count > 0,
 			}}
@@ -633,14 +633,14 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 
 func registerReportTools(r *Registry, deps Deps) {
 	r.Register(Tool{
-		Name: "create_market_pre_market_report", Description: "Create global market pre-market report via GeeGooBot MCP.",
+		Name: "create_market_premarket_report", Description: "Create global market pre-market report via GeeGooBot MCP.",
 		Handle: func(ctx Context, args map[string]any) Result {
 			market := strArg(args, "market", "")
 			if ctx.DryRun {
-				return Result{Status: StatusDryRun, Summary: fmt.Sprintf("dry-run: skipped create_market_pre_market_report %s", market),
+				return Result{Status: StatusDryRun, Summary: fmt.Sprintf("dry-run: skipped create_market_premarket_report %s", market),
 					Data: map[string]any{"report_id": "dry-run-market-id", "market": market}}
 			}
-			result, err := deps.HTTP.MCP.CreateMarketPreMarketReport(ctx.GoContext(), ctx.MCPToken, args)
+			result, err := deps.HTTP.MCP.CreateMarketPremarketReport(ctx.GoContext(), ctx.MCPToken, args)
 			if err != nil {
 				return errResult(err)
 			}
@@ -649,7 +649,7 @@ func registerReportTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "get_market_pre_market_report", Description: "Load today's global market pre-market report for CN/HK/US.",
+		Name: "get_market_premarket_report", Description: "Load today's global market pre-market report for CN/HK/US.",
 		Handle: func(ctx Context, args map[string]any) Result {
 			market := strArg(args, "market", "")
 			reportDate := strArg(args, "report_date", today())
@@ -657,7 +657,7 @@ func registerReportTools(r *Registry, deps Deps) {
 				return Result{Status: StatusDryRun, Summary: fmt.Sprintf("dry-run: market report %s", market),
 					Data: map[string]any{"market": market, "report": "dry-run market report", "report_id": "dry-run-market-id"}}
 			}
-			result, err := deps.HTTP.MCP.GetMarketPreMarketReport(ctx.GoContext(), ctx.MCPToken, market, reportDate)
+			result, err := deps.HTTP.MCP.GetMarketPremarketReport(ctx.GoContext(), ctx.MCPToken, market, reportDate)
 			if err != nil {
 				return errResult(err)
 			}
@@ -669,14 +669,14 @@ func registerReportTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
-		Name: "create_pre_market_report", Description: "Create pre-market report via GeeGooBot MCP.",
+		Name: "create_stock_premarket_report", Description: "Create pre-market report via GeeGooBot MCP.",
 		Handle: func(ctx Context, args map[string]any) Result {
 			code := strArg(args, "code", "")
 			if ctx.DryRun {
-				return Result{Status: StatusDryRun, Summary: fmt.Sprintf("dry-run: skipped create_pre_market_report %s", code),
+				return Result{Status: StatusDryRun, Summary: fmt.Sprintf("dry-run: skipped create_stock_premarket_report %s", code),
 					Data: map[string]any{"report_id": "dry-run-id", "code": code}}
 			}
-			result, err := deps.HTTP.MCP.CreatePreMarketReport(ctx.GoContext(), ctx.MCPToken, args)
+			result, err := deps.HTTP.MCP.CreateStockPremarketReport(ctx.GoContext(), ctx.MCPToken, args)
 			if err != nil {
 				return errResult(err)
 			}

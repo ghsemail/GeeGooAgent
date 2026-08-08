@@ -21,7 +21,7 @@ db = MongoClient(mongo_uri)[dbn]
 today = datetime.now().strftime("%Y-%m-%d")
 print("today", today)
 
-for coll in ["pre_market_report", "post_market_report", "intraday_report"]:
+for coll in ["stock_premarket_report", "stock_postmarket_report", "intraday_report"]:
     n_today = db[coll].count_documents({"user_id": uid, "updated_at": {"$gte": datetime.strptime(today, "%Y-%m-%d")}})
     latest = db[coll].find_one({"user_id": uid}, sort=[("updated_at", -1)])
     print(coll, "updated_today", n_today, "latest", latest.get("updated_at") if latest else None, "code", latest.get("code") if latest else None)

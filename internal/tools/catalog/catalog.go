@@ -17,9 +17,10 @@ var BespokeNames = map[string]bool{
 	"check_trading_day": true, "get_current_price": true, "get_report_bot_codes": true,
 	"fetch_market_news": true, "fetch_stock_news": true, "get_mcp_analysis": true,
 	"get_single_prompt_template": true,
-	"get_stock_daily_reports": true, "list_today_reports": true, "list_today_post_market_reports": true, "get_capital_flow": true,
+	"get_stock_daily_reports": true, "list_today_reports": true, "list_today_stock_postmarket_reports": true, "get_capital_flow": true,
 	"get_capital_distribution": true, "get_bot_yesterday_attitude": true,
-	"recall_yesterday_summary": true, "read_working_state": true, "create_pre_market_report": true,
+	"recall_yesterday_summary": true, "read_working_state": true, "create_stock_premarket_report": true,
+	"create_market_premarket_report": true, "get_market_premarket_report": true,
 	"save_local_report": true, "write_execution_log": true, "recall": true,
 }
 
@@ -48,12 +49,12 @@ func AllHTTP() []HTTPSpec {
 		{Name: "edit_etf_prompt_template", Description: "编辑 ETF 分析用户 Prompt。写操作需用户确认。", Path: "/editEtfPromptTemplate", MergePayload: true},
 		{Name: "delete_etf_prompt_template", Description: "删除 ETF 分析用户 Prompt。写操作需用户确认。", Path: "/deleteEtfPromptTemplate", MergePayload: true},
 	}
-	raw = append(raw, reportCRUD("pre_market", "盘前报告",
-		"/createPreMarketReport", "/updatePreMarketReport", "/deletePreMarketReport", "/getPreMarketReports", false)...)
-	raw = append(raw, reportCRUD("intraday", "盘中决策报告",
-		"/createIntradayTradeDecisionReport", "/updateIntradayTradeDecisionReport", "/deleteIntradayTradeDecisionReport", "/getIntradayTradeDecisionReports", true)...)
-	raw = append(raw, reportCRUD("post_market", "盘后报告",
-		"/createPostMarketReport", "/updatePostMarketReport", "/deletePostMarketReport", "/getPostMarketReports", true)...)
+	raw = append(raw, reportCRUD("stock_premarket", "盘前报告",
+		"/createStockPremarketReport", "/updateStockPremarketReport", "/deleteStockPremarketReport", "/getStockPremarketReports", false)...)
+	raw = append(raw, reportCRUD("stock_intraday", "盘中决策报告",
+		"/createStockIntradayReport", "/updateStockIntradayReport", "/deleteStockIntradayReport", "/getStockIntradayReports", true)...)
+	raw = append(raw, reportCRUD("stock_postmarket", "盘后报告",
+		"/createStockPostmarketReport", "/updateStockPostmarketReport", "/deleteStockPostmarketReport", "/getStockPostmarketReports", true)...)
 	raw = append(raw, botCRUD("dca_bot", botKindDCA, "DCA 交易机器人", "/createDCABot", "/updateDCABot", "/deleteDCABot", "/getAllDCABots", "/getDCABotLog")...)
 	raw = append(raw, botCRUD("grid_bot", botKindGrid, "GRID 网格交易机器人", "/createGRIDBot", "/updateGRIDBot", "/deleteGRIDBot", "/getAllGRIDBots", "/getGRIDBotLog")...)
 	raw = append(raw, botCRUD("smart_trade", botKindSmartTrade, "SmartTrade 机器人", "/createSmartTrade", "/updateSmartTrade", "/deleteSmartTrade", "/getAllSmartTrades", "/getSmartTradeLog")...)

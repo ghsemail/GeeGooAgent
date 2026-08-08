@@ -84,7 +84,7 @@
 | `get_bot_yesterday_attitude` | 💬 | bespoke | mcp-api `/getBotYesterdayAttitude` | 3120 | 必填 `bot_id`；**默认 chat 可用**（`market` 与 `report_workflow` 共享） |
 | `get_stock_daily_reports` | 💬 | bespoke | mcp-api `/getStockDailyReports` | 3120 | 建议传 `report_date` |
 | `list_today_reports` | ✅ | bespoke | 同上（盘前幂等别名） | 3120 | |
-| `list_today_post_market_reports` | ✅ | bespoke | 同上（盘后幂等别名） | 3120 | `post_market` workflow |
+| `list_today_stock_postmarket_reports` | ✅ | bespoke | 同上（盘后幂等别名） | 3120 | `postmarket_stock` workflow |
 | `get_index_signals` | ✅ | HTTP | catalog-api `/getIndexSignalForSkill` | 3210 | DCA 单指标 |
 | `get_signal_combinations` | ✅ | HTTP | catalog-api `/getSignalCombinationForSkill` | 3210 | DCA 组合信号 |
 | `generate_grid_strategy` | 💬/✅ | HTTP | analyze-api `/generateGridStrategy` | 3230 | JSON 批量翻译；cn 约 40s、en 约 50s（1 分析 + 可选 1 batch）；空 `param` → skip |
@@ -115,10 +115,10 @@
 
 | Tool | 状态 | 路径 | 端口 | 默认 chat |
 |------|------|------|------|-----------|
-| `create_pre_market_report` | 💬 | `/createPreMarketReport` | 3120 | 🔒 workflow |
-| `update/delete/get_pre_market_reports` | ✅ | 对应路径 | 3120 | query |
+| `create_stock_premarket_report` | 💬 | `/createStockPremarketReport` | 3120 | 🔒 workflow |
+| `update/delete/get_stock_premarket_reports` | ✅ | 对应路径 | 3120 | query |
 | `create/update/delete/get_intraday_reports` | ✅ | Intraday 路径 | 3120 | query / workflow |
-| `create/update/delete/get_post_market_reports` | ✅ | PostMarket 路径 | 3120 | query / workflow |
+| `create/update/delete/get_stock_postmarket_reports` | ✅ | PostMarket 路径 | 3120 | query / workflow |
 | `save_local_report` | ✅ | 本地 workspace | — | 🔒 workflow |
 
 ---
@@ -144,9 +144,9 @@
 
 | Skill | 状态 | CLI | manifest 白名单 |
 |-------|------|-----|-----------------|
-| `pre_market` | ✅ | `geegoo run pre_market` | 15 Tool（无 `send_feishu`） |
+| `premarket_market` | ✅ | `geegoo run premarket_market` | 15 Tool（无 `send_feishu`） |
 | `intraday` | ✅ | `geegoo run intraday --code … --bot-id …` | 9 Tool：持仓、报告、资金、分析、现价 |
-| `post_market` | ✅ | `geegoo run post_market` | 10 Tool：3× hourly 分析 + bot log + post 报告 |
+| `postmarket_stock` | ✅ | `geegoo run postmarket_stock` | 10 Tool：3× hourly 分析 + bot log + post 报告 |
 
 manifest 路径：`skills/<skill>/manifest.yaml`。Skill 文档 → [L5 skills](../L5-application/skills.md)。
 
@@ -202,7 +202,7 @@ manifest 路径：`skills/<skill>/manifest.yaml`。Skill 文档 → [L5 skills](
 | `bot_manager` | ✅ | 20 | 交易 Bot CRUD + log |
 | `reminder_manager` | ✅ | 15 | 提醒 Bot |
 | `report_query` | ✅ | **13** | 报告查询 |
-| `report_workflow` | 🔒 | **8** | 盘前/盘后 workflow（含 `list_today_post_market_reports`） |
+| `report_workflow` | 🔒 | **8** | 盘前/盘后 workflow（含 `list_today_stock_postmarket_reports`） |
 | `prompt_template` | 🔒 | **6** | 竞品/ETF Prompt 模板 CRUD |
 
 切换：`/toolsets market,strategy` · `/toolsets default` · `/toolsets prompt_template`（高级）
@@ -229,7 +229,7 @@ GeeGooAgent Tools
 │  └─ loopback_strategy                                                 💬 需 generate_* 参数链
 ├─ bot_manager / reminder_manager（各 5× CRUD + log）
 ├─ report_query（盘前/盘中/盘后 CRUD + 聚合 + list_today_reports）
-├─ report_workflow 🔒（create_pre_market, list_today_post_market_reports, save_local, …）
+├─ report_workflow 🔒（create_premarket_market, list_today_stock_postmarket_reports, save_local, …）
 └─ prompt_template 🔒（竞品/ETF 模板 CRUD×6；读模板用 market 内 get_single_prompt_template）
 ```
 
@@ -246,9 +246,9 @@ GeeGooAgent Tools
 | 技术分析 | `get_single_prompt_template` → `get_mcp_analysis` | 缺 `period` |
 | DCA 方案 | clarify 选信号 → **优先组合** `get_signal_combinations` → `generate_dca_strategy` → 可选 `loopback_strategy` | 未选 `signal_id` 就 generate；单指标缺 buy_signal 会 500 |
 | 新闻 | `fetch_stock_news` / `fetch_market_news`；库无结果用 `web_search` | — |
-| 盘前写报告 | `/toolsets report_workflow` 或 `geegoo run pre_market` | 默认 chat 白名单 |
+| 盘前写报告 | `/toolsets report_workflow` 或 `geegoo run premarket_market` | 默认 chat 白名单 |
 | 盘中决策 | `geegoo run intraday --code …` | 默认 chat |
-| 盘后总结 | `geegoo run post_market` | — |
+| 盘后总结 | `geegoo run postmarket_stock` | — |
 
 ---
 

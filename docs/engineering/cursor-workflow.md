@@ -31,7 +31,7 @@ Step 4  L2 clients/base + market.py（3 个 API + 集成测）
 Step 5  L2 ToolRegistry + 首批 3 Tool
 Step 6  L3 WorkingMemory（PreMarketWorking 模型）
 Step 7  L4 WorkflowRunner 空壳 + CLI run/resume
-Step 8  迁入 references / rules / skills/pre_market
+Step 8  迁入 references / rules / skills/premarket_market
 Step 9  L2 补全 MVP Clients + 19 Tool
 Step 10 PreMarketWorkflow 阶段 A（指数+新闻）
 Step 11 PreMarketWorkflow 阶段 B（个股+报告）
@@ -211,7 +211,7 @@ stocks、per_stock 子结构；memory/working.py 读写 StateStore。
 @docs/architecture/layers/L4-runtime/agent-loop.md
 
 实现 Step 7：WorkflowRunner 接受步骤列表、驱动 Session 状态机、
-每步 checkpoint；cli.py 子命令 run pre_market、resume --session、--dry-run。
+每步 checkpoint；cli.py 子命令 run premarket_market、resume --session、--dry-run。
 先注册 1 个假步骤通过端到冒烟。本步不接 LLM。
 ```
 
@@ -226,7 +226,7 @@ stocks、per_stock 子结构；memory/working.py 读写 StateStore。
 
 实现 Step 8：复制并整理 references/（pre-market-workflow、template、api-routing）、
 rules/（attitude-mapping、api-routing、report-format）、
-skills/pre_market/SKILL.md + manifest.yaml（tools 白名单、步骤列表）。
+skills/premarket_market/SKILL.md + manifest.yaml（tools 白名单、步骤列表）。
 本步以文件迁入为主，不改 runtime 逻辑。
 ```
 
@@ -237,11 +237,11 @@ skills/pre_market/SKILL.md + manifest.yaml（tools 白名单、步骤列表）�
 ```markdown
 @docs/architecture/layers/L2-tools/tool-catalog.md
 @docs/architecture/layers/L2-tools/clients.md
-@skills/pre_market/manifest.yaml
+@skills/premarket_market/manifest.yaml
 
 实现 Step 9：补全 market.py、geegoo_bot.py 剩余 MVP 端点；
 按 manifest 注册全部 MVP Tool（约 19 个）；新闻脚本放入 skills/bundled/ 或 scripts/。
-每个 Tool pydantic 入参；create_pre_market_report 发 API 前校验 §8。
+每个 Tool pydantic 入参；create_stock_premarket_report 发 API 前校验 §8。
 集成测 mock 关键 API。
 ```
 
@@ -251,7 +251,7 @@ skills/pre_market/SKILL.md + manifest.yaml（tools 白名单、步骤列表）�
 
 ```markdown
 @references/pre-market-workflow.md
-@skills/pre_market/manifest.yaml
+@skills/premarket_market/manifest.yaml
 
 实现 Step 10：PreMarketWorkflow 阶段 A—
 check_trading_day → get_report_bot_codes → 5 指数 get_mcp_analysis（可 asyncio 并行）
@@ -270,7 +270,7 @@ dry-run 下 get_mcp_analysis 可用 fixture。单测 test_workflow_phase_a.py。
 
 实现 Step 11：阶段 B 每股循环—
 新闻、get_capital_flow、get_capital_distribution、weekly get_mcp_analysis、
-get_bot_yesterday_attitude、save_local_report、create_pre_market_report。
+get_bot_yesterday_attitude、save_local_report、create_stock_premarket_report。
 404 attitude → neutral；幂等 list_today_reports。
 ```
 
@@ -296,7 +296,7 @@ synthesize_report(context)->报告 pydantic；
 ```markdown
 @docs/architecture/cross-cutting/supervisor.md
 
-实现 Step 13：supervisor/pre_market.py—
+实现 Step 13：supervisor/premarket_market.py—
 跑后检查：每股是否有 md、create 是否成功、必填字段；
 输出摘要到 execution-log。与 resume 联调。
 ```
@@ -308,7 +308,7 @@ synthesize_report(context)->报告 pydantic；
 ```markdown
 @docs/engineering/requirements.md §9
 
-实现 Step 14：tests/e2e/test_pre_market_dry_run.py—
+实现 Step 14：tests/e2e/test_premarket_market_dry_run.py—
 mock 全部 HTTP + LLM，跑完整 PreMarketWorkflow；
 断言 working 终态、checkpoint 存在、日志条数。
 修到 pytest 全绿。本步禁止接真 API。
@@ -339,7 +339,7 @@ pytest -q
 pytest --cov=geegoo --cov-report=term-missing   # Step 5 起
 ruff check src tests
 ruff format --check src tests
-geegoo-agent run pre_market --dry-run   # Step 7 起
+geegoo-agent run premarket_market --dry-run   # Step 7 起
 ```
 
 | 检查                   | 通过标准                   |

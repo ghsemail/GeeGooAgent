@@ -8,7 +8,7 @@ import (
 
 func TestApprovalRequiredForMutatingTools(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{"create_dca_bot", "update_grid_bot", "delete_smart_trade", "create_pre_market_report", "edit_competitor_prompt_template", "edit_etf_prompt_template"} {
+	for _, name := range []string{"create_dca_bot", "update_grid_bot", "delete_smart_trade", "create_stock_premarket_report", "edit_competitor_prompt_template", "edit_etf_prompt_template"} {
 		if !tools.ApprovalRequired(name) {
 			t.Fatalf("%s should require approval", name)
 		}
@@ -74,7 +74,7 @@ func TestApprovalGateAllowsApprovedInteractive(t *testing.T) {
 func TestApprovalGateAllowsWorkflowNonInteractive(t *testing.T) {
 	t.Parallel()
 	called := false
-	gated := tools.ApprovalGate("create_pre_market_report", func(ctx tools.Context, args map[string]any) tools.Result {
+	gated := tools.ApprovalGate("create_stock_premarket_report", func(ctx tools.Context, args map[string]any) tools.Result {
 		called = true
 		return tools.Result{Status: tools.StatusOK, Summary: "reported"}
 	})

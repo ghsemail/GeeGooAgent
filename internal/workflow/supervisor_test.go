@@ -16,7 +16,7 @@ func TestSupervisorPassOnDoneWithReportedStocks(t *testing.T) {
 	eng := workflow.NewEngine(dir, workflow.DefaultPreMarketChecks())
 	trading := true
 	code := "00700.HK"
-	w := memory.NewPreMarketWorking("s1", "pre_market")
+	w := memory.NewPreMarketWorking("s1", "premarket_market")
 	w.Phase = "done"
 	w.IsTradingDay = &trading
 	w.Stocks[code] = memory.StockWorkspace{
@@ -42,7 +42,7 @@ func TestSupervisorRecoverableOnMissingReportID(t *testing.T) {
 	dir := t.TempDir()
 	eng := workflow.NewEngine(dir, workflow.DefaultPreMarketChecks())
 	trading := true
-	w := memory.NewPreMarketWorking("s2", "pre_market")
+	w := memory.NewPreMarketWorking("s2", "premarket_market")
 	w.Phase = "done"
 	w.IsTradingDay = &trading
 	w.Stocks["00700.HK"] = memory.StockWorkspace{
@@ -63,7 +63,7 @@ func TestSupervisorTerminalOnFailedStock(t *testing.T) {
 	dir := t.TempDir()
 	eng := workflow.NewEngine(dir, workflow.DefaultPreMarketChecks())
 	trading := true
-	w := memory.NewPreMarketWorking("s3", "pre_market")
+	w := memory.NewPreMarketWorking("s3", "premarket_market")
 	w.Phase = "phase_b"
 	w.IsTradingDay = &trading
 	w.Stocks["00700.HK"] = memory.StockWorkspace{Code: "00700.HK", Status: "failed"}
@@ -78,7 +78,7 @@ func TestSupervisorPassOnNonTradingDay(t *testing.T) {
 	dir := t.TempDir()
 	eng := workflow.NewEngine(dir, workflow.DefaultPreMarketChecks())
 	trading := false
-	w := memory.NewPreMarketWorking("s4", "pre_market")
+	w := memory.NewPreMarketWorking("s4", "premarket_market")
 	w.Phase = "done"
 	w.IsTradingDay = &trading
 	report := eng.Verify(w, "2026-07-04")
@@ -92,7 +92,7 @@ func TestClassifyError(t *testing.T) {
 	if workflow.ClassifyForTest("get_mcp_analysis", "context deadline exceeded (timeout)") != workflow.ErrorRecoverable {
 		t.Fatal("timeout should be recoverable")
 	}
-	if workflow.ClassifyForTest("create_pre_market_report", "401 unauthorized: missing mcp_token") != workflow.ErrorTerminal {
+	if workflow.ClassifyForTest("create_stock_premarket_report", "401 unauthorized: missing mcp_token") != workflow.ErrorTerminal {
 		t.Fatal("401 should be terminal")
 	}
 }

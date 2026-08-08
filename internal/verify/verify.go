@@ -47,7 +47,7 @@ var (
 	validSuggestions = map[string]bool{"buy": true, "sell": true, "hold": true, "watch_long": true, "reduce_or_avoid": true}
 )
 
-// VerifyReport checks one createPreMarketReport record for required fields and
+// VerifyReport checks one createStockPremarketReport record for required fields and
 // value enums, matching rules/report-format.md and the Hermes parity checklist.
 func VerifyReport(report map[string]any) ReportCard {
 	card := ReportCard{

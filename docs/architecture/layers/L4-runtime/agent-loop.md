@@ -184,7 +184,7 @@ flowchart TB
 | 维度 | ReAct（本页） | [Workflow](./workflow-engine.md) |
 |------|---------------|----------------------------------|
 | 编排者 | LLM 选 Tool | `workflow.Runner` 硬编码步骤 |
-| 适用 | `geegoo chat`、HTTP runtime | `geegoo run pre_market` 等 |
+| 适用 | `geegoo chat`、HTTP runtime | `geegoo run premarket_market` 等 |
 | 恢复 | PendingPlan、历史消息 | checkpoint + Working |
 | 共享 | `ToolExec`、`Registry`、`Gateway` | 同左 |
 

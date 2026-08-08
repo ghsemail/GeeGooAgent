@@ -12,7 +12,7 @@
 
 ## 一、市场背景（引用市场盘前）
 
-> 来自当日 `pre_market` 全局报告（`get_market_pre_market_report`）。勿重复拉取三市场指数。
+> 来自当日 `premarket_market` 全局报告（`get_market_premarket_report`）。勿重复拉取三市场指数。
 
 {{market_report_summary}}
 
@@ -98,5 +98,5 @@
 
 ---
 
-**报告生成人**: geegoo-agent · skill `pre_market_stock`
-**关联市场报告**: {{market_pre_market_report_id}}
+**报告生成人**: geegoo-agent · skill `premarket_stock`
+**关联市场报告**: {{market_premarket_report_id}}

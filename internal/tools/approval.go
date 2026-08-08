@@ -4,7 +4,7 @@ import "strings"
 
 // ApprovalRequired reports whether a tool performs a mutating/dangerous
 // operation that should be confirmed before execution in interactive chat.
-// Workflow (pre_market) runs are deterministic and pre-authorized, so this
+// Workflow (premarket_market) runs are deterministic and pre-authorized, so this
 // gate only applies to ad-hoc chat invocations.
 //
 // The check is name-based and conservative: any create_/update_/delete_/edit_/switch

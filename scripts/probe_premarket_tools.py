@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Probe pre_market MVP tools and their upstream endpoints."""
+"""Probe premarket_market MVP tools and their upstream endpoints."""
 from __future__ import annotations
 
 import json
@@ -123,9 +123,9 @@ def main() -> int:
             "prompt_id": "69ec7035b9ccd3d9befc6c23", "period": "hourly", "language": "cn",
         }),
         ("get_bot_yesterday_attitude", "/getBotYesterdayAttitude", {"mcp_token": token, "code": "00700.HK"}),
-        ("list_today_reports", "/getPreMarketReports", {"mcp_token": token, "code": "00700.HK", "period": "daily"}),
+        ("list_today_reports", "/getStockPremarketReports", {"mcp_token": token, "code": "00700.HK", "period": "daily"}),
         ("get_stock_daily_reports", "/getStockDailyReports", {"mcp_token": token, "code": "00700.HK"}),
-        ("create_pre_market_report", "/createPreMarketReport", {"mcp_token": token, "code": "00700.HK", "period": "daily", "content": "probe"}),
+        ("create_stock_premarket_report", "/createStockPremarketReport", {"mcp_token": token, "code": "00700.HK", "period": "daily", "content": "probe"}),
         ("search_code (mcp)", "/searchCode", {"regex": "腾讯"}),
     ]
 

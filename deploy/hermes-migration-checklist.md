@@ -25,7 +25,7 @@ See `deploy/hermes-parity-roadmap.md` for the P1–P8 optimization roadmap that 
   Verify: both produced reports for the same date — `geegoo verify --date <D> --codes 00700.HK,000001.SZ,SPACEX.US` returns PASS and the old Hermes run also completed.
 - [ ] Per-stock local `{code}-premarket.md` files exist.
   Verify: `ls ~/.geegoo/data/reports/<D>/*-premarket.md` lists one per stock
-- [ ] GeeGoo API has `createPreMarketReport` records.
+- [ ] GeeGoo API has `createStockPremarketReport` records.
   Verify: `geegoo verify --date <D> --codes 00700.HK` prints non-empty report cards
 - [ ] `bot_id`, `bot_name`, and `bot_type` are non-empty.
   Verify: `geegoo verify` completeness matrix shows `bot_id` / `bot_name` / `bot_type` = 100%
@@ -41,7 +41,7 @@ See `deploy/hermes-parity-roadmap.md` for the P1–P8 optimization roadmap that 
 - [ ] Confirm `check_trading_day` returns a valid trading-day decision.
   Verify: `geegoo doctor` shows `[OK] GeeGooBot mcp checkTradingDay`
 - [ ] Disable the old Hermes pre-market cron manually and record the original cron line for rollback.
-  Verify: `crontab -l | grep -i pre_market` (capture output to rollback notes)
+  Verify: `crontab -l | grep -i premarket_market` (capture output to rollback notes)
 - [ ] Keep only `geegoo-agent-pre-market.timer` (or `geegoo scheduler run`) active.
   Verify: only one of the two is running — `systemctl is-active geegoo-agent-pre-market.timer` XOR `pgrep -af 'geegoo scheduler run'`
 - [ ] Observe the first independent run with `journalctl`, local reports, and API records.
@@ -50,7 +50,7 @@ See `deploy/hermes-parity-roadmap.md` for the P1–P8 optimization roadmap that 
 ## Rollback
 
 - [ ] Re-enable the old Hermes pre-market cron.
-  Verify: `crontab -l | grep -i pre_market` shows the restored line
+  Verify: `crontab -l | grep -i premarket_market` shows the restored line
 - [ ] Disable the GeeGoo timer / scheduler.
   Verify: `systemctl disable --now geegoo-agent-pre-market.timer` AND `pkill -f 'geegoo scheduler run'`
 - [ ] Preserve `/var/lib/geegoo-agent` (or `~/.geegoo/data`) for troubleshooting.

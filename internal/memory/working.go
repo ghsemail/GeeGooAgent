@@ -92,7 +92,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 				}
 			}
 		}
-	case "get_market_pre_market_report":
+	case "get_market_premarket_report":
 		if id, _ := data["report_id"].(string); id != "" {
 			updated.MarketReportID = id
 		}
@@ -111,7 +111,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 		if market, _ := data["market"].(string); market != "" && updated.Market == "" {
 			updated.Market = strings.ToUpper(market)
 		}
-	case "create_market_pre_market_report":
+	case "create_market_premarket_report":
 		if id, _ := data["report_id"].(string); id != "" {
 			updated.MarketReportID = id
 		}
@@ -209,7 +209,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 				updated.Stocks[code] = ws
 			}
 		}
-	case "list_today_post_market_reports":
+	case "list_today_stock_postmarket_reports":
 		code, _ := data["code"].(string)
 		if reported, _ := data["already_reported"].(bool); reported {
 			if ws, ok := updated.Stocks[code]; ok {
@@ -281,7 +281,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 			ws.ReportRef = path
 			updated.Stocks[code] = ws
 		}
-	case "create_pre_market_report":
+	case "create_stock_premarket_report":
 		code, _ := data["code"].(string)
 		if ws, ok := updated.Stocks[code]; ok {
 			ws.Status = "reported"
@@ -290,7 +290,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 			}
 			updated.Stocks[code] = ws
 		}
-	case "create_intraday_report", "create_post_market_report":
+	case "create_stock_intraday_report", "create_stock_postmarket_report":
 		code, _ := data["code"].(string)
 		if code == "" {
 			code = updated.CurrentStock
@@ -507,14 +507,14 @@ func encodeWorking(w *PreMarketWorking) map[string]any {
 			"stock_news_summary": v.StockNewsSummary,
 			"frequency": v.Frequency, "trade_type": v.TradeType, "report_date": v.ReportDate,
 			"position_summary": v.PositionSummary, "has_position": v.HasPosition,
-			"pre_market_result": v.PreMarketResult, "pre_market_confidence": v.PreMarketConfidence,
-			"pre_market_reason": v.PreMarketReason, "pre_market_report_id": v.PreMarketReportID,
+			"premarket_market_result": v.PreMarketResult, "premarket_market_confidence": v.PreMarketConfidence,
+			"premarket_market_reason": v.PreMarketReason, "stock_premarket_report_id": v.PreMarketReportID,
 			"hourly_price_analysis": v.HourlyPriceAnalysis, "hourly_signal_analysis": v.HourlySignalAnalysis,
 			"hourly_kline_analysis": v.HourlyKlineAnalysis,
 			"current_price": v.CurrentPrice, "price_source": v.PriceSource,
 			"intraday_result": v.IntradayResult, "intraday_confidence": v.IntradayConfidence,
 			"bot_log_summary": v.BotLogSummary, "change_pct": v.ChangePct,
-			"session_bias": v.SessionBias, "vs_pre_market": v.VsPreMarket,
+			"session_bias": v.SessionBias, "vs_stock_premarket": v.VsPreMarket,
 		}
 	}
 	m["stocks"] = stocks
@@ -644,13 +644,13 @@ func decodeWorking(data map[string]any) (*PreMarketWorking, error) {
 					StockNewsSummary: str(m, "stock_news_summary"),
 					Frequency: str(m, "frequency"), TradeType: str(m, "trade_type"), ReportDate: str(m, "report_date"),
 					PositionSummary: str(m, "position_summary"), HasPosition: boolField(m, "has_position"),
-					PreMarketResult: str(m, "pre_market_result"), PreMarketConfidence: str(m, "pre_market_confidence"),
-					PreMarketReason: str(m, "pre_market_reason"), PreMarketReportID: str(m, "pre_market_report_id"),
+					PreMarketResult: str(m, "premarket_market_result"), PreMarketConfidence: str(m, "premarket_market_confidence"),
+					PreMarketReason: str(m, "premarket_market_reason"), PreMarketReportID: str(m, "stock_premarket_report_id"),
 					HourlyPriceAnalysis: str(m, "hourly_price_analysis"), HourlySignalAnalysis: str(m, "hourly_signal_analysis"),
 					HourlyKlineAnalysis: str(m, "hourly_kline_analysis"),
 					PriceSource: str(m, "price_source"), IntradayResult: str(m, "intraday_result"),
 					IntradayConfidence: str(m, "intraday_confidence"), BotLogSummary: str(m, "bot_log_summary"),
-					SessionBias: str(m, "session_bias"), VsPreMarket: str(m, "vs_pre_market"),
+					SessionBias: str(m, "session_bias"), VsPreMarket: str(m, "vs_stock_premarket"),
 					CurrentPrice: floatField(m, "current_price"), ChangePct: floatField(m, "change_pct"),
 				}
 			}

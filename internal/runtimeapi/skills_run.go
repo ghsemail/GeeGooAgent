@@ -57,7 +57,7 @@ func (h *Handler) skillsRun(w http.ResponseWriter, r *http.Request) {
 
 	var runOpts app.SkillRunOptions
 	runOpts.MCPToken = strings.TrimSpace(req.MCPToken)
-	if skill == "intraday" {
+	if skill == "intraday_stock" {
 		if req.Intraday == nil || strings.TrimSpace(req.Intraday.Code) == "" {
 			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "intraday.code is required"})
 			return
@@ -89,7 +89,7 @@ func (h *Handler) skillsRun(w http.ResponseWriter, r *http.Request) {
 		SessionID: result.SessionID,
 		Skill:     skill,
 	}
-	if skill == "intraday" && result.Working != nil && req.Intraday != nil {
+	if skill == "intraday_stock" && result.Working != nil && req.Intraday != nil {
 		resultStr, confidence, reportID := intradayDecisionFromWorking(result.Working, req.Intraday.Code)
 		resp.Decision = map[string]any{
 			"result":     resultStr,

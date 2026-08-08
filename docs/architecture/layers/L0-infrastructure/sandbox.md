@@ -15,7 +15,7 @@ Coding Agent 里 Sandbox 跑 shell；GeeGoo Agent 里 Sandbox 跑 **Typed Tool**
 
 我们**不提供** `run_shell()`，但 Tool 仍能：
 
-- 向 GeeGoo API **写入**盘前报告（`create_pre_market_report`）
+- 向 GeeGoo API **写入**盘前报告（`create_stock_premarket_report`）
 - 读取**错误端口**或**错误凭证**导致异常调用
 - 拉新闻脚本访问**任意外网**
 - `save_local_report` 若路径不受限，可写满磁盘或写到 `/etc`

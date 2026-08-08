@@ -28,7 +28,7 @@ def post(url, body, key=None):
 # full limit
 c,d = post("http://127.0.0.1:3140/reports/daily", {{"user_id": USER, "limit_per_phase": 200}}, BOT)
 data = d.get("data", {{}})
-for phase in ["pre_market", "post_market", "intraday"]:
+for phase in ["stock_premarket", "stock_postmarket", "intraday"]:
     rows = data.get(phase) or []
     dates = {{}}
     for r in rows:
@@ -44,12 +44,12 @@ print("agent_mcp_token", bool(mcp))
 if mcp:
     for path, body in [
         ("getReportBotCodes", {{"mcp_token": mcp}}),
-        ("getPreMarketReports", {{"mcp_token": mcp, "code": "00700.HK", "period": "daily"}}),
+        ("getStockPremarketReports", {{"mcp_token": mcp, "code": "00700.HK", "period": "daily"}}),
     ]:
         try:
             c,r = post(f"http://127.0.0.1:3120/{{path}}", body, BOT)
             print(path, "http", c, "code", r.get("code"), "msg", r.get("message"))
-            if path.endswith("getPreMarketReports") and r.get("data"):
+            if path.endswith("getStockPremarketReports") and r.get("data"):
                 print("  reports", len(r.get("data") or []))
         except Exception as e:
             print(path, "ERR", e)

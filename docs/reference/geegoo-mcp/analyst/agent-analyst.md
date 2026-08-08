@@ -383,9 +383,9 @@ curl -X POST "http://localhost:3120/getMCPAnalysis" \
   "data": {
     "code": "00700.HK",
     "report_date": "2026-05-15",
-    "pre_market": [
+    "stock_premarket": [
       {
-        "phase": "pre_market",
+        "phase": "stock_premarket",
         "report_id": "6825e65e2d7f2a005b6f8ca1",
         "code": "00700.HK",
         "stock_name": "腾讯控股",
@@ -400,7 +400,7 @@ curl -X POST "http://localhost:3120/getMCPAnalysis" \
       }
     ],
     "intraday": [],
-    "post_market": []
+    "stock_postmarket": []
   }
 }
 ```

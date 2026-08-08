@@ -43,7 +43,7 @@ func TestSkillsRunIntradayDryRun(t *testing.T) {
 	handler := auth.SkipPaths(map[string]struct{}{"/health": {}}, auth.BearerAPIKey("test-runtime-key"))(mux)
 
 	body := map[string]any{
-		"skill": "intraday",
+		"skill": "intraday_stock",
 		"intraday": map[string]string{
 			"code": "SPCX.US", "stock_name": "SpaceX", "bot_id": "bot-1",
 			"bot_type": "DCA", "frequency": "60m", "trade_type": "信号买入",

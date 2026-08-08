@@ -95,10 +95,10 @@
 | `get_bot_log_by_type` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getBotLogByType` |
 | `get_stock_daily_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getStockDailyReports` |
 | `list_today_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getStockDailyReports`（盘前幂等别名） |
-| `list_today_post_market_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getStockDailyReports`（盘后幂等别名） |
-| `get_pre_market_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getPreMarketReports` |
-| `get_intraday_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getIntradayTradeDecisionReports` |
-| `get_post_market_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getPostMarketReports` |
+| `list_today_stock_postmarket_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getStockDailyReports`（盘后幂等别名） |
+| `get_stock_premarket_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getStockPremarketReports` |
+| `get_intraday_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getStockIntradayReports` |
+| `get_stock_postmarket_reports` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getStockPostmarketReports` |
 | `get_index_signals` | GeeGooSignal catalog-api | — | catalog-api:3210 | `POST /getIndexSignalForSkill` |
 | `get_signal_combinations` | GeeGooSignal catalog-api | — | catalog-api:3210 | `POST /getSignalCombinationForSkill` |
 | `get_single_prompt_template` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /getSinglePromptTemplate` |
@@ -139,15 +139,15 @@
 
 | Tool | 直连服务器 | 间接服务器 | 接口服务 | 接口方法 |
 |------|-----------|-----------|----------|----------|
-| `create_pre_market_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /createPreMarketReport` |
-| `update_pre_market_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /updatePreMarketReport` |
-| `delete_pre_market_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /deletePreMarketReport` |
-| `create_intraday_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /createIntradayTradeDecisionReport` |
-| `update_intraday_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /updateIntradayTradeDecisionReport` |
-| `delete_intraday_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /deleteIntradayTradeDecisionReport` |
-| `create_post_market_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /createPostMarketReport` |
-| `update_post_market_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /updatePostMarketReport` |
-| `delete_post_market_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /deletePostMarketReport` |
+| `create_stock_premarket_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /createStockPremarketReport` |
+| `update_stock_premarket_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /updateStockPremarketReport` |
+| `delete_stock_premarket_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /deleteStockPremarketReport` |
+| `create_stock_intraday_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /createStockIntradayReport` |
+| `update_intraday_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /updateStockIntradayReport` |
+| `delete_intraday_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /deleteStockIntradayReport` |
+| `create_stock_postmarket_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /createStockPostmarketReport` |
+| `update_stock_postmarket_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /updateStockPostmarketReport` |
+| `delete_stock_postmarket_report` | GeeGooBot mcp-api | — | GeeGooBot mcp-api:3120 | `POST /deleteStockPostmarketReport` |
 | `save_local_report` | — | — | 本地 workspace | 写 `reports/{date}/{code}-*.md` |
 
 ### 5.2 Prompt 模板
@@ -220,13 +220,13 @@
 
 详见 [tools-status.md](./tools-status.md) §十一 Toolset。核心：`market` + `strategy` + `bot_manager` + `reminder_manager` + `report_query`。
 
-### 盘前 workflow（15 个，见 `skills/pre_market/manifest.yaml`）
+### 盘前 workflow（15 个，见 `skills/premarket_market/manifest.yaml`）
 
-`check_trading_day`, `get_report_bot_codes`, `fetch_market_news`, `fetch_stock_news`, `get_mcp_analysis`, `get_stock_daily_reports`, `list_today_reports`, `get_capital_flow`, `get_capital_distribution`, `get_bot_yesterday_attitude`, `recall_yesterday_summary`, `read_working_state`, `create_pre_market_report`, `save_local_report`, `write_execution_log`
+`check_trading_day`, `get_report_bot_codes`, `fetch_market_news`, `fetch_stock_news`, `get_mcp_analysis`, `get_stock_daily_reports`, `list_today_reports`, `get_capital_flow`, `get_capital_distribution`, `get_bot_yesterday_attitude`, `recall_yesterday_summary`, `read_working_state`, `create_stock_premarket_report`, `save_local_report`, `write_execution_log`
 
 ### 盘中 / 盘后
 
-见 `skills/intraday/manifest.yaml`（9 Tool）、`skills/post_market/manifest.yaml`（10 Tool）。
+见 `skills/intraday_stock/manifest.yaml`（9 Tool）、`skills/postmarket_stock/manifest.yaml`（10 Tool）。
 
 ---
 

@@ -1,17 +1,59 @@
 # MCP API：报告与 Workflow
 
+## 命名对照（必读）
+
+盘前报告有 **两层**，名字容易混，请按 **范围（scope）× 阶段（phase）** 理解：
+
+| 中文 | 范围 scope | 阶段 phase | Agent Skill（CLI） | Mongo 集合 | MCP 写入 | App 日报页 |
+|------|------------|------------|-------------------|------------|----------|------------|
+| **市场盘前** | `market`（CN/HK/US 宏观） | `premarket_market` | `premarket_market` | `market_premarket_report` | `createMarketPremarketReport` | ❌ 不展示 |
+| **个股盘前** | `stock`（单标的 + Bot） | `premarket_market` | `premarket_stock` | `stock_premarket_report` | `createStockPremarketReport` | ✅ `POST /reports/daily` |
+| **个股盘中** | `stock` | `intraday` | `intraday` | `stock_intraday_report` | `createStockIntradayReport` | ✅ |
+| **个股盘后** | `stock` | `postmarket_stock` | `postmarket_stock` | `stock_postmarket_report` | `createStockPostmarketReport` | ✅ |
+
+**流水线顺序**（每个交易日、每个市场）：
+
+```
+premarket_market（市场盘前）
+    → market_premarket_report
+    → premarket_stock（个股盘前，读取上一步）
+    → stock_premarket_report（含 market_premarket_report_id 外键）
+    → intraday / postmarket_stock（引用 stock_premarket_report_id）
+```
+
+**易混点**：
+
+| 容易误解的名字 | 实际含义 |
+|----------------|----------|
+| `premarket_market`（skill） | 只生成 **市场** 盘前，不是个股 |
+| `stock_premarket_report`（集合） | 只存 **个股** 盘前，不是市场 |
+| `market_premarket_report` | 市场盘前；名字长但 scope+phase 都带了 |
+| `createStockPremarketReport` | 创建 **个股** 盘前（无 Market 前缀） |
+| `createMarketPremarketReport` | 创建 **市场** 盘前（有 Market 前缀） |
+
+**本地 Markdown 文件名**（Agent `save_local_report`）：
+
+| 报告 | 路径模式 |
+|------|----------|
+| 市场盘前 | `reports/{date}/market-{CN\|HK\|US}-market_premarket.md` |
+| 个股盘前 | `reports/{date}/{code}-premarket.md` |
+
+---
+
 ## 概述
 
 本文档描述 GeeGooBot mcp-api 中与**盘前 / 盘中 / 盘后报告 Workflow**相关的接口，包括：
 
 - **待分析标的列表**（`getReportBotCodes`，原 `getUserBotCodes`）  
-- 三类报告 CRUD + 按日聚合查询  
+- **市场盘前**（`createMarketPremarketReport` / `getMarketPremarketReport`）  
+- **个股**三类报告 CRUD + 按日聚合查询  
 
-服务端使用三个 MongoDB 集合：
+服务端使用 **四个** MongoDB 集合（市场 1 + 个股 3）：
 
-- `pre_market_report`（盘前分析报告）
-- `intraday_trade_decision_report`（盘中交易决策报告）
-- `post_market_report`（盘后分析报告）
+- `market_premarket_report`（**市场**盘前：指数 + 市场新闻，按 `market` + `report_date` 唯一）
+- `stock_premarket_report`（**个股**盘前分析报告）
+- `stock_intraday_report`（盘中交易决策报告）
+- `stock_postmarket_report`（盘后分析报告）
 
 **机器人关联字段（三类报告统一）**  
 
@@ -70,6 +112,67 @@ curl -X POST "http://<host>:3120/getReportBotCodes" \
 
 ---
 
+## 市场盘前报告（market_premarket_report）
+
+> **与个股盘前的关系**：本接口写入 `market_premarket_report`，**无 `user_id`**，每个市场每个交易日最多一条。  
+> `premarket_stock` Workflow 在 Phase A 通过 `getMarketPremarketReport` 读取后，再为各标的写 `stock_premarket_report`。
+
+### 数据结构
+
+```json
+{
+  "market": "CN",
+  "report_date": "2026-08-07",
+  "report": "市场盘前正文（指数 + 新闻）",
+  "summary": "一句话摘要",
+  "result": "neutral",
+  "confidence": "low"
+}
+```
+
+- `market`：`CN` / `HK` / `US`
+- `result`：`long` / `short` / `neutral`（可选）
+- `confidence`：`high` / `medium` / `low`（可选）
+
+### 创建（createMarketPremarketReport）
+
+| 项目 | 说明 |
+|------|------|
+| **URL** | `/createMarketPremarketReport` |
+| **方法** | `POST` |
+| **认证** | Header：`Authorization: Bearer <API_KEY>`；Body：必填 `mcp_token` |
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| **mcp_token** | string | 是 | 用户 MCP 令牌（鉴权用；文档本身不按用户隔离）。 |
+| **market** | string | 是 | `CN` / `HK` / `US`。 |
+| **report** | string | 是 | 市场盘前正文。 |
+| **report_date** | string | 否 | `YYYY-MM-DD`；默认当天。 |
+| **summary** | string | 否 | 摘要。 |
+| **result** | string | 否 | `long` / `short` / `neutral`。 |
+| **confidence** | string | 否 | `high` / `medium` / `low`。 |
+
+同一 `market` + `report_date` 已存在则 **upsert** 更新。
+
+### 查询（getMarketPremarketReport）
+
+| 项目 | 说明 |
+|------|------|
+| **URL** | `/getMarketPremarketReport` |
+| **方法** | `POST` |
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| **mcp_token** | string | 是 | 用户 MCP 令牌。 |
+| **market** | string | 是 | `CN` / `HK` / `US`。 |
+| **report_date** | string | 否 | `YYYY-MM-DD`；默认当天。 |
+
+成功时 `data` 含 `report_id`、`market`、`report_date`、`report`、`summary`、`result`、`confidence`。
+
+个股盘前创建时可带 **`market_premarket_report_id`** 字段，关联本市场报告。
+
+---
+
 ## 认证与请求约定
 
 | 项目 | 说明 |
@@ -82,7 +185,9 @@ curl -X POST "http://<host>:3120/getReportBotCodes" \
 
 ---
 
-## 数据结构（pre_market_report）
+## 数据结构（stock_premarket_report · 个股盘前）
+
+> 集合名 `stock_premarket_report` 指 **个股** 盘前，不要与市场集合 `market_premarket_report` 混淆。
 
 单条报告字段如下：
 
@@ -100,7 +205,8 @@ curl -X POST "http://<host>:3120/getReportBotCodes" \
   "report": "盘前分析报告原文",
   "summary": "针对盘前分析报告的总结",
   "support": 485.0,
-  "resistance": 502.0
+  "resistance": 502.0,
+  "market_premarket_report_id": "6a76ca013ab8301bc8e9570c"
 }
 ```
 
@@ -111,13 +217,13 @@ curl -X POST "http://<host>:3120/getReportBotCodes" \
 
 ---
 
-## 创建盘前分析报告（createPreMarketReport）
+## 创建盘前分析报告（createStockPremarketReport · 个股盘前）
 
 ### 接口定义
 
 | 项目 | 说明 |
 |------|------|
-| **URL** | `/createPreMarketReport` |
+| **URL** | `/createStockPremarketReport` |
 | **方法** | `POST` |
 | **认证** | Header：`Authorization: Bearer <API_KEY>`；Body：必填 `mcp_token` |
 
@@ -139,6 +245,7 @@ curl -X POST "http://<host>:3120/getReportBotCodes" \
 | **bot_id** | string | 否 | 关联机器人 ID；未传则写入 `""`。 |
 | **bot_name** | string | 否 | 机器人名称；未传则写入 `""`。 |
 | **bot_type** | string | 否 | 机器人类型；未传则写入 `""`。 |
+| **market_premarket_report_id** | string | 否 | 关联当日市场盘前报告 ID（来自 `createMarketPremarketReport`）。 |
 
 ### 成功响应
 
@@ -156,13 +263,13 @@ HTTP `200`：
 
 ---
 
-## 更新盘前分析报告（updatePreMarketReport）
+## 更新盘前分析报告（updateStockPremarketReport）
 
 ### 接口定义
 
 | 项目 | 说明 |
 |------|------|
-| **URL** | `/updatePreMarketReport` |
+| **URL** | `/updateStockPremarketReport` |
 | **方法** | `POST` |
 | **认证** | Header：`Authorization: Bearer <API_KEY>`；Body：必填 `mcp_token` |
 
@@ -199,13 +306,13 @@ HTTP `200`：
 
 ---
 
-## 删除盘前分析报告（deletePreMarketReport）
+## 删除盘前分析报告（deleteStockPremarketReport）
 
 ### 接口定义
 
 | 项目 | 说明 |
 |------|------|
-| **URL** | `/deletePreMarketReport` |
+| **URL** | `/deleteStockPremarketReport` |
 | **方法** | `POST` |
 | **认证** | Header：`Authorization: Bearer <API_KEY>`；Body：必填 `mcp_token` |
 
@@ -229,13 +336,13 @@ HTTP `200`：
 
 ---
 
-## 查询盘前分析报告（getPreMarketReports）
+## 查询盘前分析报告（getStockPremarketReports）
 
 ### 接口定义
 
 | 项目 | 说明 |
 |------|------|
-| **URL** | `/getPreMarketReports` |
+| **URL** | `/getStockPremarketReports` |
 | **方法** | `POST` |
 | **认证** | Header：`Authorization: Bearer <API_KEY>`；Body：必填 `mcp_token` |
 
@@ -293,7 +400,7 @@ HTTP `200`，返回列表：
 
 ---
 
-## 数据结构（intraday_trade_decision_report）
+## 数据结构（stock_intraday_report）
 
 单条盘中交易决策报告字段如下：
 
@@ -344,13 +451,13 @@ HTTP `200`，返回列表：
 
 ---
 
-## 创建盘中交易决策报告（createIntradayTradeDecisionReport）
+## 创建盘中交易决策报告（createStockIntradayReport）
 
 ### 接口定义
 
 | 项目 | 说明 |
 |------|------|
-| **URL** | `/createIntradayTradeDecisionReport` |
+| **URL** | `/createStockIntradayReport` |
 | **方法** | `POST` |
 | **认证** | Header：`Authorization: Bearer <API_KEY>`；Body：必填 `mcp_token` |
 
@@ -392,13 +499,13 @@ HTTP `200`：
 
 ---
 
-## 更新盘中交易决策报告（updateIntradayTradeDecisionReport）
+## 更新盘中交易决策报告（updateStockIntradayReport）
 
 ### 接口定义
 
 | 项目 | 说明 |
 |------|------|
-| **URL** | `/updateIntradayTradeDecisionReport` |
+| **URL** | `/updateStockIntradayReport` |
 | **方法** | `POST` |
 | **认证** | Header：`Authorization: Bearer <API_KEY>`；Body：必填 `mcp_token` |
 
@@ -438,13 +545,13 @@ HTTP `200`：
 
 ---
 
-## 删除盘中交易决策报告（deleteIntradayTradeDecisionReport）
+## 删除盘中交易决策报告（deleteStockIntradayReport）
 
 ### 接口定义
 
 | 项目 | 说明 |
 |------|------|
-| **URL** | `/deleteIntradayTradeDecisionReport` |
+| **URL** | `/deleteStockIntradayReport` |
 | **方法** | `POST` |
 | **认证** | Header：`Authorization: Bearer <API_KEY>`；Body：必填 `mcp_token` |
 
@@ -468,13 +575,13 @@ HTTP `200`：
 
 ---
 
-## 查询盘中交易决策报告（getIntradayTradeDecisionReports）
+## 查询盘中交易决策报告（getStockIntradayReports）
 
 ### 接口定义
 
 | 项目 | 说明 |
 |------|------|
-| **URL** | `/getIntradayTradeDecisionReports` |
+| **URL** | `/getStockIntradayReports` |
 | **方法** | `POST` |
 | **认证** | Header：`Authorization: Bearer <API_KEY>`；Body：必填 `mcp_token` |
 
@@ -534,7 +641,7 @@ HTTP `200`，返回列表：
 
 ---
 
-## 数据结构（post_market_report）
+## 数据结构（stock_postmarket_report）
 
 单条盘后分析报告字段如下（不含 `confidence`、`price`、`position`、`cash`）：
 
@@ -553,8 +660,8 @@ HTTP `200`，返回列表：
   "bot_id": "6781cb8309a2189f26d8866e",
   "bot_name": "我的DCA",
   "bot_type": "DCA",
-  "vs_pre_market": "aligned",
-  "pre_market_report_id": "680bc8e7f54cf8a14f82a8a2",
+  "vs_stock_premarket": "aligned",
+  "stock_premarket_report_id": "680bc8e7f54cf8a14f82a8a2",
   "tags": ["缩量", "冲高回落"]
 }
 ```
@@ -562,17 +669,17 @@ HTTP `200`，返回列表：
 枚举约束：
 
 - **`session_bias`**（当日涨跌/盘面倾向）：`bullish` / `bearish` / `neutral`
-- **`vs_pre_market`**（与盘前观点对照，可选）：`aligned` / `partial` / `contradicted` / `na`
+- **`vs_stock_premarket`**（与盘前观点对照，可选）：`aligned` / `partial` / `contradicted` / `na`
 
 ---
 
-## 创建盘后分析报告（createPostMarketReport）
+## 创建盘后分析报告（createStockPostmarketReport）
 
 ### 接口定义
 
 | 项目 | 说明 |
 |------|------|
-| **URL** | `/createPostMarketReport` |
+| **URL** | `/createStockPostmarketReport` |
 | **方法** | `POST` |
 | **认证** | Header：`Authorization: Bearer <API_KEY>`；Body：必填 `mcp_token` |
 
@@ -594,8 +701,8 @@ HTTP `200`，返回列表：
 | **bot_id** | string | 否 | 关联机器人 ID；未传则写入 `""`。 |
 | **bot_name** | string | 否 | 机器人名称；未传则写入 `""`。 |
 | **bot_type** | string | 否 | 机器人类型；未传则写入 `""`。 |
-| **vs_pre_market** | string | 否 | `aligned` / `partial` / `contradicted` / `na`。 |
-| **pre_market_report_id** | string | 否 | 关联的盘前报告 `report_id`。 |
+| **vs_stock_premarket** | string | 否 | `aligned` / `partial` / `contradicted` / `na`。 |
+| **stock_premarket_report_id** | string | 否 | 关联的盘前报告 `report_id`。 |
 | **tags** | array | 否 | 标签；未传时默认 `[]`。 |
 
 ### 成功响应
@@ -614,13 +721,13 @@ HTTP `200`：
 
 ---
 
-## 更新盘后分析报告（updatePostMarketReport）
+## 更新盘后分析报告（updateStockPostmarketReport）
 
 ### 接口定义
 
 | 项目 | 说明 |
 |------|------|
-| **URL** | `/updatePostMarketReport` |
+| **URL** | `/updateStockPostmarketReport` |
 | **方法** | `POST` |
 | **认证** | Header：`Authorization: Bearer <API_KEY>`；Body：必填 `mcp_token` |
 
@@ -643,8 +750,8 @@ HTTP `200`：
 | **bot_id** | string | 否 | 机器人 ID。 |
 | **bot_name** | string | 否 | 机器人名称。 |
 | **bot_type** | string | 否 | 机器人类型。 |
-| **vs_pre_market** | string / null | 否 | 对照枚举；传 `null` 或空字符串可清空。 |
-| **pre_market_report_id** | string | 否 | 关联盘前报告 ID。 |
+| **vs_stock_premarket** | string / null | 否 | 对照枚举；传 `null` 或空字符串可清空。 |
+| **stock_premarket_report_id** | string | 否 | 关联盘前报告 ID。 |
 | **tags** | array | 否 | 标签数组。 |
 
 ### 成功响应
@@ -660,13 +767,13 @@ HTTP `200`：
 
 ---
 
-## 删除盘后分析报告（deletePostMarketReport）
+## 删除盘后分析报告（deleteStockPostmarketReport）
 
 ### 接口定义
 
 | 项目 | 说明 |
 |------|------|
-| **URL** | `/deletePostMarketReport` |
+| **URL** | `/deleteStockPostmarketReport` |
 | **方法** | `POST` |
 | **认证** | Header：`Authorization: Bearer <API_KEY>`；Body：必填 `mcp_token` |
 
@@ -690,13 +797,13 @@ HTTP `200`：
 
 ---
 
-## 查询盘后分析报告（getPostMarketReports）
+## 查询盘后分析报告（getStockPostmarketReports）
 
 ### 接口定义
 
 | 项目 | 说明 |
 |------|------|
-| **URL** | `/getPostMarketReports` |
+| **URL** | `/getStockPostmarketReports` |
 | **方法** | `POST` |
 | **认证** | Header：`Authorization: Bearer <API_KEY>`；Body：必填 `mcp_token` |
 
@@ -735,8 +842,8 @@ HTTP `200`，返回列表：
       "bot_id": "6781cb8309a2189f26d8866e",
       "bot_name": "我的DCA",
       "bot_type": "DCA",
-      "vs_pre_market": "aligned",
-      "pre_market_report_id": "680bc8e7f54cf8a14f82a8a2",
+      "vs_stock_premarket": "aligned",
+      "stock_premarket_report_id": "680bc8e7f54cf8a14f82a8a2",
       "tags": ["缩量", "冲高回落"],
       "created_at": "2026-05-09T18:30:00.000000",
       "updated_at": "2026-05-09T18:35:12.000000"
@@ -758,7 +865,7 @@ HTTP `200`，返回列表：
 | **400** | 400 | 参数非法（如枚举值不在允许范围、缺少必填字段）。 |
 | **500** | 500 | 服务端异常。 |
 
-盘后分析报告接口（`/createPostMarketReport`、`/updatePostMarketReport`、`/deletePostMarketReport`、`/getPostMarketReports`）使用**相同**业务码约定。
+盘后分析报告接口（`/createStockPostmarketReport`、`/updateStockPostmarketReport`、`/deleteStockPostmarketReport`、`/getStockPostmarketReports`）使用**相同**业务码约定。
 
 ---
 

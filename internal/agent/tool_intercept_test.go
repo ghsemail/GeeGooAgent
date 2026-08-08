@@ -12,7 +12,7 @@ import (
 func TestFilterInteractiveSchemasDropsWorkflowTools(t *testing.T) {
 	t.Parallel()
 	in := []llm.ToolSchema{
-		{Name: "search_code"}, {Name: "read_working_state"}, {Name: "create_pre_market_report"},
+		{Name: "search_code"}, {Name: "read_working_state"}, {Name: "create_stock_premarket_report"},
 	}
 	out := filterInteractiveSchemas(in)
 	if len(out) != 1 || out[0].Name != "search_code" {

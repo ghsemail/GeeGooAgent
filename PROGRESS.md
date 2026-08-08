@@ -12,7 +12,7 @@
 - **Step 5** — ToolRegistry + 首批 3 Tool
 - **Step 6** — WorkingMemory (PreMarketWorking)
 - **Step 7** — WorkflowRunner 空壳 + CLI
-- **Step 8** — 迁入 references / rules / skills/pre_market
+- **Step 8** — 迁入 references / rules / skills/premarket_market
 - **Step 9** — 补全 Clients + MVP 19 Tool
 - **Step 10** — PreMarketWorkflow 阶段 A
 - [x] **Step 11** — PreMarketWorkflow 阶段 B
@@ -278,7 +278,7 @@ ruff check src tests
 | 会话       | `runtime/session.py`  | `Session`、`SessionManager`（create/load/save）                   |
 | 工作流      | `runtime/workflow.py` | `WorkflowRunner`、`PRE_MARKET_STUB_STEPS`（3 步 stub）、`RunResult` |
 | 组装       | `runtime/app.py`      | `GeeGooApp.from_config`；`run_skill` / `resume_session`           |
-| CLI      | `cli.py`              | `run pre_market [--dry-run]`、`resume --session`                |
+| CLI      | `cli.py`              | `run premarket_market [--dry-run]`、`resume --session`                |
 | Fixtures | `tests/conftest.py`   | `sample_config`、`sample_config_file`                           |
 
 **MVP 工作流（stub）**
@@ -299,7 +299,7 @@ ruff check src tests
 ```bash
 pytest -q    # 80 passed
 ruff check src tests
-geegoo-agent run pre_market --dry-run --config config.json
+geegoo-agent run premarket_market --dry-run --config config.json
 ```
 
 **完成日期**：2026-06-05
@@ -312,13 +312,13 @@ geegoo-agent run pre_market --dry-run --config config.json
 
 | 类别      | 路径                                              | 说明                                                   |
 | ------- | ----------------------------------------------- | ---------------------------------------------------- |
-| 工作流     | `skills/pre_market/workflow.md`                 | 自 `pre-market-workflow.md` 迁入，路径改为 `skills/bundled/` |
-| 模板      | `skills/pre_market/template.md`                 | 自 `pre-market-template.md` 迁入，注明 RSI/MACD 限制         |
-| Skill   | `skills/pre_market/SKILL.md`                    | 盘前 Skill Pack 说明                                     |
-| 清单      | `skills/pre_market/manifest.yaml`               | 16 Tool 白名单 + 3 LLM 任务 + 步骤表                         |
+| 工作流     | `skills/premarket_market/workflow.md`                 | 自 `pre-market-workflow.md` 迁入，路径改为 `skills/bundled/` |
+| 模板      | `skills/premarket_market/template.md`                 | 自 `pre-market-template.md` 迁入，注明 RSI/MACD 限制         |
+| Skill   | `skills/premarket_market/SKILL.md`                    | 盘前 Skill Pack 说明                                     |
+| 清单      | `skills/premarket_market/manifest.yaml`               | 16 Tool 白名单 + 3 LLM 任务 + 步骤表                         |
 | Rules   | `rules/api-routing.md`                          | 3120 路由（含 2026-05-20 修复说明）                      |
 | Rules   | `rules/attitude-mapping.md`                     | attitude→result、404 处理                               |
-| Rules   | `rules/report-format.md`                        | create_pre_market_report 必填字段、九章结构                   |
+| Rules   | `rules/report-format.md`                        | create_stock_premarket_report 必填字段、九章结构                   |
 | Bundled | `skills/bundled/finance-news/`                  | `fetch_news.py`                                      |
 | Bundled | `skills/bundled/eastmoney-news/`                | `search.py`                                          |
 | Bundled | `skills/bundled/free-stock-global-quotes-news/` | `news.py`（备选）                                        |
@@ -349,7 +349,7 @@ ruff check src tests
 | 类别     | 文件                     | 说明                                                                                                                    |
 | ------ | ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | Client | `clients/geegoo_bot.py`  | `get_mcp_analysis`、`get_stock_daily_reports`（3120）                                                                    |
-| Client | `clients/market.py`    | 扩展：`get_capital_distribution`、`get_bot_yesterday_attitude`（404→neutral）、`get_mcp_analysis`、`create_pre_market_report` |
+| Client | `clients/market.py`    | 扩展：`get_capital_distribution`、`get_bot_yesterday_attitude`（404→neutral）、`get_mcp_analysis`、`create_stock_premarket_report` |
 | 校验     | `tools/schemas.py`     | `PreMarketReportCreate` 必填字段 + 枚举                                                                                     |
 | 映射     | `tools/mappings.py`    | `attitude_to_result`、资金分布格式化                                                                                          |
 | 分析     | `tools/analyze.py`     | 4 Tool：mcp / capital_flow / capital_distribution / bot_attitude                                                       |
@@ -392,15 +392,15 @@ ruff check src tests
 
 | 类别 | 文件 | 说明 |
 |------|------|------|
-| 步骤表 | `runtime/pre_market_workflow.py` | `PRE_MARKET_PER_STOCK_STEPS`（9 步/股） |
-| 报告桩 | `runtime/pre_market_report.py` | 阶段 B stub 报告与 `create_pre_market_report` 参数 |
+| 步骤表 | `runtime/premarket_market_workflow.py` | `PRE_MARKET_PER_STOCK_STEPS`（9 步/股） |
+| 报告桩 | `runtime/stock_premarket_report.py` | 阶段 B stub 报告与 `create_stock_premarket_report` 参数 |
 | Runner | `runtime/workflow.py` | `per_stock_steps` 每股循环；幂等 skip；`phase_b`→`done` |
 | Working | `memory/models.py`、`memory/working.py` | 每股字段更新；`list_today_reports` 幂等 |
 | 应用 | `runtime/app.py` | 全链路 A+B |
 
 **阶段 B 流程（每股）**
 
-`list_today_reports`（已存在→skip）→ `fetch_stock_news` → `get_capital_flow` → `get_capital_distribution` → weekly `get_mcp_analysis` → `get_bot_yesterday_attitude` → `save_local_report` → `create_pre_market_report`
+`list_today_reports`（已存在→skip）→ `fetch_stock_news` → `get_capital_flow` → `get_capital_distribution` → weekly `get_mcp_analysis` → `get_bot_yesterday_attitude` → `save_local_report` → `create_stock_premarket_report`
 
 **测试**（testing-standards §5，≥6 用例）
 
@@ -425,8 +425,8 @@ ruff check src tests
 
 | 类别 | 文件 | 说明 |
 |------|------|------|
-| LLM 任务 | `runtime/llm_tasks.py` | `parse_weekly_analysis`、`synthesize_pre_market_report`、`enrich_stock_with_llm` |
-| 报告构建 | `runtime/pre_market_report.py` | 有 `synthesis` 时用 LLM 结果，否则 fallback stub |
+| LLM 任务 | `runtime/llm_tasks.py` | `parse_weekly_analysis`、`synthesize_stock_premarket_report`、`enrich_stock_with_llm` |
+| 报告构建 | `runtime/stock_premarket_report.py` | 有 `synthesis` 时用 LLM 结果，否则 fallback stub |
 | 工作流 | `runtime/workflow.py` | `get_bot_yesterday_attitude` 后非 dry-run 调用 LLM  enrichment |
 | 应用 | `runtime/app.py` | 可选构建 `ModelGateway` 注入 `ToolContext` |
 | 类型 | `memory/models.py`、`tools/types.py` | `weekly_parsed` / `synthesis` 字段；`llm_gateway` |
@@ -434,7 +434,7 @@ ruff check src tests
 
 **LLM 流程（每股，非 dry-run）**
 
-`get_bot_yesterday_attitude` → `parse_weekly_analysis` → `synthesize_pre_market_report` → `save_local_report` / `create_pre_market_report`
+`get_bot_yesterday_attitude` → `parse_weekly_analysis` → `synthesize_stock_premarket_report` → `save_local_report` / `create_stock_premarket_report`
 
 **测试**（testing-standards §5，≥4 用例）
 
@@ -460,10 +460,10 @@ ruff check src tests
 
 | 类别 | 文件 | 说明 |
 |------|------|------|
-| 检查清单 | `skills/pre_market/supervisor_checks.yaml` | 5 项：phase、本地 md、API report_id、bot 字段、payload 校验 |
+| 检查清单 | `skills/premarket_market/supervisor_checks.yaml` | 5 项：phase、本地 md、API report_id、bot 字段、payload 校验 |
 | 检查器 | `supervisor/checks.py` | `file_exists`、`stocks_status`、`api_response`、`execution_log_contains` |
 | 引擎 | `supervisor/engine.py` | 加载 YAML、逐项 verify、返回 `SupervisorResult` |
-| 入口 | `supervisor/pre_market.py` | `run_pre_market_supervisor` |
+| 入口 | `supervisor/premarket_market.py` | `run_premarket_market_supervisor` |
 | 应用 | `runtime/app.py` | workflow 完成后跑 supervisor；摘要写入 execution-log；`run_skill` 含阶段 B |
 
 **检查项（交易日）**
@@ -493,22 +493,22 @@ ruff check src tests
 
 | 类别 | 文件 | 说明 |
 |------|------|------|
-| E2E 测试 | `tests/e2e/test_pre_market_dry_run.py` | CLI `--dry-run` 全链路 + resume 幂等 |
-| dry-run 数据 | `runtime/pre_market_constants.py`、`tools/perceive.py` | `get_report_bot_codes` 返回 sample bot，支撑阶段 B |
+| E2E 测试 | `tests/e2e/test_premarket_market_dry_run.py` | CLI `--dry-run` 全链路 + resume 幂等 |
+| dry-run 数据 | `runtime/premarket_market_constants.py`、`tools/perceive.py` | `get_report_bot_codes` 返回 sample bot，支撑阶段 B |
 
 **E2E 断言清单（testing-standards §4.3）**
 
 - [x] `execution-log.md` 含阶段 A/B 与 supervisor 步骤名
 - [x] `checkpoints/` 最终 step = 20（11 阶段 A + 9 阶段 B）
 - [x] 每股有 `{code}-premarket.md`
-- [x] dry-run 无 HTTP 请求（含 `createPreMarketReport`）
+- [x] dry-run 无 HTTP 请求（含 `createStockPremarketReport`）
 - [x] `working` 终态 `phase=done`；supervisor 通过
 
 **测试**
 
 | 文件 | 用例数 | 覆盖场景 |
 |------|--------|----------|
-| `tests/e2e/test_pre_market_dry_run.py` | 2 | 全链路 dry-run；completed 后 resume 幂等 |
+| `tests/e2e/test_premarket_market_dry_run.py` | 2 | 全链路 dry-run；completed 后 resume 幂等 |
 
 **验收命令**
 
@@ -527,7 +527,7 @@ ruff check src tests
 
 | 类别 | 文件 | 说明 |
 |------|------|------|
-| systemd | `deploy/systemd/geegoo-agent-pre-market.service` | oneshot：`geegoo-agent run pre_market` |
+| systemd | `deploy/systemd/geegoo-agent-pre-market.service` | oneshot：`geegoo-agent run premarket_market` |
 | systemd | `deploy/systemd/geegoo-agent-pre-market.timer` | Mon–Fri 08:00 `Asia/Shanghai` |
 | 环境模板 | `deploy/env.example` | `/etc/geegoo-agent/env` 示例（LLM + 密钥覆盖） |
 | 切换清单 | `deploy/hermes-migration-checklist.md` | 并行验证 → 切换 → 回滚（不自动禁用 Hermes） |

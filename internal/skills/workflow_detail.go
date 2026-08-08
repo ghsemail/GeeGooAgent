@@ -125,9 +125,9 @@ func resolvePhaseASteps(spec Spec) []workflow.Step {
 		}
 	}
 	switch spec.Name {
-	case "pre_market":
+	case "premarket_market":
 		return workflow.MarketPhaseSteps(workflow.MarketCN)
-	case "pre_market_stock":
+	case "premarket_stock":
 		return workflow.StockPhaseASteps(workflow.MarketCN)
 	default:
 		if spec.PhaseA != nil {
@@ -138,7 +138,7 @@ func resolvePhaseASteps(spec Spec) []workflow.Step {
 }
 
 func resolvePerStockSteps(spec Spec) []workflow.Step {
-	if spec.Name == "pre_market" {
+	if spec.Name == "premarket_market" {
 		return nil
 	}
 	if spec.PerStock != nil {

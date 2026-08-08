@@ -8,7 +8,7 @@
 
 | Hermes 子系统 | Hermes 位置 | GeeGooAgent 现状 | 差距 |
 |---|---|---|---|
-| Agent 循环 | `run_agent.py` AIAgent | `internal/runtime/react.go` ReActLoop | 有，但只服务 chat；pre_market 走另一条 Workflow.Run |
+| Agent 循环 | `run_agent.py` AIAgent | `internal/runtime/react.go` ReActLoop | 有，但只服务 chat；premarket_market 走另一条 Workflow.Run |
 | Prompt 系统 | `agent/prompt_builder.py` + 压缩 + 缓存 | `internal/chatprompt/prompt.go` 单函数硬编码 | 缺分层组装、缺压缩、缺缓存；且每轮重写 system 破坏缓存 |
 | Provider 解析 | `hermes_cli/runtime_provider.py` 18+ | `internal/llm/presets.go` 3 个 | 不多加；但缺 `(provider,model)→(mode,key,base_url)` resolver 抽象 |
 | 工具系统 | `tools/registry.py` 70+/28 toolset，导入自注册 | `internal/tools/registry.go` + bespoke + catalog | 无 toolset 分组、无自注册、无 approval/危险检测、无 input/output schema |
@@ -17,7 +17,7 @@
 | Cron | `cron/jobs.py` agent 一等公民 | `deploy/systemd/*.timer` shell 级 | 缺 Go 内调度、缺 skill 注入、缺失败重跑 |
 | 插件 | `plugins/memory/` `plugins/context_engine/` | 无 | 单租户，YAGNI，后置 |
 | ACP | `acp_adapter/` | 无 | 不需要 |
-| Skills | `skills/` `optional-skills/` | `skills/pre_market/` + 2 bundled | 有雏形，缺 Go 加载器，steps 硬编码 |
+| Skills | `skills/` `optional-skills/` | `skills/premarket_market/` + 2 bundled | 有雏形，缺 Go 加载器，steps 硬编码 |
 | CLI | `cli.py` HermesCLI | `internal/cli/chatrepl/` + `chatui/` + **`chattui/` Bubble Tea** | TUI 折叠/details/多 session 已对齐 |
 | 轨迹 | `agent/trajectory.py` ShareGPT | 无 | 可选，后置 |
 
@@ -166,7 +166,7 @@ GeeGooAgent/
 - `internal/provider/`（重命名自 `llm`）：加 `resolver.go`
 
 **验收：**
-- `geegoo chat` 与 `geegoo run pre_market` 共用同一个 `Agent.Run`
+- `geegoo chat` 与 `geegoo run premarket_market` 共用同一个 `Agent.Run`
 - DeepSeek 连续两轮调用，system prompt 字节级不变
 - Ctrl+C 能中断进行中的 tool 调用
 
@@ -176,7 +176,7 @@ GeeGooAgent/
 
 **改动：**
 - `internal/workflow/supervisor.go`：`Engine` + `checks.go` + `result.go`（verdict: pass/recoverable/terminal）
-- 加载 `skills/pre_market/supervisor_checks.yaml`（或 Go 常量）
+- 加载 `skills/premarket_market/supervisor_checks.yaml`（或 Go 常量）
 - `workflow/runner.go` `RunFrom` 改为按 `StepsCompleted` 集合跳过，不按编号
 - 错误分类 `RecoverableError` / `TerminalError`；recoverable 自动补跑
 - `cmd/geegoo/resume.go` 加 `--force-step`
@@ -184,22 +184,22 @@ GeeGooAgent/
 
 **验收：**
 - 故意漏一步 weekly_analysis → supervisor 标 recoverable → 自动补跑
-- `create_pre_market_report` 业务码错 → terminal → 停手告警
+- `create_stock_premarket_report` 业务码错 → terminal → 停手告警
 - 非交易日 verdict=pass
 
 ### P4 — Skill 化 ✅ 已完成 `28066a3`
 
-**目标：** `geegoo run <skill>` 通用，不再硬编码 `pre_market`。
+**目标：** `geegoo run <skill>` 通用，不再硬编码 `premarket_market`。
 
 **改动：**
 - `internal/skills/loader.go`：扫 `skills/*/manifest.yaml`
 - `internal/skills/manifest.go`：`workflow` / `template` / `supervisor_checks`
-- `skills/pre_market/manifest.yaml` 声明 phase A/B steps（或引用 Go 函数）
+- `skills/premarket_market/manifest.yaml` 声明 phase A/B steps（或引用 Go 函数）
 - `cmd/geegoo/run.go` 改为 `geegoo run <skill>`，从 SkillRegistry 取
-- `skills/intraday/`、`skills/post_market/` 占位
+- `skills/intraday_stock/`、`skills/postmarket_stock/` 占位
 
 **验收：**
-- `geegoo run pre_market` 行为不变
+- `geegoo run premarket_market` 行为不变
 - 新增 skill 只放 manifest + template，不改 Go 代码
 - `geegoo skills list` 列出可用 skill
 
@@ -230,7 +230,7 @@ GeeGooAgent/
 
 **验收：**
 - `list_smart_trades` 空 list 但 code=100 标 Skip
-- `create_pre_market_report` 写前 approval
+- `create_stock_premarket_report` 写前 approval
 - fixture 测试覆盖 5+ 关键工具
 
 ### P7 — Scheduler ✅ 已完成 `8913a6d`
@@ -252,7 +252,7 @@ GeeGooAgent/
 **目标：** Parallel verification checklist 升级为可执行。
 
 **改动：**
-- `scripts/parallel_verify.py`：拉两边 `createPreMarketReport`，diff 字段
+- `scripts/parallel_verify.py`：拉两边 `createStockPremarketReport`，diff 字段
 - 抽样 3 只 HK/US/A 股
 - 字段完整性矩阵
 - `hermes-migration-checklist.md` 每条加"如何验证"命令

@@ -92,7 +92,7 @@
 
 | 能力 | GeeGooAgent | Hermes Agent | Grok Build |
 |------|-------------|--------------|------------|
-| 确定性工作流 Skill | ✅ pre_market / intraday / post_market | ⚠️ 偏 ReAct | — 编码计划流 |
+| 确定性工作流 Skill | ✅ premarket_market / intraday / postmarket_stock | ⚠️ 偏 ReAct | — 编码计划流 |
 | **Supervisor 质检** | ✅ verdict + 退避重试 | ❌ | ⚠️ Code review 行级反馈 |
 | Cron / Scheduler | ✅ `geegoo scheduler` | ✅ | ⚠️ `/loop` 等 |
 | Webhook 触发 | ❌ | ⚠️ | — |

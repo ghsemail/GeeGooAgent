@@ -48,7 +48,7 @@
 | **get_single_prompt_template** | 3120 `/getSinglePromptTemplate` | 4 | | type: index/tech/fundamental；可选 period |
 | get_stock_daily_reports | 3120 `/getStockDailyReports` | 1 | **✓** | 聚合 pre/intraday/post；**查询报告用此接口** |
 | **list_today_reports** | 3120 `/getStockDailyReports` | 1 | **✓** | 盘前幂等检查别名（同日 code） |
-| **list_today_post_market_reports** | 3120 `/getStockDailyReports` | 2 | | 盘后幂等检查别名 |
+| **list_today_stock_postmarket_reports** | 3120 `/getStockDailyReports` | 2 | | 盘后幂等检查别名 |
 
 ### 2.2 资金与态度（geegoo Trading）
 
@@ -110,18 +110,18 @@
 
 | Tool | API | Phase | MVP | 说明 |
 |------|-----|-------|-----|------|
-| **create_pre_market_report** | 3120 `/createPreMarketReport` | 1 | **✓** | 必填见下节 |
-| update_pre_market_report | 3120 `/updatePreMarketReport` | 2 | | |
-| delete_pre_market_report | 3120 `/deletePreMarketReport` | 2 | | |
-| get_pre_market_reports | 3120 `/getPreMarketReports` | 2 | | 2026-05-20 已修复；盘后兜底；按日期聚合仍用 get_stock_daily_reports |
-| **create_post_market_report** | 3120 `/createPostMarketReport` | 2 | | 9 字段必填 |
-| update_post_market_report | 3120 `/updatePostMarketReport` | 2 | | |
-| delete_post_market_report | 3120 `/deletePostMarketReport` | 2 | | |
-| get_post_market_reports | 3120 `/getPostMarketReports` | 2 | | 按 code/bot_id/session_date 筛选 |
-| create_intraday_report | 3120 `/createIntradayTradeDecisionReport` | 3 | | |
-| update_intraday_report | 3120 `/updateIntradayTradeDecisionReport` | 3 | | |
-| delete_intraday_report | 3120 `/deleteIntradayTradeDecisionReport` | 3 | | |
-| get_intraday_reports | 3120 `/getIntradayTradeDecisionReports` | 3 | | |
+| **create_stock_premarket_report** | 3120 `/createStockPremarketReport` | 1 | **✓** | 必填见下节 |
+| update_stock_premarket_report | 3120 `/updateStockPremarketReport` | 2 | | |
+| delete_stock_premarket_report | 3120 `/deleteStockPremarketReport` | 2 | | |
+| get_stock_premarket_reports | 3120 `/getStockPremarketReports` | 2 | | 2026-05-20 已修复；盘后兜底；按日期聚合仍用 get_stock_daily_reports |
+| **create_stock_postmarket_report** | 3120 `/createStockPostmarketReport` | 2 | | 9 字段必填 |
+| update_stock_postmarket_report | 3120 `/updateStockPostmarketReport` | 2 | | |
+| delete_stock_postmarket_report | 3120 `/deleteStockPostmarketReport` | 2 | | |
+| get_stock_postmarket_reports | 3120 `/getStockPostmarketReports` | 2 | | 按 code/bot_id/session_date 筛选 |
+| create_stock_intraday_report | 3120 `/createStockIntradayReport` | 3 | | |
+| update_intraday_report | 3120 `/updateStockIntradayReport` | 3 | | |
+| delete_intraday_report | 3120 `/deleteStockIntradayReport` | 3 | | |
+| get_intraday_reports | 3120 `/getStockIntradayReports` | 3 | | |
 | **save_local_report** | 本地 FS | 1 | **✓** | 工作区内路径 |
 | ~~send_feishu_summary~~ | — | — | ❌ 已移除 | 待 GeeGooBot Notify Gateway |
 
@@ -200,9 +200,9 @@
 
 | Skill Pack | 包含 Tool 组 | Phase | manifest |
 |------------|--------------|-------|----------|
-| `pre_market` | §1.1–1.2 + §2.1–2.2 + §4.1 create_pre/save_local + §5 Meta | **1** | `skills/pre_market/manifest.yaml`（15） |
-| `post_market` | check + bot codes + list_today_post_market + 3× hourly analysis + bot log + post 报告 | 2 | `skills/post_market/manifest.yaml`（10） |
-| `intraday` | get_position + daily reports + capital + hourly analysis + intraday 报告 | 3 | `skills/intraday/manifest.yaml`（9） |
+| `premarket_market` | §1.1–1.2 + §2.1–2.2 + §4.1 create_pre/save_local + §5 Meta | **1** | `skills/premarket_market/manifest.yaml`（15） |
+| `postmarket_stock` | check + bot codes + list_today_postmarket_stock + 3× hourly analysis + bot log + post 报告 | 2 | `skills/postmarket_stock/manifest.yaml`（10） |
+| `intraday` | get_position + daily reports + capital + hourly analysis + intraday 报告 | 3 | `skills/intraday_stock/manifest.yaml`（9） |
 | `on_demand_analysis` | search_code + get_single_prompt_template + get_mcp_analysis + get_current_price | 4 | — |
 | `strategy` | §2.3 全部 + loopback | 5 | — |
 | `bot_manager` | §4.2–4.8 全部 + §2.5 日志 + search_code + get_position | 6 | — |
@@ -213,7 +213,7 @@
 
 ## 七、关键校验
 
-### create_pre_market_report（MVP 强制）
+### create_stock_premarket_report（MVP 强制）
 
 `mcp_token`, `code`, `stock_name`, `bot_id`, `bot_name`, `bot_type`, `result`, `confidence`, `reason`, `suggestion`, `report`
 
@@ -226,7 +226,7 @@
 
 ### attitude → result
 
-| get_bot_yesterday_attitude | create_pre_market_report |
+| get_bot_yesterday_attitude | create_stock_premarket_report |
 |--------------------------|--------------------------|
 | bullish | long |
 | bearish | short |

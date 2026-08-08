@@ -13,8 +13,8 @@ description: 盘前报告、盘后报告、盘中报告、今日报告、报告�
 
 1. **按日聚合** — `get_stock_daily_reports`（建议 `report_date`=`YYYY-MM-DD`，可选 `code`）
 2. **今日盘前是否已生成** — `list_today_reports`（幂等检查）
-3. **今日盘后** — `list_today_post_market_reports`
-4. **单类列表** — `get_pre_market_reports` / `get_intraday_reports` / `get_post_market_reports`
+3. **今日盘后** — `list_today_stock_postmarket_reports`
+4. **单类列表** — `get_stock_premarket_reports` / `get_intraday_reports` / `get_stock_postmarket_reports`
 5. **Bot 监控结论** — `get_bot_yesterday_attitude`（需 `bot_id`；先 `list_*_bots` 定位）
 
 ## 与自动化 Workflow 的边界
@@ -22,7 +22,7 @@ description: 盘前报告、盘后报告、盘中报告、今日报告、报告�
 | 用户意图 | 用 |
 |----------|-----|
 | 「查已有报告」 | 本 playbook（report_query） |
-| 「帮我跑一遍盘前自动化」 | `geegoo run pre_market` / scheduler（**不要**在 chat 里乱调 `create_pre_market_report`） |
+| 「帮我跑一遍盘前自动化」 | `geegoo run premarket_market` / scheduler（**不要**在 chat 里乱调 `create_stock_premarket_report`） |
 | Chat 补写/修改报告正文 | `report_write` toolset（`update_*_report` 等） |
 
 ## 硬规则

@@ -1,4 +1,4 @@
-# Market Pre-Market Workflow (`pre_market`)
+# Market Pre-Market Workflow (`premarket_market`)
 
 **Scope:** One run handles **exactly one market** — `CN`, `HK`, or `US`. The market is set by scheduler job `market` or CLI `--market`.
 
@@ -8,13 +8,13 @@
 
 | Sink | Path / API |
 |------|------------|
-| API | `create_market_pre_market_report` → `market_pre_market_report` collection |
-| Local MD | `{workspace_root}/reports/<YYYYMMDD>/market-<MARKET>-market-premarket.md` |
+| API | `create_market_premarket_report` → `market_premarket_report` collection |
+| Local MD | `{workspace_root}/reports/<YYYYMMDD>/market-<MARKET>-market_premarket.md` |
 
-**Out of scope** (see `pre_market_stock`):
+**Out of scope** (see `premarket_stock`):
 
 - `get_report_bot_codes`
-- Per-stock `create_pre_market_report`
+- Per-stock `create_stock_premarket_report`
 - `bot_id` binding
 
 Tool allowlists and step IDs: `manifest.yaml`. API routing: `rules/api-routing.md`.
@@ -25,23 +25,23 @@ Tool allowlists and step IDs: `manifest.yaml`. API routing: `rules/api-routing.m
 
 | Job | Skill | Market | Cron | Notes |
 |-----|-------|--------|------|-------|
-| `pre_market_cn` | `pre_market` | CN | `0 8 * * 1-5` | A-share market report |
-| `pre_market_stock_cn` | `pre_market_stock` | CN | `10 8 * * 1-5` | Stocks, 10 min later |
-| `pre_market_hk` | `pre_market` | HK | `0 9 * * 1-5` | HK market report |
-| `pre_market_stock_hk` | `pre_market_stock` | HK | `10 9 * * 1-5` | Stocks |
-| `pre_market_us` | `pre_market` | US | `0 21 * * 1-5` | US market report |
-| `pre_market_stock_us` | `pre_market_stock` | US | `10 21 * * 1-5` | Stocks |
+| `premarket_market_cn` | `premarket_market` | CN | `0 8 * * 1-5` | A-share market report |
+| `premarket_stock_cn` | `premarket_stock` | CN | `10 8 * * 1-5` | Stocks, 10 min later |
+| `premarket_market_hk` | `premarket_market` | HK | `0 9 * * 1-5` | HK market report |
+| `premarket_stock_hk` | `premarket_stock` | HK | `10 9 * * 1-5` | Stocks |
+| `premarket_market_us` | `premarket_market` | US | `0 21 * * 1-5` | US market report |
+| `premarket_stock_us` | `premarket_stock` | US | `10 21 * * 1-5` | Stocks |
 
-`pre_market_stock` **must** run after the matching `pre_market` job for the same market.
+`premarket_stock` **must** run after the matching `premarket_market` job for the same market.
 
 ---
 
 ## Run
 
 ```bash
-geegoo run pre_market --market CN --config config.json
-geegoo run pre_market --market HK --config config.json
-geegoo run pre_market --market US --config config.json
+geegoo run premarket_market --market CN --config config.json
+geegoo run premarket_market --market HK --config config.json
+geegoo run premarket_market --market US --config config.json
 ```
 
 ---
@@ -89,8 +89,8 @@ Only news for the **current** market. Summarize 3–5 headlines; do not dump raw
 
 ### 4. Persist
 
-1. `save_local_report` — `report_type=market-premarket`, code `market-<MARKET>`
-2. `create_market_pre_market_report` — fields: `market`, `report`, optional `summary` / `result` / `confidence`
+1. `save_local_report` — `report_type=market_premarket`, code `market-<MARKET>`
+2. `create_market_premarket_report` — fields: `market`, `report`, optional `summary` / `result` / `confidence`
 
 Report body follows `template.md` (single-market sections only).
 
@@ -105,14 +105,14 @@ Before persist, build a rule-based **draft** from index + news evidence, then ca
 
 ---
 
-## Relationship to `pre_market_stock`
+## Relationship to `premarket_stock`
 
 ```text
-pre_market (market=CN)     →  market_pre_market_report (CN, today)
+premarket_market (market=CN)     →  market_premarket_report (CN, today)
         ↓ 10 min
-pre_market_stock (market=CN)  →  get_market_pre_market_report
+premarket_stock (market=CN)  →  get_market_premarket_report
                              →  get_report_bot_codes (filtered by market)
-                             →  per-stock create_pre_market_report
+                             →  per-stock create_stock_premarket_report
 ```
 
 Stock reports embed the market report as **Market Context**; they do not re-fetch all three markets.
@@ -131,6 +131,6 @@ Example:
 [08:00:01] check_trading_day(CN) -> success(is_trading_day=true)
 [08:00:45] index_000001.SH -> success
 [08:01:10] market_news_cn -> success
-[08:01:20] create_market_pre_market_report(CN) -> success
+[08:01:20] create_market_premarket_report(CN) -> success
 [08:01:21] phase_a_complete -> ok
 ```

@@ -46,9 +46,9 @@ var (
 	)
 	reportQueryTools = union(
 		[]string{
-			"get_pre_market_reports",
-			"get_intraday_reports",
-			"get_post_market_reports",
+			"get_stock_premarket_reports",
+			"get_stock_intraday_reports",
+			"get_stock_postmarket_reports",
 			"get_stock_daily_reports",
 			"list_today_reports",
 			"get_bot_yesterday_attitude",
@@ -57,24 +57,26 @@ var (
 	)
 	reportWriteTools = union(
 		[]string{
-			"create_intraday_report",
-			"update_intraday_report",
-			"delete_intraday_report",
-			"create_post_market_report",
-			"update_post_market_report",
-			"delete_post_market_report",
-			"update_pre_market_report",
-			"delete_pre_market_report",
+			"create_stock_intraday_report",
+			"update_stock_intraday_report",
+			"delete_stock_intraday_report",
+			"create_stock_postmarket_report",
+			"update_stock_postmarket_report",
+			"delete_stock_postmarket_report",
+			"update_stock_premarket_report",
+			"delete_stock_premarket_report",
 		},
 	)
 	reportWorkflowTools = map[string]struct{}{
-		"get_report_bot_codes":           {},
-		"create_pre_market_report":       {},
-		"save_local_report":              {},
-		"write_execution_log":            {},
-		"read_working_state":             {},
-		"recall_yesterday_summary":       {},
-		"list_today_post_market_reports": {},
+		"get_report_bot_codes":                {},
+		"create_market_premarket_report":      {},
+		"get_market_premarket_report":         {},
+		"create_stock_premarket_report":       {},
+		"save_local_report":                   {},
+		"write_execution_log":                 {},
+		"read_working_state":                  {},
+		"recall_yesterday_summary":            {},
+		"list_today_stock_postmarket_reports": {},
 	}
 	analystRuntimeTools = map[string]struct{}{
 		"get_single_prompt_template":          {},

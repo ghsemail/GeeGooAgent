@@ -55,4 +55,4 @@ Working 只存 `*_ref` 路径。
 
 ## MVP
 
-完整 pre_market 字段 + `apply(tool_call, result)` 更新逻辑。
+完整 premarket_market 字段 + `apply(tool_call, result)` 更新逻辑。

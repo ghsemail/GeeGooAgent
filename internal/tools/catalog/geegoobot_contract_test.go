@@ -51,7 +51,7 @@ func TestHighFrequencyBespokeMCPPathsAreRegistered(t *testing.T) {
 		"fetch_market_news":          "/getMarketNews",
 		"fetch_stock_news":           "/getStockNews",
 		"get_bot_yesterday_attitude": "/getBotYesterdayAttitude",
-		"create_pre_market_report":   "/createPreMarketReport",
+		"create_stock_premarket_report":   "/createStockPremarketReport",
 	} {
 		if !catalog.BespokeNames[name] {
 			t.Fatalf("%s should be registered as a bespoke tool", name)

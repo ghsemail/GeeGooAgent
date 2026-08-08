@@ -8,7 +8,7 @@
 
 | 模块 | 文档 | Go 代码 | 状态 |
 |------|------|---------|------|
-| **Skills** | [skills.md](./skills.md) | `internal/skills`, `skills/` | pre_market ✅ |
+| **Skills** | [skills.md](./skills.md) | `internal/skills`, `skills/` | premarket_market ✅ |
 | **Tools**（L2） | [../L2-tools/README.md](../L2-tools/README.md) | `internal/tools` | 82 注册 |
 | 入口点 | [entrypoints.md](../../entrypoints.md) | `cmd/geegoo` | ✅ |
 | 触发 | [triggers.md](./triggers.md) | scheduler + CLI | ✅ |
@@ -20,14 +20,14 @@
 | 模式 | 入口 | 编排 | Tool 集 |
 |------|------|------|---------|
 | **Interactive** | `geegoo chat` | ReAct | 默认 5 toolset |
-| **Scheduled** | `geegoo scheduler` → `run pre_market` | Workflow | manifest 白名单 |
+| **Scheduled** | `geegoo scheduler` → `run premarket_market` | Workflow | manifest 白名单 |
 | **HTTP** | `:3400` chat/completions | ReAct | 配置 toolset |
 | Signal | webhook | ❌ 未实现 | — |
 
 ## Skill Pack 结构
 
 ```text
-skills/pre_market/
+skills/premarket_market/
 ├── SKILL.md
 ├── manifest.yaml
 ├── workflow.md

@@ -1,4 +1,4 @@
-name: post_market
+name: postmarket_stock
 version: "1.0.0"
 description: 盘后总结 workflow — 交易日 cron
 phase: 2
@@ -7,12 +7,12 @@ mode: scheduled
 tools:
   - check_trading_day
   - get_report_bot_codes
-  - list_today_post_market_reports
+  - list_today_stock_postmarket_reports
   - get_mcp_analysis
   - get_bot_log_by_type
   - get_stock_daily_reports
   - get_current_price
-  - create_post_market_report
+  - create_stock_postmarket_report
   - save_local_report
   - write_execution_log
 
@@ -30,7 +30,7 @@ workflow:
   phase_b:
     per_stock:
       - id: idempotency_check
-        tool: list_today_post_market_reports
+        tool: list_today_stock_postmarket_reports
         optional: true
       - id: hourly_price
         tool: get_mcp_analysis
@@ -49,14 +49,14 @@ workflow:
           prompt_id: "66475a36fc8d11278ed561ae"
       - id: bot_log
         tool: get_bot_log_by_type
-      - id: read_pre_market
+      - id: read_stock_premarket
         tool: get_stock_daily_reports
       - id: current_price
         tool: get_current_price
       - id: synthesize_and_submit
         tools:
           - save_local_report
-          - create_post_market_report
+          - create_stock_postmarket_report
   meta:
     - id: execution_log
       tool: write_execution_log

@@ -173,7 +173,7 @@ func (r *Runner) RunFrom(
 					}
 					return *errResult
 				}
-				if step.Tool == "list_today_reports" || step.Tool == "list_today_post_market_reports" {
+				if step.Tool == "list_today_reports" || step.Tool == "list_today_stock_postmarket_reports" {
 					if working.Stocks[code].Status == "skipped" {
 						skipStock = true
 					}

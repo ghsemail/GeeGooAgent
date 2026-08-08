@@ -19,7 +19,7 @@ const (
 	// VerdictRecoverable: one or more steps can be re-run to fix gaps.
 	VerdictRecoverable Verdict = "recoverable"
 	// VerdictTerminal: a hard contract failure that re-running cannot fix
-	// (e.g. create_pre_market_report returned a business error). Human attention needed.
+	// (e.g. create_stock_premarket_report returned a business error). Human attention needed.
 	VerdictTerminal Verdict = "terminal"
 )
 
@@ -67,8 +67,8 @@ type Check struct {
 	Required      []string `yaml:"required"`
 }
 
-// DefaultPreMarketChecks returns the pre_market_stock acceptance checks as Go values.
-// This mirrors skills/pre_market_stock/supervisor_checks.yaml so P3 does not require
+// DefaultPreMarketChecks returns the premarket_stock acceptance checks as Go values.
+// This mirrors skills/premarket_stock/supervisor_checks.yaml so P3 does not require
 // a YAML parser dependency; the YAML file remains the source of truth for docs.
 func DefaultPreMarketChecks() []Check {
 	return []Check{
@@ -82,33 +82,33 @@ func DefaultPreMarketChecks() []Check {
 }
 
 // DefaultMarketPreMarketChecks validates global market pre-market runs.
-// Mirrors skills/pre_market/supervisor_checks.yaml.
+// Mirrors skills/premarket_market/supervisor_checks.yaml.
 func DefaultMarketPreMarketChecks() []Check {
 	return []Check{
 		{Name: "workflow_phase_done", Type: "stocks_status", ExpectPhase: "done"},
 		{Name: "market_indices_done", Type: "market_status", RequireFields: []string{"indices_done", "market_news_done"}},
 		{Name: "market_report_api_created", Type: "market_status", RequireFields: []string{"market_report_id"}},
-		{Name: "market_report_local_md", Type: "market_file_exists", Pattern: "reports/{date}/market-{market}-market-premarket.md"},
+		{Name: "market_report_local_md", Type: "market_file_exists", Pattern: "reports/{date}/market-{market}-market_premarket.md"},
 	}
 }
 
 // SupervisorChecksForSkill returns acceptance checks for a workflow skill.
 func SupervisorChecksForSkill(skill string) []Check {
 	switch skill {
-	case "pre_market":
+	case "premarket_market":
 		return DefaultMarketPreMarketChecks()
-	case "pre_market_stock":
+	case "premarket_stock":
 		return DefaultPreMarketChecks()
-	case "intraday":
+	case "intraday_stock":
 		return DefaultIntradayChecks()
-	case "post_market":
+	case "postmarket_stock":
 		return DefaultPostMarketChecks()
 	default:
 		return DefaultPreMarketChecks()
 	}
 }
 
-// DefaultIntradayChecks mirrors skills/intraday/supervisor_checks.yaml.
+// DefaultIntradayChecks mirrors skills/intraday_stock/supervisor_checks.yaml.
 func DefaultIntradayChecks() []Check {
 	return []Check{
 		{Name: "intraday_reported", Type: "stocks_status", ForStatus: "reported", RequireFields: []string{"report_id"}},
@@ -116,12 +116,12 @@ func DefaultIntradayChecks() []Check {
 	}
 }
 
-// DefaultPostMarketChecks mirrors skills/post_market/supervisor_checks.yaml.
+// DefaultPostMarketChecks mirrors skills/postmarket_stock/supervisor_checks.yaml.
 func DefaultPostMarketChecks() []Check {
 	return []Check{
 		{Name: "workflow_phase_done", Type: "stocks_status", ExpectPhase: "done"},
-		{Name: "post_market_local_md", Type: "file_exists", Pattern: "reports/{date}/{code}-postmarket.md", ForStatus: "reported"},
-		{Name: "post_market_reported", Type: "stocks_status", ForStatus: "reported", RequireFields: []string{"report_id"}},
+		{Name: "postmarket_stock_local_md", Type: "file_exists", Pattern: "reports/{date}/{code}-postmarket.md", ForStatus: "reported"},
+		{Name: "stock_postmarket_reported", Type: "stocks_status", ForStatus: "reported", RequireFields: []string{"report_id"}},
 	}
 }
 

@@ -32,7 +32,7 @@
 ### 3.1 Phase 1 运行模式
 
 ```text
-WorkflowRunner（代码写死 pre_market 步骤顺序）
+WorkflowRunner（代码写死 premarket_market 步骤顺序）
     ├── 每步：Tool 调用 + Checkpoint + execution-log
     └── LLM 仅用于：周线解析、综合预判、报告正文（窄任务）
 
@@ -78,7 +78,7 @@ GeeGooAgent/
 ├── pyproject.toml
 ├── config.example.json
 ├── docs/
-├── skills/pre_market/
+├── skills/premarket_market/
 ├── rules/
 ├── references/          # 从 geegoo skill 迁入
 ├── deploy/
@@ -150,16 +150,16 @@ GeeGooAgent/
 
 | # | 交付物 | 验收 |
 |---|--------|------|
-| 1.1 | 迁入 `references/`、`rules/`、`skills/pre_market/` | 与 geegoo skill 对齐 |
+| 1.1 | 迁入 `references/`、`rules/`、`skills/premarket_market/` | 与 geegoo skill 对齐 |
 | 1.2 | `market.py` / `geegoo_bot.py` 全 MVP 端点 | 见 §7 清单 |
-| 1.3 | MVP 19 Tool 注册（仅 pre_market manifest） | 单次 run 暴露 ≤25 个 schema |
+| 1.3 | MVP 19 Tool 注册（仅 premarket_market manifest） | 单次 run 暴露 ≤25 个 schema |
 | 1.4 | `PreMarketWorkflow` 完整步骤 | 对照 `pre-market-workflow.md` |
 | 1.5 | LLM 任务：周线解析 + 报告生成 | pydantic 输出校验 |
-| 1.6 | `save_local_report` + `create_pre_market_report` | 必填字段 §8；dry-run 跳过 POST |
+| 1.6 | `save_local_report` + `create_stock_premarket_report` | 必填字段 §8；dry-run 跳过 POST |
 | 1.7 | `execution-log` + Supervisor 检查清单 | 漏 report 报错 |
 | 1.8 | `geegoo-agent resume --session ID` | 从 checkpoint 继续 |
 | 1.9 | systemd timer 08:00 + deploy 文档 | 手动 trigger 成功 |
-| 1.10 | 端到端 dry-run 测试 | `pytest tests/e2e/test_pre_market_dry_run.py` 绿 |
+| 1.10 | 端到端 dry-run 测试 | `pytest tests/e2e/test_premarket_market_dry_run.py` 绿 |
 
 ### Phase 1 成功标准（与 roadmap 一致）
 
@@ -189,11 +189,11 @@ GeeGooAgent/
 | get_bot_yesterday_attitude | 3120 | 404→neutral |
 | recall_yesterday_summary | 本地 | Episodic |
 | read_working_state | Working | — |
-| create_pre_market_report | 3120 | §8 必填 |
+| create_stock_premarket_report | 3120 | §8 必填 |
 | save_local_report | 本地 | 工作区内 |
 | write_execution_log | 本地 | — |
 
-**禁止封装**：无（getCapitalFlow / getPreMarketReports 已修复，见 clients.md）。
+**禁止封装**：无（getCapitalFlow / getStockPremarketReports 已修复，见 clients.md）。
 
 **Scheduled 模式禁止注册**：全部 Bot/Reminder CRUD。
 
@@ -201,7 +201,7 @@ GeeGooAgent/
 
 ## 8. 关键业务校验（实现必须 enforced）
 
-### create_pre_market_report
+### create_stock_premarket_report
 
 必填：`mcp_token`, `code`, `stock_name`, `bot_id`, `bot_name`, `bot_type`, `result`, `confidence`, `reason`, `suggestion`, `report`
 
@@ -272,7 +272,7 @@ GeeGooAgent/
 | 项 | 要求 |
 |----|------|
 | 目标环境 | Linux（与现 Hermes 同机或新 VM） |
-| 触发 | `deploy/geegoo-agent-pre-market.timer` → `geegoo-agent run pre_market` |
+| 触发 | `deploy/geegoo-agent-pre-market.timer` → `geegoo-agent run premarket_market` |
 | 切换 | 盘前 E2E 通过后再禁用 Hermes cron |
 | 配置路径 | 服务器 `config.json` 权限 `600` |
 

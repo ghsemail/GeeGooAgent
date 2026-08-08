@@ -91,7 +91,7 @@ func IntradayPerStockSteps() []Step {
 	freq := parseFrequencyMinutes(intradayFrequency())
 	steps := []Step{
 		{Name: "get_position", Tool: "get_position", ArgFunc: stockCodeArg},
-		{Name: "read_pre_market", Tool: "get_stock_daily_reports", ArgFunc: stockReportDateArg},
+		{Name: "read_stock_premarket", Tool: "get_stock_daily_reports", ArgFunc: stockReportDateArg},
 		{Name: "capital_distribution", Tool: "get_capital_distribution", ArgFunc: stockCodeArg},
 	}
 	if freq > 3 {
@@ -115,7 +115,7 @@ func IntradayPerStockSteps() []Step {
 				"report_type": "intraday", "report_date": reportDateFor(w, w.CurrentStock),
 			}
 		}},
-		Step{Name: "create_intraday_report", Tool: "create_intraday_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
+		Step{Name: "create_stock_intraday_report", Tool: "create_stock_intraday_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
 			return BuildCreateIntradayReportArgs(ctx, w, w.CurrentStock)
 		}},
 		Step{Name: "stock_complete", Tool: "write_execution_log", ArgFunc: stockCompleteArg},
@@ -222,7 +222,7 @@ func BuildIntradayReportContent(w *memory.PreMarketWorking, code string) string 
 	return strings.Join(lines, "\n")
 }
 
-// BuildCreateIntradayReportArgs builds createIntradayTradeDecisionReport body.
+// BuildCreateIntradayReportArgs builds createStockIntradayReport body.
 func BuildCreateIntradayReportArgs(ctx context.Context, w *memory.PreMarketWorking, code string) map[string]any {
 	ws := w.Stocks[code]
 	result, confidence := ws.IntradayResult, ws.IntradayConfidence

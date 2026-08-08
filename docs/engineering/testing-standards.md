@@ -132,8 +132,8 @@ def test_check_trading_day_ok(httpx_mock, market_client):
 
 ```python
 @pytest.mark.e2e
-def test_pre_market_dry_run_full(tmp_output_dir, httpx_mock, mock_llm):
-    exit_code = run_cli(["run", "pre_market", "--dry-run", "--config", ...])
+def test_premarket_market_dry_run_full(tmp_output_dir, httpx_mock, mock_llm):
+    exit_code = run_cli(["run", "stock_premarket", "--dry-run", "--config", ...])
     assert exit_code == 0
     assert (tmp_output_dir / today / "execution-log.md").exists()
     assert supervisor_check(tmp_output_dir).ok
@@ -144,7 +144,7 @@ E2E 断言清单：
 - [ ] `execution-log.md` 含所有步骤名
 - [ ] `checkpoints/` 最后 step 存在
 - [ ] 每股有 `{code}-premarket.md`（mock 股票数）
-- [ ] dry-run 下无真实 POST createPreMarketReport（httpx 记录断言）
+- [ ] dry-run 下无真实 POST createStockPremarketReport（httpx 记录断言）
 - [ ] `working` 终态 `phase=done`
 
 ---
@@ -170,7 +170,7 @@ E2E 断言清单：
 | **11** | `test_workflow_phase_b.py` | ≥6 | 单股全流程；404 attitude；幂等 skip |
 | **12** | `test_llm_tasks.py` | ≥4 | mock LLM；pydantic 校验失败 |
 | **13** | `test_supervisor.py` | ≥3 | 缺 report 失败；全通过 |
-| **14** | `test_pre_market_dry_run.py` | ≥1 完整 | 全链路；见 §4.3 清单 |
+| **14** | `test_premarket_market_dry_run.py` | ≥1 完整 | 全链路；见 §4.3 清单 |
 | **15** | `tests/smoke/README.md` + 手动清单 | — | 真机 checkTradingDay（文档记录） |
 
 ---
@@ -296,7 +296,7 @@ mypy src/geegoo --ignore-missing-imports
 
 | # | 操作 | 预期 |
 |---|------|------|
-| 1 | `geegoo-agent run pre_market --dry-run` | exit 0 |
+| 1 | `geegoo-agent run premarket_market --dry-run` | exit 0 |
 | 2 | 非交易日 `check_trading_day` | 跳过，log 有记录 |
 | 3 | 交易日 1 股（可限 `--stocks 00700.HK`） | md + API 有记录 |
 | 4 | 杀进程后 `resume` | 从 checkpoint 继续 |

@@ -20,8 +20,8 @@ Legacy 5xxx endpoints and `mk-` API keys are retired. All local defaults generat
 | Execute pre-market workflow | `checkTradingDay` -> `getReportBotCodes` -> per-stock report steps |
 | Query daily reports | `getStockDailyReports` |
 | Technical analysis | `getMCPAnalysis` |
-| Create pre-market report | `createPreMarketReport` |
-| Query pre-market report list | `getPreMarketReports` |
+| Create pre-market report | `createStockPremarketReport` |
+| Query pre-market report list | `getStockPremarketReports` |
 
 ## Capital APIs
 

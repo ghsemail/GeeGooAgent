@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test pre_market / post_market daily reports for ghsemail user."""
+"""Test premarket_market / postmarket_stock daily reports for ghsemail user."""
 from __future__ import annotations
 
 import json
@@ -46,9 +46,9 @@ def show(label, code, data):
     if isinstance(data, dict):
         d = data.get("data")
         if isinstance(d, dict):
-            pre = d.get("pre_market") or []
+            pre = d.get("stock_premarket") or []
             intra = d.get("intraday") or []
-            postm = d.get("post_market") or []
+            postm = d.get("stock_postmarket") or []
             extra = f" pre={{len(pre)}} intra={{len(intra)}} post={{len(postm)}}"
             if pre:
                 sample = pre[0]
@@ -60,8 +60,8 @@ def show(label, code, data):
 # --- service-api reports/daily ---
 for label, body in [
     ("reports/daily all", {{"user_id": USER, "limit_per_phase": 5}}),
-    ("reports/daily pre", {{"user_id": USER, "phases": ["pre_market"], "limit_per_phase": 5}}),
-    ("reports/daily post", {{"user_id": USER, "phases": ["post_market"], "limit_per_phase": 5}}),
+    ("reports/daily pre", {{"user_id": USER, "phases": ["stock_premarket"], "limit_per_phase": 5}}),
+    ("reports/daily post", {{"user_id": USER, "phases": ["stock_postmarket"], "limit_per_phase": 5}}),
     ("reports/daily intraday", {{"user_id": USER, "phases": ["intraday"], "limit_per_phase": 5}}),
 ]:
     c,d = post("http://127.0.0.1:3140/reports/daily", body, BOT)
@@ -83,7 +83,7 @@ print("mcp_token", bool(mcp_token))
 if mcp_token:
     for path, body in [
         ("getReportBotCodes", {{"mcp_token": mcp_token}}),
-        ("getPreMarketReports", {{"mcp_token": mcp_token, "code": "07552.HK", "period": "daily"}}),
+        ("getStockPremarketReports", {{"mcp_token": mcp_token, "code": "07552.HK", "period": "daily"}}),
         ("getStockDailyReports", {{"mcp_token": mcp_token, "code": "000858.SZ"}}),
     ]:
         c,d = post(f"http://127.0.0.1:3120/{{path}}", body, BOT)
@@ -97,7 +97,7 @@ else:
 # --- mongo counts ---
 db = MongoClient(mongo_uri)[dbn]
 uid = ObjectId(USER)
-for coll in ["pre_market_report", "post_market_report", "intraday_report", "pre_market_reports", "post_market_reports"]:
+for coll in ["stock_premarket_report", "stock_postmarket_report", "intraday_report", "stock_premarket_reports", "stock_postmarket_reports"]:
     try:
         n = db[coll].count_documents({{"user_id": uid}})
         if n:

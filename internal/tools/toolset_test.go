@@ -21,14 +21,14 @@ func TestDefaultChatIncludesAllToolsetsExceptRecall(t *testing.T) {
 	for _, name := range []string{
 		"get_single_prompt_template", "add_single_prompt_template",
 		"get_custom_signal_for_skill", "add_custom_signal",
-		"create_pre_market_report", "get_report_bot_codes",
+		"create_stock_premarket_report", "get_report_bot_codes",
 	} {
 		if _, ok := set[name]; !ok {
 			t.Fatalf("%s should be in default chat (all toolsets enabled)", name)
 		}
 	}
-	if len(names) != 100 {
-		t.Fatalf("default chat allowlist want 100, got %d", len(names))
+	if len(names) != 102 {
+		t.Fatalf("default chat allowlist want 102, got %d", len(names))
 	}
 }
 
@@ -154,8 +154,8 @@ func TestReportWorkflowToolsetIncludesPostMarketIdempotency(t *testing.T) {
 	if !ok {
 		t.Fatal("missing report_workflow toolset")
 	}
-	if !ts.Contains("list_today_post_market_reports") {
-		t.Fatal("report_workflow should include list_today_post_market_reports")
+	if !ts.Contains("list_today_stock_postmarket_reports") {
+		t.Fatal("report_workflow should include list_today_stock_postmarket_reports")
 	}
 	if !ts.ChatDefault {
 		t.Fatal("report_workflow should be default chat")
@@ -167,7 +167,7 @@ func TestToolsetCountsMatchDocumentation(t *testing.T) {
 	want := map[string]int{
 		"market": 9, "analyst_runtime": 5, "prompt_admin": 10, "custom_signal": 7,
 		"strategy": 5, "trading_bot": 15, "hedge_bot": 5, "reminder_manager": 15,
-		"report_query": 7, "report_write": 8, "report_workflow": 7, "agent_meta": 8,
+		"report_query": 7, "report_write": 8, "report_workflow": 9, "agent_meta": 8,
 	}
 	union := map[string]struct{}{}
 	for _, ts := range tools.AllToolsets() {
@@ -181,8 +181,8 @@ func TestToolsetCountsMatchDocumentation(t *testing.T) {
 			union[name] = struct{}{}
 		}
 	}
-	if len(union) != 101 {
-		t.Fatalf("toolset union want 101, got %d", len(union))
+	if len(union) != 103 {
+		t.Fatalf("toolset union want 103, got %d", len(union))
 	}
 }
 

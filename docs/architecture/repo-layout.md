@@ -56,9 +56,9 @@ GeeGooAgent/
 │       └── README.md
 │
 ├── skills/                     # L5 Skill 资源（manifest + 模板）
-│   ├── pre_market/
+│   ├── premarket_market/
 │   ├── intraday/
-│   └── post_market/
+│   └── postmarket_stock/
 ├── rules/                      # L5 常驻规则
 ├── deploy/
 │   └── systemd/                # geegoo-agent、geegoo-advisor 等

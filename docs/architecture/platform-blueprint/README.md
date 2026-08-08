@@ -69,7 +69,7 @@ L0 Infra        →  持久化 / 事件 / 调度 / 沙箱
 |------|----------|--------------|
 | 分层 | L5→L0 六层 | 同左 |
 | 语言 | 推荐 Go 或 Python ≥3.11 | **已实现 Go** |
-| 首个 Skill | 由你定义 | `pre_market` |
+| 首个 Skill | 由你定义 | `premarket_market` |
 | 外部 API | 抽象 Client | GeeGoo MCP 3120 等 |
 | 工程细则 | 本目录 + agent-build-guide | [engineering/](../../engineering/) |
 
