@@ -21,7 +21,7 @@ func TestBuildMarketReportContentCN(t *testing.T) {
 	}
 	w.MarketContext.MarketNews = map[string]string{"CN": "- 政策面偏暖\n- 北向资金净流入"}
 	body := workflow.BuildMarketReportContent(w, "CN")
-	for _, want := range []string{"A股 市场盘前报告", "000001.SH", "399001.SZ", "市场新闻摘要", "政策面偏暖"} {
+	for _, want := range []string{"A股 市场盘前报告", "000001.SH", "399001.SZ", "市场新闻解读", "政策面偏暖"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("missing %q in:\n%s", want, body)
 		}

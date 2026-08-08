@@ -154,7 +154,7 @@ func buildMarketReportDraft(w *memory.PreMarketWorking, market string) string {
 		"",
 		fmt.Sprintf("**市场**: %s", market),
 		"",
-		"## 一、指数走势（hourly MCP）",
+		"## 指数概览",
 		"",
 	}
 	indexBlocks := marketIndexBlocks(market, w.MarketContext.IndexAnalysisRefs)
@@ -163,12 +163,12 @@ func buildMarketReportDraft(w *memory.PreMarketWorking, market string) string {
 	} else {
 		lines = append(lines, indexBlocks...)
 	}
-	lines = append(lines, "", "## 二、市场新闻摘要", "")
+	lines = append(lines, "", "## 市场新闻解读", "")
 	newsText := strings.TrimSpace(w.MarketContext.MarketNews[market])
 	if newsText != "" {
-		lines = append(lines, newsText)
+		lines = append(lines, "**新闻面判断**：待 LLM 综合", "", newsText)
 	} else {
-		lines = append(lines, "- 暂无市场新闻。")
+		lines = append(lines, "**新闻面判断**：暂无", "", "- 暂无市场新闻。")
 	}
 	summary := oneLine(plainSummary(strings.Join(indexBlocks, "\n")+"\n"+newsText, 200), 200)
 	if summary == "" {
@@ -177,13 +177,17 @@ func buildMarketReportDraft(w *memory.PreMarketWorking, market string) string {
 	fallback := fallbackMarketJudgement(w, market)
 	lines = append(lines,
 		"",
-		"## 三、市场综合预判",
+		"## 市场综合判断",
 		"",
-		"| 字段 | 值 |",
-		"|------|-----|",
-		fmt.Sprintf("| 情绪 (result) | %s |", fallback.Result),
-		fmt.Sprintf("| 置信度 (confidence) | %s |", fallback.Confidence),
-		fmt.Sprintf("| 摘要 (summary) | %s |", summary),
+		fmt.Sprintf("**市场情绪**：%s · **置信度**：%s", fallback.Result, fallback.Confidence),
+		"",
+		summary,
+		"",
+		"### 主要风险",
+		"- 暂无",
+		"",
+		"### 今日关注",
+		"- 暂无",
 		"",
 		"---",
 		"",
@@ -357,9 +361,7 @@ func marketIndexBlocks(market string, refs map[string]string) []string {
 		}
 		out = append(out,
 			fmt.Sprintf("### %s (%s)", p.title, p.code),
-			"| 指标 | 值 |",
-			"|------|-----|",
-			fmt.Sprintf("| 分析结论 | %s |", oneLine(summary, 600)),
+			oneLine(summary, 600),
 			"",
 		)
 	}
