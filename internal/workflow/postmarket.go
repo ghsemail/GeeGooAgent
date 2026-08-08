@@ -65,17 +65,19 @@ func BuildPostMarketReportContent(w *memory.PreMarketWorking, code string) strin
 	lines := []string{
 		"## 今日行情",
 		"",
+		"### 涨跌幅与盘面倾向",
+		"",
 		fmt.Sprintf("交易日 %s，涨跌幅 %.2f%%，盘面倾向 %s。", sessionDate, ws.ChangePct, biasLabel),
 		"",
 	}
 	if ws.HourlyPriceAnalysis != "" {
-		lines = append(lines, "### 小时级价格分析", stockfmt.FormatWeeklyAnalysis(ws.HourlyPriceAnalysis), "")
+		lines = append(lines, "### 小时级价格分析", "", stockfmt.FormatEmbeddedHourlyAnalysis(ws.HourlyPriceAnalysis), "")
 	}
 	if ws.HourlySignalAnalysis != "" {
-		lines = append(lines, "### 小时级信号分析", stockfmt.FormatHourlySignalAnalysis(ws.HourlySignalAnalysis), "")
+		lines = append(lines, "### 小时级信号分析", "", stockfmt.FormatHourlySignalAnalysis(ws.HourlySignalAnalysis), "")
 	}
 	if ws.HourlyKlineAnalysis != "" {
-		lines = append(lines, "### 小时级 K 线分析", stockfmt.FormatWeeklyAnalysis(ws.HourlyKlineAnalysis), "")
+		lines = append(lines, "### 小时级 K 线分析", "", stockfmt.FormatEmbeddedHourlyAnalysis(ws.HourlyKlineAnalysis), "")
 	}
 	if trade := strings.TrimSpace(TradeSummaryFromBotLog(ws)); trade != "" {
 		lines = append(lines, "## 交易复盘", "", trade, "")

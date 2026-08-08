@@ -297,9 +297,68 @@ func FormatWeeklyAnalysis(raw string) string {
 	return s
 }
 
+// FormatEmbeddedHourlyAnalysis normalizes MCP hourly blocks for embedding under 今日行情.
+func FormatEmbeddedHourlyAnalysis(raw string) string {
+	s := FormatWeeklyAnalysis(raw)
+	if strings.TrimSpace(s) == "" || s == "暂无周线技术分析。" {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		trim := strings.TrimSpace(line)
+		if trim == "" {
+			out = append(out, "")
+			continue
+		}
+		if trim == "---" {
+			continue
+		}
+		if isGarbageTableLine(trim) {
+			continue
+		}
+		if strings.HasPrefix(trim, ">") {
+			inner := strings.TrimSpace(strings.TrimPrefix(trim, ">"))
+			inner = strings.Trim(inner, "* ")
+			if looksTruncatedFragment(inner) || looksIncompleteBlockquote(inner) {
+				continue
+			}
+		}
+		if looksTruncatedFragment(strings.Trim(trim, "*# ")) {
+			continue
+		}
+		if strings.HasPrefix(trim, "### ") {
+			title := strings.TrimSpace(strings.TrimPrefix(trim, "### "))
+			if len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
+				out = append(out, "")
+			}
+			if cnSectionRE.MatchString(title) {
+				out = append(out, "• **"+title+"**")
+			} else {
+				out = append(out, "**"+title+"**")
+			}
+			continue
+		}
+		out = append(out, trim)
+	}
+	return strings.TrimSpace(strings.Join(out, "\n"))
+}
+
+func isGarbageTableLine(line string) bool {
+	switch strings.TrimSpace(line) {
+	case "- 方向：数量：占比",
+		"- 日期：收盘价：较前一日涨跌幅：备注",
+		"- 日期：成交量（手）：备注",
+		"- 阶段：时间区间：趋势特征",
+		"- 日期：形态名称：中文名称：信号":
+		return true
+	}
+	return false
+}
+
 // FormatHourlySignalAnalysis normalizes hourly signal MCP output; strips raw 0/1/-1 codes.
 func FormatHourlySignalAnalysis(raw string) string {
-	s := FormatWeeklyAnalysis(raw)
+	s := FormatEmbeddedHourlyAnalysis(raw)
 	if strings.TrimSpace(s) == "" || s == "暂无周线技术分析。" {
 		return "暂无小时级信号分析。"
 	}
@@ -351,10 +410,25 @@ func looksTruncatedFragment(s string) bool {
 	return false
 }
 
+func looksIncompleteBlockquote(s string) bool {
+	s = strings.TrimSpace(strings.Trim(s, "*"))
+	if s == "" {
+		return false
+	}
+	if strings.Contains(s, "（") && !strings.Contains(s, "）") {
+		return true
+	}
+	if strings.HasSuffix(s, ".") && !strings.ContainsAny(s, "。！？") {
+		return true
+	}
+	return false
+}
+
 var (
 	signalBinaryRE     = regexp.MustCompile(`[：:]\s*0\s*$`)
 	signalMetricCodeRE = regexp.MustCompile(`[：:]\s*[-+]?\d+\s*：\s*\*\*([^*]+)\*\*`)
 	signalMetricLineRE = regexp.MustCompile(`^(-\s*)?(.+?)[：:]\s*[-+]?\d+\s*[：:]\s*(?:\*\*)?([^*\n]+?)(?:\*\*)?\s*$`)
+	cnSectionRE        = regexp.MustCompile(`^[一二三四五六七八九十]+、`)
 )
 
 // PostmarketSummaryExcerpt returns the first readable paragraph from hourly MCP markdown.
