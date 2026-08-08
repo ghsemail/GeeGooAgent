@@ -42,15 +42,15 @@ func (s *ReportSynthesizer) Available() bool {
 	return s != nil && s.inner != nil && s.inner.Available()
 }
 
-// Synthesize generates reason/suggestion/summary from captured evidence.
+// Synthesize generates suggested fields plus reason/suggestion/summary from evidence.
 func (s *ReportSynthesizer) Synthesize(
 	ctx context.Context,
 	ws memory.StockWorkspace,
 	evidence []memory.EvidenceRef,
 	marketContext memory.MarketContext,
-) (string, string, string, error) {
+) (report.SynthesisResult, error) {
 	if s == nil || s.inner == nil || !s.inner.Available() {
-		return "", "", "", fmt.Errorf("report synthesizer not available")
+		return report.SynthesisResult{}, fmt.Errorf("report synthesizer not available")
 	}
 	s.emit("SynthesisStarted", map[string]any{
 		"code": ws.Code, "stock_name": ws.StockName, "evidence_count": len(evidence),
@@ -60,12 +60,41 @@ func (s *ReportSynthesizer) Synthesize(
 		s.emit("SynthesisFailed", map[string]any{
 			"code": ws.Code, "error": err.Error(),
 		})
-		return "", "", "", err
+		return report.SynthesisResult{}, err
 	}
 	s.emit("SynthesisCompleted", map[string]any{
-		"code": ws.Code, "suggestion": res.Suggestion, "summary_chars": len(res.Summary),
+		"code": ws.Code, "suggested_result": res.SuggestedResult,
+		"suggestion": res.Suggestion, "summary_chars": len(res.Summary),
 	})
-	return res.Reason, res.Suggestion, res.Summary, nil
+	return res, nil
+}
+
+// SynthesizeMarket generates a single-market pre-market report bundle.
+func (s *ReportSynthesizer) SynthesizeMarket(
+	ctx context.Context,
+	market string,
+	draft string,
+	marketContext memory.MarketContext,
+	evidence []memory.EvidenceRef,
+	template string,
+) (report.MarketSynthesisResult, error) {
+	if s == nil || s.inner == nil || !s.inner.Available() {
+		return report.MarketSynthesisResult{}, fmt.Errorf("report synthesizer not available")
+	}
+	s.emit("MarketSynthesisStarted", map[string]any{
+		"market": market, "evidence_count": len(evidence),
+	})
+	res, err := s.inner.SynthesizeMarket(ctx, market, draft, marketContext, evidence, template)
+	if err != nil {
+		s.emit("MarketSynthesisFailed", map[string]any{
+			"market": market, "error": err.Error(),
+		})
+		return report.MarketSynthesisResult{}, err
+	}
+	s.emit("MarketSynthesisCompleted", map[string]any{
+		"market": market, "result": res.Result, "confidence": res.Confidence, "summary_chars": len(res.Summary),
+	})
+	return res, nil
 }
 
 func (s *ReportSynthesizer) emit(event string, payload map[string]any) {

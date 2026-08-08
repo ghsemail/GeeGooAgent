@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/report"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
 )
 
@@ -14,9 +15,11 @@ type contextCheckingSynthesizer struct {
 	got  context.Context
 }
 
-func (c *contextCheckingSynthesizer) Synthesize(ctx context.Context, ws memory.StockWorkspace, ev []memory.EvidenceRef, mc memory.MarketContext) (string, string, string, error) {
+func (c *contextCheckingSynthesizer) Synthesize(ctx context.Context, ws memory.StockWorkspace, ev []memory.EvidenceRef, mc memory.MarketContext) (report.SynthesisResult, error) {
 	c.got = ctx
-	return "reason " + stringRepeat("x", 80), "hold", "ok", nil
+	return report.SynthesisResult{
+		Reason: "reason " + stringRepeat("x", 80), Suggestion: "hold", Summary: "ok",
+	}, nil
 }
 
 func stringRepeat(s string, n int) string {

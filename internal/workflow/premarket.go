@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/report"
+	"github.com/ghsemail/GeeGooAgent/internal/verdict"
 )
 
 // PerStockSteps returns phase B steps for each bot stock.
@@ -53,11 +55,28 @@ func PerStockSteps() []Step {
 	}
 }
 
-// BuildReportContent builds evidence-bound report markdown for phase B.
+// BuildReportContent builds evidence-bound report markdown for phase B (rule-based draft).
 func BuildReportContent(w *memory.PreMarketWorking, code string) string {
 	ws := w.Stocks[code]
 	evidence := collectReportEvidence(w, code)
 	view := buildReportView(ws, evidence)
+	return buildReportContent(w, code, &verdict.Verdict{Result: view.Result, Confidence: view.Confidence}, view.Reason, view.Suggestion)
+}
+
+func buildReportContent(w *memory.PreMarketWorking, code string, v *verdict.Verdict, reason, suggestion string) string {
+	ws := w.Stocks[code]
+	evidence := collectReportEvidence(w, code)
+	view := buildReportView(ws, evidence)
+	if v != nil {
+		view.Result = v.Result
+		view.Confidence = v.Confidence
+	}
+	if strings.TrimSpace(reason) != "" {
+		view.Reason = reason
+	}
+	if strings.TrimSpace(suggestion) != "" {
+		view.Suggestion = suggestion
+	}
 	lines := []string{
 		fmt.Sprintf("# Pre-market Report - %s (%s)", displayStockName(ws, code), code),
 		"",
@@ -97,11 +116,6 @@ func BuildReportContent(w *memory.PreMarketWorking, code string) string {
 }
 
 // BuildCreateReportArgs builds MCP createPreMarketReport body.
-//
-// result and confidence are always rule-based (attitude → result, evidence
-// count → confidence). reason/suggestion/summary come from the LLM
-// synthesizer when configured and successful; otherwise the rule-based view
-// is used. The LLM never decides result/confidence.
 func BuildCreateReportArgs(w *memory.PreMarketWorking, code string) map[string]any {
 	return BuildCreateReportArgsContext(context.Background(), w, code)
 }
@@ -117,37 +131,70 @@ func BuildCreateReportArgsContext(ctx context.Context, w *memory.PreMarketWorkin
 			break
 		}
 	}
-	report := BuildReportContent(w, code)
-	attitude := ws.Attitude
-	if attitude == "" {
-		attitude = "neutral"
-	}
 	evidence := collectReportEvidence(w, code)
 	view := buildReportView(ws, evidence)
-	reason := view.Reason
-	suggestion := view.Suggestion
-	summary := plainSummary(report, 200)
+	synthOut := report.SynthesisResult{}
 	if synth := SynthesizerFrom(ctx); synth != nil {
 		if ctx == nil {
 			ctx = context.Background()
 		}
-		if r, s, sm, err := synth.Synthesize(ctx, ws, evidence, w.MarketContext); err == nil && strings.TrimSpace(r) != "" {
-			reason = r
-			if strings.TrimSpace(s) != "" {
-				suggestion = s
-			}
-			if strings.TrimSpace(sm) != "" {
-				summary = sm
-			}
+		if res, err := synth.Synthesize(ctx, ws, evidence, w.MarketContext); err == nil && strings.TrimSpace(res.Reason) != "" {
+			synthOut = res
 		}
+	}
+	final := verdict.ArbitrateStockPreMarket(stockVerdictInput(w, code, ws, evidence, synthOut))
+	reason := view.Reason
+	suggestion := view.Suggestion
+	summary := ""
+	if strings.TrimSpace(synthOut.Reason) != "" {
+		reason = synthOut.Reason
+	}
+	if strings.TrimSpace(synthOut.Suggestion) != "" {
+		suggestion = synthOut.Suggestion
+	}
+	if strings.TrimSpace(synthOut.Summary) != "" {
+		summary = synthOut.Summary
+	}
+	if strings.TrimSpace(final.Note) != "" {
+		reason = strings.TrimSpace(reason + " " + final.Note)
+	}
+	reportBody := buildReportContent(w, code, &final, reason, suggestion)
+	if summary == "" {
+		summary = plainSummary(reportBody, 200)
 	}
 	return map[string]any{
 		"code": bot.Code, "stock_name": bot.StockName, "bot_id": bot.BotID,
 		"bot_name": bot.BotName, "bot_type": bot.BotType,
-		"result": attitudeToResult(attitude), "confidence": view.Confidence,
-		"reason": reason, "suggestion": suggestion, "report": report, "summary": summary,
+		"result": final.Result, "confidence": final.Confidence,
+		"reason": reason, "suggestion": suggestion, "report": reportBody, "summary": summary,
 		"evidence_refs": evidenceIDs(evidence),
 		"market_pre_market_report_id": strings.TrimSpace(w.MarketReportID),
+	}
+}
+
+func stockVerdictInput(
+	w *memory.PreMarketWorking,
+	code string,
+	ws memory.StockWorkspace,
+	evidence []memory.EvidenceRef,
+	synth report.SynthesisResult,
+) verdict.StockPreMarketInput {
+	market := NormalizeMarket(w.Market)
+	if market == "" {
+		market = MarketFromCode(code)
+	}
+	return verdict.StockPreMarketInput{
+		Attitude:               ws.Attitude,
+		EvidenceCount:          len(evidence),
+		HasWeekly:              ws.WeeklyAnalysisRef != "",
+		HasCapitalFlow:         ws.CapitalFlowSummary != "",
+		HasCapitalDistribution: ws.CapitalDistributionSummary != "",
+		HasStockNews:           ws.StockNewsSummary != "",
+		CapitalRequired:        market != MarketCN,
+		SuggestedResult:        synth.SuggestedResult,
+		SuggestedConfidence:    synth.SuggestedConfidence,
+		MarketResult:           w.MarketReportResult,
+		MarketConfidence:       w.MarketReportConfidence,
 	}
 }
 

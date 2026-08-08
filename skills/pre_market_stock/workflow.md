@@ -1,93 +1,79 @@
-# Pre-Market Workflow
+# Stock Pre-Market Workflow (`pre_market_stock`)
 
-**Trigger time:** 08:00 Asia/Shanghai on trading weekdays by the default systemd timer.
+**Scope:** One run handles **one market** (`CN` / `HK` / `US`). Generates **per-stock** pre-market reports for bots with `attitude.switch=true`.
 
-**Goal:** Generate pre-market prediction reports for configured bot stocks.
+**Prerequisite:** Matching `pre_market` job for the same market must have completed (market report available via `get_market_pre_market_report`).
 
-**Output:** One local Markdown report per stock plus persisted GeeGoo API records.
+**Goal:** Per-stock pre-market prediction with `bot_id` binding.
 
-Tool allowlists and step IDs are defined in `manifest.yaml`. API routing is defined in `rules/api-routing.md`.
+**Output:**
 
-## Precondition: Trading Day Check
+| Sink | Path / API |
+|------|------------|
+| API | `create_pre_market_report` (includes `market_pre_market_report_id`) |
+| Local MD | `{workspace_root}/reports/<YYYYMMDD>/<code>-premarket.md` |
 
-Before any data collection step, the workflow must run `check_trading_day`.
+Tool allowlists: `manifest.yaml`. Report format: `rules/report-format.md` (stock section).
 
-Tool: `check_trading_day`
+---
 
-```http
-POST /checkTradingDay
-Authorization: Bearer <sk-api-key>
-Content-Type: application/json
+## Scheduler
 
-{"mcp_token": "<mcp_token>", "code": "00700.HK"}
+Runs **10 minutes after** the market `pre_market` job for the same market (see `pre_market/workflow.md`).
+
+```bash
+geegoo run pre_market_stock --market CN --config config.json
 ```
 
-Decision rules:
+---
 
-- `is_trading_day: true` continues to stock discovery and report generation.
-- `is_trading_day: false` ends the workflow and writes an execution log.
+## Phase A: Market context + stock list
 
-Recommended market reference codes: `00700.HK`, `AAPL.US`, `600519.SH`.
+### 1. Load market report
 
-## Stock Discovery
+Tool: `get_market_pre_market_report`
+
+```json
+{"market": "<CN|HK|US>", "report_date": "YYYY-MM-DD"}
+```
+
+Inject body into each stock report as **Market Context**. If 404, log warning and continue with empty context (degraded).
+
+### 2. Stock discovery
 
 Tool: `get_report_bot_codes`
 
-```http
-POST /getReportBotCodes
-Content-Type: application/json
+Returns bots subscribed for reports; workflow filters to stocks in the **current market** only.
 
-{"mcp_token": "<mcp_token>"}
-```
+Required fields per row: `code`, `stock_name`, `bot_id`, `bot_name`, `bot_type`.
 
-Required fields:
+Deduplicate by `code`. Empty list → write execution log and stop Phase B.
 
-| Field | Description |
-| --- | --- |
-| `code` | Stock code. |
-| `stock_name` | Stock name. |
-| `bot_id` | Bot document `_id`. |
-| `bot_name` | Bot name. |
-| `bot_type` | Bot type, such as `DCA`. |
+---
 
-Deduplicate by `code`. If the list is empty, skip per-stock work and write an execution log.
+## Phase B: Per stock
 
-## Phase A: Shared Market Data
+For each stock in the current market:
 
-1. Run `get_mcp_analysis` for market indexes with `period=hourly`.
-2. Fetch market news through the Go news/search tool implementation.
-3. Summarize US, CN, and HK market context for the report.
+1. `list_today_reports` — skip if already reported today
+2. `fetch_stock_news`
+3. `get_capital_flow` (`period=DAY`)
+4. `get_capital_distribution`
+5. `get_mcp_analysis` (`period=weekly`)
+6. `get_bot_yesterday_attitude`
+7. Synthesize with `template.md` (stock sections; market overview comes from Phase A)
+8. `save_local_report` → `{code}-premarket.md`
+9. `create_pre_market_report` with `market_pre_market_report_id`
 
-## Phase B: Per-Stock Data
+Unsupported APIs: note explicitly in report; mark step skipped in execution log.
 
-For each stock returned by `get_report_bot_codes`:
+---
 
-1. Fetch stock news through the Go news/search tool implementation.
-2. Run `get_capital_flow` with `period=DAY`.
-3. Run `get_capital_distribution`.
-4. Run weekly `get_mcp_analysis` with `period=weekly`.
-5. Run `get_bot_yesterday_attitude`.
-6. Synthesize the report with `template.md`.
-7. Persist with `create_pre_market_report`.
-8. Save local Markdown to `{workspace_root}/reports/<YYYYMMDD>/<code>-premarket.md`.
-
-For unsupported market-specific APIs, write an explicit unavailable note in the report and mark the step as skipped in the execution log.
-
-## Execution Log
-
-Tool: `write_execution_log`
-
-Path:
+## Execution log
 
 ```text
-{workspace_root}/reports/<YYYYMMDD>/execution-log.md
-```
-
-Example:
-
-```text
-[08:00:01] check_trading_day -> success(is_trading_day=true)
-[08:00:03] get_report_bot_codes -> success(12 stocks)
-[08:01:20] create_pre_market_report(00700.HK) -> success
-[08:04:10] workflow -> complete
+[08:10:01] get_market_pre_market_report(CN) -> success
+[08:10:03] get_report_bot_codes -> success(8 stocks)
+[08:11:20] create_pre_market_report(600519.SH) -> success
+[08:14:10] workflow -> complete
 ```

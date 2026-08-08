@@ -6,6 +6,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/report"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
@@ -15,9 +16,9 @@ type recordingSynthesizer struct {
 	called bool
 }
 
-func (r *recordingSynthesizer) Synthesize(ctx context.Context, ws memory.StockWorkspace, ev []memory.EvidenceRef, mc memory.MarketContext) (string, string, string, error) {
+func (r *recordingSynthesizer) Synthesize(ctx context.Context, ws memory.StockWorkspace, ev []memory.EvidenceRef, mc memory.MarketContext) (report.SynthesisResult, error) {
 	r.called = true
-	return "", "", "", context.Canceled
+	return report.SynthesisResult{}, context.Canceled
 }
 
 func TestRunnerInjectsSynthesizerIntoContext(t *testing.T) {

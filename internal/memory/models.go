@@ -93,6 +93,10 @@ type PreMarketWorking struct {
 	Market           string                    `json:"market,omitempty"`
 	MarketReportID   string                    `json:"market_report_id,omitempty"`
 	MarketReportBody string                    `json:"market_report_body,omitempty"`
+	MarketReportResult     string              `json:"market_report_result,omitempty"`
+	MarketReportConfidence string              `json:"market_report_confidence,omitempty"`
+	MarketReportSummary    string              `json:"market_report_summary,omitempty"`
+	MarketReportSynthesized bool               `json:"market_report_synthesized,omitempty"`
 }
 
 // NewPreMarketWorking creates initial working state.

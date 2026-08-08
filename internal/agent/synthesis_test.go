@@ -21,7 +21,7 @@ func TestReportSynthesizerEmitsEvents(t *testing.T) {
 	}}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	synth := agent.NewReportSynthesizer(gateway, "mock", bus)
-	_, _, _, err := synth.Synthesize(context.Background(), memory.StockWorkspace{Code: "00700.HK"}, nil, memory.MarketContext{})
+	_, err := synth.Synthesize(context.Background(), memory.StockWorkspace{Code: "00700.HK"}, nil, memory.MarketContext{})
 	if err != nil {
 		t.Fatalf("synthesize: %v", err)
 	}

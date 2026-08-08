@@ -17,13 +17,14 @@ import (
 )
 
 // SynthesisResult is the LLM-generated portion of a pre-market report.
-// Result and Confidence are intentionally NOT here — those stay rule-based
-// (attitude → result, evidence count → confidence) so the LLM cannot flip
-// a neutral decision to long on its own.
+// SuggestedResult/SuggestedConfidence are AI opinions; final result/confidence
+// for stocks are decided by verdict.ArbitrateStockPreMarket (scheme B).
 type SynthesisResult struct {
-	Reason     string `json:"reason"`
-	Suggestion string `json:"suggestion"`
-	Summary    string `json:"summary"`
+	SuggestedResult     string `json:"suggested_result"`
+	SuggestedConfidence string `json:"suggested_confidence"`
+	Reason              string `json:"reason"`
+	Suggestion          string `json:"suggestion"`
+	Summary             string `json:"summary"`
 }
 
 // Synthesizer calls an LLM gateway to synthesize report text from evidence.
@@ -88,6 +89,14 @@ func (s *Synthesizer) Synthesize(
 	if strings.TrimSpace(parsed.Reason) == "" {
 		return SynthesisResult{}, fmt.Errorf("synthesis reason empty")
 	}
+	parsed.SuggestedResult = normalizeMarketResult(parsed.SuggestedResult)
+	parsed.SuggestedConfidence = normalizeMarketConfidence(parsed.SuggestedConfidence)
+	if parsed.SuggestedResult == "" {
+		parsed.SuggestedResult = "neutral"
+	}
+	if parsed.SuggestedConfidence == "" {
+		parsed.SuggestedConfidence = "low"
+	}
 	// Enforce minimum substance per rules/report-format.md (reason ≥ 80 chars).
 	if len(parsed.Reason) < 80 {
 		return SynthesisResult{}, fmt.Errorf("synthesis reason too short (%d chars)", len(parsed.Reason))
@@ -120,11 +129,13 @@ func buildSynthesisPrompt(ws memory.StockWorkspace, evidence []memory.EvidenceRe
 	b.WriteString("个股新闻: " + nonEmpty(ws.StockNewsSummary, "(未捕获)") + "\n")
 	b.WriteString(`
 要求:
+- suggested_result: long / short / neutral 之一（基于证据的市场方向建议，非最终裁决）
+- suggested_confidence: high / medium / low 之一
 - reason: >=80字, 必须引用具体证据 ID 和数值, 禁止空洞表述如"综合来看偏乐观"
 - suggestion: buy / sell / hold 之一
 - summary: <=200字, 面向用户的一句话结论
 - 只能使用上面给出的数据; 缺失的字段写"数据缺口", 不要猜
-- 输出严格 JSON: {"reason":"...","suggestion":"...","summary":"..."}`)
+- 输出严格 JSON: {"suggested_result":"...","suggested_confidence":"...","reason":"...","suggestion":"...","summary":"..."}`)
 	return []llm.Message{
 		{Role: llm.RoleSystem, Content: "你是严格的 JSON 报告综合器, 只输出 JSON, 不输出任何其它文字。"},
 		{Role: llm.RoleUser, Content: b.String()},

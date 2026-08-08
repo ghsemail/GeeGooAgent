@@ -67,8 +67,8 @@ type Check struct {
 	Required      []string `yaml:"required"`
 }
 
-// DefaultPreMarketChecks returns the pre_market acceptance checks as Go values.
-// This mirrors skills/pre_market/supervisor_checks.yaml so P3 does not require
+// DefaultPreMarketChecks returns the pre_market_stock acceptance checks as Go values.
+// This mirrors skills/pre_market_stock/supervisor_checks.yaml so P3 does not require
 // a YAML parser dependency; the YAML file remains the source of truth for docs.
 func DefaultPreMarketChecks() []Check {
 	return []Check{
@@ -82,9 +82,13 @@ func DefaultPreMarketChecks() []Check {
 }
 
 // DefaultMarketPreMarketChecks validates global market pre-market runs.
+// Mirrors skills/pre_market/supervisor_checks.yaml.
 func DefaultMarketPreMarketChecks() []Check {
 	return []Check{
 		{Name: "workflow_phase_done", Type: "stocks_status", ExpectPhase: "done"},
+		{Name: "market_indices_done", Type: "market_status", RequireFields: []string{"indices_done", "market_news_done"}},
+		{Name: "market_report_api_created", Type: "market_status", RequireFields: []string{"market_report_id"}},
+		{Name: "market_report_local_md", Type: "market_file_exists", Pattern: "reports/{date}/market-{market}-market-premarket.md"},
 	}
 }
 
@@ -246,6 +250,31 @@ func (e *Engine) runCheck(c Check, working *memory.PreMarketWorking, date string
 			res.Passed = false
 			res.Detail = "missing: " + strings.Join(missingFiles, ", ")
 		}
+	case "market_file_exists":
+		pattern := strings.ReplaceAll(c.Pattern, "{date}", date)
+		pattern = strings.ReplaceAll(pattern, "{market}", strings.TrimSpace(working.Market))
+		full := filepath.Join(e.workspaceRoot, pattern)
+		if _, err := os.Stat(full); err != nil {
+			res.Passed = false
+			res.Detail = "missing: " + full
+		} else {
+			res.Passed = true
+			res.Detail = "market report md present"
+		}
+	case "market_status":
+		missing := []string{}
+		for _, f := range c.RequireFields {
+			if !marketHasField(working, f) {
+				missing = append(missing, f)
+			}
+		}
+		if len(missing) == 0 {
+			res.Passed = true
+			res.Detail = "all required market fields present"
+		} else {
+			res.Passed = false
+			res.Detail = "missing: " + strings.Join(missing, ", ")
+		}
 	case "api_response":
 		// Live API probe deferred to P6 (tool contract). Mark as skipped so it
 		// does not influence verdict until a real probe is wired.
@@ -270,6 +299,22 @@ func stockHasField(ws memory.StockWorkspace, field string) bool {
 		return ws.BotType != ""
 	case "report_ref":
 		return ws.ReportRef != ""
+	default:
+		return false
+	}
+}
+
+func marketHasField(w *memory.PreMarketWorking, field string) bool {
+	if w == nil {
+		return false
+	}
+	switch field {
+	case "market_report_id":
+		return strings.TrimSpace(w.MarketReportID) != ""
+	case "indices_done":
+		return w.MarketContext.IndicesDone
+	case "market_news_done":
+		return w.MarketContext.MarketNewsDone
 	default:
 		return false
 	}

@@ -1,5 +1,5 @@
-skill: pre_market
-description: Post-run acceptance checks for pre-market workflow
+skill: pre_market_stock
+description: Post-run acceptance checks for per-stock pre_market_stock workflow
 checks:
   - name: workflow_phase_done
     type: stocks_status

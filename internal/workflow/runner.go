@@ -8,6 +8,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/report"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
@@ -60,12 +61,11 @@ type Runner struct {
 	synthesizer SynthesizerProvider
 }
 
-// SynthesizerProvider abstracts report.Synthesizer so the workflow package
-// does not import report (avoids a cycle). Implementations return
-// (reason, suggestion, summary, error). A nil/absent provider means the
-// rule-based report path is used.
+// SynthesizerProvider abstracts report.Synthesizer. Implementations return
+// suggested fields plus reason/suggestion/summary. Final result/confidence are
+// decided by verdict.ArbitrateStockPreMarket (scheme B). Nil provider → rules only.
 type SynthesizerProvider interface {
-	Synthesize(ctx context.Context, ws memory.StockWorkspace, evidence []memory.EvidenceRef, mc memory.MarketContext) (reason, suggestion, summary string, err error)
+	Synthesize(ctx context.Context, ws memory.StockWorkspace, evidence []memory.EvidenceRef, mc memory.MarketContext) (report.SynthesisResult, error)
 }
 
 // CheckpointSaver persists checkpoints.

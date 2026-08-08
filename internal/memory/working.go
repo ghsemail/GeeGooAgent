@@ -99,6 +99,15 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 		if report, _ := data["report"].(string); report != "" {
 			updated.MarketReportBody = report
 		}
+		if result, _ := data["result"].(string); result != "" {
+			updated.MarketReportResult = result
+		}
+		if confidence, _ := data["confidence"].(string); confidence != "" {
+			updated.MarketReportConfidence = confidence
+		}
+		if summary, _ := data["summary"].(string); summary != "" {
+			updated.MarketReportSummary = summary
+		}
 		if market, _ := data["market"].(string); market != "" && updated.Market == "" {
 			updated.Market = strings.ToUpper(market)
 		}
@@ -509,6 +518,27 @@ func encodeWorking(w *PreMarketWorking) map[string]any {
 		}
 	}
 	m["stocks"] = stocks
+	if w.Market != "" {
+		m["market"] = w.Market
+	}
+	if w.MarketReportID != "" {
+		m["market_report_id"] = w.MarketReportID
+	}
+	if w.MarketReportBody != "" {
+		m["market_report_body"] = w.MarketReportBody
+	}
+	if w.MarketReportResult != "" {
+		m["market_report_result"] = w.MarketReportResult
+	}
+	if w.MarketReportConfidence != "" {
+		m["market_report_confidence"] = w.MarketReportConfidence
+	}
+	if w.MarketReportSummary != "" {
+		m["market_report_summary"] = w.MarketReportSummary
+	}
+	if w.MarketReportSynthesized {
+		m["market_report_synthesized"] = true
+	}
 	return m
 }
 
@@ -622,6 +652,15 @@ func decodeWorking(data map[string]any) (*PreMarketWorking, error) {
 				}
 			}
 		}
+	}
+	w.Market = stringField(data, "market")
+	w.MarketReportID = stringField(data, "market_report_id")
+	w.MarketReportBody = stringField(data, "market_report_body")
+	w.MarketReportResult = stringField(data, "market_report_result")
+	w.MarketReportConfidence = stringField(data, "market_report_confidence")
+	w.MarketReportSummary = stringField(data, "market_report_summary")
+	if v, ok := data["market_report_synthesized"].(bool); ok {
+		w.MarketReportSynthesized = v
 	}
 	return w, nil
 }

@@ -1,93 +1,136 @@
-# Pre-Market Workflow
+# Market Pre-Market Workflow (`pre_market`)
 
-**Trigger time:** 08:00 Asia/Shanghai on trading weekdays by the default systemd timer.
+**Scope:** One run handles **exactly one market** — `CN`, `HK`, or `US`. The market is set by scheduler job `market` or CLI `--market`.
 
-**Goal:** Generate pre-market prediction reports for configured bot stocks.
+**Goal:** Produce **one global market pre-market report per market per trading day**.
 
-**Output:** One local Markdown report per stock plus persisted GeeGoo API records.
+**Output:**
 
-Tool allowlists and step IDs are defined in `manifest.yaml`. API routing is defined in `rules/api-routing.md`.
+| Sink | Path / API |
+|------|------------|
+| API | `create_market_pre_market_report` → `market_pre_market_report` collection |
+| Local MD | `{workspace_root}/reports/<YYYYMMDD>/market-<MARKET>-market-premarket.md` |
 
-## Precondition: Trading Day Check
+**Out of scope** (see `pre_market_stock`):
 
-Before any data collection step, the workflow must run `check_trading_day`.
+- `get_report_bot_codes`
+- Per-stock `create_pre_market_report`
+- `bot_id` binding
+
+Tool allowlists and step IDs: `manifest.yaml`. API routing: `rules/api-routing.md`.
+
+---
+
+## Scheduler (Asia/Shanghai, weekdays)
+
+| Job | Skill | Market | Cron | Notes |
+|-----|-------|--------|------|-------|
+| `pre_market_cn` | `pre_market` | CN | `0 8 * * 1-5` | A-share market report |
+| `pre_market_stock_cn` | `pre_market_stock` | CN | `10 8 * * 1-5` | Stocks, 10 min later |
+| `pre_market_hk` | `pre_market` | HK | `0 9 * * 1-5` | HK market report |
+| `pre_market_stock_hk` | `pre_market_stock` | HK | `10 9 * * 1-5` | Stocks |
+| `pre_market_us` | `pre_market` | US | `0 21 * * 1-5` | US market report |
+| `pre_market_stock_us` | `pre_market_stock` | US | `10 21 * * 1-5` | Stocks |
+
+`pre_market_stock` **must** run after the matching `pre_market` job for the same market.
+
+---
+
+## Run
+
+```bash
+geegoo run pre_market --market CN --config config.json
+geegoo run pre_market --market HK --config config.json
+geegoo run pre_market --market US --config config.json
+```
+
+---
+
+## Phase A (only phase)
+
+### 1. Trading day check
 
 Tool: `check_trading_day`
 
-```http
-POST /checkTradingDay
-Authorization: Bearer <sk-api-key>
-Content-Type: application/json
+Reference codes by market:
 
-{"mcp_token": "<mcp_token>", "code": "00700.HK"}
+| Market | Code |
+|--------|------|
+| CN | `000001.SZ` |
+| HK | `00700.HK` |
+| US | `AAPL.US` |
+
+- `is_trading_day: false` → write execution log and **stop** (no report).
+- `is_trading_day: true` → continue.
+
+### 2. Index analysis (hourly MCP)
+
+Tool: `get_mcp_analysis` with `period=hourly`, `language=cn`.
+
+Indices collected **for the current market only**:
+
+| Market | Indices |
+|--------|---------|
+| CN | 上证指数 `000001.SH`, 深证成指 `399001.SZ` |
+| HK | 恒生指数 `800000.HK` |
+| US | 道琼斯 `^DJI.US`, 纳斯达克 `^IXIC.US` |
+
+Do **not** fetch other markets' indices in the same run.
+
+### 3. Market news
+
+Tool: `fetch_market_news`
+
+```json
+{"market": "<CN|HK|US>", "limit": 8}
 ```
 
-Decision rules:
+Only news for the **current** market. Summarize 3–5 headlines; do not dump raw JSON into the report.
 
-- `is_trading_day: true` continues to stock discovery and report generation.
-- `is_trading_day: false` ends the workflow and writes an execution log.
+### 4. Persist
 
-Recommended market reference codes: `00700.HK`, `AAPL.US`, `600519.SH`.
+1. `save_local_report` — `report_type=market-premarket`, code `market-<MARKET>`
+2. `create_market_pre_market_report` — fields: `market`, `report`, optional `summary` / `result` / `confidence`
 
-## Stock Discovery
+Report body follows `template.md` (single-market sections only).
 
-Tool: `get_report_bot_codes`
+### 5. LLM synthesis (required when gateway configured)
 
-```http
-POST /getReportBotCodes
-Content-Type: application/json
+Before persist, build a rule-based **draft** from index + news evidence, then call the report synthesizer:
 
-{"mcp_token": "<mcp_token>"}
+1. Input: `market`, draft markdown, `template.md`, evidence refs
+2. Output JSON: `report`, `result`, `confidence`, `summary`
+3. LLM must only use captured evidence — no invented prices or headlines
+4. On synthesis failure → fall back to draft + rule-based `result`/`confidence`
+
+---
+
+## Relationship to `pre_market_stock`
+
+```text
+pre_market (market=CN)     →  market_pre_market_report (CN, today)
+        ↓ 10 min
+pre_market_stock (market=CN)  →  get_market_pre_market_report
+                             →  get_report_bot_codes (filtered by market)
+                             →  per-stock create_pre_market_report
 ```
 
-Required fields:
+Stock reports embed the market report as **Market Context**; they do not re-fetch all three markets.
 
-| Field | Description |
-| --- | --- |
-| `code` | Stock code. |
-| `stock_name` | Stock name. |
-| `bot_id` | Bot document `_id`. |
-| `bot_name` | Bot name. |
-| `bot_type` | Bot type, such as `DCA`. |
+---
 
-Deduplicate by `code`. If the list is empty, skip per-stock work and write an execution log.
-
-## Phase A: Shared Market Data
-
-1. Run `get_mcp_analysis` for market indexes with `period=hourly`.
-2. Fetch market news through the Go news/search tool implementation.
-3. Summarize US, CN, and HK market context for the report.
-
-## Phase B: Per-Stock Data
-
-For each stock returned by `get_report_bot_codes`:
-
-1. Fetch stock news through the Go news/search tool implementation.
-2. Run `get_capital_flow` with `period=DAY`.
-3. Run `get_capital_distribution`.
-4. Run weekly `get_mcp_analysis` with `period=weekly`.
-5. Run `get_bot_yesterday_attitude`.
-6. Synthesize the report with `template.md`.
-7. Persist with `create_pre_market_report`.
-8. Save local Markdown to `{workspace_root}/reports/<YYYYMMDD>/<code>-premarket.md`.
-
-For unsupported market-specific APIs, write an explicit unavailable note in the report and mark the step as skipped in the execution log.
-
-## Execution Log
+## Execution log
 
 Tool: `write_execution_log`
 
-Path:
-
-```text
-{workspace_root}/reports/<YYYYMMDD>/execution-log.md
-```
+Path: `{workspace_root}/reports/<YYYYMMDD>/execution-log.md`
 
 Example:
 
 ```text
-[08:00:01] check_trading_day -> success(is_trading_day=true)
-[08:00:03] get_report_bot_codes -> success(12 stocks)
-[08:01:20] create_pre_market_report(00700.HK) -> success
-[08:04:10] workflow -> complete
+[08:00:01] check_trading_day(CN) -> success(is_trading_day=true)
+[08:00:45] index_000001.SH -> success
+[08:01:10] market_news_cn -> success
+[08:01:20] create_market_pre_market_report(CN) -> success
+[08:01:21] phase_a_complete -> ok
 ```
