@@ -605,9 +605,10 @@ func (a *App) RunSkill(skill string) (workflow.RunResult, error) {
 
 // SkillRunOptions carries per-run inputs for signal-triggered skills.
 type SkillRunOptions struct {
-	Intraday *workflow.IntradayInput
-	MCPToken string
-	Market   string
+	Intraday   *workflow.IntradayInput
+	MCPToken   string
+	Market     string
+	ReportDate string
 }
 
 // RunSkillContext executes a named skill with cancellation propagated to tools
@@ -673,6 +674,7 @@ func (a *App) runSkillWithSteps(ctx context.Context, skill string, phaseA, perSt
 		return workflow.RunResult{}, err
 	}
 	workflow.SeedMarketWorking(working, opts.Market)
+	workflow.SeedReportDate(working, opts.ReportDate)
 	if skill == "intraday" {
 		in := workflow.IntradayInputFromEnv()
 		if opts.Intraday != nil {

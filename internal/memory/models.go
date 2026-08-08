@@ -91,6 +91,7 @@ type PreMarketWorking struct {
 	CompletedStepKeys []string                 `json:"completed_step_keys,omitempty"`
 	CurrentStock     string                    `json:"current_stock_code"`
 	Market           string                    `json:"market,omitempty"`
+	ReportDate       string                    `json:"report_date,omitempty"` // YYYY-MM-DD; backfill when != today
 	MarketReportID   string                    `json:"market_report_id,omitempty"`
 	MarketReportBody string                    `json:"market_report_body,omitempty"`
 	MarketReportResult     string              `json:"market_report_result,omitempty"`

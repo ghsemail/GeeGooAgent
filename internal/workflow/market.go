@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/verdict"
@@ -102,7 +103,7 @@ func MarketPhaseSteps(market string) []Step {
 			bundle := ensureMarketReportBundle(ctx, w, market)
 			return map[string]any{
 				"code": fmt.Sprintf("market-%s", market), "content": bundle.Report,
-				"report_type": "market-premarket",
+				"report_type": "market-premarket", "report_date": ReportDateFor(w),
 			}
 		}},
 		Step{Name: "create_market_pre_market_report", Tool: "create_market_pre_market_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
@@ -252,6 +253,7 @@ func BuildCreateMarketReportArgsContext(ctx context.Context, w *memory.PreMarket
 		"market":  market,
 		"report":  bundle.Report,
 		"summary": bundle.Summary,
+		"report_date": ReportDateFor(w),
 	}
 	if bundle.Result != "" {
 		out["result"] = bundle.Result
@@ -384,6 +386,34 @@ func marketIndexBlocks(market string, refs map[string]string) []string {
 // ExpectedIndexCount returns how many indices a market workflow should collect.
 func ExpectedIndexCount(market string) int {
 	return len(marketIndices[NormalizeMarket(market)])
+}
+
+// ReportDateFor returns the workflow report date (YYYY-MM-DD), defaulting to today.
+func ReportDateFor(w *memory.PreMarketWorking) string {
+	if w != nil && strings.TrimSpace(w.ReportDate) != "" {
+		return strings.TrimSpace(w.ReportDate)
+	}
+	return time.Now().Format("2006-01-02")
+}
+
+// IsBackfillRun is true when an explicit report_date differs from today (manual backfill).
+func IsBackfillRun(w *memory.PreMarketWorking) bool {
+	if w == nil || strings.TrimSpace(w.ReportDate) == "" {
+		return false
+	}
+	return strings.TrimSpace(w.ReportDate) != time.Now().Format("2006-01-02")
+}
+
+// SeedReportDate sets report_date for backfill runs.
+func SeedReportDate(w *memory.PreMarketWorking, reportDate string) {
+	if w == nil {
+		return
+	}
+	reportDate = strings.TrimSpace(reportDate)
+	if reportDate == "" {
+		return
+	}
+	w.ReportDate = reportDate
 }
 
 // SeedMarketWorking sets market scope on working memory before a run.

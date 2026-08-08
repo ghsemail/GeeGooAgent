@@ -521,6 +521,9 @@ func encodeWorking(w *PreMarketWorking) map[string]any {
 	if w.Market != "" {
 		m["market"] = w.Market
 	}
+	if w.ReportDate != "" {
+		m["report_date"] = w.ReportDate
+	}
 	if w.MarketReportID != "" {
 		m["market_report_id"] = w.MarketReportID
 	}
@@ -654,6 +657,7 @@ func decodeWorking(data map[string]any) (*PreMarketWorking, error) {
 		}
 	}
 	w.Market = stringField(data, "market")
+	w.ReportDate = stringField(data, "report_date")
 	w.MarketReportID = stringField(data, "market_report_id")
 	w.MarketReportBody = stringField(data, "market_report_body")
 	w.MarketReportResult = stringField(data, "market_report_result")

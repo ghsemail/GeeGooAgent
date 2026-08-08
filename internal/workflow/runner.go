@@ -123,7 +123,7 @@ func (r *Runner) RunFrom(
 		if errResult != nil {
 			return *errResult
 		}
-		if step.Tool == "check_trading_day" && working.IsTradingDay != nil && !*working.IsTradingDay {
+		if step.Tool == "check_trading_day" && working.IsTradingDay != nil && !*working.IsTradingDay && !IsBackfillRun(working) {
 			if err := r.checkpts.Save(sessionID, skill, "completed", step.Tool, stepCounter, working); err != nil {
 				return RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: err.Error()}
 			}

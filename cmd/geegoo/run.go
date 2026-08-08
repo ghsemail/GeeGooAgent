@@ -24,7 +24,7 @@ func runSkill(args []string) {
 	botType := fs.String("bot-type", "", "intraday: bot type (DCA/GRID/…)")
 	frequency := fs.String("frequency", "", "intraday: check frequency (e.g. 5m)")
 	tradeType := fs.String("trade-type", "", "intraday: signal type (e.g. 信号买入)")
-	reportDate := fs.String("report-date", "", "intraday: YYYY-MM-DD (default today)")
+	reportDate := fs.String("report-date", "", "YYYY-MM-DD (intraday default today; pre_market backfill skips non-trading-day gate)")
 	market := fs.String("market", "", "pre_market/stock: CN, HK, or US")
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
@@ -75,6 +75,9 @@ func runSkill(args []string) {
 	}
 	if v := strings.TrimSpace(*market); v != "" {
 		runOpts.Market = strings.ToUpper(v)
+	}
+	if v := strings.TrimSpace(*reportDate); v != "" {
+		runOpts.ReportDate = v
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
