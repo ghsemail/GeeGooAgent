@@ -38,7 +38,7 @@ func TestSaveAndReloadJobs(t *testing.T) {
 	for _, j := range loaded.Jobs {
 		skills[j.Skill] = true
 	}
-	for _, want := range []string{"pre_market_market", "pre_market_stock", "post_market"} {
+	for _, want := range []string{"pre_market", "pre_market_stock", "post_market"} {
 		if !skills[want] {
 			t.Fatalf("missing %s jobs: %+v", want, loaded.Jobs)
 		}
@@ -52,7 +52,7 @@ func TestDefaultJobsHasWeekdayPreMarket(t *testing.T) {
 	foundStockCN := false
 	foundPost := false
 	for _, j := range jf.Jobs {
-		if j.Skill == "pre_market_market" && j.Market == "CN" && j.Enabled && j.Cron == "0 8 * * 1-5" {
+		if j.Skill == "pre_market" && j.Market == "CN" && j.Enabled && j.Cron == "0 8 * * 1-5" {
 			foundMarketCN = true
 		}
 		if j.Skill == "pre_market_stock" && j.Market == "CN" && j.Enabled && j.Cron == "10 8 * * 1-5" {
@@ -63,7 +63,7 @@ func TestDefaultJobsHasWeekdayPreMarket(t *testing.T) {
 		}
 	}
 	if !foundMarketCN {
-		t.Fatal("default jobs missing enabled pre_market_market CN job")
+		t.Fatal("default jobs missing enabled pre_market CN job")
 	}
 	if !foundStockCN {
 		t.Fatal("default jobs missing enabled pre_market_stock CN job")
@@ -75,7 +75,7 @@ func TestDefaultJobsHasWeekdayPreMarket(t *testing.T) {
 
 func TestFormatJobRendersState(t *testing.T) {
 	t.Parallel()
-	j := scheduler.Job{Name: "j1", Skill: "pre_market_market", Market: "CN", Cron: "0 8 * * 1-5", Enabled: true,
+	j := scheduler.Job{Name: "j1", Skill: "pre_market", Market: "CN", Cron: "0 8 * * 1-5", Enabled: true,
 		LastRun: time.Now().UTC().Format(time.RFC3339), LastVerdict: "pass"}
 	s := scheduler.FormatJob(j)
 	if !contains(s, "enabled") || !contains(s, "verdict=pass") {

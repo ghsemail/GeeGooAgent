@@ -91,7 +91,7 @@ func DefaultMarketPreMarketChecks() []Check {
 // SupervisorChecksForSkill returns acceptance checks for a workflow skill.
 func SupervisorChecksForSkill(skill string) []Check {
 	switch skill {
-	case "pre_market_market":
+	case "pre_market":
 		return DefaultMarketPreMarketChecks()
 	case "pre_market_stock":
 		return DefaultPreMarketChecks()

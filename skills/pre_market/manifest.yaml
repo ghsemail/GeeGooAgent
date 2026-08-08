@@ -1,4 +1,4 @@
-name: pre_market_market
+name: pre_market
 version: "1.0.0"
 description: 市场盘前报告 — 按 CN/HK/US 生成全局宏观盘前
 phase: 1

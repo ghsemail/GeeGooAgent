@@ -633,10 +633,10 @@ func (a *App) RunSkillContext(ctx context.Context, skill string, runOpts ...Skil
 
 func (a *App) resolveSkillSteps(skill, market string) ([]workflow.Step, []workflow.Step, error) {
 	switch skill {
-	case "pre_market_market":
+	case "pre_market":
 		m := workflow.NormalizeMarket(market)
 		if m == "" {
-			return nil, nil, fmt.Errorf("pre_market_market requires market=CN|HK|US")
+			return nil, nil, fmt.Errorf("pre_market requires market=CN|HK|US")
 		}
 		return workflow.MarketPhaseSteps(m), nil, nil
 	case "pre_market_stock":
@@ -863,7 +863,7 @@ func findProjectRoot() string {
 	}
 	dir := wd
 	for i := 0; i < 8; i++ {
-		if _, err := os.Stat(filepath.Join(dir, "skills", "pre_market_market", "manifest.yaml")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "skills", "pre_market", "manifest.yaml")); err == nil {
 			return dir
 		}
 		parent := filepath.Dir(dir)

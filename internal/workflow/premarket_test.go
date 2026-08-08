@@ -36,7 +36,7 @@ func TestPreMarketDryRunE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer application.Close()
-	result, err := application.RunSkillContext(context.Background(), "pre_market_market", app.SkillRunOptions{Market: "CN"})
+	result, err := application.RunSkillContext(context.Background(), "pre_market", app.SkillRunOptions{Market: "CN"})
 	if err != nil {
 		t.Fatal(err)
 	}

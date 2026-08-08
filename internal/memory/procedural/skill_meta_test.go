@@ -13,7 +13,7 @@ func TestClassifyPath(t *testing.T) {
 		want Kind
 	}{
 		{`skills/playbooks/stock-analysis/SKILL.md`, KindPlaybook},
-		{`skills/pre_market_market/SKILL.md`, KindWorkflow},
+		{`skills/pre_market/SKILL.md`, KindWorkflow},
 		{`skills/pre_market_stock/SKILL.md`, KindWorkflow},
 		{`skills/extensions/finance-news/SKILL.md`, KindExtension},
 		{`skills/bundled/finance-news/SKILL.md`, KindExtension},

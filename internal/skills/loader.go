@@ -6,12 +6,12 @@ import "github.com/ghsemail/GeeGooAgent/internal/workflow"
 func RegisterBuiltins(r *Registry) {
 	emptySteps := func() []workflow.Step { return []workflow.Step{} }
 	r.Register(Spec{
-		Name:         "pre_market_market",
+		Name:         "pre_market",
 		Description:  "市场盘前报告：按 CN/HK/US 生成全局宏观盘前（指数 + 市场新闻）",
 		PhaseA:       emptySteps,
 		PerStock:     emptySteps,
-		TemplatePath: "skills/pre_market_market/template.md",
-		ManifestPath: "skills/pre_market_market/manifest.yaml",
+		TemplatePath: "skills/pre_market/template.md",
+		ManifestPath: "skills/pre_market/manifest.yaml",
 	})
 	r.Register(Spec{
 		Name:         "pre_market_stock",

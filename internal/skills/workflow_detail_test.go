@@ -6,16 +6,16 @@ import (
 	"testing"
 )
 
-func TestBuildWorkflowDetailPreMarketMarket(t *testing.T) {
+func TestBuildWorkflowDetailPreMarket(t *testing.T) {
 	root := findRepoRoot(t)
-	spec, ok := Default().Get("pre_market_market")
+	spec, ok := Default().Get("pre_market")
 	if !ok {
-		t.Fatal("pre_market_market not registered")
+		t.Fatal("pre_market not registered")
 	}
 	jobs := []SchedulerJobView{
-		{Name: "pre_market_market_cn", Skill: "pre_market_market", Cron: "0 8 * * 1-5", Enabled: true},
+		{Name: "pre_market_cn", Skill: "pre_market", Cron: "0 8 * * 1-5", Enabled: true},
 	}
-	detail := BuildWorkflowDetail(root, spec, jobs, filepath.Join(root, "skills", "pre_market_market", "SKILL.md"))
+	detail := BuildWorkflowDetail(root, spec, jobs, filepath.Join(root, "skills", "pre_market", "SKILL.md"))
 	if detail["manifest_yaml"] == nil {
 		t.Fatal("expected manifest_yaml")
 	}
@@ -60,14 +60,14 @@ func TestBuildWorkflowDetailPostMarket(t *testing.T) {
 
 func TestAttachWorkflowDetails(t *testing.T) {
 	items := []map[string]any{
-		{"name": "pre_market_market", "kind": "workflow"},
+		{"name": "pre_market", "kind": "workflow"},
 		{"name": "bot-manager", "kind": "playbook"},
 	}
 	AttachWorkflowDetails(items, findRepoRoot(t), []SchedulerJobView{
-		{Name: "pre_market_market_cn", Skill: "pre_market_market", Cron: "0 8 * * 1-5", Enabled: true},
+		{Name: "pre_market_cn", Skill: "pre_market", Cron: "0 8 * * 1-5", Enabled: true},
 	})
 	if items[0]["workflow_detail"] == nil {
-		t.Fatal("expected workflow_detail on pre_market_market")
+		t.Fatal("expected workflow_detail on pre_market")
 	}
 	if items[1]["workflow_detail"] != nil {
 		t.Fatal("playbook should not get workflow_detail")
@@ -82,7 +82,7 @@ func findRepoRoot(t *testing.T) string {
 	}
 	dir := wd
 	for i := 0; i < 6; i++ {
-		if _, err := os.Stat(filepath.Join(dir, "skills", "pre_market_market", "manifest.yaml")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "skills", "pre_market", "manifest.yaml")); err == nil {
 			return dir
 		}
 		parent := filepath.Dir(dir)
