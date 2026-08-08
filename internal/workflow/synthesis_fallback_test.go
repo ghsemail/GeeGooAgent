@@ -70,7 +70,7 @@ func TestBuildCreateMarketReportArgsFallsBackOnSynthesisError(t *testing.T) {
 	if args["result"] != "neutral" {
 		t.Fatalf("result=%v", args["result"])
 	}
-	if !strings.Contains(args["report"].(string), "市场盘前报告") {
+	if !strings.Contains(args["report"].(string), "指数概览") {
 		t.Fatalf("report=%v", args["report"])
 	}
 }
