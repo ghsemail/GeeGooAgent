@@ -134,7 +134,7 @@ func (r *Runner) RunFrom(
 	finalizePhaseA(working)
 	_ = r.working.Save(working)
 
-	if perStock != nil && (working.IsTradingDay == nil || *working.IsTradingDay) {
+	if perStock != nil && ShouldRunPerStockPhase(working) {
 		working.Phase = "phase_b"
 		_ = r.working.Save(working)
 		for _, bot := range working.BotCodes {
@@ -348,6 +348,19 @@ func indexCodeFromStep(step Step, ctx context.Context, working *memory.PreMarket
 		return strings.TrimPrefix(step.Name, "index_")
 	}
 	return ""
+}
+
+// ShouldRunPerStockPhase is true when phase B should execute for the current working state.
+func ShouldRunPerStockPhase(working *memory.PreMarketWorking) bool {
+	if working == nil || working.IsTradingDay == nil {
+		return true
+	}
+	return *working.IsTradingDay || IsBackfillRun(working)
+}
+
+// ShouldRunPerStockPhaseForTest exposes ShouldRunPerStockPhase to external tests.
+func ShouldRunPerStockPhaseForTest(working *memory.PreMarketWorking) bool {
+	return ShouldRunPerStockPhase(working)
 }
 
 // finalizePhaseA marks phase A complete when there is no per-stock work.
