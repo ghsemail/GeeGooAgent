@@ -77,7 +77,9 @@ func (r *Runner) executeAndMaybeRetry(job Job) {
 	if application == nil {
 		return
 	}
-	result, err := application.RunSkill(job.Skill)
+	result, err := application.RunSkillContext(context.Background(), job.Skill, app.SkillRunOptions{
+		Market: job.Market,
+	})
 	verdict := "unknown"
 	if result.Supervisor != nil {
 		verdict = string(result.Supervisor.Verdict)

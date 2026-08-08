@@ -90,6 +90,9 @@ type PreMarketWorking struct {
 	StepsCompleted   []string                  `json:"steps_completed"`
 	CompletedStepKeys []string                 `json:"completed_step_keys,omitempty"`
 	CurrentStock     string                    `json:"current_stock_code"`
+	Market           string                    `json:"market,omitempty"`
+	MarketReportID   string                    `json:"market_report_id,omitempty"`
+	MarketReportBody string                    `json:"market_report_body,omitempty"`
 }
 
 // NewPreMarketWorking creates initial working state.

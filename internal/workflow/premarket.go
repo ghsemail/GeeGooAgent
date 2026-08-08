@@ -9,53 +9,6 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 )
 
-var (
-	indexEntries = []struct{ Name, Code string }{
-		{"道琼斯", "^DJI.US"},
-		{"纳斯达克", "^IXIC.US"},
-		{"上证指数", "000001.SH"},
-		{"深证成指", "399001.SZ"},
-		{"恒生指数", "800000.HK"},
-	}
-	newsMarkets    = []string{"US", "CN", "HK"}
-	tradingDayCode = "00700.HK"
-)
-
-// PhaseASteps returns pre-market phase A workflow.
-func PhaseASteps() []Step {
-	steps := []Step{
-		{Name: "check_trading_day", Tool: "check_trading_day", Arguments: map[string]any{"code": tradingDayCode}},
-		{Name: "get_report_bot_codes", Tool: "get_report_bot_codes"},
-	}
-	for _, idx := range indexEntries {
-		steps = append(steps, Step{
-			Name: "index_" + idx.Code,
-			Tool: "get_mcp_analysis",
-			Arguments: map[string]any{
-				"name": idx.Name, "code": idx.Code, "prompt_id": indexPromptID, "period": "hourly", "language": "cn",
-			},
-		})
-	}
-	for _, market := range newsMarkets {
-		steps = append(steps, Step{
-			Name:      "market_news_" + strings.ToLower(market),
-			Tool:      "fetch_market_news",
-			Arguments: map[string]any{"market": market, "limit": 8},
-		})
-	}
-	steps = append(steps, Step{
-		Name: "phase_a_complete", Tool: "write_execution_log",
-		ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
-			return map[string]any{
-				"step":    "phase_a_complete",
-				"message": fmt.Sprintf("indices_done=%v market_news_done=%v", w.MarketContext.IndicesDone, w.MarketContext.MarketNewsDone),
-				"status":  "ok",
-			}
-		},
-	})
-	return steps
-}
-
 // PerStockSteps returns phase B steps for each bot stock.
 func PerStockSteps() []Step {
 	return []Step{
@@ -108,6 +61,11 @@ func BuildReportContent(w *memory.PreMarketWorking, code string) string {
 	lines := []string{
 		fmt.Sprintf("# Pre-market Report - %s (%s)", displayStockName(ws, code), code),
 		"",
+	}
+	if body := strings.TrimSpace(w.MarketReportBody); body != "" {
+		lines = append(lines, "## Market Context", "", body, "")
+	}
+	lines = append(lines,
 		"## Decision",
 		"",
 		fmt.Sprintf("- Result: %s", view.Result),
@@ -117,7 +75,7 @@ func BuildReportContent(w *memory.PreMarketWorking, code string) string {
 		"",
 		"## Key Inputs",
 		"",
-	}
+	)
 	for _, item := range view.KeyInputs {
 		lines = append(lines, fmt.Sprintf("- %s", item))
 	}
@@ -189,6 +147,7 @@ func BuildCreateReportArgsContext(ctx context.Context, w *memory.PreMarketWorkin
 		"result": attitudeToResult(attitude), "confidence": view.Confidence,
 		"reason": reason, "suggestion": suggestion, "report": report, "summary": summary,
 		"evidence_refs": evidenceIDs(evidence),
+		"market_pre_market_report_id": strings.TrimSpace(w.MarketReportID),
 	}
 }
 

@@ -29,8 +29,8 @@ func BuildWorkflowDetail(projectRoot string, spec Spec, jobs []SchedulerJobView,
 		"workflow_path":  filepath.ToSlash(filepath.Join(skillDir, "workflow.md")),
 		"manifest_path":  spec.ManifestPath,
 		"template_path":  spec.TemplatePath,
-		"phase_a_steps":  serializeWorkflowSteps(spec.PhaseA()),
-		"phase_b_steps":  serializeWorkflowSteps(spec.PerStock()),
+		"phase_a_steps":  serializeWorkflowSteps(resolvePhaseASteps(spec)),
+		"phase_b_steps":  serializeWorkflowSteps(resolvePerStockSteps(spec)),
 		"scheduler_jobs": schedulerJobsForSkill(jobs, spec.Name),
 	}
 	root := strings.TrimSpace(projectRoot)
@@ -116,6 +116,35 @@ func serializeWorkflowSteps(steps []workflow.Step) []map[string]any {
 		out = append(out, row)
 	}
 	return out
+}
+
+func resolvePhaseASteps(spec Spec) []workflow.Step {
+	if spec.PhaseA != nil {
+		if steps := spec.PhaseA(); len(steps) > 0 {
+			return steps
+		}
+	}
+	switch spec.Name {
+	case "pre_market_market":
+		return workflow.MarketPhaseSteps(workflow.MarketCN)
+	case "pre_market_stock":
+		return workflow.StockPhaseASteps(workflow.MarketCN)
+	default:
+		if spec.PhaseA != nil {
+			return spec.PhaseA()
+		}
+		return nil
+	}
+}
+
+func resolvePerStockSteps(spec Spec) []workflow.Step {
+	if spec.Name == "pre_market_market" {
+		return nil
+	}
+	if spec.PerStock != nil {
+		return spec.PerStock()
+	}
+	return nil
 }
 
 func schedulerJobsForSkill(jobs []SchedulerJobView, skill string) []map[string]any {

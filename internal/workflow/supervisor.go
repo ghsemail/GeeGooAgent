@@ -81,9 +81,20 @@ func DefaultPreMarketChecks() []Check {
 	}
 }
 
+// DefaultMarketPreMarketChecks validates global market pre-market runs.
+func DefaultMarketPreMarketChecks() []Check {
+	return []Check{
+		{Name: "workflow_phase_done", Type: "stocks_status", ExpectPhase: "done"},
+	}
+}
+
 // SupervisorChecksForSkill returns acceptance checks for a workflow skill.
 func SupervisorChecksForSkill(skill string) []Check {
 	switch skill {
+	case "pre_market_market":
+		return DefaultMarketPreMarketChecks()
+	case "pre_market_stock":
+		return DefaultPreMarketChecks()
 	case "intraday":
 		return DefaultIntradayChecks()
 	case "post_market":

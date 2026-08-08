@@ -11,7 +11,7 @@ import (
 // PostMarketPhaseASteps returns post-market prelude (trading day + bot list).
 func PostMarketPhaseASteps() []Step {
 	return []Step{
-		{Name: "check_trading_day", Tool: "check_trading_day", Arguments: map[string]any{"code": tradingDayCode}},
+		{Name: "check_trading_day", Tool: "check_trading_day", Arguments: map[string]any{"code": defaultTradingDayCode}},
 		{Name: "get_report_bot_codes", Tool: "get_report_bot_codes"},
 		{Name: "phase_a_complete", Tool: "write_execution_log", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			return map[string]any{

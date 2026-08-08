@@ -8,19 +8,19 @@ import (
 func TestMatchPreMarketSkill(t *testing.T) {
 	t.Parallel()
 	l := NewLoader("../../../skills")
-	matched := l.Match("帮我生成 pre_market 盘前报告", 2)
+	matched := l.Match("帮我生成 pre_market_stock 盘前报告", 2)
 	if len(matched) == 0 {
-		t.Fatal("expected pre_market skill match")
+		t.Fatal("expected pre_market_stock skill match")
 	}
 	found := false
 	for _, sk := range matched {
-		if sk.Name == "pre_market" {
+		if sk.Name == "pre_market_stock" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("pre_market not in %v", matched)
+		t.Fatalf("pre_market_stock not in %v", matched)
 	}
 }
 

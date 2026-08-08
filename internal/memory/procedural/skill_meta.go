@@ -38,7 +38,8 @@ func ClassifyPath(path string) Kind {
 		return KindExtension
 	case strings.Contains(p, "/playbooks/"):
 		return KindPlaybook
-	case strings.Contains(p, "/skills/pre_market/"), strings.Contains(p, "skills/pre_market/"),
+	case strings.Contains(p, "/skills/pre_market_market/"), strings.Contains(p, "skills/pre_market_market/"),
+		strings.Contains(p, "/skills/pre_market_stock/"), strings.Contains(p, "skills/pre_market_stock/"),
 		strings.Contains(p, "/skills/intraday/"), strings.Contains(p, "skills/intraday/"),
 		strings.Contains(p, "/skills/post_market/"), strings.Contains(p, "skills/post_market/"):
 		return KindWorkflow
@@ -59,7 +60,8 @@ func ClassifyProvenance(path string) Provenance {
 		return ProvenanceOptional
 	case strings.Contains(p, "/playbooks/"):
 		return ProvenanceCore
-	case strings.Contains(p, "/skills/pre_market/"), strings.Contains(p, "skills/pre_market/"),
+	case strings.Contains(p, "/skills/pre_market_market/"), strings.Contains(p, "skills/pre_market_market/"),
+		strings.Contains(p, "/skills/pre_market_stock/"), strings.Contains(p, "skills/pre_market_stock/"),
 		strings.Contains(p, "/skills/intraday/"), strings.Contains(p, "skills/intraday/"),
 		strings.Contains(p, "/skills/post_market/"), strings.Contains(p, "skills/post_market/"):
 		return ProvenanceCore

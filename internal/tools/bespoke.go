@@ -633,6 +633,42 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 
 func registerReportTools(r *Registry, deps Deps) {
 	r.Register(Tool{
+		Name: "create_market_pre_market_report", Description: "Create global market pre-market report via GeeGooBot MCP.",
+		Handle: func(ctx Context, args map[string]any) Result {
+			market := strArg(args, "market", "")
+			if ctx.DryRun {
+				return Result{Status: StatusDryRun, Summary: fmt.Sprintf("dry-run: skipped create_market_pre_market_report %s", market),
+					Data: map[string]any{"report_id": "dry-run-market-id", "market": market}}
+			}
+			result, err := deps.HTTP.MCP.CreateMarketPreMarketReport(ctx.GoContext(), ctx.MCPToken, args)
+			if err != nil {
+				return errResult(err)
+			}
+			return Result{Status: StatusOK, Summary: fmt.Sprintf("Created market report for %s", market),
+				Data: map[string]any{"report_id": result.ReportID, "market": market}}
+		},
+	})
+	r.Register(Tool{
+		Name: "get_market_pre_market_report", Description: "Load today's global market pre-market report for CN/HK/US.",
+		Handle: func(ctx Context, args map[string]any) Result {
+			market := strArg(args, "market", "")
+			reportDate := strArg(args, "report_date", today())
+			if ctx.DryRun {
+				return Result{Status: StatusDryRun, Summary: fmt.Sprintf("dry-run: market report %s", market),
+					Data: map[string]any{"market": market, "report": "dry-run market report", "report_id": "dry-run-market-id"}}
+			}
+			result, err := deps.HTTP.MCP.GetMarketPreMarketReport(ctx.GoContext(), ctx.MCPToken, market, reportDate)
+			if err != nil {
+				return errResult(err)
+			}
+			return Result{Status: StatusOK, Summary: fmt.Sprintf("Loaded market report %s", market),
+				Data: map[string]any{
+					"market": market, "report": result.Report, "summary": result.Summary,
+					"report_id": result.ReportID, "report_date": result.ReportDate,
+				}}
+		},
+	})
+	r.Register(Tool{
 		Name: "create_pre_market_report", Description: "Create pre-market report via GeeGooBot MCP.",
 		Handle: func(ctx Context, args map[string]any) Result {
 			code := strArg(args, "code", "")

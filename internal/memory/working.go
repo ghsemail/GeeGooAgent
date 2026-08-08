@@ -77,7 +77,12 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 			}
 		}
 	case "get_report_bot_codes":
+		updated.BotCodes = nil
+		updated.Stocks = map[string]StockWorkspace{}
 		for _, bot := range coerceBotMaps(data["bots"]) {
+			if updated.Market != "" && marketFromCode(bot.Code) != updated.Market {
+				continue
+			}
 			updated.BotCodes = append(updated.BotCodes, bot)
 			if _, exists := updated.Stocks[bot.Code]; !exists {
 				updated.Stocks[bot.Code] = StockWorkspace{
@@ -86,6 +91,20 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 					Status: "pending",
 				}
 			}
+		}
+	case "get_market_pre_market_report":
+		if id, _ := data["report_id"].(string); id != "" {
+			updated.MarketReportID = id
+		}
+		if report, _ := data["report"].(string); report != "" {
+			updated.MarketReportBody = report
+		}
+		if market, _ := data["market"].(string); market != "" && updated.Market == "" {
+			updated.Market = strings.ToUpper(market)
+		}
+	case "create_market_pre_market_report":
+		if id, _ := data["report_id"].(string); id != "" {
+			updated.MarketReportID = id
 		}
 	case "get_mcp_analysis":
 		code, _ := data["code"].(string)
@@ -98,7 +117,11 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 			if !contains(updated.MarketContext.IndexCodesDone, code) {
 				updated.MarketContext.IndexCodesDone = append(updated.MarketContext.IndexCodesDone, code)
 			}
-			if len(updated.MarketContext.IndexCodesDone) >= 5 {
+			expected := 5
+			if updated.Market != "" {
+				expected = expectedIndexCount(updated.Market)
+			}
+			if len(updated.MarketContext.IndexCodesDone) >= expected {
 				updated.MarketContext.IndicesDone = true
 			}
 		} else if ws, ok := updated.Stocks[code]; ok {
@@ -243,7 +266,9 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 	case "save_local_report":
 		code, _ := data["code"].(string)
 		path, _ := data["path"].(string)
-		if ws, ok := updated.Stocks[code]; ok && path != "" {
+		if strings.HasPrefix(code, "market-") && path != "" {
+			updated.Artifacts["market_report"] = path
+		} else if ws, ok := updated.Stocks[code]; ok && path != "" {
 			ws.ReportRef = path
 			updated.Stocks[code] = ws
 		}
@@ -279,7 +304,11 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 			updated.MarketContext.MarketNews[market] = truncate(text, 2000)
 			addEvidence(updated, toolName, "market.news."+market, text, data, observedAt)
 		}
-		if hasAllMarkets(updated.MarketContext.MarketNews) {
+		if updated.Market != "" {
+			if _, ok := updated.MarketContext.MarketNews[updated.Market]; ok {
+				updated.MarketContext.MarketNewsDone = true
+			}
+		} else if hasAllMarkets(updated.MarketContext.MarketNews) {
 			updated.MarketContext.MarketNewsDone = true
 		}
 	case "write_execution_log":
@@ -305,6 +334,36 @@ func hasAllMarkets(news map[string]string) bool {
 
 func isAShare(code string) bool {
 	return strings.HasSuffix(code, ".SH") || strings.HasSuffix(code, ".SZ")
+}
+
+func marketFromCode(code string) string {
+	parts := strings.Split(strings.ToUpper(strings.TrimSpace(code)), ".")
+	if len(parts) < 2 {
+		return "US"
+	}
+	switch parts[len(parts)-1] {
+	case "HK":
+		return "HK"
+	case "US":
+		return "US"
+	case "SH", "SZ", "SS":
+		return "CN"
+	default:
+		return ""
+	}
+}
+
+func expectedIndexCount(market string) int {
+	switch strings.ToUpper(market) {
+	case "CN":
+		return 2
+	case "HK":
+		return 1
+	case "US":
+		return 2
+	default:
+		return 5
+	}
 }
 
 func truncate(s string, n int) string {

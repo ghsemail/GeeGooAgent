@@ -2,21 +2,24 @@ package skills
 
 import "github.com/ghsemail/GeeGooAgent/internal/workflow"
 
-// RegisterBuiltins registers all built-in skills (pre_market, and placeholders
-// for intraday/post_market) into the given registry.
-//
-// The step functions delegate to workflow.PhaseASteps / workflow.PerStockSteps
-// so the skill definitions stay declarative while the step construction lives
-// in one place. New skills are added here (or via Register at runtime) rather
-// than by branching on skill name in cmd/geegoo or internal/app.
+// RegisterBuiltins registers all built-in skills into the given registry.
 func RegisterBuiltins(r *Registry) {
+	emptySteps := func() []workflow.Step { return []workflow.Step{} }
 	r.Register(Spec{
-		Name:         "pre_market",
-		Description:  "盘前分析：指数 + 市场新闻 + 个股资金/技术/Bot 态度，生成盘前报告并入库",
-		PhaseA:       workflow.PhaseASteps,
+		Name:         "pre_market_market",
+		Description:  "市场盘前报告：按 CN/HK/US 生成全局宏观盘前（指数 + 市场新闻）",
+		PhaseA:       emptySteps,
+		PerStock:     emptySteps,
+		TemplatePath: "skills/pre_market_market/template.md",
+		ManifestPath: "skills/pre_market_market/manifest.yaml",
+	})
+	r.Register(Spec{
+		Name:         "pre_market_stock",
+		Description:  "股票盘前报告：引用市场报告，为 attitude 订阅标的逐股生成报告（保留 bot_id 绑定）",
+		PhaseA:       emptySteps,
 		PerStock:     workflow.PerStockSteps,
-		TemplatePath: "skills/pre_market/template.md",
-		ManifestPath: "skills/pre_market/manifest.yaml",
+		TemplatePath: "skills/pre_market_stock/template.md",
+		ManifestPath: "skills/pre_market_stock/manifest.yaml",
 	})
 	r.Register(Spec{
 		Name:         "intraday",

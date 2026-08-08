@@ -607,6 +607,7 @@ func (a *App) RunSkill(skill string) (workflow.RunResult, error) {
 type SkillRunOptions struct {
 	Intraday *workflow.IntradayInput
 	MCPToken string
+	Market   string
 }
 
 // RunSkillContext executes a named skill with cancellation propagated to tools
@@ -616,33 +617,71 @@ func (a *App) RunSkillContext(ctx context.Context, skill string, runOpts ...Skil
 	if len(runOpts) > 0 {
 		opts = runOpts[0]
 	}
-	spec, ok := DefaultSkills.Get(skill)
-	if !ok {
-		return workflow.RunResult{}, fmt.Errorf("unknown skill: %s (run 'geegoo skills list')", skill)
+	if skill == "pre_market_stock" {
+		market := workflow.NormalizeMarket(opts.Market)
+		if market == "" {
+			return workflow.RunResult{}, fmt.Errorf("pre_market_stock requires market=CN|HK|US")
+		}
+		return a.runPreMarketStockForMarket(ctx, market)
 	}
-	if spec.PhaseA == nil || spec.PerStock == nil {
-		return workflow.RunResult{}, fmt.Errorf("skill %s has no step functions defined", skill)
+	phaseA, perStock, err := a.resolveSkillSteps(skill, opts.Market)
+	if err != nil {
+		return workflow.RunResult{}, err
 	}
-	phaseA := spec.PhaseA()
-	perStock := spec.PerStock()
-	if len(phaseA) == 0 && len(perStock) == 0 {
-		return workflow.RunResult{}, fmt.Errorf("skill %s is registered but has no executable steps", skill)
+	return a.runSkillWithSteps(ctx, skill, phaseA, perStock, opts)
+}
+
+func (a *App) resolveSkillSteps(skill, market string) ([]workflow.Step, []workflow.Step, error) {
+	switch skill {
+	case "pre_market_market":
+		m := workflow.NormalizeMarket(market)
+		if m == "" {
+			return nil, nil, fmt.Errorf("pre_market_market requires market=CN|HK|US")
+		}
+		return workflow.MarketPhaseSteps(m), nil, nil
+	case "pre_market_stock":
+		m := workflow.NormalizeMarket(market)
+		if m == "" {
+			return nil, nil, fmt.Errorf("pre_market_stock requires market=CN|HK|US")
+		}
+		return workflow.StockPhaseASteps(m), workflow.PerStockSteps(), nil
+	default:
+		spec, ok := DefaultSkills.Get(skill)
+		if !ok {
+			return nil, nil, fmt.Errorf("unknown skill: %s (run 'geegoo skills list')", skill)
+		}
+		if spec.PhaseA == nil {
+			return nil, nil, fmt.Errorf("skill %s has no step functions defined", skill)
+		}
+		phaseA := spec.PhaseA()
+		var perStock []workflow.Step
+		if spec.PerStock != nil {
+			perStock = spec.PerStock()
+		}
+		if len(phaseA) == 0 && len(perStock) == 0 {
+			return nil, nil, fmt.Errorf("skill %s is registered but has no executable steps", skill)
+		}
+		return phaseA, perStock, nil
 	}
+}
+
+func (a *App) runSkillWithSteps(ctx context.Context, skill string, phaseA, perStock []workflow.Step, opts SkillRunOptions) (workflow.RunResult, error) {
 	sessionID := newSessionID()
-	a.EventBus.Emit("RunStarted", map[string]any{"session_id": sessionID, "skill": skill})
+	a.EventBus.Emit("RunStarted", map[string]any{"session_id": sessionID, "skill": skill, "market": opts.Market})
 	working, err := a.Working.Create(sessionID, skill)
 	if err != nil {
 		return workflow.RunResult{}, err
 	}
+	workflow.SeedMarketWorking(working, opts.Market)
 	if skill == "intraday" {
 		in := workflow.IntradayInputFromEnv()
 		if opts.Intraday != nil {
 			in = *opts.Intraday
 		}
 		workflow.SeedIntradayWorking(working, in)
-		if err := a.Working.Save(working); err != nil {
-			return workflow.RunResult{}, err
-		}
+	}
+	if err := a.Working.Save(working); err != nil {
+		return workflow.RunResult{}, err
 	}
 	toolCtx := a.ToolContextWithContext(ctx, sessionID)
 	if strings.TrimSpace(opts.MCPToken) != "" {
@@ -651,6 +690,41 @@ func (a *App) RunSkillContext(ctx context.Context, skill string, runOpts ...Skil
 	result := a.Workflow.Run(sessionID, skill, phaseA, perStock, toolCtx, working)
 	a.emitSkillRunResult(sessionID, skill, result)
 	return result, nil
+}
+
+func (a *App) runPreMarketStockForMarket(ctx context.Context, market string) (workflow.RunResult, error) {
+	if a == nil || a.MCP == nil {
+		return workflow.RunResult{}, fmt.Errorf("mcp client not configured")
+	}
+	token := ""
+	if a.Config != nil {
+		token = strings.TrimSpace(a.Config.MCPToken())
+	}
+	if token == "" {
+		return workflow.RunResult{}, fmt.Errorf("mcp_token required to list report users")
+	}
+	users, err := a.MCP.ListReportUsers(ctx, token, market)
+	if err != nil || len(users) == 0 {
+		return a.runSkillWithSteps(ctx, "pre_market_stock", workflow.StockPhaseASteps(market), workflow.PerStockSteps(), SkillRunOptions{Market: market, MCPToken: token})
+	}
+	var last workflow.RunResult
+	var lastErr error
+	for _, user := range users {
+		userToken := strings.TrimSpace(user.MCPToken)
+		if userToken == "" {
+			continue
+		}
+		result, runErr := a.runSkillWithSteps(ctx, "pre_market_stock", workflow.StockPhaseASteps(market), workflow.PerStockSteps(), SkillRunOptions{
+			Market:   market,
+			MCPToken: userToken,
+		})
+		last = result
+		lastErr = runErr
+		if runErr != nil {
+			continue
+		}
+	}
+	return last, lastErr
 }
 
 // ResumePreMarket resumes a workflow from its latest checkpoint. The checkpoint's
@@ -669,13 +743,8 @@ func (a *App) ResumePreMarketContext(ctx context.Context, sessionID string) (wor
 		return workflow.RunResult{}, fmt.Errorf("checkpoint not found for session: %s", sessionID)
 	}
 	spec, ok := DefaultSkills.Get(cp.Skill)
-	if !ok || spec.PhaseA == nil || spec.PerStock == nil {
+	if !ok || spec.PhaseA == nil {
 		return workflow.RunResult{}, fmt.Errorf("unsupported checkpoint skill: %s", cp.Skill)
-	}
-	phaseA := spec.PhaseA()
-	perStock := spec.PerStock()
-	if len(phaseA) == 0 && len(perStock) == 0 {
-		return workflow.RunResult{}, fmt.Errorf("checkpoint skill %s has no executable steps", cp.Skill)
 	}
 	working, err := a.Working.Load(sessionID)
 	if err != nil {
@@ -683,6 +752,13 @@ func (a *App) ResumePreMarketContext(ctx context.Context, sessionID string) (wor
 	}
 	if working == nil {
 		return workflow.RunResult{}, fmt.Errorf("working state not found for session: %s", sessionID)
+	}
+	phaseA, perStock, err := a.resolveSkillSteps(cp.Skill, working.Market)
+	if err != nil {
+		return workflow.RunResult{}, err
+	}
+	if len(phaseA) == 0 && len(perStock) == 0 {
+		return workflow.RunResult{}, fmt.Errorf("checkpoint skill %s has no executable steps", cp.Skill)
 	}
 	if cp.Status == "completed" || working.Phase == "done" {
 		return workflow.RunResult{SessionID: sessionID, Status: "completed", Working: working}, nil
@@ -787,7 +863,7 @@ func findProjectRoot() string {
 	}
 	dir := wd
 	for i := 0; i < 8; i++ {
-		if _, err := os.Stat(filepath.Join(dir, "skills", "pre_market", "manifest.yaml")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "skills", "pre_market_market", "manifest.yaml")); err == nil {
 			return dir
 		}
 		parent := filepath.Dir(dir)

@@ -1,0 +1,40 @@
+skill: pre_market
+description: Post-run acceptance checks for pre-market workflow
+checks:
+  - name: workflow_phase_done
+    type: stocks_status
+    expect_phase: done
+
+  - name: reported_stocks_local_md
+    type: file_exists
+    pattern: "reports/{date}/{code}-premarket.md"
+    for_status: reported
+
+  - name: reported_stocks_api_created
+    type: stocks_status
+    for_status: reported
+    require_fields:
+      - report_id
+
+  - name: reported_stocks_bot_fields
+    type: stocks_status
+    for_status: reported
+    require_fields:
+      - bot_id
+      - bot_name
+      - bot_type
+
+  - name: reported_stocks_api_payload
+    type: api_response
+    for_status: reported
+    required:
+      - code
+      - stock_name
+      - bot_id
+      - bot_name
+      - bot_type
+      - result
+      - confidence
+      - reason
+      - suggestion
+      - report
