@@ -131,37 +131,54 @@ func BotLogType(botType string) string {
 	return "DCA"
 }
 
-// MarketSummaryFromHourly builds a minimum market_summary paragraph.
+// MarketSummaryFromHourly builds a short human-readable market recap (not raw MCP dump).
 func MarketSummaryFromHourly(ws memory.StockWorkspace) string {
-	parts := []string{}
+	bias := localizeSessionBias(ws.SessionBias)
+	var parts []string
 	if ws.ChangePct != 0 {
-		parts = append(parts, fmt.Sprintf("收盘涨跌约 %.2f%%", ws.ChangePct))
+		word := "收涨"
+		if ws.ChangePct < 0 {
+			word = "收跌"
+		}
+		parts = append(parts, fmt.Sprintf("今日%s %.2f%%", word, abs(ws.ChangePct)))
 	}
-	if ws.HourlyPriceAnalysis != "" {
-		parts = append(parts, oneLine(ws.HourlyPriceAnalysis, 120))
+	if bias != "" {
+		parts = append(parts, fmt.Sprintf("盘面倾向%s", bias))
 	}
-	if ws.HourlySignalAnalysis != "" {
-		parts = append(parts, oneLine(ws.HourlySignalAnalysis, 80))
+	if line := stockfmt.ExtractTaggedConclusion(ws.HourlySignalAnalysis); line != "" {
+		parts = append(parts, line)
+	} else if line := stockfmt.ExtractTaggedConclusion(ws.HourlyPriceAnalysis); line != "" {
+		parts = append(parts, line)
+	} else if line := stockfmt.FirstSentence(stockfmt.PostmarketSummaryExcerpt(ws.HourlyPriceAnalysis, 280)); line != "" {
+		parts = append(parts, line)
 	}
 	if len(parts) == 0 {
-		return "今日行情数据不完整，盘面倾向依据有限，建议结合盘前报告与持仓日志复核。"
+		return "今日行情数据不完整，建议结合正文小时级分析综合判断。"
 	}
-	text := strings.Join(parts, "；")
-	if len([]rune(text)) < 80 {
-		text += "。量能与关键价位需结合小时级分析与 Bot 日志综合判断，避免单指标过度解读。"
+	text := strings.Join(parts, "，")
+	if !strings.HasSuffix(text, "。") {
+		text += "。"
 	}
 	return text
 }
 
+func abs(v float64) float64 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
 // TradeSummaryFromBotLog builds trade_summary from bot log snapshot.
 func TradeSummaryFromBotLog(ws memory.StockWorkspace) string {
-	if strings.TrimSpace(ws.BotLogSummary) != "" {
-		return oneLine(ws.BotLogSummary, 400)
+	summary := strings.TrimSpace(ws.BotLogSummary)
+	if summary == "" || summary == "[]" || summary == "{}" {
+		if ws.HasPosition {
+			return fmt.Sprintf("当前持仓：%s", ws.PositionSummary)
+		}
+		return ""
 	}
-	if ws.HasPosition {
-		return fmt.Sprintf("当前持仓：%s", ws.PositionSummary)
-	}
-	return "今日 Bot 日志未返回有效成交记录，持仓状态以账户同步为准；若策略应有调仓请核对提醒开关与账户授权状态。"
+	return oneLine(summary, 400)
 }
 
 // ExperienceSummaryDefault builds a post-market experience paragraph.
@@ -172,7 +189,7 @@ func ExperienceSummaryDefault(ws memory.StockWorkspace, vs string) string {
 	}
 	return fmt.Sprintf(
 		"今日盘面倾向为%s，与盘前对照结论为%s。复盘时应优先核对盘前观点与盘中实际走势是否一致，"+
-			"并记录 Bot（%s）在当日信号触发与执行上的偏差，便于后续调整 attitude 开关或止盈止损参数。",
+			"并记录 Bot（%s）在当日信号触发与执行上的偏差，便于后续调整策略开关或止盈止损参数。",
 		bias, localizeVsPreMarket(vs), strings.TrimSpace(ws.BotType),
 	)
 }

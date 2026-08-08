@@ -69,15 +69,22 @@ func tickerPriceFromData(data map[string]any) float64 {
 }
 
 func botLogSummary(data map[string]any) string {
+	if len(data) == 0 {
+		return ""
+	}
 	if info, ok := data["info"].(map[string]any); ok {
-		if pos, ok := info["position"].(map[string]any); ok {
+		if pos, ok := info["position"].(map[string]any); ok && len(pos) > 0 {
 			return fmt.Sprintf("position=%v", pos)
 		}
 	}
 	if log, ok := data["log"].([]any); ok && len(log) > 0 {
 		return fmt.Sprintf("log_entries=%d", len(log))
 	}
-	return truncate(fmt.Sprintf("%v", data), 500)
+	raw := strings.TrimSpace(fmt.Sprintf("%v", data))
+	if raw == "" || raw == "map[]" || raw == "[]" {
+		return ""
+	}
+	return truncate(raw, 500)
 }
 
 func finalizeDerivedFields(w *PreMarketWorking, ws *StockWorkspace, code string) {

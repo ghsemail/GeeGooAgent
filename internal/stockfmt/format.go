@@ -297,7 +297,149 @@ func FormatWeeklyAnalysis(raw string) string {
 	return s
 }
 
-// ReplaceMarkdownSection swaps one ## section body while keeping other sections intact.
+// FormatHourlySignalAnalysis normalizes hourly signal MCP output; strips raw 0/1/-1 codes.
+func FormatHourlySignalAnalysis(raw string) string {
+	s := FormatWeeklyAnalysis(raw)
+	if strings.TrimSpace(s) == "" || s == "暂无周线技术分析。" {
+		return "暂无小时级信号分析。"
+	}
+	lines := strings.Split(s, "\n")
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		trim := strings.TrimSpace(line)
+		if trim == "" {
+			out = append(out, "")
+			continue
+		}
+		if polished := polishSignalMetricLine(trim); polished != "" {
+			out = append(out, polished)
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+func polishSignalMetricLine(line string) string {
+	trim := strings.TrimSpace(line)
+	if trim == "" {
+		return ""
+	}
+	if m := signalMetricLineRE.FindStringSubmatch(trim); len(m) == 4 {
+		prefix := m[1]
+		label := strings.TrimSpace(m[2])
+		verdict := strings.TrimSpace(strings.Trim(m[3], "*"))
+		if label != "" && verdict != "" {
+			return prefix + label + "：" + verdict
+		}
+	}
+	return trim
+}
+
+func looksTruncatedFragment(s string) bool {
+	s = strings.TrimSpace(strings.Trim(s, "*"))
+	if s == "" {
+		return false
+	}
+	if matched, _ := regexp.MatchString(`^\d+\.\s*\*\*[^*]+$`, s); matched {
+		return true
+	}
+	runes := []rune(s)
+	if len(runes) < 48 && !strings.ContainsAny(s, "。！？.") {
+		if matched, _ := regexp.MatchString(`^\d+\.\s+`, s); matched {
+			return true
+		}
+	}
+	return false
+}
+
+var (
+	signalBinaryRE     = regexp.MustCompile(`[：:]\s*0\s*$`)
+	signalMetricCodeRE = regexp.MustCompile(`[：:]\s*[-+]?\d+\s*：\s*\*\*([^*]+)\*\*`)
+	signalMetricLineRE = regexp.MustCompile(`^(-\s*)?(.+?)[：:]\s*[-+]?\d+\s*[：:]\s*(?:\*\*)?([^*\n]+?)(?:\*\*)?\s*$`)
+)
+
+// PostmarketSummaryExcerpt returns the first readable paragraph from hourly MCP markdown.
+func PostmarketSummaryExcerpt(raw string, maxRunes int) string {
+	s := FormatWeeklyAnalysis(raw)
+	if strings.TrimSpace(s) == "" || s == "暂无周线技术分析。" {
+		return ""
+	}
+	var para []string
+	for _, line := range strings.Split(s, "\n") {
+		trim := strings.TrimSpace(line)
+		if trim == "" || trim == "---" {
+			if len(para) > 0 {
+				break
+			}
+			continue
+		}
+		if strings.HasPrefix(trim, "#") {
+			if len(para) > 0 {
+				break
+			}
+			continue
+		}
+		if strings.HasPrefix(trim, "- ") && signalMetricCodeRE.MatchString(trim) {
+			continue
+		}
+		para = append(para, trim)
+		if len([]rune(strings.Join(para, ""))) >= maxRunes {
+			break
+		}
+	}
+	text := strings.TrimSpace(strings.Join(para, " "))
+	if text == "" {
+		return ""
+	}
+	runes := []rune(text)
+	if len(runes) > maxRunes {
+		text = string(runes[:maxRunes]) + "…"
+	}
+	return text
+}
+
+// ExtractTaggedConclusion pulls a one-line verdict from MCP hourly analysis.
+func ExtractTaggedConclusion(raw string) string {
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if !strings.Contains(line, "整体结论") && !strings.Contains(line, "整体判断") {
+			continue
+		}
+		line = strings.TrimPrefix(line, "> ")
+		line = strings.Trim(line, "*# ")
+		for _, sep := range []string{"：", ":"} {
+			if i := strings.Index(line, sep); i >= 0 && i < len(line)-len(sep) {
+				out := strings.TrimSpace(line[i+len(sep):])
+				out = strings.Trim(out, "* ")
+				if out != "" && !looksTruncatedFragment(out) {
+					return out
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// FirstSentence returns the first complete sentence from plain text.
+func FirstSentence(text string) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+	runes := []rune(text)
+	for i, r := range runes {
+		if r == '。' || r == '！' || r == '？' {
+			return strings.TrimSpace(string(runes[:i+1]))
+		}
+	}
+	if len(runes) > 120 {
+		return strings.TrimSpace(string(runes[:120])) + "…"
+	}
+	return text
+}
+
 func ReplaceMarkdownSection(md, heading, body string) string {
 	heading = strings.TrimSpace(heading)
 	body = strings.TrimSpace(body)

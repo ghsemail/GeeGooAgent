@@ -395,10 +395,21 @@ func expectedIndexCount(market string) int {
 }
 
 func truncate(s string, n int) string {
-	if len(s) <= n {
+	if n <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= n {
 		return s
 	}
-	return s[:n]
+	window := runes[:n]
+	for i := len(window) - 1; i >= 0 && i >= len(window)-160; i-- {
+		switch window[i] {
+		case '。', '！', '？', '.':
+			return string(window[:i+1])
+		}
+	}
+	return strings.TrimSpace(string(window)) + "…"
 }
 
 func contains(list []string, v string) bool {

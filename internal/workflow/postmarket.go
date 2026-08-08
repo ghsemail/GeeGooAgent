@@ -72,15 +72,18 @@ func BuildPostMarketReportContent(w *memory.PreMarketWorking, code string) strin
 		lines = append(lines, "### 小时级价格分析", stockfmt.FormatWeeklyAnalysis(ws.HourlyPriceAnalysis), "")
 	}
 	if ws.HourlySignalAnalysis != "" {
-		lines = append(lines, "### 小时级信号分析", stockfmt.FormatWeeklyAnalysis(ws.HourlySignalAnalysis), "")
+		lines = append(lines, "### 小时级信号分析", stockfmt.FormatHourlySignalAnalysis(ws.HourlySignalAnalysis), "")
 	}
 	if ws.HourlyKlineAnalysis != "" {
 		lines = append(lines, "### 小时级 K 线分析", stockfmt.FormatWeeklyAnalysis(ws.HourlyKlineAnalysis), "")
 	}
-	lines = append(lines, "## 交易复盘", "", TradeSummaryFromBotLog(ws), "")
+	if trade := strings.TrimSpace(TradeSummaryFromBotLog(ws)); trade != "" {
+		lines = append(lines, "## 交易复盘", "", trade, "")
+	} else {
+		lines = append(lines, "## 交易复盘", "", "无", "")
+	}
 	lines = append(lines, "## 与盘前对照", "",
-		postMarketComparisonNarrative(ws, bias, vs), "")
-	lines = append(lines, "## 经验与教训", "", ExperienceSummaryDefault(ws, vs), "",
+		postMarketComparisonNarrative(ws, bias, vs), "",
 		"---",
 		"",
 		"*报告由 GeeGoo 智能体个股盘后 skill 生成*",
