@@ -131,8 +131,17 @@ curl -X POST "http://<host>:3120/getReportBotCodes" \
 ```
 
 - `market`：`CN` / `HK` / `US`
-- `result`：`long` / `short` / `neutral`（可选）
-- `confidence`：`high` / `medium` / `low`（可选）
+- `result`：`long` / `short` / `neutral`（可选）→ App「市场情绪」
+- `confidence`：`high` / `medium` / `low`（可选）→ App「执行度」
+
+**`report` 正文结构**（见 `skills/premarket_market/template.md`）：
+
+1. `## 指数概览` — 当前市场指数，自然段，无表格  
+2. `## 市场新闻解读` — 要点列表 + `**新闻面判断**`（禁时间戳）  
+3. `## 市场综合判断` — 结论段落 + 主要风险 / 今日关注（**正文不写** result/confidence）  
+4. 脚注：`*报告由 GeeGoo 智能体市场盘前 skill 生成*`
+
+勿在 `report` 内写 `#` 标题、生成时间或 `report_date`（由 API / App 展示）。
 
 ### 创建（createMarketPremarketReport）
 

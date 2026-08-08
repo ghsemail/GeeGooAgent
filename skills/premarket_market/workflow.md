@@ -85,14 +85,27 @@ Tool: `fetch_market_news`
 {"market": "<CN|HK|US>", "limit": 8}
 ```
 
-Only news for the **current** market. Summarize 3–5 headlines; do not dump raw JSON into the report.
+Only news for the **current** market:
+
+- Summarize **3–5** headline points (no raw JSON dump)
+- **Do not** list publish times or `🕐` timestamps
+- Include **`新闻面判断`** line: bullish / bearish / neutral + one-sentence rationale
 
 ### 4. Persist
 
 1. `save_local_report` — `report_type=market_premarket`, code `market-<MARKET>`
 2. `create_market_premarket_report` — fields: `market`, `report`, optional `summary` / `result` / `confidence`
 
-Report body follows `template.md` (single-market sections only).
+Report body follows `template.md` (single-market sections only):
+
+| Section | Content |
+|---------|---------|
+| 指数概览 | Current-market indices, prose only (no tables) |
+| 市场新闻解读 | 3–5 bullets + **新闻面判断** (no timestamps) |
+| 市场综合判断 | Conclusion prose + 主要风险 / 今日关注 (no sentiment/confidence in body) |
+| Footer | `*报告由 GeeGoo 智能体市场盘前 skill 生成*` |
+
+Do **not** put `#` title, generation time, or `report_date` in `report` markdown.
 
 ### 5. LLM synthesis (required when gateway configured)
 
@@ -100,8 +113,9 @@ Before persist, build a rule-based **draft** from index + news evidence, then ca
 
 1. Input: `market`, draft markdown, `template.md`, evidence refs
 2. Output JSON: `report`, `result`, `confidence`, `summary`
-3. LLM must only use captured evidence — no invented prices or headlines
-4. On synthesis failure → fall back to draft + rule-based `result`/`confidence`
+3. `result` / `confidence` / `summary` are **API fields** — must not be duplicated inside `report` body
+4. LLM must only use captured evidence — no invented prices or headlines
+5. On synthesis failure → fall back to draft + rule-based `result`/`confidence`
 
 ---
 

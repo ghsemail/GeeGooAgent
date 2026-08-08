@@ -16,9 +16,26 @@
 | `confidence` | string | 可选，`high` / `medium` / `low` |
 | `report_date` | string | 可选，`YYYY-MM-DD`，默认当天 |
 
-**模板:** `skills/premarket_market/template.md` — 仅当前市场指数 + 当前市场新闻 + 市场综合预判。
+**模板:** `skills/premarket_market/template.md` — 正文三章（指数概览 / 市场新闻解读 / 市场综合判断），仅当前市场指数与新闻。
 
-**LLM 合成:** 在 `save_local_report` / `create_market_premarket_report` 前，用指数与新闻证据 + 模板生成完整 `report`，并输出 `result` / `confidence` / `summary`。LLM 不可用或失败时回退规则草稿。
+**正文格式（`report` 字段）:**
+
+1. **指数概览** — 当前市场各指数 1–2 句自然段，禁止 Markdown 表格  
+2. **市场新闻解读** — 3–5 条要点（禁止发布时间/🕐）；必须有 **新闻面判断**（偏多/偏空/中性 + 理由）  
+3. **市场综合判断** — 综合结论段落 +「主要风险」「今日关注」列表；**禁止在正文写市场情绪、置信度**  
+4. **脚注** — `*报告由 GeeGoo 智能体市场盘前 skill 生成*`（不要写 geegoo-agent 版本号或下次更新时间）
+
+**禁止写入 `report` 正文:** `#` 标题行、生成时间、市场代码、`report_date` 等元数据（由 API 字段与 App 页眉展示）。
+
+**结构化字段（API，非正文重复）:**
+
+| 字段 | 用途 |
+|------|------|
+| `result` | `long` / `short` / `neutral` → App「市场情绪」 |
+| `confidence` | `high` / `medium` / `low` → App「执行度」 |
+| `summary` | ≤200 字一句话 → App「摘要」区 |
+
+**LLM 合成:** 在 `save_local_report` / `create_market_premarket_report` 前，用指数与新闻证据 + 模板生成完整 `report`，并输出 `result` / `confidence` / `summary`。LLM 不可用或失败时回退规则草稿（结构同上）。
 
 **本地留档:**
 

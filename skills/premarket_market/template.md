@@ -1,10 +1,4 @@
-# {{market_label}} 市场盘前报告
-
-**生成时间**: {{timestamp}}
-**市场**: {{market}}
-**report_date**: {{report_date}}
-
----
+<!-- 元数据仅作维护说明，勿写入 report 正文：market={{market}} report_date={{report_date}} -->
 
 ## 指数概览
 
@@ -47,7 +41,7 @@
 
 ## 市场综合判断
 
-> 由 LLM 根据指数与新闻证据合成。用自然段描述综合结论，**禁止 Markdown 表格**；**不要在正文中重复市场情绪或置信度**（已由 App 概要区展示）。
+> 由 LLM 根据指数与新闻证据合成。用自然段描述综合结论，**禁止 Markdown 表格**；**不要在正文中重复市场情绪或置信度**（`result`/`confidence` 由 API 字段提供，App 概要区展示）。
 
 {{summary}}
 

@@ -150,10 +150,6 @@ func BuildMarketReportContent(w *memory.PreMarketWorking, market string) string 
 func buildMarketReportDraft(w *memory.PreMarketWorking, market string) string {
 	market = NormalizeMarket(market)
 	lines := []string{
-		fmt.Sprintf("# %s 市场盘前报告", marketLabel(market)),
-		"",
-		fmt.Sprintf("**市场**: %s", market),
-		"",
 		"## 指数概览",
 		"",
 	}
