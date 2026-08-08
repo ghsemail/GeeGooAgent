@@ -3,8 +3,6 @@ package workflow
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -297,24 +295,7 @@ func fallbackMarketJudgement(w *memory.PreMarketWorking, market string) MarketRe
 }
 
 func loadMarketReportTemplate() string {
-	const rel = "skills/premarket_market/template.md"
-	wd, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
-	dir := wd
-	for i := 0; i < 8; i++ {
-		path := filepath.Join(dir, rel)
-		if raw, err := os.ReadFile(path); err == nil {
-			return string(raw)
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-	return ""
+	return loadSkillTemplate("skills/premarket_market/template.md")
 }
 
 func nonEmptyMarket(v, fallback string) string {

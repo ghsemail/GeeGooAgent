@@ -55,12 +55,19 @@ func PerStockSteps() []Step {
 	}
 }
 
+// StockReportBundle is the synthesized or rule-based stock pre-market report.
+type StockReportBundle struct {
+	Report     string
+	Result     string
+	Confidence string
+	Reason     string
+	Suggestion string
+	Summary    string
+}
+
 // BuildReportContent builds evidence-bound report markdown for phase B (rule-based draft).
 func BuildReportContent(w *memory.PreMarketWorking, code string) string {
-	ws := w.Stocks[code]
-	evidence := collectReportEvidence(w, code)
-	view := buildReportView(ws, evidence)
-	return buildReportContent(w, code, &verdict.Verdict{Result: view.Result, Confidence: view.Confidence}, view.Reason, view.Suggestion)
+	return ensureStockReportBundle(context.Background(), w, code).Report
 }
 
 func buildReportContent(w *memory.PreMarketWorking, code string, v *verdict.Verdict, reason, suggestion string) string {
@@ -77,42 +84,141 @@ func buildReportContent(w *memory.PreMarketWorking, code string, v *verdict.Verd
 	if strings.TrimSpace(suggestion) != "" {
 		view.Suggestion = suggestion
 	}
+	return buildStockReportDraft(w, code, view)
+}
+
+func buildStockReportDraft(w *memory.PreMarketWorking, code string, view reportView) string {
+	ws := w.Stocks[code]
 	lines := []string{
-		fmt.Sprintf("# Pre-market Report - %s (%s)", displayStockName(ws, code), code),
+		"## 市场背景",
 		"",
+		marketPremarketExcerpt(w),
+		"",
+		"## 个股新闻",
+		"",
+		stockNewsSection(ws),
+		"",
+		"## 资金流向与分布",
+		"",
+		"### 主力资金（日）",
+		"",
+		capitalFlowSection(ws),
+		"",
+		"### 资金分布",
+		"",
+		capitalDistributionSection(ws),
+		"",
+		"## 周线技术分析",
+		"",
+		weeklyAnalysisSection(ws),
+		"",
+		"## Bot 盘前态度",
+		"",
+		botAttitudeSection(ws),
+		"",
+		"## 综合研判",
+		"",
+		view.Reason,
+		"",
+		"### 今日重点关注",
 	}
-	if body := strings.TrimSpace(w.MarketReportBody); body != "" {
-		lines = append(lines, "## Market Context", "", body, "")
+	for _, item := range keyWatchPoints(ws, view) {
+		lines = append(lines, "- "+item)
+	}
+	lines = append(lines, "", "### 风险提示")
+	gaps := view.DataGaps
+	if len(gaps) == 0 {
+		lines = append(lines, "- 当前输入维度较完整，仍需结合盘中走势验证。")
+	} else {
+		for _, gap := range gaps {
+			lines = append(lines, "- "+gap)
+		}
 	}
 	lines = append(lines,
-		"## Decision",
 		"",
-		fmt.Sprintf("- Result: %s", view.Result),
-		fmt.Sprintf("- Confidence: %s", view.Confidence),
-		fmt.Sprintf("- Suggestion: %s", view.Suggestion),
-		fmt.Sprintf("- Reason: %s", view.Reason),
+		"---",
 		"",
-		"## Key Inputs",
-		"",
+		"*报告由 GeeGoo 智能体个股盘前 skill 生成*",
 	)
-	for _, item := range view.KeyInputs {
-		lines = append(lines, fmt.Sprintf("- %s", item))
-	}
-	lines = append(lines, "", "## Evidence Refs", "")
-	for _, ev := range evidence {
-		lines = append(lines, fmt.Sprintf("- [%s] %s: %s", ev.ID, ev.Source, ev.Summary))
-	}
-	if len(evidence) == 0 {
-		lines = append(lines, "- No material evidence captured; report should be reviewed before publishing.")
-	}
-	lines = append(lines, "", "## Data Gaps", "")
-	for _, gap := range view.DataGaps {
-		lines = append(lines, fmt.Sprintf("- %s", gap))
-	}
-	if len(view.DataGaps) == 0 {
-		lines = append(lines, "- None detected in current workflow inputs.")
-	}
+	_ = displayStockName(ws, code)
 	return strings.Join(lines, "\n")
+}
+
+func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, code string) StockReportBundle {
+	ws := w.Stocks[code]
+	evidence := collectReportEvidence(w, code)
+	view := buildReportView(ws, evidence)
+	draft := buildStockReportDraft(w, code, view)
+	bundle := StockReportBundle{
+		Report:     draft,
+		Result:     view.Result,
+		Confidence: view.Confidence,
+		Reason:     view.Reason,
+		Suggestion: view.Suggestion,
+		Summary:    plainSummary(draft, 200),
+	}
+	synthOut := report.SynthesisResult{}
+	stockSynthUsed := false
+	if synth := StockPreMarketSynthesizerFrom(ctx); synth != nil {
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		if res, err := synth.SynthesizeStockPreMarket(
+			ctx, ws, draft, evidence, w.MarketContext, marketPremarketExcerpt(w), loadStockPremarketTemplate(),
+		); err == nil {
+			stockSynthUsed = true
+			if body := strings.TrimSpace(res.Report); body != "" {
+				bundle.Report = body
+			}
+			if v := strings.TrimSpace(res.Reason); v != "" {
+				bundle.Reason = v
+			}
+			if v := strings.TrimSpace(res.Summary); v != "" {
+				bundle.Summary = v
+			}
+			if v := strings.TrimSpace(res.Suggestion); v != "" {
+				bundle.Suggestion = v
+			}
+			synthOut = report.SynthesisResult{
+				SuggestedResult:     res.Result,
+				SuggestedConfidence: res.Confidence,
+				Reason:              res.Reason,
+				Suggestion:          res.Suggestion,
+				Summary:             res.Summary,
+			}
+		}
+	}
+	if !stockSynthUsed {
+		if synth := SynthesizerFrom(ctx); synth != nil {
+			if ctx == nil {
+				ctx = context.Background()
+			}
+			if res, err := synth.Synthesize(ctx, ws, evidence, w.MarketContext); err == nil && strings.TrimSpace(res.Reason) != "" {
+				synthOut = res
+				if v := strings.TrimSpace(res.Reason); v != "" {
+					bundle.Reason = v
+				}
+				if v := strings.TrimSpace(res.Suggestion); v != "" {
+					bundle.Suggestion = v
+				}
+				if v := strings.TrimSpace(res.Summary); v != "" {
+					bundle.Summary = v
+				}
+				view.Reason = bundle.Reason
+				bundle.Report = buildStockReportDraft(w, code, view)
+			}
+		}
+	}
+	final := verdict.ArbitrateStockPreMarket(stockVerdictInput(w, code, ws, evidence, synthOut))
+	bundle.Result = final.Result
+	bundle.Confidence = final.Confidence
+	if strings.TrimSpace(final.Note) != "" {
+		bundle.Reason = strings.TrimSpace(bundle.Reason + " " + final.Note)
+	}
+	if bundle.Summary == "" {
+		bundle.Summary = plainSummary(bundle.Report, 200)
+	}
+	return bundle
 }
 
 // BuildCreateReportArgs builds MCP createStockPremarketReport body.
@@ -123,7 +229,6 @@ func BuildCreateReportArgs(w *memory.PreMarketWorking, code string) map[string]a
 // BuildCreateReportArgsContext builds MCP createStockPremarketReport body using ctx
 // for optional LLM synthesis cancellation.
 func BuildCreateReportArgsContext(ctx context.Context, w *memory.PreMarketWorking, code string) map[string]any {
-	ws := w.Stocks[code]
 	var bot memory.BotStock
 	for _, b := range w.BotCodes {
 		if b.Code == code {
@@ -132,44 +237,75 @@ func BuildCreateReportArgsContext(ctx context.Context, w *memory.PreMarketWorkin
 		}
 	}
 	evidence := collectReportEvidence(w, code)
-	view := buildReportView(ws, evidence)
-	synthOut := report.SynthesisResult{}
-	if synth := SynthesizerFrom(ctx); synth != nil {
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		if res, err := synth.Synthesize(ctx, ws, evidence, w.MarketContext); err == nil && strings.TrimSpace(res.Reason) != "" {
-			synthOut = res
-		}
-	}
-	final := verdict.ArbitrateStockPreMarket(stockVerdictInput(w, code, ws, evidence, synthOut))
-	reason := view.Reason
-	suggestion := view.Suggestion
-	summary := ""
-	if strings.TrimSpace(synthOut.Reason) != "" {
-		reason = synthOut.Reason
-	}
-	if strings.TrimSpace(synthOut.Suggestion) != "" {
-		suggestion = synthOut.Suggestion
-	}
-	if strings.TrimSpace(synthOut.Summary) != "" {
-		summary = synthOut.Summary
-	}
-	if strings.TrimSpace(final.Note) != "" {
-		reason = strings.TrimSpace(reason + " " + final.Note)
-	}
-	reportBody := buildReportContent(w, code, &final, reason, suggestion)
-	if summary == "" {
-		summary = plainSummary(reportBody, 200)
-	}
+	bundle := ensureStockReportBundle(ctx, w, code)
 	return map[string]any{
 		"code": bot.Code, "stock_name": bot.StockName, "bot_id": bot.BotID,
 		"bot_name": bot.BotName, "bot_type": bot.BotType,
-		"result": final.Result, "confidence": final.Confidence,
-		"reason": reason, "suggestion": suggestion, "report": reportBody, "summary": summary,
+		"result": bundle.Result, "confidence": bundle.Confidence,
+		"reason": bundle.Reason, "suggestion": bundle.Suggestion, "report": bundle.Report, "summary": bundle.Summary,
 		"evidence_refs": evidenceIDs(evidence),
 		"market_premarket_report_id": strings.TrimSpace(w.MarketReportID),
 	}
+}
+
+func marketPremarketExcerpt(w *memory.PreMarketWorking) string {
+	if w == nil {
+		return "暂无当日市场盘前摘要。"
+	}
+	if s := strings.TrimSpace(w.MarketReportSummary); s != "" {
+		return s
+	}
+	if b := strings.TrimSpace(w.MarketReportBody); b != "" {
+		return plainSummary(b, 400)
+	}
+	return "暂无当日市场盘前摘要。"
+}
+
+func stockNewsSection(ws memory.StockWorkspace) string {
+	if s := strings.TrimSpace(ws.StockNewsSummary); s != "" {
+		return s
+	}
+	return "暂无个股新闻。"
+}
+
+func capitalFlowSection(ws memory.StockWorkspace) string {
+	if s := strings.TrimSpace(ws.CapitalFlowSummary); s != "" {
+		return s
+	}
+	return "暂无主力资金数据。"
+}
+
+func capitalDistributionSection(ws memory.StockWorkspace) string {
+	if s := strings.TrimSpace(ws.CapitalDistributionSummary); s != "" {
+		return s
+	}
+	return "暂无资金分布数据。"
+}
+
+func weeklyAnalysisSection(ws memory.StockWorkspace) string {
+	if s := strings.TrimSpace(ws.WeeklyAnalysisRef); s != "" {
+		return s
+	}
+	return "暂无周线技术分析。"
+}
+
+func botAttitudeSection(ws memory.StockWorkspace) string {
+	attitude := strings.TrimSpace(ws.Attitude)
+	if attitude == "" {
+		return "暂无 Bot 昨日态度记录（默认中性）。"
+	}
+	return fmt.Sprintf("昨日态度为 **%s**。", attitude)
+}
+
+func keyWatchPoints(ws memory.StockWorkspace, view reportView) []string {
+	points := make([]string, 0, len(view.KeyInputs))
+	for _, item := range view.KeyInputs {
+		points = append(points, item)
+	}
+	if len(points) == 0 {
+		points = append(points, "关注开盘量价与大盘联动。")
+	}
+	return points
 }
 
 func stockVerdictInput(
@@ -219,21 +355,21 @@ func buildReportView(ws memory.StockWorkspace, evidence []memory.EvidenceRef) re
 		Suggestion: suggestionFor(result),
 		Reason:     reasonFor(ws, evidence),
 		KeyInputs: []string{
-			fmt.Sprintf("Bot yesterday attitude: %s", attitude),
+			fmt.Sprintf("Bot 昨日态度：%s", attitude),
 		},
 		DataGaps: dataGaps(ws),
 	}
 	if ws.WeeklyAnalysisRef != "" {
-		view.KeyInputs = append(view.KeyInputs, "Weekly technical analysis captured.")
+		view.KeyInputs = append(view.KeyInputs, "周线技术分析已纳入研判。")
 	}
 	if ws.CapitalFlowSummary != "" {
-		view.KeyInputs = append(view.KeyInputs, "Capital flow signal: "+ws.CapitalFlowSummary)
+		view.KeyInputs = append(view.KeyInputs, "主力资金流向："+oneLine(ws.CapitalFlowSummary, 120))
 	}
 	if ws.CapitalDistributionSummary != "" {
-		view.KeyInputs = append(view.KeyInputs, "Capital distribution signal: "+ws.CapitalDistributionSummary)
+		view.KeyInputs = append(view.KeyInputs, "资金分布结构已纳入研判。")
 	}
 	if ws.StockNewsSummary != "" {
-		view.KeyInputs = append(view.KeyInputs, "Stock news signal captured.")
+		view.KeyInputs = append(view.KeyInputs, "个股新闻面已纳入研判。")
 	}
 	return view
 }
@@ -270,33 +406,33 @@ func reasonFor(ws memory.StockWorkspace, evidence []memory.EvidenceRef) string {
 	if attitude == "" {
 		attitude = "neutral"
 	}
-	parts := []string{fmt.Sprintf("bot attitude is %s", attitude)}
+	parts := []string{fmt.Sprintf("Bot 昨日态度为 %s", attitude)}
 	if ws.WeeklyAnalysisRef != "" {
-		parts = append(parts, "weekly analysis is available")
+		parts = append(parts, "周线技术分析已纳入")
 	}
 	if ws.CapitalFlowSummary != "" {
-		parts = append(parts, "capital flow evidence is available")
+		parts = append(parts, "主力资金证据已纳入")
 	}
 	if ws.CapitalDistributionSummary != "" {
-		parts = append(parts, "capital distribution evidence is available")
+		parts = append(parts, "资金分布证据已纳入")
 	}
 	if ws.StockNewsSummary != "" {
-		parts = append(parts, "stock news evidence is available")
+		parts = append(parts, "个股新闻已纳入")
 	}
 	if len(evidence) == 0 {
-		parts = append(parts, "no evidence refs were captured")
+		parts = append(parts, "当前证据引用较少")
 	} else {
-		parts = append(parts, fmt.Sprintf("%d evidence ref(s) attached", len(evidence)))
+		parts = append(parts, fmt.Sprintf("共 %d 条证据引用", len(evidence)))
 	}
-	return strings.Join(parts, "; ")
+	return strings.Join(parts, "；") + "。"
 }
 
 func suggestionFor(result string) string {
 	switch result {
 	case "long":
-		return "watch_long"
+		return "buy"
 	case "short":
-		return "reduce_or_avoid"
+		return "sell"
 	default:
 		return "hold"
 	}
@@ -305,19 +441,19 @@ func suggestionFor(result string) string {
 func dataGaps(ws memory.StockWorkspace) []string {
 	gaps := []string{}
 	if ws.WeeklyAnalysisRef == "" {
-		gaps = append(gaps, "Missing weekly technical analysis.")
+		gaps = append(gaps, "缺少周线技术分析。")
 	}
 	if ws.StockNewsSummary == "" {
-		gaps = append(gaps, "Missing stock-specific news summary.")
+		gaps = append(gaps, "缺少个股新闻摘要。")
 	}
 	if ws.CapitalFlowSummary == "" {
-		gaps = append(gaps, "Missing capital flow summary.")
+		gaps = append(gaps, "缺少主力资金流向。")
 	}
 	if ws.CapitalDistributionSummary == "" {
-		gaps = append(gaps, "Missing capital distribution summary.")
+		gaps = append(gaps, "缺少资金分布数据。")
 	}
 	if ws.Attitude == "" {
-		gaps = append(gaps, "Missing bot yesterday attitude.")
+		gaps = append(gaps, "缺少 Bot 昨日态度。")
 	}
 	return gaps
 }

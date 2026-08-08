@@ -174,31 +174,29 @@ func BuildIntradayReportContent(w *memory.PreMarketWorking, code string) string 
 		ws.IntradayResult, ws.IntradayConfidence = result, confidence
 	}
 	lines := []string{
-		fmt.Sprintf("# 盘中交易决策报告 - %s (%s)", displayStockName(ws, code), code),
-		"",
-		"## 一、决策信息",
-		"",
-		fmt.Sprintf("| 检查频率 | %s |", ws.Frequency),
-		fmt.Sprintf("| 本轮信号 | %s |", ws.TradeType),
-		fmt.Sprintf("| 决策结果 | %s |", intradayResultCN(result)),
-		fmt.Sprintf("| 置信度 | %s |", confidenceCN(confidence)),
+		"## 盘前报告参考",
 		"",
 	}
 	if ws.PreMarketResult != "" {
-		lines = append(lines, "## 二、盘前报告参考", "",
+		lines = append(lines,
 			fmt.Sprintf("- 盘前判断: %s", preMarketResultCN(ws.PreMarketResult)),
 			fmt.Sprintf("- 盘前置信度: %s", confidenceCN(ws.PreMarketConfidence)),
 			fmt.Sprintf("- 盘前依据: %s", oneLine(ws.PreMarketReason, 400)),
-			"")
+			"",
+		)
+	} else {
+		lines = append(lines, "- 暂无盘前报告参考。", "")
 	}
 	if !isReminderBot(ws.BotType) {
-		lines = append(lines, "## 三、当前持仓", "", ws.PositionSummary, "")
+		if s := strings.TrimSpace(ws.PositionSummary); s != "" {
+			lines = append(lines, "## 当前持仓", "", s, "")
+		}
 	}
 	if ws.CapitalDistributionSummary != "" && !isAShareCode(code) {
-		lines = append(lines, "## 四、资金分布", "", ws.CapitalDistributionSummary, "")
+		lines = append(lines, "## 资金分布", "", ws.CapitalDistributionSummary, "")
 	}
 	if ws.HourlyPriceAnalysis != "" || ws.HourlySignalAnalysis != "" || ws.HourlyKlineAnalysis != "" {
-		lines = append(lines, "## 五、小时级分析", "")
+		lines = append(lines, "## 小时级分析", "")
 		if ws.HourlyPriceAnalysis != "" {
 			lines = append(lines, "### 价格", ws.HourlyPriceAnalysis, "")
 		}
@@ -210,7 +208,7 @@ func BuildIntradayReportContent(w *memory.PreMarketWorking, code string) string 
 		}
 	}
 	if ws.CurrentPrice > 0 {
-		lines = append(lines, "## 六、最新价", "",
+		lines = append(lines, "## 最新价", "",
 			fmt.Sprintf("- 价格来源: %s", ws.PriceSource),
 			fmt.Sprintf("- 参考价: %.4f", ws.CurrentPrice), "")
 	}
@@ -218,7 +216,15 @@ func BuildIntradayReportContent(w *memory.PreMarketWorking, code string) string 
 	if reason == "" {
 		reason = intradayReason(ws, result, confidence)
 	}
-	lines = append(lines, "## 七、判定依据", "", reason, "")
+	lines = append(lines,
+		"## 判定依据",
+		"",
+		reason,
+		"",
+		"---",
+		"",
+		"*报告由 GeeGoo 智能体个股盘中 skill 生成*",
+	)
 	return strings.Join(lines, "\n")
 }
 

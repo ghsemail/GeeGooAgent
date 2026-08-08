@@ -61,14 +61,9 @@ func BuildPostMarketReportContent(w *memory.PreMarketWorking, code string) strin
 		vs = VsPreMarket(ws.PreMarketResult, bias)
 	}
 	lines := []string{
-		fmt.Sprintf("# 盘后分析报告 - %s (%s)", displayStockName(ws, code), code),
+		"## 今日行情",
 		"",
-		fmt.Sprintf("**交易日**: %s", sessionDate),
-		"",
-		"## 一、今日行情",
-		"",
-		fmt.Sprintf("- change_pct: %.2f%%", ws.ChangePct),
-		fmt.Sprintf("- session_bias: %s", bias),
+		fmt.Sprintf("交易日 %s，涨跌幅 %.2f%%，盘面倾向 %s。", sessionDate, ws.ChangePct, bias),
 		"",
 	}
 	if ws.HourlyPriceAnalysis != "" {
@@ -80,14 +75,31 @@ func BuildPostMarketReportContent(w *memory.PreMarketWorking, code string) strin
 	if ws.HourlyKlineAnalysis != "" {
 		lines = append(lines, "### 小时级 K 线分析", ws.HourlyKlineAnalysis, "")
 	}
-	lines = append(lines, "## 二、交易复盘", "", TradeSummaryFromBotLog(ws), "")
-	lines = append(lines, "## 三、与盘前对照", "",
-		fmt.Sprintf("| 盘前 report_id | %s |", ws.PreMarketReportID),
-		fmt.Sprintf("| 盘前 result | %s |", ws.PreMarketResult),
-		fmt.Sprintf("| session_bias | %s |", bias),
-		fmt.Sprintf("| vs_stock_premarket | %s |", vs), "")
-	lines = append(lines, "## 四、经验与教训", "", ExperienceSummaryDefault(ws, vs), "")
+	lines = append(lines, "## 交易复盘", "", TradeSummaryFromBotLog(ws), "")
+	lines = append(lines, "## 与盘前对照", "",
+		postMarketComparisonNarrative(ws, bias, vs), "")
+	lines = append(lines, "## 经验与教训", "", ExperienceSummaryDefault(ws, vs), "",
+		"---",
+		"",
+		"*报告由 GeeGoo 智能体个股盘后 skill 生成*",
+	)
 	return strings.Join(lines, "\n")
+}
+
+func postMarketComparisonNarrative(ws memory.StockWorkspace, bias, vs string) string {
+	pre := strings.TrimSpace(ws.PreMarketResult)
+	if pre == "" {
+		return "当日无盘前报告可对照。"
+	}
+	parts := []string{
+		fmt.Sprintf("盘前判断为 %s", pre),
+		fmt.Sprintf("今日盘面倾向 %s", bias),
+	}
+	if id := strings.TrimSpace(ws.PreMarketReportID); id != "" {
+		parts = append(parts, fmt.Sprintf("关联盘前报告 %s", id))
+	}
+	parts = append(parts, fmt.Sprintf("对照结论：%s", vs))
+	return strings.Join(parts, "；") + "。"
 }
 
 // BuildCreateStockPostmarketReportArgs builds createStockPostmarketReport body.

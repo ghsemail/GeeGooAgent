@@ -72,13 +72,27 @@
 
 模板文件：`skills/premarket_stock/template.md`
 
-1. **市场背景** — 引用 `get_market_premarket_report`，不重复三市场指数
-2. **个股新闻**
+1. **市场背景** — 引用 `get_market_premarket_report` **摘要**，不重复三市场指数、不粘贴整份市场报告
+2. **个股新闻** — 3–5 条要点，禁止发布时间/🕐
 3. **资金流向与分布**（**必须有定量分析结论**）
-4. **周线技术分析**（均线/支撑/阻力/趋势；RSI/MACD 无数据填「暂无」）
+4. **周线技术分析** — 自然段描述，禁止 Markdown 表格；RSI/MACD 无数据填「暂无」
 5. **Bot 盘前态度**
-6. **综合预判**（多维度：市场背景 × 新闻 × 资金 × 周线 × Bot 态度）
-7. **操作建议**
+6. **综合研判** — 自然段；**禁止在正文写 result/confidence/suggestion**
+7. **今日重点关注 / 风险提示** — 列表
+
+**脚注：** `*报告由 GeeGoo 智能体个股盘前 skill 生成*`
+
+**结构化字段（API，非正文重复）:**
+
+| 字段 | 用途 |
+|------|------|
+| `result` | `long` / `short` / `neutral` → App「方向判断」 |
+| `confidence` | `high` / `medium` / `low` → App「置信度」 |
+| `suggestion` | `buy` / `sell` / `hold` → App「建议操作」 |
+| `reason` | ≥80 字判定依据 → App 补充说明区 |
+| `summary` | ≤200 字 → App「摘要」区 |
+
+**LLM 合成:** 在 `save_local_report` / `create_stock_premarket_report` 前，用证据 + 模板生成完整 `report`，并输出 `result` / `confidence` / `reason` / `suggestion` / `summary`。LLM 不可用或失败时回退规则草稿（结构同上）。
 
 ### 周线技术分析（API 实际字段）
 

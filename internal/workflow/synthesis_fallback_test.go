@@ -21,6 +21,10 @@ func (f *failingSynthesizer) SynthesizeMarket(ctx context.Context, market, draft
 	return report.MarketSynthesisResult{}, context.Canceled
 }
 
+func (f *failingSynthesizer) SynthesizeStockPreMarket(ctx context.Context, ws memory.StockWorkspace, draft string, ev []memory.EvidenceRef, mc memory.MarketContext, marketReportSummary, template string) (report.StockPreMarketSynthesisResult, error) {
+	return report.StockPreMarketSynthesisResult{}, context.Canceled
+}
+
 func TestBuildCreateReportArgsFallsBackOnSynthesisError(t *testing.T) {
 	ctx := workflow.ContextWithSynthesizer(context.Background(), &failingSynthesizer{})
 	w := &memory.PreMarketWorking{
@@ -32,6 +36,10 @@ func TestBuildCreateReportArgsFallsBackOnSynthesisError(t *testing.T) {
 	args := workflow.BuildCreateReportArgsContext(ctx, w, "00700.HK")
 	if args["result"] != "long" {
 		t.Fatalf("result=%v want long (rule-based)", args["result"])
+	}
+	reportBody := args["report"].(string)
+	if !strings.Contains(reportBody, "## 市场背景") {
+		t.Fatalf("report=%v", reportBody)
 	}
 }
 
@@ -55,6 +63,9 @@ func TestBuildCreateReportArgsUsesSynthesisWhenSuccessful(t *testing.T) {
 	args := workflow.BuildCreateReportArgsContext(ctx, w, "00700.HK")
 	if args["summary"] != "LLM 摘要" {
 		t.Fatalf("summary=%v", args["summary"])
+	}
+	if !strings.Contains(args["report"].(string), "LLM 个股正文") {
+		t.Fatalf("report=%v", args["report"])
 	}
 }
 
@@ -81,6 +92,17 @@ func (h *happySynthesizer) SynthesizeMarket(ctx context.Context, market, draft s
 		Result:     "long",
 		Confidence: "high",
 		Summary:    "LLM 市场摘要",
+	}, nil
+}
+
+func (h *happySynthesizer) SynthesizeStockPreMarket(ctx context.Context, ws memory.StockWorkspace, draft string, ev []memory.EvidenceRef, mc memory.MarketContext, marketReportSummary, template string) (report.StockPreMarketSynthesisResult, error) {
+	return report.StockPreMarketSynthesisResult{
+		Report:     "## 市场背景\n\nLLM 个股正文",
+		Result:     "long",
+		Confidence: "high",
+		Reason:     strings.Repeat("LLM 综合理由引用证据 ", 12),
+		Suggestion: "buy",
+		Summary:    "LLM 摘要",
 	}, nil
 }
 

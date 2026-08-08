@@ -114,7 +114,7 @@ func TestPreMarketStockDryRunE2E(t *testing.T) {
 			t.Fatal(err)
 		}
 		report := string(reportRaw)
-		for _, want := range []string{"## Decision", "## Evidence Refs", "ev_", "## Data Gaps"} {
+		for _, want := range []string{"## 市场背景", "## 综合研判", "## Bot 盘前态度", "GeeGoo 智能体个股盘前"} {
 			if !strings.Contains(report, want) {
 				t.Fatalf("missing report section/content %q in %s", want, reportPath)
 			}

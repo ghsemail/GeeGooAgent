@@ -1,56 +1,43 @@
-# 盘后分析报告
+<!-- 元数据仅作维护说明，勿写入 report 正文 -->
 
-**生成时间**: {{timestamp}}
-**股票**: {{stock_name}} ({{code}})
-**交易日**: {{session_date}}
-**机器人**: {{bot_name}} / {{bot_type}} / {{bot_id}}
+## 今日行情
 
----
+### 涨跌幅与盘面倾向
 
-## 一、今日行情
+{{session_bias_narrative}}
 
-### 1.1 涨跌幅与盘面倾向
-
-- **change_pct**: {{change_pct}}%
-- **session_bias**: {{session_bias}}
-
-### 1.2 小时级价格分析
+### 小时级价格分析
 
 {{hourly_price_excerpt}}
 
-### 1.3 小时级信号分析
+### 小时级信号分析
 
 {{hourly_signal_excerpt}}
 
-### 1.4 小时级 K 线分析
+### 小时级 K 线分析
 
 {{hourly_kline_excerpt}}
 
 ---
 
-## 二、交易复盘
+## 交易复盘
 
 {{trade_summary}}
 
 ---
 
-## 三、与盘前对照
+## 与盘前对照
 
-| 项目 | 值 |
-|------|-----|
-| 盘前 report_id | {{stock_premarket_report_id}} |
-| 盘前 result | {{pre_result}} |
-| 今日 session_bias | {{session_bias}} |
-| 对照 vs_stock_premarket | {{vs_stock_premarket}} |
+> 用自然段描述盘前判断与今日盘面是否一致，**禁止 Markdown 表格**。
+
+{{premarket_comparison}}
 
 ---
 
-## 四、经验与教训
+## 经验与教训
 
 {{experience_summary}}
 
 ---
 
-## 五、一句话总览
-
-{{summary}}
+*报告由 GeeGoo 智能体个股盘后 skill 生成*
