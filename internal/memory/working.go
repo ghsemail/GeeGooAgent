@@ -154,6 +154,14 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 			}
 			updated.Stocks[code] = ws
 		}
+	case "get_hourly_analysis_bundle":
+		code, _ := data["code"].(string)
+		if ws, ok := updated.Stocks[code]; ok {
+			applyHourlyBundleField(updated, code, "price_analysis", hourlyPricePromptID, &ws.HourlyPriceAnalysis, data, observedAt)
+			applyHourlyBundleField(updated, code, "signal_analysis", hourlySignalPromptID, &ws.HourlySignalAnalysis, data, observedAt)
+			applyHourlyBundleField(updated, code, "kline_analysis", hourlyKlinePromptID, &ws.HourlyKlineAnalysis, data, observedAt)
+			updated.Stocks[code] = ws
+		}
 	case "fetch_stock_news":
 		code, _ := data["code"].(string)
 		text, _ := data["text"].(string)
@@ -419,6 +427,16 @@ func contains(list []string, v string) bool {
 		}
 	}
 	return false
+}
+
+func applyHourlyBundleField(updated *PreMarketWorking, code, field, promptID string, dest *string, data map[string]any, observedAt time.Time) {
+	analysis, _ := data[field].(string)
+	analysis = strings.TrimSpace(analysis)
+	if analysis == "" {
+		return
+	}
+	*dest = truncate(analysis, 2000)
+	addEvidence(updated, "get_hourly_analysis_bundle", "stock."+code+".hourly_"+promptID, analysis, data, observedAt)
 }
 
 func addEvidence(w *PreMarketWorking, toolName, source, summary string, payload any, observedAt time.Time) {

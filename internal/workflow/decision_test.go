@@ -51,7 +51,21 @@ func TestIntradayPerStockStepsNonEmpty(t *testing.T) {
 }
 
 func TestPostMarketPerStockStepsNonEmpty(t *testing.T) {
-	if len(workflow.PostMarketPerStockSteps()) == 0 {
+	steps := workflow.PostMarketPerStockSteps()
+	if len(steps) == 0 {
 		t.Fatal("postmarket_stock steps empty")
+	}
+	if steps[1].Tool != "get_hourly_analysis_bundle" {
+		t.Fatalf("expected hourly bundle as step 2, got %s", steps[1].Tool)
+	}
+}
+
+func TestLegacyHourlyStepsSatisfyBundleResume(t *testing.T) {
+	w := memory.NewPreMarketWorking("s1", "postmarket_stock")
+	for _, key := range []string{"hourly_price_analysis", "hourly_signal_analysis", "hourly_kline_analysis"} {
+		workflow.MarkStepCompleteForTest(w, key)
+	}
+	if !workflow.IsStepCompleteForTest(w, "hourly_analysis_bundle") {
+		t.Fatal("legacy hourly steps should satisfy bundle resume")
 	}
 }

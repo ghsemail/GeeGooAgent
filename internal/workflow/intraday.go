@@ -94,17 +94,16 @@ func IntradayPerStockSteps() []Step {
 		{Name: "read_stock_premarket", Tool: "get_stock_daily_reports", ArgFunc: stockReportDateArg},
 		{Name: "capital_distribution", Tool: "get_capital_distribution", ArgFunc: stockCodeArg},
 	}
-	if freq > 3 {
+	if freq >= 10 {
+		steps = append(steps, Step{
+			Name: "hourly_analysis_bundle", Tool: "get_hourly_analysis_bundle",
+			ArgFunc: mcpHourlyBundleArg,
+		})
+	} else if freq > 3 {
 		steps = append(steps, Step{
 			Name: "hourly_price_analysis", Tool: "get_mcp_analysis",
 			ArgFunc: mcpHourlyArg(hourlyPricePromptID, "hourly_price"),
 		})
-	}
-	if freq >= 10 {
-		steps = append(steps,
-			Step{Name: "hourly_signal_analysis", Tool: "get_mcp_analysis", ArgFunc: mcpHourlyArg(hourlySignalPromptID, "hourly_signal")},
-			Step{Name: "hourly_kline_analysis", Tool: "get_mcp_analysis", ArgFunc: mcpHourlyArg(hourlyKlinePromptID, "hourly_kline")},
-		)
 	}
 	steps = append(steps,
 		Step{Name: "current_price", Tool: "get_current_price", ArgFunc: stockCodeArg},
@@ -146,6 +145,13 @@ func mcpHourlyArg(promptID, slot string) func(*memory.PreMarketWorking) map[stri
 			"prompt_id": promptID, "period": "hourly", "language": "cn",
 			"analysis_slot": slot,
 		}
+	}
+}
+
+func mcpHourlyBundleArg(w *memory.PreMarketWorking) map[string]any {
+	ws := w.Stocks[w.CurrentStock]
+	return map[string]any{
+		"name": ws.StockName, "code": w.CurrentStock, "language": "cn",
 	}
 }
 

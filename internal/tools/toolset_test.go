@@ -27,8 +27,8 @@ func TestDefaultChatIncludesAllToolsetsExceptRecall(t *testing.T) {
 			t.Fatalf("%s should be in default chat (all toolsets enabled)", name)
 		}
 	}
-	if len(names) != 102 {
-		t.Fatalf("default chat allowlist want 102, got %d", len(names))
+	if len(names) != 103 {
+		t.Fatalf("default chat allowlist want 103, got %d", len(names))
 	}
 }
 
@@ -165,7 +165,7 @@ func TestReportWorkflowToolsetIncludesPostMarketIdempotency(t *testing.T) {
 func TestToolsetCountsMatchDocumentation(t *testing.T) {
 	t.Parallel()
 	want := map[string]int{
-		"market": 9, "analyst_runtime": 5, "prompt_admin": 10, "custom_signal": 7,
+		"market": 9, "analyst_runtime": 6, "prompt_admin": 10, "custom_signal": 7,
 		"strategy": 5, "trading_bot": 15, "hedge_bot": 5, "reminder_manager": 15,
 		"report_query": 7, "report_write": 8, "report_workflow": 9, "agent_meta": 8,
 	}
@@ -181,8 +181,8 @@ func TestToolsetCountsMatchDocumentation(t *testing.T) {
 			union[name] = struct{}{}
 		}
 	}
-	if len(union) != 103 {
-		t.Fatalf("toolset union want 103, got %d", len(union))
+	if len(union) != 104 {
+		t.Fatalf("toolset union want 104, got %d", len(union))
 	}
 }
 

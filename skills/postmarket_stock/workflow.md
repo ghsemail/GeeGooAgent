@@ -14,7 +14,7 @@
 ## Phase B (per bot stock)
 
 1. `list_today_stock_postmarket_reports` — skip if already reported
-2. Three `get_mcp_analysis` hourly calls (price / signal / kline)
+2. One parallel `get_hourly_analysis_bundle` call (price / signal / kline hourly MCP)
 3. `get_bot_log_by_type` (`DCA` or `GRID`)
 4. `get_stock_daily_reports` — `stock_premarket[0]` for `vs_stock_premarket`
 5. `get_current_price` — `change_pct` fallback

@@ -308,12 +308,27 @@ func stepKey(name, tool string) string {
 }
 
 func isStepComplete(working *memory.PreMarketWorking, key string) bool {
+	if key == "hourly_analysis_bundle" {
+		if legacyHourlyBundleComplete(working) {
+			return true
+		}
+	}
 	for _, k := range working.CompletedStepKeys {
 		if k == key {
 			return true
 		}
 	}
 	return false
+}
+
+// legacyHourlyBundleComplete treats the old three-step hourly sequence as done.
+func legacyHourlyBundleComplete(working *memory.PreMarketWorking) bool {
+	for _, legacy := range []string{"hourly_price_analysis", "hourly_signal_analysis", "hourly_kline_analysis"} {
+		if !isStepComplete(working, legacy) {
+			return false
+		}
+	}
+	return true
 }
 
 func markStepComplete(working *memory.PreMarketWorking, key string) {

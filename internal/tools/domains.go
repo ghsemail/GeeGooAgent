@@ -82,6 +82,7 @@ var (
 		"get_single_prompt_template":          {},
 		"get_single_prompt_template_by_index": {},
 		"get_mcp_analysis":                    {},
+		"get_hourly_analysis_bundle":          {},
 		"get_capital_flow":                    {},
 		"get_capital_distribution":            {},
 	}

@@ -6,7 +6,8 @@ import "time"
 var toolExecutionTimeouts = map[string]time.Duration{
 	"generate_dca_strategy":  4 * 60 * time.Second, // 2 analysis + 1 batch translation on analyze-api
 	"generate_grid_strategy": 3 * 60 * time.Second, // 1 analysis + optional batch translation
-	"get_mcp_analysis":       3 * time.Minute,
+	"get_mcp_analysis":            3 * time.Minute,
+	"get_hourly_analysis_bundle": 4 * time.Minute, // 3 parallel hourly MCP calls
 }
 
 // ExecutionTimeout returns per-tool timeout, falling back to defaultTimeout.

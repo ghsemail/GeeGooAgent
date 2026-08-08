@@ -294,6 +294,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 
 func registerAnalysisTools(r *Registry, deps Deps) {
 	registerPromptTemplateTools(r, deps)
+	registerHourlyAnalysisBundle(r, deps)
 	r.Register(Tool{
 		Name:        "get_mcp_analysis",
 		Description: "执行个股 LLM 分析（mcp-api→analyze-api）。须先有 prompt_id（来自 get_single_prompt_template）。路由：股价/涨跌→先 get_single_prompt_template(type=tech,tag=price)；K线→tag=kline；趋势→tag=flag；MACD/EMA→type=index；财报→fundamental。拿到 selected_prompt_id 或 prompt_id 后调用本工具。",

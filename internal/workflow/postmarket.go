@@ -27,9 +27,7 @@ func PostMarketPhaseASteps() []Step {
 func PostMarketPerStockSteps() []Step {
 	return []Step{
 		{Name: "list_today_postmarket_stock", Tool: "list_today_stock_postmarket_reports", ArgFunc: stockReportDateArg},
-		{Name: "hourly_price_analysis", Tool: "get_mcp_analysis", ArgFunc: mcpHourlyArg(hourlyPricePromptID, "hourly_price")},
-		{Name: "hourly_signal_analysis", Tool: "get_mcp_analysis", ArgFunc: mcpHourlyArg(hourlySignalPromptID, "hourly_signal")},
-		{Name: "hourly_kline_analysis", Tool: "get_mcp_analysis", ArgFunc: mcpHourlyArg(hourlyKlinePromptID, "hourly_kline")},
+		{Name: "hourly_analysis_bundle", Tool: "get_hourly_analysis_bundle", ArgFunc: mcpHourlyBundleArg},
 		{Name: "bot_log", Tool: "get_bot_log_by_type", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			ws := w.Stocks[w.CurrentStock]
 			return map[string]any{"bot_id": ws.BotID, "type": BotLogType(ws.BotType)}
