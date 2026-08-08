@@ -22,8 +22,11 @@ func TestFormatEmbeddedHourlyAnalysisDemotesHeadings(t *testing.T) {
 	if strings.Contains(out, "###") {
 		t.Fatalf("expected no h3 headings: %s", out)
 	}
-	if !strings.Contains(out, "• **一、整体走势概览**") {
-		t.Fatalf("expected cn section bullet: %s", out)
+	if !strings.Contains(out, "**一、整体走势概览**") {
+		t.Fatalf("expected cn section heading: %s", out)
+	}
+	if strings.Contains(out, "•") || strings.Contains(out, "\n- ") {
+		t.Fatalf("expected no bullet symbols: %s", out)
 	}
 	if strings.Contains(out, "日期：成交量") {
 		t.Fatalf("expected garbage table line removed: %s", out)

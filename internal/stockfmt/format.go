@@ -332,12 +332,11 @@ func FormatEmbeddedHourlyAnalysis(raw string) string {
 			if len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
 				out = append(out, "")
 			}
-			if cnSectionRE.MatchString(title) {
-				out = append(out, "• **"+title+"**")
-			} else {
-				out = append(out, "**"+title+"**")
-			}
+			out = append(out, "**"+title+"**")
 			continue
+		}
+		if strings.HasPrefix(trim, "- ") || strings.HasPrefix(trim, "• ") {
+			trim = strings.TrimLeft(strings.TrimPrefix(strings.TrimPrefix(trim, "- "), "• "), " ")
 		}
 		out = append(out, trim)
 	}
