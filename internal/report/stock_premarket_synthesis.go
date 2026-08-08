@@ -120,7 +120,9 @@ func buildStockPreMarketSynthesisPrompt(
 - report: 完整 Markdown，遵循模板章节；禁止 Markdown 表格；禁止 # 标题行与元数据
 - 正文不要重复 result/confidence/suggestion（由 API 字段与 App 概要区展示）
 - 市场背景只写摘要，不要粘贴整份市场报告
-- 个股新闻 3–5 条要点，禁止罗列发布时间或 🕐 时间戳
+- 个股新闻：先 **新闻综述**，再 3–5 条标题要点；禁止代码、链接、时间戳
+- 资金：用「净流入/流出 X 亿/万」与超大/大/中/小单结构；禁止参数名与科学计数法
+- 周线：自然段 + 短列表，禁止 # 标题与 Markdown 表格
 - result: long / short / neutral；confidence: high / medium / low；suggestion: buy / sell / hold
 - reason: >=80字，必须引用具体证据，禁止空洞表述
 - summary: <=200字，面向用户的一句话结论

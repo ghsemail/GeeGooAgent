@@ -12,6 +12,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
+	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
 	"github.com/ghsemail/GeeGooAgent/internal/search"
 )
 
@@ -384,9 +385,10 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 					"time": f.CapitalFlowItemTime,
 				})
 			}
-			latest := map[string]any{"main_in_flow": flows[len(flows)-1].MainInFlow}
+			latest := map[string]any{"main_in_flow": flows[len(flows)-1].MainInFlow, "in_flow": flows[len(flows)-1].InFlow}
+			summary := stockfmt.FormatCapitalFlowSummary(latest, usedPeriod)
 			return Result{Status: StatusOK, Summary: fmt.Sprintf("capital flow %s (%s, %d pts)", code, usedPeriod, len(flows)),
-				Data: map[string]any{"code": code, "period": usedPeriod, "latest": latest, "items": items, "source": "GeeGooBot-mcp-api"}}
+				Data: map[string]any{"code": code, "period": usedPeriod, "latest": latest, "items": items, "summary": summary, "source": "GeeGooBot-mcp-api"}}
 		},
 	})
 	r.Register(Tool{
@@ -406,16 +408,24 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			if err != nil {
 				return errResult(err)
 			}
-			formatted := fmt.Sprintf("super_in=%v big_in=%v mid_in=%v small_in=%v update_time=%v",
-				dist.CapitalInSuper, dist.CapitalInBig, dist.CapitalInMid, dist.CapitalInSmall, dist.UpdateTime)
 			if !capitalDistributionHasData(dist) {
 				note := emptyDataNote("get_capital_distribution", code)
 				return Result{Status: StatusSkip, Summary: note, Data: map[string]any{
-					"code": code, "formatted": formatted, "source": "GeeGooBot-mcp-api",
+					"code": code, "source": "GeeGooBot-mcp-api",
 				}}
 			}
+			summary := stockfmt.FormatCapitalDistributionSummary(
+				dist.CapitalInSuper, dist.CapitalInBig, dist.CapitalInMid, dist.CapitalInSmall,
+				dist.CapitalOutSuper, dist.CapitalOutBig, dist.CapitalOutMid, dist.CapitalOutSmall,
+				dist.UpdateTime,
+			)
 			return Result{Status: StatusOK, Summary: fmt.Sprintf("capital distribution %s", code), Data: map[string]any{
-				"code": code, "formatted": formatted, "source": "GeeGooBot-mcp-api",
+				"code": code, "summary": summary, "source": "GeeGooBot-mcp-api",
+				"capital_in_super": dist.CapitalInSuper, "capital_in_big": dist.CapitalInBig,
+				"capital_in_mid": dist.CapitalInMid, "capital_in_small": dist.CapitalInSmall,
+				"capital_out_super": dist.CapitalOutSuper, "capital_out_big": dist.CapitalOutBig,
+				"capital_out_mid": dist.CapitalOutMid, "capital_out_small": dist.CapitalOutSmall,
+				"update_time": dist.UpdateTime,
 			}}
 		},
 	})

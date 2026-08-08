@@ -8,6 +8,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/report"
+	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
 	"github.com/ghsemail/GeeGooAgent/internal/verdict"
 )
 
@@ -100,11 +101,7 @@ func buildStockReportDraft(w *memory.PreMarketWorking, code string, view reportV
 		"",
 		"## 资金流向与分布",
 		"",
-		"### 主力资金（日）",
-		"",
 		capitalFlowSection(ws),
-		"",
-		"### 资金分布",
 		"",
 		capitalDistributionSection(ws),
 		"",
@@ -218,6 +215,7 @@ func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, co
 	if bundle.Summary == "" {
 		bundle.Summary = plainSummary(bundle.Report, 200)
 	}
+	bundle.Report = stockfmt.PolishStockPremarketMarkdown(bundle.Report)
 	return bundle
 }
 
@@ -297,13 +295,25 @@ func botAttitudeSection(ws memory.StockWorkspace) string {
 	return fmt.Sprintf("昨日态度为 **%s**。", attitude)
 }
 
-func keyWatchPoints(ws memory.StockWorkspace, view reportView) []string {
-	points := make([]string, 0, len(view.KeyInputs))
-	for _, item := range view.KeyInputs {
-		points = append(points, item)
+func keyWatchPoints(ws memory.StockWorkspace, _ reportView) []string {
+	points := make([]string, 0, 4)
+	if ws.WeeklyAnalysisRef != "" {
+		points = append(points, "关注周线关键支撑/阻力是否被放量突破或跌破。")
+	}
+	if ws.CapitalFlowSummary != "" {
+		points = append(points, "跟踪主力资金是否延续当前净流入/流出方向。")
+	}
+	if ws.StockNewsSummary != "" {
+		points = append(points, "留意新闻催化兑现后的情绪回落风险。")
+	}
+	if ws.Attitude != "" && ws.Attitude != "neutral" {
+		points = append(points, "结合 Bot 昨日态度，验证开盘走势是否与预期一致。")
 	}
 	if len(points) == 0 {
 		points = append(points, "关注开盘量价与大盘联动。")
+	}
+	if len(points) > 4 {
+		points = points[:4]
 	}
 	return points
 }
@@ -355,7 +365,7 @@ func buildReportView(ws memory.StockWorkspace, evidence []memory.EvidenceRef) re
 		Suggestion: suggestionFor(result),
 		Reason:     reasonFor(ws, evidence),
 		KeyInputs: []string{
-			fmt.Sprintf("Bot 昨日态度：%s", attitude),
+			fmt.Sprintf("Bot 昨日态度：%s", localizeAttitude(attitude)),
 		},
 		DataGaps: dataGaps(ws),
 	}
@@ -466,6 +476,17 @@ func attitudeToResult(attitude string) string {
 		return "short"
 	default:
 		return "neutral"
+	}
+}
+
+func localizeAttitude(attitude string) string {
+	switch strings.ToLower(strings.TrimSpace(attitude)) {
+	case "bullish", "long":
+		return "偏多"
+	case "bearish", "short":
+		return "偏空"
+	default:
+		return "中性"
 	}
 }
 

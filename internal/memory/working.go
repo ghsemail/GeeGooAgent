@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
+	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
@@ -136,7 +137,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 		} else if ws, ok := updated.Stocks[code]; ok {
 			switch {
 			case period == "weekly":
-				ws.WeeklyAnalysisRef = truncate(analysis, 2000)
+				ws.WeeklyAnalysisRef = truncate(stockfmt.FormatWeeklyAnalysis(analysis), 4000)
 				addEvidence(updated, toolName, "stock."+code+".weekly_analysis", analysis, data, observedAt)
 			case period == "hourly":
 				switch promptID {
@@ -157,7 +158,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 		code, _ := data["code"].(string)
 		text, _ := data["text"].(string)
 		if ws, ok := updated.Stocks[code]; ok {
-			ws.StockNewsSummary = truncate(text, 2000)
+			ws.StockNewsSummary = truncate(stockfmt.FormatStockNews(text, code), 4000)
 			updated.Stocks[code] = ws
 			addEvidence(updated, toolName, "stock."+code+".news", text, data, observedAt)
 		}
@@ -170,7 +171,8 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 				reason, _ := data["skip_reason"].(string)
 				ws.CapitalFlowSummary = truncate(reason, 2000)
 			} else if latest, ok := data["latest"].(map[string]any); ok {
-				ws.CapitalFlowSummary = fmt.Sprintf("main_in_flow=%v", latest["main_in_flow"])
+				period, _ := data["period"].(string)
+				ws.CapitalFlowSummary = stockfmt.FormatCapitalFlowSummary(latest, period)
 			}
 			updated.Stocks[code] = ws
 			addEvidence(updated, toolName, "stock."+code+".capital_flow", ws.CapitalFlowSummary, data, observedAt)
@@ -180,12 +182,20 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 		if ws, ok := updated.Stocks[code]; ok {
 			if result.Status == tools.StatusSkip && isAShare(code) {
 				ws.CapitalDistributionSummary = ""
+			} else if summary, ok := data["summary"].(string); ok && strings.TrimSpace(summary) != "" {
+				ws.CapitalDistributionSummary = truncate(summary, 4000)
 			} else {
-				formatted, _ := data["formatted"].(string)
-				ws.CapitalDistributionSummary = truncate(formatted, 2000)
-				if ws.CapitalDistributionSummary == "" {
-					ws.CapitalDistributionSummary = truncate(result.Summary, 2000)
-				}
+				ws.CapitalDistributionSummary = stockfmt.FormatCapitalDistributionSummary(
+					floatField(data, "capital_in_super"),
+					floatField(data, "capital_in_big"),
+					floatField(data, "capital_in_mid"),
+					floatField(data, "capital_in_small"),
+					floatField(data, "capital_out_super"),
+					floatField(data, "capital_out_big"),
+					floatField(data, "capital_out_mid"),
+					floatField(data, "capital_out_small"),
+					str(data, "update_time"),
+				)
 			}
 			updated.Stocks[code] = ws
 			addEvidence(updated, toolName, "stock."+code+".capital_distribution", ws.CapitalDistributionSummary, data, observedAt)
