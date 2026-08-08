@@ -101,9 +101,7 @@ func buildStockReportDraft(w *memory.PreMarketWorking, code string, view reportV
 		"",
 		"## 资金流向与分布",
 		"",
-		capitalFlowSection(ws),
-		"",
-		capitalDistributionSection(ws),
+		capitalSection(ws),
 		"",
 		"## 周线技术分析",
 		"",
@@ -166,6 +164,8 @@ func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, co
 			stockSynthUsed = true
 			if body := strings.TrimSpace(res.Report); body != "" {
 				bundle.Report = body
+				bundle.Report = stockfmt.ReplaceMarkdownSection(bundle.Report, "## 个股新闻", stockNewsSection(ws))
+				bundle.Report = stockfmt.ReplaceMarkdownSection(bundle.Report, "## 资金流向与分布", capitalSection(ws))
 			}
 			if v := strings.TrimSpace(res.Reason); v != "" {
 				bundle.Reason = v
@@ -212,9 +212,12 @@ func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, co
 	if strings.TrimSpace(final.Note) != "" {
 		bundle.Reason = strings.TrimSpace(bundle.Reason + " " + final.Note)
 	}
+	bundle.Reason = stockfmt.StripEvidenceRefs(bundle.Reason)
+	bundle.Summary = stockfmt.StripEvidenceRefs(bundle.Summary)
 	if bundle.Summary == "" {
 		bundle.Summary = plainSummary(bundle.Report, 200)
 	}
+	bundle.Report = stockfmt.PolishStockNewsInReport(bundle.Report, ws.StockName)
 	bundle.Report = stockfmt.PolishStockPremarketMarkdown(bundle.Report)
 	return bundle
 }
@@ -266,18 +269,22 @@ func stockNewsSection(ws memory.StockWorkspace) string {
 	return "暂无个股新闻。"
 }
 
-func capitalFlowSection(ws memory.StockWorkspace) string {
-	if s := strings.TrimSpace(ws.CapitalFlowSummary); s != "" {
-		return s
-	}
-	return "暂无主力资金数据。"
-}
-
-func capitalDistributionSection(ws memory.StockWorkspace) string {
+func capitalSection(ws memory.StockWorkspace) string {
 	if s := strings.TrimSpace(ws.CapitalDistributionSummary); s != "" {
 		return s
 	}
-	return "暂无资金分布数据。"
+	if s := strings.TrimSpace(ws.CapitalFlowSummary); s != "" {
+		return s
+	}
+	return "暂无资金数据。"
+}
+
+func capitalFlowSection(ws memory.StockWorkspace) string {
+	return capitalSection(ws)
+}
+
+func capitalDistributionSection(ws memory.StockWorkspace) string {
+	return ""
 }
 
 func weeklyAnalysisSection(ws memory.StockWorkspace) string {
@@ -292,7 +299,7 @@ func botAttitudeSection(ws memory.StockWorkspace) string {
 	if attitude == "" {
 		return "暂无 Bot 昨日态度记录（默认中性）。"
 	}
-	return fmt.Sprintf("昨日态度为 **%s**。", attitude)
+	return fmt.Sprintf("昨日态度为 **%s**。", stockfmt.LocalizeAttitude(attitude))
 }
 
 func keyWatchPoints(ws memory.StockWorkspace, _ reportView) []string {
@@ -416,7 +423,7 @@ func reasonFor(ws memory.StockWorkspace, evidence []memory.EvidenceRef) string {
 	if attitude == "" {
 		attitude = "neutral"
 	}
-	parts := []string{fmt.Sprintf("Bot 昨日态度为 %s", attitude)}
+	parts := []string{fmt.Sprintf("Bot 昨日态度为 %s", stockfmt.LocalizeAttitude(attitude))}
 	if ws.WeeklyAnalysisRef != "" {
 		parts = append(parts, "周线技术分析已纳入")
 	}

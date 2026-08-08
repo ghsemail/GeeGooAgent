@@ -14,17 +14,22 @@ var (
 	urlLineRE             = regexp.MustCompile(`(?m)^\s*https?://\S+\s*$`)
 	scientificNumRE       = regexp.MustCompile(`(-?\d+(?:\.\d+)?)[eE]([+-]?\d+)`)
 	mdTableSepRE          = regexp.MustCompile(`(?m)^\|?[\s:-]+\|[\s|:-]+$`)
+	newsNumberPrefixRE    = regexp.MustCompile(`^\d+[\.\)、]?\s*`)
+	evidenceRefRE         = regexp.MustCompile(`\[ev_[^\]]*\]`)
+	bareEvidenceRE        = regexp.MustCompile(`\bev_[0-9a-zA-Z]{4,}\b`)
+	corruptEvidenceRE     = regexp.MustCompile(`ev_[0-9a-zA-Z.+亿\-]{6,}`)
+	sectionHeadingRE      = regexp.MustCompile(`(?m)^##\s+`)
 )
 
-// FormatStockNews turns raw news text into a digest + headline bullets (no code, no links).
-func FormatStockNews(raw, code string) string {
+// FormatStockNews turns raw news into a digest paragraph plus clean headline bullets.
+func FormatStockNews(raw, code, stockName string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" || strings.Contains(raw, "暂无") {
 		return "暂无个股新闻。"
 	}
 	lines := strings.Split(raw, "\n")
 	titles := make([]string, 0, 8)
-	snippets := make([]string, 0, 8)
+	seen := map[string]bool{}
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -36,38 +41,32 @@ func FormatStockNews(raw, code string) string {
 		if linkLineRE.MatchString(line) || urlLineRE.MatchString(line) {
 			continue
 		}
-		if strings.HasPrefix(line, "🕐") {
+		if strings.HasPrefix(line, "🕐") || strings.HasPrefix(line, "**新闻综述**") {
 			continue
 		}
 		if strings.Contains(line, code) && strings.HasPrefix(line, "##") {
 			continue
 		}
-		title := strings.Trim(line, "*# ")
-		if strings.HasPrefix(line, "**") && strings.HasSuffix(line, "**") {
-			title = strings.Trim(line, "*")
-		}
-		if title == "" {
+		title := normalizeNewsTitle(line, stockName)
+		if title == "" || strings.Contains(title, "=") {
 			continue
 		}
-		if strings.HasPrefix(line, "**") {
-			titles = append(titles, title)
+		if seen[title] {
 			continue
 		}
-		if len(title) > 12 && !strings.Contains(title, "=") {
-			snippets = append(snippets, title)
-		}
+		seen[title] = true
+		titles = append(titles, title)
 	}
 	if len(titles) == 0 {
-		clean := PolishStockPremarketMarkdown(raw)
+		clean := PolishStockNewsSection(PolishStockPremarketMarkdown(raw), stockName)
 		if clean == "" {
 			return "暂无个股新闻。"
 		}
 		return clean
 	}
-	digest := buildNewsDigest(titles, snippets)
 	var b strings.Builder
 	b.WriteString("**新闻综述**：")
-	b.WriteString(digest)
+	b.WriteString(buildNewsDigest(titles))
 	b.WriteString("\n\n")
 	limit := len(titles)
 	if limit > 5 {
@@ -81,21 +80,78 @@ func FormatStockNews(raw, code string) string {
 	return strings.TrimSpace(b.String())
 }
 
-func buildNewsDigest(titles, snippets []string) string {
-	parts := make([]string, 0, 3)
-	for i := 0; i < len(titles) && len(parts) < 3; i++ {
-		t := oneLine(titles[i], 48)
-		if t != "" {
-			parts = append(parts, t)
+func normalizeNewsTitle(line, stockName string) string {
+	title := strings.TrimSpace(line)
+	title = strings.TrimLeft(title, "-*# ")
+	if strings.HasPrefix(line, "**") && strings.HasSuffix(line, "**") {
+		title = strings.Trim(title, "*")
+	}
+	title = newsNumberPrefixRE.ReplaceAllString(title, "")
+	title = stripCompanyPrefix(title, stockName)
+	if idx := strings.Index(title, ":"); idx > 0 && idx < 16 {
+		title = strings.TrimSpace(title[idx+1:])
+	}
+	if idx := strings.Index(title, "："); idx > 0 && idx < 16 {
+		title = strings.TrimSpace(title[idx+len("："):])
+	}
+	title = newsNumberPrefixRE.ReplaceAllString(title, "")
+	return strings.TrimSpace(title)
+}
+
+func stripCompanyPrefix(title, company string) string {
+	company = strings.TrimSpace(company)
+	if company == "" {
+		return title
+	}
+	for _, sep := range []string{":", "："} {
+		prefix := company + sep
+		if strings.HasPrefix(title, prefix) {
+			return strings.TrimSpace(strings.TrimPrefix(title, prefix))
 		}
 	}
-	if len(parts) == 0 && len(snippets) > 0 {
-		return oneLine(snippets[0], 120)
-	}
-	if len(parts) == 0 {
+	return title
+}
+
+func buildNewsDigest(titles []string) string {
+	if len(titles) == 0 {
 		return "近期相关资讯较少，建议结合盘面与公告进一步确认。"
 	}
-	return strings.Join(parts, "；") + "。"
+	themes := extractNewsThemes(titles)
+	if len(themes) > 0 {
+		return fmt.Sprintf("共 %d 条相关资讯，主要涉及%s。", len(titles), strings.Join(themes, "、"))
+	}
+	return fmt.Sprintf("共 %d 条相关资讯，建议结合公告与盘面进一步确认。", len(titles))
+}
+
+func extractNewsThemes(titles []string) []string {
+	keywords := []struct {
+		key string
+		tag string
+	}{
+		{"增持", "股东增持"},
+		{"分派", "权益分派"},
+		{"分红", "分红派息"},
+		{"回购", "股份回购"},
+		{"业绩", "业绩披露"},
+		{"公告", "公司公告"},
+		{"研报", "机构研报"},
+		{"中标", "订单中标"},
+		{"合作", "战略合作"},
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, 4)
+	for _, t := range titles {
+		for _, kw := range keywords {
+			if strings.Contains(t, kw.key) && !seen[kw.tag] {
+				seen[kw.tag] = true
+				out = append(out, kw.tag)
+			}
+		}
+	}
+	if len(out) > 4 {
+		out = out[:4]
+	}
+	return out
 }
 
 // FormatCapitalFlowSummary renders main capital flow for reports.
@@ -103,8 +159,8 @@ func FormatCapitalFlowSummary(latest map[string]any, period string) string {
 	if latest == nil {
 		return "暂无主力资金数据。"
 	}
-	main := floatFromAny(latest["main_in_flow"])
-	total := floatFromAny(latest["in_flow"])
+	main := FloatFromAny(latest["main_in_flow"])
+	total := FloatFromAny(latest["in_flow"])
 	if main == 0 && total == 0 {
 		return "暂无主力资金数据。"
 	}
@@ -113,39 +169,56 @@ func FormatCapitalFlowSummary(latest map[string]any, period string) string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("%s主力资金**%s**", periodLabel, mainText))
 	if total != 0 && (main == 0 || math.Abs(total-main) > 1) {
-		b.WriteString(fmt.Sprintf("，总流入**%s**", flowDirectionText(total)))
+		b.WriteString(fmt.Sprintf("，整体**%s**", flowDirectionText(total)))
 	}
 	b.WriteString("。")
 	return b.String()
 }
 
-// FormatCapitalDistributionSummary renders order-size distribution for reports.
-func FormatCapitalDistributionSummary(
+// FormatCapitalSection renders capital flow + distribution with a brief interpretation.
+func FormatCapitalSection(
+	mainIn, totalIn,
 	inSuper, inBig, inMid, inSmall,
 	outSuper, outBig, outMid, outSmall float64,
 	updateTime string,
 ) string {
-	if inSuper == 0 && inBig == 0 && inMid == 0 && inSmall == 0 &&
+	if mainIn == 0 && totalIn == 0 && inSuper == 0 && inBig == 0 && inMid == 0 && inSmall == 0 &&
 		outSuper == 0 && outBig == 0 && outMid == 0 && outSmall == 0 {
-		return "暂无资金分布数据。"
+		return "暂无资金数据。"
 	}
-	inTotal := inSuper + inBig + inMid + inSmall
-	outTotal := outSuper + outBig + outMid + outSmall
+	superNet := inSuper - outSuper
+	bigNet := inBig - outBig
+	midNet := inMid - outMid
+	smallNet := inSmall - outSmall
+
 	var b strings.Builder
-	b.WriteString("**流入结构**：")
-	b.WriteString(distributionLine(inSuper, inBig, inMid, inSmall))
-	b.WriteString("\n\n**流出结构**：")
-	b.WriteString(distributionLine(outSuper, outBig, outMid, outSmall))
-	if inTotal > 0 || outTotal > 0 {
-		net := inTotal - outTotal
-		b.WriteString("\n\n**净倾向**：")
-		b.WriteString(flowDirectionText(net))
-		b.WriteString("（超大单")
-		b.WriteString(signedMoneyCN(inSuper - outSuper))
-		b.WriteString("，大单")
-		b.WriteString(signedMoneyCN(inBig - outBig))
-		b.WriteString("）")
+	if mainIn != 0 || totalIn != 0 {
+		b.WriteString("**资金概况**：")
+		if mainIn != 0 {
+			b.WriteString("主力")
+			b.WriteString(flowDirectionText(mainIn))
+		}
+		if totalIn != 0 && (mainIn == 0 || math.Abs(totalIn-mainIn) > 1) {
+			if mainIn != 0 {
+				b.WriteString("，整体")
+			} else {
+				b.WriteString("整体")
+			}
+			b.WriteString(flowDirectionText(totalIn))
+		}
+		b.WriteString("。\n\n")
 	}
+	b.WriteString("**简要解读**：")
+	b.WriteString(capitalAnalysisText(mainIn, superNet, bigNet, midNet, smallNet))
+	b.WriteString("\n\n")
+	b.WriteString("**分单结构**：超大单净")
+	b.WriteString(signedMoneyCN(superNet))
+	b.WriteString(" · 大单净")
+	b.WriteString(signedMoneyCN(bigNet))
+	b.WriteString(" · 中单净")
+	b.WriteString(signedMoneyCN(midNet))
+	b.WriteString(" · 小单净")
+	b.WriteString(signedMoneyCN(smallNet))
 	if t := strings.TrimSpace(updateTime); t != "" {
 		b.WriteString("\n\n*数据截至 ")
 		b.WriteString(t)
@@ -154,11 +227,41 @@ func FormatCapitalDistributionSummary(
 	return b.String()
 }
 
-func distributionLine(super, big, mid, small float64) string {
-	return fmt.Sprintf(
-		"超大单 %s · 大单 %s · 中单 %s · 小单 %s",
-		signedMoneyCN(super), signedMoneyCN(big), signedMoneyCN(mid), signedMoneyCN(small),
-	)
+func capitalAnalysisText(mainIn, superNet, bigNet, midNet, smallNet float64) string {
+	parts := make([]string, 0, 3)
+	switch {
+	case mainIn > 0:
+		parts = append(parts, "主力资金呈净流入，短线资金面偏多")
+	case mainIn < 0:
+		parts = append(parts, "主力资金呈净流出，短线资金面偏空")
+	default:
+		parts = append(parts, "主力资金变动不大，需结合量价判断")
+	}
+	if superNet > 0 && bigNet > 0 {
+		parts = append(parts, "超大单与大单同步净流入，机构参与度提升")
+	} else if superNet < 0 && bigNet < 0 {
+		parts = append(parts, "超大单与大单同步净流出，主力减仓迹象明显")
+	} else if superNet < 0 && bigNet > 0 {
+		parts = append(parts, "超大单净流出、大单净流入，分歧加大")
+	} else if superNet > 0 && bigNet < 0 {
+		parts = append(parts, "超大单净流入、大单净流出，筹码结构分化")
+	}
+	if smallNet > 0 && mainIn <= 0 {
+		parts = append(parts, "小单净流入而主力偏弱，散户接盘特征需警惕")
+	}
+	if len(parts) == 0 {
+		return "资金结构整体平稳，建议结合盘中量价验证。"
+	}
+	return strings.Join(parts, "；") + "。"
+}
+
+// FormatCapitalDistributionSummary renders order-size distribution for reports.
+func FormatCapitalDistributionSummary(
+	inSuper, inBig, inMid, inSmall,
+	outSuper, outBig, outMid, outSmall float64,
+	updateTime string,
+) string {
+	return FormatCapitalSection(0, 0, inSuper, inBig, inMid, inSmall, outSuper, outBig, outMid, outSmall, updateTime)
 }
 
 // FormatWeeklyAnalysis normalizes MCP weekly output for stock reports.
@@ -194,24 +297,146 @@ func FormatWeeklyAnalysis(raw string) string {
 	return s
 }
 
+// ReplaceMarkdownSection swaps one ## section body while keeping other sections intact.
+func ReplaceMarkdownSection(md, heading, body string) string {
+	heading = strings.TrimSpace(heading)
+	body = strings.TrimSpace(body)
+	if heading == "" || body == "" {
+		return md
+	}
+	re := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(heading) + `\s*$`)
+	loc := re.FindStringIndex(md)
+	if loc == nil {
+		return strings.TrimSpace(md + "\n\n" + heading + "\n\n" + body)
+	}
+	start := loc[1]
+	rest := md[start:]
+	next := sectionHeadingRE.FindStringIndex(rest)
+	end := len(md)
+	if next != nil && next[0] > 0 {
+		end = start + next[0]
+	}
+	tail := strings.TrimSpace(md[end:])
+	if tail == "" {
+		return strings.TrimSpace(md[:loc[0]] + heading + "\n\n" + body)
+	}
+	return strings.TrimSpace(md[:loc[0]] + heading + "\n\n" + body + "\n\n" + tail)
+}
+
+// PolishStockNewsSection rebuilds digest and strips numbered prefixes from headlines.
+func PolishStockNewsSection(section, stockName string) string {
+	section = strings.TrimSpace(section)
+	if section == "" {
+		return section
+	}
+	titles := make([]string, 0, 8)
+	seen := map[string]bool{}
+	for _, line := range strings.Split(section, "\n") {
+		t := strings.TrimSpace(line)
+		if t == "" || strings.HasPrefix(t, "**新闻综述**") {
+			continue
+		}
+		if strings.HasPrefix(t, "-") {
+			t = strings.TrimSpace(strings.TrimPrefix(t, "-"))
+		}
+		title := normalizeNewsTitle(t, stockName)
+		if title == "" {
+			continue
+		}
+		if seen[title] {
+			continue
+		}
+		seen[title] = true
+		titles = append(titles, title)
+	}
+	if len(titles) == 0 {
+		return section
+	}
+	var b strings.Builder
+	b.WriteString("**新闻综述**：")
+	b.WriteString(buildNewsDigest(titles))
+	b.WriteString("\n\n")
+	limit := len(titles)
+	if limit > 5 {
+		limit = 5
+	}
+	for i := 0; i < limit; i++ {
+		b.WriteString("- ")
+		b.WriteString(titles[i])
+		b.WriteString("\n")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// PolishStockNewsInReport fixes the ## 个股新闻 section inside a full report.
+func PolishStockNewsInReport(md, stockName string) string {
+	re := regexp.MustCompile(`(?m)^##\s+个股新闻\s*$`)
+	loc := re.FindStringIndex(md)
+	if loc == nil {
+		return md
+	}
+	start := loc[1]
+	rest := md[start:]
+	next := sectionHeadingRE.FindStringIndex(rest)
+	end := len(md)
+	if next != nil && next[0] > 0 {
+		end = start + next[0]
+	}
+	body := PolishStockNewsSection(strings.TrimSpace(md[start:end]), stockName)
+	return ReplaceMarkdownSection(md, "## 个股新闻", body)
+}
+
 // PolishStockPremarketMarkdown cleans numbers and stray metadata in report bodies.
 func PolishStockPremarketMarkdown(md string) string {
 	s := strings.TrimSpace(md)
 	if s == "" {
 		return s
 	}
+	s = StripEvidenceRefs(s)
 	s = linkLineRE.ReplaceAllString(s, "")
 	s = urlLineRE.ReplaceAllString(s, "")
 	s = regexp.MustCompile(`(?m)^\s*🕐\s*.+$`).ReplaceAllString(s, "")
 	s = regexp.MustCompile(`(?m)^\s*\*\*?\s*(main_in_flow|in_flow|super_in|big_in|mid_in|small_in|update_time)\s*=\s*[^*\n]+\*?\*?\s*$`).ReplaceAllString(s, "")
 	s = HumanizeScientificNumbers(s)
+	s = localizeAttitudeInText(s)
 	s = regexp.MustCompile(`\n{3,}`).ReplaceAllString(s, "\n\n")
+	return strings.TrimSpace(s)
+}
+
+// StripEvidenceRefs removes internal evidence citation markers from user-facing text.
+func StripEvidenceRefs(text string) string {
+	s := evidenceRefRE.ReplaceAllString(text, "")
+	s = bareEvidenceRE.ReplaceAllString(s, "")
+	s = corruptEvidenceRE.ReplaceAllString(s, "")
+	s = regexp.MustCompile(`\(\s*\)`).ReplaceAllString(s, "")
+	s = regexp.MustCompile(`[ \t]{2,}`).ReplaceAllString(s, " ")
+	s = regexp.MustCompile(`[，,；;]\s*[，,；;]+`).ReplaceAllString(s, "，")
 	return strings.TrimSpace(s)
 }
 
 // HumanizeScientificNumbers replaces 1.23e8 style literals with readable amounts.
 func HumanizeScientificNumbers(text string) string {
-	return scientificNumRE.ReplaceAllStringFunc(text, func(match string) string {
+	placeholders := map[string]string{}
+	i := 0
+	protected := corruptEvidenceRE.ReplaceAllStringFunc(text, func(m string) string {
+		key := fmt.Sprintf("§EV%d§", i)
+		placeholders[key] = ""
+		i++
+		return key
+	})
+	protected = evidenceRefRE.ReplaceAllStringFunc(protected, func(m string) string {
+		key := fmt.Sprintf("§EV%d§", i)
+		placeholders[key] = ""
+		i++
+		return key
+	})
+	protected = bareEvidenceRE.ReplaceAllStringFunc(protected, func(m string) string {
+		key := fmt.Sprintf("§EV%d§", i)
+		placeholders[key] = ""
+		i++
+		return key
+	})
+	out := scientificNumRE.ReplaceAllStringFunc(protected, func(match string) string {
 		v, err := strconv.ParseFloat(match, 64)
 		if err != nil {
 			return match
@@ -221,6 +446,37 @@ func HumanizeScientificNumbers(text string) string {
 		}
 		return trimFloat(v)
 	})
+	for key := range placeholders {
+		out = strings.ReplaceAll(out, key, "")
+	}
+	return out
+}
+
+// LocalizeAttitude maps bot attitude codes to Chinese labels.
+func LocalizeAttitude(attitude string) string {
+	switch strings.ToLower(strings.TrimSpace(attitude)) {
+	case "bullish", "long":
+		return "偏多"
+	case "bearish", "short":
+		return "偏空"
+	default:
+		return "中性"
+	}
+}
+
+func localizeAttitudeInText(text string) string {
+	repl := map[string]string{
+		"**neutral**": "**中性**",
+		"**bullish**": "**偏多**",
+		"**bearish**": "**偏空**",
+		" neutral":    " 中性",
+		" bullish":    " 偏多",
+		" bearish":    " 偏空",
+	}
+	for old, neu := range repl {
+		text = strings.ReplaceAll(text, old, neu)
+	}
+	return text
 }
 
 // FormatMoneyCN formats CNY amounts for report prose.
@@ -242,19 +498,34 @@ func FormatMoneyCN(v float64) string {
 	}
 }
 
+func formatMoneyAbs(v float64) string {
+	abs := math.Abs(v)
+	switch {
+	case abs >= 1e8:
+		return fmt.Sprintf("%.2f亿", abs/1e8)
+	case abs >= 1e4:
+		return fmt.Sprintf("%.2f万", abs/1e4)
+	default:
+		return trimFloat(abs)
+	}
+}
+
 func signedMoneyCN(v float64) string {
 	if v == 0 {
 		return "持平"
 	}
-	return FormatMoneyCN(v)
+	if v > 0 {
+		return "流入" + formatMoneyAbs(v)
+	}
+	return "流出" + formatMoneyAbs(v)
 }
 
 func flowDirectionText(v float64) string {
 	if v > 0 {
-		return "净流入 " + FormatMoneyCN(v)
+		return "净流入 " + formatMoneyAbs(v)
 	}
 	if v < 0 {
-		return "净流出 " + FormatMoneyCN(-v)
+		return "净流出 " + formatMoneyAbs(v)
 	}
 	return "持平"
 }
@@ -270,7 +541,8 @@ func capitalPeriodLabel(period string) string {
 	}
 }
 
-func floatFromAny(v any) float64 {
+// FloatFromAny parses numeric tool payload fields.
+func FloatFromAny(v any) float64 {
 	switch t := v.(type) {
 	case float64:
 		return t
@@ -313,13 +585,4 @@ func isTableHeaderRow(cells []string) bool {
 	}
 	joined := strings.ToLower(strings.Join(cells, ""))
 	return strings.Contains(joined, "指标") || strings.Contains(joined, "indicator")
-}
-
-func oneLine(s string, max int) string {
-	s = strings.Join(strings.Fields(s), " ")
-	if max > 0 && len([]rune(s)) > max {
-		rs := []rune(s)
-		return string(rs[:max]) + "…"
-	}
-	return s
 }

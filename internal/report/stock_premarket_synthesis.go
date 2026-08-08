@@ -8,6 +8,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
 )
 
 // StockPreMarketSynthesisResult is the LLM-generated stock pre-market bundle.
@@ -65,6 +66,8 @@ func (s *Synthesizer) SynthesizeStockPreMarket(
 	parsed.Result = normalizeMarketResult(parsed.Result)
 	parsed.Confidence = normalizeMarketConfidence(parsed.Confidence)
 	parsed.Suggestion = normalizeStockSuggestion(parsed.Suggestion)
+	parsed.Reason = stockfmt.StripEvidenceRefs(parsed.Reason)
+	parsed.Report = stockfmt.PolishStockPremarketMarkdown(parsed.Report)
 	if parsed.Result == "" {
 		return StockPreMarketSynthesisResult{}, fmt.Errorf("stock premarket synthesis result invalid")
 	}
@@ -94,7 +97,7 @@ func buildStockPreMarketSynthesisPrompt(
 	b.WriteString("你是个股盘前报告综合器。只能引用下面提供的证据与草稿，禁止编造价格、态度、资金流或任何未给出的数据。\n\n")
 	b.WriteString(fmt.Sprintf("标的: %s (%s)\n", ws.StockName, ws.Code))
 	b.WriteString(fmt.Sprintf("Bot: %s (%s, id=%s)\n", ws.BotName, ws.BotType, ws.BotID))
-	b.WriteString(fmt.Sprintf("Bot 昨日态度: %s\n\n", nonEmpty(ws.Attitude, "neutral")))
+	b.WriteString(fmt.Sprintf("Bot 昨日态度: %s\n\n", stockfmt.LocalizeAttitude(nonEmpty(ws.Attitude, "neutral"))))
 	if strings.TrimSpace(template) != "" {
 		b.WriteString("报告模板（遵循章节结构，勿输出模板注释）:\n")
 		b.WriteString(template)
@@ -120,11 +123,12 @@ func buildStockPreMarketSynthesisPrompt(
 - report: 完整 Markdown，遵循模板章节；禁止 Markdown 表格；禁止 # 标题行与元数据
 - 正文不要重复 result/confidence/suggestion（由 API 字段与 App 概要区展示）
 - 市场背景只写摘要，不要粘贴整份市场报告
-- 个股新闻：先 **新闻综述**，再 3–5 条标题要点；禁止代码、链接、时间戳
-- 资金：用「净流入/流出 X 亿/万」与超大/大/中/小单结构；禁止参数名与科学计数法
+- 个股新闻：先 **新闻综述**（不写编号、不重复列标题），再 3–5 条无编号标题要点
+- 资金：用「资金概况 + 简要解读 + 分单结构」；禁止参数名与科学计数法
 - 周线：自然段 + 短列表，禁止 # 标题与 Markdown 表格
+- Bot 态度：只用中文（偏多/偏空/中性），禁止 neutral/bullish/bearish
 - result: long / short / neutral；confidence: high / medium / low；suggestion: buy / sell / hold
-- reason: >=80字，必须引用具体证据，禁止空洞表述
+- reason: >=80字，用自然中文说明依据；禁止出现 [ev_...] 证据编号与科学计数法
 - summary: <=200字，面向用户的一句话结论
 - 正文末尾仅一行脚注：*报告由 GeeGoo 智能体个股盘前 skill 生成*
 - 输出严格 JSON: {"report":"...","result":"...","confidence":"...","reason":"...","suggestion":"...","summary":"..."}`)

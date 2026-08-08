@@ -158,7 +158,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 		code, _ := data["code"].(string)
 		text, _ := data["text"].(string)
 		if ws, ok := updated.Stocks[code]; ok {
-			ws.StockNewsSummary = truncate(stockfmt.FormatStockNews(text, code), 4000)
+			ws.StockNewsSummary = truncate(stockfmt.FormatStockNews(text, code, ws.StockName), 4000)
 			updated.Stocks[code] = ws
 			addEvidence(updated, toolName, "stock."+code+".news", text, data, observedAt)
 		}
@@ -172,6 +172,8 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 				ws.CapitalFlowSummary = truncate(reason, 2000)
 			} else if latest, ok := data["latest"].(map[string]any); ok {
 				period, _ := data["period"].(string)
+				ws.CapitalMainIn = stockfmt.FloatFromAny(latest["main_in_flow"])
+				ws.CapitalTotalIn = stockfmt.FloatFromAny(latest["in_flow"])
 				ws.CapitalFlowSummary = stockfmt.FormatCapitalFlowSummary(latest, period)
 			}
 			updated.Stocks[code] = ws
@@ -185,16 +187,20 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 			} else if summary, ok := data["summary"].(string); ok && strings.TrimSpace(summary) != "" {
 				ws.CapitalDistributionSummary = truncate(summary, 4000)
 			} else {
-				ws.CapitalDistributionSummary = stockfmt.FormatCapitalDistributionSummary(
-					floatField(data, "capital_in_super"),
-					floatField(data, "capital_in_big"),
-					floatField(data, "capital_in_mid"),
-					floatField(data, "capital_in_small"),
-					floatField(data, "capital_out_super"),
-					floatField(data, "capital_out_big"),
-					floatField(data, "capital_out_mid"),
-					floatField(data, "capital_out_small"),
-					str(data, "update_time"),
+				inSuper := floatField(data, "capital_in_super")
+				inBig := floatField(data, "capital_in_big")
+				inMid := floatField(data, "capital_in_mid")
+				inSmall := floatField(data, "capital_in_small")
+				outSuper := floatField(data, "capital_out_super")
+				outBig := floatField(data, "capital_out_big")
+				outMid := floatField(data, "capital_out_mid")
+				outSmall := floatField(data, "capital_out_small")
+				updateTime := str(data, "update_time")
+				ws.CapitalDistributionSummary = stockfmt.FormatCapitalSection(
+					ws.CapitalMainIn, ws.CapitalTotalIn,
+					inSuper, inBig, inMid, inSmall,
+					outSuper, outBig, outMid, outSmall,
+					updateTime,
 				)
 			}
 			updated.Stocks[code] = ws
@@ -513,6 +519,8 @@ func encodeWorking(w *PreMarketWorking) map[string]any {
 			"weekly_analysis_ref": v.WeeklyAnalysisRef, "attitude": v.Attitude,
 			"capital_flow_summary":         v.CapitalFlowSummary,
 			"capital_distribution_summary": v.CapitalDistributionSummary,
+			"capital_main_in":              v.CapitalMainIn,
+			"capital_total_in":             v.CapitalTotalIn,
 			"report_ref": v.ReportRef, "report_id": v.ReportID,
 			"stock_news_summary": v.StockNewsSummary,
 			"frequency": v.Frequency, "trade_type": v.TradeType, "report_date": v.ReportDate,
@@ -650,6 +658,8 @@ func decodeWorking(data map[string]any) (*PreMarketWorking, error) {
 					WeeklyAnalysisRef: str(m, "weekly_analysis_ref"), Attitude: str(m, "attitude"),
 					CapitalFlowSummary:         str(m, "capital_flow_summary"),
 					CapitalDistributionSummary: str(m, "capital_distribution_summary"),
+					CapitalMainIn:              floatField(m, "capital_main_in"),
+					CapitalTotalIn:             floatField(m, "capital_total_in"),
 					ReportRef: str(m, "report_ref"), ReportID: str(m, "report_id"),
 					StockNewsSummary: str(m, "stock_news_summary"),
 					Frequency: str(m, "frequency"), TradeType: str(m, "trade_type"), ReportDate: str(m, "report_date"),
