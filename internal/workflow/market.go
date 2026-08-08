@@ -174,12 +174,9 @@ func buildMarketReportDraft(w *memory.PreMarketWorking, market string) string {
 	if summary == "" {
 		summary = "暂无"
 	}
-	fallback := fallbackMarketJudgement(w, market)
 	lines = append(lines,
 		"",
 		"## 市场综合判断",
-		"",
-		fmt.Sprintf("**市场情绪**：%s · **置信度**：%s", fallback.Result, fallback.Confidence),
 		"",
 		summary,
 		"",
@@ -191,7 +188,7 @@ func buildMarketReportDraft(w *memory.PreMarketWorking, market string) string {
 		"",
 		"---",
 		"",
-		"**报告生成**: geegoo-agent · skill `premarket_market`",
+		"*报告由 GeeGoo 智能体市场盘前 skill 生成*",
 	)
 	return strings.Join(lines, "\n")
 }

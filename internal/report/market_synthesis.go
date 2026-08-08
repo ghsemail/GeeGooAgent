@@ -127,7 +127,8 @@ func buildMarketSynthesisPrompt(
 - 禁止使用 Markdown 表格（含 | 列 | 值 | 形式）
 - 章节标题使用「指数概览」「市场新闻解读」「市场综合判断」，不要用「一、二、三」编号
 - 新闻解读：提取 3–5 条要点，禁止罗列发布时间或 🕐 时间戳；必须包含「**新闻面判断**」行（偏多/偏空/中性 + 理由）
-- 市场综合判断：用自然段 + **市场情绪** / **置信度** 标签行，不要表格
+- 市场综合判断：仅写综合结论段落及主要风险/今日关注，**禁止在 report 正文中写市场情绪、置信度、result、confidence**
+- 正文末尾仅一行脚注：*报告由 GeeGoo 智能体市场盘前 skill 生成*（不要写 geegoo-agent 版本号或下次更新时间）
 - 输出严格 JSON: {"report":"...","result":"...","confidence":"...","summary":"..."}`)
 	return []llm.Message{
 		{Role: llm.RoleSystem, Content: "你是严格的 JSON 市场报告综合器, 只输出 JSON, 不输出任何其它文字。"},
