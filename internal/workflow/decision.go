@@ -183,7 +183,7 @@ func abs(v float64) float64 {
 // TradeSummaryFromBotLog builds trade_summary from bot log snapshot.
 func TradeSummaryFromBotLog(ws memory.StockWorkspace) string {
 	summary := strings.TrimSpace(ws.BotLogSummary)
-	if summary == "" || summary == "[]" || summary == "{}" || summary == "map[]" {
+	if summary == "" || summary == "[]" || summary == "{}" || summary == "map[]" || len([]rune(summary)) < 40 {
 		if ws.HasPosition {
 			return fmt.Sprintf("当前持仓：%s", ws.PositionSummary)
 		}
