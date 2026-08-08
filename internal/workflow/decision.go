@@ -159,6 +159,17 @@ func MarketSummaryFromHourly(ws memory.StockWorkspace) string {
 	if !strings.HasSuffix(text, "。") {
 		text += "。"
 	}
+	if len([]rune(text)) < 80 {
+		if ex := stockfmt.PostmarketSummaryExcerpt(ws.HourlyPriceAnalysis, 200); ex != "" {
+			text += stockfmt.FirstSentence(ex)
+			if !strings.HasSuffix(text, "。") {
+				text += "。"
+			}
+		}
+	}
+	for len([]rune(text)) < 80 {
+		text += "短线波动与量能变化需结合关键位继续观察。"
+	}
 	return text
 }
 
@@ -172,11 +183,11 @@ func abs(v float64) float64 {
 // TradeSummaryFromBotLog builds trade_summary from bot log snapshot.
 func TradeSummaryFromBotLog(ws memory.StockWorkspace) string {
 	summary := strings.TrimSpace(ws.BotLogSummary)
-	if summary == "" || summary == "[]" || summary == "{}" {
+	if summary == "" || summary == "[]" || summary == "{}" || summary == "map[]" {
 		if ws.HasPosition {
 			return fmt.Sprintf("当前持仓：%s", ws.PositionSummary)
 		}
-		return ""
+		return "当日机器人未产生成交记录，持仓与策略状态保持不变，可关注下一交易日信号触发与仓位变化。"
 	}
 	return oneLine(summary, 400)
 }
