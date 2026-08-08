@@ -28,9 +28,13 @@ type Runner struct {
 
 // NewRunner creates a scheduler backed by the given app and jobs directory.
 func NewRunner(application *app.App, jobsDir string) *Runner {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		loc = time.FixedZone("CST", 8*3600)
+	}
 	return &Runner{
 		app: application, jobsDir: jobsDir,
-		cron: cron.New(),
+		cron: cron.New(cron.WithLocation(loc)),
 		retryIn: 30 * time.Minute, maxRetries: 2, retryCounts: map[string]int{},
 	}
 }
@@ -44,6 +48,8 @@ func (r *Runner) Start(ctx context.Context) error {
 	}
 	if len(jf.Jobs) == 0 {
 		jf = DefaultJobs()
+		_ = SaveJobs(r.jobsDir, jf)
+	} else if MigrateJobs(jf) {
 		_ = SaveJobs(r.jobsDir, jf)
 	}
 	for i := range jf.Jobs {

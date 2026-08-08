@@ -73,6 +73,25 @@ func TestDefaultJobsHasWeekdayPreMarket(t *testing.T) {
 	}
 }
 
+func TestMigrateJobsLegacySkillNames(t *testing.T) {
+	t.Parallel()
+	jf := &scheduler.JobsFile{
+		Jobs: []scheduler.Job{
+			{Name: "pre_market_cn", Skill: "pre_market", Cron: "0 8 * * 1-5", Enabled: true},
+			{Name: "pre_market_stock_hk", Skill: "pre_market_stock", Cron: "10 9 * * 1-5", Enabled: true},
+		},
+	}
+	if !scheduler.MigrateJobs(jf) {
+		t.Fatal("expected migration")
+	}
+	if jf.Jobs[0].Skill != "premarket_market" || jf.Jobs[0].Market != "CN" {
+		t.Fatalf("cn market job: %+v", jf.Jobs[0])
+	}
+	if jf.Jobs[1].Skill != "premarket_stock" || jf.Jobs[1].Market != "HK" {
+		t.Fatalf("hk stock job: %+v", jf.Jobs[1])
+	}
+}
+
 func TestFormatJobRendersState(t *testing.T) {
 	t.Parallel()
 	j := scheduler.Job{Name: "j1", Skill: "premarket_market", Market: "CN", Cron: "0 8 * * 1-5", Enabled: true,

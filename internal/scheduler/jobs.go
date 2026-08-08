@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -83,6 +84,43 @@ func DefaultJobs() *JobsFile {
 				Enabled: true, Platform: "log"},
 		},
 	}
+}
+
+// MigrateJobs upgrades legacy scheduler entries (pre_market → premarket_market, etc.).
+// Returns true when any job was changed.
+func MigrateJobs(jf *JobsFile) bool {
+	if jf == nil {
+		return false
+	}
+	skillAlias := map[string]string{
+		"pre_market":       "premarket_market",
+		"pre_market_stock": "premarket_stock",
+		"post_market":      "postmarket_stock",
+	}
+	changed := false
+	for i := range jf.Jobs {
+		j := &jf.Jobs[i]
+		if newSkill, ok := skillAlias[j.Skill]; ok {
+			j.Skill = newSkill
+			changed = true
+		}
+		if strings.TrimSpace(j.Market) != "" {
+			continue
+		}
+		name := strings.ToLower(j.Name)
+		switch {
+		case strings.Contains(name, "_cn") || strings.HasSuffix(name, "cn"):
+			j.Market = "CN"
+			changed = true
+		case strings.Contains(name, "_hk") || strings.HasSuffix(name, "hk"):
+			j.Market = "HK"
+			changed = true
+		case strings.Contains(name, "_us") || strings.HasSuffix(name, "us"):
+			j.Market = "US"
+			changed = true
+		}
+	}
+	return changed
 }
 
 // SortJobs orders jobs by name for stable display.
