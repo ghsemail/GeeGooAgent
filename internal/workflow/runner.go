@@ -171,7 +171,8 @@ func (r *Runner) RunFrom(
 						working.Stocks[code] = ws
 						_ = r.working.Save(working)
 					}
-					return *errResult
+					skipStock = true
+					break
 				}
 				if step.Tool == "list_today_reports" || step.Tool == "list_today_stock_postmarket_reports" {
 					if working.Stocks[code].Status == "skipped" {
@@ -336,7 +337,11 @@ func optionalStep(step Step) bool {
 	if strings.HasPrefix(step.Name, "index_") {
 		return true
 	}
-	return strings.HasPrefix(step.Name, "market_news_")
+	if strings.HasPrefix(step.Name, "market_news_") {
+		return true
+	}
+	// Bot logs may be missing when MCP token scope or bot ownership differs.
+	return step.Tool == "get_bot_log_by_type"
 }
 
 func indexCodeFromStep(step Step, ctx context.Context, working *memory.PreMarketWorking) string {
