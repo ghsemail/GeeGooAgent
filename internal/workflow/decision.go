@@ -161,7 +161,7 @@ func TradeSummaryFromBotLog(ws memory.StockWorkspace) string {
 	if ws.HasPosition {
 		return fmt.Sprintf("当前持仓：%s", ws.PositionSummary)
 	}
-	return "今日 Bot 日志未返回有效成交记录，持仓状态以账户同步为准。"
+	return "今日 Bot 日志未返回有效成交记录，持仓状态以账户同步为准；若策略应有调仓请核对提醒开关与账户授权状态。"
 }
 
 // ExperienceSummaryDefault builds a post-market experience paragraph.
