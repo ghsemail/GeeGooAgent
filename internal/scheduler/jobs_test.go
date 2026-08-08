@@ -107,9 +107,28 @@ func TestMigratePostmarketWeekdaySplit(t *testing.T) {
 		t.Fatalf("us postmarket job: %+v", enabled)
 	}
 	for _, j := range jf.Jobs {
-		if j.Name == "postmarket_stock_weekday" && j.Enabled {
-			t.Fatal("legacy weekday job should be disabled")
+		if j.Name == "postmarket_stock_weekday" {
+			t.Fatal("legacy weekday job should be removed")
 		}
+	}
+	if len(jf.Jobs) != 3 {
+		t.Fatalf("expected 3 postmarket jobs after migration, got %d: %+v", len(jf.Jobs), jf.Jobs)
+	}
+}
+
+func TestPruneLegacyPostmarketWeekday(t *testing.T) {
+	t.Parallel()
+	jf := &scheduler.JobsFile{
+		Jobs: []scheduler.Job{
+			{Name: "postmarket_stock_weekday", Skill: "postmarket_stock", Cron: "0 17 * * 1-5", Enabled: false},
+			{Name: "postmarket_stock_cn", Skill: "postmarket_stock", Market: "CN", Cron: "0 17 * * 1-5", Enabled: true},
+		},
+	}
+	if !scheduler.MigrateJobs(jf) {
+		t.Fatal("expected prune")
+	}
+	if len(jf.Jobs) != 1 || jf.Jobs[0].Name != "postmarket_stock_cn" {
+		t.Fatalf("unexpected jobs: %+v", jf.Jobs)
 	}
 }
 

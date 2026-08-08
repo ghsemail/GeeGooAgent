@@ -108,11 +108,6 @@ func MigrateJobs(jf *JobsFile) bool {
 			j.Skill = newSkill
 			changed = true
 		}
-		if j.Skill == "postmarket_stock" && strings.TrimSpace(j.Market) == "" &&
-			(j.Name == "postmarket_stock_weekday" || j.Cron == "0 17 * * 1-5") {
-			j.Enabled = false
-			changed = true
-		}
 		if strings.TrimSpace(j.Market) != "" {
 			continue
 		}
@@ -129,10 +124,38 @@ func MigrateJobs(jf *JobsFile) bool {
 			changed = true
 		}
 	}
-	if changed {
-		ensurePostmarketMarketJobs(jf)
+	if pruneLegacyJobs(jf) {
+		changed = true
 	}
+	ensurePostmarketMarketJobs(jf)
 	return changed
+}
+
+func isLegacyRemovedJob(j Job) bool {
+	if j.Name == "postmarket_stock_weekday" {
+		return true
+	}
+	// Old combined postmarket job without per-market scope.
+	return j.Skill == "postmarket_stock" && strings.TrimSpace(j.Market) == ""
+}
+
+func pruneLegacyJobs(jf *JobsFile) bool {
+	if jf == nil {
+		return false
+	}
+	out := make([]Job, 0, len(jf.Jobs))
+	removed := false
+	for _, j := range jf.Jobs {
+		if isLegacyRemovedJob(j) {
+			removed = true
+			continue
+		}
+		out = append(out, j)
+	}
+	if removed {
+		jf.Jobs = out
+	}
+	return removed
 }
 
 func ensurePostmarketMarketJobs(jf *JobsFile) {
