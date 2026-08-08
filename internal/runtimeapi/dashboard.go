@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -22,6 +23,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	factmem "github.com/ghsemail/GeeGooAgent/internal/memory/facts"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
+	"github.com/ghsemail/GeeGooAgent/internal/scheduler"
 	"github.com/ghsemail/GeeGooAgent/internal/skills"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
@@ -906,5 +908,37 @@ func buildProceduralSkillsPayload(app *app.App) ([]map[string]any, map[string]an
 			})
 		}
 	}
+	projectRoot := "."
+	if app != nil {
+		projectRoot = app.ProjectRoot()
+	}
+	skills.AttachWorkflowDetails(out, projectRoot, loadSchedulerJobViews(app))
 	return out, cfg.Map()
+}
+
+func loadSchedulerJobViews(app *app.App) []skills.SchedulerJobView {
+	jobs := loadSchedulerJobs(app)
+	out := make([]skills.SchedulerJobView, 0, len(jobs))
+	for _, j := range jobs {
+		out = append(out, skills.SchedulerJobView{
+			Name:        j.Name,
+			Skill:       j.Skill,
+			Cron:        j.Cron,
+			Enabled:     j.Enabled,
+			LastRun:     j.LastRun,
+			LastVerdict: j.LastVerdict,
+		})
+	}
+	return out
+}
+
+func loadSchedulerJobs(app *app.App) []scheduler.Job {
+	if app == nil || strings.TrimSpace(app.Workspace) == "" {
+		return scheduler.DefaultJobs().Jobs
+	}
+	jf, err := scheduler.LoadJobs(filepath.Join(app.Workspace, "scheduler"))
+	if err != nil || len(jf.Jobs) == 0 {
+		return scheduler.DefaultJobs().Jobs
+	}
+	return jf.Jobs
 }

@@ -770,10 +770,31 @@ func (a *App) EndpointSummary() string {
 	)
 }
 
+// ProjectRoot returns the directory used to locate bundled skills/ and config assets.
+func (a *App) ProjectRoot() string {
+	return findProjectRoot()
+}
+
+// ProjectRoot returns the directory used to locate bundled skills/ and config assets.
+func ProjectRoot() string {
+	return findProjectRoot()
+}
+
 func findProjectRoot() string {
 	wd, err := os.Getwd()
 	if err != nil {
 		return "."
+	}
+	dir := wd
+	for i := 0; i < 8; i++ {
+		if _, err := os.Stat(filepath.Join(dir, "skills", "pre_market", "manifest.yaml")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
 	}
 	return wd
 }
