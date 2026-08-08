@@ -121,7 +121,9 @@ func MarketPhaseSteps(market string) []Step {
 func StockPhaseASteps(market string) []Step {
 	market = NormalizeMarket(market)
 	return []Step{
-		{Name: "get_market_premarket_report", Tool: "get_market_premarket_report", Arguments: map[string]any{"market": market}},
+		{Name: "get_market_premarket_report", Tool: "get_market_premarket_report", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
+			return map[string]any{"market": market, "report_date": ReportDateFor(w)}
+		}},
 		{Name: "get_report_bot_codes", Tool: "get_report_bot_codes"},
 		Step{Name: "phase_a_complete", Tool: "write_execution_log", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			return map[string]any{
