@@ -183,8 +183,15 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			if err != nil {
 				return errResult(err)
 			}
-			return Result{Status: StatusOK, Summary: fmt.Sprintf("%s price=%v", code, price.Price),
-				Data: map[string]any{"code": code, "price": price.Price, "source": "GeeGooBot-mcp-api"}}
+			data := map[string]any{"code": code, "price": price.Price, "source": "GeeGooBot-mcp-api"}
+			if price.HasChangePct {
+				data["change_pct"] = price.ChangePct
+			}
+			if price.PrevClose != 0 {
+				data["prev_close"] = price.PrevClose
+			}
+			return Result{Status: StatusOK, Summary: fmt.Sprintf("%s price=%v change_pct=%v", code, price.Price, price.ChangePct),
+				Data: data}
 		},
 	})
 	r.Register(Tool{

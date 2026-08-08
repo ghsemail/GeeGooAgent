@@ -259,6 +259,9 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 				ws.CurrentPrice = price
 				ws.PriceSource = "get_current_price"
 			}
+			if _, hasChange := data["change_pct"]; hasChange {
+				ws.ChangePct = floatField(data, "change_pct")
+			}
 			updated.Stocks[code] = ws
 			finalizeDerivedFields(updated, &ws, code)
 		}

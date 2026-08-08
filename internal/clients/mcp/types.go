@@ -84,9 +84,12 @@ type SearchCodeItem struct {
 	LotSize   int    `json:"lot_size,omitempty"`
 }
 
-// CurrentPriceData from /getCurrentPrice.
+// CurrentPriceData from /getCurrentPrice (+ optional change from /getDailyPriceChange).
 type CurrentPriceData struct {
-	Price float64 `json:"price"`
+	Price        float64 `json:"price"`
+	ChangePct    float64 `json:"change_pct,omitempty"`
+	PrevClose    float64 `json:"prev_close,omitempty"`
+	HasChangePct bool    `json:"-"`
 }
 
 // NewsItem from /getMarketNews and /getStockNews.

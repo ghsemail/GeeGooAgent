@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
 )
 
 // DecideIntraday applies geegoo intraday decision rules (Step 5.5).
@@ -165,9 +166,41 @@ func TradeSummaryFromBotLog(ws memory.StockWorkspace) string {
 
 // ExperienceSummaryDefault builds a post-market experience paragraph.
 func ExperienceSummaryDefault(ws memory.StockWorkspace, vs string) string {
+	bias := stockfmt.LocalizeAttitude(ws.SessionBias)
+	if bias == "" || bias == ws.SessionBias {
+		bias = localizeSessionBias(ws.SessionBias)
+	}
 	return fmt.Sprintf(
-		"今日盘面 session_bias=%s，与盘前对照为 %s。复盘时应优先核对盘前观点与盘中实际走势是否一致，"+
-			"并记录 Bot 在 %s 频率下的信号触发与执行偏差，便于后续调整 attitude 开关或止盈止损参数。",
-		ws.SessionBias, vs, ws.BotType,
+		"今日盘面倾向为%s，与盘前对照结论为%s。复盘时应优先核对盘前观点与盘中实际走势是否一致，"+
+			"并记录 Bot（%s）在当日信号触发与执行上的偏差，便于后续调整 attitude 开关或止盈止损参数。",
+		bias, localizeVsPreMarket(vs), strings.TrimSpace(ws.BotType),
 	)
+}
+
+func localizeSessionBias(bias string) string {
+	switch strings.ToLower(strings.TrimSpace(bias)) {
+	case "bullish":
+		return "偏多"
+	case "bearish":
+		return "偏空"
+	case "neutral", "":
+		return "中性"
+	default:
+		return bias
+	}
+}
+
+func localizeVsPreMarket(vs string) string {
+	switch strings.ToLower(strings.TrimSpace(vs)) {
+	case "aligned":
+		return "一致"
+	case "partial":
+		return "部分一致"
+	case "contradicted":
+		return "相矛盾"
+	case "na", "":
+		return "无法对照"
+	default:
+		return vs
+	}
 }

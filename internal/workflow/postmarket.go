@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
 )
 
 // PostMarketPhaseASteps returns post-market prelude (trading day + bot list).
@@ -60,20 +61,21 @@ func BuildPostMarketReportContent(w *memory.PreMarketWorking, code string) strin
 	if vs == "" {
 		vs = VsPreMarket(ws.PreMarketResult, bias)
 	}
+	biasLabel := localizeSessionBias(bias)
 	lines := []string{
 		"## 今日行情",
 		"",
-		fmt.Sprintf("交易日 %s，涨跌幅 %.2f%%，盘面倾向 %s。", sessionDate, ws.ChangePct, bias),
+		fmt.Sprintf("交易日 %s，涨跌幅 %.2f%%，盘面倾向 %s。", sessionDate, ws.ChangePct, biasLabel),
 		"",
 	}
 	if ws.HourlyPriceAnalysis != "" {
-		lines = append(lines, "### 小时级价格分析", ws.HourlyPriceAnalysis, "")
+		lines = append(lines, "### 小时级价格分析", stockfmt.FormatWeeklyAnalysis(ws.HourlyPriceAnalysis), "")
 	}
 	if ws.HourlySignalAnalysis != "" {
-		lines = append(lines, "### 小时级信号分析", ws.HourlySignalAnalysis, "")
+		lines = append(lines, "### 小时级信号分析", stockfmt.FormatWeeklyAnalysis(ws.HourlySignalAnalysis), "")
 	}
 	if ws.HourlyKlineAnalysis != "" {
-		lines = append(lines, "### 小时级 K 线分析", ws.HourlyKlineAnalysis, "")
+		lines = append(lines, "### 小时级 K 线分析", stockfmt.FormatWeeklyAnalysis(ws.HourlyKlineAnalysis), "")
 	}
 	lines = append(lines, "## 交易复盘", "", TradeSummaryFromBotLog(ws), "")
 	lines = append(lines, "## 与盘前对照", "",
@@ -92,14 +94,27 @@ func postMarketComparisonNarrative(ws memory.StockWorkspace, bias, vs string) st
 		return "当日无盘前报告可对照。"
 	}
 	parts := []string{
-		fmt.Sprintf("盘前判断为 %s", pre),
-		fmt.Sprintf("今日盘面倾向 %s", bias),
+		fmt.Sprintf("盘前判断为 %s", localizePreMarketResult(pre)),
+		fmt.Sprintf("今日盘面倾向 %s", localizeSessionBias(bias)),
 	}
 	if id := strings.TrimSpace(ws.PreMarketReportID); id != "" {
 		parts = append(parts, fmt.Sprintf("关联盘前报告 %s", id))
 	}
-	parts = append(parts, fmt.Sprintf("对照结论：%s", vs))
+	parts = append(parts, fmt.Sprintf("对照结论：%s", localizeVsPreMarket(vs)))
 	return strings.Join(parts, "；") + "。"
+}
+
+func localizePreMarketResult(result string) string {
+	switch strings.ToLower(strings.TrimSpace(result)) {
+	case "long", "bullish", "buy":
+		return "看多"
+	case "short", "bearish", "sell":
+		return "看空"
+	case "neutral", "hold":
+		return "中性"
+	default:
+		return strings.TrimSpace(result)
+	}
 }
 
 // BuildCreateStockPostmarketReportArgs builds createStockPostmarketReport body.

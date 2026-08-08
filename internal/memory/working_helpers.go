@@ -86,7 +86,7 @@ func finalizeDerivedFields(w *PreMarketWorking, ws *StockWorkspace, code string)
 		if ws.IntradayResult == "" {
 			ws.IntradayResult, ws.IntradayConfidence = decideIntradayLocal(*ws)
 		}
-	case "stock_postmarket":
+	case "postmarket_stock":
 		if ws.SessionBias == "" {
 			ws.SessionBias = sessionBiasFromPct(ws.ChangePct)
 		}

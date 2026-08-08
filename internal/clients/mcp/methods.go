@@ -310,7 +310,7 @@ func (c *Client) SearchCode(ctx context.Context, regex string, markets []string)
 	return out, nil
 }
 
-// GetCurrentPrice calls POST /getCurrentPrice.
+// GetCurrentPrice calls POST /getCurrentPrice and enriches with daily change when available.
 func (c *Client) GetCurrentPrice(ctx context.Context, mcpToken, code string) (*CurrentPriceData, error) {
 	raw, err := c.PostDirect(ctx, "/getCurrentPrice", map[string]any{
 		"mcp_token": mcpToken,
@@ -323,8 +323,52 @@ func (c *Client) GetCurrentPrice(ctx context.Context, mcpToken, code string) (*C
 	if !ok {
 		return nil, newClientError("unexpected getCurrentPrice response", nil, 0)
 	}
-	price, _ := m["price"].(float64)
-	return &CurrentPriceData{Price: price}, nil
+	out := &CurrentPriceData{Price: floatFromAny(m["price"])}
+	if change, err := c.GetDailyPriceChange(ctx, mcpToken, code); err == nil && change != nil {
+		if _, ok := change["change_pct"]; ok {
+			out.ChangePct = floatFromAny(change["change_pct"])
+			out.HasChangePct = true
+		}
+		out.PrevClose = floatFromAny(change["prev_close"])
+		if out.Price == 0 {
+			out.Price = floatFromAny(change["price"])
+		}
+	}
+	return out, nil
+}
+
+// GetDailyPriceChange calls POST /getDailyPriceChange.
+func (c *Client) GetDailyPriceChange(ctx context.Context, mcpToken, code string) (map[string]any, error) {
+	payload, err := c.Post(ctx, "/getDailyPriceChange", map[string]any{
+		"mcp_token": mcpToken,
+		"code":      code,
+	})
+	if err != nil {
+		return nil, err
+	}
+	dataRaw, ok := payload["data"].(map[string]any)
+	if !ok || dataRaw == nil {
+		return nil, nil
+	}
+	return dataRaw, nil
+}
+
+func floatFromAny(v any) float64 {
+	switch x := v.(type) {
+	case float64:
+		return x
+	case float32:
+		return float64(x)
+	case int:
+		return float64(x)
+	case int64:
+		return float64(x)
+	case json.Number:
+		f, _ := x.Float64()
+		return f
+	default:
+		return 0
+	}
 }
 
 func decodeTradingDay(data map[string]any) (*TradingDayData, error) {
