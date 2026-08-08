@@ -623,7 +623,7 @@ func (a *App) RunSkillContext(ctx context.Context, skill string, runOpts ...Skil
 		if market == "" {
 			return workflow.RunResult{}, fmt.Errorf("premarket_stock requires market=CN|HK|US")
 		}
-		return a.runPreMarketStockForMarket(ctx, market)
+		return a.runPreMarketStockForMarket(ctx, market, opts)
 	}
 	phaseA, perStock, err := a.resolveSkillSteps(skill, opts.Market)
 	if err != nil {
@@ -694,20 +694,21 @@ func (a *App) runSkillWithSteps(ctx context.Context, skill string, phaseA, perSt
 	return result, nil
 }
 
-func (a *App) runPreMarketStockForMarket(ctx context.Context, market string) (workflow.RunResult, error) {
+func (a *App) runPreMarketStockForMarket(ctx context.Context, market string, opts SkillRunOptions) (workflow.RunResult, error) {
 	if a == nil || a.MCP == nil {
 		return workflow.RunResult{}, fmt.Errorf("mcp client not configured")
 	}
-	token := ""
-	if a.Config != nil {
+	token := strings.TrimSpace(opts.MCPToken)
+	if token == "" && a.Config != nil {
 		token = strings.TrimSpace(a.Config.MCPToken())
 	}
 	if token == "" {
 		return workflow.RunResult{}, fmt.Errorf("mcp_token required to list report users")
 	}
+	baseOpts := SkillRunOptions{Market: market, MCPToken: token, ReportDate: opts.ReportDate}
 	users, err := a.MCP.ListReportUsers(ctx, token, market)
 	if err != nil || len(users) == 0 {
-		return a.runSkillWithSteps(ctx, "premarket_stock", workflow.StockPhaseASteps(market), workflow.PerStockSteps(), SkillRunOptions{Market: market, MCPToken: token})
+		return a.runSkillWithSteps(ctx, "premarket_stock", workflow.StockPhaseASteps(market), workflow.PerStockSteps(), baseOpts)
 	}
 	var last workflow.RunResult
 	var lastErr error
@@ -716,10 +717,9 @@ func (a *App) runPreMarketStockForMarket(ctx context.Context, market string) (wo
 		if userToken == "" {
 			continue
 		}
-		result, runErr := a.runSkillWithSteps(ctx, "premarket_stock", workflow.StockPhaseASteps(market), workflow.PerStockSteps(), SkillRunOptions{
-			Market:   market,
-			MCPToken: userToken,
-		})
+		userOpts := baseOpts
+		userOpts.MCPToken = userToken
+		result, runErr := a.runSkillWithSteps(ctx, "premarket_stock", workflow.StockPhaseASteps(market), workflow.PerStockSteps(), userOpts)
 		last = result
 		lastErr = runErr
 		if runErr != nil {
