@@ -47,8 +47,10 @@ type StockWorkspace struct {
 	Status                     string `json:"status"`
 	WeeklyAnalysisRef          string `json:"weekly_analysis_ref,omitempty"`
 	Attitude                   string `json:"attitude,omitempty"`
-	CapitalFlowSummary         string `json:"capital_flow_summary,omitempty"`
-	CapitalDistributionSummary string `json:"capital_distribution_summary,omitempty"`
+	CapitalFlowSummary         string  `json:"capital_flow_summary,omitempty"`
+	CapitalDistributionSummary string  `json:"capital_distribution_summary,omitempty"`
+	CapitalMainIn              float64 `json:"capital_main_in,omitempty"`
+	CapitalTotalIn             float64 `json:"capital_total_in,omitempty"`
 	ReportRef                  string `json:"report_ref,omitempty"`
 	ReportID                   string `json:"report_id,omitempty"`
 	StockNewsSummary           string  `json:"stock_news_summary,omitempty"`
