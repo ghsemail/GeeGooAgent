@@ -86,6 +86,24 @@ func (h *Handler) loadOrMigrateFeishuCreds(userID string) (*feishustore.Creds, e
 	return migrated, nil
 }
 
+func (h *Handler) syncMCPTokenFromRequest(creds *feishustore.Creds, r *http.Request) *feishustore.Creds {
+	if creds == nil || !creds.Configured() {
+		return creds
+	}
+	headerTok := resolveMCPTokenHeader(r)
+	if headerTok == "" {
+		return creds
+	}
+	if strings.TrimSpace(creds.MCPToken) == headerTok {
+		return creds
+	}
+	creds.MCPToken = headerTok
+	if err := feishustore.Save(h.feishuOutputDir(), creds); err != nil {
+		return creds
+	}
+	return creds
+}
+
 func (h *Handler) feishuGatewayStatus(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.requireFeishuUser(w, r)
 	if !ok {
@@ -96,7 +114,10 @@ func (h *Handler) feishuGatewayStatus(w http.ResponseWriter, r *http.Request) {
 		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	creds = h.syncMCPTokenFromRequest(creds, r)
 	configured := creds != nil && creds.Configured()
+	headerTok := resolveMCPTokenHeader(r)
+	hasMCP := (creds != nil && strings.TrimSpace(creds.MCPToken) != "") || headerTok != ""
 
 	hb, hbOK := gateway.ReadHeartbeat()
 	processAlive := hbOK && gateway.HeartbeatFresh(hb, 30*time.Second)
@@ -146,17 +167,20 @@ func (h *Handler) feishuGatewayStatus(w http.ResponseWriter, r *http.Request) {
 		"bot_name":          botName,
 		"bot_open_id":       botOID,
 		"allowed_users":     allowed,
-		"has_mcp_token":     creds != nil && strings.TrimSpace(creds.MCPToken) != "",
+		"has_mcp_token":     hasMCP,
 		"heartbeat_at":      heartbeatAt,
 		"tenant_scope":      "user",
 		"store_dir":         feishustore.Dir(h.feishuOutputDir()),
-		"hint":              feishuStatusHint(configured, userConnected, processAlive),
+		"hint":              feishuStatusHint(configured, userConnected, processAlive, hasMCP),
 	})
 }
 
-func feishuStatusHint(configured, userConnected, processAlive bool) string {
+func feishuStatusHint(configured, userConnected, processAlive, hasMCP bool) string {
 	if !configured {
-		return "扫码或手动填写 App ID / Secret；凭证按当前登录用户保存，并绑定你的 mcp_token。"
+		return "扫码或手动填写 App ID / Secret；凭证按当前登录用户保存。"
+	}
+	if !hasMCP {
+		return "飞书机器人已配置，但尚未带上 Web Gateway 的 mcp_token：请确认 Web tab 已保存 Token 后刷新本页（会自动写入飞书绑定）。"
 	}
 	if !processAlive {
 		return "凭证已就绪，但 geegoo gateway run 未在跑：请在 Agent 机启动后自动加载你的机器人。"
