@@ -78,6 +78,7 @@ func runGatewayRun(args []string) {
 		},
 		HomeChannels: map[gateway.Platform]gateway.HomeChannel{},
 		DryRun:       *dryRun || application.Config.DryRun,
+		ToolProgress: fsCfg.ToolProgress,
 	}
 	if home, ok := fsCfg.Home(); ok {
 		gcfg.HomeChannels[gateway.PlatformFeishu] = home

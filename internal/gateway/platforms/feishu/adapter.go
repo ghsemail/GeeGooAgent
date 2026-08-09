@@ -177,20 +177,62 @@ func (a *Adapter) ensureAPI() {
 }
 
 func (a *Adapter) SendText(ctx context.Context, msg gateway.OutboundText) error {
+	_, err := a.SendTextID(ctx, msg)
+	return err
+}
+
+// SendTextID sends a markdown post (text fallback) and returns the Feishu message_id.
+func (a *Adapter) SendTextID(ctx context.Context, msg gateway.OutboundText) (string, error) {
 	a.ensureAPI()
 	postContent := BuildMarkdownPostPayload(msg.Text)
-	if err := a.sendContent(ctx, msg, "post", postContent); err != nil {
+	id, err := a.sendContent(ctx, msg, "post", postContent)
+	if err != nil {
 		if !isPostContentInvalid(err) {
-			return err
+			return "", err
 		}
 		slog.Warn("feishu: post rejected, falling back to text", "err", err)
 		textContent, _ := json.Marshal(map[string]string{"text": PlainTextFallback(msg.Text)})
 		return a.sendContent(ctx, msg, "text", string(textContent))
 	}
+	return id, nil
+}
+
+// EditText updates an existing bot message (progress bubble).
+func (a *Adapter) EditText(ctx context.Context, messageID, text string) error {
+	if messageID == "" {
+		return fmt.Errorf("feishu edit: empty message id")
+	}
+	a.ensureAPI()
+	postContent := BuildMarkdownPostPayload(text)
+	if err := a.updateContent(ctx, messageID, "post", postContent); err != nil {
+		if !isPostContentInvalid(err) {
+			return err
+		}
+		textContent, _ := json.Marshal(map[string]string{"text": PlainTextFallback(text)})
+		return a.updateContent(ctx, messageID, "text", string(textContent))
+	}
 	return nil
 }
 
-func (a *Adapter) sendContent(ctx context.Context, msg gateway.OutboundText, msgType, content string) error {
+func (a *Adapter) updateContent(ctx context.Context, messageID, msgType, content string) error {
+	req := larkim.NewUpdateMessageReqBuilder().
+		MessageId(messageID).
+		Body(larkim.NewUpdateMessageReqBodyBuilder().
+			MsgType(msgType).
+			Content(content).
+			Build()).
+		Build()
+	resp, err := a.api.Im.V1.Message.Update(ctx, req)
+	if err != nil {
+		return err
+	}
+	if !resp.Success() {
+		return fmt.Errorf("feishu update: code=%d msg=%s", resp.Code, resp.Msg)
+	}
+	return nil
+}
+
+func (a *Adapter) sendContent(ctx context.Context, msg gateway.OutboundText, msgType, content string) (string, error) {
 	if msg.ReplyToID != "" {
 		req := larkim.NewReplyMessageReqBuilder().
 			MessageId(msg.ReplyToID).
@@ -201,14 +243,14 @@ func (a *Adapter) sendContent(ctx context.Context, msg gateway.OutboundText, msg
 			Build()
 		resp, err := a.api.Im.V1.Message.Reply(ctx, req)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if resp.Success() {
-			return nil
+			return messageIDFromPtr(resp.Data), nil
 		}
 		// Parent withdrawn/missing → fall through to create in chat.
 		if resp.Code != 230011 && resp.Code != 231003 {
-			return fmt.Errorf("feishu reply: code=%d msg=%s", resp.Code, resp.Msg)
+			return "", fmt.Errorf("feishu reply: code=%d msg=%s", resp.Code, resp.Msg)
 		}
 		slog.Warn("feishu: reply target missing, creating in chat", "code", resp.Code)
 	}
@@ -223,12 +265,26 @@ func (a *Adapter) sendContent(ctx context.Context, msg gateway.OutboundText, msg
 		Build()
 	resp, err := a.api.Im.V1.Message.Create(ctx, req)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if !resp.Success() {
-		return fmt.Errorf("feishu send: code=%d msg=%s", resp.Code, resp.Msg)
+		return "", fmt.Errorf("feishu send: code=%d msg=%s", resp.Code, resp.Msg)
 	}
-	return nil
+	return messageIDFromCreate(resp.Data), nil
+}
+
+func messageIDFromPtr(data *larkim.ReplyMessageRespData) string {
+	if data == nil || data.MessageId == nil {
+		return ""
+	}
+	return *data.MessageId
+}
+
+func messageIDFromCreate(data *larkim.CreateMessageRespData) string {
+	if data == nil || data.MessageId == nil {
+		return ""
+	}
+	return *data.MessageId
 }
 
 func isPostContentInvalid(err error) bool {

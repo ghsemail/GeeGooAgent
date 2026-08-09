@@ -25,6 +25,12 @@ type ProcessingIndicator interface {
 	MarkFailed(ctx context.Context, messageID string) error
 }
 
+// EditableMessenger can create a message and later edit it (tool progress bubble).
+type EditableMessenger interface {
+	SendTextID(ctx context.Context, msg OutboundText) (messageID string, err error)
+	EditText(ctx context.Context, messageID, text string) error
+}
+
 // AdapterStatus is a snapshot for `geegoo gateway status`.
 type AdapterStatus struct {
 	Platform  Platform

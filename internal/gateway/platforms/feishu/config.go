@@ -19,6 +19,7 @@ type Config struct {
 	RequireMention bool
 	BotOpenID      string // optional override
 	BotName        string
+	ToolProgress   bool // editable progress bubble (default true)
 }
 
 // LoadConfigFromEnv reads FEISHU_* environment variables.
@@ -43,6 +44,10 @@ func LoadConfigFromEnv(getenv func(string) string) Config {
 		policy = "allowlist"
 	}
 	allowAll := strings.EqualFold(strings.TrimSpace(getenv("FEISHU_ALLOW_ALL_USERS")), "true")
+	toolProgress := true
+	if v := strings.TrimSpace(strings.ToLower(getenv("FEISHU_TOOL_PROGRESS"))); v == "0" || v == "false" || v == "off" || v == "none" {
+		toolProgress = false
+	}
 	return Config{
 		AppID:          strings.TrimSpace(getenv("FEISHU_APP_ID")),
 		AppSecret:      strings.TrimSpace(getenv("FEISHU_APP_SECRET")),
@@ -55,6 +60,7 @@ func LoadConfigFromEnv(getenv func(string) string) Config {
 		RequireMention: requireMention,
 		BotOpenID:      strings.TrimSpace(getenv("FEISHU_BOT_OPEN_ID")),
 		BotName:        strings.TrimSpace(getenv("FEISHU_BOT_NAME")),
+		ToolProgress:   toolProgress,
 	}
 }
 

@@ -19,6 +19,8 @@ type Config struct {
 	AllowAll     map[Platform]bool
 	HomeChannels map[Platform]HomeChannel
 	DryRun       bool
+	// ToolProgress enables a single editable progress bubble (tool_start/done).
+	ToolProgress bool
 }
 
 // Runner owns adapters and routes inbound events into Agent.Run.
@@ -31,6 +33,7 @@ type Runner struct {
 	mu     sync.Mutex
 	chatMu map[string]*sync.Mutex // serialise per SessionKey
 	seen   *dedupCache
+	agentMu sync.Mutex // serialise Agent.SetProgress + Run across chats
 }
 
 // NewRunner constructs a gateway runner.
@@ -229,6 +232,19 @@ func (r *Runner) runAgentTurn(ctx context.Context, key string, ev InboundEvent, 
 	toolCtx := r.App.ToolContext(rt.ID)
 	toolCtx.DryRun = r.Config.DryRun || (r.App.Config != nil && r.App.Config.DryRun)
 	toolCtx.Interactive = false // IM: no TUI clarify; mutating tools follow non-interactive policy
+
+	r.agentMu.Lock()
+	defer r.agentMu.Unlock()
+
+	var progress *progressPublisher
+	if r.Config.ToolProgress && !r.Config.DryRun {
+		if ed, ok := r.adapter(ev.Platform).(EditableMessenger); ok {
+			progress = newProgressPublisher(ctx, ed, ev.ChatID, ev.MessageID)
+			r.App.Agent.SetProgress(progress.OnEvent)
+			defer r.App.Agent.SetProgress(nil)
+			defer progress.Flush()
+		}
+	}
 
 	result := r.App.Agent.Run(ctx, rt, text, toolCtx, schemas)
 	newRecords := make([]chatsession.ChatStepRecord, 0, len(result.StepRecords))
