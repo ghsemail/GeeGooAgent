@@ -173,6 +173,9 @@ func isIntradayRawDataLine(line string) bool {
 	if strings.Contains(trim, "特征：表现：含义") {
 		return true
 	}
+	if strings.Contains(trim, "K线形态") && strings.Contains(trim, "信号") {
+		return true
+	}
 	return false
 }
 

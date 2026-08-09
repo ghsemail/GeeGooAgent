@@ -638,6 +638,7 @@ func RepairMCPBoldArtifacts(s string) string {
 	s = regexp.MustCompile(`\*\*([^*\n]{1,48}：[+-]?\d+(?:\.\d+)?%[^\n]*)`).ReplaceAllString(s, "$1")
 	s = regexp.MustCompile(`([+-]?\d+(?:\.\d+)?%)\*\*`).ReplaceAllString(s, "$1")
 	s = regexp.MustCompile(`\*\*([+-]?\d+(?:\.\d+)?%)`).ReplaceAllString(s, "$1")
+	s = strings.ReplaceAll(s, "****", "**")
 	return s
 }
 
