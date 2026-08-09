@@ -681,6 +681,7 @@ func (a *App) runSkillWithSteps(ctx context.Context, skill string, phaseA, perSt
 			in = *opts.Intraday
 		}
 		workflow.SeedIntradayWorking(working, in)
+		perStock = workflow.IntradayPerStockStepsForWorking(working)
 	}
 	if err := a.Working.Save(working); err != nil {
 		return workflow.RunResult{}, err

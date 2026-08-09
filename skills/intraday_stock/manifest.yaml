@@ -9,6 +9,7 @@ tools:
   - get_stock_daily_reports
   - get_capital_distribution
   - get_mcp_analysis
+  - get_hourly_analysis_bundle
   - get_current_price
   - get_ticker
   - create_stock_intraday_report

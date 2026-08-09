@@ -86,20 +86,29 @@ func SeedIntradayWorking(w *memory.PreMarketWorking, in IntradayInput) {
 // IntradayPhaseASteps is empty; intraday is seeded before phase B.
 func IntradayPhaseASteps() []Step { return nil }
 
-// IntradayPerStockSteps returns intraday decision steps for one triggered bot.
+// IntradayPerStockSteps returns intraday decision steps using GEEGOO_INTRADAY_FREQUENCY or 5m default.
 func IntradayPerStockSteps() []Step {
-	freq := parseFrequencyMinutes(intradayFrequency())
+	return intradayPerStockSteps(intradayFrequencyFromEnv())
+}
+
+// IntradayPerStockStepsForWorking builds steps using the seeded stock frequency (API/CLI), then env, then 5m.
+func IntradayPerStockStepsForWorking(w *memory.PreMarketWorking) []Step {
+	return intradayPerStockSteps(intradayFrequencyFromWorking(w))
+}
+
+func intradayPerStockSteps(freq string) []Step {
+	freqMins := parseFrequencyMinutes(freq)
 	steps := []Step{
 		{Name: "get_position", Tool: "get_position", ArgFunc: stockCodeArg},
 		{Name: "read_stock_premarket", Tool: "get_stock_daily_reports", ArgFunc: stockReportDateArg},
 		{Name: "capital_distribution", Tool: "get_capital_distribution", ArgFunc: stockCodeArg},
 	}
-	if freq >= 10 {
+	if freqMins >= 10 {
 		steps = append(steps, Step{
 			Name: "hourly_analysis_bundle", Tool: "get_hourly_analysis_bundle",
 			ArgFunc: mcpHourlyBundleArg,
 		})
-	} else if freq > 3 {
+	} else if freqMins > 3 {
 		steps = append(steps, Step{
 			Name: "hourly_price_analysis", Tool: "get_mcp_analysis",
 			ArgFunc: mcpHourlyArg(hourlyPricePromptID, "hourly_price"),
@@ -122,12 +131,30 @@ func IntradayPerStockSteps() []Step {
 	return steps
 }
 
-func intradayFrequency() string {
+func intradayFrequencyFromEnv() string {
 	if v := strings.TrimSpace(os.Getenv("GEEGOO_INTRADAY_FREQUENCY")); v != "" {
 		return v
 	}
 	return "5m"
 }
+
+func intradayFrequencyFromWorking(w *memory.PreMarketWorking) string {
+	if w != nil {
+		if code := strings.TrimSpace(w.CurrentStock); code != "" {
+			if freq := strings.TrimSpace(w.Stocks[code].Frequency); freq != "" {
+				return freq
+			}
+		}
+		for _, ws := range w.Stocks {
+			if freq := strings.TrimSpace(ws.Frequency); freq != "" {
+				return freq
+			}
+		}
+	}
+	return intradayFrequencyFromEnv()
+}
+
+func intradayFrequency() string { return intradayFrequencyFromEnv() }
 
 func stockCodeArg(w *memory.PreMarketWorking) map[string]any {
 	return map[string]any{"code": w.CurrentStock}
@@ -177,8 +204,13 @@ func BuildIntradayReportContent(w *memory.PreMarketWorking, code string) string 
 	result, confidence := ws.IntradayResult, ws.IntradayConfidence
 	if result == "" {
 		result, confidence = DecideIntraday(ws)
-		ws.IntradayResult, ws.IntradayConfidence = result, confidence
 	}
+	reason := ws.IntradayReason
+	if reason == "" {
+		reason = intradayReason(ws, result, confidence)
+	}
+	ws.IntradayResult, ws.IntradayConfidence, ws.IntradayReason = result, confidence, reason
+	w.Stocks[code] = ws
 	lines := []string{
 		"## 盘前报告参考",
 		"",
@@ -218,10 +250,6 @@ func BuildIntradayReportContent(w *memory.PreMarketWorking, code string) string 
 			fmt.Sprintf("- 价格来源: %s", ws.PriceSource),
 			fmt.Sprintf("- 参考价: %.4f", ws.CurrentPrice), "")
 	}
-	reason := ws.IntradayReason
-	if reason == "" {
-		reason = intradayReason(ws, result, confidence)
-	}
 	lines = append(lines,
 		"## 判定依据",
 		"",
@@ -236,18 +264,14 @@ func BuildIntradayReportContent(w *memory.PreMarketWorking, code string) string 
 
 // BuildCreateIntradayReportArgs builds createStockIntradayReport body.
 func BuildCreateIntradayReportArgs(ctx context.Context, w *memory.PreMarketWorking, code string) map[string]any {
+	report := BuildIntradayReportContent(w, code)
 	ws := w.Stocks[code]
 	result, confidence := ws.IntradayResult, ws.IntradayConfidence
-	if result == "" {
-		result, confidence = DecideIntraday(ws)
-	}
-	report := BuildIntradayReportContent(w, code)
 	reason := ws.IntradayReason
-	if reason == "" {
-		reason = intradayReason(ws, result, confidence)
-	}
 	if len([]rune(reason)) < 80 {
 		reason = padReason(reason, ws, result)
+		ws.IntradayReason = reason
+		w.Stocks[code] = ws
 	}
 	body := map[string]any{
 		"code": code, "stock_name": ws.StockName,

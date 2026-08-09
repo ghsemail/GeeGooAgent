@@ -11,7 +11,7 @@ func TestDecideIntradaySellWithoutPosition(t *testing.T) {
 	ws := memory.StockWorkspace{
 		TradeType: "信号卖出", BotType: "DCA", HasPosition: false,
 	}
-	result, _ := workflow.DecideIntraday(ws)
+	result, _ := memory.DecideIntraday(ws)
 	if result != "hold" {
 		t.Fatalf("expected hold, got %s", result)
 	}
@@ -47,6 +47,39 @@ func TestSeedIntradayWorking(t *testing.T) {
 func TestIntradayPerStockStepsNonEmpty(t *testing.T) {
 	if len(workflow.IntradayPerStockSteps()) == 0 {
 		t.Fatal("intraday steps empty")
+	}
+}
+
+func TestIntradayPerStockStepsUsesWorkingFrequency(t *testing.T) {
+	w := memory.NewPreMarketWorking("s1", "intraday_stock")
+	in := workflow.IntradayInput{
+		Code: "00700.HK", StockName: "腾讯控股",
+		BotID: "b1", BotName: "bot", BotType: "DCA",
+		Frequency: "15m", TradeType: "信号买入",
+	}
+	workflow.SeedIntradayWorking(w, in)
+	steps := workflow.IntradayPerStockStepsForWorking(w)
+	foundBundle := false
+	for _, step := range steps {
+		if step.Tool == "get_hourly_analysis_bundle" {
+			foundBundle = true
+		}
+	}
+	if !foundBundle {
+		t.Fatal("expected hourly bundle step for 15m frequency from working input")
+	}
+}
+
+func TestIntradayPerStockStepsSkipsHourlyForLowFrequency(t *testing.T) {
+	w := memory.NewPreMarketWorking("s1", "intraday_stock")
+	in := workflow.DefaultIntradayInput()
+	in.Frequency = "3m"
+	workflow.SeedIntradayWorking(w, in)
+	steps := workflow.IntradayPerStockStepsForWorking(w)
+	for _, step := range steps {
+		if step.Tool == "get_mcp_analysis" || step.Tool == "get_hourly_analysis_bundle" {
+			t.Fatalf("unexpected hourly step %s for 3m frequency", step.Tool)
+		}
 	}
 }
 

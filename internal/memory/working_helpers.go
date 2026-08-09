@@ -89,9 +89,9 @@ func botLogSummary(data map[string]any) string {
 
 func finalizeDerivedFields(w *PreMarketWorking, ws *StockWorkspace, code string) {
 	switch w.Skill {
-	case "stock_intraday":
+	case "intraday_stock":
 		if ws.IntradayResult == "" {
-			ws.IntradayResult, ws.IntradayConfidence = decideIntradayLocal(*ws)
+			ws.IntradayResult, ws.IntradayConfidence = DecideIntraday(*ws)
 		}
 	case "postmarket_stock":
 		if ws.SessionBias == "" {
@@ -102,28 +102,6 @@ func finalizeDerivedFields(w *PreMarketWorking, ws *StockWorkspace, code string)
 		}
 	}
 	w.Stocks[code] = *ws
-}
-
-func decideIntradayLocal(ws StockWorkspace) (string, string) {
-	result, confidence := "hold", "medium"
-	isBuy := strings.Contains(ws.TradeType, "买") || strings.Contains(strings.ToLower(ws.TradeType), "buy")
-	isSell := strings.Contains(ws.TradeType, "卖") || strings.Contains(strings.ToLower(ws.TradeType), "sell")
-	reminder := strings.Contains(strings.ToLower(ws.BotType), "reminder")
-	if isSell && !reminder && !ws.HasPosition {
-		return result, "low"
-	}
-	if isBuy {
-		if ws.PreMarketResult == "short" && ws.PreMarketConfidence == "high" {
-			return result, "low"
-		}
-		if ws.PreMarketResult == "" || ws.PreMarketResult == "long" || ws.PreMarketResult == "neutral" {
-			return "buy", confidence
-		}
-	}
-	if isSell && (reminder || ws.PreMarketResult == "short" || ws.PreMarketResult == "neutral" || ws.PreMarketResult == "") {
-		return "sell", confidence
-	}
-	return result, confidence
 }
 
 func sessionBiasFromPct(pct float64) string {
