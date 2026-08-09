@@ -1,7 +1,7 @@
 # Agent User 账户管理 + Gateway 只读状态
 
 **日期:** 2026-08-09  
-**状态:** 待用户审阅  
+**状态:** 已实现（MVP）  
 **范围仓库:** `trading_operation`（UI）、`GeeGooBot`（用户/mcp 列表与解析）、`GeeGooAgent`（per-user LLM + 飞书绑定身份）
 
 ## 背景
