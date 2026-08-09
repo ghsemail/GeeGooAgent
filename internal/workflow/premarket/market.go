@@ -1,10 +1,15 @@
-package workflow
+package premarket
 
 import (
 	"context"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/prompts"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/step"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/templates"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/textutil"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/verdict"
@@ -73,41 +78,41 @@ func NormalizeMarket(m string) string {
 }
 
 // MarketPhaseSteps returns phase A for one market pre-market report skill.
-func MarketPhaseSteps(market string) []Step {
+func MarketPhaseSteps(market string) []step.Step {
 	market = NormalizeMarket(market)
 	checkCode := marketTradingDayCode[market]
 	if checkCode == "" {
 		checkCode = "00700.HK"
 	}
-	steps := []Step{
+	steps := []step.Step{
 		{Name: "check_trading_day", Tool: "check_trading_day", Arguments: map[string]any{"code": checkCode}},
 	}
 	for _, idx := range marketIndices[market] {
-		steps = append(steps, Step{
+		steps = append(steps, step.Step{
 			Name: "index_" + idx.Code,
 			Tool: "get_mcp_analysis",
 			Arguments: map[string]any{
-				"name": idx.Name, "code": idx.Code, "prompt_id": indexPromptID, "period": "hourly", "language": "cn",
+				"name": idx.Name, "code": idx.Code, "prompt_id": prompts.IndexPromptID, "period": "hourly", "language": "cn",
 			},
 		})
 	}
-	steps = append(steps, Step{
+	steps = append(steps, step.Step{
 		Name:      "market_news_" + strings.ToLower(market),
 		Tool:      "fetch_market_news",
 		Arguments: map[string]any{"market": market, "limit": 8},
 	})
 	steps = append(steps,
-		Step{Name: "save_local_report", Tool: "save_local_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
+		step.Step{Name: "save_local_report", Tool: "save_local_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
 			bundle := ensureMarketReportBundle(ctx, w, market)
 			return map[string]any{
 				"code": fmt.Sprintf("market-%s", market), "content": bundle.Report,
 				"report_type": "market_premarket", "report_date": ReportDateFor(w),
 			}
 		}},
-		Step{Name: "create_market_premarket_report", Tool: "create_market_premarket_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
+		step.Step{Name: "create_market_premarket_report", Tool: "create_market_premarket_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
 			return BuildCreateMarketReportArgsContext(ctx, w, market)
 		}},
-		Step{Name: "phase_a_complete", Tool: "write_execution_log", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
+		step.Step{Name: "phase_a_complete", Tool: "write_execution_log", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			return map[string]any{
 				"step": "phase_a_complete", "message": fmt.Sprintf("market=%s indices=%v", market, w.MarketContext.IndexCodesDone),
 				"status": "ok",
@@ -118,14 +123,14 @@ func MarketPhaseSteps(market string) []Step {
 }
 
 // StockPhaseASteps returns prelude steps for stock pre-market workflow.
-func StockPhaseASteps(market string) []Step {
+func StockPhaseASteps(market string) []step.Step {
 	market = NormalizeMarket(market)
-	return []Step{
+	return []step.Step{
 		{Name: "get_market_premarket_report", Tool: "get_market_premarket_report", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			return map[string]any{"market": market, "report_date": ReportDateFor(w)}
 		}},
 		{Name: "get_report_bot_codes", Tool: "get_report_bot_codes"},
-		Step{Name: "phase_a_complete", Tool: "write_execution_log", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
+		step.Step{Name: "phase_a_complete", Tool: "write_execution_log", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			return map[string]any{
 				"step": "phase_a_complete", "message": fmt.Sprintf("market=%s stocks=%d", market, len(w.BotCodes)),
 				"status": "ok",
@@ -166,7 +171,7 @@ func buildMarketReportDraft(w *memory.PreMarketWorking, market string) string {
 	} else {
 		lines = append(lines, "**新闻面判断**：暂无", "", "- 暂无市场新闻。")
 	}
-	summary := oneLine(plainSummary(strings.Join(indexBlocks, "\n")+"\n"+newsText, 200), 200)
+	summary := textutil.OneLine(textutil.PlainSummary(strings.Join(indexBlocks, "\n")+"\n"+newsText, 200), 200)
 	if summary == "" {
 		summary = "暂无"
 	}
@@ -194,7 +199,7 @@ func ensureMarketReportBundle(ctx context.Context, w *memory.PreMarketWorking, m
 	if w.MarketReportSynthesized && strings.TrimSpace(w.MarketReportBody) != "" {
 		return MarketReportBundle{
 			Report:     w.MarketReportBody,
-			Summary:    nonEmptyMarket(w.MarketReportSummary, plainSummary(w.MarketReportBody, 200)),
+			Summary:    nonEmptyMarket(w.MarketReportSummary, textutil.PlainSummary(w.MarketReportBody, 200)),
 			Result:     nonEmptyMarket(w.MarketReportResult, "neutral"),
 			Confidence: nonEmptyMarket(w.MarketReportConfidence, "medium"),
 		}
@@ -202,7 +207,7 @@ func ensureMarketReportBundle(ctx context.Context, w *memory.PreMarketWorking, m
 	draft := buildMarketReportDraft(w, market)
 	bundle := MarketReportBundle{
 		Report:     draft,
-		Summary:    plainSummary(draft, 200),
+		Summary:    textutil.PlainSummary(draft, 200),
 		Result:     fallbackMarketJudgement(w, market).Result,
 		Confidence: fallbackMarketJudgement(w, market).Confidence,
 	}
@@ -211,7 +216,7 @@ func ensureMarketReportBundle(ctx context.Context, w *memory.PreMarketWorking, m
 			ctx = context.Background()
 		}
 		evidence := collectMarketEvidence(w, market)
-		if res, err := synth.SynthesizeMarket(ctx, market, draft, w.MarketContext, evidence, loadMarketReportTemplate()); err == nil {
+		if res, err := synth.SynthesizeMarket(ctx, market, draft, w.MarketContext, evidence, templates.LoadMarketReportTemplate()); err == nil {
 			if body := strings.TrimSpace(res.Report); body != "" {
 				bundle.Report = body
 			}
@@ -247,9 +252,9 @@ func BuildCreateMarketReportArgsContext(ctx context.Context, w *memory.PreMarket
 	bundle := ensureMarketReportBundle(ctx, w, market)
 	market = NormalizeMarket(market)
 	out := map[string]any{
-		"market":  market,
-		"report":  bundle.Report,
-		"summary": bundle.Summary,
+		"market":      market,
+		"report":      bundle.Report,
+		"summary":     bundle.Summary,
 		"report_date": ReportDateFor(w),
 	}
 	if bundle.Result != "" {
@@ -296,10 +301,6 @@ func fallbackMarketJudgement(w *memory.PreMarketWorking, market string) MarketRe
 	return MarketReportBundle{Result: result, Confidence: confidence}
 }
 
-func loadMarketReportTemplate() string {
-	return loadSkillTemplate("skills/premarket_market/template.md")
-}
-
 func nonEmptyMarket(v, fallback string) string {
 	if strings.TrimSpace(v) == "" {
 		return fallback
@@ -337,7 +338,7 @@ func marketIndexBlocks(market string, refs map[string]string) []string {
 		}
 		out = append(out,
 			fmt.Sprintf("### %s (%s)", p.title, p.code),
-			oneLine(summary, 600),
+			textutil.OneLine(summary, 600),
 			"",
 		)
 	}
@@ -354,7 +355,7 @@ func marketIndexBlocks(market string, refs map[string]string) []string {
 		}
 		out = append(out,
 			fmt.Sprintf("### %s", code),
-			fmt.Sprintf("- %s", oneLine(summary, 600)),
+			fmt.Sprintf("- %s", textutil.OneLine(summary, 600)),
 			"",
 		)
 	}

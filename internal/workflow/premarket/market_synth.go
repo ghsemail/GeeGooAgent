@@ -1,7 +1,9 @@
-package workflow
+package premarket
 
 import (
 	"context"
+
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/synthctx"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/report"
@@ -21,7 +23,7 @@ type MarketSynthesizerProvider interface {
 
 // MarketSynthesizerFrom returns a market synthesizer when the injected provider supports it.
 func MarketSynthesizerFrom(ctx context.Context) MarketSynthesizerProvider {
-	synth := SynthesizerFrom(ctx)
+	synth := synthctx.From(ctx)
 	if synth == nil {
 		return nil
 	}

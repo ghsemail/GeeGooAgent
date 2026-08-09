@@ -1,18 +1,23 @@
-package workflow
+package postmarket
 
 import (
 	"context"
 	"fmt"
 	"strings"
 
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/args"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/decision"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/step"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/textutil"
+
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
 )
 
 // PostMarketPhaseASteps returns post-market prelude (trading day + bot list).
-func PostMarketPhaseASteps() []Step {
-	return []Step{
-		{Name: "check_trading_day", Tool: "check_trading_day", Arguments: map[string]any{"code": defaultTradingDayCode}},
+func PostMarketPhaseASteps() []step.Step {
+	return []step.Step{
+		{Name: "check_trading_day", Tool: "check_trading_day", Arguments: map[string]any{"code": args.DefaultTradingDayCode}},
 		{Name: "get_report_bot_codes", Tool: "get_report_bot_codes"},
 		{Name: "phase_a_complete", Tool: "write_execution_log", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			return map[string]any{
@@ -24,42 +29,42 @@ func PostMarketPhaseASteps() []Step {
 }
 
 // PostMarketPerStockSteps returns per-bot post-market analysis steps.
-func PostMarketPerStockSteps() []Step {
-	return []Step{
-		{Name: "list_today_postmarket_stock", Tool: "list_today_stock_postmarket_reports", ArgFunc: stockReportDateArg},
-		{Name: "hourly_analysis_bundle", Tool: "get_hourly_analysis_bundle", ArgFunc: mcpHourlyBundleArg},
+func PostMarketPerStockSteps() []step.Step {
+	return []step.Step{
+		{Name: "list_today_postmarket_stock", Tool: "list_today_stock_postmarket_reports", ArgFunc: args.StockReportDateArg},
+		{Name: "hourly_analysis_bundle", Tool: "get_hourly_analysis_bundle", ArgFunc: args.MCPHourlyBundleArg},
 		{Name: "bot_log", Tool: "get_bot_log_by_type", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			ws := w.Stocks[w.CurrentStock]
-			return map[string]any{"bot_id": ws.BotID, "type": BotLogType(ws.BotType)}
+			return map[string]any{"bot_id": ws.BotID, "type": decision.BotLogType(ws.BotType)}
 		}},
-		{Name: "read_stock_premarket", Tool: "get_stock_daily_reports", ArgFunc: stockReportDateArg},
-		{Name: "current_price", Tool: "get_current_price", ArgFunc: stockCodeArg},
+		{Name: "read_stock_premarket", Tool: "get_stock_daily_reports", ArgFunc: args.StockReportDateArg},
+		{Name: "current_price", Tool: "get_current_price", ArgFunc: args.StockCodeArg},
 		{Name: "save_local_report", Tool: "save_local_report", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			return map[string]any{
 				"code": w.CurrentStock, "content": BuildPostMarketReportContent(w, w.CurrentStock),
-				"report_type": "postmarket", "report_date": reportDateFor(w, w.CurrentStock),
+				"report_type": "postmarket", "report_date": args.ReportDateFor(w, w.CurrentStock),
 			}
 		}},
 		{Name: "create_stock_postmarket_report", Tool: "create_stock_postmarket_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
 			return BuildCreateStockPostmarketReportArgs(ctx, w, w.CurrentStock)
 		}},
-		{Name: "stock_complete", Tool: "write_execution_log", ArgFunc: stockCompleteArg},
+		{Name: "stock_complete", Tool: "write_execution_log", ArgFunc: args.StockCompleteArg},
 	}
 }
 
 // BuildPostMarketReportContent renders post-market markdown.
 func BuildPostMarketReportContent(w *memory.PreMarketWorking, code string) string {
 	ws := w.Stocks[code]
-	sessionDate := reportDateFor(w, code)
+	sessionDate := args.ReportDateFor(w, code)
 	bias := ws.SessionBias
 	if bias == "" {
-		bias = SessionBiasFromChangePct(ws.ChangePct)
+		bias = decision.SessionBiasFromChangePct(ws.ChangePct)
 	}
 	vs := ws.VsPreMarket
 	if vs == "" {
-		vs = VsPreMarket(ws.PreMarketResult, bias)
+		vs = decision.VsPreMarket(ws.PreMarketResult, bias)
 	}
-	biasLabel := localizeSessionBias(bias)
+	biasLabel := decision.LocalizeSessionBias(bias)
 	lines := []string{
 		"## 今日行情",
 		"",
@@ -77,7 +82,7 @@ func BuildPostMarketReportContent(w *memory.PreMarketWorking, code string) strin
 	if ws.HourlyKlineAnalysis != "" {
 		lines = append(lines, "### 小时级 K 线分析", "", stockfmt.FormatEmbeddedHourlyAnalysis(ws.HourlyKlineAnalysis), "")
 	}
-	if trade := strings.TrimSpace(TradeSummaryFromBotLog(ws)); trade != "" {
+	if trade := strings.TrimSpace(decision.TradeSummaryFromBotLog(ws)); trade != "" {
 		lines = append(lines, "## 交易复盘", "", trade, "")
 	} else {
 		lines = append(lines, "## 交易复盘", "", "无", "")
@@ -98,12 +103,12 @@ func postMarketComparisonNarrative(ws memory.StockWorkspace, bias, vs string) st
 	}
 	parts := []string{
 		fmt.Sprintf("盘前判断为 %s", localizePreMarketResult(pre)),
-		fmt.Sprintf("今日盘面倾向 %s", localizeSessionBias(bias)),
+		fmt.Sprintf("今日盘面倾向 %s", decision.LocalizeSessionBias(bias)),
 	}
 	if id := strings.TrimSpace(ws.PreMarketReportID); id != "" {
 		parts = append(parts, fmt.Sprintf("关联盘前报告 %s", id))
 	}
-	parts = append(parts, fmt.Sprintf("对照结论：%s", localizeVsPreMarket(vs)))
+	parts = append(parts, fmt.Sprintf("对照结论：%s", decision.LocalizeVsPreMarket(vs)))
 	return strings.Join(parts, "；") + "。"
 }
 
@@ -123,26 +128,26 @@ func localizePreMarketResult(result string) string {
 // BuildCreateStockPostmarketReportArgs builds createStockPostmarketReport body.
 func BuildCreateStockPostmarketReportArgs(ctx context.Context, w *memory.PreMarketWorking, code string) map[string]any {
 	ws := w.Stocks[code]
-	sessionDate := reportDateFor(w, code)
+	sessionDate := args.ReportDateFor(w, code)
 	bias := ws.SessionBias
 	if bias == "" {
-		bias = SessionBiasFromChangePct(ws.ChangePct)
+		bias = decision.SessionBiasFromChangePct(ws.ChangePct)
 	}
 	vs := ws.VsPreMarket
 	if vs == "" {
-		vs = VsPreMarket(ws.PreMarketResult, bias)
+		vs = decision.VsPreMarket(ws.PreMarketResult, bias)
 	}
 	report := BuildPostMarketReportContent(w, code)
-	marketSummary := MarketSummaryFromHourly(ws)
-	tradeSummary := TradeSummaryFromBotLog(ws)
-	experience := ExperienceSummaryDefault(ws, vs)
+	marketSummary := decision.MarketSummaryFromHourly(ws)
+	tradeSummary := decision.TradeSummaryFromBotLog(ws)
+	experience := decision.ExperienceSummaryDefault(ws, vs)
 	body := map[string]any{
 		"code": code, "stock_name": ws.StockName, "session_date": sessionDate,
 		"session_bias": bias, "change_pct": ws.ChangePct,
 		"trade_summary": tradeSummary, "market_summary": marketSummary,
 		"experience_summary": experience, "report": report,
-		"summary": plainSummary(report, 200),
-		"bot_id": ws.BotID, "bot_name": ws.BotName, "bot_type": ws.BotType,
+		"summary": textutil.PlainSummary(report, 200),
+		"bot_id":  ws.BotID, "bot_name": ws.BotName, "bot_type": ws.BotType,
 		"vs_stock_premarket": vs, "stock_premarket_report_id": ws.PreMarketReportID,
 		"tags": []any{"stock_postmarket"},
 	}

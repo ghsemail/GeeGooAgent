@@ -1,10 +1,16 @@
-package workflow
+package premarket
 
 import (
 	"context"
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/prompts"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/step"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/synthctx"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/templates"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/textutil"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/report"
@@ -13,8 +19,8 @@ import (
 )
 
 // PerStockSteps returns phase B steps for each bot stock.
-func PerStockSteps() []Step {
-	return []Step{
+func PerStockSteps() []step.Step {
+	return []step.Step{
 		{Name: "list_today_reports", Tool: "list_today_reports", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			return map[string]any{"code": w.CurrentStock}
 		}},
@@ -31,7 +37,7 @@ func PerStockSteps() []Step {
 		{Name: "weekly_analysis", Tool: "get_mcp_analysis", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			ws := w.Stocks[w.CurrentStock]
 			return map[string]any{
-				"name": ws.StockName, "code": w.CurrentStock, "prompt_id": indexPromptID, "period": "weekly", "language": "cn",
+				"name": ws.StockName, "code": w.CurrentStock, "prompt_id": prompts.IndexPromptID, "period": "weekly", "language": "cn",
 			}
 		}},
 		{Name: "bot_attitude", Tool: "get_bot_yesterday_attitude", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
@@ -150,7 +156,7 @@ func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, co
 		Confidence: view.Confidence,
 		Reason:     view.Reason,
 		Suggestion: view.Suggestion,
-		Summary:    plainSummary(draft, 200),
+		Summary:    textutil.PlainSummary(draft, 200),
 	}
 	synthOut := report.SynthesisResult{}
 	stockSynthUsed := false
@@ -159,7 +165,7 @@ func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, co
 			ctx = context.Background()
 		}
 		if res, err := synth.SynthesizeStockPreMarket(
-			ctx, ws, draft, evidence, w.MarketContext, marketPremarketExcerpt(w), loadStockPremarketTemplate(),
+			ctx, ws, draft, evidence, w.MarketContext, marketPremarketExcerpt(w), templates.LoadStockPremarketTemplate(),
 		); err == nil {
 			stockSynthUsed = true
 			if body := strings.TrimSpace(res.Report); body != "" {
@@ -186,7 +192,7 @@ func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, co
 		}
 	}
 	if !stockSynthUsed {
-		if synth := SynthesizerFrom(ctx); synth != nil {
+		if synth := synthctx.From(ctx); synth != nil {
 			if ctx == nil {
 				ctx = context.Background()
 			}
@@ -215,7 +221,7 @@ func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, co
 	bundle.Reason = stockfmt.StripEvidenceRefs(bundle.Reason)
 	bundle.Summary = stockfmt.StripEvidenceRefs(bundle.Summary)
 	if bundle.Summary == "" {
-		bundle.Summary = plainSummary(bundle.Report, 200)
+		bundle.Summary = textutil.PlainSummary(bundle.Report, 200)
 	}
 	bundle.Report = stockfmt.PolishStockNewsInReport(bundle.Report, ws.StockName)
 	bundle.Report = stockfmt.PolishStockPremarketMarkdown(bundle.Report)
@@ -244,7 +250,7 @@ func BuildCreateReportArgsContext(ctx context.Context, w *memory.PreMarketWorkin
 		"bot_name": bot.BotName, "bot_type": bot.BotType,
 		"result": bundle.Result, "confidence": bundle.Confidence,
 		"reason": bundle.Reason, "suggestion": bundle.Suggestion, "report": bundle.Report, "summary": bundle.Summary,
-		"evidence_refs": evidenceIDs(evidence),
+		"evidence_refs":              evidenceIDs(evidence),
 		"market_premarket_report_id": strings.TrimSpace(w.MarketReportID),
 	}
 }
@@ -257,7 +263,7 @@ func marketPremarketExcerpt(w *memory.PreMarketWorking) string {
 		return s
 	}
 	if b := strings.TrimSpace(w.MarketReportBody); b != "" {
-		return plainSummary(b, 400)
+		return textutil.PlainSummary(b, 400)
 	}
 	return "暂无当日市场盘前摘要。"
 }
@@ -380,7 +386,7 @@ func buildReportView(ws memory.StockWorkspace, evidence []memory.EvidenceRef) re
 		view.KeyInputs = append(view.KeyInputs, "周线技术分析已纳入研判。")
 	}
 	if ws.CapitalFlowSummary != "" {
-		view.KeyInputs = append(view.KeyInputs, "主力资金流向："+oneLine(ws.CapitalFlowSummary, 120))
+		view.KeyInputs = append(view.KeyInputs, "主力资金流向："+textutil.OneLine(ws.CapitalFlowSummary, 120))
 	}
 	if ws.CapitalDistributionSummary != "" {
 		view.KeyInputs = append(view.KeyInputs, "资金分布结构已纳入研判。")
@@ -510,21 +516,4 @@ func displayStockName(ws memory.StockWorkspace, code string) string {
 		return ws.StockName
 	}
 	return code
-}
-
-func oneLine(s string, n int) string {
-	return memory.OneLine(s, n)
-}
-
-func plainSummary(markdown string, n int) string {
-	lines := strings.Split(markdown, "\n")
-	plain := make([]string, 0, len(lines))
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		line = strings.TrimLeft(line, "#- ")
-		if line != "" {
-			plain = append(plain, line)
-		}
-	}
-	return oneLine(strings.Join(plain, " "), n)
 }

@@ -16,11 +16,11 @@ func TestBuildWorkflowDetailPreMarket(t *testing.T) {
 		{Name: "premarket_market_cn", Skill: "premarket_market", Cron: "0 8 * * 1-5", Enabled: true},
 	}
 	detail := BuildWorkflowDetail(root, spec, jobs, filepath.Join(root, "skills", "premarket_market", "SKILL.md"))
-	if detail["manifest_yaml"] == nil {
-		t.Fatal("expected manifest_yaml")
-	}
 	if detail["skill_md"] == nil {
 		t.Fatal("expected skill_md")
+	}
+	if detail["template_md"] == nil {
+		t.Fatal("expected template_md for premarket_market")
 	}
 }
 
@@ -33,8 +33,11 @@ func TestBuildWorkflowDetailPreMarketStock(t *testing.T) {
 	detail := BuildWorkflowDetail(root, spec, []SchedulerJobView{
 		{Name: "premarket_stock_cn", Skill: "premarket_stock", Cron: "10 8 * * 1-5", Enabled: true},
 	}, filepath.Join(root, "skills", "premarket_stock", "SKILL.md"))
-	if detail["manifest_yaml"] == nil {
-		t.Fatal("expected manifest_yaml")
+	if detail["skill_md"] == nil {
+		t.Fatal("expected skill_md")
+	}
+	if detail["template_md"] == nil {
+		t.Fatal("expected template_md for premarket_stock")
 	}
 	if len(detail["phase_b_steps"].([]map[string]any)) < 5 {
 		t.Fatal("expected premarket_stock per-stock steps")
@@ -50,8 +53,8 @@ func TestBuildWorkflowDetailPostMarket(t *testing.T) {
 	detail := BuildWorkflowDetail(root, spec, []SchedulerJobView{
 		{Name: "postmarket_stock_weekday", Skill: "postmarket_stock", Cron: "0 17 * * 1-5", Enabled: true},
 	}, filepath.Join(root, "skills", "postmarket_stock", "SKILL.md"))
-	if detail["manifest_yaml"] == nil {
-		t.Fatal("expected manifest_yaml")
+	if detail["skill_md"] == nil {
+		t.Fatal("expected skill_md")
 	}
 	if len(detail["phase_b_steps"].([]map[string]any)) < 5 {
 		t.Fatal("expected postmarket_stock per-stock steps")
@@ -82,7 +85,7 @@ func findRepoRoot(t *testing.T) string {
 	}
 	dir := wd
 	for i := 0; i < 6; i++ {
-		if _, err := os.Stat(filepath.Join(dir, "skills", "premarket_market", "manifest.yaml")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "skills", "premarket_market", "SKILL.md")); err == nil {
 			return dir
 		}
 		parent := filepath.Dir(dir)
@@ -91,6 +94,6 @@ func findRepoRoot(t *testing.T) string {
 		}
 		dir = parent
 	}
-	t.Fatal("could not find repo root with skills/premarket_market/manifest.yaml")
+	t.Fatal("could not find repo root with skills/premarket_market/SKILL.md")
 	return ""
 }

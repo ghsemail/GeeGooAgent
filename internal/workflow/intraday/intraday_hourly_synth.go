@@ -1,8 +1,10 @@
-package workflow
+package intraday
 
 import (
 	"context"
 	"strings"
+
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/synthctx"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/report"
@@ -20,7 +22,7 @@ type IntradayHourlySummarizerProvider interface {
 
 // IntradayHourlySummarizerFrom returns an hourly summarizer from context when wired.
 func IntradayHourlySummarizerFrom(ctx context.Context) IntradayHourlySummarizerProvider {
-	synth := SynthesizerFrom(ctx)
+	synth := synthctx.From(ctx)
 	if synth == nil {
 		return nil
 	}

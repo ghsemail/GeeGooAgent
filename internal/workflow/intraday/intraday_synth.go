@@ -1,7 +1,9 @@
-package workflow
+package intraday
 
 import (
 	"context"
+
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/synthctx"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/report"
@@ -19,7 +21,7 @@ type IntradaySynthesizerProvider interface {
 
 // IntradaySynthesizerFrom returns an intraday synthesizer from context, if wired.
 func IntradaySynthesizerFrom(ctx context.Context) IntradaySynthesizerProvider {
-	synth := SynthesizerFrom(ctx)
+	synth := synthctx.From(ctx)
 	if synth == nil {
 		return nil
 	}

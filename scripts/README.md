@@ -1,8 +1,18 @@
 # GeeGooAgent 运维脚本
 
-本目录集中存放 Agent 相关的部署、探测、验证与工作流脚本。**不要**在根目录新增零散脚本，按用途放入 `ops/` 子目录。
+本目录集中存放 Agent 相关的部署、探测、验证与工作流脚本。
 
-## 目录结构
+## Workflow Skills 文档（`skills/`）
+
+盘前 / 盘中 / 盘后仅保留：
+
+| 文件 | 用途 |
+|------|------|
+| `SKILL.md` | Skills 模块展示 + Chat 程序性记忆 |
+| `template.md` | **仅盘前**（市场/个股）；运行时 LLM 合成加载 |
+| Go `internal/workflow/*.go` | 实际执行步骤（Skills 详情中的 Phase / 调度） |
+
+已移除仅作文档、不参与运行的 `workflow.md`、`manifest.yaml`、`supervisor_checks.yaml`。
 
 | 路径 | 用途 | 示例 |
 |------|------|------|

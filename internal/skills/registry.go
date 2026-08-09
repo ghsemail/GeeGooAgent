@@ -1,10 +1,8 @@
 // Package skills provides manifest-driven skill registration and lookup.
 //
 // A Skill is a named, runnable workflow (e.g. premarket_market) with a fixed set
-// of phase A and per-stock phase B steps, a report template reference, and
-// supervisor checks. Skills are registered in Go (the skills/*/manifest.yaml
-// files remain the human-readable source of truth) so that `geegoo run <skill>`
-// can dispatch generically without hard-coding each skill name.
+// of phase A and per-stock phase B steps registered in Go. Bundled docs are
+// skills/<name>/SKILL.md and optional template.md (premarket only, loaded at runtime).
 package skills
 
 import (
@@ -19,10 +17,8 @@ type Spec struct {
 	PhaseA func() []workflow.Step
 	// PerStock returns the per-stock phase B steps for the skill.
 	PerStock func() []workflow.Step
-	// TemplatePath is the relative path to the report template (docs/audit).
+	// TemplatePath is the relative path to the report template when loaded at runtime (premarket).
 	TemplatePath string
-	// ManifestPath is the relative path to the manifest yaml (docs/audit).
-	ManifestPath string
 }
 
 // Registry maps skill name to Spec.

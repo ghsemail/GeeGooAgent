@@ -1,4 +1,4 @@
-package workflow
+package decision
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/textutil"
 )
 
 // DecideIntraday applies geegoo intraday decision rules (Step 5.5).
@@ -55,7 +56,7 @@ func BotLogType(botType string) string {
 
 // MarketSummaryFromHourly builds a short human-readable market recap (not raw MCP dump).
 func MarketSummaryFromHourly(ws memory.StockWorkspace) string {
-	bias := localizeSessionBias(ws.SessionBias)
+	bias := LocalizeSessionBias(ws.SessionBias)
 	var parts []string
 	if ws.ChangePct != 0 {
 		word := "收涨"
@@ -111,23 +112,24 @@ func TradeSummaryFromBotLog(ws memory.StockWorkspace) string {
 		}
 		return "当日机器人未产生成交记录，持仓与策略状态保持不变，可关注下一交易日信号触发与仓位变化。"
 	}
-	return oneLine(summary, 400)
+	return textutil.OneLine(summary, 400)
 }
 
 // ExperienceSummaryDefault builds a post-market experience paragraph.
 func ExperienceSummaryDefault(ws memory.StockWorkspace, vs string) string {
 	bias := stockfmt.LocalizeAttitude(ws.SessionBias)
 	if bias == "" || bias == ws.SessionBias {
-		bias = localizeSessionBias(ws.SessionBias)
+		bias = LocalizeSessionBias(ws.SessionBias)
 	}
 	return fmt.Sprintf(
 		"今日盘面倾向为%s，与盘前对照结论为%s。复盘时应优先核对盘前观点与盘中实际走势是否一致，"+
 			"并记录 Bot（%s）在当日信号触发与执行上的偏差，便于后续调整策略开关或止盈止损参数。",
-		bias, localizeVsPreMarket(vs), strings.TrimSpace(ws.BotType),
+		bias, LocalizeVsPreMarket(vs), strings.TrimSpace(ws.BotType),
 	)
 }
 
-func localizeSessionBias(bias string) string {
+// LocalizeSessionBias maps session_bias enums to Chinese labels.
+func LocalizeSessionBias(bias string) string {
 	switch strings.ToLower(strings.TrimSpace(bias)) {
 	case "bullish":
 		return "偏多"
@@ -140,7 +142,8 @@ func localizeSessionBias(bias string) string {
 	}
 }
 
-func localizeVsPreMarket(vs string) string {
+// LocalizeVsPreMarket maps vs_stock_premarket enums to Chinese labels.
+func LocalizeVsPreMarket(vs string) string {
 	switch strings.ToLower(strings.TrimSpace(vs)) {
 	case "aligned":
 		return "一致"

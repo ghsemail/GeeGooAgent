@@ -8,37 +8,10 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
-	"github.com/ghsemail/GeeGooAgent/internal/report"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/synthctx"
 )
-
-// Step is one workflow step.
-type Step struct {
-	Name           string
-	Tool           string
-	Arguments      map[string]any
-	ArgFunc        func(*memory.PreMarketWorking) map[string]any
-	ContextArgFunc func(context.Context, *memory.PreMarketWorking) map[string]any
-}
-
-// Args resolves step arguments.
-func (s Step) Args(ctx context.Context, working *memory.PreMarketWorking) map[string]any {
-	if s.ContextArgFunc != nil {
-		return s.ContextArgFunc(ctx, working)
-	}
-	if s.ArgFunc != nil {
-		return s.ArgFunc(working)
-	}
-	if s.Arguments == nil {
-		return map[string]any{}
-	}
-	out := map[string]any{}
-	for k, v := range s.Arguments {
-		out[k] = v
-	}
-	return out
-}
 
 // RunResult is workflow outcome.
 type RunResult struct {
@@ -54,18 +27,11 @@ func (r RunResult) OK() bool { return r.Status == "completed" }
 
 // Runner executes deterministic workflow steps.
 type Runner struct {
-	executor *runtime.Executor
-	toolExec *agent.ToolExec
-	working  *memory.WorkingStore
-	checkpts CheckpointSaver
+	executor    *runtime.Executor
+	toolExec    *agent.ToolExec
+	working     *memory.WorkingStore
+	checkpts    CheckpointSaver
 	synthesizer SynthesizerProvider
-}
-
-// SynthesizerProvider abstracts report.Synthesizer. Implementations return
-// suggested fields plus reason/suggestion/summary. Final result/confidence are
-// decided by verdict.ArbitrateStockPreMarket (scheme B). Nil provider → rules only.
-type SynthesizerProvider interface {
-	Synthesize(ctx context.Context, ws memory.StockWorkspace, evidence []memory.EvidenceRef, mc memory.MarketContext) (report.SynthesisResult, error)
 }
 
 // CheckpointSaver persists checkpoints.
@@ -108,7 +74,7 @@ func (r *Runner) RunFrom(
 ) RunResult {
 	_ = completedStep // idempotency via CompletedStepKeys now
 	if r.synthesizer != nil {
-		ctx.Ctx = ContextWithSynthesizer(ctx.GoContext(), r.synthesizer)
+		ctx.Ctx = synthctx.ContextWithSynthesizer(ctx.GoContext(), r.synthesizer)
 	}
 	stepCounter := 0
 	for index, step := range phaseA {
@@ -353,8 +319,8 @@ func IsStepCompleteForTest(w *memory.PreMarketWorking, key string) bool {
 }
 func MarkStepCompleteForTest(w *memory.PreMarketWorking, key string) { markStepComplete(w, key) }
 func StepKeyForTest(name, tool string) string                        { return stepKey(name, tool) }
-func OptionalStepForTest(step Step) bool                              { return optionalStep(step) }
-func FinalizePhaseAForTest(working *memory.PreMarketWorking)          { finalizePhaseA(working) }
+func OptionalStepForTest(step Step) bool                             { return optionalStep(step) }
+func FinalizePhaseAForTest(working *memory.PreMarketWorking)         { finalizePhaseA(working) }
 
 // optionalStep marks workflow steps that may fail without aborting the run.
 func optionalStep(step Step) bool {

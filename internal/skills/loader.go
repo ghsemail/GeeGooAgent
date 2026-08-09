@@ -11,7 +11,6 @@ func RegisterBuiltins(r *Registry) {
 		PhaseA:       emptySteps,
 		PerStock:     emptySteps,
 		TemplatePath: "skills/premarket_market/template.md",
-		ManifestPath: "skills/premarket_market/manifest.yaml",
 	})
 	r.Register(Spec{
 		Name:         "premarket_stock",
@@ -19,22 +18,17 @@ func RegisterBuiltins(r *Registry) {
 		PhaseA:       emptySteps,
 		PerStock:     workflow.PerStockSteps,
 		TemplatePath: "skills/premarket_stock/template.md",
-		ManifestPath: "skills/premarket_stock/manifest.yaml",
 	})
 	r.Register(Spec{
 		Name:         "intraday_stock",
 		Description:  "盘中交易决策：持仓 + 盘前对照 + 小时级分析 + 现价，生成 intraday 报告",
 		PhaseA:       workflow.IntradayPhaseASteps,
 		PerStock:     workflow.IntradayPerStockSteps,
-		TemplatePath: "skills/intraday_stock/template.md",
-		ManifestPath: "skills/intraday_stock/manifest.yaml",
 	})
 	r.Register(Spec{
 		Name:         "postmarket_stock",
 		Description:  "盘后总结：小时级分析 + Bot 日志 + 盘前对照，生成 postmarket_stock 报告",
 		PhaseA:       workflow.PostMarketPhaseASteps,
 		PerStock:     workflow.PostMarketPerStockSteps,
-		TemplatePath: "skills/postmarket_stock/template.md",
-		ManifestPath: "skills/postmarket_stock/manifest.yaml",
 	})
 }

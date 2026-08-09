@@ -19,15 +19,13 @@ type SchedulerJobView struct {
 }
 
 // BuildWorkflowDetail returns dashboard-friendly workflow settings for one L5 skill.
-// skillPath is the absolute path to SKILL.md from the procedural loader (preferred for reading sibling files).
+// Execution steps come from Go registry; SKILL.md (+ template.md when used at runtime) are the only bundled docs.
 func BuildWorkflowDetail(projectRoot string, spec Spec, jobs []SchedulerJobView, skillPath string) map[string]any {
 	skillDir := filepath.Join("skills", spec.Name)
 	detail := map[string]any{
 		"name":           spec.Name,
 		"description":    spec.Description,
 		"skill_path":     filepath.ToSlash(filepath.Join(skillDir, "SKILL.md")),
-		"workflow_path":  filepath.ToSlash(filepath.Join(skillDir, "workflow.md")),
-		"manifest_path":  spec.ManifestPath,
 		"template_path":  spec.TemplatePath,
 		"phase_a_steps":  serializeWorkflowSteps(resolvePhaseASteps(spec)),
 		"phase_b_steps":  serializeWorkflowSteps(resolvePerStockSteps(spec)),
@@ -36,15 +34,9 @@ func BuildWorkflowDetail(projectRoot string, spec Spec, jobs []SchedulerJobView,
 	root := strings.TrimSpace(projectRoot)
 	if root != "" {
 		readInto(detail, root, filepath.Join(skillDir, "SKILL.md"), "skill_md")
-		readInto(detail, root, filepath.Join(skillDir, "workflow.md"), "workflow_md")
-		if spec.ManifestPath != "" {
-			readInto(detail, root, spec.ManifestPath, "manifest_yaml")
-		}
 		if spec.TemplatePath != "" {
 			readInto(detail, root, spec.TemplatePath, "template_md")
 		}
-		supervisorRel := filepath.Join(skillDir, "supervisor_checks.yaml")
-		readInto(detail, root, supervisorRel, "supervisor_checks_yaml")
 	}
 	if strings.TrimSpace(skillPath) != "" {
 		enrichFromSkillDir(detail, filepath.Dir(skillPath))
@@ -58,14 +50,13 @@ func enrichFromSkillDir(detail map[string]any, dir string) {
 		return
 	}
 	readIntoAbs(detail, filepath.Join(dir, "SKILL.md"), "skill_md")
-	readIntoAbs(detail, filepath.Join(dir, "workflow.md"), "workflow_md")
-	readIntoAbs(detail, filepath.Join(dir, "template.md"), "template_md")
-	readIntoAbs(detail, filepath.Join(dir, "manifest.yaml"), "manifest_yaml")
-	readIntoAbs(detail, filepath.Join(dir, "supervisor_checks.yaml"), "supervisor_checks_yaml")
+	if tpl, _ := detail["template_path"].(string); strings.TrimSpace(tpl) != "" {
+		readIntoAbs(detail, filepath.Join(dir, "template.md"), "template_md")
+	}
 	detail["skill_path"] = filepath.ToSlash(filepath.Join(dir, "SKILL.md"))
-	detail["workflow_path"] = filepath.ToSlash(filepath.Join(dir, "workflow.md"))
-	detail["template_path"] = filepath.ToSlash(filepath.Join(dir, "template.md"))
-	detail["manifest_path"] = filepath.ToSlash(filepath.Join(dir, "manifest.yaml"))
+	if tpl, _ := detail["template_path"].(string); strings.TrimSpace(tpl) != "" {
+		detail["template_path"] = filepath.ToSlash(filepath.Join(dir, "template.md"))
+	}
 }
 
 func readInto(detail map[string]any, root, rel, key string) {

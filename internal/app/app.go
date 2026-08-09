@@ -866,7 +866,7 @@ func findProjectRoot() string {
 	}
 	dir := wd
 	for i := 0; i < 8; i++ {
-		if _, err := os.Stat(filepath.Join(dir, "skills", "premarket_market", "manifest.yaml")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "skills", "premarket_market", "SKILL.md")); err == nil {
 			return dir
 		}
 		parent := filepath.Dir(dir)

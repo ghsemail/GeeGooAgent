@@ -1,4 +1,4 @@
-package workflow
+package intraday
 
 import (
 	"context"
@@ -8,6 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/args"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/decision"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/prompts"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/step"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/textutil"
+
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/report"
 	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
@@ -15,12 +21,12 @@ import (
 
 // IntradayInput is caller-provided context for a signal-triggered intraday run.
 type IntradayInput struct {
-	Code       string
-	StockName  string
-	BotID      string
-	BotName    string
-	BotType    string
-	Frequency  string
+	Code           string
+	StockName      string
+	BotID          string
+	BotName        string
+	BotType        string
+	Frequency      string
 	TradeType      string
 	ReportDate     string
 	AttitudeSwitch *bool // bot attitude.switch; nil/true reads premarket, false skips
@@ -100,10 +106,10 @@ func SeedIntradayWorking(w *memory.PreMarketWorking, in IntradayInput) {
 }
 
 // IntradayPhaseASteps is empty; intraday is seeded before phase B.
-func IntradayPhaseASteps() []Step { return nil }
+func IntradayPhaseASteps() []step.Step { return nil }
 
 // IntradayPerStockSteps returns intraday decision steps using GEEGOO_INTRADAY_FREQUENCY or 5m default.
-func IntradayPerStockSteps() []Step {
+func IntradayPerStockSteps() []step.Step {
 	return intradayPerStockSteps(intradayFrequencyFromEnv(), DefaultIntradayInput().BotType, true)
 }
 
@@ -132,7 +138,7 @@ func intradayAttitudeSwitchFromEnv() *bool {
 }
 
 // IntradayPerStockStepsForWorking builds steps using the seeded stock frequency (API/CLI), then env, then 5m.
-func IntradayPerStockStepsForWorking(w *memory.PreMarketWorking) []Step {
+func IntradayPerStockStepsForWorking(w *memory.PreMarketWorking) []step.Step {
 	botType := ""
 	attitudeSwitch := true
 	if w != nil {
@@ -145,45 +151,45 @@ func IntradayPerStockStepsForWorking(w *memory.PreMarketWorking) []Step {
 	return intradayPerStockSteps(intradayFrequencyFromWorking(w), botType, attitudeSwitch)
 }
 
-func intradayPerStockSteps(freq, botType string, attitudeSwitch bool) []Step {
+func intradayPerStockSteps(freq, botType string, attitudeSwitch bool) []step.Step {
 	freqMins := parseFrequencyMinutes(freq)
-	steps := []Step{
-		{Name: "capital_distribution", Tool: "get_capital_distribution", ArgFunc: stockCodeArg},
+	steps := []step.Step{
+		{Name: "capital_distribution", Tool: "get_capital_distribution", ArgFunc: args.StockCodeArg},
 	}
 	if needsIntradayPositionStep(botType) {
-		steps = append([]Step{
-			{Name: "get_position", Tool: "get_position", ArgFunc: stockCodeArg},
+		steps = append([]step.Step{
+			{Name: "get_position", Tool: "get_position", ArgFunc: args.StockCodeArg},
 		}, steps...)
 	}
 	if attitudeSwitch {
-		steps = append(steps, Step{
-			Name: "read_stock_premarket", Tool: "get_stock_daily_reports", ArgFunc: stockReportDateArg,
+		steps = append(steps, step.Step{
+			Name: "read_stock_premarket", Tool: "get_stock_daily_reports", ArgFunc: args.StockReportDateArg,
 		})
 	}
 	if freqMins >= 10 {
-		steps = append(steps, Step{
+		steps = append(steps, step.Step{
 			Name: "hourly_analysis_bundle", Tool: "get_hourly_analysis_bundle",
-			ArgFunc: mcpHourlyBundleArg,
+			ArgFunc: args.MCPHourlyBundleArg,
 		})
 	} else if freqMins > 3 {
-		steps = append(steps, Step{
+		steps = append(steps, step.Step{
 			Name: "hourly_price_analysis", Tool: "get_mcp_analysis",
-			ArgFunc: mcpHourlyArg(hourlyPricePromptID, "hourly_price"),
+			ArgFunc: args.MCPHourlyArg(prompts.HourlyPricePromptID, "hourly_price"),
 		})
 	}
 	steps = append(steps,
-		Step{Name: "current_price", Tool: "get_current_price", ArgFunc: stockCodeArg},
-		Step{Name: "save_local_report", Tool: "save_local_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
+		step.Step{Name: "current_price", Tool: "get_current_price", ArgFunc: args.StockCodeArg},
+		step.Step{Name: "save_local_report", Tool: "save_local_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
 			bundle := ensureIntradayBundle(ctx, w, w.CurrentStock)
 			return map[string]any{
 				"code": w.CurrentStock, "content": bundle.Report,
-				"report_type": "intraday", "report_date": reportDateFor(w, w.CurrentStock),
+				"report_type": "intraday", "report_date": args.ReportDateFor(w, w.CurrentStock),
 			}
 		}},
-		Step{Name: "create_stock_intraday_report", Tool: "create_stock_intraday_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
+		step.Step{Name: "create_stock_intraday_report", Tool: "create_stock_intraday_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
 			return BuildCreateIntradayReportArgs(ctx, w, w.CurrentStock)
 		}},
-		Step{Name: "stock_complete", Tool: "write_execution_log", ArgFunc: stockCompleteArg},
+		step.Step{Name: "stock_complete", Tool: "write_execution_log", ArgFunc: args.StockCompleteArg},
 	)
 	return steps
 }
@@ -215,48 +221,6 @@ func intradayFrequencyFromWorking(w *memory.PreMarketWorking) string {
 	return intradayFrequencyFromEnv()
 }
 
-func stockCodeArg(w *memory.PreMarketWorking) map[string]any {
-	return map[string]any{"code": w.CurrentStock}
-}
-
-func stockReportDateArg(w *memory.PreMarketWorking) map[string]any {
-	return map[string]any{"code": w.CurrentStock, "report_date": reportDateFor(w, w.CurrentStock)}
-}
-
-func mcpHourlyArg(promptID, slot string) func(*memory.PreMarketWorking) map[string]any {
-	return func(w *memory.PreMarketWorking) map[string]any {
-		ws := w.Stocks[w.CurrentStock]
-		return map[string]any{
-			"name": ws.StockName, "code": w.CurrentStock,
-			"prompt_id": promptID, "period": "hourly", "language": "cn",
-			"analysis_slot": slot,
-		}
-	}
-}
-
-func mcpHourlyBundleArg(w *memory.PreMarketWorking) map[string]any {
-	ws := w.Stocks[w.CurrentStock]
-	return map[string]any{
-		"name": ws.StockName, "code": w.CurrentStock, "language": "cn",
-	}
-}
-
-func stockCompleteArg(w *memory.PreMarketWorking) map[string]any {
-	ws := w.Stocks[w.CurrentStock]
-	return map[string]any{
-		"step": fmt.Sprintf("stock_complete:%s", w.CurrentStock),
-		"message": fmt.Sprintf("status=%s result=%s", ws.Status, ws.IntradayResult),
-		"status": "ok",
-	}
-}
-
-func reportDateFor(w *memory.PreMarketWorking, code string) string {
-	if ws, ok := w.Stocks[code]; ok && strings.TrimSpace(ws.ReportDate) != "" {
-		return ws.ReportDate
-	}
-	return todayDate()
-}
-
 func intradayBundleArtifactKey(code string) string {
 	return "intraday_bundle:" + strings.TrimSpace(code)
 }
@@ -277,7 +241,7 @@ func ensureIntradayBundle(ctx context.Context, w *memory.PreMarketWorking, code 
 	ws := w.Stocks[code]
 	hourly := resolveIntradayHourlySections(ctx, ws)
 	draft := buildIntradayDraft(w, code, hourly)
-	ruleResult, ruleConfidence := DecideIntraday(ws)
+	ruleResult, ruleConfidence := decision.DecideIntraday(ws)
 	bundle := IntradayBundle{
 		Report:     draft,
 		Result:     ruleResult,
@@ -360,7 +324,7 @@ func buildIntradayDraft(w *memory.PreMarketWorking, code string, hourly report.I
 	if ws.AttitudeSwitch && strings.TrimSpace(ws.PreMarketResult) != "" {
 		lines = append(lines, "## 盘前报告参考", "",
 			fmt.Sprintf("盘前判断 %s，置信度 %s。", preMarketResultCN(ws.PreMarketResult), confidenceCN(ws.PreMarketConfidence)),
-			oneLine(ws.PreMarketReason, 400),
+			textutil.OneLine(ws.PreMarketReason, 400),
 			"",
 		)
 	}

@@ -899,10 +899,11 @@ func buildProceduralSkillsPayload(app *app.App) ([]map[string]any, map[string]an
 		}
 	} else {
 		for _, sk := range skills.Default().List() {
+			skillRel := "skills/" + sk.Name + "/SKILL.md"
 			out = append(out, map[string]any{
 				"name": sk.Name, "description": sk.Description,
 				"body": sk.Description, "body_preview": sk.Description,
-				"path": sk.ManifestPath, "rel": sk.ManifestPath,
+				"path": skillRel, "rel": skillRel,
 				"kind": string(procedural.KindWorkflow), "kind_label": procedural.KindLabel(procedural.KindWorkflow),
 				"inject_in_chat": false, "editable": false,
 			})
