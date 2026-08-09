@@ -26,6 +26,41 @@ func TestDecideIntradayBuyBlockedByPreMarketShort(t *testing.T) {
 	}
 }
 
+func TestDecideIntradayBuyBlockedByHourlyBearish(t *testing.T) {
+	ws := StockWorkspace{
+		TradeType: "信号买入", PreMarketResult: "long", PreMarketConfidence: "high",
+		HourlySignalAnalysis: "> **整体结论**：小时级信号偏空，短线承压。",
+		CurrentPrice:         100,
+	}
+	result, _ := DecideIntraday(ws)
+	if result != "hold" {
+		t.Fatalf("expected hold, got %s", result)
+	}
+}
+
+func TestDecideIntradaySellBlockedByHourlyBullish(t *testing.T) {
+	ws := StockWorkspace{
+		TradeType: "信号卖出", BotType: "DCA", HasPosition: true,
+		PreMarketResult: "short", PreMarketConfidence: "medium",
+		HourlyPriceAnalysis: "> **整体判断**：价格结构偏多，反弹动能增强。",
+		CurrentPrice:        100,
+	}
+	result, _ := DecideIntraday(ws)
+	if result != "hold" {
+		t.Fatalf("expected hold, got %s", result)
+	}
+}
+
+func TestDecideIntradayBuyAllowedWithoutHourly(t *testing.T) {
+	ws := StockWorkspace{
+		TradeType: "信号买入", PreMarketResult: "long", CurrentPrice: 100,
+	}
+	result, _ := DecideIntraday(ws)
+	if result != "buy" {
+		t.Fatalf("expected buy, got %s", result)
+	}
+}
+
 func TestDecideIntradaySellWithoutPosition(t *testing.T) {
 	ws := StockWorkspace{TradeType: "信号卖出", BotType: "DCA", HasPosition: false}
 	result, _ := DecideIntraday(ws)

@@ -1,6 +1,10 @@
 package memory
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
+)
 
 // DecideIntraday applies geegoo intraday decision rules (Step 5.5).
 func DecideIntraday(ws StockWorkspace) (result, confidence string) {
@@ -18,6 +22,9 @@ func DecideIntraday(ws StockWorkspace) (result, confidence string) {
 			return "hold", downgradeIntradayConfidence(confidence, ws)
 		}
 		if isBuyAligned(ws.PreMarketResult) {
+			if hourlyVetoesBuy(ws) {
+				return "hold", downgradeIntradayConfidence(confidence, ws)
+			}
 			return "buy", confidenceForIntraday(ws)
 		}
 		return "hold", downgradeIntradayConfidence(confidence, ws)
@@ -27,11 +34,32 @@ func DecideIntraday(ws StockWorkspace) (result, confidence string) {
 			return "hold", downgradeIntradayConfidence(confidence, ws)
 		}
 		if isSellAligned(ws.PreMarketResult) || reminder {
+			if hourlyVetoesSell(ws) {
+				return "hold", downgradeIntradayConfidence(confidence, ws)
+			}
 			return "sell", confidenceForIntraday(ws)
 		}
 		return "hold", downgradeIntradayConfidence(confidence, ws)
 	}
 	return result, downgradeIntradayConfidence(confidence, ws)
+}
+
+func hourlyVetoesBuy(ws StockWorkspace) bool {
+	if !hasHourlyAnalysis(ws) {
+		return false
+	}
+	return stockfmt.HourlyContradictsBuy(ws.HourlyPriceAnalysis, ws.HourlySignalAnalysis, ws.HourlyKlineAnalysis)
+}
+
+func hourlyVetoesSell(ws StockWorkspace) bool {
+	if !hasHourlyAnalysis(ws) {
+		return false
+	}
+	return stockfmt.HourlyContradictsSell(ws.HourlyPriceAnalysis, ws.HourlySignalAnalysis, ws.HourlyKlineAnalysis)
+}
+
+func hasHourlyAnalysis(ws StockWorkspace) bool {
+	return strings.TrimSpace(ws.HourlyPriceAnalysis+ws.HourlySignalAnalysis+ws.HourlyKlineAnalysis) != ""
 }
 
 func isBuyTradeType(tradeType string) bool {

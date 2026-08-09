@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
 )
 
 // IntradayInput is caller-provided context for a signal-triggered intraday run.
@@ -298,6 +299,14 @@ func padReason(reason string, ws memory.StockWorkspace, result string) string {
 	if ws.HourlyPriceAnalysis != "" {
 		parts = append(parts, "小时级价格分析已纳入")
 	}
+	if result == "hold" && hasIntradayHourlyData(ws) {
+		isBuy := strings.Contains(ws.TradeType, "买") || strings.Contains(strings.ToLower(ws.TradeType), "buy")
+		isSell := strings.Contains(ws.TradeType, "卖") || strings.Contains(strings.ToLower(ws.TradeType), "sell")
+		if (isBuy && stockfmt.HourlyContradictsBuy(ws.HourlyPriceAnalysis, ws.HourlySignalAnalysis, ws.HourlyKlineAnalysis)) ||
+			(isSell && stockfmt.HourlyContradictsSell(ws.HourlyPriceAnalysis, ws.HourlySignalAnalysis, ws.HourlyKlineAnalysis)) {
+			parts = append(parts, "小时级分析与信号方向不一致，决策观望")
+		}
+	}
 	if ws.CurrentPrice > 0 {
 		parts = append(parts, fmt.Sprintf("参考价 %.4f", ws.CurrentPrice))
 	}
@@ -307,6 +316,10 @@ func padReason(reason string, ws memory.StockWorkspace, result string) string {
 
 func intradayReason(ws memory.StockWorkspace, result, confidence string) string {
 	return padReason("", ws, result)
+}
+
+func hasIntradayHourlyData(ws memory.StockWorkspace) bool {
+	return strings.TrimSpace(ws.HourlyPriceAnalysis+ws.HourlySignalAnalysis+ws.HourlyKlineAnalysis) != ""
 }
 
 func isReminderBot(botType string) bool {

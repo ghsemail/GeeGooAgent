@@ -37,7 +37,7 @@ Environment variables `GEEGOO_INTRADAY_*` are also supported.
 3. `get_capital_distribution` — skip A-shares (`.SH`/`.SZ`)
 4. `get_mcp_analysis` hourly — frequency rules in manifest
 5. `get_current_price` → `get_ticker` fallback
-6. Rule-based `result` / `confidence` / `reason` (≥80 chars)
+6. Rule-based `result` / `confidence` / `reason` (≥80 chars); hourly MCP can veto misaligned buy/sell → `hold`
 7. `save_local_report` + `create_stock_intraday_report`
 
 `update_intraday_report` (Step 7 in geegoo) is executed by the trade executor after fills, not by this workflow.
