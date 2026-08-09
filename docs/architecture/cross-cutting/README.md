@@ -37,7 +37,7 @@ Terminal：scheduler 退避后告警。
 本机 git push → 服务器 git reset --hard → start.sh build → restart-runtime
 ```
 
-一键：`python scripts/deploy_agent_server.py`
+一键：`python scripts/ops/deploy/deploy_agent_server.py`
 
 验证：`geegoo doctor`、`:3400/health`
 

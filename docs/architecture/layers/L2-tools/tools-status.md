@@ -293,5 +293,5 @@ Chat 白名单 ← ChatToolNamesForToolsets（workflow 独占过滤）
 
 ```bash
 go test ./internal/tools/... -count=1
-python scripts/verify_e2e_news.py    # Bot 新闻路由
+python scripts/ops/verify/verify_e2e_news.py    # Bot 新闻路由
 ```

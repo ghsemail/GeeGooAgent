@@ -157,7 +157,7 @@ const String agent_api_key = '<GEEGOO_BOT_AGENT_API_KEY>';
 | **6** | Nginx 同源、BFF MCP 校验 | `agent_bff_use_proxy`、Mongo MCP 验证 | ✅ |
 | **7** | 运营登录态 → MCP Token | `AgentSessionContext`、Chat/Plan/Clarify 透传 | ✅ |
 
-部署与联调见 [GeeGooBot deployment](../../GeeGooBot/docs/deployment.md)、`scripts/verify_agent_bff.py`。
+部署与联调见 [GeeGooBot deployment](../../GeeGooBot/docs/deployment.md)、`scripts/ops/verify/verify_agent_bff.py`。
 
 部署说明见 [deploy/web-platform.md](../../deploy/web-platform.md)。
 

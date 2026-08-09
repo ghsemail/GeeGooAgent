@@ -38,11 +38,15 @@ coverage.xml
 
 # Local deploy helpers (credentials via deploy.json)
 scripts/_*
+scripts/**/_*
 
-# Local test / probe output
-*_test_out.txt
-bot_test_out.txt
-signal_test_out.txt
+# Local test / probe output (never commit)
+scripts/**/*_out.txt
+scripts/**/*_out.json
+scripts/**/probe_*_result.*
+scripts/**/probe_*.txt
+scripts/**/rerun_*_out.txt
+scripts/**/run_*_out.txt
 .tmp/
 
 # Git worktrees

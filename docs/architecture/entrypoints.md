@@ -112,7 +112,7 @@ GeeGooAgent 与 Hermes 一样，**平台差异在入口点，不在 Agent 核心
 | `geegoo verify --codes …` | 当日盘前报告字段矩阵（reason≥80、evidence_refs、枚举） |
 | `geegoo migrate` | `state/` JSON → SQLite `~/.geegoo/data/agent.db` |
 
-部署见 [cross-cutting/deployment.md](./cross-cutting/deployment.md) 与 `scripts/deploy_agent_server.py`。
+部署见 [cross-cutting/deployment.md](./cross-cutting/deployment.md) 与 `scripts/ops/deploy/deploy_agent_server.py`。
 
 ---
 
