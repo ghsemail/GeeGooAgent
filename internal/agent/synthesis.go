@@ -97,6 +97,32 @@ func (s *ReportSynthesizer) SynthesizeMarket(
 	return res, nil
 }
 
+// SynthesizeIntraday generates summary and reason for intraday decision reports.
+func (s *ReportSynthesizer) SynthesizeIntraday(
+	ctx context.Context,
+	ws memory.StockWorkspace,
+	draft string,
+	result, confidence string,
+) (report.IntradaySynthesisResult, error) {
+	if s == nil || s.inner == nil || !s.inner.Available() {
+		return report.IntradaySynthesisResult{}, fmt.Errorf("report synthesizer not available")
+	}
+	s.emit("IntradaySynthesisStarted", map[string]any{
+		"code": ws.Code, "result": result,
+	})
+	res, err := s.inner.SynthesizeIntraday(ctx, ws, draft, result, confidence)
+	if err != nil {
+		s.emit("IntradaySynthesisFailed", map[string]any{
+			"code": ws.Code, "error": err.Error(),
+		})
+		return report.IntradaySynthesisResult{}, err
+	}
+	s.emit("IntradaySynthesisCompleted", map[string]any{
+		"code": ws.Code, "summary_chars": len(res.Summary),
+	})
+	return res, nil
+}
+
 func (s *ReportSynthesizer) emit(event string, payload map[string]any) {
 	if s != nil && s.bus != nil {
 		s.bus.Emit(event, payload)

@@ -206,30 +206,29 @@ func BuildIntradayReportContent(w *memory.PreMarketWorking, code string) string 
 	if result == "" {
 		result, confidence = DecideIntraday(ws)
 	}
-	reason := ws.IntradayReason
+	reason := strings.TrimSpace(ws.IntradayReason)
 	if reason == "" {
-		reason = intradayReason(ws, result, confidence)
+		reason = buildIntradayReason(ws, result)
 	}
 	ws.IntradayResult, ws.IntradayConfidence, ws.IntradayReason = result, confidence, reason
 	w.Stocks[code] = ws
-	lines := []string{
-		"## 盘前报告参考",
-		"",
-	}
+
+	lines := []string{"## 盘前报告参考", ""}
 	if ws.PreMarketResult != "" {
 		lines = append(lines,
-			fmt.Sprintf("- 盘前判断: %s", preMarketResultCN(ws.PreMarketResult)),
-			fmt.Sprintf("- 盘前置信度: %s", confidenceCN(ws.PreMarketConfidence)),
-			fmt.Sprintf("- 盘前依据: %s", oneLine(ws.PreMarketReason, 400)),
+			fmt.Sprintf("盘前判断 %s，置信度 %s。", preMarketResultCN(ws.PreMarketResult), confidenceCN(ws.PreMarketConfidence)),
+			oneLine(ws.PreMarketReason, 400),
 			"",
 		)
 	} else {
-		lines = append(lines, "- 暂无盘前报告参考。", "")
+		lines = append(lines, "暂无盘前报告参考。", "")
 	}
 	if !isReminderBot(ws.BotType) {
-		if s := strings.TrimSpace(ws.PositionSummary); s != "" {
-			lines = append(lines, "## 当前持仓", "", s, "")
+		pos := strings.TrimSpace(ws.PositionSummary)
+		if pos == "" {
+			pos = "无持仓"
 		}
+		lines = append(lines, "## 当前持仓", "", pos, "")
 	}
 	if ws.CapitalDistributionSummary != "" && !isAShareCode(code) {
 		lines = append(lines, "## 资金分布", "", ws.CapitalDistributionSummary, "")
@@ -237,30 +236,46 @@ func BuildIntradayReportContent(w *memory.PreMarketWorking, code string) string 
 	if ws.HourlyPriceAnalysis != "" || ws.HourlySignalAnalysis != "" || ws.HourlyKlineAnalysis != "" {
 		lines = append(lines, "## 小时级分析", "")
 		if ws.HourlyPriceAnalysis != "" {
-			lines = append(lines, "### 价格", ws.HourlyPriceAnalysis, "")
+			lines = append(lines, "### 小时级价格分析", "",
+				stockfmt.FormatIntradayHourlySection(ws.HourlyPriceAnalysis, "暂无小时级价格分析。"), "")
 		}
 		if ws.HourlySignalAnalysis != "" {
-			lines = append(lines, "### 信号", ws.HourlySignalAnalysis, "")
+			lines = append(lines, "### 小时级信号分析", "",
+				stockfmt.FormatIntradaySignalSection(ws.HourlySignalAnalysis), "")
 		}
 		if ws.HourlyKlineAnalysis != "" {
-			lines = append(lines, "### K线", ws.HourlyKlineAnalysis, "")
+			lines = append(lines, "### 小时级 K 线分析", "",
+				stockfmt.FormatIntradayHourlySection(ws.HourlyKlineAnalysis, "暂无小时级 K 线分析。"), "")
 		}
 	}
 	if ws.CurrentPrice > 0 {
 		lines = append(lines, "## 最新价", "",
-			fmt.Sprintf("- 价格来源: %s", ws.PriceSource),
-			fmt.Sprintf("- 参考价: %.4f", ws.CurrentPrice), "")
+			fmt.Sprintf("价格来源 %s，参考价 %.4f。", localizePriceSource(ws.PriceSource), ws.CurrentPrice), "")
 	}
 	lines = append(lines,
 		"## 判定依据",
 		"",
-		reason,
+		stockfmt.LocalizeDecisionTerms(reason),
 		"",
 		"---",
 		"",
 		"*报告由 GeeGoo 智能体个股盘中 skill 生成*",
 	)
-	return strings.Join(lines, "\n")
+	return stockfmt.LocalizeDecisionTerms(strings.Join(lines, "\n"))
+}
+
+func localizePriceSource(src string) string {
+	switch strings.TrimSpace(src) {
+	case "get_current_price":
+		return "行情快照"
+	case "get_ticker":
+		return "逐笔行情"
+	default:
+		if src == "" {
+			return "未知"
+		}
+		return src
+	}
 }
 
 // BuildCreateIntradayReportArgs builds createStockIntradayReport body.
@@ -268,18 +283,34 @@ func BuildCreateIntradayReportArgs(ctx context.Context, w *memory.PreMarketWorki
 	report := BuildIntradayReportContent(w, code)
 	ws := w.Stocks[code]
 	result, confidence := ws.IntradayResult, ws.IntradayConfidence
-	reason := ws.IntradayReason
-	if len([]rune(reason)) < 80 {
-		reason = padReason(reason, ws, result)
-		ws.IntradayReason = reason
-		w.Stocks[code] = ws
+	reason := strings.TrimSpace(ws.IntradayReason)
+	summary := stockfmt.IntradayAPISummary(ws.StockName, code, ws.TradeType, result, confidence, report)
+	synthReason := ""
+
+	if synth := IntradaySynthesizerFrom(ctx); synth != nil {
+		if res, err := synth.SynthesizeIntraday(ctx, ws, report, result, confidence); err == nil {
+			if s := strings.TrimSpace(res.Summary); s != "" {
+				summary = s
+			}
+			if r := strings.TrimSpace(res.Reason); r != "" {
+				reason = r
+				synthReason = r
+			}
+		}
 	}
+	if synthReason == "" && len([]rune(reason)) < 80 {
+		reason = buildIntradayReason(ws, result)
+	}
+	reason = stockfmt.LocalizeDecisionTerms(reason)
+	ws.IntradayReason = reason
+	w.Stocks[code] = ws
+
 	body := map[string]any{
 		"code": code, "stock_name": ws.StockName,
 		"bot_id": ws.BotID, "bot_name": ws.BotName, "bot_type": ws.BotType,
 		"result": result, "confidence": confidence, "reason": reason,
 		"report": report, "trade_type": ws.TradeType,
-		"summary": plainSummary(report, 200), "tags": []any{"intraday"},
+		"summary": summary,
 	}
 	if ws.CurrentPrice > 0 {
 		body["price"] = ws.CurrentPrice
@@ -287,35 +318,34 @@ func BuildCreateIntradayReportArgs(ctx context.Context, w *memory.PreMarketWorki
 	if ws.HasPosition {
 		body["position"] = map[string]any{"summary": ws.PositionSummary}
 	}
-	_ = ctx
 	return body
 }
 
-func padReason(reason string, ws memory.StockWorkspace, result string) string {
-	parts := []string{strings.TrimSpace(reason)}
+func buildIntradayReason(ws memory.StockWorkspace, result string) string {
+	parts := make([]string, 0, 6)
 	if ws.PreMarketResult != "" {
-		parts = append(parts, fmt.Sprintf("盘前观点为 %s", ws.PreMarketResult))
+		parts = append(parts, fmt.Sprintf("盘前观点为%s", preMarketResultCN(ws.PreMarketResult)))
 	}
-	if ws.HourlyPriceAnalysis != "" {
-		parts = append(parts, "小时级价格分析已纳入")
+	if ws.HourlyPriceAnalysis != "" || ws.HourlySignalAnalysis != "" || ws.HourlyKlineAnalysis != "" {
+		parts = append(parts, "已结合小时级价格、信号与K线分析")
 	}
 	if result == "hold" && hasIntradayHourlyData(ws) {
 		isBuy := strings.Contains(ws.TradeType, "买") || strings.Contains(strings.ToLower(ws.TradeType), "buy")
 		isSell := strings.Contains(ws.TradeType, "卖") || strings.Contains(strings.ToLower(ws.TradeType), "sell")
 		if (isBuy && stockfmt.HourlyContradictsBuy(ws.HourlyPriceAnalysis, ws.HourlySignalAnalysis, ws.HourlyKlineAnalysis)) ||
 			(isSell && stockfmt.HourlyContradictsSell(ws.HourlyPriceAnalysis, ws.HourlySignalAnalysis, ws.HourlyKlineAnalysis)) {
-			parts = append(parts, "小时级分析与信号方向不一致，决策观望")
+			parts = append(parts, "小时级分析与信号方向不一致")
 		}
 	}
 	if ws.CurrentPrice > 0 {
-		parts = append(parts, fmt.Sprintf("参考价 %.4f", ws.CurrentPrice))
+		parts = append(parts, fmt.Sprintf("参考价%.4f元", ws.CurrentPrice))
 	}
-	parts = append(parts, fmt.Sprintf("对本轮信号 %s 的决策为 %s", ws.TradeType, result))
-	return strings.Join(parts, "；")
-}
-
-func intradayReason(ws memory.StockWorkspace, result, confidence string) string {
-	return padReason("", ws, result)
+	parts = append(parts, fmt.Sprintf("对本轮「%s」信号决策为%s", ws.TradeType, intradayResultCN(result)))
+	text := strings.Join(parts, "，") + "。"
+	if len([]rune(text)) < 80 {
+		text += "综合盘前观点、持仓与盘中技术面，建议按规则结论执行并关注后续量价变化。"
+	}
+	return stockfmt.LocalizeDecisionTerms(text)
 }
 
 func hasIntradayHourlyData(ws memory.StockWorkspace) bool {
