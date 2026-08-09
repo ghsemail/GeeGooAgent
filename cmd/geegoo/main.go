@@ -39,6 +39,8 @@ func main() {
 		runSkillManage(os.Args[2:])
 	case "scheduler":
 		runScheduler(os.Args[2:])
+	case "gateway":
+		runGateway(os.Args[2:])
 	case "verify":
 		runVerify(os.Args[2:])
 	case "help", "-h", "--help":
@@ -79,8 +81,9 @@ Usage:
   %s skills list [--config PATH]
   %s skill enable|disable <name> [--config PATH]
   %s scheduler <run|list> [--config PATH]
+  %s gateway <run|status|setup> [--config PATH] [--dry-run]
   %s verify --codes CODES [--date YYYY-MM-DD] [--config PATH]
   %s verify agent-loop [--config PATH]
 
-`, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
+`, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
 }

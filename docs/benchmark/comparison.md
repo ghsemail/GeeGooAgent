@@ -97,7 +97,7 @@
 | Cron / Scheduler | ✅ `geegoo scheduler` | ✅ | ⚠️ `/loop` 等 |
 | Webhook 触发 | ❌ | ⚠️ | — |
 | 量化验收 | ✅ `geegoo verify` | ❌ | — |
-| IM 平台（飞书等） | ❌ 不做 | ✅ 20 平台 | — |
+| IM 平台（飞书等） | ⚠️ 飞书优先（IM Gateway） | ✅ 20 平台 | — |
 | 报告合成防失控 | ✅ evidence-only LLM + 规则锁定 result | ⚠️ 通用 LLM | — |
 
 ## 八、安全、沙箱与部署

@@ -16,7 +16,8 @@ Agent Runtime 控制面改造（Cognition / Model Policy / Memory port / Advisor
 | **Cost Manager** | 会话级 token / 费用账单 | Model Policy + session 元数据 |
 | **多租户** | ⚠️ Phase 1–3 已落地 | 会话/设置/Compare/completions 按 `X-User-Id`；BFF `GEEGOO_AGENT_VALIDATE_MCP_TOKEN`；迁移 `geegoo migrate tenant`；配额/Cost 仍待做 |
 | **Webhook 触发** | HTTP 入口触发 skill / chat | runtimeapi 扩展 |
-| **Notify Gateway** | 飞书等通知经 GeeGooBot `internal/notify`，非 Agent 直连 webhook | GeeGooBot 侧实现；Agent 薄转发 |
+| **IM Gateway M2+** | 飞书媒体/home channel/卡片/Webhook/按群 ACL；其他 IM 平台 | [gateway/README.md](./gateway/README.md)；M1（飞书 WS 文本）已落地 |
+| **Notify Gateway（可选）** | GeeGooBot `internal/notify` 作应用内推送补充；**IM 主路径为 Agent `geegoo gateway`** | GeeGooBot 侧；不替代 IM Gateway |
 
 ---
 

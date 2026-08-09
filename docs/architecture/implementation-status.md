@@ -113,18 +113,17 @@
 | `get_capital_*` | A 股/HK/US | Bot :3120 路由 GeeGooData 分节点；空数据 skip |
 | Bot scheduler | 创建后不自动跑 | GeeGooBot 架构缺口，非 Agent bug |
 
-### 已从 Tool Registry 移除（待 Notify Gateway）
+### 已从 Tool Registry 移除（通知路径已转向 IM Gateway）
 
 | 原 Tool | 处置 | 说明 |
 |---------|------|------|
-| `send_feishu_summary` | **待办，非 L2 Tool** | 当前实现为 Agent 本地直连 webhook，未走 GeeGooBot；`premarket_market` manifest 未纳入；Notify Gateway（GeeGooBot `internal/notify`）就绪后以 `send_notification` 或 workflow 固定步骤恢复 |
+| `send_feishu_summary` | **由 IM Gateway 替代主路径** | `geegoo gateway run` + 飞书适配器（M1 文本双向）；home channel / Scheduler 投递见 M2（[gateway/m2-plus.md](./gateway/m2-plus.md)） |
 
-**Notify Gateway 待办（与 scheduler 并列，整体切换前实现）：**
+**IM Gateway（Agent 侧，对齐 Hermes）：**
 
-- 落点：GeeGooBot `internal/notify` + HTTP/MCP 出口
-- 路由：按 `user.notice`（webhook / FCM / Jpush），非 Agent 全局 `feishu_webhook_url`
-- 模板：对齐 TradingBot `BotNotice`（notice_type 0–5）
-- Agent 侧：薄转发或 Skill workflow 后置步骤；Supervisor 硬失败告警走 L0，不经 LLM 自由选 tool
+- 入口：`geegoo gateway run|status`；包：`internal/gateway` + `platforms/feishu`
+- 文档：[gateway/README.md](./gateway/README.md)
+- GeeGooBot `internal/notify` 仍可作为应用内推送补充，**不替代** IM Gateway
 
 ---
 

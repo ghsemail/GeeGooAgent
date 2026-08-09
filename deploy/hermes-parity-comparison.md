@@ -18,7 +18,7 @@
 | `tools/clarify_tool.py` | `internal/tools/clarify.go` + TUI 选项面板 | ✅ |
 | `hermes_state.py` SQLite+FTS5+血缘 | `internal/chatsession/sqlite.go` + `infra/db.go` (WAL+FTS5) | ✅ 对齐（血缘未做） |
 | `gateway/session.py` | `internal/chatsession/` | ✅ |
-| `gateway/platforms/` (20 IM) | — | ❌ 不做（不需要 IM） |
+| `gateway/platforms/` (20 IM) | `internal/gateway` + `platforms/feishu` | ⚠️ 飞书优先（M1）；多平台后置 |
 | `cron/jobs.py` | `internal/scheduler/` (robfig/cron) | ✅ 对齐 |
 | `plugins/memory/` `plugins/context_engine/` | — | ❌ 不做（单租户 YAGNI） |
 | `acp_adapter/` | — | ❌ 不做 |
@@ -59,7 +59,7 @@
 | Evidence 可追溯 | ❌ | ✅ P1 EvidenceStore SQLite + hash | GeeGoo 更强 |
 | Cutover 量化验收 | ❌ | ✅ P8 `geegoo verify` | GeeGoo 更强 |
 | 网页搜索 | ✅ web_tools | ✅ DuckDuckGo（免费） | ✅ |
-| IM 平台 | ✅ 20 | ❌ 不做 | 按需 |
+| IM 平台 | ✅ 20 | ⚠️ 飞书优先（`geegoo gateway`） | 进行中 |
 | ACP/IDE 集成 | ✅ | ❌ 不做 | 按需 |
 | 插件系统 | ✅ | ❌ 不做 | YAGNI |
 | 轨迹训练导出 | ✅ | ❌ 不做 | 不需要 |

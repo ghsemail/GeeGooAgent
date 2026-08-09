@@ -13,7 +13,7 @@
 | Provider 解析 | `hermes_cli/runtime_provider.py` 18+ | `internal/llm/presets.go` 3 个 | 不多加；但缺 `(provider,model)→(mode,key,base_url)` resolver 抽象 |
 | 工具系统 | `tools/registry.py` 70+/28 toolset，导入自注册 | `internal/tools/registry.go` + bespoke + catalog | 无 toolset 分组、无自注册、无 approval/危险检测、无 input/output schema |
 | 会话持久化 | `hermes_state.py` SQLite + FTS5 + 血缘 | `internal/chatsession/store.go` 文件 JSON + index manifest | 最大差距之一 |
-| Gateway | `gateway/` 20 IM 平台 | 无 | 不需要 IM；agent-runtime HTTP 已替代部分 |
+| Gateway | `gateway/` 20 IM 平台 | `internal/gateway` + 飞书（优先） | IM Gateway 已立项；先飞书，再扩平台 |
 | Cron | `cron/jobs.py` agent 一等公民 | `deploy/systemd/*.timer` shell 级 | 缺 Go 内调度、缺 skill 注入、缺失败重跑 |
 | 插件 | `plugins/memory/` `plugins/context_engine/` | 无 | 单租户，YAGNI，后置 |
 | ACP | `acp_adapter/` | 无 | 不需要 |
@@ -116,7 +116,7 @@ GeeGooAgent/
 
 | Hermes 模块 | 不做的原因 |
 |---|---|
-| `gateway/` 20 IM 平台 | 只用 HTTP runtime + CLI |
+| `gateway/` 20 IM 平台 | `geegoo gateway run` + 飞书优先；其余平台后置 |
 | `acp_adapter/` IDE 集成 | 不需要 |
 | `plugins/memory/` 插件市场 | 单租户 YAGNI |
 | `batch_runner.py` 轨迹训练 | 不做训练 |

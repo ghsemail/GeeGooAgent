@@ -26,7 +26,7 @@
   "signal_analyze_api_url": "http://127.0.0.1:3230",
   "signal_analyze_api_key": "",
   "output_dir": "./data",
-  "feishu_webhook_url": null,
+	"feishu_webhook_url": null,
   "dry_run": false,
   "max_steps": 80,
   "tool_max_parallel": 4,

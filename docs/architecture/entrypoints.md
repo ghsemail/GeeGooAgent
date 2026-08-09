@@ -9,21 +9,21 @@ GeeGooAgent 与 Hermes 一样，**平台差异在入口点，不在 Agent 核心
 | **CLI Chat** | `geegoo chat` | 交互式对话、按需分析、Bot 管理 | 本文 §CLI |
 | **CLI Workflow** | `geegoo run <skill>` | 确定性盘前/盘后工作流 | [workflow-engine.md](./layers/L4-runtime/workflow-engine.md) |
 | **CLI Scheduler** | `geegoo scheduler run` | 长驻 cron，按 skill 定时跑 | [scheduler.md](./layers/L0-infrastructure/scheduler.md) |
+| **CLI IM Gateway** | `geegoo gateway run` | 长驻 IM（飞书优先）→ `Agent.Run` | [gateway/README.md](./gateway/README.md) |
 | **HTTP Runtime** | `agentRuntimeServer` `:3400` | OpenAI 兼容 `/v1/chat/completions` | 本文 §HTTP |
 | **运维** | `geegoo doctor` / `setup` / `migrate` / `verify` | 健康检查、配置、迁移、验收 | 本文 §运维 |
 
 ```text
-                    ┌─────────────────────────────────────┐
-                    │         Entry Points                 │
-                    ├─────────────┬───────────────┬───────┤
-                    │ geegoo chat │ geegoo run    │ :3400 │
-                    │ + toolsets  │ premarket_market    │ HTTP  │
-                    │ + /commands │ scheduler     │       │
-                    └──────┬──────┴───────┬───────┴───┬───┘
-                           │              │           │
-                           ▼              ▼           ▼
-                    Agent.Run()    workflow.Runner   Agent.Run()
-                    (ReAct)        (确定性步骤)       (ReAct)
+                    ┌──────────────────────────────────────────────┐
+                    │              Entry Points                     │
+                    ├──────────┬──────────┬───────────┬────────────┤
+                    │ geegoo   │ geegoo   │ geegoo    │ :3400      │
+                    │ chat     │ run      │ gateway   │ HTTP       │
+                    │          │+scheduler│ (飞书…)   │            │
+                    └────┬─────┴────┬─────┴─────┬─────┴──────┬─────┘
+                         │          │           │            │
+                         ▼          ▼           ▼            ▼
+                    Agent.Run  workflow.Runner  Agent.Run  Agent.Run
 ```
 
 ---
@@ -42,6 +42,7 @@ GeeGooAgent 与 Hermes 一样，**平台差异在入口点，不在 Agent 核心
 | `migrate` | `migrate.go` | 文件 Session → SQLite 一次性迁移 |
 | `skills list` | `skills.go` | 列出 `internal/skills` 注册表 |
 | `scheduler run\|list` | `scheduler.go` | cron 守护 |
+| `gateway run\|status\|setup` | `gateway.go` | IM Gateway（飞书优先；setup 支持扫码建机器人） |
 | `verify` | `verify.go` | 盘前报告字段完整率验收 |
 
 ### Chat 数据流
