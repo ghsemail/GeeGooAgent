@@ -642,6 +642,27 @@ func RepairMCPBoldArtifacts(s string) string {
 	return s
 }
 
+// RepairIntradayLineBreaks fixes glued list items and section headers in hourly prose.
+func RepairIntradayLineBreaks(md string) string {
+	s := strings.TrimSpace(md)
+	if s == "" {
+		return s
+	}
+	repls := []struct{ re, neu string }{
+		{`([。！？])\s*(\d+\.\s+\*\*)`, "$1\n\n$2"},
+		{`([。！？])\s*(\*\*[一二三四五六七八九十]+、)`, "$1\n\n$2"},
+		{`([。！？])\s*(\*\*[^*\n]{2,24}\*\*)`, "$1\n\n$2"},
+		{`([）)])\s*(\d{1,2}/\d{1,2}[：:])`, "$1\n$2"},
+		{`([）)])\s*(\d{1,2}月\d{1,2}日)`, "$1\n$2"},
+		{`(\S)\s{0,2}(8月[5-9]日)`, "$1\n\n$2"},
+	}
+	for _, r := range repls {
+		s = regexp.MustCompile(r.re).ReplaceAllString(s, r.neu)
+	}
+	s = regexp.MustCompile(`\n{3,}`).ReplaceAllString(s, "\n\n")
+	return strings.TrimSpace(s)
+}
+
 // StripBrokenBoldMarkers is an alias kept for callers that only need MCP artifact repair.
 func StripBrokenBoldMarkers(s string) string {
 	return RepairMCPBoldArtifacts(s)

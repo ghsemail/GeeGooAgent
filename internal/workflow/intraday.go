@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
+	"github.com/ghsemail/GeeGooAgent/internal/report"
 	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
 )
 
@@ -274,7 +275,8 @@ func ensureIntradayBundle(ctx context.Context, w *memory.PreMarketWorking, code 
 		}
 	}
 	ws := w.Stocks[code]
-	draft := buildIntradayDraft(w, code)
+	hourly := resolveIntradayHourlySections(ctx, ws)
+	draft := buildIntradayDraft(w, code, hourly)
 	ruleResult, ruleConfidence := DecideIntraday(ws)
 	bundle := IntradayBundle{
 		Report:     draft,
@@ -352,7 +354,7 @@ func BuildIntradayReportContent(w *memory.PreMarketWorking, code string) string 
 	return ensureIntradayBundle(context.Background(), w, code).Report
 }
 
-func buildIntradayDraft(w *memory.PreMarketWorking, code string) string {
+func buildIntradayDraft(w *memory.PreMarketWorking, code string, hourly report.IntradayHourlySummary) string {
 	ws := w.Stocks[code]
 	lines := []string{}
 	if ws.AttitudeSwitch && strings.TrimSpace(ws.PreMarketResult) != "" {
@@ -374,16 +376,25 @@ func buildIntradayDraft(w *memory.PreMarketWorking, code string) string {
 	if ws.HourlyPriceAnalysis != "" || ws.HourlySignalAnalysis != "" || ws.HourlyKlineAnalysis != "" {
 		lines = append(lines, "## 小时级分析", "")
 		if ws.HourlyPriceAnalysis != "" {
-			lines = append(lines, "### 小时级价格分析", "",
-				stockfmt.FormatIntradayHourlySection(ws.HourlyPriceAnalysis, "暂无小时级价格分析。"), "")
+			body := strings.TrimSpace(hourly.Price)
+			if body == "" {
+				body = "暂无小时级价格分析。"
+			}
+			lines = append(lines, "### 小时级价格分析", "", body, "")
 		}
 		if ws.HourlySignalAnalysis != "" {
-			lines = append(lines, "### 小时级信号分析", "",
-				stockfmt.FormatIntradaySignalSection(ws.HourlySignalAnalysis), "")
+			body := strings.TrimSpace(hourly.Signal)
+			if body == "" {
+				body = "暂无小时级信号分析。"
+			}
+			lines = append(lines, "### 小时级信号分析", "", body, "")
 		}
 		if ws.HourlyKlineAnalysis != "" {
-			lines = append(lines, "### 小时级 K 线分析", "",
-				stockfmt.FormatIntradayHourlySection(ws.HourlyKlineAnalysis, "暂无小时级 K 线分析。"), "")
+			body := strings.TrimSpace(hourly.Kline)
+			if body == "" {
+				body = "暂无小时级 K 线分析。"
+			}
+			lines = append(lines, "### 小时级 K 线分析", "", body, "")
 		}
 	}
 	if ws.CurrentPrice > 0 {

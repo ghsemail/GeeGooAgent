@@ -123,6 +123,18 @@ func (s *ReportSynthesizer) SynthesizeIntraday(
 	return res, nil
 }
 
+// SummarizeIntradayHourly condenses raw MCP hourly blocks for intraday report bodies.
+func (s *ReportSynthesizer) SummarizeIntradayHourly(
+	ctx context.Context,
+	ws memory.StockWorkspace,
+	priceRaw, signalRaw, klineRaw string,
+) (report.IntradayHourlySummary, error) {
+	if s == nil || s.inner == nil || !s.inner.Available() {
+		return report.IntradayHourlySummary{}, fmt.Errorf("report synthesizer not available")
+	}
+	return s.inner.SummarizeIntradayHourly(ctx, ws, priceRaw, signalRaw, klineRaw)
+}
+
 func (s *ReportSynthesizer) emit(event string, payload map[string]any) {
 	if s != nil && s.bus != nil {
 		s.bus.Emit(event, payload)

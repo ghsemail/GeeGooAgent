@@ -75,7 +75,8 @@ func formatIntradayHourlyContent(raw string) string {
 		}
 		out = append(out, trim)
 	}
-	return strings.TrimSpace(strings.Join(out, "\n"))
+	text := strings.TrimSpace(strings.Join(out, "\n"))
+	return RepairIntradayLineBreaks(text)
 }
 
 func formatIntradayVerdictSection(raw string) string {
@@ -174,6 +175,15 @@ func isIntradayRawDataLine(line string) bool {
 		return true
 	}
 	if strings.Contains(trim, "K线形态") && strings.Contains(trim, "信号") {
+		return true
+	}
+	if regexp.MustCompile(`^(期初|期末|期间|累计|峰值|周内|单日|5日|8日|开盘第一小时)`).MatchString(trim) {
+		return true
+	}
+	if regexp.MustCompile(`^\d{1,2}月\d{1,2}日`).MatchString(trim) {
+		return true
+	}
+	if regexp.MustCompile(`^📈|^📉|^⚠️|^💡|^📊|^✅|^🎯`).MatchString(trim) {
 		return true
 	}
 	return false
