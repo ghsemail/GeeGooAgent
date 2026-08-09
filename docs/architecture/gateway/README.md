@@ -53,7 +53,9 @@ Dashboard（trading_operation Agent 模式 → Gateway → **飞书** tab）走�
 | `FEISHU_GROUP_POLICY` | | `allowlist`（默认）/ `open` / `disabled` |
 | `FEISHU_REQUIRE_MENTION` | | 群内是否必须 @（默认 `true`） |
 
-飞书开放平台：开机器人能力；权限 `im:message`、`im:message:send_as_bot`、`im:chat`；事件订阅选**长连接**并订阅 `im.message.receive_v1`；发版生效。
+飞书开放平台：开机器人能力；权限 `im:message`、`im:message:send_as_bot`、`im:chat`，建议 `im:message.reactions:write`（处理中 Typing 反应）；事件订阅选**长连接**并订阅 `im.message.receive_v1`；发版生效。
+
+出站：优先 `post`+`md` 渲染 Markdown（失败回退 `text`）；处理中对用户消息加 Typing 反应，成功后清除，失败改 CrossMark。详见 `feishu-typing-markdown.md`。
 
 ### M1 验收
 

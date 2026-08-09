@@ -142,20 +142,41 @@ func (r *Runner) handleInbound(ctx context.Context, ev InboundEvent) error {
 		return fmtError("no adapter for " + string(ev.Platform))
 	}
 
+	if ind, ok := adapter.(ProcessingIndicator); ok && ev.MessageID != "" {
+		_ = ind.MarkProcessing(ctx, ev.MessageID)
+	}
+
 	reply, err := r.runAgentTurn(ctx, key, ev, text)
 	if err != nil {
 		slog.Error("gateway: agent turn failed", "err", err, "platform", ev.Platform)
+		if ind, ok := adapter.(ProcessingIndicator); ok && ev.MessageID != "" {
+			_ = ind.MarkFailed(ctx, ev.MessageID)
+		}
 		_ = adapter.SendText(ctx, OutboundText{ChatID: ev.ChatID, Text: "抱歉，处理消息时出错了。", ReplyToID: ev.MessageID})
 		return err
 	}
 	if reply == "" {
+		if ind, ok := adapter.(ProcessingIndicator); ok && ev.MessageID != "" {
+			_ = ind.ClearProcessing(ctx, ev.MessageID)
+		}
 		return nil
 	}
 	if r.Config.DryRun {
 		slog.Info("gateway: dry-run reply", "chat", ev.ChatID, "text", truncate(reply, 200))
+		if ind, ok := adapter.(ProcessingIndicator); ok && ev.MessageID != "" {
+			_ = ind.ClearProcessing(ctx, ev.MessageID)
+		}
 		return nil
 	}
-	return adapter.SendText(ctx, OutboundText{ChatID: ev.ChatID, Text: reply, ReplyToID: ev.MessageID})
+	sendErr := adapter.SendText(ctx, OutboundText{ChatID: ev.ChatID, Text: reply, ReplyToID: ev.MessageID})
+	if ind, ok := adapter.(ProcessingIndicator); ok && ev.MessageID != "" {
+		if sendErr != nil {
+			_ = ind.MarkFailed(ctx, ev.MessageID)
+		} else {
+			_ = ind.ClearProcessing(ctx, ev.MessageID)
+		}
+	}
+	return sendErr
 }
 
 func (r *Runner) authorize(ev InboundEvent) bool {

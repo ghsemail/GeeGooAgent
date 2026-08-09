@@ -22,14 +22,17 @@ import (
 type Adapter struct {
 	cfg Config
 
-	api    *lark.Client
-	ws     *larkws.Client
-	botOID string
+	api     *lark.Client
+	ws      *larkws.Client
+	botOID  string
 	botName string
 
 	connected atomic.Bool
 	mu        sync.Mutex
 	cancel    context.CancelFunc
+
+	reactMu          sync.Mutex
+	pendingReactions map[string]string // message_id → reaction_id (Typing)
 }
 
 // NewAdapter builds a Feishu adapter. Returns nil-capable Configured()=false when creds missing.
@@ -162,21 +165,60 @@ func (a *Adapter) Disconnect(ctx context.Context) error {
 	return nil
 }
 
-func (a *Adapter) SendText(ctx context.Context, msg gateway.OutboundText) error {
-	if a.api == nil {
-		baseURL := lark.FeishuBaseUrl
-		if strings.EqualFold(a.cfg.Domain, "lark") {
-			baseURL = lark.LarkBaseUrl
-		}
-		a.api = lark.NewClient(a.cfg.AppID, a.cfg.AppSecret, lark.WithOpenBaseUrl(baseURL))
+func (a *Adapter) ensureAPI() {
+	if a.api != nil {
+		return
 	}
-	content, _ := json.Marshal(map[string]string{"text": msg.Text})
+	baseURL := lark.FeishuBaseUrl
+	if strings.EqualFold(a.cfg.Domain, "lark") {
+		baseURL = lark.LarkBaseUrl
+	}
+	a.api = lark.NewClient(a.cfg.AppID, a.cfg.AppSecret, lark.WithOpenBaseUrl(baseURL))
+}
+
+func (a *Adapter) SendText(ctx context.Context, msg gateway.OutboundText) error {
+	a.ensureAPI()
+	postContent := BuildMarkdownPostPayload(msg.Text)
+	if err := a.sendContent(ctx, msg, "post", postContent); err != nil {
+		if !isPostContentInvalid(err) {
+			return err
+		}
+		slog.Warn("feishu: post rejected, falling back to text", "err", err)
+		textContent, _ := json.Marshal(map[string]string{"text": PlainTextFallback(msg.Text)})
+		return a.sendContent(ctx, msg, "text", string(textContent))
+	}
+	return nil
+}
+
+func (a *Adapter) sendContent(ctx context.Context, msg gateway.OutboundText, msgType, content string) error {
+	if msg.ReplyToID != "" {
+		req := larkim.NewReplyMessageReqBuilder().
+			MessageId(msg.ReplyToID).
+			Body(larkim.NewReplyMessageReqBodyBuilder().
+				MsgType(msgType).
+				Content(content).
+				Build()).
+			Build()
+		resp, err := a.api.Im.V1.Message.Reply(ctx, req)
+		if err != nil {
+			return err
+		}
+		if resp.Success() {
+			return nil
+		}
+		// Parent withdrawn/missing → fall through to create in chat.
+		if resp.Code != 230011 && resp.Code != 231003 {
+			return fmt.Errorf("feishu reply: code=%d msg=%s", resp.Code, resp.Msg)
+		}
+		slog.Warn("feishu: reply target missing, creating in chat", "code", resp.Code)
+	}
+
 	req := larkim.NewCreateMessageReqBuilder().
 		ReceiveIdType(larkim.CreateMessageV1ReceiveIDTypeChatId).
 		Body(larkim.NewCreateMessageReqBodyBuilder().
 			ReceiveId(msg.ChatID).
-			MsgType("text").
-			Content(string(content)).
+			MsgType(msgType).
+			Content(content).
 			Build()).
 		Build()
 	resp, err := a.api.Im.V1.Message.Create(ctx, req)
@@ -187,6 +229,15 @@ func (a *Adapter) SendText(ctx context.Context, msg gateway.OutboundText) error 
 		return fmt.Errorf("feishu send: code=%d msg=%s", resp.Code, resp.Msg)
 	}
 	return nil
+}
+
+func isPostContentInvalid(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "content format of the post type is incorrect") ||
+		strings.Contains(s, "post type is incorrect")
 }
 
 func (a *Adapter) SendMedia(ctx context.Context, chatID string, filename string, data []byte, mime string) error {

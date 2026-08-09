@@ -18,6 +18,13 @@ type PlatformAdapter interface {
 	Status() AdapterStatus
 }
 
+// ProcessingIndicator is optional: show in-progress UX (e.g. Feishu Typing reaction).
+type ProcessingIndicator interface {
+	MarkProcessing(ctx context.Context, messageID string) error
+	ClearProcessing(ctx context.Context, messageID string) error
+	MarkFailed(ctx context.Context, messageID string) error
+}
+
 // AdapterStatus is a snapshot for `geegoo gateway status`.
 type AdapterStatus struct {
 	Platform  Platform
