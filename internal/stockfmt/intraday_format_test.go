@@ -135,6 +135,25 @@ func TestFormatPriceTrimsZeros(t *testing.T) {
 	}
 }
 
+func TestRepairIntradayLineBreaksJoinsMidSentenceDates(t *testing.T) {
+	in := "震荡上行并在\n\n8月5日触及497.8的周期高点，随后连续两日回调。"
+	out := stockfmt.RepairIntradayLineBreaks(in)
+	if strings.Contains(out, "并在\n") || strings.Contains(out, "并在\n\n8月") {
+		t.Fatalf("expected joined date line, got %q", out)
+	}
+	if !strings.Contains(out, "并在8月5日触及") {
+		t.Fatalf("expected continuous sentence, got %q", out)
+	}
+}
+
+func TestRepairIntradayLineBreaksKeepsSectionBreaks(t *testing.T) {
+	in := "趋势偏弱。\n\n**量价关系**\n\n量能萎缩。"
+	out := stockfmt.RepairIntradayLineBreaks(in)
+	if !strings.Contains(out, "**量价关系**") {
+		t.Fatalf("expected section header retained: %s", out)
+	}
+}
+
 func TestFormatIntradayHourlySectionKeepsTrendSection(t *testing.T) {
 	raw := `### 一、数据区间
 

@@ -71,6 +71,7 @@ func buildIntradayHourlySummaryPrompt(ws memory.StockWorkspace, priceRaw, signal
 - 量价/成交量用概括性描述（如「量能逐步萎缩」「下跌放量」），不要逐日罗列
 - 综合判定/结论单独成段，观点明确
 - 小节标题用 Markdown 加粗，如 **整体走势概述**、**量价关系**、**综合判定**
+- 日期写在句子内部，不要把「8月5日」等日期单独拆到新行
 - 每条要点单独一行；段落之间空一行
 - 不要 emoji、不要引用 [ev_...]、不要英文枚举`)
 	return []llm.Message{
@@ -116,7 +117,10 @@ func parseIntradayHourlySummaryJSON(content string) (IntradayHourlySummary, erro
 }
 
 func sanitizeIntradayHourlySection(text string) string {
-	text = strings.TrimSpace(stockfmt.RepairIntradayLineBreaks(stockfmt.LocalizeDecisionTerms(text)))
+	text = strings.TrimSpace(text)
+	text = stockfmt.StripEmoji(text)
+	text = stockfmt.RepairIntradayLineBreaks(stockfmt.LocalizeDecisionTerms(text))
+	text = stockfmt.RepairMCPBoldArtifacts(text)
 	if text == "" {
 		return ""
 	}

@@ -22,7 +22,7 @@ func FormatIntradayHourlySection(raw, fallback string) string {
 		return fallback
 	}
 	if embedded := formatIntradayHourlyContent(raw); embedded != "" {
-		return PolishStockPremarketMarkdown(embedded)
+		return PolishStockPremarketMarkdown(RepairIntradayLineBreaks(embedded))
 	}
 	return formatIntradaySection(raw, fallback, false)
 }
@@ -76,7 +76,7 @@ func formatIntradayHourlyContent(raw string) string {
 		out = append(out, trim)
 	}
 	text := strings.TrimSpace(strings.Join(out, "\n"))
-	return RepairIntradayLineBreaks(text)
+	return RepairIntradayLineBreaks(StripEmoji(text))
 }
 
 func formatIntradayVerdictSection(raw string) string {

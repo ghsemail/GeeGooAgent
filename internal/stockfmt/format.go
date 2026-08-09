@@ -642,21 +642,40 @@ func RepairMCPBoldArtifacts(s string) string {
 	return s
 }
 
-// RepairIntradayLineBreaks fixes glued list items and section headers in hourly prose.
+// StripEmoji removes decorative emoji from user-facing report prose.
+func StripEmoji(text string) string {
+	var out strings.Builder
+	for _, r := range text {
+		if (r >= 0x1F300 && r <= 0x1FAFF) || (r >= 0x2600 && r <= 0x27BF) {
+			continue
+		}
+		out.WriteRune(r)
+	}
+	return strings.TrimSpace(out.String())
+}
+
+// RepairIntradayLineBreaks fixes glued list items and spurious mid-sentence line wraps.
 func RepairIntradayLineBreaks(md string) string {
 	s := strings.TrimSpace(md)
 	if s == "" {
 		return s
 	}
-	repls := []struct{ re, neu string }{
+	joinPatterns := []struct{ re, neu string }{
+		{`([^\n。！？\s])\n+\s*(\d{1,2}月\d{1,2}日)`, "$1$2"},
+		{`([，、；：])\n+\s*(\d{1,2}月\d{1,2}日)`, "$1$2"},
+		{`([^\n。！？\s])\n+\s*(\d{1,2}/\d{1,2}[：:])`, "$1$2"},
+		{`([，、；：])\n+\s*(\d{1,2}/\d{1,2}[：:])`, "$1$2"},
+		{`([^\n。！？\s])\n+\s*(截至)`, "$1$2"},
+	}
+	for _, r := range joinPatterns {
+		s = regexp.MustCompile(r.re).ReplaceAllString(s, r.neu)
+	}
+	splitPatterns := []struct{ re, neu string }{
 		{`([。！？])\s*(\d+\.\s+\*\*)`, "$1\n\n$2"},
 		{`([。！？])\s*(\*\*[一二三四五六七八九十]+、)`, "$1\n\n$2"},
-		{`([。！？])\s*(\*\*[^*\n]{2,24}\*\*)`, "$1\n\n$2"},
-		{`([）)])\s*(\d{1,2}/\d{1,2}[：:])`, "$1\n$2"},
-		{`([）)])\s*(\d{1,2}月\d{1,2}日)`, "$1\n$2"},
-		{`(\S)\s{0,2}(8月[5-9]日)`, "$1\n\n$2"},
+		{`([。！？])\s*(\*\*[^*\n]{2,32}\*\*)`, "$1\n\n$2"},
 	}
-	for _, r := range repls {
+	for _, r := range splitPatterns {
 		s = regexp.MustCompile(r.re).ReplaceAllString(s, r.neu)
 	}
 	s = regexp.MustCompile(`\n{3,}`).ReplaceAllString(s, "\n\n")

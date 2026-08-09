@@ -81,9 +81,13 @@ func buildIntradaySynthesisPrompt(ws memory.StockWorkspace, draft, ruleResult, r
 	b.WriteString(fmt.Sprintf("触发 Bot: %s（%s，类型 %s）\n", ws.BotName, ws.BotID, ws.BotType))
 	b.WriteString(fmt.Sprintf("本轮信号: %s\n", ws.TradeType))
 	if ws.AttitudeSwitch {
-		b.WriteString(fmt.Sprintf("盘前: %s（置信 %s）\n", ws.PreMarketResult, ws.PreMarketConfidence))
-		if strings.TrimSpace(ws.PreMarketReason) != "" {
-			b.WriteString("盘前依据: " + truncateLine(ws.PreMarketReason, 400) + "\n")
+		if strings.TrimSpace(ws.PreMarketResult) != "" {
+			b.WriteString(fmt.Sprintf("盘前: %s（置信 %s）\n", ws.PreMarketResult, ws.PreMarketConfidence))
+			if strings.TrimSpace(ws.PreMarketReason) != "" {
+				b.WriteString("盘前依据: " + truncateLine(ws.PreMarketReason, 400) + "\n")
+			}
+		} else {
+			b.WriteString("盘前: 已启用但暂无报告，不作为方向依据\n")
 		}
 	} else {
 		b.WriteString("盘前: 未启用（attitude.switch 关闭，不读取盘前报告）\n")

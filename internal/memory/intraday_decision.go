@@ -21,7 +21,7 @@ func DecideIntraday(ws StockWorkspace) (result, confidence string) {
 		if ws.AttitudeSwitch && ws.PreMarketResult == "short" && ws.PreMarketConfidence == "high" {
 			return "hold", downgradeIntradayConfidence(confidence, ws)
 		}
-		if isBuyAligned(ws.PreMarketResult) {
+		if isBuyAligned(ws) {
 			if hourlyVetoesBuy(ws) {
 				return "hold", downgradeIntradayConfidence(confidence, ws)
 			}
@@ -33,7 +33,7 @@ func DecideIntraday(ws StockWorkspace) (result, confidence string) {
 		if ws.AttitudeSwitch && ws.PreMarketResult == "long" && ws.PreMarketConfidence == "high" {
 			return "hold", downgradeIntradayConfidence(confidence, ws)
 		}
-		if isSellAligned(ws.PreMarketResult) || reminder {
+		if isSellAligned(ws) || reminder {
 			if hourlyVetoesSell(ws) {
 				return "hold", downgradeIntradayConfidence(confidence, ws)
 			}
@@ -72,12 +72,27 @@ func isSellTradeType(tradeType string) bool {
 	return strings.Contains(tradeType, "卖") || strings.Contains(t, "sell")
 }
 
-func isBuyAligned(preResult string) bool {
-	return preResult == "" || preResult == "long" || preResult == "neutral"
+func isBuyAligned(ws StockWorkspace) bool {
+	switch ws.PreMarketResult {
+	case "long", "neutral":
+		return true
+	case "short":
+		return false
+	default:
+		// No premarket: only neutral when attitude.switch is off (premarket step skipped).
+		return !ws.AttitudeSwitch
+	}
 }
 
-func isSellAligned(preResult string) bool {
-	return preResult == "" || preResult == "short" || preResult == "neutral"
+func isSellAligned(ws StockWorkspace) bool {
+	switch ws.PreMarketResult {
+	case "short", "neutral":
+		return true
+	case "long":
+		return false
+	default:
+		return !ws.AttitudeSwitch
+	}
 }
 
 func isReminderBotType(botType string) bool {

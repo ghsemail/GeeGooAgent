@@ -72,6 +72,31 @@ func TestDecideIntradaySellWithoutPosition(t *testing.T) {
 	}
 }
 
+func TestDecideIntradayBuyWithoutPremarketWhenAttitudeOn(t *testing.T) {
+	ws := StockWorkspace{
+		TradeType: "信号买入", AttitudeSwitch: true, CurrentPrice: 100,
+		HourlyPriceAnalysis: "偏多",
+	}
+	result, confidence := DecideIntraday(ws)
+	if result != "hold" {
+		t.Fatalf("expected hold without premarket, got %s", result)
+	}
+	if confidence != "low" {
+		t.Fatalf("expected low confidence, got %s", confidence)
+	}
+}
+
+func TestDecideIntradayBuyWithoutPremarketWhenAttitudeOff(t *testing.T) {
+	ws := StockWorkspace{
+		TradeType: "信号买入", AttitudeSwitch: false, CurrentPrice: 100,
+		HourlyPriceAnalysis: "偏多",
+	}
+	result, _ := DecideIntraday(ws)
+	if result != "buy" {
+		t.Fatalf("expected buy when premarket skipped, got %s", result)
+	}
+}
+
 func TestFinalizeDerivedFieldsIntradayStock(t *testing.T) {
 	w := NewPreMarketWorking("s1", "intraday_stock")
 	w.Stocks["00700.HK"] = StockWorkspace{
