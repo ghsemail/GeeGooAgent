@@ -74,11 +74,55 @@ func TestIntradayAPISummaryNoTags(t *testing.T) {
 func TestStripBrokenBoldMarkers(t *testing.T) {
 	in := "周表现：**-1.40%** (从490.40降至478.80) 周振幅：**4.51%**"
 	out := stockfmt.StripBrokenBoldMarkers(in)
-	if strings.Contains(out, "**") {
-		t.Fatalf("expected no stray asterisks: %s", out)
+	if strings.Contains(out, "%**") {
+		t.Fatalf("expected broken percent markers removed: %s", out)
+	}
+	if !strings.Contains(out, "**整体走势**") {
+		withTitle := stockfmt.RepairMCPBoldArtifacts("**整体走势** -1.40%")
+		if !strings.Contains(withTitle, "**整体走势**") {
+			t.Fatalf("expected section titles to stay bold: %s", withTitle)
+		}
 	}
 	if !strings.Contains(out, "-1.40%") || !strings.Contains(out, "4.51%") {
 		t.Fatalf("expected metrics retained: %s", out)
+	}
+}
+
+func TestFormatIntradayHourlySectionDropsRawDailyRows(t *testing.T) {
+	raw := `一、整体走势概览
+
+统计区间：2026年7月29日 - 8月7日
+
+二、日线级别分析
+
+07-29：6.15：6.17：6.20：6.13：+0.33%：101.05
+07-30：6.17：6.33：6.35：6.16：+2.59%：290.80
+
+三、关键走势特征
+
+1. 冲高回落后进入缩量阴跌，低点逐步下移。`
+	out := stockfmt.FormatIntradayHourlySection(raw, "fallback")
+	if strings.Contains(out, "07-29：6.15") {
+		t.Fatalf("expected raw daily rows removed: %s", out)
+	}
+	if !strings.Contains(out, "关键走势特征") || !strings.Contains(out, "缩量阴跌") {
+		t.Fatalf("expected narrative retained: %s", out)
+	}
+	if !strings.Contains(out, "**") {
+		t.Fatalf("expected bold section titles: %s", out)
+	}
+}
+
+func TestFormatIntradaySignalSectionPolishesVerdict(t *testing.T) {
+	raw := `四、综合判定结论：
+
+> ### ⚠️ 短期：偏看空（短线存在回调压力） > ### 中长期：中性略偏多（上行趋势尚未破坏）`
+	out := stockfmt.FormatIntradaySignalSection(raw)
+	if strings.Contains(out, "###") || strings.Contains(out, ">") {
+		t.Fatalf("expected cleaned verdict: %s", out)
+	}
+	if !strings.Contains(out, "**短期**") || !strings.Contains(out, "**中长期**") {
+		t.Fatalf("expected bold verdict labels: %s", out)
 	}
 }
 
@@ -108,8 +152,8 @@ func TestFormatIntradayHourlySectionKeepsTrendSection(t *testing.T) {
 
 观望为主。`
 	out := stockfmt.FormatIntradayHourlySection(raw, "fallback")
-	if strings.Contains(out, "**") {
-		t.Fatalf("expected no stray asterisks: %s", out)
+	if strings.Contains(out, "%**") {
+		t.Fatalf("expected no broken percent markers: %s", out)
 	}
 	if !strings.Contains(out, "走势分析") || !strings.Contains(out, "478") {
 		t.Fatalf("expected trend section retained: %s", out)

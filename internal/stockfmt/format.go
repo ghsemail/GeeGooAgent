@@ -317,6 +317,12 @@ func FormatEmbeddedHourlyAnalysis(raw string) string {
 		if isGarbageTableLine(trim) {
 			continue
 		}
+		if isIntradayRawDataLine(trim) {
+			continue
+		}
+		if strings.HasPrefix(trim, "```") {
+			continue
+		}
 		if strings.HasPrefix(trim, ">") {
 			inner := strings.TrimSpace(strings.TrimPrefix(trim, ">"))
 			inner = strings.Trim(inner, "* ")
@@ -329,6 +335,13 @@ func FormatEmbeddedHourlyAnalysis(raw string) string {
 		}
 		if strings.HasPrefix(trim, "### ") {
 			title := strings.TrimSpace(strings.TrimPrefix(trim, "### "))
+			if len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
+				out = append(out, "")
+			}
+			out = append(out, "**"+title+"**")
+			continue
+		}
+		if title := strings.TrimLeft(trim, "# "); cnSectionRE.MatchString(title) {
 			if len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
 				out = append(out, "")
 			}
@@ -614,16 +627,23 @@ func PolishStockPremarketMarkdown(md string) string {
 	s = regexp.MustCompile(`(?m)^\s*\*\*?\s*(main_in_flow|in_flow|super_in|big_in|mid_in|small_in|update_time)\s*=\s*[^*\n]+\*?\*?\s*$`).ReplaceAllString(s, "")
 	s = HumanizeScientificNumbers(s)
 	s = localizeAttitudeInText(s)
-	s = StripBrokenBoldMarkers(s)
+	s = RepairMCPBoldArtifacts(s)
 	s = regexp.MustCompile(`\n{3,}`).ReplaceAllString(s, "\n\n")
 	return strings.TrimSpace(s)
 }
 
-// StripBrokenBoldMarkers unwraps MCP bold markers and removes orphaned "**".
-func StripBrokenBoldMarkers(s string) string {
-	s = regexp.MustCompile(`\*\*([^*\n]+?)\*\*`).ReplaceAllString(s, "$1")
-	s = strings.ReplaceAll(s, "**", "")
+// RepairMCPBoldArtifacts fixes broken MCP bold markers while keeping intentional **titles**.
+func RepairMCPBoldArtifacts(s string) string {
+	s = regexp.MustCompile(`\*\*([^*\n]*?[+-]?\d+(?:\.\d+)?%[^*\n]*?)\*\*`).ReplaceAllString(s, "$1")
+	s = regexp.MustCompile(`\*\*([^*\n]{1,48}：[+-]?\d+(?:\.\d+)?%[^\n]*)`).ReplaceAllString(s, "$1")
+	s = regexp.MustCompile(`([+-]?\d+(?:\.\d+)?%)\*\*`).ReplaceAllString(s, "$1")
+	s = regexp.MustCompile(`\*\*([+-]?\d+(?:\.\d+)?%)`).ReplaceAllString(s, "$1")
 	return s
+}
+
+// StripBrokenBoldMarkers is an alias kept for callers that only need MCP artifact repair.
+func StripBrokenBoldMarkers(s string) string {
+	return RepairMCPBoldArtifacts(s)
 }
 
 // FormatPrice formats a stock quote without trailing zeros.

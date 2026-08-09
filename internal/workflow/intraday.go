@@ -355,24 +355,18 @@ func BuildIntradayReportContent(w *memory.PreMarketWorking, code string) string 
 func buildIntradayDraft(w *memory.PreMarketWorking, code string) string {
 	ws := w.Stocks[code]
 	lines := []string{}
-	if ws.AttitudeSwitch {
-		lines = append(lines, "## 盘前报告参考", "")
-		if ws.PreMarketResult != "" {
-			lines = append(lines,
-				fmt.Sprintf("盘前判断 %s，置信度 %s。", preMarketResultCN(ws.PreMarketResult), confidenceCN(ws.PreMarketConfidence)),
-				oneLine(ws.PreMarketReason, 400),
-				"",
-			)
-		} else {
-			lines = append(lines, "暂无盘前报告参考。", "")
-		}
+	if ws.AttitudeSwitch && strings.TrimSpace(ws.PreMarketResult) != "" {
+		lines = append(lines, "## 盘前报告参考", "",
+			fmt.Sprintf("盘前判断 %s，置信度 %s。", preMarketResultCN(ws.PreMarketResult), confidenceCN(ws.PreMarketConfidence)),
+			oneLine(ws.PreMarketReason, 400),
+			"",
+		)
 	}
-	if needsIntradayPositionStep(ws.BotType) {
+	if needsIntradayPositionStep(ws.BotType) && ws.HasPosition {
 		pos := strings.TrimSpace(ws.PositionSummary)
-		if pos == "" {
-			pos = "无持仓"
+		if pos != "" && pos != "无持仓" {
+			lines = append(lines, "## 当前持仓", "", pos, "")
 		}
-		lines = append(lines, "## 当前持仓", "", pos, "")
 	}
 	if ws.CapitalDistributionSummary != "" {
 		lines = append(lines, "## 资金分布", "", ws.CapitalDistributionSummary, "")

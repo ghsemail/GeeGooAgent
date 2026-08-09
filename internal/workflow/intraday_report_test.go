@@ -177,6 +177,25 @@ func TestIntradayStepsSkipPremarketWhenAttitudeSwitchOff(t *testing.T) {
 	}
 }
 
+func TestIntradayReportOmitsEmptyPremarketAndPosition(t *testing.T) {
+	w := &memory.PreMarketWorking{
+		Stocks: map[string]memory.StockWorkspace{
+			"601766.SH": {
+				Code: "601766.SH", StockName: "中国中车", BotType: "GRID",
+				TradeType: "信号买入", AttitudeSwitch: true, HasPosition: false,
+				CurrentPrice: 5.88, PriceSource: "get_current_price",
+			},
+		},
+	}
+	body := workflow.BuildIntradayReportContent(w, "601766.SH")
+	if strings.Contains(body, "盘前报告参考") {
+		t.Fatalf("empty premarket should be omitted: %s", body)
+	}
+	if strings.Contains(body, "当前持仓") {
+		t.Fatalf("no position should omit position section: %s", body)
+	}
+}
+
 func TestIntradayReportOmitsSectionsForReminderAndNoPremarket(t *testing.T) {
 	w := &memory.PreMarketWorking{
 		Stocks: map[string]memory.StockWorkspace{
