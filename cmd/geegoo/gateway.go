@@ -15,6 +15,8 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/app"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/gateway"
+	"github.com/ghsemail/GeeGooAgent/internal/gateway/feishustore"
+	"github.com/ghsemail/GeeGooAgent/internal/gateway/multitenant"
 	"github.com/ghsemail/GeeGooAgent/internal/gateway/platforms/feishu"
 )
 
@@ -62,37 +64,58 @@ func runGatewayRun(args []string) {
 		os.Exit(2)
 	}
 
-	fsCfg := feishu.LoadConfigFromEnv(os.Getenv)
-	adapter := feishu.NewAdapter(fsCfg)
-	if !adapter.Configured() {
-		fmt.Fprintln(os.Stderr, "gateway: Feishu not configured; run `geegoo gateway setup` or set FEISHU_APP_ID / FEISHU_APP_SECRET")
-		os.Exit(2)
+	// Prefer per-user store; optionally claim host .env into FEISHU_OWNER_USER_ID once.
+	if owner := strings.TrimSpace(os.Getenv("FEISHU_OWNER_USER_ID")); owner != "" {
+		_, _ = migrateHostEnvToUser(workspace, owner)
 	}
 
-	gcfg := gateway.Config{
-		AllowedUsers: map[gateway.Platform]map[string]struct{}{
-			gateway.PlatformFeishu: fsCfg.AllowedSet(),
-		},
-		AllowAll: map[gateway.Platform]bool{
-			gateway.PlatformFeishu: fsCfg.GatewayAllowAll(),
-		},
-		HomeChannels: map[gateway.Platform]gateway.HomeChannel{},
-		DryRun:       *dryRun || application.Config.DryRun,
-		ToolProgress: fsCfg.ToolProgress,
-	}
-	if home, ok := fsCfg.Home(); ok {
-		gcfg.HomeChannels[gateway.PlatformFeishu] = home
-	}
-
-	runner := gateway.NewRunner(application, sessions, gcfg, adapter)
+	runner := multitenant.NewRunner(application, sessions, workspace, *dryRun || application.Config.DryRun)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	fmt.Println("geegoo gateway started (feishu); Ctrl+C to stop.")
+	fmt.Println("geegoo gateway started (multi-tenant feishu); Ctrl+C to stop.")
 	if err := runner.Start(ctx); err != nil && err != context.Canceled {
 		fmt.Fprintf(os.Stderr, "gateway: %v\n", err)
 		os.Exit(1)
 	}
 	slog.Info("gateway: stopped")
+}
+
+func migrateHostEnvToUser(outputDir, userID string) (*feishustore.Creds, error) {
+	existing, err := feishustore.Load(outputDir, userID)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil && existing.Configured() {
+		return existing, nil
+	}
+	_ = config.LoadGeeGooDotEnv()
+	envCfg := feishu.LoadConfigFromEnv(os.Getenv)
+	if strings.TrimSpace(envCfg.AppID) == "" || strings.TrimSpace(envCfg.AppSecret) == "" {
+		return nil, nil
+	}
+	list, _ := feishustore.List(outputDir)
+	for _, c := range list {
+		if c.AppID == envCfg.AppID {
+			return nil, nil
+		}
+	}
+	doc := &feishustore.Creds{
+		UserID:       userID,
+		AppID:        envCfg.AppID,
+		AppSecret:    envCfg.AppSecret,
+		Domain:       envCfg.Domain,
+		BotName:      envCfg.BotName,
+		BotOpenID:    envCfg.BotOpenID,
+		AllowedUsers: append([]string(nil), envCfg.AllowedUsers...),
+		HomeChannel:  envCfg.HomeChannel,
+		GroupPolicy:  envCfg.GroupPolicy,
+		Enabled:      true,
+	}
+	if err := feishustore.Save(outputDir, doc); err != nil {
+		return nil, err
+	}
+	fmt.Printf("gateway: migrated host Feishu env → user %s\n", userID)
+	return doc, nil
 }
 
 func runGatewayStatus(args []string) {

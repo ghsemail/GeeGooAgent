@@ -18,12 +18,22 @@ func HeartbeatFile() string {
 
 // HeartbeatSnapshot is persisted by the long-running gateway process.
 type HeartbeatSnapshot struct {
-	Platform   string    `json:"platform"`
-	Connected  bool      `json:"connected"`
-	Configured bool      `json:"configured"`
-	Detail     string    `json:"detail"`
-	PID        int       `json:"pid"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	Platform   string                        `json:"platform"`
+	Connected  bool                          `json:"connected"`
+	Configured bool                          `json:"configured"`
+	Detail     string                        `json:"detail"`
+	PID        int                           `json:"pid"`
+	UpdatedAt  time.Time                     `json:"updated_at"`
+	Users      map[string]UserHeartbeatStatus `json:"users,omitempty"`
+}
+
+// UserHeartbeatStatus is one tenant's Feishu adapter liveness.
+type UserHeartbeatStatus struct {
+	Connected  bool   `json:"connected"`
+	Configured bool   `json:"configured"`
+	BotName    string `json:"bot_name,omitempty"`
+	AppIDMask  string `json:"app_id_masked,omitempty"`
+	Detail     string `json:"detail,omitempty"`
 }
 
 // WriteHeartbeat atomically updates the heartbeat file.

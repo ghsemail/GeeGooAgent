@@ -13,6 +13,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/gateway"
+	"github.com/ghsemail/GeeGooAgent/internal/gateway/feishustore"
 	"github.com/ghsemail/GeeGooAgent/internal/gateway/platforms/feishu"
 )
 
@@ -25,58 +26,145 @@ func (h *Handler) registerGatewayFeishuRoutes(mux *http.ServeMux) {
 
 var feishuSetupMu sync.Mutex
 
-func (h *Handler) feishuGatewayStatus(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) feishuOutputDir() string {
+	return h.userSettingsOutputDir()
+}
+
+func resolveMCPTokenHeader(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	return strings.TrimSpace(r.Header.Get("X-MCP-Token"))
+}
+
+func (h *Handler) requireFeishuUser(w http.ResponseWriter, r *http.Request) (userID string, ok bool) {
+	userID = resolveUserID(r)
+	if userID == "" {
+		writeJSONStatus(w, http.StatusUnauthorized, map[string]string{"error": "missing X-User-Id"})
+		return "", false
+	}
+	return userID, true
+}
+
+func (h *Handler) loadOrMigrateFeishuCreds(userID string) (*feishustore.Creds, error) {
+	dir := h.feishuOutputDir()
+	c, err := feishustore.Load(dir, userID)
+	if err != nil {
+		return nil, err
+	}
+	if c != nil && c.Configured() {
+		return c, nil
+	}
+	// One-time claim of host ~/.geegoo/.env Feishu creds for this user.
 	_ = config.LoadGeeGooDotEnv()
-	cfg := feishu.LoadConfigFromEnv(os.Getenv)
-	ad := feishu.NewAdapter(cfg)
-	st := ad.Status()
+	envCfg := feishu.LoadConfigFromEnv(os.Getenv)
+	if strings.TrimSpace(envCfg.AppID) == "" || strings.TrimSpace(envCfg.AppSecret) == "" {
+		return c, nil
+	}
+	// Only migrate if no other user already owns these creds.
+	list, _ := feishustore.List(dir)
+	for _, existing := range list {
+		if existing.AppID == envCfg.AppID {
+			return c, nil
+		}
+	}
+	migrated := &feishustore.Creds{
+		UserID:       userID,
+		AppID:        envCfg.AppID,
+		AppSecret:    envCfg.AppSecret,
+		Domain:       envCfg.Domain,
+		BotName:      envCfg.BotName,
+		BotOpenID:    envCfg.BotOpenID,
+		AllowedUsers: append([]string(nil), envCfg.AllowedUsers...),
+		HomeChannel:  envCfg.HomeChannel,
+		GroupPolicy:  envCfg.GroupPolicy,
+		Enabled:      true,
+	}
+	if err := feishustore.Save(dir, migrated); err != nil {
+		return nil, err
+	}
+	return migrated, nil
+}
+
+func (h *Handler) feishuGatewayStatus(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.requireFeishuUser(w, r)
+	if !ok {
+		return
+	}
+	creds, err := h.loadOrMigrateFeishuCreds(userID)
+	if err != nil {
+		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	configured := creds != nil && creds.Configured()
 
 	hb, hbOK := gateway.ReadHeartbeat()
-	gatewayRunning := hbOK && gateway.HeartbeatFresh(hb, 30*time.Second) && hb.Connected
-	connected := gatewayRunning
-	detail := st.Detail
+	processAlive := hbOK && gateway.HeartbeatFresh(hb, 30*time.Second)
+	userConnected := false
+	detail := ""
 	heartbeatAt := ""
 	if hbOK {
 		heartbeatAt = hb.UpdatedAt.UTC().Format(time.RFC3339)
-		if hb.Detail != "" {
-			detail = hb.Detail
+		detail = hb.Detail
+		if st, ok := hb.Users[userID]; ok {
+			userConnected = processAlive && st.Connected
+			if st.Detail != "" {
+				detail = st.Detail
+			}
+		} else if processAlive && configured {
+			detail = "gateway process up; waiting to connect this user's bot"
 		}
-		if !gatewayRunning && gateway.HeartbeatFresh(hb, 30*time.Second) && !hb.Connected {
-			detail = hb.Detail
+	}
+	if !configured {
+		detail = "not configured"
+	}
+
+	appID, secret, domain, botName, botOID := "", "", "feishu", "", ""
+	allowed := 0
+	if creds != nil {
+		appID, secret = creds.AppID, creds.AppSecret
+		if creds.Domain != "" {
+			domain = creds.Domain
 		}
+		botName, botOID = creds.BotName, creds.BotOpenID
+		allowed = len(creds.AllowedUsers)
 	}
 
 	writeJSON(w, map[string]any{
-		"platform":           "feishu",
-		"configured":         st.Configured,
-		"connected":          connected,
-		"gateway_running":    gatewayRunning,
-		"runtime_ok":         true,
-		"detail":             detail,
-		"domain":             cfg.Domain,
-		"connection_mode":    cfg.ConnectionMode,
-		"app_id_masked":      gateway.MaskAppID(cfg.AppID),
-		"app_secret_masked":  gateway.MaskAppSecret(cfg.AppSecret),
-		"bot_name":           cfg.BotName,
-		"bot_open_id":        cfg.BotOpenID,
-		"allowed_users":      len(cfg.AllowedUsers),
-		"home_channel":       cfg.HomeChannel,
-		"group_policy":       cfg.GroupPolicy,
-		"env_file":           config.EnvFilePath(),
-		"heartbeat_at":       heartbeatAt,
-		"tenant_scope":       "host", // shared ~/.geegoo/.env on Agent host; not per Dashboard user
-		"hint":               feishuStatusHint(st.Configured, gatewayRunning),
+		"platform":          "feishu",
+		"user_id":           userID,
+		"configured":        configured,
+		"connected":         userConnected,
+		"gateway_running":   userConnected,
+		"process_alive":     processAlive,
+		"runtime_ok":        true,
+		"detail":            detail,
+		"domain":            domain,
+		"connection_mode":   "websocket",
+		"app_id_masked":     gateway.MaskAppID(appID),
+		"app_secret_masked": gateway.MaskAppSecret(secret),
+		"bot_name":          botName,
+		"bot_open_id":       botOID,
+		"allowed_users":     allowed,
+		"has_mcp_token":     creds != nil && strings.TrimSpace(creds.MCPToken) != "",
+		"heartbeat_at":      heartbeatAt,
+		"tenant_scope":      "user",
+		"store_dir":         feishustore.Dir(h.feishuOutputDir()),
+		"hint":              feishuStatusHint(configured, userConnected, processAlive),
 	})
 }
 
-func feishuStatusHint(configured, gatewayRunning bool) string {
+func feishuStatusHint(configured, userConnected, processAlive bool) string {
 	if !configured {
-		return "扫码或手动填写 App ID / Secret 后，在 Agent 机运行 geegoo gateway run。"
+		return "扫码或手动填写 App ID / Secret；凭证按当前登录用户保存，并绑定你的 mcp_token。"
 	}
-	if !gatewayRunning {
-		return "凭证已就绪，但 IM Gateway 未在跑：请在 Agent 机执行 geegoo gateway run。"
+	if !processAlive {
+		return "凭证已就绪，但 geegoo gateway run 未在跑：请在 Agent 机启动后自动加载你的机器人。"
 	}
-	return "IM Gateway 运行中：飞书消息会进入 Agent。"
+	if !userConnected {
+		return "Gateway 进程在线，正在（或即将）连接你的飞书机器人；可稍后刷新。"
+	}
+	return "你的飞书 Gateway 已连接：消息会以你的 mcp_token 进入 Agent。"
 }
 
 type feishuBeginReq struct {
@@ -84,6 +172,9 @@ type feishuBeginReq struct {
 }
 
 func (h *Handler) feishuSetupBegin(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireFeishuUser(w, r); !ok {
+		return
+	}
 	var req feishuBeginReq
 	_ = json.NewDecoder(r.Body).Decode(&req)
 	domain := strings.ToLower(strings.TrimSpace(req.Domain))
@@ -113,26 +204,28 @@ func (h *Handler) feishuSetupBegin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, map[string]any{
-		"ok":           true,
-		"domain":       domain,
-		"device_code":  begin.DeviceCode,
-		"qr_url":       begin.QRURL,
-		"user_code":    begin.UserCode,
-		"interval":     begin.Interval,
-		"expire_in":    begin.ExpireIn,
+		"ok":            true,
+		"domain":        domain,
+		"device_code":   begin.DeviceCode,
+		"qr_url":        begin.QRURL,
+		"user_code":     begin.UserCode,
+		"interval":      begin.Interval,
+		"expire_in":     begin.ExpireIn,
 		"qr_png_base64": qrB64,
-		"expires_at":   time.Now().UTC().Add(time.Duration(begin.ExpireIn) * time.Second).Format(time.RFC3339),
+		"expires_at":    time.Now().UTC().Add(time.Duration(begin.ExpireIn) * time.Second).Format(time.RFC3339),
 	})
 }
 
 type feishuPollReq struct {
 	DeviceCode string `json:"device_code"`
 	Domain     string `json:"domain"`
-	Interval   int    `json:"interval"`
-	ExpireIn   int    `json:"expire_in"`
 }
 
 func (h *Handler) feishuSetupPoll(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.requireFeishuUser(w, r)
+	if !ok {
+		return
+	}
 	var req feishuPollReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
@@ -175,17 +268,20 @@ func (h *Handler) feishuSetupPoll(w http.ResponseWriter, r *http.Request) {
 	if oid != "" {
 		creds.BotOpenID = oid
 	}
-	extra := map[string]string{}
-	if creds.BotOpenID != "" {
-		extra["FEISHU_BOT_OPEN_ID"] = creds.BotOpenID
-	}
-	if creds.BotName != "" {
-		extra["FEISHU_BOT_NAME"] = creds.BotName
+	doc := &feishustore.Creds{
+		UserID:    userID,
+		MCPToken:  resolveMCPTokenHeader(r),
+		AppID:     creds.AppID,
+		AppSecret: creds.AppSecret,
+		Domain:    creds.Domain,
+		BotName:   creds.BotName,
+		BotOpenID: creds.BotOpenID,
+		Enabled:   true,
 	}
 	if creds.OpenID != "" {
-		extra["FEISHU_ALLOWED_USERS"] = creds.OpenID
+		doc.AllowedUsers = []string{creds.OpenID}
 	}
-	if err := config.SaveFeishuEnv(creds.AppID, creds.AppSecret, creds.Domain, extra); err != nil {
+	if err := feishustore.Save(h.feishuOutputDir(), doc); err != nil {
 		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -198,7 +294,8 @@ func (h *Handler) feishuSetupPoll(w http.ResponseWriter, r *http.Request) {
 		"bot_name":    creds.BotName,
 		"bot_open_id": creds.BotOpenID,
 		"open_id":     creds.OpenID,
-		"env_file":    config.EnvFilePath(),
+		"user_id":     userID,
+		"tenant_scope": "user",
 	})
 }
 
@@ -209,6 +306,10 @@ type feishuManualReq struct {
 }
 
 func (h *Handler) feishuSetupManual(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.requireFeishuUser(w, r)
+	if !ok {
+		return
+	}
 	var req feishuManualReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
@@ -225,28 +326,39 @@ func (h *Handler) feishuSetupManual(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	extra := map[string]string{}
-	name, oid, err := feishu.ProbeBot(r.Context(), appID, secret, domain)
-	if err == nil {
-		if name != "" {
-			extra["FEISHU_BOT_NAME"] = name
-		}
-		if oid != "" {
-			extra["FEISHU_BOT_OPEN_ID"] = oid
+	doc := &feishustore.Creds{
+		UserID:    userID,
+		MCPToken:  resolveMCPTokenHeader(r),
+		AppID:     appID,
+		AppSecret: secret,
+		Domain:    domain,
+		Enabled:   true,
+	}
+	name, oid, probeErr := feishu.ProbeBot(r.Context(), appID, secret, domain)
+	if probeErr == nil {
+		doc.BotName = name
+		doc.BotOpenID = oid
+	}
+	// Preserve allowlist if re-saving.
+	if prev, _ := feishustore.Load(h.feishuOutputDir(), userID); prev != nil {
+		doc.AllowedUsers = prev.AllowedUsers
+		if doc.MCPToken == "" {
+			doc.MCPToken = prev.MCPToken
 		}
 	}
-	if err := config.SaveFeishuEnv(appID, secret, domain, extra); err != nil {
+	if err := feishustore.Save(h.feishuOutputDir(), doc); err != nil {
 		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	writeJSON(w, map[string]any{
-		"ok":          true,
-		"status":      "completed",
-		"app_id":      appID,
-		"domain":      domain,
-		"bot_name":    extra["FEISHU_BOT_NAME"],
-		"bot_open_id": extra["FEISHU_BOT_OPEN_ID"],
-		"env_file":    config.EnvFilePath(),
-		"verified":    err == nil,
+		"ok":           true,
+		"status":       "completed",
+		"app_id":       appID,
+		"domain":       domain,
+		"bot_name":     doc.BotName,
+		"bot_open_id":  doc.BotOpenID,
+		"user_id":      userID,
+		"tenant_scope": "user",
+		"verified":     probeErr == nil,
 	})
 }

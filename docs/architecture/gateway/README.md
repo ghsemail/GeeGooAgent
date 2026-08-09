@@ -55,7 +55,9 @@ Dashboard（trading_operation Agent 模式 → Gateway → **飞书** tab）走�
 
 飞书开放平台：开机器人能力；权限 `im:message`、`im:message:send_as_bot`、`im:chat`，建议 `im:message.reactions:write`（处理中 Typing 反应）；事件订阅选**长连接**并订阅 `im.message.receive_v1`；发版生效。
 
-出站：优先 `post`+`md` 渲染 Markdown（失败回退 `text`）；处理中对用户消息加 Typing 反应，成功后清除，失败改 CrossMark。工具调用默认发一条可编辑的「处理中」进度气泡（`FEISHU_TOOL_PROGRESS=0` 可关）。详见 `feishu-typing-markdown.md`。
+出站：优先 `post`+`md` 渲染 Markdown（失败回退 `text`）；处理中对用户消息加 Typing 反应，成功后清除，失败改 CrossMark。工具调用默认发一条可编辑的「处理中」进度气泡（`FEISHU_TOOL_PROGRESS=0` 可关）。
+
+**多租户**：凭证按运营台 `user_id` 存于 `{outputDir}/user_gateway_feishu/`；绑定该用户 `mcp_token`；`geegoo gateway run` 为每个已配置用户开一条 WS。详见 `feishu-per-user.md`。
 
 ### M1 验收
 
