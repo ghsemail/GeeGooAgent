@@ -35,7 +35,7 @@ func resolveClientSource(r *http.Request) string {
 	return NormalizeSessionSource(s)
 }
 
-// NormalizeSessionSource maps legacy/alias channel ids to Gateway SSOT: web | trading_app.
+// NormalizeSessionSource maps legacy/alias channel ids to Gateway SSOT: web | trading_app | feishu.
 func NormalizeSessionSource(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -46,6 +46,8 @@ func NormalizeSessionSource(s string) string {
 		return "web"
 	case "trading_app", "geegoo_agent", "geegoo-app", "app":
 		return "trading_app"
+	case "feishu", "lark":
+		return "feishu"
 	default:
 		return s
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/gateway"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
+	"github.com/ghsemail/GeeGooAgent/internal/usersettings"
 )
 
 func (tr *Runner) handleOwned(ctx context.Context, ev gateway.InboundEvent, own ownedInbound) error {
@@ -100,6 +101,9 @@ func (tr *Runner) runOwnedTurn(ctx context.Context, key string, ev gateway.Inbou
 	tr.agentMu.Lock()
 	defer tr.agentMu.Unlock()
 
+	restoreGW := tr.applyOwnerFeishuGateway(own.OwnerUserID)
+	defer restoreGW()
+
 	var progress *progressPublisher
 	if own.ToolProgress && !tr.DryRun {
 		if ed, ok := own.Adapter.(gateway.EditableMessenger); ok {
@@ -127,6 +131,7 @@ func (tr *Runner) runOwnedTurn(ctx context.Context, key string, ev gateway.Inbou
 	chat.Metadata["gateway_chat_id"] = ev.ChatID
 	chat.Metadata["gateway_feishu_user"] = ev.UserID
 	chat.Metadata["gateway_owner_user_id"] = own.OwnerUserID
+	chat.Metadata["source"] = "feishu"
 	chatsession.SetUserID(chat, own.OwnerUserID)
 	if err := store.Save(chat); err != nil {
 		slog.Warn("gateway: save session", "err", err)
@@ -135,6 +140,29 @@ func (tr *Runner) runOwnedTurn(ctx context.Context, key string, ev gateway.Inbou
 		return "", errString("agent turn failed")
 	}
 	return result.AssistantText, nil
+}
+
+func (tr *Runner) applyOwnerFeishuGateway(ownerUserID string) (restore func()) {
+	restore = func() {}
+	if tr == nil || tr.App == nil || tr.App.Agent == nil || tr.App.Config == nil {
+		return restore
+	}
+	ownerUserID = trimText(ownerUserID)
+	if ownerUserID == "" {
+		return restore
+	}
+	doc, err := usersettings.Load(tr.StoreDir, ownerUserID)
+	if err != nil || doc == nil {
+		return restore
+	}
+	cfg := usersettings.Apply(tr.App.Config.LLM, doc, "feishu")
+	gw, _, err := tr.App.BuildGatewayFromLLMConfig(cfg, false)
+	if err != nil || gw == nil {
+		return restore
+	}
+	prev := tr.App.Agent.Gateway
+	tr.App.Agent.SetGateway(gw)
+	return func() { tr.App.Agent.SetGateway(prev) }
 }
 
 func (tr *Runner) loadOrCreateChat(store chatsession.SessionStore, key string, ev gateway.InboundEvent, ownerUserID string) (*chatsession.ChatSession, error) {
