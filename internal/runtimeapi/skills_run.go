@@ -50,7 +50,7 @@ func (h *Handler) skillsRun(w http.ResponseWriter, r *http.Request) {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
 		return
 	}
-	skill := strings.TrimSpace(req.Skill)
+	skill := normalizeSkillName(strings.TrimSpace(req.Skill))
 	if skill == "" {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "skill is required"})
 		return
@@ -103,6 +103,20 @@ func (h *Handler) skillsRun(w http.ResponseWriter, r *http.Request) {
 		resp.Error = result.LastError
 	}
 	writeJSONStatus(w, http.StatusOK, resp)
+}
+
+// normalizeSkillName maps external skill aliases to registry names.
+func normalizeSkillName(skill string) string {
+	switch skill {
+	case "intraday":
+		return "intraday_stock"
+	case "pre_market":
+		return "premarket_stock"
+	case "post_market":
+		return "postmarket_stock"
+	default:
+		return skill
+	}
 }
 
 func intradayDecisionFromWorking(w *memory.PreMarketWorking, code string) (result, confidence, reportID string) {
