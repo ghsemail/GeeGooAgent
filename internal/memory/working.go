@@ -556,6 +556,7 @@ func encodeWorking(w *PreMarketWorking) map[string]any {
 			"report_ref": v.ReportRef, "report_id": v.ReportID,
 			"stock_news_summary": v.StockNewsSummary,
 			"frequency": v.Frequency, "trade_type": v.TradeType, "report_date": v.ReportDate,
+			"attitude_switch": v.AttitudeSwitch,
 			"position_summary": v.PositionSummary, "has_position": v.HasPosition,
 			"premarket_market_result": v.PreMarketResult, "premarket_market_confidence": v.PreMarketConfidence,
 			"premarket_market_reason": v.PreMarketReason, "stock_premarket_report_id": v.PreMarketReportID,
@@ -695,6 +696,7 @@ func decodeWorking(data map[string]any) (*PreMarketWorking, error) {
 					ReportRef: str(m, "report_ref"), ReportID: str(m, "report_id"),
 					StockNewsSummary: str(m, "stock_news_summary"),
 					Frequency: str(m, "frequency"), TradeType: str(m, "trade_type"), ReportDate: str(m, "report_date"),
+					AttitudeSwitch: boolFieldDefault(m, "attitude_switch", true),
 					PositionSummary: str(m, "position_summary"), HasPosition: boolField(m, "has_position"),
 					PreMarketResult: str(m, "premarket_market_result"), PreMarketConfidence: str(m, "premarket_market_confidence"),
 					PreMarketReason: str(m, "premarket_market_reason"), PreMarketReportID: str(m, "stock_premarket_report_id"),
@@ -752,6 +754,13 @@ func boolField(m map[string]any, k string) bool {
 		return v
 	}
 	return false
+}
+
+func boolFieldDefault(m map[string]any, k string, def bool) bool {
+	if v, ok := m[k].(bool); ok {
+		return v
+	}
+	return def
 }
 
 func floatField(m map[string]any, k string) float64 {

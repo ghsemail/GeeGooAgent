@@ -57,6 +57,7 @@ type StockWorkspace struct {
 	Frequency                  string  `json:"frequency,omitempty"`
 	TradeType                  string  `json:"trade_type,omitempty"`
 	ReportDate                 string  `json:"report_date,omitempty"`
+	AttitudeSwitch             bool    `json:"attitude_switch,omitempty"` // bot attitude.switch; false skips premarket read/section
 	PositionSummary            string  `json:"position_summary,omitempty"`
 	HasPosition                bool    `json:"has_position,omitempty"`
 	PreMarketResult            string  `json:"premarket_market_result,omitempty"`

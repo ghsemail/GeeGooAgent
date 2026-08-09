@@ -18,7 +18,7 @@ func DecideIntraday(ws StockWorkspace) (result, confidence string) {
 		return "hold", downgradeIntradayConfidence(confidence, ws)
 	}
 	if isBuy {
-		if ws.PreMarketResult == "short" && ws.PreMarketConfidence == "high" {
+		if ws.AttitudeSwitch && ws.PreMarketResult == "short" && ws.PreMarketConfidence == "high" {
 			return "hold", downgradeIntradayConfidence(confidence, ws)
 		}
 		if isBuyAligned(ws.PreMarketResult) {
@@ -30,7 +30,7 @@ func DecideIntraday(ws StockWorkspace) (result, confidence string) {
 		return "hold", downgradeIntradayConfidence(confidence, ws)
 	}
 	if isSell {
-		if ws.PreMarketResult == "long" && ws.PreMarketConfidence == "high" {
+		if ws.AttitudeSwitch && ws.PreMarketResult == "long" && ws.PreMarketConfidence == "high" {
 			return "hold", downgradeIntradayConfidence(confidence, ws)
 		}
 		if isSellAligned(ws.PreMarketResult) || reminder {

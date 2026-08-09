@@ -35,6 +35,7 @@ workflow:
       trading_bot_only: true
     - id: read_stock_premarket
       tool: get_stock_daily_reports
+      when_attitude_switch: true
     - id: capital_distribution
       tool: get_capital_distribution
     - id: hourly_analysis

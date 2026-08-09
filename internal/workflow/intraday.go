@@ -20,8 +20,9 @@ type IntradayInput struct {
 	BotName    string
 	BotType    string
 	Frequency  string
-	TradeType  string
-	ReportDate string
+	TradeType      string
+	ReportDate     string
+	AttitudeSwitch *bool // bot attitude.switch; nil/true reads premarket, false skips
 }
 
 // IntradayBundle is the resolved intraday decision and report body.
@@ -69,6 +70,9 @@ func IntradayInputFromEnv() IntradayInput {
 	if v := strings.TrimSpace(os.Getenv("GEEGOO_INTRADAY_REPORT_DATE")); v != "" {
 		in.ReportDate = v
 	}
+	if sw := intradayAttitudeSwitchFromEnv(); sw != nil {
+		in.AttitudeSwitch = sw
+	}
 	return in
 }
 
@@ -89,7 +93,7 @@ func SeedIntradayWorking(w *memory.PreMarketWorking, in IntradayInput) {
 		Code: in.Code, StockName: in.StockName,
 		BotID: in.BotID, BotName: in.BotName, BotType: in.BotType,
 		Status: "collecting", Frequency: in.Frequency, TradeType: in.TradeType,
-		ReportDate: in.ReportDate,
+		ReportDate: in.ReportDate, AttitudeSwitch: intradayAttitudeSwitchEnabled(in),
 	}
 	w.CurrentStock = in.Code
 }
@@ -99,30 +103,61 @@ func IntradayPhaseASteps() []Step { return nil }
 
 // IntradayPerStockSteps returns intraday decision steps using GEEGOO_INTRADAY_FREQUENCY or 5m default.
 func IntradayPerStockSteps() []Step {
-	return intradayPerStockSteps(intradayFrequencyFromEnv(), DefaultIntradayInput().BotType)
+	return intradayPerStockSteps(intradayFrequencyFromEnv(), DefaultIntradayInput().BotType, true)
+}
+
+func intradayAttitudeSwitchEnabled(in IntradayInput) bool {
+	if in.AttitudeSwitch == nil {
+		return true
+	}
+	return *in.AttitudeSwitch
+}
+
+func intradayAttitudeSwitchFromEnv() *bool {
+	v := strings.TrimSpace(os.Getenv("GEEGOO_INTRADAY_ATTITUDE_SWITCH"))
+	if v == "" {
+		return nil
+	}
+	switch strings.ToLower(v) {
+	case "0", "false", "off", "no":
+		b := false
+		return &b
+	case "1", "true", "on", "yes":
+		b := true
+		return &b
+	default:
+		return nil
+	}
 }
 
 // IntradayPerStockStepsForWorking builds steps using the seeded stock frequency (API/CLI), then env, then 5m.
 func IntradayPerStockStepsForWorking(w *memory.PreMarketWorking) []Step {
 	botType := ""
+	attitudeSwitch := true
 	if w != nil {
 		if code := strings.TrimSpace(w.CurrentStock); code != "" {
-			botType = w.Stocks[code].BotType
+			ws := w.Stocks[code]
+			botType = ws.BotType
+			attitudeSwitch = ws.AttitudeSwitch
 		}
 	}
-	return intradayPerStockSteps(intradayFrequencyFromWorking(w), botType)
+	return intradayPerStockSteps(intradayFrequencyFromWorking(w), botType, attitudeSwitch)
 }
 
-func intradayPerStockSteps(freq, botType string) []Step {
+func intradayPerStockSteps(freq, botType string, attitudeSwitch bool) []Step {
 	freqMins := parseFrequencyMinutes(freq)
 	steps := []Step{
-		{Name: "read_stock_premarket", Tool: "get_stock_daily_reports", ArgFunc: stockReportDateArg},
 		{Name: "capital_distribution", Tool: "get_capital_distribution", ArgFunc: stockCodeArg},
 	}
 	if needsIntradayPositionStep(botType) {
 		steps = append([]Step{
 			{Name: "get_position", Tool: "get_position", ArgFunc: stockCodeArg},
 		}, steps...)
+	}
+	if attitudeSwitch {
+		steps = append(steps, Step{
+			Name: "read_stock_premarket", Tool: "get_stock_daily_reports", ArgFunc: stockReportDateArg,
+		})
 	}
 	if freqMins >= 10 {
 		steps = append(steps, Step{
@@ -292,11 +327,11 @@ func ensureIntradayBundle(ctx context.Context, w *memory.PreMarketWorking, code 
 func enforceIntradayHardRules(ws memory.StockWorkspace, result string) string {
 	switch result {
 	case "sell":
-		if !isReminderBot(ws.BotType) && !ws.HasPosition {
+		if needsIntradayPositionStep(ws.BotType) && !ws.HasPosition {
 			return "hold"
 		}
 	case "buy":
-		if ws.PreMarketResult == "short" && ws.PreMarketConfidence == "high" {
+		if ws.AttitudeSwitch && ws.PreMarketResult == "short" && ws.PreMarketConfidence == "high" {
 			return "hold"
 		}
 	}
@@ -319,15 +354,18 @@ func BuildIntradayReportContent(w *memory.PreMarketWorking, code string) string 
 
 func buildIntradayDraft(w *memory.PreMarketWorking, code string) string {
 	ws := w.Stocks[code]
-	lines := []string{"## 盘前报告参考", ""}
-	if ws.PreMarketResult != "" {
-		lines = append(lines,
-			fmt.Sprintf("盘前判断 %s，置信度 %s。", preMarketResultCN(ws.PreMarketResult), confidenceCN(ws.PreMarketConfidence)),
-			oneLine(ws.PreMarketReason, 400),
-			"",
-		)
-	} else {
-		lines = append(lines, "暂无盘前报告参考。", "")
+	lines := []string{}
+	if ws.AttitudeSwitch {
+		lines = append(lines, "## 盘前报告参考", "")
+		if ws.PreMarketResult != "" {
+			lines = append(lines,
+				fmt.Sprintf("盘前判断 %s，置信度 %s。", preMarketResultCN(ws.PreMarketResult), confidenceCN(ws.PreMarketConfidence)),
+				oneLine(ws.PreMarketReason, 400),
+				"",
+			)
+		} else {
+			lines = append(lines, "暂无盘前报告参考。", "")
+		}
 	}
 	if needsIntradayPositionStep(ws.BotType) {
 		pos := strings.TrimSpace(ws.PositionSummary)
@@ -402,7 +440,7 @@ func BuildCreateIntradayReportArgs(ctx context.Context, w *memory.PreMarketWorki
 	if ws.CurrentPrice > 0 {
 		body["price"] = ws.CurrentPrice
 	}
-	if ws.HasPosition {
+	if needsIntradayPositionStep(ws.BotType) && ws.HasPosition {
 		body["position"] = map[string]any{"summary": ws.PositionSummary}
 	}
 	return body
@@ -410,7 +448,7 @@ func BuildCreateIntradayReportArgs(ctx context.Context, w *memory.PreMarketWorki
 
 func buildIntradayReason(ws memory.StockWorkspace, result string) string {
 	parts := make([]string, 0, 6)
-	if ws.PreMarketResult != "" {
+	if ws.AttitudeSwitch && ws.PreMarketResult != "" {
 		parts = append(parts, fmt.Sprintf("盘前观点为%s", preMarketResultCN(ws.PreMarketResult)))
 	}
 	if ws.CapitalDistributionSummary != "" {

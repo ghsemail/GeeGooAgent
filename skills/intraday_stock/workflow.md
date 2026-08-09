@@ -32,8 +32,8 @@ Environment variables `GEEGOO_INTRADAY_*` are also supported.
 
 ## Steps (per stock)
 
-1. `get_position` — **仅交易 Bot**（DCA / GRID / SmartTrade / HDG）；**Reminder 跳过**
-2. `get_stock_daily_reports` — read `stock_premarket[0]`
+1. `get_position` — **仅交易 Bot**（DCA / GRID / SmartTrade / HDG）；**Reminder 跳过且不展示持仓**
+2. `get_stock_daily_reports` — 仅当 Bot **`attitude.switch=true`** 时读取盘前；关闭则整步跳过
 3. `get_capital_distribution` — 全市场含 A 股
 4. `get_mcp_analysis` hourly — frequency rules in manifest
 5. `get_current_price` — 不使用 `get_ticker` 兜底

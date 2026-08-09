@@ -80,20 +80,20 @@ func buildIntradaySynthesisPrompt(ws memory.StockWorkspace, draft, ruleResult, r
 	b.WriteString(fmt.Sprintf("标的: %s (%s)\n", ws.StockName, ws.Code))
 	b.WriteString(fmt.Sprintf("触发 Bot: %s（%s，类型 %s）\n", ws.BotName, ws.BotID, ws.BotType))
 	b.WriteString(fmt.Sprintf("本轮信号: %s\n", ws.TradeType))
-	if ws.PreMarketResult != "" {
+	if ws.AttitudeSwitch {
 		b.WriteString(fmt.Sprintf("盘前: %s（置信 %s）\n", ws.PreMarketResult, ws.PreMarketConfidence))
 		if strings.TrimSpace(ws.PreMarketReason) != "" {
 			b.WriteString("盘前依据: " + truncateLine(ws.PreMarketReason, 400) + "\n")
 		}
 	} else {
-		b.WriteString("盘前: 无当日盘前报告\n")
+		b.WriteString("盘前: 未启用（attitude.switch 关闭，不读取盘前报告）\n")
 	}
-	if strings.TrimSpace(ws.PositionSummary) != "" {
-		b.WriteString("持仓: " + strings.TrimSpace(ws.PositionSummary) + "\n")
-	} else if isReminderBotType(ws.BotType) {
-		b.WriteString("持仓: Reminder 不查持仓\n")
-	} else {
-		b.WriteString("持仓: 无持仓或未获取\n")
+	if !isReminderBotType(ws.BotType) {
+		if strings.TrimSpace(ws.PositionSummary) != "" {
+			b.WriteString("持仓: " + strings.TrimSpace(ws.PositionSummary) + "\n")
+		} else {
+			b.WriteString("持仓: 无持仓或未获取\n")
+		}
 	}
 	if strings.TrimSpace(ws.CapitalDistributionSummary) != "" {
 		b.WriteString("资金分布: " + truncateLine(ws.CapitalDistributionSummary, 500) + "\n")

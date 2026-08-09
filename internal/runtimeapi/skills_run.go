@@ -21,14 +21,15 @@ type skillsRunRequest struct {
 }
 
 type intradayRunInput struct {
-	Code       string `json:"code"`
-	StockName  string `json:"stock_name"`
-	BotID      string `json:"bot_id"`
-	BotName    string `json:"bot_name"`
-	BotType    string `json:"bot_type"`
-	Frequency  string `json:"frequency"`
-	TradeType  string `json:"trade_type"`
-	ReportDate string `json:"report_date,omitempty"`
+	Code           string `json:"code"`
+	StockName      string `json:"stock_name"`
+	BotID          string `json:"bot_id"`
+	BotName        string `json:"bot_name"`
+	BotType        string `json:"bot_type"`
+	Frequency      string `json:"frequency"`
+	TradeType      string `json:"trade_type"`
+	ReportDate     string `json:"report_date,omitempty"`
+	AttitudeSwitch *bool  `json:"attitude_switch,omitempty"`
 }
 
 type skillsRunResponse struct {
@@ -63,14 +64,15 @@ func (h *Handler) skillsRun(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		runOpts.Intraday = &workflow.IntradayInput{
-			Code:       strings.TrimSpace(req.Intraday.Code),
-			StockName:  strings.TrimSpace(req.Intraday.StockName),
-			BotID:      strings.TrimSpace(req.Intraday.BotID),
-			BotName:    strings.TrimSpace(req.Intraday.BotName),
-			BotType:    strings.TrimSpace(req.Intraday.BotType),
-			Frequency:  strings.TrimSpace(req.Intraday.Frequency),
-			TradeType:  strings.TrimSpace(req.Intraday.TradeType),
-			ReportDate: strings.TrimSpace(req.Intraday.ReportDate),
+			Code:           strings.TrimSpace(req.Intraday.Code),
+			StockName:      strings.TrimSpace(req.Intraday.StockName),
+			BotID:          strings.TrimSpace(req.Intraday.BotID),
+			BotName:        strings.TrimSpace(req.Intraday.BotName),
+			BotType:        strings.TrimSpace(req.Intraday.BotType),
+			Frequency:      strings.TrimSpace(req.Intraday.Frequency),
+			TradeType:      strings.TrimSpace(req.Intraday.TradeType),
+			ReportDate:     strings.TrimSpace(req.Intraday.ReportDate),
+			AttitudeSwitch: req.Intraday.AttitudeSwitch,
 		}
 	}
 

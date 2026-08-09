@@ -5,7 +5,7 @@ import "testing"
 func TestDecideIntradayBuyAligned(t *testing.T) {
 	ws := StockWorkspace{
 		TradeType: "信号买入", PreMarketResult: "long", PreMarketConfidence: "high",
-		CurrentPrice: 100,
+		AttitudeSwitch: true, CurrentPrice: 100,
 	}
 	result, confidence := DecideIntraday(ws)
 	if result != "buy" {
@@ -19,6 +19,7 @@ func TestDecideIntradayBuyAligned(t *testing.T) {
 func TestDecideIntradayBuyBlockedByPreMarketShort(t *testing.T) {
 	ws := StockWorkspace{
 		TradeType: "信号买入", PreMarketResult: "short", PreMarketConfidence: "high",
+		AttitudeSwitch: true,
 	}
 	result, _ := DecideIntraday(ws)
 	if result != "hold" {
@@ -29,6 +30,7 @@ func TestDecideIntradayBuyBlockedByPreMarketShort(t *testing.T) {
 func TestDecideIntradayBuyBlockedByHourlyBearish(t *testing.T) {
 	ws := StockWorkspace{
 		TradeType: "信号买入", PreMarketResult: "long", PreMarketConfidence: "high",
+		AttitudeSwitch: true,
 		HourlySignalAnalysis: "> **整体结论**：小时级信号偏空，短线承压。",
 		CurrentPrice:         100,
 	}
@@ -41,6 +43,7 @@ func TestDecideIntradayBuyBlockedByHourlyBearish(t *testing.T) {
 func TestDecideIntradaySellBlockedByHourlyBullish(t *testing.T) {
 	ws := StockWorkspace{
 		TradeType: "信号卖出", BotType: "DCA", HasPosition: true,
+		AttitudeSwitch: true,
 		PreMarketResult: "short", PreMarketConfidence: "medium",
 		HourlyPriceAnalysis: "> **整体判断**：价格结构偏多，反弹动能增强。",
 		CurrentPrice:        100,
@@ -53,7 +56,7 @@ func TestDecideIntradaySellBlockedByHourlyBullish(t *testing.T) {
 
 func TestDecideIntradayBuyAllowedWithoutHourly(t *testing.T) {
 	ws := StockWorkspace{
-		TradeType: "信号买入", PreMarketResult: "long", CurrentPrice: 100,
+		TradeType: "信号买入", PreMarketResult: "long", AttitudeSwitch: true, CurrentPrice: 100,
 	}
 	result, _ := DecideIntraday(ws)
 	if result != "buy" {

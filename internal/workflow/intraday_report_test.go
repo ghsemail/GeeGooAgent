@@ -46,6 +46,7 @@ func TestBuildIntradayReportContentNoTables(t *testing.T) {
 			"601766.SH": {
 				Code: "601766.SH", StockName: "中国中车", BotType: "DCA",
 				TradeType: "信号买入", PreMarketResult: "long", PreMarketConfidence: "high",
+				AttitudeSwitch: true,
 				PreMarketReason: "盘前偏多",
 				HourlyPriceAnalysis: `### 一、整体走势概览
 
@@ -113,6 +114,7 @@ func TestBuildIntradayReasonFallbackLocalized(t *testing.T) {
 			"601766.SH": {
 				Code: "601766.SH", StockName: "中国中车", TradeType: "信号买入",
 				PreMarketResult: "long", CurrentPrice: 5.88,
+				AttitudeSwitch: true,
 				HourlyPriceAnalysis: "偏多",
 			},
 		},
@@ -157,6 +159,39 @@ func TestIntradayStepsIncludePositionForTradingBot(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("trading bot should run get_position")
+	}
+}
+
+func TestIntradayStepsSkipPremarketWhenAttitudeSwitchOff(t *testing.T) {
+	w := memory.NewPreMarketWorking("s1", "intraday_stock")
+	sw := false
+	in := workflow.IntradayInput{
+		Code: "00700.HK", BotType: "DCA", Frequency: "15m", TradeType: "信号买入",
+		AttitudeSwitch: &sw,
+	}
+	workflow.SeedIntradayWorking(w, in)
+	for _, step := range workflow.IntradayPerStockStepsForWorking(w) {
+		if step.Tool == "get_stock_daily_reports" {
+			t.Fatal("attitude.switch off should skip premarket read")
+		}
+	}
+}
+
+func TestIntradayReportOmitsSectionsForReminderAndNoPremarket(t *testing.T) {
+	w := &memory.PreMarketWorking{
+		Stocks: map[string]memory.StockWorkspace{
+			"00700.HK": {
+				Code: "00700.HK", BotType: "GRIDReminder", AttitudeSwitch: false,
+				TradeType: "信号买入", CurrentPrice: 100, PriceSource: "get_current_price",
+			},
+		},
+	}
+	body := workflow.BuildIntradayReportContent(w, "00700.HK")
+	if strings.Contains(body, "盘前报告参考") {
+		t.Fatalf("premarket section should be omitted: %s", body)
+	}
+	if strings.Contains(body, "当前持仓") {
+		t.Fatalf("position section should be omitted for reminder: %s", body)
 	}
 }
 
