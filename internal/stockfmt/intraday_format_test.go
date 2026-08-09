@@ -154,6 +154,22 @@ func TestRepairIntradayLineBreaksKeepsSectionBreaks(t *testing.T) {
 	}
 }
 
+func TestRepairIntradayLineBreaksAfterBoldHeading(t *testing.T) {
+	in := "**技术形态**8月3日至6日期间形成头肩顶。"
+	out := stockfmt.RepairIntradayLineBreaks(in)
+	if strings.Contains(out, "**技术形态**8月") {
+		t.Fatalf("expected line break after bold heading: %s", out)
+	}
+	if !strings.Contains(out, "**技术形态**\n\n8月") {
+		t.Fatalf("expected paragraph break: %s", out)
+	}
+	in2 := "**简要解读**：主力资金偏多。"
+	out2 := stockfmt.RepairIntradayLineBreaks(in2)
+	if !strings.Contains(out2, "**简要解读**：") {
+		t.Fatalf("colon headings should stay inline: %s", out2)
+	}
+}
+
 func TestFormatIntradayHourlySectionKeepsTrendSection(t *testing.T) {
 	raw := `### 一、数据区间
 

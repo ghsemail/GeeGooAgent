@@ -678,6 +678,8 @@ func RepairIntradayLineBreaks(md string) string {
 	for _, r := range splitPatterns {
 		s = regexp.MustCompile(r.re).ReplaceAllString(s, r.neu)
 	}
+	// Ensure blank line after bold section headings glued to body text.
+	s = regexp.MustCompile(`(\*\*[^*\n]{2,40}\*\*)([^\s：:\n])`).ReplaceAllString(s, "$1\n\n$2")
 	s = regexp.MustCompile(`\n{3,}`).ReplaceAllString(s, "\n\n")
 	return strings.TrimSpace(s)
 }
