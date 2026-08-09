@@ -90,9 +90,7 @@ func botLogSummary(data map[string]any) string {
 func finalizeDerivedFields(w *PreMarketWorking, ws *StockWorkspace, code string) {
 	switch w.Skill {
 	case "intraday_stock":
-		if ws.IntradayResult == "" {
-			ws.IntradayResult, ws.IntradayConfidence = DecideIntraday(*ws)
-		}
+		// Intraday result/confidence are resolved at report synthesis (LLM + fallback rules).
 	case "postmarket_stock":
 		if ws.SessionBias == "" {
 			ws.SessionBias = sessionBiasFromPct(ws.ChangePct)

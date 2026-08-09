@@ -11,7 +11,6 @@ tools:
   - get_mcp_analysis
   - get_hourly_analysis_bundle
   - get_current_price
-  - get_ticker
   - create_stock_intraday_report
   - save_local_report
   - write_execution_log
@@ -33,11 +32,11 @@ workflow:
   per_stock:
     - id: get_position
       tool: get_position
+      trading_bot_only: true
     - id: read_stock_premarket
       tool: get_stock_daily_reports
     - id: capital_distribution
       tool: get_capital_distribution
-      skip_a_share: true
     - id: hourly_analysis
       tool: get_mcp_analysis
       period: hourly
@@ -47,7 +46,6 @@ workflow:
         gte_10m: price_signal_kline
     - id: current_price
       tool: get_current_price
-      fallback: get_ticker
     - id: synthesize_and_submit
       tools:
         - save_local_report

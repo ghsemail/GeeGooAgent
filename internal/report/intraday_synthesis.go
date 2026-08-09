@@ -11,18 +11,20 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
 )
 
-// IntradaySynthesisResult is LLM-generated summary and reason for intraday reports.
+// IntradaySynthesisResult is the LLM intraday decision bundle.
 type IntradaySynthesisResult struct {
-	Summary string `json:"summary"`
-	Reason  string `json:"reason"`
+	Result     string `json:"result"`
+	Confidence string `json:"confidence"`
+	Summary    string `json:"summary"`
+	Reason     string `json:"reason"`
 }
 
-// SynthesizeIntraday writes user-facing summary and reason from a formatted draft report.
+// SynthesizeIntraday decides buy/sell/hold from collected intraday evidence.
 func (s *Synthesizer) SynthesizeIntraday(
 	ctx context.Context,
 	ws memory.StockWorkspace,
 	draft string,
-	result, confidence string,
+	ruleResult, ruleConfidence string,
 ) (IntradaySynthesisResult, error) {
 	if !s.Available() {
 		return IntradaySynthesisResult{}, fmt.Errorf("synthesizer not available")
@@ -33,7 +35,7 @@ func (s *Synthesizer) SynthesizeIntraday(
 	cctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 
-	prompt := buildIntradaySynthesisPrompt(ws, draft, result, confidence)
+	prompt := buildIntradaySynthesisPrompt(ws, draft, ruleResult, ruleConfidence)
 	callCtx := llm.WithCallMeta(cctx, llm.CallMeta{Kind: llm.TaskSynthesis})
 	resp, err := s.gateway.Chat(callCtx, prompt, nil, "", 0)
 	if err != nil {
@@ -46,6 +48,14 @@ func (s *Synthesizer) SynthesizeIntraday(
 	parsed, err := parseIntradaySynthesisJSON(content)
 	if err != nil {
 		return IntradaySynthesisResult{}, fmt.Errorf("intraday synthesis parse: %w", err)
+	}
+	parsed.Result = normalizeIntradayResult(parsed.Result)
+	parsed.Confidence = normalizeMarketConfidence(parsed.Confidence)
+	if parsed.Result == "" {
+		return IntradaySynthesisResult{}, fmt.Errorf("intraday synthesis result invalid")
+	}
+	if parsed.Confidence == "" {
+		return IntradaySynthesisResult{}, fmt.Errorf("intraday synthesis confidence invalid")
 	}
 	if strings.TrimSpace(parsed.Summary) == "" {
 		return IntradaySynthesisResult{}, fmt.Errorf("intraday synthesis summary empty")
@@ -64,25 +74,75 @@ func (s *Synthesizer) SynthesizeIntraday(
 	return parsed, nil
 }
 
-func buildIntradaySynthesisPrompt(ws memory.StockWorkspace, draft, result, confidence string) []llm.Message {
+func buildIntradaySynthesisPrompt(ws memory.StockWorkspace, draft, ruleResult, ruleConfidence string) []llm.Message {
 	var b strings.Builder
-	b.WriteString("你是个股盘中决策报告综合器。只能引用下面草稿与字段，禁止编造未给出的价格或指标。\n\n")
+	b.WriteString("你是个股盘中交易决策器。只能引用下列事实与报告草稿，禁止编造未给出的价格、持仓或指标。\n\n")
 	b.WriteString(fmt.Sprintf("标的: %s (%s)\n", ws.StockName, ws.Code))
-	b.WriteString(fmt.Sprintf("Bot: %s (%s)\n", ws.BotName, ws.BotType))
+	b.WriteString(fmt.Sprintf("触发 Bot: %s（%s，类型 %s）\n", ws.BotName, ws.BotID, ws.BotType))
 	b.WriteString(fmt.Sprintf("本轮信号: %s\n", ws.TradeType))
-	b.WriteString(fmt.Sprintf("规则决策: %s（置信度 %s）\n\n", result, confidence))
+	if ws.PreMarketResult != "" {
+		b.WriteString(fmt.Sprintf("盘前: %s（置信 %s）\n", ws.PreMarketResult, ws.PreMarketConfidence))
+		if strings.TrimSpace(ws.PreMarketReason) != "" {
+			b.WriteString("盘前依据: " + truncateLine(ws.PreMarketReason, 400) + "\n")
+		}
+	} else {
+		b.WriteString("盘前: 无当日盘前报告\n")
+	}
+	if strings.TrimSpace(ws.PositionSummary) != "" {
+		b.WriteString("持仓: " + strings.TrimSpace(ws.PositionSummary) + "\n")
+	} else if isReminderBotType(ws.BotType) {
+		b.WriteString("持仓: Reminder 不查持仓\n")
+	} else {
+		b.WriteString("持仓: 无持仓或未获取\n")
+	}
+	if strings.TrimSpace(ws.CapitalDistributionSummary) != "" {
+		b.WriteString("资金分布: " + truncateLine(ws.CapitalDistributionSummary, 500) + "\n")
+	}
+	if ws.CurrentPrice > 0 {
+		b.WriteString(fmt.Sprintf("参考价: %.4f（来源 %s）\n", ws.CurrentPrice, ws.PriceSource))
+	}
+	b.WriteString(fmt.Sprintf("\n规则引擎参考（可采纳或否决，但须说明理由）: %s / %s\n\n", ruleResult, ruleConfidence))
 	b.WriteString("已排版报告草稿:\n")
 	b.WriteString(nonEmpty(draft, "(无草稿)"))
 	b.WriteString(`
 
 要求:
-- summary: <=200字，完整的一句话或两句中文结论；禁止 Markdown、标签、英文枚举（buy/sell/hold/high 等须写中文）
-- reason: >=80字，自然中文说明判定依据；禁止 Markdown 表格、参数名、科学计数法、[ev_...] 标签
-- 不要重复 App 概要区已有的「决策/置信度」标签字样，直接写分析结论
-- 输出严格 JSON: {"summary":"...","reason":"..."}`)
+- 综合盘前、持仓、资金分布、小时级分析与参考价，对「本轮信号」给出是否执行的最终决策
+- result: 仅 buy | sell | hold（分别表示批准买入、批准卖出、观望不执行）
+- confidence: high | medium | low
+- summary: <=200字中文结论；禁止 Markdown、标签、英文枚举
+- reason: >=80字中文，说明为何批准或否决本轮信号；禁止 Markdown 表格、[ev_...]、科学计数法
+- 硬约束: 非 Reminder 的卖出信号在无持仓时必须 hold；盘前高置信看空时买入信号应倾向 hold
+- 输出严格 JSON: {"result":"buy|sell|hold","confidence":"high|medium|low","summary":"...","reason":"..."}`)
 	return []llm.Message{
-		{Role: llm.RoleSystem, Content: "你是严格的 JSON 报告综合器, 只输出 JSON, 不输出任何其它文字。"},
+		{Role: llm.RoleSystem, Content: "你是严格的 JSON 盘中决策器, 只输出 JSON, 不输出任何其它文字。"},
 		{Role: llm.RoleUser, Content: b.String()},
+	}
+}
+
+func isReminderBotType(botType string) bool {
+	return strings.Contains(strings.ToLower(strings.TrimSpace(botType)), "reminder")
+}
+
+func truncateLine(s string, n int) string {
+	s = strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
+	}
+	return string(runes[:n]) + "…"
+}
+
+func normalizeIntradayResult(v string) string {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "buy", "long", "买入", "看多":
+		return "buy"
+	case "sell", "short", "卖出", "看空":
+		return "sell"
+	case "hold", "neutral", "观望", "中性":
+		return "hold"
+	default:
+		return ""
 	}
 }
 

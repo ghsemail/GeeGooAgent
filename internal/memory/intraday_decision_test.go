@@ -77,7 +77,7 @@ func TestFinalizeDerivedFieldsIntradayStock(t *testing.T) {
 	}
 	ws := w.Stocks["00700.HK"]
 	finalizeDerivedFields(w, &ws, "00700.HK")
-	if ws.IntradayResult != "buy" {
-		t.Fatalf("expected buy, got %s", ws.IntradayResult)
+	if ws.IntradayResult != "" {
+		t.Fatalf("expected deferred decision, got %s", ws.IntradayResult)
 	}
 }

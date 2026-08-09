@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -21,6 +22,15 @@ type IntradayInput struct {
 	Frequency  string
 	TradeType  string
 	ReportDate string
+}
+
+// IntradayBundle is the resolved intraday decision and report body.
+type IntradayBundle struct {
+	Report     string
+	Result     string
+	Confidence string
+	Reason     string
+	Summary    string
 }
 
 // DefaultIntradayInput returns dry-run friendly defaults.
@@ -89,20 +99,30 @@ func IntradayPhaseASteps() []Step { return nil }
 
 // IntradayPerStockSteps returns intraday decision steps using GEEGOO_INTRADAY_FREQUENCY or 5m default.
 func IntradayPerStockSteps() []Step {
-	return intradayPerStockSteps(intradayFrequencyFromEnv())
+	return intradayPerStockSteps(intradayFrequencyFromEnv(), DefaultIntradayInput().BotType)
 }
 
 // IntradayPerStockStepsForWorking builds steps using the seeded stock frequency (API/CLI), then env, then 5m.
 func IntradayPerStockStepsForWorking(w *memory.PreMarketWorking) []Step {
-	return intradayPerStockSteps(intradayFrequencyFromWorking(w))
+	botType := ""
+	if w != nil {
+		if code := strings.TrimSpace(w.CurrentStock); code != "" {
+			botType = w.Stocks[code].BotType
+		}
+	}
+	return intradayPerStockSteps(intradayFrequencyFromWorking(w), botType)
 }
 
-func intradayPerStockSteps(freq string) []Step {
+func intradayPerStockSteps(freq, botType string) []Step {
 	freqMins := parseFrequencyMinutes(freq)
 	steps := []Step{
-		{Name: "get_position", Tool: "get_position", ArgFunc: stockCodeArg},
 		{Name: "read_stock_premarket", Tool: "get_stock_daily_reports", ArgFunc: stockReportDateArg},
 		{Name: "capital_distribution", Tool: "get_capital_distribution", ArgFunc: stockCodeArg},
+	}
+	if needsIntradayPositionStep(botType) {
+		steps = append([]Step{
+			{Name: "get_position", Tool: "get_position", ArgFunc: stockCodeArg},
+		}, steps...)
 	}
 	if freqMins >= 10 {
 		steps = append(steps, Step{
@@ -117,10 +137,10 @@ func intradayPerStockSteps(freq string) []Step {
 	}
 	steps = append(steps,
 		Step{Name: "current_price", Tool: "get_current_price", ArgFunc: stockCodeArg},
-		Step{Name: "ticker_fallback", Tool: "get_ticker", ArgFunc: stockCodeArg},
-		Step{Name: "save_local_report", Tool: "save_local_report", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
+		Step{Name: "save_local_report", Tool: "save_local_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
+			bundle := ensureIntradayBundle(ctx, w, w.CurrentStock)
 			return map[string]any{
-				"code": w.CurrentStock, "content": BuildIntradayReportContent(w, w.CurrentStock),
+				"code": w.CurrentStock, "content": bundle.Report,
 				"report_type": "intraday", "report_date": reportDateFor(w, w.CurrentStock),
 			}
 		}},
@@ -130,6 +150,10 @@ func intradayPerStockSteps(freq string) []Step {
 		Step{Name: "stock_complete", Tool: "write_execution_log", ArgFunc: stockCompleteArg},
 	)
 	return steps
+}
+
+func needsIntradayPositionStep(botType string) bool {
+	return !isReminderBot(botType)
 }
 
 func intradayFrequencyFromEnv() string {
@@ -154,8 +178,6 @@ func intradayFrequencyFromWorking(w *memory.PreMarketWorking) string {
 	}
 	return intradayFrequencyFromEnv()
 }
-
-func intradayFrequency() string { return intradayFrequencyFromEnv() }
 
 func stockCodeArg(w *memory.PreMarketWorking) map[string]any {
 	return map[string]any{"code": w.CurrentStock}
@@ -199,20 +221,104 @@ func reportDateFor(w *memory.PreMarketWorking, code string) string {
 	return todayDate()
 }
 
+func intradayBundleArtifactKey(code string) string {
+	return "intraday_bundle:" + strings.TrimSpace(code)
+}
+
+func ensureIntradayBundle(ctx context.Context, w *memory.PreMarketWorking, code string) IntradayBundle {
+	if w == nil {
+		return IntradayBundle{}
+	}
+	if w.Artifacts == nil {
+		w.Artifacts = map[string]string{}
+	}
+	if raw := strings.TrimSpace(w.Artifacts[intradayBundleArtifactKey(code)]); raw != "" {
+		var cached IntradayBundle
+		if json.Unmarshal([]byte(raw), &cached) == nil && strings.TrimSpace(cached.Result) != "" {
+			return cached
+		}
+	}
+	ws := w.Stocks[code]
+	draft := buildIntradayDraft(w, code)
+	ruleResult, ruleConfidence := DecideIntraday(ws)
+	bundle := IntradayBundle{
+		Report:     draft,
+		Result:     ruleResult,
+		Confidence: ruleConfidence,
+		Reason:     buildIntradayReason(ws, ruleResult),
+		Summary:    stockfmt.IntradayAPISummary(ws.StockName, code, ws.TradeType, ruleResult, ruleConfidence, draft),
+	}
+	llmUsed := false
+	if synth := IntradaySynthesizerFrom(ctx); synth != nil {
+		if res, err := synth.SynthesizeIntraday(ctx, ws, draft, ruleResult, ruleConfidence); err == nil {
+			llmUsed = true
+			if v := strings.TrimSpace(res.Result); v != "" {
+				bundle.Result = v
+			}
+			if v := strings.TrimSpace(res.Confidence); v != "" {
+				bundle.Confidence = v
+			}
+			if v := strings.TrimSpace(res.Summary); v != "" {
+				bundle.Summary = v
+			}
+			if v := strings.TrimSpace(res.Reason); v != "" {
+				bundle.Reason = v
+			}
+		}
+	}
+	if !llmUsed {
+		if len([]rune(bundle.Reason)) < 80 {
+			bundle.Reason = buildIntradayReason(ws, bundle.Result)
+		}
+	}
+	bundle.Result = enforceIntradayHardRules(ws, bundle.Result)
+	if bundle.Result != ruleResult && llmUsed {
+		bundle.Confidence = downgradeIntradayConfidenceAfterOverride(bundle.Confidence)
+	}
+	bundle.Reason = stockfmt.LocalizeDecisionTerms(bundle.Reason)
+	bundle.Summary = stockfmt.LocalizeDecisionTerms(bundle.Summary)
+	bundle.Report = assembleIntradayReport(draft, bundle.Reason)
+
+	ws.IntradayResult = bundle.Result
+	ws.IntradayConfidence = bundle.Confidence
+	ws.IntradayReason = bundle.Reason
+	w.Stocks[code] = ws
+	if encoded, err := json.Marshal(bundle); err == nil {
+		w.Artifacts[intradayBundleArtifactKey(code)] = string(encoded)
+	}
+	return bundle
+}
+
+func enforceIntradayHardRules(ws memory.StockWorkspace, result string) string {
+	switch result {
+	case "sell":
+		if !isReminderBot(ws.BotType) && !ws.HasPosition {
+			return "hold"
+		}
+	case "buy":
+		if ws.PreMarketResult == "short" && ws.PreMarketConfidence == "high" {
+			return "hold"
+		}
+	}
+	return result
+}
+
+func downgradeIntradayConfidenceAfterOverride(conf string) string {
+	switch conf {
+	case "high":
+		return "medium"
+	default:
+		return "low"
+	}
+}
+
 // BuildIntradayReportContent renders intraday markdown from working state.
 func BuildIntradayReportContent(w *memory.PreMarketWorking, code string) string {
-	ws := w.Stocks[code]
-	result, confidence := ws.IntradayResult, ws.IntradayConfidence
-	if result == "" {
-		result, confidence = DecideIntraday(ws)
-	}
-	reason := strings.TrimSpace(ws.IntradayReason)
-	if reason == "" {
-		reason = buildIntradayReason(ws, result)
-	}
-	ws.IntradayResult, ws.IntradayConfidence, ws.IntradayReason = result, confidence, reason
-	w.Stocks[code] = ws
+	return ensureIntradayBundle(context.Background(), w, code).Report
+}
 
+func buildIntradayDraft(w *memory.PreMarketWorking, code string) string {
+	ws := w.Stocks[code]
 	lines := []string{"## 盘前报告参考", ""}
 	if ws.PreMarketResult != "" {
 		lines = append(lines,
@@ -223,14 +329,14 @@ func BuildIntradayReportContent(w *memory.PreMarketWorking, code string) string 
 	} else {
 		lines = append(lines, "暂无盘前报告参考。", "")
 	}
-	if !isReminderBot(ws.BotType) {
+	if needsIntradayPositionStep(ws.BotType) {
 		pos := strings.TrimSpace(ws.PositionSummary)
 		if pos == "" {
 			pos = "无持仓"
 		}
 		lines = append(lines, "## 当前持仓", "", pos, "")
 	}
-	if ws.CapitalDistributionSummary != "" && !isAShareCode(code) {
+	if ws.CapitalDistributionSummary != "" {
 		lines = append(lines, "## 资金分布", "", ws.CapitalDistributionSummary, "")
 	}
 	if ws.HourlyPriceAnalysis != "" || ws.HourlySignalAnalysis != "" || ws.HourlyKlineAnalysis != "" {
@@ -252,7 +358,13 @@ func BuildIntradayReportContent(w *memory.PreMarketWorking, code string) string 
 		lines = append(lines, "## 最新价", "",
 			fmt.Sprintf("价格来源 %s，参考价 %.4f。", localizePriceSource(ws.PriceSource), ws.CurrentPrice), "")
 	}
-	lines = append(lines,
+	return stockfmt.LocalizeDecisionTerms(strings.Join(lines, "\n"))
+}
+
+func assembleIntradayReport(draft, reason string) string {
+	lines := []string{
+		strings.TrimSpace(draft),
+		"",
 		"## 判定依据",
 		"",
 		stockfmt.LocalizeDecisionTerms(reason),
@@ -260,7 +372,7 @@ func BuildIntradayReportContent(w *memory.PreMarketWorking, code string) string 
 		"---",
 		"",
 		"*报告由 GeeGoo 智能体个股盘中 skill 生成*",
-	)
+	}
 	return stockfmt.LocalizeDecisionTerms(strings.Join(lines, "\n"))
 }
 
@@ -268,8 +380,6 @@ func localizePriceSource(src string) string {
 	switch strings.TrimSpace(src) {
 	case "get_current_price":
 		return "行情快照"
-	case "get_ticker":
-		return "逐笔行情"
 	default:
 		if src == "" {
 			return "未知"
@@ -280,37 +390,14 @@ func localizePriceSource(src string) string {
 
 // BuildCreateIntradayReportArgs builds createStockIntradayReport body.
 func BuildCreateIntradayReportArgs(ctx context.Context, w *memory.PreMarketWorking, code string) map[string]any {
-	report := BuildIntradayReportContent(w, code)
+	bundle := ensureIntradayBundle(ctx, w, code)
 	ws := w.Stocks[code]
-	result, confidence := ws.IntradayResult, ws.IntradayConfidence
-	reason := strings.TrimSpace(ws.IntradayReason)
-	summary := stockfmt.IntradayAPISummary(ws.StockName, code, ws.TradeType, result, confidence, report)
-	synthReason := ""
-
-	if synth := IntradaySynthesizerFrom(ctx); synth != nil {
-		if res, err := synth.SynthesizeIntraday(ctx, ws, report, result, confidence); err == nil {
-			if s := strings.TrimSpace(res.Summary); s != "" {
-				summary = s
-			}
-			if r := strings.TrimSpace(res.Reason); r != "" {
-				reason = r
-				synthReason = r
-			}
-		}
-	}
-	if synthReason == "" && len([]rune(reason)) < 80 {
-		reason = buildIntradayReason(ws, result)
-	}
-	reason = stockfmt.LocalizeDecisionTerms(reason)
-	ws.IntradayReason = reason
-	w.Stocks[code] = ws
-
 	body := map[string]any{
 		"code": code, "stock_name": ws.StockName,
 		"bot_id": ws.BotID, "bot_name": ws.BotName, "bot_type": ws.BotType,
-		"result": result, "confidence": confidence, "reason": reason,
-		"report": report, "trade_type": ws.TradeType,
-		"summary": summary,
+		"result": bundle.Result, "confidence": bundle.Confidence, "reason": bundle.Reason,
+		"report": bundle.Report, "trade_type": ws.TradeType,
+		"summary": bundle.Summary,
 	}
 	if ws.CurrentPrice > 0 {
 		body["price"] = ws.CurrentPrice
@@ -325,6 +412,9 @@ func buildIntradayReason(ws memory.StockWorkspace, result string) string {
 	parts := make([]string, 0, 6)
 	if ws.PreMarketResult != "" {
 		parts = append(parts, fmt.Sprintf("盘前观点为%s", preMarketResultCN(ws.PreMarketResult)))
+	}
+	if ws.CapitalDistributionSummary != "" {
+		parts = append(parts, "已参考资金分布")
 	}
 	if ws.HourlyPriceAnalysis != "" || ws.HourlySignalAnalysis != "" || ws.HourlyKlineAnalysis != "" {
 		parts = append(parts, "已结合小时级价格、信号与K线分析")
@@ -343,7 +433,7 @@ func buildIntradayReason(ws memory.StockWorkspace, result string) string {
 	parts = append(parts, fmt.Sprintf("对本轮「%s」信号决策为%s", ws.TradeType, intradayResultCN(result)))
 	text := strings.Join(parts, "，") + "。"
 	if len([]rune(text)) < 80 {
-		text += "综合盘前观点、持仓与盘中技术面，建议按规则结论执行并关注后续量价变化。"
+		text += "综合盘前观点、持仓、资金分布与盘中技术面，建议按结论执行并关注后续量价变化。"
 	}
 	return stockfmt.LocalizeDecisionTerms(text)
 }
@@ -354,10 +444,6 @@ func hasIntradayHourlyData(ws memory.StockWorkspace) bool {
 
 func isReminderBot(botType string) bool {
 	return strings.Contains(strings.ToLower(botType), "reminder")
-}
-
-func isAShareCode(code string) bool {
-	return strings.HasSuffix(code, ".SH") || strings.HasSuffix(code, ".SZ")
 }
 
 func parseFrequencyMinutes(freq string) int {

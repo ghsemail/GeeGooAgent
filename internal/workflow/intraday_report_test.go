@@ -58,9 +58,8 @@ func TestBuildIntradayReportContentNoTables(t *testing.T) {
 价格 5.88 元附近震荡偏多。`,
 				HourlySignalAnalysis: `### 三、综合多空判定
 
-小时级信号偏多。`,
+信号偏多。`,
 				CurrentPrice: 5.88, PriceSource: "get_current_price",
-				IntradayResult: "buy", IntradayConfidence: "high",
 			},
 		},
 	}
@@ -71,17 +70,16 @@ func TestBuildIntradayReportContentNoTables(t *testing.T) {
 	if !strings.Contains(body, "### 小时级价格分析") {
 		t.Fatalf("expected hourly section heading: %s", body)
 	}
-	if strings.Contains(body, "buy") {
-		t.Fatalf("expected no English buy in body: %s", body)
-	}
 }
 
-func TestBuildCreateIntradayReportArgsUsesLLMAndNoTags(t *testing.T) {
+func TestBuildCreateIntradayReportArgsUsesLLMDecision(t *testing.T) {
 	longReason := strings.Repeat("综合盘前偏多、小时级信号与参考价，建议顺势参与并关注量能变化。", 3)
 	mock := &intradaySynthMock{
 		res: report.IntradaySynthesisResult{
-			Summary: "中国中车信号买入，决策买入，置信度高，小时级偏多。",
-			Reason:  longReason,
+			Result:     "buy",
+			Confidence: "high",
+			Summary:    "中国中车信号买入，决策买入，置信度高，小时级偏多。",
+			Reason:     longReason,
 		},
 	}
 	ctx := workflow.ContextWithSynthesizer(context.Background(), mock)
@@ -89,8 +87,7 @@ func TestBuildCreateIntradayReportArgsUsesLLMAndNoTags(t *testing.T) {
 		Stocks: map[string]memory.StockWorkspace{
 			"601766.SH": {
 				Code: "601766.SH", StockName: "中国中车", BotType: "DCA",
-				TradeType: "信号买入", IntradayResult: "buy", IntradayConfidence: "high",
-				CurrentPrice: 5.88,
+				TradeType: "信号买入", CurrentPrice: 5.88,
 			},
 		},
 	}
@@ -98,15 +95,14 @@ func TestBuildCreateIntradayReportArgsUsesLLMAndNoTags(t *testing.T) {
 	if _, ok := args["tags"]; ok {
 		t.Fatalf("tags should be omitted: %v", args["tags"])
 	}
+	if args["result"] != "buy" {
+		t.Fatalf("result=%v want LLM buy", args["result"])
+	}
+	if args["confidence"] != "high" {
+		t.Fatalf("confidence=%v", args["confidence"])
+	}
 	if args["summary"] != mock.res.Summary {
 		t.Fatalf("summary=%v want LLM", args["summary"])
-	}
-	reason := args["reason"].(string)
-	if strings.Contains(strings.ToLower(reason), "buy") {
-		t.Fatalf("reason should not contain buy: %s", reason)
-	}
-	if len([]rune(reason)) < 80 {
-		t.Fatalf("reason too short: %s", reason)
 	}
 }
 
@@ -118,7 +114,6 @@ func TestBuildIntradayReasonFallbackLocalized(t *testing.T) {
 				Code: "601766.SH", StockName: "中国中车", TradeType: "信号买入",
 				PreMarketResult: "long", CurrentPrice: 5.88,
 				HourlyPriceAnalysis: "偏多",
-				IntradayResult: "buy", IntradayConfidence: "high",
 			},
 		},
 	}
@@ -127,7 +122,62 @@ func TestBuildIntradayReasonFallbackLocalized(t *testing.T) {
 	if strings.Contains(strings.ToLower(reason), "buy") {
 		t.Fatalf("reason should be localized: %s", reason)
 	}
-	if !strings.Contains(reason, "买入") {
-		t.Fatalf("expected 买入 in reason: %s", reason)
+}
+
+func TestIntradayStepsSkipPositionForReminder(t *testing.T) {
+	w := memory.NewPreMarketWorking("s1", "intraday_stock")
+	in := workflow.IntradayInput{
+		Code: "00700.HK", BotType: "GRIDReminder", Frequency: "15m", TradeType: "信号买入",
+	}
+	workflow.SeedIntradayWorking(w, in)
+	for _, step := range workflow.IntradayPerStockStepsForWorking(w) {
+		if step.Tool == "get_position" {
+			t.Fatal("reminder should not run get_position")
+		}
+		if step.Tool == "get_ticker" {
+			t.Fatal("intraday should not run get_ticker")
+		}
+	}
+}
+
+func TestIntradayStepsIncludePositionForTradingBot(t *testing.T) {
+	w := memory.NewPreMarketWorking("s1", "intraday_stock")
+	in := workflow.IntradayInput{
+		Code: "00700.HK", BotType: "SmartTrade", Frequency: "15m", TradeType: "信号买入",
+	}
+	workflow.SeedIntradayWorking(w, in)
+	found := false
+	for _, step := range workflow.IntradayPerStockStepsForWorking(w) {
+		if step.Tool == "get_position" {
+			found = true
+		}
+		if step.Tool == "get_ticker" {
+			t.Fatal("intraday should not run get_ticker")
+		}
+	}
+	if !found {
+		t.Fatal("trading bot should run get_position")
+	}
+}
+
+func TestIntradayHardRuleBlocksSellWithoutPosition(t *testing.T) {
+	longReason := strings.Repeat("综合盘前偏多、小时级信号与参考价，建议顺势参与并关注量能变化。", 3)
+	mock := &intradaySynthMock{
+		res: report.IntradaySynthesisResult{
+			Result: "sell", Confidence: "high", Summary: "应卖出", Reason: longReason,
+		},
+	}
+	ctx := workflow.ContextWithSynthesizer(context.Background(), mock)
+	w := &memory.PreMarketWorking{
+		Stocks: map[string]memory.StockWorkspace{
+			"601766.SH": {
+				Code: "601766.SH", StockName: "中国中车", BotType: "DCA",
+				TradeType: "信号卖出", HasPosition: false,
+			},
+		},
+	}
+	args := workflow.BuildCreateIntradayReportArgs(ctx, w, "601766.SH")
+	if args["result"] != "hold" {
+		t.Fatalf("result=%v want hold override", args["result"])
 	}
 }

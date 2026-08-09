@@ -32,12 +32,12 @@ Environment variables `GEEGOO_INTRADAY_*` are also supported.
 
 ## Steps (per stock)
 
-1. `get_position` — skip constraint for `*Reminder`
+1. `get_position` — **仅交易 Bot**（DCA / GRID / SmartTrade / HDG）；**Reminder 跳过**
 2. `get_stock_daily_reports` — read `stock_premarket[0]`
-3. `get_capital_distribution` — skip A-shares (`.SH`/`.SZ`)
+3. `get_capital_distribution` — 全市场含 A 股
 4. `get_mcp_analysis` hourly — frequency rules in manifest
-5. `get_current_price` → `get_ticker` fallback
-6. Rule-based `result` / `confidence` / `reason` (≥80 chars); hourly MCP can veto misaligned buy/sell → `hold`
+5. `get_current_price` — 不使用 `get_ticker` 兜底
+6. LLM 综合 `result` / `confidence` / `summary` / `reason`（规则引擎作参考与 fallback）
 7. `save_local_report` + `create_stock_intraday_report`
 
 `update_intraday_report` (Step 7 in geegoo) is executed by the trade executor after fills, not by this workflow.

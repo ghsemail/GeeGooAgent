@@ -190,7 +190,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 	case "get_capital_distribution":
 		code, _ := data["code"].(string)
 		if ws, ok := updated.Stocks[code]; ok {
-			if result.Status == tools.StatusSkip && isAShare(code) {
+			if result.Status == tools.StatusSkip {
 				ws.CapitalDistributionSummary = ""
 			} else if summary, ok := data["summary"].(string); ok && strings.TrimSpace(summary) != "" {
 				ws.CapitalDistributionSummary = truncate(summary, 4000)
