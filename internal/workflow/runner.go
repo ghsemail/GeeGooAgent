@@ -251,8 +251,17 @@ func (r *Runner) processStep(
 	if result.Status == tools.StatusError {
 		if optionalStep(step) {
 			code := indexCodeFromStep(step, goCtx, working)
-			working = memory.RecordIndexSkip(working, code)
-			skipSummary := "skipped optional index analysis: " + result.Summary
+			if step.Tool == "get_position" {
+				skip := tools.Result{
+					Status:  tools.StatusSkip,
+					Summary: result.Summary,
+					Data:    step.Args(goCtx, working),
+				}
+				working, _ = r.working.Apply(working, step.Tool, skip)
+			} else if code != "" {
+				working = memory.RecordIndexSkip(working, code)
+			}
+			skipSummary := "skipped optional step: " + result.Summary
 			logResult := r.dispatchTool(goCtx, tools.CallRequest{
 				Name: "write_execution_log",
 				Arguments: map[string]any{
@@ -356,7 +365,11 @@ func optionalStep(step Step) bool {
 		return true
 	}
 	// Bot logs may be missing when MCP token scope or bot ownership differs.
-	return step.Tool == "get_bot_log_by_type"
+	if step.Tool == "get_bot_log_by_type" {
+		return true
+	}
+	// A-share / futu gaps may 502; intraday buy decisions can proceed without position.
+	return step.Tool == "get_position"
 }
 
 func indexCodeFromStep(step Step, ctx context.Context, working *memory.PreMarketWorking) string {
