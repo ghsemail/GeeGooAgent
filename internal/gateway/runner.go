@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -76,6 +77,9 @@ func (r *Runner) Start(ctx context.Context) error {
 	if started == 0 {
 		return fmtError("no configured IM adapters (set FEISHU_APP_ID / FEISHU_APP_SECRET)")
 	}
+
+	go r.writeHeartbeatLoop(ctx)
+
 	select {
 	case <-ctx.Done():
 		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -120,6 +124,52 @@ func (r *Runner) Status() []AdapterStatus {
 	}
 	return out
 }
+
+func (r *Runner) writeHeartbeatLoop(ctx context.Context) {
+	write := func() {
+		statuses := r.Status()
+		snap := HeartbeatSnapshot{PID: osGetpid()}
+		if len(statuses) > 0 {
+			st := statuses[0]
+			snap.Platform = string(st.Platform)
+			snap.Connected = st.Connected
+			snap.Configured = st.Configured
+			snap.Detail = st.Detail
+			for _, s := range statuses {
+				if s.Connected {
+					snap.Connected = true
+					snap.Detail = s.Detail
+					snap.Platform = string(s.Platform)
+					break
+				}
+			}
+		}
+		if err := WriteHeartbeat(snap); err != nil {
+			slog.Debug("gateway: heartbeat write", "err", err)
+		}
+	}
+	write()
+	t := time.NewTicker(5 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			_ = WriteHeartbeat(HeartbeatSnapshot{
+				Platform:   "feishu",
+				Connected:  false,
+				Configured: true,
+				Detail:     "gateway stopped",
+				PID:        osGetpid(),
+			})
+			return
+		case <-t.C:
+			write()
+		}
+	}
+}
+
+// osGetpid is os.Getpid; indirection keeps tests free of special casing.
+var osGetpid = func() int { return os.Getpid() }
 
 func (r *Runner) handleInbound(ctx context.Context, ev InboundEvent) error {
 	if ev.MessageID != "" && !r.seen.TryAdd(ev.MessageID) {

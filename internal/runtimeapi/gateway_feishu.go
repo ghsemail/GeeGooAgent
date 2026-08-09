@@ -12,6 +12,7 @@ import (
 	qrcode "github.com/skip2/go-qrcode"
 
 	"github.com/ghsemail/GeeGooAgent/internal/config"
+	"github.com/ghsemail/GeeGooAgent/internal/gateway"
 	"github.com/ghsemail/GeeGooAgent/internal/gateway/platforms/feishu"
 )
 
@@ -29,27 +30,53 @@ func (h *Handler) feishuGatewayStatus(w http.ResponseWriter, r *http.Request) {
 	cfg := feishu.LoadConfigFromEnv(os.Getenv)
 	ad := feishu.NewAdapter(cfg)
 	st := ad.Status()
-	appID := cfg.AppID
-	masked := appID
-	if len(masked) > 8 {
-		masked = masked[:4] + "…" + masked[len(masked)-4:]
+
+	hb, hbOK := gateway.ReadHeartbeat()
+	gatewayRunning := hbOK && gateway.HeartbeatFresh(hb, 30*time.Second) && hb.Connected
+	connected := gatewayRunning
+	detail := st.Detail
+	heartbeatAt := ""
+	if hbOK {
+		heartbeatAt = hb.UpdatedAt.UTC().Format(time.RFC3339)
+		if hb.Detail != "" {
+			detail = hb.Detail
+		}
+		if !gatewayRunning && gateway.HeartbeatFresh(hb, 30*time.Second) && !hb.Connected {
+			detail = hb.Detail
+		}
 	}
+
 	writeJSON(w, map[string]any{
-		"platform":       "feishu",
-		"configured":     st.Configured,
-		"connected":      st.Connected,
-		"detail":         st.Detail,
-		"domain":         cfg.Domain,
-		"connection_mode": cfg.ConnectionMode,
-		"app_id_masked":  masked,
-		"bot_name":       cfg.BotName,
-		"bot_open_id":    cfg.BotOpenID,
-		"allowed_users":  len(cfg.AllowedUsers),
-		"home_channel":   cfg.HomeChannel,
-		"group_policy":   cfg.GroupPolicy,
-		"env_file":       config.EnvFilePath(),
-		"hint":           "Run `geegoo gateway run` on the Agent host to keep the WebSocket connected.",
+		"platform":           "feishu",
+		"configured":         st.Configured,
+		"connected":          connected,
+		"gateway_running":    gatewayRunning,
+		"runtime_ok":         true,
+		"detail":             detail,
+		"domain":             cfg.Domain,
+		"connection_mode":    cfg.ConnectionMode,
+		"app_id_masked":      gateway.MaskAppID(cfg.AppID),
+		"app_secret_masked":  gateway.MaskAppSecret(cfg.AppSecret),
+		"bot_name":           cfg.BotName,
+		"bot_open_id":        cfg.BotOpenID,
+		"allowed_users":      len(cfg.AllowedUsers),
+		"home_channel":       cfg.HomeChannel,
+		"group_policy":       cfg.GroupPolicy,
+		"env_file":           config.EnvFilePath(),
+		"heartbeat_at":       heartbeatAt,
+		"tenant_scope":       "host", // shared ~/.geegoo/.env on Agent host; not per Dashboard user
+		"hint":               feishuStatusHint(st.Configured, gatewayRunning),
 	})
+}
+
+func feishuStatusHint(configured, gatewayRunning bool) string {
+	if !configured {
+		return "扫码或手动填写 App ID / Secret 后，在 Agent 机运行 geegoo gateway run。"
+	}
+	if !gatewayRunning {
+		return "凭证已就绪，但 IM Gateway 未在跑：请在 Agent 机执行 geegoo gateway run。"
+	}
+	return "IM Gateway 运行中：飞书消息会进入 Agent。"
 }
 
 type feishuBeginReq struct {
