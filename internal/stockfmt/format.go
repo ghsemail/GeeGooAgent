@@ -614,8 +614,54 @@ func PolishStockPremarketMarkdown(md string) string {
 	s = regexp.MustCompile(`(?m)^\s*\*\*?\s*(main_in_flow|in_flow|super_in|big_in|mid_in|small_in|update_time)\s*=\s*[^*\n]+\*?\*?\s*$`).ReplaceAllString(s, "")
 	s = HumanizeScientificNumbers(s)
 	s = localizeAttitudeInText(s)
+	s = StripBrokenBoldMarkers(s)
 	s = regexp.MustCompile(`\n{3,}`).ReplaceAllString(s, "\n\n")
 	return strings.TrimSpace(s)
+}
+
+// StripBrokenBoldMarkers unwraps MCP bold markers and removes orphaned "**".
+func StripBrokenBoldMarkers(s string) string {
+	s = regexp.MustCompile(`\*\*([^*\n]+?)\*\*`).ReplaceAllString(s, "$1")
+	s = strings.ReplaceAll(s, "**", "")
+	return s
+}
+
+// FormatPrice formats a stock quote without trailing zeros.
+func FormatPrice(v float64) string {
+	s := fmt.Sprintf("%.4f", v)
+	s = strings.TrimRight(strings.TrimRight(s, "0"), ".")
+	return s
+}
+
+// FormatQty formats share counts without unnecessary decimals.
+func FormatQty(v float64) string {
+	if math.Mod(v, 1) == 0 {
+		return fmt.Sprintf("%.0f", v)
+	}
+	return trimFloat(v)
+}
+
+// FormatPercent formats a percentage value for report prose.
+func FormatPercent(v float64) string {
+	sign := ""
+	if v > 0 {
+		sign = "+"
+	}
+	return sign + trimFloat(v) + "%"
+}
+
+// FormatSignedMoneyCN formats signed CNY amounts for position P/L prose.
+func FormatSignedMoneyCN(v float64) string {
+	if v == 0 {
+		return "0"
+	}
+	sign := ""
+	if v < 0 {
+		sign = "-"
+	} else {
+		sign = "+"
+	}
+	return sign + formatMoneyAbs(v)
 }
 
 // StripEvidenceRefs removes internal evidence citation markers from user-facing text.

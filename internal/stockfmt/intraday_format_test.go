@@ -70,3 +70,51 @@ func TestIntradayAPISummaryNoTags(t *testing.T) {
 		t.Fatalf("expected localized summary: %s", s)
 	}
 }
+
+func TestStripBrokenBoldMarkers(t *testing.T) {
+	in := "周表现：**-1.40%** (从490.40降至478.80) 周振幅：**4.51%**"
+	out := stockfmt.StripBrokenBoldMarkers(in)
+	if strings.Contains(out, "**") {
+		t.Fatalf("expected no stray asterisks: %s", out)
+	}
+	if !strings.Contains(out, "-1.40%") || !strings.Contains(out, "4.51%") {
+		t.Fatalf("expected metrics retained: %s", out)
+	}
+}
+
+func TestFormatPriceTrimsZeros(t *testing.T) {
+	if got := stockfmt.FormatPrice(478.8); got != "478.8" {
+		t.Fatalf("FormatPrice(478.8)=%q want 478.8", got)
+	}
+	if got := stockfmt.FormatPrice(100); got != "100" {
+		t.Fatalf("FormatPrice(100)=%q want 100", got)
+	}
+}
+
+func TestFormatIntradayHourlySectionKeepsTrendSection(t *testing.T) {
+	raw := `### 一、数据区间
+
+数据区间：2026年8月3日—8月7日
+
+### 二、周表现
+
+**周表现：-1.40%** (从490.40降至478.80)
+
+### 三、走势分析
+
+价格围绕 478 元震荡，短线偏弱但未破位。
+
+### 四、综合结论
+
+观望为主。`
+	out := stockfmt.FormatIntradayHourlySection(raw, "fallback")
+	if strings.Contains(out, "**") {
+		t.Fatalf("expected no stray asterisks: %s", out)
+	}
+	if !strings.Contains(out, "走势分析") || !strings.Contains(out, "478") {
+		t.Fatalf("expected trend section retained: %s", out)
+	}
+	if strings.Contains(out, "|") {
+		t.Fatalf("expected no tables: %s", out)
+	}
+}

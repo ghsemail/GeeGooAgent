@@ -99,7 +99,7 @@ func buildIntradaySynthesisPrompt(ws memory.StockWorkspace, draft, ruleResult, r
 		b.WriteString("资金分布: " + truncateLine(ws.CapitalDistributionSummary, 500) + "\n")
 	}
 	if ws.CurrentPrice > 0 {
-		b.WriteString(fmt.Sprintf("参考价: %.4f（来源 %s）\n", ws.CurrentPrice, ws.PriceSource))
+		b.WriteString(fmt.Sprintf("参考价: %s（来源 %s）\n", stockfmt.FormatPrice(ws.CurrentPrice), ws.PriceSource))
 	}
 	b.WriteString(fmt.Sprintf("\n规则引擎参考（可采纳或否决，但须说明理由）: %s / %s\n\n", ruleResult, ruleConfidence))
 	b.WriteString("已排版报告草稿:\n")

@@ -3,6 +3,8 @@ package memory
 import (
 	"fmt"
 	"strings"
+
+	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
 )
 
 func applyPreMarketFromDaily(w *PreMarketWorking, code string, data map[string]any) {
@@ -42,16 +44,45 @@ func formatPositionSummary(data map[string]any) string {
 	if !positionHasData(data) {
 		return "无持仓"
 	}
-	parts := []string{}
-	for _, k := range []string{"position", "qty", "cost_price", "can_sell_qty", "pl_val", "pl_ratio"} {
-		if v, ok := data[k]; ok && fmt.Sprint(v) != "" {
-			parts = append(parts, fmt.Sprintf("%s=%v", k, v))
-		}
+	qty := stockfmt.FloatFromAny(data["position"])
+	if qty == 0 {
+		qty = stockfmt.FloatFromAny(data["qty"])
+	}
+	cost := stockfmt.FloatFromAny(data["cost_price"])
+	canSell := stockfmt.FloatFromAny(data["can_sell_qty"])
+	plVal := stockfmt.FloatFromAny(data["pl_val"])
+	plRatio := stockfmt.FloatFromAny(data["pl_ratio"])
+
+	parts := make([]string, 0, 4)
+	if qty > 0 {
+		parts = append(parts, fmt.Sprintf("持仓 %s 股", stockfmt.FormatQty(qty)))
+	}
+	if cost > 0 {
+		parts = append(parts, fmt.Sprintf("成本价 %s", stockfmt.FormatPrice(cost)))
+	}
+	if canSell > 0 && (qty == 0 || canSell != qty) {
+		parts = append(parts, fmt.Sprintf("可卖 %s 股", stockfmt.FormatQty(canSell)))
+	}
+	if plText := formatPositionPL(plVal, plRatio); plText != "" {
+		parts = append(parts, plText)
 	}
 	if len(parts) == 0 {
-		return fmt.Sprintf("%v", data)
+		return "有持仓，明细暂缺"
 	}
-	return strings.Join(parts, ", ")
+	return strings.Join(parts, "，")
+}
+
+func formatPositionPL(plVal, plRatio float64) string {
+	if plVal == 0 && plRatio == 0 {
+		return ""
+	}
+	if plVal != 0 && plRatio != 0 {
+		return fmt.Sprintf("浮动盈亏 %s（%s）", stockfmt.FormatSignedMoneyCN(plVal), stockfmt.FormatPercent(plRatio))
+	}
+	if plVal != 0 {
+		return fmt.Sprintf("浮动盈亏 %s", stockfmt.FormatSignedMoneyCN(plVal))
+	}
+	return fmt.Sprintf("浮动盈亏比例 %s", stockfmt.FormatPercent(plRatio))
 }
 
 func tickerPriceFromData(data map[string]any) float64 {

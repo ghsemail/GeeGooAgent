@@ -394,7 +394,7 @@ func buildIntradayDraft(w *memory.PreMarketWorking, code string) string {
 	}
 	if ws.CurrentPrice > 0 {
 		lines = append(lines, "## 最新价", "",
-			fmt.Sprintf("价格来源 %s，参考价 %.4f。", localizePriceSource(ws.PriceSource), ws.CurrentPrice), "")
+			fmt.Sprintf("价格来源 %s，参考价 %s。", localizePriceSource(ws.PriceSource), stockfmt.FormatPrice(ws.CurrentPrice)), "")
 	}
 	return stockfmt.LocalizeDecisionTerms(strings.Join(lines, "\n"))
 }
@@ -466,7 +466,7 @@ func buildIntradayReason(ws memory.StockWorkspace, result string) string {
 		}
 	}
 	if ws.CurrentPrice > 0 {
-		parts = append(parts, fmt.Sprintf("参考价%.4f元", ws.CurrentPrice))
+		parts = append(parts, fmt.Sprintf("参考价%s", stockfmt.FormatPrice(ws.CurrentPrice)))
 	}
 	parts = append(parts, fmt.Sprintf("对本轮「%s」信号决策为%s", ws.TradeType, intradayResultCN(result)))
 	text := strings.Join(parts, "，") + "。"

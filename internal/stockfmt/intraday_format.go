@@ -13,6 +13,16 @@ var (
 
 // FormatIntradayHourlySection condenses hourly MCP price/kline text to prose (no tables).
 func FormatIntradayHourlySection(raw, fallback string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback
+	}
+	if embedded := FormatEmbeddedHourlyAnalysis(raw); embedded != "" && embedded != "暂无周线技术分析。" {
+		out := PolishStockPremarketMarkdown(StripBrokenBoldMarkers(embedded))
+		if strings.TrimSpace(out) != "" {
+			return out
+		}
+	}
 	return formatIntradaySection(raw, fallback, false)
 }
 
@@ -49,7 +59,7 @@ func extractIntradayNarrativeBlocks(raw string, signalOnly bool) []string {
 			return
 		}
 		p := strings.TrimSpace(strings.Join(buf, " "))
-		p = strings.Trim(p, "*# ")
+		p = strings.Trim(StripBrokenBoldMarkers(p), "# ")
 		if p != "" && !isIntradayNoiseLine(p) {
 			blocks = append(blocks, p)
 		}
@@ -76,15 +86,19 @@ func extractIntradayNarrativeBlocks(raw string, signalOnly bool) []string {
 			continue
 		}
 		trim = strings.TrimPrefix(strings.TrimPrefix(trim, "- "), "• ")
-		trim = strings.Trim(trim, "* ")
+		trim = StripBrokenBoldMarkers(strings.TrimSpace(trim))
 		if trim == "" {
 			continue
 		}
 		buf = append(buf, trim)
 	}
 	flush()
-	if len(blocks) > 3 {
-		blocks = blocks[:3]
+	maxBlocks := 3
+	if !signalOnly {
+		maxBlocks = 8
+	}
+	if len(blocks) > maxBlocks {
+		blocks = blocks[:maxBlocks]
 	}
 	return blocks
 }
