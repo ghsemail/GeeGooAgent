@@ -12,11 +12,7 @@ func applyPreMarketFromDaily(w *PreMarketWorking, code string, data map[string]a
 	if !ok {
 		return
 	}
-	items, _ := data["stock_premarket"].([]any)
-	if len(items) == 0 {
-		return
-	}
-	m, ok := items[0].(map[string]any)
+	m, ok := firstMapFromSlice(data["stock_premarket"])
 	if !ok {
 		return
 	}
@@ -26,6 +22,26 @@ func applyPreMarketFromDaily(w *PreMarketWorking, code string, data map[string]a
 	ws.PreMarketSuggestion = str(m, "suggestion")
 	ws.PreMarketReportID = str(m, "report_id")
 	w.Stocks[code] = ws
+}
+
+// firstMapFromSlice accepts both []map[string]any (tool Data from typed MCP structs)
+// and []any (JSON-decoded payloads).
+func firstMapFromSlice(v any) (map[string]any, bool) {
+	switch items := v.(type) {
+	case []map[string]any:
+		if len(items) == 0 {
+			return nil, false
+		}
+		return items[0], items[0] != nil
+	case []any:
+		if len(items) == 0 {
+			return nil, false
+		}
+		m, ok := items[0].(map[string]any)
+		return m, ok
+	default:
+		return nil, false
+	}
 }
 
 func positionHasData(data map[string]any) bool {
