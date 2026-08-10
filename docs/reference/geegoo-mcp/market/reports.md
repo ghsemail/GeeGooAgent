@@ -132,7 +132,7 @@ curl -X POST "http://<host>:3120/getReportBotCodes" \
 
 - `market`：`CN` / `HK` / `US`
 - `result`：`long` / `short` / `neutral`（可选）→ App「市场情绪」
-- `confidence`：`high` / `medium` / `low`（可选）→ App「执行度」
+- `confidence`：`high` / `medium` / `low`（可选）→ App「置信度」
 
 **`report` 正文结构**（见 `skills/premarket_market/template.md`）：
 

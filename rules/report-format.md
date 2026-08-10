@@ -32,7 +32,7 @@
 | 字段 | 用途 |
 |------|------|
 | `result` | `long` / `short` / `neutral` → App「市场情绪」 |
-| `confidence` | `high` / `medium` / `low` → App「执行度」 |
+| `confidence` | `high` / `medium` / `low` → App「置信度」 |
 | `summary` | ≤200 字一句话 → App「摘要」区 |
 
 **LLM 合成:** 在 `save_local_report` / `create_market_premarket_report` 前，用指数与新闻证据 + 模板生成完整 `report`，并输出 `result` / `confidence` / `summary`。LLM 不可用或失败时回退规则草稿（结构同上）。
