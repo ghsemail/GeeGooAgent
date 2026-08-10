@@ -135,6 +135,33 @@ func (s *ReportSynthesizer) SummarizeIntradayHourly(
 	return s.inner.SummarizeIntradayHourly(ctx, ws, priceRaw, signalRaw, klineRaw)
 }
 
+// SynthesizePostMarketSummaries generates App-card summaries for postmarket reports.
+func (s *ReportSynthesizer) SynthesizePostMarketSummaries(
+	ctx context.Context,
+	ws memory.StockWorkspace,
+	draft string,
+	sessionBias, vsPreMarket string,
+	ruleMarket, ruleTrade, ruleExperience string,
+) (report.PostMarketSynthesisResult, error) {
+	if s == nil || s.inner == nil || !s.inner.Available() {
+		return report.PostMarketSynthesisResult{}, fmt.Errorf("report synthesizer not available")
+	}
+	s.emit("PostMarketSynthesisStarted", map[string]any{
+		"code": ws.Code, "stock_name": ws.StockName,
+	})
+	res, err := s.inner.SynthesizePostMarketSummaries(ctx, ws, draft, sessionBias, vsPreMarket, ruleMarket, ruleTrade, ruleExperience)
+	if err != nil {
+		s.emit("PostMarketSynthesisFailed", map[string]any{
+			"code": ws.Code, "error": err.Error(),
+		})
+		return report.PostMarketSynthesisResult{}, err
+	}
+	s.emit("PostMarketSynthesisCompleted", map[string]any{
+		"code": ws.Code, "summary_chars": len(res.Summary),
+	})
+	return res, nil
+}
+
 func (s *ReportSynthesizer) emit(event string, payload map[string]any) {
 	if s != nil && s.bus != nil {
 		s.bus.Emit(event, payload)

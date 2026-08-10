@@ -138,16 +138,34 @@ func BuildCreateStockPostmarketReportArgs(ctx context.Context, w *memory.PreMark
 	marketSummary := decision.MarketSummaryFromHourly(ws)
 	tradeSummary := decision.TradeSummaryFromBotLog(ws)
 	experience := decision.ExperienceSummaryDefault(ws, vs)
+	summary := textutil.PlainSummary(report, 200)
+	if synth := PostMarketSynthesizerFrom(ctx); synth != nil {
+		if res, err := synth.SynthesizePostMarketSummaries(
+			ctx, ws, report, bias, vs, marketSummary, tradeSummary, experience,
+		); err == nil {
+			if v := strings.TrimSpace(res.MarketSummary); v != "" {
+				marketSummary = v
+			}
+			if v := strings.TrimSpace(res.TradeSummary); v != "" {
+				tradeSummary = v
+			}
+			if v := strings.TrimSpace(res.ExperienceSummary); v != "" {
+				experience = v
+			}
+			if v := strings.TrimSpace(res.Summary); v != "" {
+				summary = v
+			}
+		}
+	}
 	body := map[string]any{
 		"code": code, "stock_name": ws.StockName, "session_date": sessionDate,
 		"session_bias": bias, "change_pct": ws.ChangePct,
 		"trade_summary": tradeSummary, "market_summary": marketSummary,
 		"experience_summary": experience, "report": report,
-		"summary": textutil.PlainSummary(report, 200),
+		"summary": summary,
 		"bot_id":  ws.BotID, "bot_name": ws.BotName, "bot_type": ws.BotType,
 		"vs_stock_premarket": vs, "stock_premarket_report_id": ws.PreMarketReportID,
 		"tags": []any{"stock_postmarket"},
 	}
-	_ = ctx
 	return body
 }

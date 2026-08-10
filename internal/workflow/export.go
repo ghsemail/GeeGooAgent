@@ -80,6 +80,7 @@ var (
 	PostMarketPerStockSteps              = postmarket.PostMarketPerStockSteps
 	BuildPostMarketReportContent         = postmarket.BuildPostMarketReportContent
 	BuildCreateStockPostmarketReportArgs = postmarket.BuildCreateStockPostmarketReportArgs
+	PostMarketSynthesizerFrom            = postmarket.PostMarketSynthesizerFrom
 )
 
 // Decision helpers shared across phases.
@@ -103,4 +104,5 @@ type (
 	StockPreMarketSynthesizerProvider = premarket.StockPreMarketSynthesizerProvider
 	IntradaySynthesizerProvider       = intraday.IntradaySynthesizerProvider
 	IntradayHourlySummarizerProvider  = intraday.IntradayHourlySummarizerProvider
+	PostMarketSynthesizerProvider     = postmarket.PostMarketSynthesizerProvider
 )
