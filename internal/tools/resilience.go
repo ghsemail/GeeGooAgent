@@ -106,18 +106,20 @@ func fetchCapitalDistributionResilient(
 	mcpToken, code string,
 ) (*mcp.CapitalDistributionData, error) {
 	var lastErr error
-	for attempt := 0; attempt < 2; attempt++ {
+	// Premarket often hits empty Futu snapshots; retry with backoff before giving up
+	// (GeeGooData also serves last-good cache when live is empty).
+	for attempt := 0; attempt < 3; attempt++ {
 		dist, err := client.GetCapitalDistribution(ctx, mcpToken, code)
 		if err != nil {
 			lastErr = err
 		} else if capitalDistributionHasData(dist) {
 			return dist, nil
 		}
-		if attempt == 0 {
+		if attempt < 2 {
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
-			case <-time.After(mcpRetryPause):
+			case <-time.After(mcpRetryPause + time.Duration(attempt)*500*time.Millisecond):
 			}
 		}
 	}
