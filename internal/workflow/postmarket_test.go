@@ -11,10 +11,10 @@ import (
 func TestBuildPostMarketReportContentUsesChangePct(t *testing.T) {
 	w := memory.NewPreMarketWorking("s1", "postmarket_stock")
 	w.Stocks["601766.SH"] = memory.StockWorkspace{
-		Code:       "601766.SH",
-		StockName:  "中国中车",
-		ChangePct:  2.35,
-		PreMarketResult: "long",
+		Code:              "601766.SH",
+		StockName:         "中国中车",
+		ChangePct:         2.35,
+		PreMarketResult:   "long",
 		PreMarketReportID: "abc123",
 		HourlyPriceAnalysis: "| foo | bar |\n| --- | --- |\n| 1 | 2 |",
 	}
@@ -27,6 +27,12 @@ func TestBuildPostMarketReportContentUsesChangePct(t *testing.T) {
 	}
 	if strings.Contains(out, "| foo |") {
 		t.Fatalf("expected hourly table stripped: %s", out)
+	}
+	if strings.Contains(out, "关联盘前报告") || strings.Contains(out, "abc123") {
+		t.Fatalf("premarket report id must not appear in对照 narrative: %s", out)
+	}
+	if !strings.Contains(out, "盘前判断为") || !strings.Contains(out, "对照结论") {
+		t.Fatalf("expected对照 narrative without id: %s", out)
 	}
 }
 

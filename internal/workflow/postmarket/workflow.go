@@ -104,11 +104,8 @@ func postMarketComparisonNarrative(ws memory.StockWorkspace, bias, vs string) st
 	parts := []string{
 		fmt.Sprintf("盘前判断为 %s", localizePreMarketResult(pre)),
 		fmt.Sprintf("今日盘面倾向 %s", decision.LocalizeSessionBias(bias)),
+		fmt.Sprintf("对照结论：%s", decision.LocalizeVsPreMarket(vs)),
 	}
-	if id := strings.TrimSpace(ws.PreMarketReportID); id != "" {
-		parts = append(parts, fmt.Sprintf("关联盘前报告 %s", id))
-	}
-	parts = append(parts, fmt.Sprintf("对照结论：%s", decision.LocalizeVsPreMarket(vs)))
 	return strings.Join(parts, "；") + "。"
 }
 
