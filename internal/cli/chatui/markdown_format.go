@@ -29,13 +29,14 @@ var (
 	reHeadingTableGlue = regexp.MustCompile(`([面论表况])\|([^\n|]+\|[^\n|]+\|)`)
 	reGlueBlockquote  = regexp.MustCompile(`([）)％%港元\d\.])(>[^|\n#]+)`)
 	rePipeBlockquote    = regexp.MustCompile(`\|(\s*>[^|\n#]+)`)
-	reTitleBlockquote   = regexp.MustCompile(`(综合分析|结论|建议)(>[^|\n#]+)`)
-	reAdviceList      = regexp.MustCompile(`(操作建议[：:])\s*-`)
-	reAdviceDash      = regexp.MustCompile(`([者。盈%）)])\s*-([\p{Han}])`)
-	reFixTightDashList = regexp.MustCompile(`\n-([\p{Han}A-Za-z])`)
-	reDateCell        = regexp.MustCompile(`^\d{1,2}/\d{1,2}$`)
-	reGlueEmojiHeading = regexp.MustCompile(`([^\n#])(#{2,6})([\p{So}])`)
-	reGluePipeSection = regexp.MustCompile(`(\|[^\n#]{3,})(#{2,6})`)
+	reTitleBlockquote   = regexp.MustCompile(`(综合分析|资金流向分析|走势分析|技术分析|价格分析|结论|建议|分析)(>[^|\n#]+)`)
+	reHeadingMetaGlue   = regexp.MustCompile(`(?m)^(#{1,6}\s*[^\n>]{2,100}?)(>\s*(?:数据|现价|截至|周期|模板|prompt_id|Prompt)[^\n]*)`)
+	reAdviceList        = regexp.MustCompile(`(操作建议[：:])\s*-`)
+	reAdviceDash        = regexp.MustCompile(`([者。盈%）)])\s*-([\p{Han}])`)
+	reFixTightDashList  = regexp.MustCompile(`\n-([\p{Han}A-Za-z])`)
+	reDateCell          = regexp.MustCompile(`^\d{1,2}/\d{1,2}$`)
+	reGlueEmojiHeading  = regexp.MustCompile(`([^\n#])(#{2,6})([\p{So}])`)
+	reGluePipeSection   = regexp.MustCompile(`(\|[^\n#]{3,})(#{2,6})`)
 	reLooseTableHeaderSep = regexp.MustCompile(`(\|?(?:类型\|说明|日期\|事件|维度\|信号|字段\|详情)\|?)\s*([-]{2,}\|[-]{2,})`)
 	reLooseSepRow         = regexp.MustCompile(`([-]{2,}\|[-]{2,})\s*([\p{Han}A-Za-z][^\n|*]{0,24}\|)`)
 	reLooseRowAfterBacktest = regexp.MustCompile(`(回测)(GRID[^\n|]*\|)`)
@@ -51,10 +52,13 @@ var (
 	reGlueSummaryBlockquote = regexp.MustCompile(`([。；;！？\)）])(>\*\*)`)
 	reGlueStarPipeMeta    = regexp.MustCompile(`(\*\*)\|([^\|\n#\d])`)
 	reGlueTightBullet     = regexp.MustCompile(`([^\n])-(✅|🟡|🔍|\*\*)`)
+	reGlueBoldDashBold    = regexp.MustCompile(`(\*\*)\s*-\s*(\*\*)`)
 	reGlueEmojiCallout    = regexp.MustCompile(`([。；;！？\)）])(⚠️\*\*)`)
 	reGlueHeadingTypeTable = regexp.MustCompile(`([^\n|]{2,}参考)(\|类型\|参考逻辑\|?)`)
 	reFixBlockquoteLine   = regexp.MustCompile(`(?m)^>(\S)`)
 	reISODateCell         = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+	rePromptIDNoise       = regexp.MustCompile(`(?i)(?:\s*[|｜/·•]?\s*)?(?:\(|（)?(?:prompt[_\s-]?id|selected_prompt_id)\s*[:：=]?\s*[` + "`" + `]?[a-zA-Z0-9_-]{6,}[` + "`" + `]?(?:\)|）)?`)
+	reTrailingOrphanBold  = regexp.MustCompile(`\*\*\s*$`)
 )
 
 // NormalizeAssistantLayout inserts line breaks when the model glues markdown blocks
@@ -160,7 +164,31 @@ func PreprocessWebMarkdown(text string) string {
 	text = NormalizeAssistantLayout(text)
 	text = stripOrderedListMarkers(text)
 	text = ensureListSpacing(text)
+	text = repairReplyMarkdownArtifacts(text)
 	return tightenParagraphSpacing(text)
+}
+
+// repairReplyMarkdownArtifacts cleans user-facing reply noise that models often emit:
+// glued "- **" list items after bold amounts, orphan trailing **, and prompt_id leaks.
+func repairReplyMarkdownArtifacts(text string) string {
+	text = reGlueBoldDashBold.ReplaceAllString(text, "$1\n- $2")
+	text = rePromptIDNoise.ReplaceAllString(text, "")
+	text = reHeadingMetaGlue.ReplaceAllString(text, "$1\n\n$2")
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		if strings.Count(line, "**")%2 == 1 {
+			trimRight := strings.TrimRight(line, " \t")
+			if reTrailingOrphanBold.MatchString(trimRight) {
+				lines[i] = reTrailingOrphanBold.ReplaceAllString(trimRight, "")
+				continue
+			}
+			// Mid-line odd marker: drop the last "**" occurrence.
+			if idx := strings.LastIndex(line, "**"); idx >= 0 {
+				lines[i] = line[:idx] + line[idx+2:]
+			}
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // PreprocessTerminalMarkdown applies web fixes plus narrow-terminal table→card conversion.
@@ -188,6 +216,8 @@ func normalizeGluedAnalysisMarkdown(text string) string {
 	text = reGlueTitleBlockquote.ReplaceAllString(text, "$1\n\n> **")
 	text = reGlueSummaryBlockquote.ReplaceAllString(text, "$1\n\n> **")
 	text = reGlueStarPipeMeta.ReplaceAllString(text, "$1\n\n$2")
+	text = reHeadingMetaGlue.ReplaceAllString(text, "$1\n\n$2")
+	text = reGlueBoldDashBold.ReplaceAllString(text, "$1\n- $2")
 	text = reGlueTightBullet.ReplaceAllStringFunc(text, func(m string) string {
 		sub := reGlueTightBullet.FindStringSubmatch(m)
 		if len(sub) < 3 {

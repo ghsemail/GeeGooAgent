@@ -346,6 +346,38 @@ Bot开关|✅开启
 	}
 }
 
+func TestPreprocessWebMarkdown_TencentCapitalFlowArtifacts(t *testing.T) {
+	in := `## 腾讯控股(00700.HK) 资金流向分析> 数据截至：2026-08-1215:59:59｜现价：461.6 港元（当日 -1.95%）prompt_id: 66494754fbe37cd6846ebd89
+
+### 主力各规模分布
+
+- **超大单**：净流出约**1.11 亿港元**
+- **大单**：净流入约 **4.21 亿港元**- **中单**：净流入约 **6,591万港元**
+- **小单**：净流入约 **7,762 万港元**
+
+- **关注点**：后续1–2 个交易日的**超大单净额**是否转正**
+`
+	out := PreprocessWebMarkdown(in)
+	if strings.Contains(out, "分析>") {
+		t.Fatalf("title meta should be unglued: %q", out)
+	}
+	if !strings.Contains(out, "> 数据截至") && !strings.Contains(out, "\n> 数据截至") {
+		t.Fatalf("expected meta blockquote after title: %q", out)
+	}
+	if strings.Contains(out, "prompt_id") {
+		t.Fatalf("prompt_id should be stripped from user reply: %q", out)
+	}
+	if strings.Contains(out, "亿港元**- **中单") || strings.Contains(out, "亿港元**-\n") {
+		t.Fatalf("list items should split after bold amount: %q", out)
+	}
+	if !strings.Contains(out, "\n- **中单**") {
+		t.Fatalf("missing split 中单 list item: %q", out)
+	}
+	if strings.Contains(out, "是否转正**") {
+		t.Fatalf("orphan trailing ** should be removed: %q", out)
+	}
+}
+
 func TestPreprocessWebMarkdown_MeituanGluedAnalysis(t *testing.T) {
 	in := `##美团-W（03690.HK）走势分析>**最新现价：92.50港元**|数据截至2025-11-24---###一、趋势判断：中期偏多，短期高位整固-**主力资金持续沉淀**：近30个交易日主力累计净流入约**+45亿港元**。-**散户反向指标明显**：多次出现"主力买、散户卖"结构。---###二、关键价位参考|类型|参考逻辑||------|----------||**短期支撑**|88～90港元区间||**中期支撑**|82～85港元区间。>**一句话总结**：美团主力资金面中期偏多未变。`
 	out := PreprocessWebMarkdown(in)
