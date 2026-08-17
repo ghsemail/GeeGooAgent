@@ -30,6 +30,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/skills"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
+	"github.com/ghsemail/GeeGooAgent/internal/userllmstore"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
 )
 
@@ -69,6 +70,8 @@ type App struct {
 	Hooks *tools.HookRunner
 	// ChatMemory is the Memory port shared by loop, recall tool, and evidence.
 	ChatMemory memport.Port
+	// UserLLM loads per-user gateway model prefs from GeeGooBot DB (service-api or Mongo).
+	UserLLM *userllmstore.Backend
 }
 
 // LoadFromConfigPath builds an App from config.json.
@@ -119,6 +122,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	app := &App{
 		Config: cfg, MCP: httpBackends.MCP, Registry: registry,
 		Executor: executor, Workflow: wf, Working: working, State: state, Checkpoints: checkpoints, EventBus: eventBus, Workspace: workspace,
+		UserLLM: userllmstore.NewBackend(cfg, workspace),
 	}
 	if err := app.openDatabase(); err != nil {
 		fmt.Fprintf(os.Stderr, "警告: SQLite 未启用: %v（回退到文件存储）\n", err)
@@ -384,6 +388,25 @@ func (a *App) EffectiveLLMModel() string {
 	}
 	cfg := a.Config.LLM
 	return llm.ResolveModel(llm.ProviderName(cfg.Provider), cfg.Model)
+}
+
+// EffectiveLLMConfig merges per-user gateway prefs from QT_DB when UserLLM backend is enabled.
+func (a *App) EffectiveLLMConfig(userID, gateway string) config.LLMConfig {
+	if a == nil || a.Config == nil {
+		return config.LLMConfig{}
+	}
+	base := a.Config.LLM
+	userID = strings.TrimSpace(userID)
+	if userID == "" || a.UserLLM == nil {
+		return base
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	doc, err := a.UserLLM.Load(ctx, userID)
+	if err != nil || doc == nil {
+		return base
+	}
+	return userllmstore.MergeEffective(base, doc, gateway)
 }
 
 func (a *App) buildFallbackProviders() []llm.Provider {

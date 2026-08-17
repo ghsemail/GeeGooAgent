@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
+	"github.com/ghsemail/GeeGooAgent/internal/userllmstore"
 )
 
 func (h *Handler) registerCompareRoutes(mux *http.ServeMux) {
@@ -55,7 +56,7 @@ func (h *Handler) compareStorePath(userID string) string {
 	}
 	userID = strings.TrimSpace(userID)
 	if userID != "" {
-		safe := safeUserID.ReplaceAllString(userID, "_")
+		safe := userllmstore.SanitizeUserID(userID)
 		return filepath.Join(base, safe, "history.jsonl")
 	}
 	return filepath.Join(base, "history.jsonl")

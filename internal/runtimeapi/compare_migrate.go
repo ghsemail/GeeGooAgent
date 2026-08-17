@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/ghsemail/GeeGooAgent/internal/userllmstore"
 )
 
 // MigrateLegacyCompareHistory copies a global compare/history.jsonl into a user-scoped file.
@@ -23,7 +25,7 @@ func MigrateLegacyCompareHistory(workspace, userID, legacyPath string) (copied i
 		}
 		return 0, err
 	}
-	dest := filepath.Join(workspace, "compare", safeUserID.ReplaceAllString(userID, "_"), "history.jsonl")
+	dest := filepath.Join(workspace, "compare", userllmstore.SanitizeUserID(userID), "history.jsonl")
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return 0, err
 	}

@@ -8,7 +8,6 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/gateway"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
-	"github.com/ghsemail/GeeGooAgent/internal/usersettings"
 )
 
 func (tr *Runner) handleOwned(ctx context.Context, ev gateway.InboundEvent, own ownedInbound) error {
@@ -151,11 +150,7 @@ func (tr *Runner) applyOwnerFeishuGateway(ownerUserID string) (restore func()) {
 	if ownerUserID == "" {
 		return restore
 	}
-	doc, err := usersettings.Load(tr.StoreDir, ownerUserID)
-	if err != nil || doc == nil {
-		return restore
-	}
-	cfg := usersettings.Apply(tr.App.Config.LLM, doc, "feishu")
+	cfg := tr.App.EffectiveLLMConfig(ownerUserID, "feishu")
 	gw, _, err := tr.App.BuildGatewayFromLLMConfig(cfg, false)
 	if err != nil || gw == nil {
 		return restore

@@ -13,6 +13,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
+	"github.com/ghsemail/GeeGooAgent/internal/userllmstore"
 )
 
 type dashboardSettingsRequest struct {
@@ -27,6 +28,20 @@ type dashboardSettingsRequest struct {
 	Pinned         []string `json:"pinned"`
 	ChatToolsets   []string `json:"chat_toolsets"`
 	ResetToolsets  bool     `json:"reset_toolsets"`
+}
+
+func (req dashboardSettingsRequest) userLLMPatch() userllmstore.DashboardPatch {
+	return userllmstore.DashboardPatch{
+		Provider:       req.Provider,
+		Model:          req.Model,
+		CatalogModelID: req.CatalogModelID,
+		Gateway:        req.Gateway,
+		UseOpsModel:    req.UseOpsModel,
+		Thinking:       req.Thinking,
+		Temperature:    req.Temperature,
+		MaxTokens:      req.MaxTokens,
+		Pinned:         req.Pinned,
+	}
 }
 
 func (h *Handler) registerSettingsRoutes(mux *http.ServeMux) {
@@ -92,7 +107,7 @@ func (h *Handler) dashboardApplySettings(w http.ResponseWriter, r *http.Request)
 		if us == nil {
 			us = &userLLMSettings{}
 		}
-		us.applyRequest(req)
+		us.ApplyDashboard(req.userLLMPatch())
 		if err := h.saveUserLLMSettings(userID, us); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return

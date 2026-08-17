@@ -58,7 +58,7 @@ func TestChatCompletionsWithMockLLM(t *testing.T) {
 	registry := tools.NewRegistry()
 	provider := &llm.MockProvider{
 		Responses: []*llm.Response{
-			{Content: "00700.HK", Usage: llm.TokenUsage{Model: "mock"}},
+			{Content: "hello from mock", Usage: llm.TokenUsage{Model: "mock"}},
 		},
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
@@ -78,7 +78,7 @@ func TestChatCompletionsWithMockLLM(t *testing.T) {
 	payload := map[string]any{
 		"model": "geegoo-agent",
 		"messages": []map[string]string{
-			{"role": "user", "content": "00700.HK"},
+			{"role": "user", "content": "ping"},
 		},
 		"stream": false,
 	}
@@ -106,7 +106,7 @@ func TestChatCompletionsWithMockLLM(t *testing.T) {
 	if len(resp.Choices) == 0 || resp.Choices[0].Message.Content == "" {
 		t.Fatalf("empty response: %+v", resp)
 	}
-	if resp.Choices[0].Message.Content != "00700.HK" {
+	if resp.Choices[0].Message.Content != "hello from mock" {
 		t.Fatalf("content=%q", resp.Choices[0].Message.Content)
 	}
 }

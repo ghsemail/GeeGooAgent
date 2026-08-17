@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/config"
+	"github.com/ghsemail/GeeGooAgent/internal/userllmstore"
 )
 
 func TestUserLLMSettingsMergeAndPersist(t *testing.T) {
@@ -16,7 +17,7 @@ func TestUserLLMSettingsMergeAndPersist(t *testing.T) {
 		UseOpsModel: &on,
 		Pinned:      []string{"geegoo:test-model"},
 	}
-	us.applyRequest(dashboardSettingsRequest{
+	us.ApplyDashboard(userllmstore.DashboardPatch{
 		Provider: "deepseek",
 		Model:    "deepseek-chat",
 	})
@@ -28,7 +29,7 @@ func TestUserLLMSettingsMergeAndPersist(t *testing.T) {
 		t.Fatalf("load: %v %+v", err, loaded)
 	}
 	base := config.LLMConfig{Provider: "geegoo", Model: "base", Temperature: 0.5}
-	merged := loaded.mergeInto(base)
+	merged := userllmstore.MergeEffective(base, loaded, "")
 	if merged.Provider != "deepseek" || merged.Model != "deepseek-chat" {
 		t.Fatalf("merge: %+v", merged)
 	}
@@ -43,7 +44,6 @@ func TestUserLLMSettingsMergeAndPersist(t *testing.T) {
 }
 
 func TestUserLLMSettingsGatewayOverlay(t *testing.T) {
-	dir := t.TempDir()
 	us := &userLLMSettings{
 		CatalogModelID: "global-model",
 		Gateways: map[string]gatewayLLMSettings{
@@ -52,17 +52,15 @@ func TestUserLLMSettingsGatewayOverlay(t *testing.T) {
 		},
 	}
 	base := config.LLMConfig{Provider: "geegoo", Model: "base"}
-	web := us.mergeInto(base)
-	web = us.Gateways["web"].mergeInto(web)
+	web := userllmstore.MergeEffective(base, us, "web")
 	if web.CatalogModelID != "web-model" {
 		t.Fatalf("web catalog=%q", web.CatalogModelID)
 	}
-	app := us.mergeInto(base)
-	app = us.Gateways["trading_app"].mergeInto(app)
+	app := userllmstore.MergeEffective(base, us, "trading_app")
 	if app.CatalogModelID != "app-model" {
 		t.Fatalf("app catalog=%q", app.CatalogModelID)
 	}
-	us.applyRequest(dashboardSettingsRequest{
+	us.ApplyDashboard(userllmstore.DashboardPatch{
 		Gateway:        "trading_app",
 		CatalogModelID: "new-app-model",
 	})
@@ -72,7 +70,6 @@ func TestUserLLMSettingsGatewayOverlay(t *testing.T) {
 	if us.CatalogModelID != "global-model" {
 		t.Fatalf("global should be unchanged: %q", us.CatalogModelID)
 	}
-	_ = dir
 }
 
 func TestPinnedFromUserSettings(t *testing.T) {
