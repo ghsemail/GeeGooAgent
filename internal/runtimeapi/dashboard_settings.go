@@ -225,8 +225,14 @@ func (h *Handler) buildSettingsInfo(userID, gateway string) (map[string]any, err
 	thinkingOn := llm.ResolveThinkingEnabled(provName, model, effective.Thinking)
 
 	var userDoc *userLLMSettings
+	var userLLMError string
 	if userID != "" {
-		userDoc, _ = h.loadUserLLMSettings(userID)
+		doc, loadErr := h.loadUserLLMSettings(userID)
+		if loadErr != nil {
+			userLLMError = loadErr.Error()
+		} else {
+			userDoc = doc
+		}
 	}
 	pinned := pinnedFromUserSettings(userDoc, provider, model)
 	if len(pinned) == 0 {
@@ -307,7 +313,27 @@ func (h *Handler) buildSettingsInfo(userID, gateway string) (map[string]any, err
 		}
 	}
 
-	return map[string]any{
+	localFallback := map[string]any{}
+	opsDefaultID := ""
+	opsDefaultLabel := ""
+	if h.App != nil && h.App.Config != nil {
+		raw := h.App.Config.LLM
+		localFallback = map[string]any{
+			"provider": strings.TrimSpace(raw.Provider),
+			"model":    strings.TrimSpace(raw.Model),
+		}
+	}
+	if models, err := h.fetchCatalogModels(context.Background()); err == nil {
+		for _, m := range models {
+			if strings.EqualFold(strings.TrimSpace(m.Type), "configured") {
+				opsDefaultID = strings.TrimSpace(m.ModelID)
+				opsDefaultLabel = llm.CatalogModelLabel(m)
+				break
+			}
+		}
+	}
+
+	out := map[string]any{
 		"provider": provider, "model": model,
 		"small_model": model,
 		"thinking": thinkingState, "thinking_active": thinkingOn,
@@ -316,6 +342,9 @@ func (h *Handler) buildSettingsInfo(userID, gateway string) (map[string]any, err
 		"use_ops_model": useOps, "catalog_model_id": catalogID,
 		"gateway": gwKey,
 		"gateways": gatewaysOut,
+		"local_fallback": localFallback,
+		"ops_default_model_id": opsDefaultID,
+		"ops_default_model_label": opsDefaultLabel,
 		"embedding_provider": embedding.Provider,
 		"embedding_model": embedding.Model,
 		"embedding_base_url": embedding.BaseURL,
@@ -325,7 +354,14 @@ func (h *Handler) buildSettingsInfo(userID, gateway string) (map[string]any, err
 		"chat_toolsets": chatConfigured, "active_chat_toolsets": chatActive,
 		"chat_toolsets_default": chatUsingDefaults, "chat_tool_count": chatToolCount,
 		"toolsets": tools.BuildToolsetSummaries(),
-	}, nil
+	}
+	if userLLMError != "" {
+		out["user_llm_error"] = userLLMError
+	}
+	if userID != "" && h.App != nil && h.App.UserLLM != nil {
+		out["user_llm_backend_enabled"] = h.App.UserLLM.Enabled()
+	}
+	return out, nil
 }
 
 func (h *Handler) fetchCatalogModels(ctx context.Context) ([]admin.ConfiguredModel, error) {
