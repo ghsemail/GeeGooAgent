@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	dataBFFNodeTimeout = 8 * time.Second
-	dataBFFOverviewTTL = 30 * time.Second
+	dataBFFNodeTimeout    = 8 * time.Second
+	dataBFFOverviewTTL    = 30 * time.Second
+	dataBFFOverviewBudget = 30 * time.Second
 )
 
 type dataFleetCache struct {
@@ -85,6 +86,10 @@ func (h *Handler) collectDataOverview(ctx context.Context, force bool) (map[stri
 	collector := newDataFleetCollector()
 
 	outNodes := make([]dataFleetNode, len(nodes))
+	botURL := cfg.EffectiveMCPURL()
+	var botOK bool
+	var botDetail string
+
 	var wg sync.WaitGroup
 	for i, node := range nodes {
 		wg.Add(1)
@@ -93,10 +98,12 @@ func (h *Handler) collectDataOverview(ctx context.Context, force bool) (map[stri
 			outNodes[i] = collector.probeNode(ctx, node)
 		}(i, node)
 	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		botOK, botDetail = collector.probeBotHealth(ctx, botURL)
+	}()
 	wg.Wait()
-
-	botURL := cfg.EffectiveMCPURL()
-	botOK, botDetail := collector.probeBotHealth(ctx, botURL)
 
 	summary := map[string]int{
 		"nodes_total":     len(outNodes),

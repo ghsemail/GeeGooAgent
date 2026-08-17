@@ -43,6 +43,8 @@ type metricsOverview struct {
 type sessionListItem struct {
 	ID           string    `json:"id"`
 	Title        string    `json:"title,omitempty"`
+	Summary      string    `json:"summary,omitempty"`
+	Last         string    `json:"last,omitempty"`
 	Status       string    `json:"status"`
 	MessageCount int       `json:"message_count"`
 	StepCount    int       `json:"step_count"`
@@ -151,7 +153,9 @@ func (h *Handler) listSessions(w http.ResponseWriter, r *http.Request) {
 		source = NormalizeSessionSource(source)
 		items = append(items, sessionListItem{
 			ID:           e.ID,
-			Title:        e.Title,
+			Title:        firstNonEmpty(e.Title, e.ID),
+			Summary:      e.Summary,
+			Last:         chatsession.ListPreview(e),
 			Status:       e.Status,
 			MessageCount: e.MessageCount,
 			StepCount:    e.StepCount,

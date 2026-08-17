@@ -978,7 +978,13 @@ func registerPromptTemplateTools(r *Registry, deps Deps) {
 			if period != "" {
 				body["period"] = period
 			}
-			data, err := deps.HTTP.ForTool("get_single_prompt_template").PostDirect(ctx.GoContext(), "/getSinglePromptTemplate", body)
+			// Route via GeeGooBot mcp-api (:3120): catalog-api token lookup needs QT_DB
+			// reachable from the Signal host; mcp-api on Bot already resolves mcp_token.
+			client := deps.HTTP.MCP
+			if client == nil {
+				client = deps.HTTP.ForTool("get_single_prompt_template")
+			}
+			data, err := client.PostDirect(ctx.GoContext(), "/getSinglePromptTemplate", body)
 			if err != nil {
 				return errResult(err)
 			}

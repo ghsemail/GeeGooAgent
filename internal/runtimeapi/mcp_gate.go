@@ -15,14 +15,14 @@ func userProvidedMCPToken(r *http.Request, bodyToken string) string {
 	return strings.TrimSpace(bodyToken)
 }
 
-// resolveChatMCPToken prefers agent-runtime config mcp_token (trading user identity
-// for MCP tools) over caller-supplied tokens. Ops portals may send an admin
-// mcp_token for BFF auth; tool calls must still use the runtime config token.
+// resolveChatMCPToken prefers the caller's per-user token (X-MCP-Token / body) so
+// multi-tenant BFF chat uses the acting user's GeeGoo identity. Runtime config
+// mcp_token is only a single-user fallback (CLI / dev).
 func resolveChatMCPToken(r *http.Request, bodyToken, configToken string) string {
-	if v := strings.TrimSpace(configToken); v != "" {
+	if v := userProvidedMCPToken(r, bodyToken); v != "" {
 		return v
 	}
-	return userProvidedMCPToken(r, bodyToken)
+	return strings.TrimSpace(configToken)
 }
 
 // requireMCPTokenForChat allows chat when runtime config or the caller supplies a token.

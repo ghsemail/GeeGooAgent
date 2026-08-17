@@ -1,7 +1,9 @@
 package runtimeapi
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -133,19 +135,25 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	schemas := h.App.Registry.Schemas(h.App.ChatToolNames())
+	runCtx := context.WithoutCancel(r.Context())
 	var result runtime.TurnResult
 	h.withUserAgentGateway(resolveUserID(r), resolveClientSource(r), func() {
-		result = h.App.Agent.Run(r.Context(), rtSession, message, toolCtx, schemas)
+		result = h.App.Agent.Run(runCtx, rtSession, message, toolCtx, schemas)
 	})
 
 	newRecords := stepRecordsFromTurn(result.StepRecords)
 	agent.SyncChatFromRuntime(chat, rtSession, newRecords)
-	_ = store.Save(chat)
+	if err := store.Save(chat); err != nil {
+		slog.Error("chat stream save session failed", "session_id", chat.ID, "error", err)
+		emit("save_error", map[string]any{"session_id": chat.ID, "message": err.Error()})
+	}
 	userID := resolveUserID(r)
-	_ = h.persistTurnMemory(r.Context(), chat, userID)
+	_ = h.persistTurnMemory(runCtx, chat, userID)
 	if h.App.Consolidator != nil {
-		if res, err := h.App.Consolidator.MaybeConsolidate(r.Context(), chat); err == nil && (res.Facts > 0 || res.Episode) {
-			_ = store.Save(chat)
+		if res, err := h.App.Consolidator.MaybeConsolidate(runCtx, chat); err == nil && (res.Facts > 0 || res.Episode) {
+			if err := store.Save(chat); err != nil {
+				slog.Error("chat stream save after consolidation failed", "session_id", chat.ID, "error", err)
+			}
 			writeSessionSSE(w, flusher, "consolidation", map[string]any{
 				"session_id": chat.ID,
 				"facts":      res.Facts,

@@ -275,7 +275,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 }
 
 func (h *Handler) buildDataFleetSummary(r *http.Request) map[string]any {
-	ctx, cancel := context.WithTimeout(r.Context(), dataBFFNodeTimeout+4*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), dataBFFOverviewBudget)
 	defer cancel()
 	payload, err := h.collectDataOverview(ctx, false)
 	if err != nil {

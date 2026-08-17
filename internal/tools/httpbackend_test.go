@@ -45,4 +45,7 @@ func TestHTTPBackendsForTool(t *testing.T) {
 	if b.ForTool("get_position") != mcpC {
 		t.Fatal("bot tools should use mcp-api")
 	}
+	if b.ForTool("get_single_prompt_template") != mcpC {
+		t.Fatal("get_single_prompt_template should use mcp-api (QT token resolution on Bot)")
+	}
 }

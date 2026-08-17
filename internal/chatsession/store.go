@@ -126,6 +126,7 @@ func (s *ChatSessionStore) Load(sessionID string) (*ChatSession, error) {
 // Save persists session state.
 func (s *ChatSessionStore) Save(session *ChatSession) error {
 	session.RefreshMetadata()
+	session.SanitizeForPersist()
 	session.UpdatedAt = time.Now().UTC()
 	if err := s.store.Save(s.key(session.ID), session.toMap()); err != nil {
 		return err

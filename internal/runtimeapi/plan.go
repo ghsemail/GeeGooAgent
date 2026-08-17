@@ -1,6 +1,7 @@
 package runtimeapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -97,9 +98,10 @@ func (h *Handler) chatPlan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	schemas := h.App.Registry.Schemas(h.App.ChatToolNames())
+	runCtx := context.WithoutCancel(r.Context())
 	var result runtime.TurnResult
 	h.withUserAgentGateway(resolveUserID(r), resolveClientSource(r), func() {
-		result = h.App.Agent.Run(r.Context(), rtSession, userText, toolCtx, schemas)
+		result = h.App.Agent.Run(runCtx, rtSession, userText, toolCtx, schemas)
 	})
 
 	newRecords := stepRecordsFromTurn(result.StepRecords)

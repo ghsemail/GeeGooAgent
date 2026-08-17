@@ -83,6 +83,7 @@ func (s *PostgresSessionStore) Load(sessionID string) (*ChatSession, error) {
 // Save persists session state, upserting by id.
 func (s *PostgresSessionStore) Save(session *ChatSession) error {
 	session.RefreshMetadata()
+	session.SanitizeForPersist()
 	session.UpdatedAt = time.Now().UTC()
 
 	tagsJSON, _ := json.Marshal(session.Tags)

@@ -147,7 +147,7 @@ func UsesSignalCatalog(name string) bool {
 		return true
 	}
 	switch name {
-	case "get_single_prompt_template", "get_index_signals", "get_signal_combinations":
+	case "get_index_signals", "get_signal_combinations":
 		return true
 	}
 	for _, spec := range MondayHTTPSpecs() {

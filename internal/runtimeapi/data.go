@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 )
 
 func (h *Handler) registerDataRoutes(mux *http.ServeMux) {
@@ -21,7 +20,7 @@ func (h *Handler) registerDataRoutes(mux *http.ServeMux) {
 
 func (h *Handler) dataOverview(w http.ResponseWriter, r *http.Request) {
 	force := strings.EqualFold(r.URL.Query().Get("force"), "true")
-	ctx, cancel := context.WithTimeout(r.Context(), dataBFFNodeTimeout+4*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), dataBFFOverviewBudget)
 	defer cancel()
 	payload, err := h.collectDataOverview(ctx, force)
 	if err != nil {
@@ -38,7 +37,7 @@ func (h *Handler) dataNodes(w http.ResponseWriter, r *http.Request) {
 
 	out := make([]map[string]any, 0, len(nodes))
 	collector := newDataFleetCollector()
-	ctx, cancel := context.WithTimeout(r.Context(), dataBFFNodeTimeout+4*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), dataBFFOverviewBudget)
 	defer cancel()
 
 	for _, node := range nodes {

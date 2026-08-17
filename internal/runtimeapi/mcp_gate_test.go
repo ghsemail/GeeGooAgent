@@ -6,10 +6,18 @@ import (
 	"testing"
 )
 
-func TestResolveChatMCPTokenPrefersConfig(t *testing.T) {
+func TestResolveChatMCPTokenPrefersCaller(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/stream", nil)
-	req.Header.Set("X-MCP-Token", "admin-token")
+	req.Header.Set("X-MCP-Token", "user-token")
 	got := resolveChatMCPToken(req, "body-token", "config-trading-token")
+	if got != "user-token" {
+		t.Fatalf("got %q want user-token", got)
+	}
+}
+
+func TestResolveChatMCPTokenFallsBackToConfig(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/stream", nil)
+	got := resolveChatMCPToken(req, "", "config-trading-token")
 	if got != "config-trading-token" {
 		t.Fatalf("got %q want config-trading-token", got)
 	}

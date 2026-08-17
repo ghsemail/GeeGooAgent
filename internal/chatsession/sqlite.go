@@ -89,6 +89,7 @@ func (s *SQLiteSessionStore) Load(sessionID string) (*ChatSession, error) {
 // Save persists session state, upserting by id.
 func (s *SQLiteSessionStore) Save(session *ChatSession) error {
 	session.RefreshMetadata()
+	session.SanitizeForPersist()
 	session.UpdatedAt = time.Now().UTC()
 
 	tagsJSON, _ := json.Marshal(session.Tags)
