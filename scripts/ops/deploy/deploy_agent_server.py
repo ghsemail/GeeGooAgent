@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Update GeeGooAgent on 119.45.16.112 via install.sh."""
+"""Update GeeGooAgent on 82.157.97.76 via install.sh."""
 from __future__ import annotations
 
 import json

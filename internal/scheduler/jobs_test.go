@@ -127,8 +127,13 @@ func TestPruneLegacyPostmarketWeekday(t *testing.T) {
 	if !scheduler.MigrateJobs(jf) {
 		t.Fatal("expected prune")
 	}
-	if len(jf.Jobs) != 1 || jf.Jobs[0].Name != "postmarket_stock_cn" {
-		t.Fatalf("unexpected jobs: %+v", jf.Jobs)
+	if len(jf.Jobs) != 3 {
+		t.Fatalf("expected cn/hk/us postmarket jobs, got %d: %+v", len(jf.Jobs), jf.Jobs)
+	}
+	for _, j := range jf.Jobs {
+		if j.Name == "postmarket_stock_weekday" {
+			t.Fatal("legacy weekday job should be removed")
+		}
 	}
 }
 

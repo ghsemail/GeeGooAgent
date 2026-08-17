@@ -95,6 +95,7 @@ func (r *Runner) executeAndMaybeRetry(job Job) {
 	}
 	r.recordRun(job, verdict)
 	if verdict == "pass" {
+		r.maybeNotifyFeishu(job, result)
 		return
 	}
 	// Schedule a retry with backoff if under the retry cap.
@@ -105,10 +106,12 @@ func (r *Runner) executeAndMaybeRetry(job Job) {
 	}
 	r.mu.Unlock()
 	if count >= r.maxRetries {
+		r.maybeNotifyFeishu(job, result)
 		return
 	}
 	delay := r.retryIn * time.Duration(1<<count) // 30m, 60m
-	time.AfterFunc(delay, func() { r.executeAndMaybeRetry(job) })
+	jobRef := job
+	time.AfterFunc(delay, func() { r.executeAndMaybeRetry(jobRef) })
 }
 
 func (r *Runner) recordRun(job Job, verdict string) {

@@ -71,21 +71,21 @@ func DefaultJobs() *JobsFile {
 			{Name: "premarket_market_cn", Skill: "premarket_market", Market: "CN", Cron: "0 8 * * 1-5",
 				Enabled: true, Platform: "log"},
 			{Name: "premarket_stock_cn", Skill: "premarket_stock", Market: "CN", Cron: "10 8 * * 1-5",
-				Enabled: true, Platform: "log"},
+				Enabled: true, Platform: "feishu"},
 			{Name: "premarket_market_hk", Skill: "premarket_market", Market: "HK", Cron: "0 9 * * 1-5",
 				Enabled: true, Platform: "log"},
 			{Name: "premarket_stock_hk", Skill: "premarket_stock", Market: "HK", Cron: "10 9 * * 1-5",
-				Enabled: true, Platform: "log"},
+				Enabled: true, Platform: "feishu"},
 			{Name: "postmarket_stock_cn", Skill: "postmarket_stock", Market: "CN", Cron: "0 17 * * 1-5",
-				Enabled: true, Platform: "log"},
+				Enabled: true, Platform: "feishu"},
 			{Name: "postmarket_stock_hk", Skill: "postmarket_stock", Market: "HK", Cron: "0 17 * * 1-5",
-				Enabled: true, Platform: "log"},
+				Enabled: true, Platform: "feishu"},
 			{Name: "postmarket_stock_us", Skill: "postmarket_stock", Market: "US", Cron: "0 5 * * 2-6",
-				Enabled: true, Platform: "log"},
+				Enabled: true, Platform: "feishu"},
 			{Name: "premarket_market_us", Skill: "premarket_market", Market: "US", Cron: "0 21 * * 1-5",
 				Enabled: true, Platform: "log"},
 			{Name: "premarket_stock_us", Skill: "premarket_stock", Market: "US", Cron: "10 21 * * 1-5",
-				Enabled: true, Platform: "log"},
+				Enabled: true, Platform: "feishu"},
 		},
 	}
 }
@@ -128,6 +128,29 @@ func MigrateJobs(jf *JobsFile) bool {
 		changed = true
 	}
 	ensurePostmarketMarketJobs(jf)
+	if upgradeStockJobPlatforms(jf) {
+		changed = true
+	}
+	return changed
+}
+
+// upgradeStockJobPlatforms sets Platform=feishu on stock-phase report jobs (cron IM digest).
+func upgradeStockJobPlatforms(jf *JobsFile) bool {
+	if jf == nil {
+		return false
+	}
+	changed := false
+	for i := range jf.Jobs {
+		j := &jf.Jobs[i]
+		if j.Skill != "premarket_stock" && j.Skill != "postmarket_stock" {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(j.Platform), "feishu") {
+			continue
+		}
+		j.Platform = "feishu"
+		changed = true
+	}
 	return changed
 }
 
@@ -175,7 +198,7 @@ func ensurePostmarketMarketJobs(jf *JobsFile) {
 		}
 		jf.Jobs = append(jf.Jobs, Job{
 			Name: name, Skill: "postmarket_stock", Market: market, Cron: cron,
-			Enabled: true, Platform: "log",
+			Enabled: true, Platform: "feishu",
 		})
 		has[market] = true
 	}
