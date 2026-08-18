@@ -1,4 +1,4 @@
-package feishu
+package feishupush
 
 import (
 	"encoding/json"
@@ -7,12 +7,12 @@ import (
 )
 
 var (
-	markdownFenceOpenRe    = regexp.MustCompile("^```[^`]*$")
-	markdownFenceCloseRe   = regexp.MustCompile("^```$")
-	markdownSectionHeaderRe = regexp.MustCompile(`(?m)^#### `)
+	markdownFenceOpenRe      = regexp.MustCompile("^```[^`]*$")
+	markdownFenceCloseRe     = regexp.MustCompile("^```$")
+	markdownSectionHeaderRe  = regexp.MustCompile(`(?m)^#### `)
 )
 
-// BuildMarkdownPostPayload builds Feishu post JSON with md elements (Hermes-aligned).
+// BuildMarkdownPostPayload builds Feishu post JSON with md elements.
 func BuildMarkdownPostPayload(content string) string {
 	rows := BuildMarkdownPostRows(content)
 	b, _ := json.Marshal(map[string]any{
@@ -21,9 +21,7 @@ func BuildMarkdownPostPayload(content string) string {
 	return string(b)
 }
 
-// BuildMarkdownPostRows splits fenced code blocks into separate md rows so Feishu
-// does not swallow trailing prose after a code fence. Long digests also split on
-// #### section headers so each block renders with visible spacing in Feishu IM.
+// BuildMarkdownPostRows splits content for Feishu post rendering.
 func BuildMarkdownPostRows(content string) [][]map[string]string {
 	if content == "" {
 		return [][]map[string]string{{{"tag": "md", "text": ""}}}

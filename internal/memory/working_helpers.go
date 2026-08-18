@@ -21,6 +21,9 @@ func applyPreMarketFromDaily(w *PreMarketWorking, code string, data map[string]a
 	ws.PreMarketReason = str(m, "reason")
 	ws.PreMarketSuggestion = str(m, "suggestion")
 	ws.PreMarketReportID = str(m, "report_id")
+	if s := str(m, "summary"); s != "" {
+		ws.ReportSummary = s
+	}
 	w.Stocks[code] = ws
 }
 

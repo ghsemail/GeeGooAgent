@@ -46,7 +46,9 @@ func PostMarketPerStockSteps() []step.Step {
 			}
 		}},
 		{Name: "create_stock_postmarket_report", Tool: "create_stock_postmarket_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
-			return BuildCreateStockPostmarketReportArgs(ctx, w, w.CurrentStock)
+			args := BuildCreateStockPostmarketReportArgs(ctx, w, w.CurrentStock)
+			memory.ApplyPostmarketNotifySnapshot(w, w.CurrentStock, args)
+			return args
 		}},
 		{Name: "stock_complete", Tool: "write_execution_log", ArgFunc: args.StockCompleteArg},
 	}

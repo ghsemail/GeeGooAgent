@@ -13,6 +13,9 @@ func (r *Runner) maybeNotifyFeishu(job Job, result workflow.RunResult) {
 	if r == nil || r.app == nil || !shouldNotifyJob(job) {
 		return
 	}
+	if isPerUserStockNotify(job.Skill) {
+		return
+	}
 	text := BuildFeishuSummary(job, result)
 	if text == "" {
 		return

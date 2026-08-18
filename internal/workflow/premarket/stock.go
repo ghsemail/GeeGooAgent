@@ -50,7 +50,9 @@ func PerStockSteps() []step.Step {
 			}
 		}},
 		{Name: "create_stock_premarket_report", Tool: "create_stock_premarket_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
-			return BuildCreateReportArgsContext(ctx, w, w.CurrentStock)
+			args := BuildCreateReportArgsContext(ctx, w, w.CurrentStock)
+			memory.ApplyPremarketNotifySnapshot(w, w.CurrentStock, args)
+			return args
 		}},
 		{Name: "stock_complete", Tool: "write_execution_log", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			ws := w.Stocks[w.CurrentStock]

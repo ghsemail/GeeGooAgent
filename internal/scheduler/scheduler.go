@@ -7,6 +7,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -84,7 +85,8 @@ func (r *Runner) executeAndMaybeRetry(job Job) {
 		return
 	}
 	result, err := application.RunSkillContext(context.Background(), job.Skill, app.SkillRunOptions{
-		Market: job.Market,
+		Market:       job.Market,
+		NotifyFeishu: strings.EqualFold(strings.TrimSpace(job.Platform), "feishu") && shouldNotifyJob(job),
 	})
 	verdict := "unknown"
 	if result.Supervisor != nil {

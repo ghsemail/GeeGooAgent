@@ -628,10 +628,11 @@ func (a *App) RunSkill(skill string) (workflow.RunResult, error) {
 
 // SkillRunOptions carries per-run inputs for signal-triggered skills.
 type SkillRunOptions struct {
-	Intraday   *workflow.IntradayInput
-	MCPToken   string
-	Market     string
-	ReportDate string
+	Intraday     *workflow.IntradayInput
+	MCPToken     string
+	Market       string
+	ReportDate   string
+	NotifyFeishu bool
 }
 
 // RunSkillContext executes a named skill with cancellation propagated to tools
@@ -647,6 +648,13 @@ func (a *App) RunSkillContext(ctx context.Context, skill string, runOpts ...Skil
 			return workflow.RunResult{}, fmt.Errorf("premarket_stock requires market=CN|HK|US")
 		}
 		return a.runPreMarketStockForMarket(ctx, market, opts)
+	}
+	if skill == "postmarket_stock" {
+		market := workflow.NormalizeMarket(opts.Market)
+		if market == "" {
+			return workflow.RunResult{}, fmt.Errorf("postmarket_stock requires market=CN|HK|US")
+		}
+		return a.runPostMarketStockForMarket(ctx, market, opts)
 	}
 	phaseA, perStock, err := a.resolveSkillSteps(skill, opts.Market)
 	if err != nil {
@@ -719,38 +727,11 @@ func (a *App) runSkillWithSteps(ctx context.Context, skill string, phaseA, perSt
 }
 
 func (a *App) runPreMarketStockForMarket(ctx context.Context, market string, opts SkillRunOptions) (workflow.RunResult, error) {
-	if a == nil || a.MCP == nil {
-		return workflow.RunResult{}, fmt.Errorf("mcp client not configured")
-	}
-	token := strings.TrimSpace(opts.MCPToken)
-	if token == "" && a.Config != nil {
-		token = strings.TrimSpace(a.Config.MCPToken())
-	}
-	if token == "" {
-		return workflow.RunResult{}, fmt.Errorf("mcp_token required to list report users")
-	}
-	baseOpts := SkillRunOptions{Market: market, MCPToken: token, ReportDate: opts.ReportDate}
-	users, err := a.MCP.ListReportUsers(ctx, token, market)
-	if err != nil || len(users) == 0 {
-		return a.runSkillWithSteps(ctx, "premarket_stock", workflow.StockPhaseASteps(market), workflow.PerStockSteps(), baseOpts)
-	}
-	var last workflow.RunResult
-	var lastErr error
-	for _, user := range users {
-		userToken := strings.TrimSpace(user.MCPToken)
-		if userToken == "" {
-			continue
-		}
-		userOpts := baseOpts
-		userOpts.MCPToken = userToken
-		result, runErr := a.runSkillWithSteps(ctx, "premarket_stock", workflow.StockPhaseASteps(market), workflow.PerStockSteps(), userOpts)
-		last = result
-		lastErr = runErr
-		if runErr != nil {
-			continue
-		}
-	}
-	return last, lastErr
+	return a.runStockForMarketUsers(ctx, "premarket_stock", market, opts, workflow.StockPhaseASteps(market), workflow.PerStockSteps())
+}
+
+func (a *App) runPostMarketStockForMarket(ctx context.Context, market string, opts SkillRunOptions) (workflow.RunResult, error) {
+	return a.runStockForMarketUsers(ctx, "postmarket_stock", market, opts, workflow.PostMarketPhaseASteps(), workflow.PostMarketPerStockSteps())
 }
 
 // ResumePreMarket resumes a workflow from its latest checkpoint. The checkpoint's
