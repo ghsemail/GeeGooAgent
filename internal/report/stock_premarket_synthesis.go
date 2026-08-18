@@ -80,8 +80,8 @@ func (s *Synthesizer) SynthesizeStockPreMarket(
 	if strings.TrimSpace(parsed.Summary) == "" {
 		return StockPreMarketSynthesisResult{}, fmt.Errorf("stock premarket synthesis summary empty")
 	}
-	if len([]rune(parsed.Summary)) > 220 {
-		return StockPreMarketSynthesisResult{}, fmt.Errorf("stock premarket synthesis summary too long (%d chars)", len([]rune(parsed.Summary)))
+	if runes := []rune(parsed.Summary); len(runes) > 220 {
+		parsed.Summary = string(runes[:217]) + "..."
 	}
 	return parsed, nil
 }

@@ -148,16 +148,17 @@ func PayloadHash(payload any) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// OneLine normalizes user-facing evidence summaries.
+// OneLine normalizes user-facing evidence summaries (truncates by rune count).
 func OneLine(s string, n int) string {
 	s = strings.Join(strings.Fields(s), " ")
-	if len(s) <= n {
+	runes := []rune(s)
+	if len(runes) <= n {
 		return s
 	}
 	if n <= 3 {
-		return s[:n]
+		return string(runes[:n])
 	}
-	return s[:n-3] + "..."
+	return string(runes[:n-3]) + "..."
 }
 
 func toString(v any) string {

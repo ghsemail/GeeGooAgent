@@ -67,6 +67,23 @@ func TestArbitrateMarketUpgrade(t *testing.T) {
 	}
 }
 
+func TestArbitrateStockMarketConflictDowngradesConfidence(t *testing.T) {
+	t.Parallel()
+	v := verdict.ArbitrateStockPreMarket(verdict.StockPreMarketInput{
+		Attitude: "bearish", EvidenceCount: 5, HasWeekly: true,
+		MarketResult: "neutral",
+	})
+	if v.Result != "short" {
+		t.Fatalf("result=%s", v.Result)
+	}
+	if v.Confidence != verdict.ConfidenceLow {
+		t.Fatalf("confidence=%s want low", v.Confidence)
+	}
+	if v.Note == "" {
+		t.Fatal("expected arbitration note")
+	}
+}
+
 func TestArbitrateMarketIncompleteStaysNeutral(t *testing.T) {
 	t.Parallel()
 	v := verdict.ArbitrateMarketPreMarket(verdict.MarketPreMarketInput{

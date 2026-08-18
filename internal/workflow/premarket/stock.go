@@ -70,6 +70,8 @@ type StockReportBundle struct {
 	Reason     string
 	Suggestion string
 	Summary    string
+	Support    *float64
+	Resistance *float64
 }
 
 // BuildReportContent builds evidence-bound report markdown for phase B (rule-based draft).
@@ -80,7 +82,7 @@ func BuildReportContent(w *memory.PreMarketWorking, code string) string {
 func buildReportContent(w *memory.PreMarketWorking, code string, v *verdict.Verdict, reason, suggestion string) string {
 	ws := w.Stocks[code]
 	evidence := collectReportEvidence(w, code)
-	view := buildReportView(ws, evidence)
+	view := buildReportView(ws, evidence, extractKeyLevels(ws), "")
 	if v != nil {
 		view.Result = v.Result
 		view.Confidence = v.Confidence
@@ -123,7 +125,7 @@ func buildStockReportDraft(w *memory.PreMarketWorking, code string, view reportV
 		"",
 		"### 今日重点关注",
 	}
-	for _, item := range keyWatchPoints(ws, view) {
+	for _, item := range keyWatchPoints(ws, view, extractKeyLevels(ws)) {
 		lines = append(lines, "- "+item)
 	}
 	lines = append(lines, "", "### 风险提示")
@@ -148,7 +150,8 @@ func buildStockReportDraft(w *memory.PreMarketWorking, code string, view reportV
 func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, code string) StockReportBundle {
 	ws := w.Stocks[code]
 	evidence := collectReportEvidence(w, code)
-	view := buildReportView(ws, evidence)
+	levels := extractKeyLevels(ws)
+	view := buildReportView(ws, evidence, levels, w.MarketReportResult)
 	draft := buildStockReportDraft(w, code, view)
 	bundle := StockReportBundle{
 		Report:     draft,
@@ -156,7 +159,9 @@ func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, co
 		Confidence: view.Confidence,
 		Reason:     view.Reason,
 		Suggestion: view.Suggestion,
-		Summary:    textutil.PlainSummary(draft, 200),
+		Summary:    buildStockSummaryOneLiner(ws, view.Result, view.Suggestion),
+		Support:    levels.Support,
+		Resistance: levels.Resistance,
 	}
 	synthOut := report.SynthesisResult{}
 	stockSynthUsed := false
@@ -211,17 +216,24 @@ func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, co
 				bundle.Report = buildStockReportDraft(w, code, view)
 			}
 		}
+		if isBoilerplateReason(bundle.Reason) {
+			bundle.Reason = buildSubstantiveReason(ws, levels, w.MarketReportResult)
+			view.Reason = bundle.Reason
+			bundle.Report = buildStockReportDraft(w, code, view)
+		}
 	}
 	final := verdict.ArbitrateStockPreMarket(stockVerdictInput(w, code, ws, evidence, synthOut))
 	bundle.Result = final.Result
 	bundle.Confidence = final.Confidence
+	capDivergent := stockfmt.CapitalFlowDivergent(capitalInterpretationText(ws))
+	bundle.Suggestion = finalizeSuggestion(bundle.Result, bundle.Confidence, w.MarketReportResult, capDivergent)
 	if strings.TrimSpace(final.Note) != "" {
 		bundle.Reason = strings.TrimSpace(bundle.Reason + " " + final.Note)
 	}
 	bundle.Reason = stockfmt.StripEvidenceRefs(bundle.Reason)
 	bundle.Summary = stockfmt.StripEvidenceRefs(bundle.Summary)
-	if bundle.Summary == "" {
-		bundle.Summary = textutil.PlainSummary(bundle.Report, 200)
+	if bundle.Summary == "" || isBoilerplateReason(bundle.Summary) {
+		bundle.Summary = buildStockSummaryOneLiner(ws, bundle.Result, bundle.Suggestion)
 	}
 	bundle.Report = stockfmt.PolishStockNewsInReport(bundle.Report, ws.StockName)
 	bundle.Report = stockfmt.PolishStockPremarketMarkdown(bundle.Report)
@@ -245,7 +257,7 @@ func BuildCreateReportArgsContext(ctx context.Context, w *memory.PreMarketWorkin
 	}
 	evidence := collectReportEvidence(w, code)
 	bundle := ensureStockReportBundle(ctx, w, code)
-	return map[string]any{
+	args := map[string]any{
 		"code": bot.Code, "stock_name": bot.StockName, "bot_id": bot.BotID,
 		"bot_name": bot.BotName, "bot_type": bot.BotType,
 		"result": bundle.Result, "confidence": bundle.Confidence,
@@ -253,6 +265,13 @@ func BuildCreateReportArgsContext(ctx context.Context, w *memory.PreMarketWorkin
 		"evidence_refs":              evidenceIDs(evidence),
 		"market_premarket_report_id": strings.TrimSpace(w.MarketReportID),
 	}
+	if bundle.Support != nil {
+		args["support"] = *bundle.Support
+	}
+	if bundle.Resistance != nil {
+		args["resistance"] = *bundle.Resistance
+	}
+	return args
 }
 
 func marketPremarketExcerpt(w *memory.PreMarketWorking) string {
@@ -308,10 +327,10 @@ func botAttitudeSection(ws memory.StockWorkspace) string {
 	return fmt.Sprintf("昨日态度为 **%s**。", stockfmt.LocalizeAttitude(attitude))
 }
 
-func keyWatchPoints(ws memory.StockWorkspace, _ reportView) []string {
+func keyWatchPoints(ws memory.StockWorkspace, _ reportView, levels stockfmt.KeyLevels) []string {
 	points := make([]string, 0, 4)
 	if ws.WeeklyAnalysisRef != "" {
-		points = append(points, "关注周线关键支撑/阻力是否被放量突破或跌破。")
+		points = append(points, keyLevelWatchPoint(levels))
 	}
 	if ws.CapitalFlowSummary != "" {
 		points = append(points, "跟踪主力资金是否延续当前净流入/流出方向。")
@@ -366,7 +385,7 @@ type reportView struct {
 	DataGaps   []string
 }
 
-func buildReportView(ws memory.StockWorkspace, evidence []memory.EvidenceRef) reportView {
+func buildReportView(ws memory.StockWorkspace, evidence []memory.EvidenceRef, levels stockfmt.KeyLevels, marketResult string) reportView {
 	attitude := ws.Attitude
 	if attitude == "" {
 		attitude = "neutral"
@@ -376,7 +395,7 @@ func buildReportView(ws memory.StockWorkspace, evidence []memory.EvidenceRef) re
 		Result:     result,
 		Confidence: confidenceFor(ws, evidence),
 		Suggestion: suggestionFor(result),
-		Reason:     reasonFor(ws, evidence),
+		Reason:     buildSubstantiveReason(ws, levels, marketResult),
 		KeyInputs: []string{
 			fmt.Sprintf("Bot 昨日态度：%s", localizeAttitude(attitude)),
 		},
@@ -425,29 +444,7 @@ func confidenceFor(ws memory.StockWorkspace, evidence []memory.EvidenceRef) stri
 }
 
 func reasonFor(ws memory.StockWorkspace, evidence []memory.EvidenceRef) string {
-	attitude := ws.Attitude
-	if attitude == "" {
-		attitude = "neutral"
-	}
-	parts := []string{fmt.Sprintf("Bot 昨日态度为 %s", stockfmt.LocalizeAttitude(attitude))}
-	if ws.WeeklyAnalysisRef != "" {
-		parts = append(parts, "周线技术分析已纳入")
-	}
-	if ws.CapitalFlowSummary != "" {
-		parts = append(parts, "主力资金证据已纳入")
-	}
-	if ws.CapitalDistributionSummary != "" {
-		parts = append(parts, "资金分布证据已纳入")
-	}
-	if ws.StockNewsSummary != "" {
-		parts = append(parts, "个股新闻已纳入")
-	}
-	if len(evidence) == 0 {
-		parts = append(parts, "当前证据引用较少")
-	} else {
-		parts = append(parts, fmt.Sprintf("共 %d 条证据引用", len(evidence)))
-	}
-	return strings.Join(parts, "；") + "。"
+	return buildSubstantiveReason(ws, extractKeyLevels(ws), "")
 }
 
 func suggestionFor(result string) string {

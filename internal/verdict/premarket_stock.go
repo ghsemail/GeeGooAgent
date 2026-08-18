@@ -10,7 +10,18 @@ func ArbitrateStockPreMarket(in StockPreMarketInput) Verdict {
 	market := normalizeResult(in.MarketResult)
 
 	if suggested == "" {
-		return Verdict{Result: baseline, Confidence: baselineConf}
+		v := Verdict{Result: baseline, Confidence: baselineConf}
+		if market != "" {
+			switch {
+			case resultsConflict(baseline, market):
+				v.Confidence = downgradeConfidence(v.Confidence)
+				v.Note = "Bot 态度与市场盘前方向不一致，置信度下调"
+			case market == "neutral" && baseline != "neutral":
+				v.Confidence = downgradeConfidence(v.Confidence)
+				v.Note = "市场盘前方向不明，个股方向置信度下调"
+			}
+		}
+		return v
 	}
 
 	// AI agrees with baseline or stays neutral → keep baseline direction.
