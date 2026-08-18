@@ -256,9 +256,9 @@ func (a *Adapter) sendContent(ctx context.Context, msg gateway.OutboundText, msg
 	}
 
 	req := larkim.NewCreateMessageReqBuilder().
-		ReceiveIdType(larkim.CreateMessageV1ReceiveIDTypeChatId).
+		ReceiveIdType(receiveIDType(msg.ChatID)).
 		Body(larkim.NewCreateMessageReqBodyBuilder().
-			ReceiveId(msg.ChatID).
+			ReceiveId(strings.TrimSpace(msg.ChatID)).
 			MsgType(msgType).
 			Content(content).
 			Build()).
