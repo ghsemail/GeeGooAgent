@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -49,7 +51,7 @@ func SendUser(ctx context.Context, opts UserOpts) error {
 	if !creds.Enabled {
 		return fmt.Errorf("feishupush: feishu disabled for user %s", userID)
 	}
-	receiveID, err := ResolveUserReceiveID(ctx, creds, opts.DB, opts.PG, userID)
+	receiveID, err := ResolveUserReceiveID(ctx, creds, openSessionDB(opts), opts.PG, userID)
 	if err != nil {
 		return err
 	}
@@ -245,4 +247,24 @@ func metadataString(meta map[string]any, key string) string {
 	}
 	s, _ := v.(string)
 	return strings.TrimSpace(s)
+}
+
+func openSessionDB(opts UserOpts) *infra.DB {
+	if opts.DB != nil {
+		return opts.DB
+	}
+	dir := strings.TrimSpace(opts.Workspace)
+	if dir == "" {
+		dir = "."
+	}
+	path := filepath.Join(dir, "geegoo.db")
+	if _, err := os.Stat(path); err != nil {
+		return nil
+	}
+	db, err := infra.OpenSQLite(path)
+	if err != nil {
+		slog.Warn("feishupush: open sqlite for receive_id lookup failed", "path", path, "err", err)
+		return nil
+	}
+	return db
 }
