@@ -45,6 +45,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	h.registerSkillsRunRoutes(mux)
 	h.registerDashboardRoutes(mux)
 	h.registerGatewayFeishuRoutes(mux)
+	h.registerNotifyTradeRoutes(mux)
 	h.registerDataRoutes(mux)
 }
 

@@ -1,8 +1,10 @@
 package runtimeapi
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -15,6 +17,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/gateway"
 	"github.com/ghsemail/GeeGooAgent/internal/gateway/feishustore"
 	"github.com/ghsemail/GeeGooAgent/internal/gateway/platforms/feishu"
+	"github.com/ghsemail/GeeGooAgent/internal/usernotice"
 )
 
 func (h *Handler) registerGatewayFeishuRoutes(mux *http.ServeMux) {
@@ -309,6 +312,7 @@ func (h *Handler) feishuSetupPoll(w http.ResponseWriter, r *http.Request) {
 		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	h.syncFeishuNotice(r, userID, doc)
 
 	writeJSON(w, map[string]any{
 		"ok":          true,
@@ -374,6 +378,7 @@ func (h *Handler) feishuSetupManual(w http.ResponseWriter, r *http.Request) {
 		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	h.syncFeishuNotice(r, userID, doc)
 	writeJSON(w, map[string]any{
 		"ok":           true,
 		"status":       "completed",
@@ -385,4 +390,17 @@ func (h *Handler) feishuSetupManual(w http.ResponseWriter, r *http.Request) {
 		"tenant_scope": "user",
 		"verified":     probeErr == nil,
 	})
+}
+
+func (h *Handler) syncFeishuNotice(r *http.Request, userID string, creds *feishustore.Creds) {
+	if h == nil || h.App == nil || h.App.Config == nil {
+		return
+	}
+	ctx := context.Background()
+	if r != nil {
+		ctx = r.Context()
+	}
+	if err := usernotice.SyncFeishuGateway(ctx, h.App.Config, userID, creds); err != nil {
+		slog.Warn("gateway: sync user feishu notice failed", "user_id", userID, "err", err)
+	}
 }
