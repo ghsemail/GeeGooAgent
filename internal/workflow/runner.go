@@ -334,6 +334,9 @@ func optionalStep(step Step) bool {
 	if step.Name == "stock_news" || step.Tool == "fetch_stock_news" {
 		return true
 	}
+	if step.Name == "weekly_analysis" || (step.Tool == "get_mcp_analysis" && strings.Contains(step.Name, "weekly")) {
+		return true
+	}
 	// Bot logs may be missing when MCP token scope or bot ownership differs.
 	if step.Tool == "get_bot_log_by_type" {
 		return true
