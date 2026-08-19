@@ -6,6 +6,7 @@ import (
 )
 
 // FormatTradeMarkdown renders trading notices for Feishu IM (feishupush markdown post).
+// Category titles and field labels are mirrored by GeeGooBot internal/notify/push_text.go (JPush).
 func FormatTradeMarkdown(noticeType int, content map[string]any) string {
 	switch noticeType {
 	case 0:
