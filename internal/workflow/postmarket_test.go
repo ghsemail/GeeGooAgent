@@ -73,6 +73,26 @@ func (p *postMarketSummaryMock) SynthesizePostMarketSummaries(
 	}, nil
 }
 
+func TestBuildCreateStockPostmarketReportArgsSummaryFallbackWithoutSynth(t *testing.T) {
+	w := memory.NewPreMarketWorking("s1", "postmarket_stock")
+	w.Stocks["601766.SH"] = memory.StockWorkspace{
+		Code: "601766.SH", StockName: "中国中车", BotType: "DCAReminder",
+		ChangePct: 0.83, SessionBias: "neutral", PreMarketResult: "long",
+		HourlyPriceAnalysis: strings.Repeat("小时级分析", 80),
+	}
+	args := workflow.BuildCreateStockPostmarketReportArgs(context.Background(), w, "601766.SH")
+	sum := fmt.Sprint(args["summary"])
+	if strings.Contains(sum, "…") || strings.Contains(sum, "...") {
+		t.Fatalf("summary should not truncate report body: %s", sum)
+	}
+	if strings.Contains(sum, "今日行情") {
+		t.Fatalf("summary should be one-liner not report excerpt: %s", sum)
+	}
+	if !strings.Contains(sum, "中国中车") || !strings.Contains(sum, "盘后复盘") {
+		t.Fatalf("expected postmarket one-liner: %s", sum)
+	}
+}
+
 func TestBuildCreateStockPostmarketReportArgsUsesLLMSummaries(t *testing.T) {
 	w := memory.NewPreMarketWorking("s1", "postmarket_stock")
 	w.Stocks["00700.HK"] = memory.StockWorkspace{

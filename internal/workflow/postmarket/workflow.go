@@ -8,7 +8,6 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/args"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/decision"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/step"
-	"github.com/ghsemail/GeeGooAgent/internal/workflow/textutil"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
@@ -140,7 +139,7 @@ func BuildCreateStockPostmarketReportArgs(ctx context.Context, w *memory.PreMark
 	marketSummary := decision.MarketSummaryFromHourly(ws)
 	tradeSummary := decision.TradeSummaryFromBotLog(ws)
 	experience := decision.ExperienceSummaryDefault(ws, vs)
-	summary := textutil.PlainSummary(report, 200)
+	summary := BuildPostMarketSummaryOneLiner(ws, bias, vs)
 	if synth := PostMarketSynthesizerFrom(ctx); synth != nil {
 		if res, err := synth.SynthesizePostMarketSummaries(
 			ctx, ws, report, bias, vs, marketSummary, tradeSummary, experience,
@@ -158,6 +157,10 @@ func BuildCreateStockPostmarketReportArgs(ctx context.Context, w *memory.PreMark
 				summary = v
 			}
 		}
+	}
+	summary = strings.TrimSpace(stockfmt.StripEvidenceRefs(summary))
+	if summary == "" {
+		summary = BuildPostMarketSummaryOneLiner(ws, bias, vs)
 	}
 	body := map[string]any{
 		"code": code, "stock_name": ws.StockName, "session_date": sessionDate,
