@@ -266,7 +266,8 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			}
 			text, source, items, err := fetchStockNewsResilient(ctx.GoContext(), deps.HTTP.MCP, ctx.MCPToken, deps.ProjectRoot, code, limit)
 			if err != nil {
-				return newsUnavailableResult("fetch_stock_news", "", code, err)
+				// GeeGooData/Bot failure (e.g. thin US ticker): still try web_search before erroring.
+				text, source, items = "", "", nil
 			}
 			if stockNewsNeedsFallback(text) {
 				if supplement, _ := webSearchNewsFallback(ctx.GoContext(), deps.ProjectRoot, deps.Search, code, proceduralPolicy(deps)); supplement != "" {
