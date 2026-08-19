@@ -18,6 +18,7 @@ const defaultBotMongoDB = "QT_DB"
 
 // FeishuSection is QT_DB.user.notice.feishu — single source for Feishu bot creds.
 type FeishuSection struct {
+	UserID       string   `bson:"-" json:"user_id,omitempty"`
 	Connected    bool     `bson:"connected" json:"connected"`
 	AppID        string   `bson:"app_id,omitempty" json:"app_id,omitempty"`
 	AppSecret    string   `bson:"app_secret,omitempty" json:"app_secret,omitempty"`
@@ -30,13 +31,11 @@ type FeishuSection struct {
 }
 
 var legacyNoticeUnset = bson.M{
-	"notice_url":               "",
-	"notice_type":              "",
-	"notice.channel":           "",
-	"notice.notice_url":        "",
-	"notice.notice_type":       "",
-	"notice.feishu.enabled":    "",
-	"notice.feishu.updated_at": "",
+	"notice_url":        "",
+	"notice_type":       "",
+	"notice.channel":    "",
+	"notice.notice_url": "",
+	"notice.notice_type": "",
 }
 
 func userColl(ctx context.Context, cfg *config.AppConfig) (*mongo.Collection, func(), error) {
@@ -58,12 +57,19 @@ func userColl(ctx context.Context, cfg *config.AppConfig) (*mongo.Collection, fu
 	return cli.Database(dbName).Collection("user"), func() { _ = cli.Disconnect(context.Background()) }, nil
 }
 
-// LoadCreds reads Feishu bot credentials from QT_DB.user.notice.feishu.
+// LoadCreds reads Feishu bot credentials from QT_DB.user.notice.feishu (via Bot service-api or Mongo).
 func LoadCreds(ctx context.Context, cfg *config.AppConfig, userID string) (*feishustore.Creds, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
 		return nil, errors.New("usernotice: empty user id")
 	}
+	if serviceAPIEnabled(cfg) {
+		return loadCredsHTTP(ctx, cfg, userID)
+	}
+	return loadCredsMongo(ctx, cfg, userID)
+}
+
+func loadCredsMongo(ctx context.Context, cfg *config.AppConfig, userID string) (*feishustore.Creds, error) {
 	oid, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		return nil, err
@@ -88,8 +94,15 @@ func LoadCreds(ctx context.Context, cfg *config.AppConfig, userID string) (*feis
 	return sectionToCreds(userID, doc.Notice.Feishu), nil
 }
 
-// ListCreds returns all users with Feishu credentials in Mongo.
+// ListCreds returns all users with Feishu credentials in Mongo (via Bot service-api or Mongo).
 func ListCreds(ctx context.Context, cfg *config.AppConfig) ([]feishustore.Creds, error) {
+	if serviceAPIEnabled(cfg) {
+		return listCredsHTTP(ctx, cfg)
+	}
+	return listCredsMongo(ctx, cfg)
+}
+
+func listCredsMongo(ctx context.Context, cfg *config.AppConfig) ([]feishustore.Creds, error) {
 	coll, disconnect, err := userColl(ctx, cfg)
 	if err != nil {
 		return nil, err
@@ -155,6 +168,14 @@ func UpdateMCPToken(ctx context.Context, cfg *config.AppConfig, userID, token st
 	token = strings.TrimSpace(token)
 	if userID == "" || token == "" {
 		return nil
+	}
+	if serviceAPIEnabled(cfg) {
+		creds, err := LoadCreds(ctx, cfg, userID)
+		if err != nil || creds == nil {
+			return err
+		}
+		creds.MCPToken = token
+		return syncFeishuHTTP(ctx, cfg, userID, creds)
 	}
 	oid, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {

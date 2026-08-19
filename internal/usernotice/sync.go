@@ -18,6 +18,9 @@ func SyncFeishuGateway(ctx context.Context, cfg *config.AppConfig, userID string
 	if userID == "" {
 		return errEmptyUserID
 	}
+	if serviceAPIEnabled(cfg) {
+		return syncFeishuHTTP(ctx, cfg, userID, creds)
+	}
 	oid, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		return err
