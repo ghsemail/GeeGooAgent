@@ -3,74 +3,33 @@ package usernotice
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/gateway/feishustore"
 )
 
-const defaultBotMongoDB = "QT_DB"
-
-// FeishuSection mirrors QT_DB.user.notice.feishu (no secrets).
-type FeishuSection struct {
-	Connected bool   `bson:"connected" json:"connected"`
-	ReceiveID string `bson:"receive_id,omitempty" json:"receive_id,omitempty"`
-	BotName   string `bson:"bot_name,omitempty" json:"bot_name,omitempty"`
-}
-
-var legacyNoticeUnset = bson.M{
-	"notice_url":                 "",
-	"notice_type":                "",
-	"notice.channel":             "",
-	"notice.notice_url":          "",
-	"notice.notice_type":         "",
-	"notice.feishu.enabled":    "",
-	"notice.feishu.app_id":       "",
-	"notice.feishu.updated_at":   "",
-}
-
-// SyncFeishuGateway writes notice.feishu after gateway setup.
+// SyncFeishuGateway writes notice.feishu (including app_secret) after gateway setup.
 func SyncFeishuGateway(ctx context.Context, cfg *config.AppConfig, userID string, creds *feishustore.Creds) error {
-	if cfg == nil {
-		return errors.New("usernotice: nil config")
-	}
-	uri := strings.TrimSpace(cfg.BotMongoURI)
-	if uri == "" {
-		return errors.New("usernotice: bot mongo not configured")
-	}
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
-		return errors.New("usernotice: empty user id")
+		return errEmptyUserID
 	}
 	oid, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		return err
 	}
-	dbName := strings.TrimSpace(cfg.BotMongoDB)
-	if dbName == "" {
-		dbName = defaultBotMongoDB
-	}
-
-	connected := creds != nil && creds.Configured() && creds.Enabled
-	section := FeishuSection{Connected: connected}
-	if creds != nil {
-		section.BotName = strings.TrimSpace(creds.BotName)
-		section.ReceiveID = resolveReceiveID(creds)
-	}
-
-	cli, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
+	coll, disconnect, err := userColl(ctx, cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = cli.Disconnect(context.Background()) }()
+	defer disconnect()
 
-	_, err = cli.Database(dbName).Collection("user").UpdateOne(
+	section := credsToSection(creds)
+	_, err = coll.UpdateOne(
 		ctx,
 		bson.M{"_id": oid},
 		bson.M{
@@ -79,6 +38,28 @@ func SyncFeishuGateway(ctx context.Context, cfg *config.AppConfig, userID string
 		},
 	)
 	return err
+}
+
+// LoadOrMigrateCreds reads from Mongo; one-time imports from the legacy file store if needed.
+func LoadOrMigrateCreds(ctx context.Context, cfg *config.AppConfig, legacyFileDir, userID string) (*feishustore.Creds, error) {
+	c, err := LoadCreds(ctx, cfg, userID)
+	if err != nil {
+		return nil, err
+	}
+	if c != nil && c.Configured() {
+		return c, nil
+	}
+	fc, err := feishustore.Load(legacyFileDir, userID)
+	if err != nil {
+		return nil, err
+	}
+	if fc == nil || !fc.Configured() {
+		return c, nil
+	}
+	if err := SyncFeishuGateway(ctx, cfg, userID, fc); err != nil {
+		return fc, err
+	}
+	return fc, nil
 }
 
 func resolveReceiveID(creds *feishustore.Creds) string {
@@ -96,3 +77,9 @@ func resolveReceiveID(creds *feishustore.Creds) string {
 	}
 	return ""
 }
+
+var errEmptyUserID = errString("usernotice: empty user id")
+
+type errString string
+
+func (e errString) Error() string { return string(e) }

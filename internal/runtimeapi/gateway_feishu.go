@@ -49,9 +49,11 @@ func (h *Handler) requireFeishuUser(w http.ResponseWriter, r *http.Request) (use
 	return userID, true
 }
 
-func (h *Handler) loadOrMigrateFeishuCreds(userID string) (*feishustore.Creds, error) {
-	dir := h.feishuOutputDir()
-	c, err := feishustore.Load(dir, userID)
+func (h *Handler) loadOrMigrateFeishuCreds(ctx context.Context, userID string) (*feishustore.Creds, error) {
+	if h == nil || h.App == nil || h.App.Config == nil {
+		return nil, nil
+	}
+	c, err := usernotice.LoadOrMigrateCreds(ctx, h.App.Config, h.feishuOutputDir(), userID)
 	if err != nil {
 		return nil, err
 	}
@@ -64,12 +66,12 @@ func (h *Handler) loadOrMigrateFeishuCreds(userID string) (*feishustore.Creds, e
 	if strings.TrimSpace(envCfg.AppID) == "" || strings.TrimSpace(envCfg.AppSecret) == "" {
 		return c, nil
 	}
-	// Only migrate if no other user already owns these creds.
-	list, _ := feishustore.List(dir)
-	for _, existing := range list {
-		if existing.AppID == envCfg.AppID {
-			return c, nil
-		}
+	taken, err := usernotice.HasAppID(ctx, h.App.Config, envCfg.AppID, userID)
+	if err != nil {
+		return c, err
+	}
+	if taken {
+		return c, nil
 	}
 	migrated := &feishustore.Creds{
 		UserID:       userID,
@@ -83,14 +85,14 @@ func (h *Handler) loadOrMigrateFeishuCreds(userID string) (*feishustore.Creds, e
 		GroupPolicy:  envCfg.GroupPolicy,
 		Enabled:      true,
 	}
-	if err := feishustore.Save(dir, migrated); err != nil {
+	if err := usernotice.SyncFeishuGateway(ctx, h.App.Config, userID, migrated); err != nil {
 		return nil, err
 	}
 	return migrated, nil
 }
 
-func (h *Handler) syncMCPTokenFromRequest(creds *feishustore.Creds, r *http.Request) *feishustore.Creds {
-	if creds == nil || !creds.Configured() {
+func (h *Handler) syncMCPTokenFromRequest(ctx context.Context, creds *feishustore.Creds, r *http.Request) *feishustore.Creds {
+	if creds == nil || !creds.Configured() || h == nil || h.App == nil || h.App.Config == nil {
 		return creds
 	}
 	headerTok := resolveMCPTokenHeader(r)
@@ -100,10 +102,10 @@ func (h *Handler) syncMCPTokenFromRequest(creds *feishustore.Creds, r *http.Requ
 	if strings.TrimSpace(creds.MCPToken) == headerTok {
 		return creds
 	}
-	creds.MCPToken = headerTok
-	if err := feishustore.Save(h.feishuOutputDir(), creds); err != nil {
+	if err := usernotice.UpdateMCPToken(ctx, h.App.Config, creds.UserID, headerTok); err != nil {
 		return creds
 	}
+	creds.MCPToken = headerTok
 	return creds
 }
 
@@ -112,12 +114,12 @@ func (h *Handler) feishuGatewayStatus(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	creds, err := h.loadOrMigrateFeishuCreds(userID)
+	creds, err := h.loadOrMigrateFeishuCreds(r.Context(), userID)
 	if err != nil {
 		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	creds = h.syncMCPTokenFromRequest(creds, r)
+	creds = h.syncMCPTokenFromRequest(r.Context(), creds, r)
 	configured := creds != nil && creds.Configured()
 	headerTok := resolveMCPTokenHeader(r)
 	hasMCP := (creds != nil && strings.TrimSpace(creds.MCPToken) != "") || headerTok != ""
@@ -173,7 +175,7 @@ func (h *Handler) feishuGatewayStatus(w http.ResponseWriter, r *http.Request) {
 		"has_mcp_token":     hasMCP,
 		"heartbeat_at":      heartbeatAt,
 		"tenant_scope":      "user",
-		"store_dir":         feishustore.Dir(h.feishuOutputDir()),
+		"store":             "mongodb:QT_DB.user.notice.feishu",
 		"hint":              feishuStatusHint(configured, userConnected, processAlive, hasMCP),
 	})
 }
@@ -308,10 +310,6 @@ func (h *Handler) feishuSetupPoll(w http.ResponseWriter, r *http.Request) {
 	if creds.OpenID != "" {
 		doc.AllowedUsers = []string{creds.OpenID}
 	}
-	if err := feishustore.Save(h.feishuOutputDir(), doc); err != nil {
-		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
 	h.syncFeishuNotice(r, userID, doc)
 
 	writeJSON(w, map[string]any{
@@ -368,15 +366,11 @@ func (h *Handler) feishuSetupManual(w http.ResponseWriter, r *http.Request) {
 		doc.BotOpenID = oid
 	}
 	// Preserve allowlist if re-saving.
-	if prev, _ := feishustore.Load(h.feishuOutputDir(), userID); prev != nil {
+	if prev, _ := usernotice.LoadCreds(r.Context(), h.App.Config, userID); prev != nil {
 		doc.AllowedUsers = prev.AllowedUsers
 		if doc.MCPToken == "" {
 			doc.MCPToken = prev.MCPToken
 		}
-	}
-	if err := feishustore.Save(h.feishuOutputDir(), doc); err != nil {
-		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
 	}
 	h.syncFeishuNotice(r, userID, doc)
 	writeJSON(w, map[string]any{

@@ -14,12 +14,15 @@ import (
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 
+	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/gateway/feishustore"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
+	"github.com/ghsemail/GeeGooAgent/internal/usernotice"
 )
 
 // UserOpts configures a per-user Feishu digest send.
 type UserOpts struct {
+	Config    *config.AppConfig
 	Workspace string
 	UserID    string
 	Text      string
@@ -37,11 +40,10 @@ func SendUser(ctx context.Context, opts UserOpts) error {
 	if userID == "" {
 		return fmt.Errorf("feishupush: empty user_id")
 	}
-	dir := strings.TrimSpace(opts.Workspace)
-	if dir == "" {
-		dir = "."
+	if opts.Config == nil {
+		return fmt.Errorf("feishupush: bot mongo config required")
 	}
-	creds, err := feishustore.Load(dir, userID)
+	creds, err := usernotice.LoadCreds(ctx, opts.Config, userID)
 	if err != nil {
 		return err
 	}

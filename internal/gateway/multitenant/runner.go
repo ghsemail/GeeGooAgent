@@ -10,6 +10,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/gateway"
 	"github.com/ghsemail/GeeGooAgent/internal/gateway/feishustore"
 	"github.com/ghsemail/GeeGooAgent/internal/gateway/platforms/feishu"
+	"github.com/ghsemail/GeeGooAgent/internal/usernotice"
 )
 
 // Runner loads per-user Feishu bots and keeps them connected with hot reload.
@@ -88,9 +89,13 @@ func (tr *Runner) stopSlotLocked(id string, slot *tenantSlot) {
 }
 
 func (tr *Runner) syncTenants(ctx context.Context) {
-	list, err := feishustore.List(tr.StoreDir)
+	if tr.App == nil || tr.App.Config == nil {
+		slog.Warn("gateway: bot mongo not configured")
+		return
+	}
+	list, err := usernotice.ListCreds(ctx, tr.App.Config)
 	if err != nil {
-		slog.Warn("gateway: list feishu creds", "err", err)
+		slog.Warn("gateway: list feishu creds from mongo", "err", err)
 		return
 	}
 	wanted := map[string]feishustore.Creds{}

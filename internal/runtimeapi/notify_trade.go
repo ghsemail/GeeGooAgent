@@ -41,13 +41,14 @@ func (h *Handler) notifyTrade(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	opts := feishupush.UserOpts{
-		Workspace: h.feishuOutputDir(),
-		UserID:    userID,
-		Text:      text,
+		UserID: userID,
+		Text:   text,
 	}
 	if h.App != nil {
+		opts.Config = h.App.Config
 		opts.DB = h.App.DB
 		opts.PG = h.App.PG
+		opts.Workspace, _ = h.App.Config.ResolveOutputDir()
 	}
 	if err := feishupush.SendUserWithRetry(sendCtx, opts); err != nil {
 		slog.Warn("notify trade feishu failed", "user_id", userID, "notice_type", req.NoticeType, "err", err)

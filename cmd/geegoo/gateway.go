@@ -18,6 +18,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/gateway/feishustore"
 	"github.com/ghsemail/GeeGooAgent/internal/gateway/multitenant"
 	"github.com/ghsemail/GeeGooAgent/internal/gateway/platforms/feishu"
+	"github.com/ghsemail/GeeGooAgent/internal/usernotice"
 )
 
 func runGateway(args []string) {
@@ -64,9 +65,9 @@ func runGatewayRun(args []string) {
 		os.Exit(2)
 	}
 
-	// Prefer per-user store; optionally claim host .env into FEISHU_OWNER_USER_ID once.
+	// Prefer per-user Mongo store; optionally claim host .env into FEISHU_OWNER_USER_ID once.
 	if owner := strings.TrimSpace(os.Getenv("FEISHU_OWNER_USER_ID")); owner != "" {
-		_, _ = migrateHostEnvToUser(workspace, owner)
+		_, _ = migrateHostEnvToUser(application.Config, workspace, owner)
 	}
 
 	runner := multitenant.NewRunner(application, sessions, workspace, *dryRun || application.Config.DryRun)
@@ -80,23 +81,37 @@ func runGatewayRun(args []string) {
 	slog.Info("gateway: stopped")
 }
 
-func migrateHostEnvToUser(outputDir, userID string) (*feishustore.Creds, error) {
-	existing, err := feishustore.Load(outputDir, userID)
-	if err != nil {
-		return nil, err
-	}
-	if existing != nil && existing.Configured() {
-		return existing, nil
+func migrateHostEnvToUser(cfg *config.AppConfig, outputDir, userID string) (*feishustore.Creds, error) {
+	ctx := context.Background()
+	if cfg != nil && strings.TrimSpace(cfg.BotMongoURI) != "" {
+		if existing, err := usernotice.LoadOrMigrateCreds(ctx, cfg, outputDir, userID); err == nil && existing != nil && existing.Configured() {
+			return existing, nil
+		}
+	} else {
+		existing, err := feishustore.Load(outputDir, userID)
+		if err != nil {
+			return nil, err
+		}
+		if existing != nil && existing.Configured() {
+			return existing, nil
+		}
 	}
 	_ = config.LoadGeeGooDotEnv()
 	envCfg := feishu.LoadConfigFromEnv(os.Getenv)
 	if strings.TrimSpace(envCfg.AppID) == "" || strings.TrimSpace(envCfg.AppSecret) == "" {
 		return nil, nil
 	}
-	list, _ := feishustore.List(outputDir)
-	for _, c := range list {
-		if c.AppID == envCfg.AppID {
-			return nil, nil
+	if cfg != nil && strings.TrimSpace(cfg.BotMongoURI) != "" {
+		taken, err := usernotice.HasAppID(ctx, cfg, envCfg.AppID, userID)
+		if err != nil || taken {
+			return nil, err
+		}
+	} else {
+		list, _ := feishustore.List(outputDir)
+		for _, c := range list {
+			if c.AppID == envCfg.AppID {
+				return nil, nil
+			}
 		}
 	}
 	doc := &feishustore.Creds{
@@ -110,6 +125,13 @@ func migrateHostEnvToUser(outputDir, userID string) (*feishustore.Creds, error) 
 		HomeChannel:  envCfg.HomeChannel,
 		GroupPolicy:  envCfg.GroupPolicy,
 		Enabled:      true,
+	}
+	if cfg != nil && strings.TrimSpace(cfg.BotMongoURI) != "" {
+		if err := usernotice.SyncFeishuGateway(ctx, cfg, userID, doc); err != nil {
+			return nil, err
+		}
+		fmt.Printf("gateway: migrated host Feishu env → Mongo user %s\n", userID)
+		return doc, nil
 	}
 	if err := feishustore.Save(outputDir, doc); err != nil {
 		return nil, err
