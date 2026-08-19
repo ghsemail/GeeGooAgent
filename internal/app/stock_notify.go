@@ -22,9 +22,10 @@ func (a *App) maybeNotifyUserStockFeishu(ctx context.Context, userID, skill, mar
 	if strings.TrimSpace(text) == "" {
 		return
 	}
-	sendCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	sendCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 	if err := feishupush.SendUserWithRetry(sendCtx, feishupush.UserOpts{
+		Config:    a.Config,
 		Workspace: a.feishuStoreDir(),
 		UserID:    userID,
 		Text:      text,
