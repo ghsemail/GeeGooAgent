@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Update GeeGooAgent on 82.157.97.76 via install.sh."""
+"""Fast GeeGooAgent deploy: git sync + build + restart-all + doctor."""
 from __future__ import annotations
 
 import json
@@ -9,37 +9,39 @@ from pathlib import Path
 import paramiko
 
 DEPLOY = Path(r"C:\Users\ghsemail\.cursor\skills\remote-deploy\deploy.json")
+REMOTE = "/home/ubuntu/.geegoo/geegoo-agent"
 
 
 def main() -> int:
-    cfg = json.loads(DEPLOY.read_text(encoding="utf-8"))
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    cfg = json.loads(DEPLOY.read_text(encoding="utf-8-sig"))
     t = cfg["targets"]["geegoo-agent"]
     s = t["ssh"]
     c = paramiko.SSHClient()
     c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     c.connect(s["host"], username=s["user"], password=s.get("password"), timeout=60)
+    cmds = [
+        f"cd {REMOTE} && git fetch origin main && git reset --hard origin/main && git log -1 --oneline",
+        f"cd {REMOTE} && bash start.sh restart-all",
+        "sleep 2",
+        "curl -sf http://127.0.0.1:3400/health",
+        f"cd {REMOTE} && ~/.geegoo/bin/geegoo doctor",
+    ]
     try:
-        install = t.get(
-            "install_cmd",
-            "export GEEGOO_SKIP_SETUP=1 DEBIAN_FRONTEND=noninteractive; "
-            "curl -fsSL https://raw.githubusercontent.com/ghsemail/GeeGooAgent/main/scripts/install.sh | bash",
-        )
-        cmds = [
-            install,
-            f"cd {t.get('remote_dir', '/home/ubuntu/.geegoo/geegoo-agent')} && bash start.sh restart-runtime",
-            "sleep 2",
-            "curl -sf http://127.0.0.1:3400/health || echo HEALTH_FAIL",
-            t.get("verify_cmd", "~/.geegoo/bin/geegoo doctor || true"),
-        ]
         for cmd in cmds:
-            print(f"\n>>> {cmd[:160]}\n")
-            _, o, e = c.exec_command(cmd, timeout=900)
+            print(f"\n>>> {cmd}\n")
+            _, o, e = c.exec_command(cmd, get_pty=True, timeout=900)
             text = (o.read() + e.read()).decode("utf-8", errors="replace")
-            print(text[-4000:])
+            print(text[-6000:] if len(text) > 6000 else text)
+            code = o.channel.recv_exit_status()
+            if code != 0:
+                print(f"FAILED exit {code}: {cmd}")
+                return code
     finally:
         c.close()
+    print("\n=== GeeGooAgent deploy OK ===")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

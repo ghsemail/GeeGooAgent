@@ -35,6 +35,7 @@ func checkConnectivity(cfg *config.AppConfig) []CheckResult {
 	runtimeURL := strings.TrimSuffix(runtimeHealthURL(), "/")
 	results = append(results, checkHTTPGet("agent-runtime /health", runtimeURL+"/health", "", 10))
 	results = append(results, checkHTTPGet("agent-runtime /ready", runtimeURL+"/ready", "", 10))
+	results = append(results, checkSchedulerProcess())
 	return results
 }
 
@@ -82,5 +83,10 @@ func checkMCPPost(cfg *config.AppConfig, route string, body map[string]any) Chec
 	preview, _ := io.ReadAll(io.LimitReader(resp.Body, 120))
 	ok := resp.StatusCode == http.StatusOK
 	detail := fmt.Sprintf("HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(preview)))
+	if !ok && route == "checkTradingDay" {
+		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusInternalServerError {
+			detail += " — check GeeGooBot .env GEEGOO_DATA_*_TOKEN (run scripts/verify_outbound_env.sh on bot host)"
+		}
+	}
 	return CheckResult{Name: name, OK: ok, Detail: detail}
 }
