@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -16,25 +15,27 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/gateway/feishustore"
 )
 
-const (
-	ChannelFeishuIM = "feishu_im"
-	ChannelWebhook  = "webhook"
-	ChannelWechat   = "wechat"
-
-	defaultBotMongoDB = "QT_DB"
-)
+const defaultBotMongoDB = "QT_DB"
 
 // FeishuSection mirrors QT_DB.user.notice.feishu (no secrets).
 type FeishuSection struct {
-	Enabled    bool   `bson:"enabled" json:"enabled"`
-	Connected  bool   `bson:"connected" json:"connected"`
-	ReceiveID  string `bson:"receive_id,omitempty" json:"receive_id,omitempty"`
-	BotName    string `bson:"bot_name,omitempty" json:"bot_name,omitempty"`
-	AppID      string `bson:"app_id,omitempty" json:"app_id,omitempty"`
-	UpdatedAt  string `bson:"updated_at,omitempty" json:"updated_at,omitempty"`
+	Connected bool   `bson:"connected" json:"connected"`
+	ReceiveID string `bson:"receive_id,omitempty" json:"receive_id,omitempty"`
+	BotName   string `bson:"bot_name,omitempty" json:"bot_name,omitempty"`
 }
 
-// SyncFeishuGateway writes feishu_im channel metadata after gateway setup.
+var legacyNoticeUnset = bson.M{
+	"notice_url":                 "",
+	"notice_type":                "",
+	"notice.channel":             "",
+	"notice.notice_url":          "",
+	"notice.notice_type":         "",
+	"notice.feishu.enabled":    "",
+	"notice.feishu.app_id":       "",
+	"notice.feishu.updated_at":   "",
+}
+
+// SyncFeishuGateway writes notice.feishu after gateway setup.
 func SyncFeishuGateway(ctx context.Context, cfg *config.AppConfig, userID string, creds *feishustore.Creds) error {
 	if cfg == nil {
 		return errors.New("usernotice: nil config")
@@ -57,24 +58,10 @@ func SyncFeishuGateway(ctx context.Context, cfg *config.AppConfig, userID string
 	}
 
 	connected := creds != nil && creds.Configured() && creds.Enabled
-	section := FeishuSection{
-		Enabled:   connected,
-		Connected: connected,
-		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
-	}
+	section := FeishuSection{Connected: connected}
 	if creds != nil {
 		section.BotName = strings.TrimSpace(creds.BotName)
-		section.AppID = strings.TrimSpace(creds.AppID)
 		section.ReceiveID = resolveReceiveID(creds)
-	}
-
-	set := bson.M{
-		"notice.feishu": section,
-	}
-	if connected {
-		set["notice.channel"] = ChannelFeishuIM
-		set["notice.notice_type"] = 1
-		set["notice.notice_url"] = ""
 	}
 
 	cli, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
@@ -83,17 +70,13 @@ func SyncFeishuGateway(ctx context.Context, cfg *config.AppConfig, userID string
 	}
 	defer func() { _ = cli.Disconnect(context.Background()) }()
 
-	update := bson.M{"$set": set}
-	if connected {
-		update["$unset"] = bson.M{
-			"notice_url":  "",
-			"notice_type": "",
-		}
-	}
 	_, err = cli.Database(dbName).Collection("user").UpdateOne(
 		ctx,
 		bson.M{"_id": oid},
-		update,
+		bson.M{
+			"$set":   bson.M{"notice.feishu": section},
+			"$unset": legacyNoticeUnset,
+		},
 	)
 	return err
 }
