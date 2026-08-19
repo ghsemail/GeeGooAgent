@@ -330,6 +330,10 @@ func optionalStep(step Step) bool {
 	if strings.HasPrefix(step.Name, "market_news_") {
 		return true
 	}
+	// Thin tickers (e.g. SPCX.US) may have no RSS/web headlines; report still proceeds.
+	if step.Name == "stock_news" || step.Tool == "fetch_stock_news" {
+		return true
+	}
 	// Bot logs may be missing when MCP token scope or bot ownership differs.
 	if step.Tool == "get_bot_log_by_type" {
 		return true
