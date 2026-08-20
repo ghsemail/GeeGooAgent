@@ -1,38 +1,34 @@
 package opslog
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
 )
 
-const (
-	reportLogCollection = "report_generation_log"
-	defaultOpsMongoDB   = "Signal_DB"
-)
-
 // DetailEntry is one stock in a report generation batch.
 type DetailEntry struct {
-	Code       string  `bson:"code" json:"code"`
-	StockName  string  `bson:"stock_name" json:"stock_name"`
-	Status     string  `bson:"status" json:"status"`
-	ReportID   string  `bson:"report_id,omitempty" json:"report_id,omitempty"`
-	ChangePct  float64 `bson:"change_pct,omitempty" json:"change_pct,omitempty"`
-	Summary    string  `bson:"summary,omitempty" json:"summary,omitempty"`
-	Error      string  `bson:"error,omitempty" json:"error,omitempty"`
-	StartedAt  string  `bson:"started_at" json:"started_at"`
-	FinishedAt string  `bson:"finished_at" json:"finished_at"`
+	Code       string  `json:"code"`
+	StockName  string  `json:"stock_name"`
+	Status     string  `json:"status"`
+	ReportID   string  `json:"report_id,omitempty"`
+	ChangePct  float64 `json:"change_pct,omitempty"`
+	Summary    string  `json:"summary,omitempty"`
+	Error      string  `json:"error,omitempty"`
+	StartedAt  string  `json:"started_at"`
+	FinishedAt string  `json:"finished_at"`
 }
 
 // RunRecorder collects one user/market report skill execution for ops dashboard.
@@ -69,7 +65,7 @@ func NewRunRecorder(skill, market, userID, sessionID, reportDate string) *RunRec
 	}
 }
 
-// PersistFromResult writes the run log to Mongo (Signal_DB.report_generation_log).
+// PersistFromResult posts the run log to GeeGooSignal catalog-api.
 func PersistFromResult(
 	ctx context.Context,
 	cfg *config.AppConfig,
@@ -81,6 +77,14 @@ func PersistFromResult(
 	if rec == nil || cfg == nil {
 		return
 	}
+	base := strings.TrimRight(cfg.SignalCatalogURL(), "/")
+	key := strings.TrimSpace(cfg.SignalCatalogAPIKey())
+	if base == "" || key == "" {
+		slog.Warn("opslog: catalog api not configured, skip report generation log",
+			"run_id", rec.RunID, "skill", rec.Skill)
+		return
+	}
+
 	details := detailsFromWorking(result.Working)
 	reported, skipped, failed := countDetails(details)
 	status := batchStatus(reported, skipped, failed, len(details))
@@ -111,10 +115,46 @@ func PersistFromResult(
 		"workflow_last_error": strings.TrimSpace(result.LastError),
 		"details":             details,
 	}
-	if err := insertReportLog(ctx, cfg, doc); err != nil {
+	if err := postReportLog(ctx, base, key, doc); err != nil {
 		slog.Warn("opslog: report generation log persist failed",
 			"run_id", rec.RunID, "skill", rec.Skill, "market", rec.Market, "err", err)
 	}
+}
+
+func postReportLog(ctx context.Context, base, bearer string, doc map[string]any) error {
+	raw, err := json.Marshal(doc)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/recordReportGenerationLog", bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+bearer)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	var out map[string]any
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &out); err != nil {
+			return err
+		}
+		if code, ok := out["code"].(float64); ok && int(code) != 100 {
+			msg, _ := out["message"].(string)
+			if msg == "" {
+				msg = "record failed"
+			}
+			return fmt.Errorf("%s", msg)
+		}
+	}
+	return nil
 }
 
 func detailsFromWorking(w *memory.PreMarketWorking) []DetailEntry {
@@ -170,50 +210,6 @@ func countDetails(details []DetailEntry) (reported, skipped, failed int) {
 		}
 	}
 	return reported, skipped, failed
-}
-
-var (
-	mongoOnce sync.Once
-	mongoCli  *mongo.Client
-	mongoErr  error
-)
-
-func insertReportLog(ctx context.Context, cfg *config.AppConfig, doc map[string]any) error {
-	coll, err := reportLogColl(ctx, cfg)
-	if err != nil {
-		return err
-	}
-	_, err = coll.InsertOne(ctx, doc)
-	return err
-}
-
-func reportLogColl(ctx context.Context, cfg *config.AppConfig) (*mongo.Collection, error) {
-	uri, dbName := opsMongo(cfg)
-	if uri == "" {
-		return nil, fmt.Errorf("ops mongo not configured")
-	}
-	mongoOnce.Do(func() {
-		mongoCli, mongoErr = mongo.Connect(ctx, options.Client().ApplyURI(uri))
-	})
-	if mongoErr != nil {
-		return nil, mongoErr
-	}
-	if dbName == "" {
-		dbName = defaultOpsMongoDB
-	}
-	return mongoCli.Database(dbName).Collection(reportLogCollection), nil
-}
-
-func opsMongo(cfg *config.AppConfig) (uri, db string) {
-	if cfg == nil {
-		return "", ""
-	}
-	uri = strings.TrimSpace(cfg.OpsMongoURI)
-	db = strings.TrimSpace(cfg.OpsMongoDB)
-	if db == "" {
-		db = defaultOpsMongoDB
-	}
-	return uri, db
 }
 
 func detailNow() string {
