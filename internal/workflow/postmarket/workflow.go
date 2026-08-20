@@ -36,7 +36,7 @@ func PostMarketPerStockSteps() []step.Step {
 			ws := w.Stocks[w.CurrentStock]
 			return map[string]any{"bot_id": ws.BotID, "type": decision.BotLogType(ws.BotType)}
 		}},
-		{Name: "read_stock_premarket", Tool: "get_stock_daily_reports", ArgFunc: args.StockReportDateArg},
+		{Name: "read_stock_premarket", Tool: "get_stock_daily_reports", ArgFunc: args.PostmarketPremarketLookupArg},
 		{Name: "current_price", Tool: "get_current_price", ArgFunc: args.StockCodeArg},
 		{Name: "save_local_report", Tool: "save_local_report", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			return map[string]any{

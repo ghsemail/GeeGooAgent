@@ -145,6 +145,15 @@ func (r *Runner) RunFrom(
 						skipStock = true
 					}
 				}
+				if skill == "postmarket_stock" && step.Tool == "get_stock_daily_reports" {
+					ws := working.Stocks[code]
+					if strings.TrimSpace(ws.PreMarketResult) == "" {
+						ws.Status = "skipped"
+						working.Stocks[code] = ws
+						_ = r.working.Save(working)
+						skipStock = true
+					}
+				}
 			}
 		}
 		working.CurrentStock = ""
