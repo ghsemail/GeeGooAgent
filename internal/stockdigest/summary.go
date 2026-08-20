@@ -70,7 +70,7 @@ func stockLines(w *memory.PreMarketWorking, format func(memory.StockWorkspace) s
 	var out []string
 	for _, code := range codes {
 		ws := w.Stocks[code]
-		if ws.Status != "reported" {
+		if !stockDigestEligible(ws) {
 			continue
 		}
 		if line := strings.TrimSpace(format(ws)); line != "" {
@@ -78,6 +78,17 @@ func stockLines(w *memory.PreMarketWorking, format func(memory.StockWorkspace) s
 		}
 	}
 	return out
+}
+
+func stockDigestEligible(ws memory.StockWorkspace) bool {
+	switch ws.Status {
+	case "reported":
+		return true
+	case "skipped":
+		return strings.TrimSpace(ws.ReportID) != "" || strings.TrimSpace(ws.ReportSummary) != ""
+	default:
+		return false
+	}
 }
 
 func reportDate(w *memory.PreMarketWorking) string {

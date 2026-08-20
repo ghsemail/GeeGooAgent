@@ -16,15 +16,67 @@ func applyPreMarketFromDaily(w *PreMarketWorking, code string, data map[string]a
 	if !ok {
 		return
 	}
+	applyPreMarketReportFields(&ws, m)
+	w.Stocks[code] = ws
+}
+
+func applyPreMarketFromReportList(ws *StockWorkspace, reports any) {
+	m, ok := firstMapFromSlice(reports)
+	if !ok {
+		return
+	}
+	applyPreMarketReportFields(ws, m)
+}
+
+func applyPreMarketReportFields(ws *StockWorkspace, m map[string]any) {
 	ws.PreMarketResult = str(m, "result")
 	ws.PreMarketConfidence = str(m, "confidence")
 	ws.PreMarketReason = str(m, "reason")
 	ws.PreMarketSuggestion = str(m, "suggestion")
 	ws.PreMarketReportID = str(m, "report_id")
+	if id := str(m, "report_id"); id != "" {
+		ws.ReportID = id
+	}
+	if name := str(m, "stock_name"); name != "" {
+		ws.StockName = name
+	}
 	if s := str(m, "summary"); s != "" {
 		ws.ReportSummary = s
 	}
-	w.Stocks[code] = ws
+}
+
+func applyPostMarketFromReportList(ws *StockWorkspace, reports any) {
+	m, ok := firstMapFromSlice(reports)
+	if !ok {
+		return
+	}
+	if id := str(m, "report_id"); id != "" {
+		ws.ReportID = id
+	}
+	if name := str(m, "stock_name"); name != "" {
+		ws.StockName = name
+	}
+	if s := str(m, "summary"); s != "" {
+		ws.ReportSummary = s
+	}
+	if s := str(m, "market_summary"); s != "" {
+		ws.ReportMarketSummary = s
+	}
+	if s := str(m, "trade_summary"); s != "" {
+		ws.ReportTradeSummary = s
+	}
+	if s := str(m, "experience_summary"); s != "" {
+		ws.ReportExperienceSummary = s
+	}
+	if bias := str(m, "session_bias"); bias != "" {
+		ws.SessionBias = bias
+	}
+	if vs := str(m, "vs_stock_premarket"); vs != "" {
+		ws.VsPreMarket = vs
+	}
+	if _, ok := m["change_pct"]; ok {
+		ws.ChangePct = stockfmt.FloatFromAny(m["change_pct"])
+	}
 }
 
 // firstMapFromSlice accepts both []map[string]any (tool Data from typed MCP structs)

@@ -229,6 +229,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 		code, _ := data["code"].(string)
 		if reported, _ := data["already_reported"].(bool); reported {
 			if ws, ok := updated.Stocks[code]; ok {
+				applyPreMarketFromReportList(&ws, data["reports"])
 				ws.Status = "skipped"
 				updated.Stocks[code] = ws
 			}
@@ -237,6 +238,7 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 		code, _ := data["code"].(string)
 		if reported, _ := data["already_reported"].(bool); reported {
 			if ws, ok := updated.Stocks[code]; ok {
+				applyPostMarketFromReportList(&ws, data["reports"])
 				ws.Status = "skipped"
 				updated.Stocks[code] = ws
 			}

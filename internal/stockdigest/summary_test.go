@@ -76,3 +76,29 @@ func TestBuildFeishuSummaryPostmarketStock(t *testing.T) {
 		t.Fatalf("raw enum should be localized: %s", text)
 	}
 }
+
+func TestBuildFeishuSummaryPostmarketStockSkippedWithExistingReport(t *testing.T) {
+	t.Parallel()
+	trading := true
+	w := memory.NewPreMarketWorking("s1", "postmarket_stock")
+	w.Market = "CN"
+	w.ReportDate = "2026-08-20"
+	w.IsTradingDay = &trading
+	w.Stocks = map[string]memory.StockWorkspace{
+		"601766.SH": {
+			Code: "601766.SH", StockName: "中国中车", Status: "skipped",
+			ReportID: "rid-post-1", ChangePct: 0.83, SessionBias: "bullish", VsPreMarket: "partial",
+			ReportSummary:           "中国中车今日收涨0.83%",
+			ReportMarketSummary:     "震荡上行",
+			ReportTradeSummary:      "无成交",
+			ReportExperienceSummary: "维持观望",
+		},
+	}
+	text := stockdigest.Build("postmarket_stock", "CN", workflow.RunResult{Working: w, Status: "completed"})
+	if strings.Contains(text, "今日无个股盘后报告") {
+		t.Fatalf("skipped existing report should appear in digest: %s", text)
+	}
+	if !strings.Contains(text, "### 中国中车") || !strings.Contains(text, "+0.83%") {
+		t.Fatalf("missing postmarket digest body: %s", text)
+	}
+}
