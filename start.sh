@@ -68,6 +68,7 @@ stop_runtime() {
     rm -f "$PID_RUNTIME"
   fi
   pkill -f 'agentRuntimeServer' 2>/dev/null || true
+  pkill -f '/geegoo-agent/bin/agent-runtime' 2>/dev/null || true
   log "agent-runtime stopped"
 }
 
