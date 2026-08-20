@@ -41,6 +41,21 @@ func (a *App) maybeNotifyUserStockFeishu(ctx context.Context, userID, skill, mar
 	return true
 }
 
+func (a *App) feishuStoreDir() string {
+	if a == nil {
+		return "."
+	}
+	if a.Config != nil {
+		if d, err := a.Config.ResolveOutputDir(); err == nil && strings.TrimSpace(d) != "" {
+			return d
+		}
+	}
+	if strings.TrimSpace(a.Workspace) != "" {
+		return a.Workspace
+	}
+	return "."
+}
+
 func (a *App) persistReportGenerationLog(
 	ctx context.Context,
 	rec *opslog.RunRecorder,
