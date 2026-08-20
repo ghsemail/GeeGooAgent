@@ -215,6 +215,8 @@ type AppConfig struct {
 	DataNodes                []DataNodeConfig `json:"data_nodes,omitempty"`
 	BotMongoURI              string `json:"bot_mongo_uri,omitempty"`
 	BotMongoDB               string `json:"bot_mongo_db,omitempty"`
+	OpsMongoURI              string `json:"ops_mongo_uri,omitempty"`
+	OpsMongoDB               string `json:"ops_mongo_db,omitempty"`
 	BotServiceAPIURL         string `json:"bot_service_api_url,omitempty"`
 	BotServiceAPIKey         string `json:"bot_service_api_key,omitempty"`
 	OutputDir        string            `json:"output_dir"`
@@ -331,6 +333,16 @@ func applyEnv(cfg *AppConfig) {
 	}
 	if v := strings.TrimSpace(os.Getenv("GEEGOO_BOT_MONGO_DB")); v != "" {
 		cfg.BotMongoDB = v
+	}
+	if v := strings.TrimSpace(os.Getenv("GEEGOO_OPS_MONGO_URI")); v != "" {
+		cfg.OpsMongoURI = v
+	} else if v := strings.TrimSpace(os.Getenv("GEEGOO_SIGNAL_MONGO_URI")); v != "" {
+		cfg.OpsMongoURI = v
+	}
+	if v := strings.TrimSpace(os.Getenv("GEEGOO_OPS_MONGO_DB")); v != "" {
+		cfg.OpsMongoDB = v
+	} else if v := strings.TrimSpace(os.Getenv("GEEGOO_SIGNAL_MONGO_DB")); v != "" {
+		cfg.OpsMongoDB = v
 	}
 	if v := strings.TrimSpace(os.Getenv("GEEGOO_BOT_SERVICE_API_URL")); v != "" {
 		cfg.BotServiceAPIURL = v

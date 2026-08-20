@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ghsemail/GeeGooAgent/internal/opslog"
+	"github.com/ghsemail/GeeGooAgent/internal/stockdigest"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
 )
 
@@ -41,14 +43,33 @@ func (a *App) runStockForMarketUsers(
 		result, runErr := a.runSkillWithSteps(ctx, skill, phaseA, perStock, userOpts)
 		last = result
 		lastErr = runErr
+		userID := strings.TrimSpace(user.UserID)
+		reportDate := opts.ReportDate
+		if result.Working != nil && strings.TrimSpace(result.Working.ReportDate) != "" {
+			reportDate = strings.TrimSpace(result.Working.ReportDate)
+		}
+		rec := opslog.NewRunRecorder(skill, market, userID, result.SessionID, reportDate)
+
+		feishuSent := false
+		feishuSkipReason := ""
+		if runErr != nil {
+			feishuSkipReason = "workflow_error"
+		} else if opts.NotifyFeishu && userID != "" {
+			feishuSkipReason = stockdigest.NotifySkipReason(skill, market, result)
+			if feishuSkipReason == "" {
+				feishuSent = a.maybeNotifyUserStockFeishu(ctx, userID, skill, market, result)
+				if !feishuSent {
+					feishuSkipReason = "feishu_send_failed"
+				}
+			}
+		} else if opts.NotifyFeishu {
+			feishuSkipReason = "missing_user_id"
+		} else {
+			feishuSkipReason = "notify_disabled"
+		}
+		a.persistReportGenerationLog(ctx, rec, result, feishuSent, feishuSkipReason)
 		if runErr != nil {
 			continue
-		}
-		if opts.NotifyFeishu {
-			userID := strings.TrimSpace(user.UserID)
-			if userID != "" {
-				a.maybeNotifyUserStockFeishu(ctx, userID, skill, market, result)
-			}
 		}
 	}
 	return last, lastErr
