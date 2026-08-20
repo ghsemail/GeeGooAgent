@@ -7,6 +7,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -21,9 +22,10 @@ type Runner struct {
 	app       *app.App
 	jobsDir   string
 	cron      *cron.Cron
-	mu        sync.Mutex
-	retryIn   time.Duration // backoff for recoverable retries
-	maxRetries int
+	mu          sync.Mutex
+	running     sync.Map // job name -> struct{}; skip overlapping cron ticks
+	retryIn     time.Duration // backoff for recoverable retries
+	maxRetries  int
 	retryCounts map[string]int
 }
 
@@ -73,6 +75,12 @@ func (r *Runner) Start(ctx context.Context) error {
 // runJob executes one skill, records the supervisor verdict, and schedules a
 // retry when the verdict is recoverable or terminal (up to maxRetries).
 func (r *Runner) runJob(job Job) {
+	if _, loaded := r.running.LoadOrStore(job.Name, struct{}{}); loaded {
+		slog.Info("scheduler: job already running, skip", "job", job.Name)
+		return
+	}
+	defer r.running.Delete(job.Name)
+
 	r.mu.Lock()
 	r.retryCounts[job.Name] = 0
 	r.mu.Unlock()

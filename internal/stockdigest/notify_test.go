@@ -23,7 +23,7 @@ func TestShouldNotifyBlocksFailedStock(t *testing.T) {
 	}
 }
 
-func TestShouldNotifyAllowsSkippedWithExistingReport(t *testing.T) {
+func TestShouldNotifyBlocksSkippedOnlyRun(t *testing.T) {
 	t.Parallel()
 	trading := true
 	w := memory.NewPreMarketWorking("s1", "postmarket_stock")
@@ -35,8 +35,11 @@ func TestShouldNotifyAllowsSkippedWithExistingReport(t *testing.T) {
 		},
 	}
 	result := workflow.RunResult{Working: w, Status: "completed", Supervisor: &workflow.SupervisorReport{Verdict: workflow.VerdictPass}}
-	if !stockdigest.ShouldNotify("postmarket_stock", "CN", result) {
-		t.Fatal("expected notify for skipped stocks with existing report content")
+	if stockdigest.ShouldNotify("postmarket_stock", "CN", result) {
+		t.Fatal("expected no notify when run only skipped existing reports")
+	}
+	if stockdigest.NotifySkipReason("postmarket_stock", "CN", result) != "no_new_reports" {
+		t.Fatal("expected no_new_reports skip reason")
 	}
 }
 

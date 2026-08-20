@@ -3,6 +3,7 @@ package stockdigest
 import (
 	"strings"
 
+	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
 )
 
@@ -31,6 +32,9 @@ func NotifySkipReason(skill, market string, result workflow.RunResult) string {
 			return "stock_failed:" + code
 		}
 	}
+	if !hasNewlyReportedStock(w) {
+		return "no_new_reports"
+	}
 	format := formatPremarketStock
 	if skill == "postmarket_stock" {
 		format = formatPostmarketStock
@@ -52,6 +56,18 @@ func HasDeliverableContent(skill string, result workflow.RunResult) bool {
 		format = formatPostmarketStock
 	}
 	return len(stockLines(w, format)) > 0
+}
+
+func hasNewlyReportedStock(w *memory.PreMarketWorking) bool {
+	if w == nil {
+		return false
+	}
+	for _, ws := range w.Stocks {
+		if ws.Status == "reported" {
+			return true
+		}
+	}
+	return false
 }
 
 // IsEmptyDigestMessage detects placeholder texts that must not be pushed.
