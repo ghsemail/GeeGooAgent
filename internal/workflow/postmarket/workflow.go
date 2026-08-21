@@ -44,10 +44,10 @@ func PostMarketPerStockSteps() []step.Step {
 				"report_type": "postmarket", "report_date": args.ReportDateFor(w, w.CurrentStock),
 			}
 		}},
-		{Name: "create_stock_postmarket_report", Tool: "create_stock_postmarket_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
+		{Name: "create_stock_postmarket_report", Tool: "create_stock_postmarket_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) (map[string]any, error) {
 			args := BuildCreateStockPostmarketReportArgs(ctx, w, w.CurrentStock)
 			memory.ApplyPostmarketNotifySnapshot(w, w.CurrentStock, args)
-			return args
+			return args, nil
 		}},
 		{Name: "stock_complete", Tool: "write_execution_log", ArgFunc: args.StockCompleteArg},
 	}

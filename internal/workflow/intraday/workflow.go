@@ -179,15 +179,15 @@ func intradayPerStockSteps(freq, botType string, attitudeSwitch bool) []step.Ste
 	}
 	steps = append(steps,
 		step.Step{Name: "current_price", Tool: "get_current_price", ArgFunc: args.StockCodeArg},
-		step.Step{Name: "save_local_report", Tool: "save_local_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
+		step.Step{Name: "save_local_report", Tool: "save_local_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) (map[string]any, error) {
 			bundle := ensureIntradayBundle(ctx, w, w.CurrentStock)
 			return map[string]any{
 				"code": w.CurrentStock, "content": bundle.Report,
 				"report_type": "intraday", "report_date": args.ReportDateFor(w, w.CurrentStock),
-			}
+			}, nil
 		}},
-		step.Step{Name: "create_stock_intraday_report", Tool: "create_stock_intraday_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
-			return BuildCreateIntradayReportArgs(ctx, w, w.CurrentStock)
+		step.Step{Name: "create_stock_intraday_report", Tool: "create_stock_intraday_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) (map[string]any, error) {
+			return BuildCreateIntradayReportArgs(ctx, w, w.CurrentStock), nil
 		}},
 		step.Step{Name: "stock_complete", Tool: "write_execution_log", ArgFunc: args.StockCompleteArg},
 	)

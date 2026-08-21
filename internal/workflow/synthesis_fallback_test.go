@@ -10,7 +10,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
 )
 
-// failingSynthesizer always errors, forcing the rule-based fallback.
+// failingSynthesizer always errors; premarket report build must fail (no rule-based fallback).
 type failingSynthesizer struct{}
 
 func (f *failingSynthesizer) Synthesize(ctx context.Context, ws memory.StockWorkspace, ev []memory.EvidenceRef, mc memory.MarketContext) (report.SynthesisResult, error) {
@@ -25,7 +25,7 @@ func (f *failingSynthesizer) SynthesizeStockPreMarket(ctx context.Context, ws me
 	return report.StockPreMarketSynthesisResult{}, context.Canceled
 }
 
-func TestBuildCreateReportArgsFallsBackOnSynthesisError(t *testing.T) {
+func TestBuildCreateReportArgsFailsOnSynthesisError(t *testing.T) {
 	ctx := workflow.ContextWithSynthesizer(context.Background(), &failingSynthesizer{})
 	w := &memory.PreMarketWorking{
 		BotCodes: []memory.BotStock{{Code: "00700.HK", StockName: "腾讯控股"}},
@@ -33,13 +33,9 @@ func TestBuildCreateReportArgsFallsBackOnSynthesisError(t *testing.T) {
 			"00700.HK": {Code: "00700.HK", StockName: "腾讯控股", Attitude: "bullish"},
 		},
 	}
-	args := workflow.BuildCreateReportArgsContext(ctx, w, "00700.HK")
-	if args["result"] != "long" {
-		t.Fatalf("result=%v want long (rule-based)", args["result"])
-	}
-	reportBody := args["report"].(string)
-	if !strings.Contains(reportBody, "## 市场背景") {
-		t.Fatalf("report=%v", reportBody)
+	_, err := workflow.BuildCreateReportArgsContext(ctx, w, "00700.HK")
+	if err == nil {
+		t.Fatal("expected error when stock premarket synthesis fails")
 	}
 }
 
@@ -60,7 +56,10 @@ func TestBuildCreateReportArgsUsesSynthesisWhenSuccessful(t *testing.T) {
 			"00700.HK": {Code: "00700.HK", Attitude: "bullish"},
 		},
 	}
-	args := workflow.BuildCreateReportArgsContext(ctx, w, "00700.HK")
+	args, err := workflow.BuildCreateReportArgsContext(ctx, w, "00700.HK")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if args["summary"] != "LLM 摘要" {
 		t.Fatalf("summary=%v", args["summary"])
 	}
@@ -69,7 +68,7 @@ func TestBuildCreateReportArgsUsesSynthesisWhenSuccessful(t *testing.T) {
 	}
 }
 
-func TestBuildCreateMarketReportArgsFallsBackOnSynthesisError(t *testing.T) {
+func TestBuildCreateMarketReportArgsFailsOnSynthesisError(t *testing.T) {
 	ctx := workflow.ContextWithSynthesizer(context.Background(), &failingSynthesizer{})
 	w := memory.NewPreMarketWorking("s1", "premarket_market")
 	w.Market = "CN"
@@ -77,12 +76,9 @@ func TestBuildCreateMarketReportArgsFallsBackOnSynthesisError(t *testing.T) {
 	w.MarketContext.MarketNewsDone = true
 	w.MarketContext.IndexAnalysisRefs = map[string]string{"000001.SH": "偏强"}
 	w.MarketContext.MarketNews = map[string]string{"CN": "政策偏暖"}
-	args := workflow.BuildCreateMarketReportArgsContext(ctx, w, "CN")
-	if args["result"] != "neutral" {
-		t.Fatalf("result=%v", args["result"])
-	}
-	if !strings.Contains(args["report"].(string), "指数概览") {
-		t.Fatalf("report=%v", args["report"])
+	_, err := workflow.BuildCreateMarketReportArgsContext(ctx, w, "CN")
+	if err == nil {
+		t.Fatal("expected error when market premarket synthesis fails")
 	}
 }
 
@@ -114,7 +110,10 @@ func TestBuildCreateMarketReportArgsUsesMarketSynthesisWhenSuccessful(t *testing
 	w.MarketContext.MarketNewsDone = true
 	w.MarketContext.IndexAnalysisRefs = map[string]string{"000001.SH": "偏强"}
 	w.MarketContext.MarketNews = map[string]string{"CN": "政策偏暖"}
-	args := workflow.BuildCreateMarketReportArgsContext(ctx, w, "CN")
+	args, err := workflow.BuildCreateMarketReportArgsContext(ctx, w, "CN")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if args["summary"] != "LLM 市场摘要" {
 		t.Fatalf("summary=%v", args["summary"])
 	}

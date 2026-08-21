@@ -125,6 +125,48 @@ func (g *Gateway) ChatStream(
 	return nil, fmt.Errorf("LLM gateway failed: %w", lastErr)
 }
 
+// SynthesisAccept validates a synthesis response before accepting a provider result.
+// Returning an error triggers failover to the next configured provider.
+type SynthesisAccept func(*Response) error
+
+// ChatSynthesis invokes providers in order, failing over on transport errors or when
+// accept rejects the response (e.g. empty body, JSON parse failure).
+func (g *Gateway) ChatSynthesis(ctx context.Context, messages []Message, accept SynthesisAccept) (*Response, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	messages = ApplyCacheBreakpoints(messages)
+	providers := g.providers()
+	if len(providers) == 0 {
+		return nil, fmt.Errorf("no LLM providers configured")
+	}
+	var attempts []string
+	for i, provider := range providers {
+		resp, err := g.chatStreamWithRetries(ctx, provider, messages, nil, nil)
+		if err != nil {
+			attempts = append(attempts, fmt.Sprintf("%s: %v", provider.Model(), err))
+			if i < len(providers)-1 {
+				continue
+			}
+			break
+		}
+		if accept != nil {
+			if err := accept(resp); err != nil {
+				attempts = append(attempts, fmt.Sprintf("%s: %v", provider.Model(), err))
+				if i < len(providers)-1 {
+					continue
+				}
+				return nil, fmt.Errorf("synthesis validation failed: %w", err)
+			}
+		}
+		if resp != nil && strings.TrimSpace(resp.Usage.Model) == "" {
+			resp.Usage.Model = provider.Model()
+		}
+		return resp, nil
+	}
+	return nil, fmt.Errorf("synthesis failed after %d provider(s): %s", len(providers), strings.Join(attempts, "; "))
+}
+
 func (g *Gateway) providers() []Provider {
 	if g == nil {
 		return nil

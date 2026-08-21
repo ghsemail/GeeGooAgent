@@ -41,47 +41,46 @@ func (s *Synthesizer) SynthesizeStockPreMarket(
 	defer cancel()
 
 	prompt := buildStockPreMarketSynthesisPrompt(ws, draft, evidence, marketContext, marketReportSummary, template)
-	callCtx := llm.WithCallMeta(cctx, llm.CallMeta{Kind: llm.TaskSynthesis})
-	resp, err := s.gateway.Chat(callCtx, prompt, nil, "", 0)
+	var parsed StockPreMarketSynthesisResult
+	_, _, err := s.chatSynthesis(cctx, prompt, func(body string) error {
+		p, err := parseStockPreMarketSynthesisJSON(body)
+		if err != nil {
+			return fmt.Errorf("parse: %w", err)
+		}
+		if strings.TrimSpace(p.Report) == "" {
+			return fmt.Errorf("report empty")
+		}
+		if strings.TrimSpace(p.Reason) == "" {
+			return fmt.Errorf("reason empty")
+		}
+		if len([]rune(p.Reason)) < 80 {
+			return fmt.Errorf("reason too short (%d chars)", len([]rune(p.Reason)))
+		}
+		p.Result = normalizeMarketResult(p.Result)
+		p.Confidence = normalizeMarketConfidence(p.Confidence)
+		p.Suggestion = normalizeStockSuggestion(p.Suggestion)
+		if p.Result == "" {
+			return fmt.Errorf("result invalid")
+		}
+		if p.Confidence == "" {
+			return fmt.Errorf("confidence invalid")
+		}
+		if p.Suggestion == "" {
+			return fmt.Errorf("suggestion invalid")
+		}
+		if strings.TrimSpace(p.Summary) == "" {
+			return fmt.Errorf("summary empty")
+		}
+		if runes := []rune(p.Summary); len(runes) > 220 {
+			p.Summary = string(runes[:217]) + "..."
+		}
+		p.Reason = stockfmt.StripEvidenceRefs(p.Reason)
+		p.Report = stockfmt.PolishStockPremarketMarkdown(p.Report)
+		parsed = p
+		return nil
+	})
 	if err != nil {
-		return StockPreMarketSynthesisResult{}, fmt.Errorf("stock premarket synthesis LLM call: %w", err)
-	}
-	content := strings.TrimSpace(resp.Content)
-	if content == "" {
-		return StockPreMarketSynthesisResult{}, fmt.Errorf("stock premarket synthesis returned empty content")
-	}
-	parsed, err := parseStockPreMarketSynthesisJSON(content)
-	if err != nil {
-		return StockPreMarketSynthesisResult{}, fmt.Errorf("stock premarket synthesis parse: %w", err)
-	}
-	if strings.TrimSpace(parsed.Report) == "" {
-		return StockPreMarketSynthesisResult{}, fmt.Errorf("stock premarket synthesis report empty")
-	}
-	if strings.TrimSpace(parsed.Reason) == "" {
-		return StockPreMarketSynthesisResult{}, fmt.Errorf("stock premarket synthesis reason empty")
-	}
-	if len([]rune(parsed.Reason)) < 80 {
-		return StockPreMarketSynthesisResult{}, fmt.Errorf("stock premarket synthesis reason too short (%d chars)", len([]rune(parsed.Reason)))
-	}
-	parsed.Result = normalizeMarketResult(parsed.Result)
-	parsed.Confidence = normalizeMarketConfidence(parsed.Confidence)
-	parsed.Suggestion = normalizeStockSuggestion(parsed.Suggestion)
-	parsed.Reason = stockfmt.StripEvidenceRefs(parsed.Reason)
-	parsed.Report = stockfmt.PolishStockPremarketMarkdown(parsed.Report)
-	if parsed.Result == "" {
-		return StockPreMarketSynthesisResult{}, fmt.Errorf("stock premarket synthesis result invalid")
-	}
-	if parsed.Confidence == "" {
-		return StockPreMarketSynthesisResult{}, fmt.Errorf("stock premarket synthesis confidence invalid")
-	}
-	if parsed.Suggestion == "" {
-		return StockPreMarketSynthesisResult{}, fmt.Errorf("stock premarket synthesis suggestion invalid")
-	}
-	if strings.TrimSpace(parsed.Summary) == "" {
-		return StockPreMarketSynthesisResult{}, fmt.Errorf("stock premarket synthesis summary empty")
-	}
-	if runes := []rune(parsed.Summary); len(runes) > 220 {
-		parsed.Summary = string(runes[:217]) + "..."
+		return StockPreMarketSynthesisResult{}, fmt.Errorf("stock premarket synthesis: %w", err)
 	}
 	return parsed, nil
 }

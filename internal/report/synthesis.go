@@ -1,8 +1,8 @@
 // Package report produces pre-market report content by combining rule-based
-// structure with optional LLM synthesis. The LLM only synthesizes evidence
-// already captured in working memory — it never invents prices, attitudes,
-// or signals. When no LLM is configured or synthesis fails, the rule-based
-// fallback in workflow.BuildReportContent is used unchanged.
+// drafts with LLM synthesis. The LLM only synthesizes evidence already captured
+// in working memory — it never invents prices, attitudes, or signals. Premarket
+// market/stock report creation requires successful LLM synthesis; there is no
+// rule-based fallback path for persisted reports.
 package report
 
 import (
@@ -55,8 +55,7 @@ func (s *Synthesizer) SetGateway(gateway *llm.Gateway) {
 }
 
 // Synthesize asks the LLM to write reason/suggestion/summary strictly from
-// the supplied evidence. On any error or contract violation, returns an error
-// so the caller falls back to the rule-based path.
+// the supplied evidence. On any error or contract violation, returns an error.
 func (s *Synthesizer) Synthesize(
 	ctx context.Context,
 	ws memory.StockWorkspace,
@@ -73,33 +72,31 @@ func (s *Synthesizer) Synthesize(
 	defer cancel()
 
 	prompt := buildSynthesisPrompt(ws, evidence, marketContext)
-	callCtx := llm.WithCallMeta(cctx, llm.CallMeta{Kind: llm.TaskSynthesis})
-	resp, err := s.gateway.Chat(callCtx, prompt, nil, "", 0)
+	var parsed SynthesisResult
+	_, _, err := s.chatSynthesis(cctx, prompt, func(body string) error {
+		p, err := parseSynthesisJSON(body)
+		if err != nil {
+			return fmt.Errorf("parse: %w", err)
+		}
+		if strings.TrimSpace(p.Reason) == "" {
+			return fmt.Errorf("reason empty")
+		}
+		p.SuggestedResult = normalizeMarketResult(p.SuggestedResult)
+		p.SuggestedConfidence = normalizeMarketConfidence(p.SuggestedConfidence)
+		if p.SuggestedResult == "" {
+			p.SuggestedResult = "neutral"
+		}
+		if p.SuggestedConfidence == "" {
+			p.SuggestedConfidence = "low"
+		}
+		if len(p.Reason) < 80 {
+			return fmt.Errorf("reason too short (%d chars)", len(p.Reason))
+		}
+		parsed = p
+		return nil
+	})
 	if err != nil {
-		return SynthesisResult{}, fmt.Errorf("synthesis LLM call: %w", err)
-	}
-	content := strings.TrimSpace(resp.Content)
-	if content == "" {
-		return SynthesisResult{}, fmt.Errorf("synthesis returned empty content")
-	}
-	parsed, err := parseSynthesisJSON(content)
-	if err != nil {
-		return SynthesisResult{}, fmt.Errorf("synthesis parse: %w", err)
-	}
-	if strings.TrimSpace(parsed.Reason) == "" {
-		return SynthesisResult{}, fmt.Errorf("synthesis reason empty")
-	}
-	parsed.SuggestedResult = normalizeMarketResult(parsed.SuggestedResult)
-	parsed.SuggestedConfidence = normalizeMarketConfidence(parsed.SuggestedConfidence)
-	if parsed.SuggestedResult == "" {
-		parsed.SuggestedResult = "neutral"
-	}
-	if parsed.SuggestedConfidence == "" {
-		parsed.SuggestedConfidence = "low"
-	}
-	// Enforce minimum substance per rules/report-format.md (reason ≥ 80 chars).
-	if len(parsed.Reason) < 80 {
-		return SynthesisResult{}, fmt.Errorf("synthesis reason too short (%d chars)", len(parsed.Reason))
+		return SynthesisResult{}, fmt.Errorf("synthesis: %w", err)
 	}
 	return parsed, nil
 }

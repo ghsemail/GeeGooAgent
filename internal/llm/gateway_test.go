@@ -2,6 +2,8 @@ package llm_test
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,6 +41,33 @@ func TestMalformedToolCallResponse(t *testing.T) {
 		ToolCalls:    []llm.ToolCall{{ID: "1", Name: "x"}},
 	}) {
 		t.Fatal("expected ok")
+	}
+}
+
+func TestGatewayChatSynthesisFailoverOnParseError(t *testing.T) {
+	t.Parallel()
+	primary := &llm.MockProvider{
+		ModelName: "primary-model",
+		Responses: []*llm.Response{{Content: "not json"}},
+	}
+	fallback := &llm.MockProvider{
+		ModelName: "fallback-model",
+		Responses: []*llm.Response{{Content: `{"ok":true}`}},
+	}
+	gw := llm.NewGateway(primary, llm.GatewayConfig{MaxRetries: 1, RetryWait: time.Millisecond})
+	gw.SetSleep(func(time.Duration) {})
+	gw.SetFallbacks([]llm.Provider{fallback})
+	resp, err := gw.ChatSynthesis(context.Background(), nil, func(r *llm.Response) error {
+		if strings.TrimSpace(r.Content) != `{"ok":true}` {
+			return fmt.Errorf("invalid json")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Content != `{"ok":true}` {
+		t.Fatalf("got %q", resp.Content)
 	}
 }
 

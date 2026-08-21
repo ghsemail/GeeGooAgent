@@ -22,6 +22,14 @@ func (c *contextCheckingSynthesizer) Synthesize(ctx context.Context, ws memory.S
 	}, nil
 }
 
+func (c *contextCheckingSynthesizer) SynthesizeStockPreMarket(ctx context.Context, ws memory.StockWorkspace, draft string, ev []memory.EvidenceRef, mc memory.MarketContext, marketReportSummary, template string) (report.StockPreMarketSynthesisResult, error) {
+	c.got = ctx
+	return report.StockPreMarketSynthesisResult{
+		Report: "## 市场背景\n\nctx ok", Result: "neutral", Confidence: "medium",
+		Reason: "reason " + stringRepeat("x", 80), Suggestion: "hold", Summary: "ok",
+	}, nil
+}
+
 func stringRepeat(s string, n int) string {
 	out := ""
 	for i := 0; i < n; i++ {
@@ -38,7 +46,10 @@ func TestBuildCreateReportArgsPassesContextToSynthesis(t *testing.T) {
 		BotCodes: []memory.BotStock{{Code: "00700.HK"}},
 		Stocks:   map[string]memory.StockWorkspace{"00700.HK": {Code: "00700.HK", Attitude: "neutral"}},
 	}
-	args := workflow.BuildCreateReportArgsContext(ctx, w, "00700.HK")
+	args, err := workflow.BuildCreateReportArgsContext(ctx, w, "00700.HK")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if args["suggestion"] != "hold" {
 		t.Fatalf("args=%v", args)
 	}

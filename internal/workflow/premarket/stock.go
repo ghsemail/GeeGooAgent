@@ -2,13 +2,13 @@ package premarket
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/prompts"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/step"
-	"github.com/ghsemail/GeeGooAgent/internal/workflow/synthctx"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/templates"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/textutil"
 
@@ -44,15 +44,22 @@ func PerStockSteps() []step.Step {
 			ws := w.Stocks[w.CurrentStock]
 			return map[string]any{"bot_id": ws.BotID, "code": w.CurrentStock, "language": "cn"}
 		}},
-		{Name: "save_local_report", Tool: "save_local_report", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
-			return map[string]any{
-				"code": w.CurrentStock, "content": BuildReportContent(w, w.CurrentStock), "report_type": "premarket",
+		step.Step{Name: "save_local_report", Tool: "save_local_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) (map[string]any, error) {
+			content, err := BuildReportContent(ctx, w, w.CurrentStock)
+			if err != nil {
+				return nil, err
 			}
+			return map[string]any{
+				"code": w.CurrentStock, "content": content, "report_type": "premarket",
+			}, nil
 		}},
-		{Name: "create_stock_premarket_report", Tool: "create_stock_premarket_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
-			args := BuildCreateReportArgsContext(ctx, w, w.CurrentStock)
+		{Name: "create_stock_premarket_report", Tool: "create_stock_premarket_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) (map[string]any, error) {
+			args, err := BuildCreateReportArgsContext(ctx, w, w.CurrentStock)
+			if err != nil {
+				return nil, err
+			}
 			memory.ApplyPremarketNotifySnapshot(w, w.CurrentStock, args)
-			return args
+			return args, nil
 		}},
 		{Name: "stock_complete", Tool: "write_execution_log", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			ws := w.Stocks[w.CurrentStock]
@@ -76,9 +83,13 @@ type StockReportBundle struct {
 	Resistance *float64
 }
 
-// BuildReportContent builds evidence-bound report markdown for phase B (rule-based draft).
-func BuildReportContent(w *memory.PreMarketWorking, code string) string {
-	return ensureStockReportBundle(context.Background(), w, code).Report
+// BuildReportContent builds synthesized stock pre-market report markdown.
+func BuildReportContent(ctx context.Context, w *memory.PreMarketWorking, code string) (string, error) {
+	bundle, err := ensureStockReportBundle(ctx, w, code)
+	if err != nil {
+		return "", err
+	}
+	return bundle.Report, nil
 }
 
 func buildReportContent(w *memory.PreMarketWorking, code string, v *verdict.Verdict, reason, suggestion string) string {
@@ -149,80 +160,62 @@ func buildStockReportDraft(w *memory.PreMarketWorking, code string, view reportV
 	return strings.Join(lines, "\n")
 }
 
-func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, code string) StockReportBundle {
+func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, code string) (StockReportBundle, error) {
 	ws := w.Stocks[code]
 	evidence := collectReportEvidence(w, code)
 	levels := extractKeyLevels(ws)
 	view := buildReportView(ws, evidence, levels, w.MarketReportResult)
 	draft := buildStockReportDraft(w, code, view)
+
+	synth := StockPreMarketSynthesizerFrom(ctx)
+	if synth == nil {
+		return StockReportBundle{}, errors.New("stock premarket synthesizer not available")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	res, err := synth.SynthesizeStockPreMarket(
+		ctx, ws, draft, evidence, w.MarketContext, marketPremarketExcerpt(w), templates.LoadStockPremarketTemplate(),
+	)
+	if err != nil {
+		return StockReportBundle{}, fmt.Errorf("stock premarket synthesis: %w", err)
+	}
+	body := strings.TrimSpace(res.Report)
+	if body == "" {
+		return StockReportBundle{}, errors.New("stock premarket synthesis: empty report")
+	}
+	body = stockfmt.ReplaceMarkdownSection(body, "## 个股新闻", stockNewsSection(ws))
+	body = stockfmt.ReplaceMarkdownSection(body, "## 资金流向与分布", capitalSection(ws))
+
+	reason := strings.TrimSpace(res.Reason)
+	summary := strings.TrimSpace(res.Summary)
+	suggestion := strings.TrimSpace(res.Suggestion)
+	if reason == "" {
+		return StockReportBundle{}, errors.New("stock premarket synthesis: empty reason")
+	}
+	if summary == "" {
+		return StockReportBundle{}, errors.New("stock premarket synthesis: empty summary")
+	}
+	if suggestion == "" {
+		return StockReportBundle{}, errors.New("stock premarket synthesis: empty suggestion")
+	}
+
+	synthOut := report.SynthesisResult{
+		SuggestedResult:     res.Result,
+		SuggestedConfidence: res.Confidence,
+		Reason:              reason,
+		Suggestion:          suggestion,
+		Summary:             summary,
+	}
 	bundle := StockReportBundle{
-		Report:     draft,
+		Report:     body,
 		Result:     view.Result,
 		Confidence: view.Confidence,
-		Reason:     view.Reason,
-		Suggestion: view.Suggestion,
-		Summary:    buildStockSummaryOneLiner(ws, view.Result, view.Suggestion),
+		Reason:     reason,
+		Suggestion: suggestion,
+		Summary:    summary,
 		Support:    levels.Support,
 		Resistance: levels.Resistance,
-	}
-	synthOut := report.SynthesisResult{}
-	stockSynthUsed := false
-	if synth := StockPreMarketSynthesizerFrom(ctx); synth != nil {
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		if res, err := synth.SynthesizeStockPreMarket(
-			ctx, ws, draft, evidence, w.MarketContext, marketPremarketExcerpt(w), templates.LoadStockPremarketTemplate(),
-		); err == nil {
-			stockSynthUsed = true
-			if body := strings.TrimSpace(res.Report); body != "" {
-				bundle.Report = body
-				bundle.Report = stockfmt.ReplaceMarkdownSection(bundle.Report, "## 个股新闻", stockNewsSection(ws))
-				bundle.Report = stockfmt.ReplaceMarkdownSection(bundle.Report, "## 资金流向与分布", capitalSection(ws))
-			}
-			if v := strings.TrimSpace(res.Reason); v != "" {
-				bundle.Reason = v
-			}
-			if v := strings.TrimSpace(res.Summary); v != "" {
-				bundle.Summary = v
-			}
-			if v := strings.TrimSpace(res.Suggestion); v != "" {
-				bundle.Suggestion = v
-			}
-			synthOut = report.SynthesisResult{
-				SuggestedResult:     res.Result,
-				SuggestedConfidence: res.Confidence,
-				Reason:              res.Reason,
-				Suggestion:          res.Suggestion,
-				Summary:             res.Summary,
-			}
-		}
-	}
-	if !stockSynthUsed {
-		if synth := synthctx.From(ctx); synth != nil {
-			if ctx == nil {
-				ctx = context.Background()
-			}
-			if res, err := synth.Synthesize(ctx, ws, evidence, w.MarketContext); err == nil && strings.TrimSpace(res.Reason) != "" {
-				synthOut = res
-				if v := strings.TrimSpace(res.Reason); v != "" {
-					bundle.Reason = v
-				}
-				if v := strings.TrimSpace(res.Suggestion); v != "" {
-					bundle.Suggestion = v
-				}
-				if v := strings.TrimSpace(res.Summary); v != "" {
-					bundle.Summary = v
-				}
-				view.Reason = bundle.Reason
-				bundle.Report = buildStockReportDraft(w, code, view)
-			}
-		}
-		if isBoilerplateReason(bundle.Reason) {
-			bundle.Reason = buildSubstantiveReason(ws, levels, w.MarketReportResult)
-			view.Reason = bundle.Reason
-			bundle.Report = buildStockReportDraft(w, code, view)
-		}
 	}
 	final := verdict.ArbitrateStockPreMarket(stockVerdictInput(w, code, ws, evidence, synthOut))
 	bundle.Result = final.Result
@@ -234,22 +227,18 @@ func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, co
 	}
 	bundle.Reason = stockfmt.StripEvidenceRefs(bundle.Reason)
 	bundle.Summary = stockfmt.StripEvidenceRefs(bundle.Summary)
-	if bundle.Summary == "" || isBoilerplateReason(bundle.Summary) {
-		bundle.Summary = buildStockSummaryOneLiner(ws, bundle.Result, bundle.Suggestion)
-	}
 	bundle.Report = stockfmt.PolishStockNewsInReport(bundle.Report, ws.StockName)
 	bundle.Report = stockfmt.PolishStockPremarketMarkdown(bundle.Report)
-	return bundle
+	return bundle, nil
 }
 
 // BuildCreateReportArgs builds MCP createStockPremarketReport body.
-func BuildCreateReportArgs(w *memory.PreMarketWorking, code string) map[string]any {
+func BuildCreateReportArgs(w *memory.PreMarketWorking, code string) (map[string]any, error) {
 	return BuildCreateReportArgsContext(context.Background(), w, code)
 }
 
-// BuildCreateReportArgsContext builds MCP createStockPremarketReport body using ctx
-// for optional LLM synthesis cancellation.
-func BuildCreateReportArgsContext(ctx context.Context, w *memory.PreMarketWorking, code string) map[string]any {
+// BuildCreateReportArgsContext builds MCP createStockPremarketReport body; LLM synthesis is required.
+func BuildCreateReportArgsContext(ctx context.Context, w *memory.PreMarketWorking, code string) (map[string]any, error) {
 	var bot memory.BotStock
 	for _, b := range w.BotCodes {
 		if b.Code == code {
@@ -258,7 +247,10 @@ func BuildCreateReportArgsContext(ctx context.Context, w *memory.PreMarketWorkin
 		}
 	}
 	evidence := collectReportEvidence(w, code)
-	bundle := ensureStockReportBundle(ctx, w, code)
+	bundle, err := ensureStockReportBundle(ctx, w, code)
+	if err != nil {
+		return nil, err
+	}
 	args := map[string]any{
 		"code": bot.Code, "stock_name": bot.StockName, "bot_id": bot.BotID,
 		"bot_name": bot.BotName, "bot_type": bot.BotType,
@@ -273,7 +265,7 @@ func BuildCreateReportArgsContext(ctx context.Context, w *memory.PreMarketWorkin
 	if bundle.Resistance != nil {
 		args["resistance"] = *bundle.Resistance
 	}
-	return args
+	return args, nil
 }
 
 func marketPremarketExcerpt(w *memory.PreMarketWorking) string {

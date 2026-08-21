@@ -19,8 +19,7 @@ type MarketSynthesisResult struct {
 }
 
 // SynthesizeMarket asks the LLM to write a single-market pre-market report from
-// captured index/news evidence. On error the caller should fall back to the
-// rule-based draft.
+// captured index/news evidence. Callers must treat errors as fatal (no rule-based fallback).
 func (s *Synthesizer) SynthesizeMarket(
 	ctx context.Context,
 	market string,
@@ -39,36 +38,36 @@ func (s *Synthesizer) SynthesizeMarket(
 	defer cancel()
 
 	prompt := buildMarketSynthesisPrompt(market, draft, marketContext, evidence, template)
-	callCtx := llm.WithCallMeta(cctx, llm.CallMeta{Kind: llm.TaskSynthesis})
-	resp, err := s.gateway.Chat(callCtx, prompt, nil, "", 0)
+	var parsed MarketSynthesisResult
+	content, _, err := s.chatSynthesis(cctx, prompt, func(body string) error {
+		p, err := parseMarketSynthesisJSON(body)
+		if err != nil {
+			return fmt.Errorf("parse: %w", err)
+		}
+		if strings.TrimSpace(p.Report) == "" {
+			return fmt.Errorf("report empty")
+		}
+		if strings.TrimSpace(p.Summary) == "" {
+			return fmt.Errorf("summary empty")
+		}
+		p.Result = normalizeMarketResult(p.Result)
+		p.Confidence = normalizeMarketConfidence(p.Confidence)
+		if p.Result == "" {
+			return fmt.Errorf("result invalid")
+		}
+		if p.Confidence == "" {
+			return fmt.Errorf("confidence invalid")
+		}
+		if len([]rune(p.Summary)) > 220 {
+			return fmt.Errorf("summary too long (%d chars)", len([]rune(p.Summary)))
+		}
+		parsed = p
+		return nil
+	})
 	if err != nil {
-		return MarketSynthesisResult{}, fmt.Errorf("market synthesis LLM call: %w", err)
+		return MarketSynthesisResult{}, fmt.Errorf("market synthesis: %w", err)
 	}
-	content := strings.TrimSpace(resp.Content)
-	if content == "" {
-		return MarketSynthesisResult{}, fmt.Errorf("market synthesis returned empty content")
-	}
-	parsed, err := parseMarketSynthesisJSON(content)
-	if err != nil {
-		return MarketSynthesisResult{}, fmt.Errorf("market synthesis parse: %w", err)
-	}
-	if strings.TrimSpace(parsed.Report) == "" {
-		return MarketSynthesisResult{}, fmt.Errorf("market synthesis report empty")
-	}
-	if strings.TrimSpace(parsed.Summary) == "" {
-		return MarketSynthesisResult{}, fmt.Errorf("market synthesis summary empty")
-	}
-	parsed.Result = normalizeMarketResult(parsed.Result)
-	parsed.Confidence = normalizeMarketConfidence(parsed.Confidence)
-	if parsed.Result == "" {
-		return MarketSynthesisResult{}, fmt.Errorf("market synthesis result invalid")
-	}
-	if parsed.Confidence == "" {
-		return MarketSynthesisResult{}, fmt.Errorf("market synthesis confidence invalid")
-	}
-	if len([]rune(parsed.Summary)) > 220 {
-		return MarketSynthesisResult{}, fmt.Errorf("market synthesis summary too long (%d chars)", len([]rune(parsed.Summary)))
-	}
+	_ = content
 	return parsed, nil
 }
 

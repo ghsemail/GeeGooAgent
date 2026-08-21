@@ -2,6 +2,7 @@ package premarket
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -102,14 +103,17 @@ func MarketPhaseSteps(market string) []step.Step {
 		Arguments: map[string]any{"market": market, "limit": 8},
 	})
 	steps = append(steps,
-		step.Step{Name: "save_local_report", Tool: "save_local_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
-			bundle := ensureMarketReportBundle(ctx, w, market)
+		step.Step{Name: "save_local_report", Tool: "save_local_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) (map[string]any, error) {
+			bundle, err := ensureMarketReportBundle(ctx, w, market)
+			if err != nil {
+				return nil, err
+			}
 			return map[string]any{
 				"code": fmt.Sprintf("market-%s", market), "content": bundle.Report,
 				"report_type": "market_premarket", "report_date": ReportDateFor(w),
-			}
+			}, nil
 		}},
-		step.Step{Name: "create_market_premarket_report", Tool: "create_market_premarket_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
+		step.Step{Name: "create_market_premarket_report", Tool: "create_market_premarket_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) (map[string]any, error) {
 			return BuildCreateMarketReportArgsContext(ctx, w, market)
 		}},
 		step.Step{Name: "phase_a_complete", Tool: "write_execution_log", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
@@ -147,7 +151,7 @@ type MarketReportBundle struct {
 	Confidence string
 }
 
-// BuildMarketReportContent renders the rule-based draft used as LLM input/fallback.
+// BuildMarketReportContent renders the rule-based draft used as LLM synthesis input.
 func BuildMarketReportContent(w *memory.PreMarketWorking, market string) string {
 	return buildMarketReportDraft(w, market)
 }
@@ -194,7 +198,7 @@ func buildMarketReportDraft(w *memory.PreMarketWorking, market string) string {
 	return strings.Join(lines, "\n")
 }
 
-func ensureMarketReportBundle(ctx context.Context, w *memory.PreMarketWorking, market string) MarketReportBundle {
+func ensureMarketReportBundle(ctx context.Context, w *memory.PreMarketWorking, market string) (MarketReportBundle, error) {
 	market = NormalizeMarket(market)
 	if w.MarketReportSynthesized && strings.TrimSpace(w.MarketReportBody) != "" {
 		return MarketReportBundle{
@@ -202,54 +206,61 @@ func ensureMarketReportBundle(ctx context.Context, w *memory.PreMarketWorking, m
 			Summary:    nonEmptyMarket(w.MarketReportSummary, textutil.PlainSummary(w.MarketReportBody, 200)),
 			Result:     nonEmptyMarket(w.MarketReportResult, "neutral"),
 			Confidence: nonEmptyMarket(w.MarketReportConfidence, "medium"),
-		}
+		}, nil
+	}
+	synth := MarketSynthesizerFrom(ctx)
+	if synth == nil {
+		return MarketReportBundle{}, errors.New("market premarket synthesizer not available")
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	draft := buildMarketReportDraft(w, market)
+	evidence := collectMarketEvidence(w, market)
+	res, err := synth.SynthesizeMarket(ctx, market, draft, w.MarketContext, evidence, templates.LoadMarketReportTemplate())
+	if err != nil {
+		return MarketReportBundle{}, fmt.Errorf("market premarket synthesis: %w", err)
+	}
+	body := strings.TrimSpace(res.Report)
+	summary := strings.TrimSpace(res.Summary)
+	if body == "" {
+		return MarketReportBundle{}, errors.New("market premarket synthesis: empty report")
+	}
+	if summary == "" {
+		return MarketReportBundle{}, errors.New("market premarket synthesis: empty summary")
+	}
+	final := verdict.ArbitrateMarketPreMarket(verdict.MarketPreMarketInput{
+		IndicesDone:         w.MarketContext.IndicesDone,
+		MarketNewsDone:      w.MarketContext.MarketNewsDone,
+		EvidenceCount:       len(evidence),
+		SuggestedResult:     res.Result,
+		SuggestedConfidence: res.Confidence,
+	})
 	bundle := MarketReportBundle{
-		Report:     draft,
-		Summary:    textutil.PlainSummary(draft, 200),
-		Result:     fallbackMarketJudgement(w, market).Result,
-		Confidence: fallbackMarketJudgement(w, market).Confidence,
+		Report:     body,
+		Summary:    summary,
+		Result:     final.Result,
+		Confidence: final.Confidence,
 	}
-	if synth := MarketSynthesizerFrom(ctx); synth != nil {
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		evidence := collectMarketEvidence(w, market)
-		if res, err := synth.SynthesizeMarket(ctx, market, draft, w.MarketContext, evidence, templates.LoadMarketReportTemplate()); err == nil {
-			if body := strings.TrimSpace(res.Report); body != "" {
-				bundle.Report = body
-			}
-			if v := strings.TrimSpace(res.Summary); v != "" {
-				bundle.Summary = v
-			}
-			final := verdict.ArbitrateMarketPreMarket(verdict.MarketPreMarketInput{
-				IndicesDone:         w.MarketContext.IndicesDone,
-				MarketNewsDone:      w.MarketContext.MarketNewsDone,
-				EvidenceCount:       len(evidence),
-				SuggestedResult:     res.Result,
-				SuggestedConfidence: res.Confidence,
-			})
-			bundle.Result = final.Result
-			bundle.Confidence = final.Confidence
-			w.MarketReportSynthesized = true
-		}
-	}
+	w.MarketReportSynthesized = true
 	w.MarketReportBody = bundle.Report
 	w.MarketReportSummary = bundle.Summary
 	w.MarketReportResult = bundle.Result
 	w.MarketReportConfidence = bundle.Confidence
-	return bundle
+	return bundle, nil
 }
 
 // BuildCreateMarketReportArgs builds MCP createMarketPremarketReport body.
-func BuildCreateMarketReportArgs(w *memory.PreMarketWorking, market string) map[string]any {
+func BuildCreateMarketReportArgs(w *memory.PreMarketWorking, market string) (map[string]any, error) {
 	return BuildCreateMarketReportArgsContext(context.Background(), w, market)
 }
 
-// BuildCreateMarketReportArgsContext builds MCP createMarketPremarketReport body with optional LLM synthesis.
-func BuildCreateMarketReportArgsContext(ctx context.Context, w *memory.PreMarketWorking, market string) map[string]any {
-	bundle := ensureMarketReportBundle(ctx, w, market)
+// BuildCreateMarketReportArgsContext builds MCP createMarketPremarketReport body; LLM synthesis is required.
+func BuildCreateMarketReportArgsContext(ctx context.Context, w *memory.PreMarketWorking, market string) (map[string]any, error) {
+	bundle, err := ensureMarketReportBundle(ctx, w, market)
+	if err != nil {
+		return nil, err
+	}
 	market = NormalizeMarket(market)
 	out := map[string]any{
 		"market":      market,
@@ -263,7 +274,7 @@ func BuildCreateMarketReportArgsContext(ctx context.Context, w *memory.PreMarket
 	if bundle.Confidence != "" {
 		out["confidence"] = bundle.Confidence
 	}
-	return out
+	return out, nil
 }
 
 func collectMarketEvidence(w *memory.PreMarketWorking, market string) []memory.EvidenceRef {

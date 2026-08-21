@@ -550,6 +550,7 @@ func encodeWorking(w *PreMarketWorking) map[string]any {
 		stocks[k] = map[string]any{
 			"code": v.Code, "stock_name": v.StockName, "bot_id": v.BotID,
 			"bot_name": v.BotName, "bot_type": v.BotType, "status": v.Status,
+			"last_error": v.LastError,
 			"weekly_analysis_ref": v.WeeklyAnalysisRef, "attitude": v.Attitude,
 			"capital_flow_summary":         v.CapitalFlowSummary,
 			"capital_distribution_summary": v.CapitalDistributionSummary,
@@ -693,6 +694,7 @@ func decodeWorking(data map[string]any) (*PreMarketWorking, error) {
 					Code: code, StockName: str(m, "stock_name"), BotID: str(m, "bot_id"),
 					BotName: str(m, "bot_name"), BotType: str(m, "bot_type"),
 					Status:            strDefault(m, "status", "pending"),
+					LastError:         str(m, "last_error"),
 					WeeklyAnalysisRef: str(m, "weekly_analysis_ref"), Attitude: str(m, "attitude"),
 					CapitalFlowSummary:         str(m, "capital_flow_summary"),
 					CapitalDistributionSummary: str(m, "capital_distribution_summary"),

@@ -45,6 +45,7 @@ type StockWorkspace struct {
 	BotName                    string `json:"bot_name"`
 	BotType                    string `json:"bot_type"`
 	Status                     string `json:"status"`
+	LastError                  string `json:"last_error,omitempty"`
 	WeeklyAnalysisRef          string `json:"weekly_analysis_ref,omitempty"`
 	Attitude                   string `json:"attitude,omitempty"`
 	CapitalFlowSummary         string  `json:"capital_flow_summary,omitempty"`

@@ -14,7 +14,7 @@ var (
 	urlLineRE             = regexp.MustCompile(`(?m)^\s*https?://\S+\s*$`)
 	scientificNumRE       = regexp.MustCompile(`(-?\d+(?:\.\d+)?)[eE]([+-]?\d+)`)
 	mdTableSepRE          = regexp.MustCompile(`(?m)^\|?[\s:-]+\|[\s|:-]+$`)
-	newsNumberPrefixRE    = regexp.MustCompile(`^\d+[\.\)、]?\s*`)
+	newsNumberPrefixRE    = regexp.MustCompile(`^\d{1,2}[\.\)、]\s*`)
 	evidenceRefRE         = regexp.MustCompile(`\[ev_[^\]]*\]`)
 	bareEvidenceRE        = regexp.MustCompile(`\bev_[0-9a-zA-Z]{4,}\b`)
 	corruptEvidenceRE     = regexp.MustCompile(`ev_[0-9a-zA-Z.+亿\-]{6,}`)

@@ -88,6 +88,9 @@ func PersistFromResult(
 	details := detailsFromWorking(result.Working)
 	reported, skipped, failed := countDetails(details)
 	status := batchStatus(reported, skipped, failed, len(details))
+	if rec.Skill == "premarket_market" {
+		status = marketBatchStatus(result)
+	}
 	supervisorVerdict := ""
 	if result.Supervisor != nil {
 		supervisorVerdict = string(result.Supervisor.Verdict)
@@ -175,7 +178,10 @@ func detailsFromWorking(w *memory.PreMarketWorking) []DetailEntry {
 			FinishedAt: now,
 		}
 		if ws.Status == "failed" {
-			entry.Error = "stock workflow failed"
+			entry.Error = strings.TrimSpace(ws.LastError)
+			if entry.Error == "" {
+				entry.Error = "stock workflow failed"
+			}
 		}
 		out = append(out, entry)
 	}
@@ -196,6 +202,22 @@ func batchStatus(reported, skipped, failed, total int) string {
 		return "failed"
 	}
 	return "success"
+}
+
+func marketBatchStatus(result workflow.RunResult) string {
+	if result.Status != "completed" {
+		return "failed"
+	}
+	if result.Working != nil && result.Working.MarketReportSynthesized && strings.TrimSpace(result.Working.MarketReportBody) != "" {
+		return "success"
+	}
+	if strings.TrimSpace(result.LastError) != "" {
+		return "failed"
+	}
+	if result.Supervisor != nil && result.Supervisor.Verdict != "pass" {
+		return "failed"
+	}
+	return "failed"
 }
 
 func countDetails(details []DetailEntry) (reported, skipped, failed int) {

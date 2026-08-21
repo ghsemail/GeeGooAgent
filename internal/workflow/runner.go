@@ -134,6 +134,9 @@ func (r *Runner) RunFrom(
 					if working.Stocks[code].Status != "failed" {
 						ws := working.Stocks[code]
 						ws.Status = "failed"
+						if strings.TrimSpace(errResult.LastError) != "" {
+							ws.LastError = strings.TrimSpace(errResult.LastError)
+						}
 						working.Stocks[code] = ws
 						_ = r.working.Save(working)
 					}
@@ -205,7 +208,13 @@ func (r *Runner) processStep(
 	if err := goCtx.Err(); err != nil {
 		return working, &RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: err.Error()}
 	}
-	result := r.dispatchTool(goCtx, tools.CallRequest{Name: step.Tool, Arguments: step.Args(goCtx, working)}, ctx)
+	stepArgs, argErr := step.Args(goCtx, working)
+	if argErr != nil {
+		recordStockStepError(working, argErr.Error())
+		_ = r.working.Save(working)
+		return working, &RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: argErr.Error()}
+	}
+	result := r.dispatchTool(goCtx, tools.CallRequest{Name: step.Tool, Arguments: stepArgs}, ctx)
 	var err error
 	working, err = r.working.Apply(working, step.Tool, result)
 	if err != nil {
@@ -230,7 +239,7 @@ func (r *Runner) processStep(
 				skip := tools.Result{
 					Status:  tools.StatusSkip,
 					Summary: result.Summary,
-					Data:    step.Args(goCtx, working),
+					Data:    stepArgs,
 				}
 				working, _ = r.working.Apply(working, step.Tool, skip)
 			} else if code != "" {
@@ -256,7 +265,7 @@ func (r *Runner) processStep(
 			if err := goCtx.Err(); err != nil {
 				return working, &RunResult{SessionID: sessionID, Status: "failed", Working: working, LastError: err.Error()}
 			}
-			result2 := r.dispatchTool(goCtx, tools.CallRequest{Name: step.Tool, Arguments: step.Args(goCtx, working)}, ctx)
+			result2 := r.dispatchTool(goCtx, tools.CallRequest{Name: step.Tool, Arguments: stepArgs}, ctx)
 			working, _ = r.working.Apply(working, step.Tool, result2)
 			if result2.Status != tools.StatusError {
 				markStepComplete(working, stepKey(step.Name, step.Tool))
@@ -355,7 +364,10 @@ func optionalStep(step Step) bool {
 }
 
 func indexCodeFromStep(step Step, ctx context.Context, working *memory.PreMarketWorking) string {
-	args := step.Args(ctx, working)
+	args, err := step.Args(ctx, working)
+	if err != nil {
+		return ""
+	}
 	if c, ok := args["code"].(string); ok && c != "" {
 		return c
 	}
@@ -414,8 +426,24 @@ func (a WorkingLoaderAdapter) Load(sessionID string) (map[string]any, error) {
 	if err != nil || w == nil {
 		return nil, err
 	}
-	// reuse memory encode via store save/load roundtrip not ideal - inline minimal
 	return map[string]any{"session_id": w.SessionID, "phase": w.Phase}, nil
+}
+
+func recordStockStepError(working *memory.PreMarketWorking, message string) {
+	if working == nil {
+		return
+	}
+	code := strings.TrimSpace(working.CurrentStock)
+	if code == "" {
+		return
+	}
+	ws, ok := working.Stocks[code]
+	if !ok {
+		return
+	}
+	ws.Status = "failed"
+	ws.LastError = strings.TrimSpace(message)
+	working.Stocks[code] = ws
 }
 
 func str(v any) string {

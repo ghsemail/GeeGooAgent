@@ -10,6 +10,7 @@ import (
 )
 
 func TestBuildCreateReportArgsIncludesSupportResistance(t *testing.T) {
+	ctx := workflow.ContextWithSynthesizer(context.Background(), &happySynthesizer{})
 	w := &memory.PreMarketWorking{
 		MarketReportResult: "neutral",
 		BotCodes:           []memory.BotStock{{Code: "00700.HK", StockName: "腾讯控股"}},
@@ -25,7 +26,10 @@ func TestBuildCreateReportArgsIncludesSupportResistance(t *testing.T) {
 			},
 		},
 	}
-	args := workflow.BuildCreateReportArgsContext(context.Background(), w, "00700.HK")
+	args, err := workflow.BuildCreateReportArgsContext(ctx, w, "00700.HK")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if args["support"] == nil || args["resistance"] == nil {
 		t.Fatalf("support/resistance missing: %+v", args)
 	}
@@ -45,8 +49,7 @@ func TestBuildCreateReportArgsIncludesSupportResistance(t *testing.T) {
 	}
 }
 
-func TestBuildCreateReportArgsSubstantiveFallbackOnSynthError(t *testing.T) {
-	ctx := workflow.ContextWithSynthesizer(context.Background(), &failingSynthesizer{})
+func TestBuildCreateReportArgsFailsWithoutSynthesizer(t *testing.T) {
 	w := &memory.PreMarketWorking{
 		MarketReportResult: "neutral",
 		BotCodes:           []memory.BotStock{{Code: "00700.HK", StockName: "腾讯控股"}},
@@ -58,9 +61,9 @@ func TestBuildCreateReportArgsSubstantiveFallbackOnSynthError(t *testing.T) {
 			},
 		},
 	}
-	args := workflow.BuildCreateReportArgsContext(ctx, w, "00700.HK")
-	if args["suggestion"] != "hold" {
-		t.Fatalf("suggestion=%v want hold", args["suggestion"])
+	_, err := workflow.BuildCreateReportArgsContext(context.Background(), w, "00700.HK")
+	if err == nil {
+		t.Fatal("expected error without synthesizer")
 	}
 }
 

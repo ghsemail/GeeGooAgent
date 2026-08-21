@@ -2,6 +2,7 @@ package workflow_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
@@ -17,8 +18,19 @@ type recordingSynthesizer struct {
 }
 
 func (r *recordingSynthesizer) Synthesize(ctx context.Context, ws memory.StockWorkspace, ev []memory.EvidenceRef, mc memory.MarketContext) (report.SynthesisResult, error) {
-	r.called = true
 	return report.SynthesisResult{}, context.Canceled
+}
+
+func (r *recordingSynthesizer) SynthesizeStockPreMarket(ctx context.Context, ws memory.StockWorkspace, draft string, ev []memory.EvidenceRef, mc memory.MarketContext, marketReportSummary, template string) (report.StockPreMarketSynthesisResult, error) {
+	r.called = true
+	return report.StockPreMarketSynthesisResult{
+		Report:     "## 市场背景\n\nok",
+		Result:     "long",
+		Confidence: "high",
+		Reason:     strings.Repeat("证据引用 ", 20),
+		Suggestion: "hold",
+		Summary:    "ok",
+	}, nil
 }
 
 func TestRunnerInjectsSynthesizerIntoContext(t *testing.T) {
@@ -62,7 +74,7 @@ func TestRunnerInjectsSynthesizerIntoContext(t *testing.T) {
 
 	steps := []workflow.Step{{
 		Name: "create_stock_premarket_report", Tool: "create_stock_premarket_report",
-		ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) map[string]any {
+		ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) (map[string]any, error) {
 			if workflow.SynthesizerFrom(ctx) != rec {
 				t.Fatal("step args ctx missing synthesizer")
 			}

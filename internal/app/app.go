@@ -26,6 +26,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/semantic"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
+	"github.com/ghsemail/GeeGooAgent/internal/opslog"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/skills"
@@ -414,6 +415,7 @@ func (a *App) buildFallbackProviders() []llm.Provider {
 		return nil
 	}
 	var out []llm.Provider
+	out = append(out, a.buildCatalogFallbackProviders()...)
 	for _, fb := range a.Config.LLM.Fallbacks {
 		if strings.TrimSpace(fb.TokenKey) == "" {
 			continue
@@ -428,6 +430,50 @@ func (a *App) buildFallbackProviders() []llm.Provider {
 			continue
 		}
 		out = append(out, p)
+	}
+	return out
+}
+
+func (a *App) buildCatalogFallbackProviders() []llm.Provider {
+	if a == nil || a.Config == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	targets := make([]admin.QueryTarget, 0, len(a.Config.AdminModelQueryTargets()))
+	for _, t := range a.Config.AdminModelQueryTargets() {
+		targets = append(targets, admin.QueryTarget{BaseURL: t.BaseURL, Bearer: t.Bearer})
+	}
+	view, err := admin.QueryModelRuntimeConfigFromTargets(ctx, targets)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "警告: 拉取运营备选模型失败: %v\n", err)
+		return nil
+	}
+	var out []llm.Provider
+	for _, doc := range view.FallbackModels {
+		if strings.TrimSpace(doc.Token) == "" {
+			continue
+		}
+		providerName := strings.TrimSpace(doc.Provider)
+		if providerName == "" {
+			providerName = llm.InferProviderFromNames(doc.DisplayName, doc.Name)
+		}
+		modelName := strings.TrimSpace(doc.Name)
+		if modelName == "" {
+			modelName = strings.TrimSpace(doc.DisplayName)
+		}
+		p, err := llm.BuildProviderFromLLMFields(
+			providerName, doc.Token, modelName,
+			nil, "", doc.BaseURL, nil,
+		)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "警告: 运营备选模型跳过 (%s): %v\n", modelName, err)
+			continue
+		}
+		out = append(out, p)
+	}
+	if len(out) > 0 {
+		fmt.Fprintf(os.Stderr, "LLM: 已加载 %d 个运营备选模型\n", len(out))
 	}
 	return out
 }
@@ -723,6 +769,18 @@ func (a *App) runSkillWithSteps(ctx context.Context, skill string, phaseA, perSt
 	}
 	result := a.Workflow.Run(sessionID, skill, phaseA, perStock, toolCtx, working)
 	a.emitSkillRunResult(sessionID, skill, result)
+	if skill == "premarket_market" {
+		reportDate := opts.ReportDate
+		if result.Working != nil && strings.TrimSpace(result.Working.ReportDate) != "" {
+			reportDate = strings.TrimSpace(result.Working.ReportDate)
+		}
+		rec := opslog.NewRunRecorder(skill, opts.Market, "", result.SessionID, reportDate)
+		skipReason := ""
+		if result.Status != "completed" || strings.TrimSpace(result.LastError) != "" {
+			skipReason = "workflow_error"
+		}
+		a.persistReportGenerationLog(ctx, rec, result, false, skipReason)
+	}
 	return result, nil
 }
 

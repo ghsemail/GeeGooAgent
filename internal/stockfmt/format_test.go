@@ -32,6 +32,13 @@ func TestFormatStockNews(t *testing.T) {
 	}
 }
 
+func TestNormalizeNewsTitlePreservesYearDate(t *testing.T) {
+	title := normalizeNewsTitle("2026年8月20日，中国中车发布2026年中报", "中国中车")
+	if !strings.HasPrefix(title, "2026年8月20日") {
+		t.Fatalf("year date stripped: %q", title)
+	}
+}
+
 func TestPolishStockNewsSection(t *testing.T) {
 	in := `**新闻综述**：1. 中国中车:公告一；2. 中国中车:公告二；3. 中国中车:公告三
 - 1. 中国中车:公告一
