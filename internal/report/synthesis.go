@@ -39,7 +39,7 @@ type Synthesizer struct {
 // provider drives the actual model. timeout caps the LLM call.
 func NewSynthesizer(gateway *llm.Gateway, model string) *Synthesizer {
 	return &Synthesizer{
-		gateway: gateway, model: model, timeout: 60 * time.Second, maxTokens: 1024,
+		gateway: gateway, model: model, timeout: 180 * time.Second, maxTokens: 1024,
 	}
 }
 

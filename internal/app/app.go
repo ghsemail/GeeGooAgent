@@ -553,6 +553,32 @@ func (a *App) buildFallbackProviders() []llm.Provider {
 	return a.buildChatFallbackProviders()
 }
 
+// opsBackgroundProvider returns the ops 主备 provider for non-chat LLM tasks.
+func (a *App) opsBackgroundProvider() llm.Provider {
+	if a != nil && a.SynthesisGateway != nil {
+		return llm.ProviderFromGateway(a.SynthesisGateway)
+	}
+	if a == nil || a.Config == nil {
+		return nil
+	}
+	aux := a.Config.EffectiveAuxiliaryCompression()
+	provider, err := llm.BuildProviderFromLLMFields(aux.Provider, aux.TokenKey, aux.Model, nil, "", aux.BaseURL, nil)
+	if err != nil {
+		return nil
+	}
+	return provider
+}
+
+func (a *App) opsBackgroundPolicy() llm.Policy {
+	if a != nil && a.SynthesisGateway != nil {
+		return a.SynthesisGateway.Policy()
+	}
+	if a != nil && a.Gateway != nil {
+		return a.Gateway.Policy()
+	}
+	return llm.NewConfigPolicy(llm.ConfigPolicyInput{})
+}
+
 func (a *App) wireChatMemory() {
 	if a == nil {
 		return
@@ -568,18 +594,13 @@ func (a *App) wireChatMemory() {
 			model = a.Config.LLM.Model
 		}
 		cfg.ContextLength = llm.ResolveContextWindow(model, a.Config.Compression.ContextLength)
-		aux := a.Config.EffectiveAuxiliaryCompression()
-		provider, err := llm.BuildProviderFromLLMFields(aux.Provider, aux.TokenKey, aux.Model, nil, "", aux.BaseURL, nil)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "警告: 上下文压缩未启用: %v\n", err)
+		provider := a.opsBackgroundProvider()
+		if provider == nil {
+			fmt.Fprintf(os.Stderr, "警告: 上下文压缩未启用: ops background provider unavailable\n")
 		} else {
-			var policy llm.Policy
-			if a.Gateway != nil {
-				policy = a.Gateway.Policy()
-			}
 			compressor = prompt.NewCompressor(cfg, &prompt.ProviderSummarizer{
 				Provider: provider,
-				Policy:   policy,
+				Policy:   a.opsBackgroundPolicy(),
 			})
 		}
 	}
@@ -603,12 +624,12 @@ func (a *App) wireChatMemory() {
 		}
 		a.setMemory(ad)
 		a.wireRecallRanker()
-	a.wireProceduralMemory()
-	a.wireConsolidator()
-	a.wireRetrievalGate()
-	return
-}
-ad := memory.NewAdapter(memory.AdapterConfig{
+		a.wireProceduralMemory()
+		a.wireConsolidator()
+		a.wireRetrievalGate()
+		return
+	}
+	ad := memory.NewAdapter(memory.AdapterConfig{
 		Compressor: compressor,
 		Sessions:   sessions,
 		Evidence:   a.Evidence,
@@ -627,16 +648,11 @@ func (a *App) wireRetrievalGate() {
 	if a == nil || a.Config == nil || a.Agent == nil {
 		return
 	}
-	aux := a.Config.EffectiveAuxiliaryCompression()
-	provider, err := llm.BuildProviderFromLLMFields(aux.Provider, aux.TokenKey, aux.Model, nil, "", aux.BaseURL, nil)
-	if err != nil {
+	provider := a.opsBackgroundProvider()
+	if provider == nil {
 		return
 	}
-	var policy llm.Policy
-	if a.Gateway != nil {
-		policy = a.Gateway.Policy()
-	}
-	a.Agent.SetRetrievalGate(provider, policy, 4)
+	a.Agent.SetRetrievalGate(provider, a.opsBackgroundPolicy(), 4)
 }
 
 func (a *App) wireProceduralMemory() {
@@ -660,18 +676,13 @@ func (a *App) wireConsolidator() {
 	if a == nil || a.Config == nil {
 		return
 	}
-	aux := a.Config.EffectiveAuxiliaryCompression()
-	provider, err := llm.BuildProviderFromLLMFields(aux.Provider, aux.TokenKey, aux.Model, nil, "", aux.BaseURL, nil)
-	if err != nil {
+	provider := a.opsBackgroundProvider()
+	if provider == nil {
 		return
-	}
-	var policy llm.Policy
-	if a.Gateway != nil {
-		policy = a.Gateway.Policy()
 	}
 	a.Consolidator = &consolidation.Distiller{
 		Provider: provider,
-		Policy:   policy,
+		Policy:   a.opsBackgroundPolicy(),
 		Facts:    a.Facts,
 		Episodic: a.Episodic,
 		EveryN:   3,
