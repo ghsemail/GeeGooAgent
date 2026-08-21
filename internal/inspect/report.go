@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/app"
+	"github.com/ghsemail/GeeGooAgent/internal/chatprompt"
+	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 	"github.com/ghsemail/GeeGooAgent/internal/verify"
 )
@@ -26,7 +28,14 @@ type Report struct {
 	Skills           []string
 	ProceduralSkills []ProceduralSkillSection
 	Runtime    RuntimeSection
+	ContextProfiles ContextProfilesSection
 	Verify     []string
+}
+
+type ContextProfilesSection struct {
+	LoadedCount int
+	MergedBytes int
+	Paths       []string
 }
 
 type LLMSection struct {
@@ -125,6 +134,20 @@ func Build(application *app.App, opts Options) Report {
 	}
 	if application.MCP != nil && cfg != nil {
 		r.Runtime.MCPBase = maskURL(cfg.EffectiveMCPURL())
+	}
+	home := config.Home()
+	userID := ""
+	if cfg != nil {
+		userID = cfg.UserMCPToken // not user id - use empty for global inspect
+	}
+	_ = userID
+	merge := chatprompt.InspectProfiles(home, "", nil, chatprompt.DefaultProfileLimits())
+	for _, p := range merge.Profiles {
+		if !p.Missing {
+			r.ContextProfiles.Paths = append(r.ContextProfiles.Paths, p.Path)
+			r.ContextProfiles.MergedBytes += p.Bytes
+			r.ContextProfiles.LoadedCount++
+		}
 	}
 	if application.Registry != nil {
 		r.Tools.Registered = len(application.Registry.ListNames())
@@ -230,6 +253,12 @@ func FormatText(r Report) string {
 	b.WriteString(fmt.Sprintf("  gateway: %v  mcp: %s\n", r.Runtime.GatewayConfigured, r.Runtime.MCPBase))
 	if r.Runtime.OutputDir != "" {
 		b.WriteString(fmt.Sprintf("  output_dir: %s\n", r.Runtime.OutputDir))
+	}
+	b.WriteByte('\n')
+	b.WriteString("[Context Profiles]\n")
+	b.WriteString(fmt.Sprintf("  loaded: %d  merged_bytes: %d\n", r.ContextProfiles.LoadedCount, r.ContextProfiles.MergedBytes))
+	for _, p := range r.ContextProfiles.Paths {
+		b.WriteString("  " + p + "\n")
 	}
 	if len(r.Verify) > 0 {
 		b.WriteByte('\n')

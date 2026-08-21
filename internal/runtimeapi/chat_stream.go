@@ -24,9 +24,10 @@ const (
 )
 
 type chatStreamRequest struct {
-	Message   string `json:"message"`
-	SessionID string `json:"session_id"`
-	MCPToken  string `json:"mcp_token"`
+	Message          string   `json:"message"`
+	SessionID        string   `json:"session_id"`
+	MCPToken         string   `json:"mcp_token"`
+	ContextProfiles  []string `json:"context_profiles,omitempty"`
 }
 
 type chatTurnEndPayload struct {
@@ -82,6 +83,13 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	if code != http.StatusOK {
 		writeError(w, code, msg)
 		return
+	}
+	if len(req.ContextProfiles) > 0 {
+		chatsession.SetContextProfiles(chat, chatsession.MergeContextProfiles(
+			chatsession.ContextProfilesFromSession(chat),
+			req.ContextProfiles,
+		))
+		_ = store.Save(chat)
 	}
 
 	setSessionSSEHeaders(w)

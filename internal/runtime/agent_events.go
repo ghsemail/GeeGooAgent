@@ -3,6 +3,8 @@ package runtime
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/ghsemail/GeeGooAgent/internal/runtime/events"
 )
 
 // AgentEventSchemaVersion is the NDJSON agent progress schema version.
@@ -12,6 +14,7 @@ const AgentEventSchemaVersion = 1
 type AgentEvent struct {
 	SchemaVersion int            `json:"schema_version"`
 	Event         string         `json:"event"`
+	ItemType      string         `json:"item_type,omitempty"`
 	Ts            string         `json:"ts"`
 	Data          map[string]any `json:"data,omitempty"`
 }
@@ -38,7 +41,9 @@ func (e AgentEvent) EncodeLine() ([]byte, error) {
 	return append(raw, '\n'), nil
 }
 
-// ProgressToAgentEvent maps legacy EmitProgress names to AgentEvent (passthrough data).
+// ProgressToAgentEvent maps legacy EmitProgress names to AgentEvent with item_type.
 func ProgressToAgentEvent(event string, data map[string]any) AgentEvent {
-	return NewAgentEvent(event, data)
+	e := NewAgentEvent(event, data)
+	e.ItemType = events.ItemTypeForEvent(event)
+	return e
 }

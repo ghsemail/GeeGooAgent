@@ -5,7 +5,8 @@
 | 文档 | 内容 |
 |------|------|
 | **[agent-loop/](./agent-loop/)** | **Agent Loop 专项对标**（先 Hermes，再 Grok Build） |
-| [agent-loop/optimization-roadmap.md](./agent-loop/optimization-roadmap.md) | Agent Loop **优化方案**（分阶段路线图） |
+| [agent-loop/codex-inspired-roadmap.md](./agent-loop/codex-inspired-roadmap.md) | **Codex 借鉴优化方案**（P1–P3 排期与验收） |
+| [agent-loop/optimization-roadmap.md](./agent-loop/optimization-roadmap.md) | Agent Loop **优化方案**（Hermes/Grok 分阶段路线图） |
 | [agent-loop/hermes.md](./agent-loop/hermes.md) | GeeGooAgent × Hermes Agent — ReAct 循环、压缩、子 Agent、优劣 |
 | [agent-loop/grok-build.md](./agent-loop/grok-build.md) | GeeGooAgent × Grok Build — harness、Plan mode、并行子 Agent、Headless |
 | [grok-build.md](./grok-build.md) | [Grok Build](https://github.com/xai-org/grok-build) 功能清单与架构要点 |
@@ -19,17 +20,20 @@
 | **GeeGooAgent** | Go | 金融盘前/盘中/盘后工作流、MCP 工具编排、可审计报告 | ✅ |
 | **Hermes Agent** | Python | 通用多平台 Agent（IM、插件、70+ 工具） | ✅ |
 | **Grok Build** | Rust | 终端编码 Agent（TUI / Headless / ACP） | ✅（Apache 2.0，不接受外部 PR） |
+| **OpenAI Codex** | Rust | 终端/IDE 编码 Agent（app-server / MCP） | ✅（Apache 2.0） |
 
 ## 阅读建议
 
 1. 若只关心 **Agent Loop 机制** → 进入 [agent-loop/](./agent-loop/)：先 [hermes.md](./agent-loop/hermes.md)，再 [grok-build.md](./agent-loop/grok-build.md)。
-2. 若需要 **落地优化计划** → [agent-loop/optimization-roadmap.md](./agent-loop/optimization-roadmap.md)。
-2. 若关心 **编码工作流**（Plan、多文件编辑、Git、CI Headless）→ 先看 [grok-build.md](./grok-build.md)，再查 [comparison.md](./comparison.md) 编码类行。
-3. 若关心 **GeeGoo 与 Hermes 对齐度（含 P1–P8 交付）** → 以 [hermes-parity-comparison.md](../../deploy/hermes-parity-comparison.md) 为准；loop 细节见 [agent-loop/hermes.md](./agent-loop/hermes.md)。
-4. 实现状态以 [implementation-status.md](../architecture/implementation-status.md) 与代码为准；对标文档可能滞后于发版。
+2. 若需要 **Codex harness 借鉴排期（P1–P3）** → [agent-loop/codex-inspired-roadmap.md](./agent-loop/codex-inspired-roadmap.md)。
+3. 若需要 **Hermes/Grok 落地计划** → [agent-loop/optimization-roadmap.md](./agent-loop/optimization-roadmap.md)。
+4. 若关心 **编码工作流**（Plan、多文件编辑、Git、CI Headless）→ 先看 [grok-build.md](./grok-build.md)，再查 [comparison.md](./comparison.md) 编码类行。
+5. 若关心 **GeeGoo 与 Hermes 对齐度（含 P1–P8 交付）** → 以 [hermes-parity-comparison.md](../../deploy/hermes-parity-comparison.md) 为准；loop 细节见 [agent-loop/hermes.md](./agent-loop/hermes.md)。
+6. 实现状态以 [implementation-status.md](../architecture/implementation-status.md) 与代码为准；对标文档可能滞后于发版。
 
 ## 外部链接
 
 - Grok Build 仓库：<https://github.com/xai-org/grok-build>
 - Grok Build 文档：<https://docs.x.ai/build/overview>
+- OpenAI Codex 仓库：<https://github.com/openai/codex>
 - Hermes Agent 架构：<https://hermes-agent.nousresearch.com/docs/zh-Hans/developer-guide/architecture>

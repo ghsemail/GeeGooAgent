@@ -12,7 +12,7 @@
 | **Tools**（L2） | [../L2-tools/README.md](../L2-tools/README.md) | `internal/tools` | 82 注册 |
 | 入口点 | [entrypoints.md](../../entrypoints.md) | `cmd/geegoo` | ✅ |
 | 触发 | [triggers.md](./triggers.md) | scheduler + CLI | ✅ |
-| Rules & Prompts | [rules-prompts.md](./rules-prompts.md) | `chatprompt`, `rules/` | ✅ |
+| Rules & Prompts | [rules-prompts.md](./rules-prompts.md) | `chatprompt`, `rules/`, Context Profile | Soul ✅ · AGENTS.md 📋 P1-4 |
 | Subagent | [subagents.md](./subagents.md) | — | ❌ 未实现 |
 
 ## 运行模式

@@ -27,6 +27,10 @@ func main() {
 		runDoctor(os.Args[2:])
 	case "inspect":
 		runInspect(os.Args[2:])
+	case "exec":
+		runExec(os.Args[2:])
+	case "mcp":
+		runMCP(os.Args[2:])
 	case "chat":
 		runChat(os.Args[2:])
 	case "run":
@@ -74,6 +78,8 @@ Usage:
   %s resume --session ID [--config PATH] [--dry-run]
   %s doctor [--config PATH]
   %s inspect [--config PATH] [--quick] [--session ID]
+  %s exec -p "..." [--config PATH] [--session ID] [--output-format ndjson|text] [--dry-run]
+  %s mcp serve [--config PATH] [--toolset chat|workflow] [--dry-run]
   %s chat [--config PATH] [--dry-run] [--message TEXT] [--output-format text|ndjson] [--session ID] [--tui|--cli]
   %s run <skill> [--config PATH] [--dry-run]
   %s migrate [--config PATH] [--from file|sqlite] [--to sqlite|postgres] [--dry-run]
@@ -85,5 +91,5 @@ Usage:
   %s verify --codes CODES [--date YYYY-MM-DD] [--config PATH]
   %s verify agent-loop [--config PATH]
 
-`, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
+`, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
 }

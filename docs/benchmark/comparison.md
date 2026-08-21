@@ -58,8 +58,8 @@
 | Skill 触发 | 调度器 / CLI 显式 | 自动匹配 + 命名调用 | 任务匹配或按名调用 |
 | **Hooks** | ✅ `config.hooks` tool_before/after | ⚠️ 插件生态 | ✅ 文件编辑、工具调用脚本 |
 | **Plugins** | ❌ YAGNI | ✅ | ✅ + Marketplace 打包分发 |
-| 项目规则文件 | ⚠️ `rules/` + `prompts/`（非 AGENTS.md） | ⚠️ 项目配置 | ✅ **AGENTS.md** + CLAUDE.md + Cursor 兼容 |
-| 目录级 AGENTS.md | ❌ | ❌ | ✅ |
+| 项目规则文件 | ⚠️ `rules/` + `SOUL.md`；Context Profile（AGENTS.md）📋 P1-4 | ⚠️ 项目配置 | ✅ **AGENTS.md** + CLAUDE.md + Cursor 兼容 |
+| 目录级 / 多上下文规则 | 📋 每用户多 Profile（stock/bot/strategy）P1-4+ | ❌ | ✅ 按 repo 目录 |
 | `inspect` 式配置发现 | ✅ `geegoo inspect` + `doctor` | — | ✅ `grok inspect` 全量发现 |
 
 ## 五、工具与 MCP
@@ -150,13 +150,20 @@
 | P2 | Plan 门控（mutating） | ✅ `plan_gate` |
 | P2 | Hooks（审计） | ✅ `config.hooks` |
 | P3 | 并行 `delegate_tasks` | ✅ `delegate_max_parallel` |
-| P3 | AGENTS.md 加载 | ❌ 仍用 `rules/` |
+| P3 | Context Profile（AGENTS.md，按用户/股/Bot） | 📋 P1-4 / P1-4+，见 [codex-inspired-roadmap.md](./agent-loop/codex-inspired-roadmap.md) |
 | — | 文件编辑 / Git / 编码 Plan mode | **不做** |
 
-## 十二、参考链接
+## 十二、Codex 借鉴排期
+
+GeeGooAgent × OpenAI Codex 的 **P1–P3 落地方案**（Context Fragments、事件协议、`geegoo exec`、MCP Server 等）见：
+
+- [agent-loop/codex-inspired-roadmap.md](./agent-loop/codex-inspired-roadmap.md)
+
+## 十三、参考链接
 
 | 项目 | 链接 |
 |------|------|
+| OpenAI Codex | <https://github.com/openai/codex> |
 | Grok Build | <https://github.com/xai-org/grok-build> |
 | Grok 文档 | <https://docs.x.ai/build/overview> |
 | Hermes 架构 | <https://hermes-agent.nousresearch.com/docs/zh-Hans/developer-guide/architecture> |

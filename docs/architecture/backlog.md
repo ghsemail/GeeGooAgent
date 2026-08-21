@@ -44,7 +44,15 @@ Agent Runtime 控制面改造（Cognition / Model Policy / Memory port / Advisor
 
 ---
 
+## Codex 借鉴路线图（P1–P3）
+
+Harness 层优化（Context Fragments、Turn/Item 事件、`geegoo exec`、MCP Server、Cost 等）见专用排期文档，**不重复列在本表**：
+
+- [../benchmark/agent-loop/codex-inspired-roadmap.md](../benchmark/agent-loop/codex-inspired-roadmap.md)
+
+与本 backlog 的对应：Cost Manager、Webhook、IDE 扩展、OTel 在 Codex 方案中有具体 Phase；落地后从此文件删除对应行。
+
 ## 维护约定
 
 - 新能力**落地后**：更新 [implementation-status.md](./implementation-status.md) 与相关层 README，并从本文件删除对应行。
-- 新规划项**只加在本文件**，不再新建「改造计划 / Phase 路线图」类中间文档。
+- Harness 专项排期写在 `docs/benchmark/agent-loop/`；平台待办仍在本文件。

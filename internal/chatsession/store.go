@@ -152,11 +152,16 @@ func (s *ChatSessionStore) ListIndexedSessions() ([]ChatSessionIndexEntry, error
 // would break DeepSeek/OpenAI prefix caching. Dynamic context is injected by
 // RuntimeMessages at LLM-call time instead.
 func (c *ChatSession) SyncChatSystemPrompt() {
+	content := chatprompt.SystemForSession(
+		UserIDFromSession(c),
+		ContextProfilesFromSession(c),
+		chatprompt.DefaultProfileLimits(),
+	)
 	if len(c.Messages) > 0 && c.Messages[0].Role == llm.RoleSystem {
-		c.Messages[0].Content = chatprompt.SystemForUser(UserIDFromSession(c))
+		c.Messages[0].Content = content
 		return
 	}
-	c.Messages = append([]llm.Message{{Role: llm.RoleSystem, Content: chatprompt.SystemForUser(UserIDFromSession(c))}}, c.Messages...)
+	c.Messages = append([]llm.Message{{Role: llm.RoleSystem, Content: content}}, c.Messages...)
 }
 
 // ToolActivitySummary lists market-related tools already called in this chat.

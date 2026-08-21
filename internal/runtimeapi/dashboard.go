@@ -261,6 +261,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		"episodes": episodes, "skills": skillsOut, "procedural_memory": proceduralMemory,
 		"calendar": calendar, "outbox": []map[string]any{},
 		"soul": soulTextForDashboard(firstNonEmpty(home, config.Home()), userID),
+		"context_profiles": h.buildContextProfilesSummary(userID),
 		"consolidate_every": 4, "chat_pending": 0, "tools": toolsPayload,
 		"db": h.buildDBMeta(), "doctor_ok": doctorOK, "doctor_checks": doctorChecks,
 		"eval_report": nil, "eval_history": []map[string]any{},
