@@ -29,22 +29,12 @@ func (p *gatewayProvider) Chat(
 	ctx context.Context,
 	messages []Message,
 	tools []ToolSchema,
-	temperature float64,
-	maxTokens int,
+	_ float64,
+	_ int,
 ) (*Response, error) {
 	if p == nil || p.gw == nil {
 		return nil, fmt.Errorf("gateway provider not configured")
 	}
-	meta := CallMetaFrom(ctx)
-	if meta.Kind == "" {
-		meta.Kind = TaskCompress
-	}
-	if temperature > 0 {
-		meta.Temperature = temperature
-	}
-	if maxTokens > 0 {
-		meta.MaxTokens = maxTokens
-	}
-	ctx = WithCallMeta(ctx, meta)
+	ctx = WithCallMeta(ctx, CallMeta{Kind: TaskCompress})
 	return p.gw.Chat(ctx, messages, tools, "", 0)
 }
