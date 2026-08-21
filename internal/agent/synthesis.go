@@ -10,9 +10,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
-// ReportSynthesizer runs evidence-only LLM report synthesis through the same
-// gateway as the ReAct loop. Implements workflow.SynthesizerProvider when
-// passed from app wiring.
+// ReportSynthesizer runs evidence-only LLM report synthesis via the ops 主备 gateway.
 type ReportSynthesizer struct {
 	inner *report.Synthesizer
 	bus   tools.EventEmitter
@@ -29,7 +27,7 @@ func NewReportSynthesizer(gateway *llm.Gateway, model string, bus tools.EventEmi
 	}
 }
 
-// SetGateway keeps synthesis on the same gateway as Agent.Run after /model.
+// SetGateway swaps the synthesis LLM gateway (ops 主备; not affected by chat /model).
 func (s *ReportSynthesizer) SetGateway(gateway *llm.Gateway) {
 	if s == nil || s.inner == nil {
 		return

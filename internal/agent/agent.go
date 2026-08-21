@@ -87,7 +87,7 @@ func (a *Agent) SetRetrievalGate(provider llm.Provider, policy llm.Policy, topK 
 	}
 }
 
-// SetGateway swaps the LLM gateway and keeps the owned loop in sync.
+// SetGateway swaps the chat LLM gateway (dialogue only; report synthesis uses a separate gateway).
 func (a *Agent) SetGateway(g *llm.Gateway) {
 	if a == nil {
 		return
@@ -95,9 +95,6 @@ func (a *Agent) SetGateway(g *llm.Gateway) {
 	a.Gateway = g
 	if a.Loop != nil {
 		a.Loop.SetGateway(g)
-	}
-	if a.reportSynth != nil {
-		a.reportSynth.SetGateway(g)
 	}
 }
 
@@ -222,15 +219,12 @@ func (a *Agent) SetEventBus(bus tools.EventEmitter) {
 	}
 }
 
-// SetReportSynthesizer wires workflow report LLM synthesis (shared gateway).
+// SetReportSynthesizer wires workflow report LLM synthesis (ops 主备 gateway).
 func (a *Agent) SetReportSynthesizer(s *ReportSynthesizer) {
 	if a == nil {
 		return
 	}
 	a.reportSynth = s
-	if a.Gateway != nil && s != nil {
-		s.SetGateway(a.Gateway)
-	}
 }
 
 // ReportSynthesizer returns the evidence-only report synthesizer.

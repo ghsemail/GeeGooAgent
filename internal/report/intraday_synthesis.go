@@ -36,12 +36,14 @@ func (s *Synthesizer) SynthesizeIntraday(
 	defer cancel()
 
 	prompt := buildIntradaySynthesisPrompt(ws, draft, ruleResult, ruleConfidence)
-	callCtx := llm.WithCallMeta(cctx, llm.CallMeta{Kind: llm.TaskSynthesis})
-	resp, err := s.gateway.Chat(callCtx, prompt, nil, "", 0)
+	content, _, err := s.chatSynthesis(cctx, prompt, func(body string) error {
+		_, err := parseIntradaySynthesisJSON(body)
+		return err
+	})
 	if err != nil {
 		return IntradaySynthesisResult{}, fmt.Errorf("intraday synthesis LLM call: %w", err)
 	}
-	content := strings.TrimSpace(resp.Content)
+	content = strings.TrimSpace(content)
 	if content == "" {
 		return IntradaySynthesisResult{}, fmt.Errorf("intraday synthesis returned empty content")
 	}

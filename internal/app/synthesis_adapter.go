@@ -11,7 +11,14 @@ func (a *App) wireSynthesizer() {
 		}
 		return
 	}
-	synth := agent.NewReportSynthesizer(a.Gateway, a.EffectiveLLMModel(), a.EventBus)
+	if a.SynthesisGateway == nil {
+		a.Agent.SetReportSynthesizer(nil)
+		if a.Workflow != nil {
+			a.Workflow.SetSynthesizer(nil)
+		}
+		return
+	}
+	synth := agent.NewReportSynthesizer(a.SynthesisGateway, a.EffectiveSynthesisModel(), a.EventBus)
 	a.Agent.SetReportSynthesizer(synth)
 	if a.Workflow != nil {
 		a.Workflow.SetSynthesizer(synth)

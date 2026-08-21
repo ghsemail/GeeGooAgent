@@ -39,12 +39,13 @@ func TestReportSynthesizerEmitsEvents(t *testing.T) {
 	}
 }
 
-func TestAgentSetGatewayUpdatesReportSynthesizer(t *testing.T) {
+func TestAgentSetGatewayDoesNotUpdateReportSynthesizer(t *testing.T) {
 	initial := llm.NewGateway(&llm.MockProvider{Responses: []*llm.Response{{Content: "x"}}}, llm.GatewayConfig{MaxRetries: 1})
+	synthGW := llm.NewGateway(&llm.MockProvider{Responses: []*llm.Response{{Content: `{"reason":"` + strings.Repeat("a", 80) + `","suggestion":"hold","summary":"持有"}`}}}, llm.GatewayConfig{MaxRetries: 1})
 	replacement := llm.NewGateway(&llm.MockProvider{Responses: []*llm.Response{{Content: "y"}}}, llm.GatewayConfig{MaxRetries: 1})
 	registry := tools.NewRegistry()
 	a := agent.New(initial, runtime.NewExecutor(registry), registry)
-	synth := agent.NewReportSynthesizer(initial, "m1", nil)
+	synth := agent.NewReportSynthesizer(synthGW, "m1", nil)
 	a.SetReportSynthesizer(synth)
 	a.SetGateway(replacement)
 	if a.Gateway != replacement {

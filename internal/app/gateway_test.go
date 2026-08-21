@@ -33,9 +33,6 @@ func TestRebuildGatewayUpdatesAgentGateway(t *testing.T) {
 	if application.Agent.Gateway != application.Gateway {
 		t.Fatal("agent gateway was not synchronized")
 	}
-	if application.Agent.ReportSynthesizer() == nil {
-		t.Fatal("report synthesizer not wired")
-	}
 }
 
 func boolPtr(v bool) *bool {

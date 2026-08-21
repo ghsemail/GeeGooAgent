@@ -37,12 +37,14 @@ func (s *Synthesizer) SynthesizePostMarketSummaries(
 	defer cancel()
 
 	prompt := buildPostMarketSynthesisPrompt(ws, draft, sessionBias, vsPreMarket, ruleMarket, ruleTrade, ruleExperience)
-	callCtx := llm.WithCallMeta(cctx, llm.CallMeta{Kind: llm.TaskSynthesis})
-	resp, err := s.gateway.Chat(callCtx, prompt, nil, "", 0)
+	content, _, err := s.chatSynthesis(cctx, prompt, func(body string) error {
+		_, err := parsePostMarketSynthesisJSON(body)
+		return err
+	})
 	if err != nil {
 		return PostMarketSynthesisResult{}, fmt.Errorf("postmarket synthesis LLM call: %w", err)
 	}
-	content := strings.TrimSpace(resp.Content)
+	content = strings.TrimSpace(content)
 	if content == "" {
 		return PostMarketSynthesisResult{}, fmt.Errorf("postmarket synthesis returned empty content")
 	}

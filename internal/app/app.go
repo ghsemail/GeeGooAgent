@@ -43,6 +43,7 @@ type App struct {
 	MCP         *mcp.Client
 	Registry    *tools.Registry
 	Gateway     *llm.Gateway
+	SynthesisGateway *llm.Gateway
 	Executor    *runtime.Executor
 	Workflow    *workflow.Runner
 	Working     *memory.WorkingStore
@@ -243,20 +244,27 @@ func vectorEnabled() bool {
 	return v == "1" || v == "true" || v == "yes"
 }
 
-// RebuildGateway recreates the LLM gateway from current config (after /think or /model).
-// When llm.use_ops_model is true/nil, prefers ops configured model from Signal catalog/admin.
+// RebuildGateway recreates chat and synthesis LLM gateways.
+// Chat uses local config (catalog_model_id + config.json fallbacks).
+// Report synthesis (盘前/盘中/盘后) uses ops model-management 主备.
 func (a *App) RebuildGateway() error {
 	if a == nil || a.Config == nil {
 		return fmt.Errorf("app not configured")
 	}
-	gw, resolved, err := a.BuildGatewayFromLLMConfig(a.Config.LLM, true)
+	chatGW, resolved, err := a.BuildChatGatewayFromLLMConfig(a.Config.LLM, true)
 	if err != nil {
 		return err
 	}
 	if resolved != nil {
 		a.syncLLMConfigFromResolved(resolved.provider, resolved.tokenKey, resolved.model, resolved.baseURL)
 	}
-	a.Gateway = gw
+	synthGW, err := a.BuildSynthesisGatewayFromOps(a.Config.LLM)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "警告: 报告合成 Gateway 未就绪（盘前/盘中/盘后将不可用）: %v\n", err)
+		synthGW = nil
+	}
+	a.Gateway = chatGW
+	a.SynthesisGateway = synthGW
 	if a.Agent != nil {
 		a.Agent.SetGateway(a.Gateway)
 	}
@@ -269,8 +277,60 @@ type resolvedLLMFields struct {
 	provider, tokenKey, model, baseURL string
 }
 
-// BuildGatewayFromLLMConfig builds a gateway from cfg without mutating a.Config unless syncGlobal is true.
+// BuildChatGatewayFromLLMConfig builds the dialogue gateway from agent-local LLM config.
+// Does not use ops model-management; optional catalog_model_id still resolves from catalog-api.
+func (a *App) BuildChatGatewayFromLLMConfig(cfg config.LLMConfig, syncGlobal bool) (*llm.Gateway, *resolvedLLMFields, error) {
+	return a.buildGatewayFromLLMConfig(cfg, syncGlobal, false)
+}
+
+// BuildSynthesisGatewayFromOps builds the report-synthesis gateway from ops 主备.
+func (a *App) BuildSynthesisGatewayFromOps(cfg config.LLMConfig) (*llm.Gateway, error) {
+	if a == nil || a.Config == nil {
+		return nil, fmt.Errorf("app not configured")
+	}
+	providerName := cfg.Provider
+	tokenKey := cfg.TokenKey
+	model := cfg.Model
+	baseURL := strings.TrimSpace(cfg.BaseURL)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	targets := make([]admin.QueryTarget, 0, len(a.Config.AdminModelQueryTargets()))
+	for _, t := range a.Config.AdminModelQueryTargets() {
+		targets = append(targets, admin.QueryTarget{BaseURL: t.BaseURL, Bearer: t.Bearer})
+	}
+	doc, src, err := admin.QueryConfiguredFromTargets(ctx, targets...)
+	if err != nil {
+		return nil, fmt.Errorf("query ops configured model: %w", err)
+	}
+	a.applyCatalogModelDoc(&doc, &providerName, &tokenKey, &model, &baseURL)
+	fmt.Fprintf(os.Stderr, "LLM synthesis: 主模型 model=%s base_url=%s from %s\n", model, baseURL, src)
+
+	provider, err := llm.BuildProviderFromLLMFields(
+		providerName, tokenKey, model,
+		cfg.Thinking, cfg.ReasoningEffort, baseURL,
+		cfg.PromptCache,
+	)
+	if err != nil {
+		return nil, err
+	}
+	thinkingOn := llm.ResolveThinkingEnabled(llm.ProviderName(providerName), model, cfg.Thinking)
+	maxTokens := cfg.EffectiveMaxTokens(thinkingOn)
+	temp := cfg.Temperature
+	gw := llm.NewGateway(provider, llm.GatewayConfig{
+		MaxRetries: 3, RetryWait: time.Second, Temperature: temp, MaxTokens: maxTokens,
+	})
+	gw.SetPolicy(a.buildModelPolicy(thinkingOn, maxTokens, temp))
+	gw.SetFallbacks(a.buildOpsFallbackProviders())
+	return gw, nil
+}
+
+// BuildGatewayFromLLMConfig builds a chat gateway (alias for per-user gateway overrides).
 func (a *App) BuildGatewayFromLLMConfig(cfg config.LLMConfig, syncGlobal bool) (*llm.Gateway, *resolvedLLMFields, error) {
+	return a.BuildChatGatewayFromLLMConfig(cfg, syncGlobal)
+}
+
+func (a *App) buildGatewayFromLLMConfig(cfg config.LLMConfig, syncGlobal bool, allowOpsPrimary bool) (*llm.Gateway, *resolvedLLMFields, error) {
 	if a == nil || a.Config == nil {
 		return nil, nil, fmt.Errorf("app not configured")
 	}
@@ -280,7 +340,7 @@ func (a *App) BuildGatewayFromLLMConfig(cfg config.LLMConfig, syncGlobal bool) (
 	baseURL := strings.TrimSpace(cfg.BaseURL)
 	var resolved *resolvedLLMFields
 
-	if cfg.OpsModelEnabled() && strings.TrimSpace(cfg.CatalogModelID) == "" {
+	if allowOpsPrimary && cfg.OpsModelEnabled() && strings.TrimSpace(cfg.CatalogModelID) == "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		targets := make([]admin.QueryTarget, 0, len(a.Config.AdminModelQueryTargets()))
@@ -331,7 +391,7 @@ func (a *App) BuildGatewayFromLLMConfig(cfg config.LLMConfig, syncGlobal bool) (
 		MaxRetries: 3, RetryWait: time.Second, Temperature: temp, MaxTokens: maxTokens,
 	})
 	gw.SetPolicy(a.buildModelPolicy(thinkingOn, maxTokens, temp))
-	gw.SetFallbacks(a.buildFallbackProviders())
+	gw.SetFallbacks(a.buildChatFallbackProviders())
 	return gw, resolved, nil
 }
 
@@ -410,7 +470,7 @@ func (a *App) EffectiveLLMConfig(userID, gateway string) config.LLMConfig {
 	return userllmstore.MergeEffective(base, doc, gateway)
 }
 
-func (a *App) buildFallbackProviders() []llm.Provider {
+func (a *App) buildChatFallbackProviders() []llm.Provider {
 	if a == nil || a.Config == nil {
 		return nil
 	}
@@ -425,12 +485,72 @@ func (a *App) buildFallbackProviders() []llm.Provider {
 			fb.PromptCache,
 		)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "警告: fallback LLM 跳过 (%s): %v\n", fb.Provider, err)
+			fmt.Fprintf(os.Stderr, "警告: chat fallback LLM 跳过 (%s): %v\n", fb.Provider, err)
 			continue
 		}
 		out = append(out, p)
 	}
 	return out
+}
+
+func (a *App) buildOpsFallbackProviders() []llm.Provider {
+	if a == nil || a.Config == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	targets := make([]admin.QueryTarget, 0, len(a.Config.AdminModelQueryTargets()))
+	for _, t := range a.Config.AdminModelQueryTargets() {
+		targets = append(targets, admin.QueryTarget{BaseURL: t.BaseURL, Bearer: t.Bearer})
+	}
+	view, err := admin.QueryModelRuntimeConfigFromTargets(ctx, targets)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "警告: 拉取运营备选模型失败: %v\n", err)
+		return nil
+	}
+	var out []llm.Provider
+	for _, doc := range view.FallbackModels {
+		if strings.TrimSpace(doc.Token) == "" {
+			continue
+		}
+		providerName := strings.TrimSpace(doc.Provider)
+		if providerName == "" {
+			providerName = llm.InferProviderFromNames(doc.DisplayName, doc.Name)
+		}
+		modelName := strings.TrimSpace(doc.Name)
+		if modelName == "" {
+			modelName = strings.TrimSpace(doc.DisplayName)
+		}
+		p, err := llm.BuildProviderFromLLMFields(
+			providerName, doc.Token, modelName,
+			nil, "", doc.BaseURL, nil,
+		)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "警告: 运营备选模型跳过 (%s): %v\n", modelName, err)
+			continue
+		}
+		out = append(out, p)
+	}
+	if len(out) > 0 {
+		fmt.Fprintf(os.Stderr, "LLM synthesis: 已加载 %d 个运营备选模型\n", len(out))
+	}
+	return out
+}
+
+func (a *App) EffectiveSynthesisModel() string {
+	if a == nil {
+		return ""
+	}
+	if a.SynthesisGateway != nil {
+		if m := strings.TrimSpace(a.SynthesisGateway.Model()); m != "" {
+			return m
+		}
+	}
+	return a.EffectiveLLMModel()
+}
+
+func (a *App) buildFallbackProviders() []llm.Provider {
+	return a.buildChatFallbackProviders()
 }
 
 func (a *App) wireChatMemory() {

@@ -37,12 +37,14 @@ func (s *Synthesizer) SummarizeIntradayHourly(
 	defer cancel()
 
 	prompt := buildIntradayHourlySummaryPrompt(ws, priceRaw, signalRaw, klineRaw)
-	callCtx := llm.WithCallMeta(cctx, llm.CallMeta{Kind: llm.TaskSynthesis})
-	resp, err := s.gateway.Chat(callCtx, prompt, nil, "", 0)
+	content, _, err := s.chatSynthesis(cctx, prompt, func(body string) error {
+		_, err := parseIntradayHourlySummaryJSON(body)
+		return err
+	})
 	if err != nil {
 		return IntradayHourlySummary{}, fmt.Errorf("intraday hourly summary LLM: %w", err)
 	}
-	parsed, err := parseIntradayHourlySummaryJSON(strings.TrimSpace(resp.Content))
+	parsed, err := parseIntradayHourlySummaryJSON(strings.TrimSpace(content))
 	if err != nil {
 		return IntradayHourlySummary{}, err
 	}
