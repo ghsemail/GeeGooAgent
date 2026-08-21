@@ -72,7 +72,7 @@ func (h *Handler) contextProfilesGet(w http.ResponseWriter, r *http.Request) {
 		"user_id":  userID,
 		"refs":     sessionRefs,
 		"merged":   merge.Text,
-		"profiles": merge.Profiles,
+		"profiles": profilesForJSON(merge.Profiles),
 		"truncated": merge.Truncated,
 		"limits": map[string]any{
 			"max_merged_bytes":         h.profileLimits().MaxMergedBytes,
@@ -138,6 +138,20 @@ func parseProfileRefQuery(raw string) []string {
 		if s := strings.TrimSpace(p); s != "" {
 			out = append(out, s)
 		}
+	}
+	return out
+}
+
+func profilesForJSON(profiles []chatprompt.LoadedProfile) []map[string]any {
+	out := make([]map[string]any, 0, len(profiles))
+	for _, p := range profiles {
+		out = append(out, map[string]any{
+			"ref":     p.Ref.String(),
+			"path":    p.Path,
+			"content": p.Content,
+			"bytes":   p.Bytes,
+			"missing": p.Missing,
+		})
 	}
 	return out
 }
