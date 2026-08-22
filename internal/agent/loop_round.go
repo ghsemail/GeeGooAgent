@@ -27,7 +27,7 @@ func (l *Loop) runRound(
 	l.emitStatus("round", fmt.Sprintf("第 %d 轮推理", round+1))
 
 	*messages = l.applyCompression(ctx, session, *messages)
-	apiMessages := withBudgetWarning(*messages, round, l.maxToolRounds, session)
+	apiMessages := withRoundBudgetFragments(*messages, round, l.maxToolRounds, session)
 	apiMessages = withReplyFormatReminder(apiMessages, round)
 	apiMessages = llm.SanitizeMessages(apiMessages)
 	if len(apiMessages) > len(*messages) {

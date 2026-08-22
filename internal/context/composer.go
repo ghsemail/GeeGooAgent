@@ -8,6 +8,7 @@ type Kind string
 const (
 	KindToolResult     Kind = "tool_result"
 	KindRecall         Kind = "recall"
+	KindProcedural     Kind = "procedural"
 	KindWorkingState   Kind = "working_state"
 	KindHookInject     Kind = "hook_inject"
 	KindSystemRules    Kind = "system_rules"

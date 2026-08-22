@@ -12,6 +12,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
+	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 )
 
 const (
@@ -263,4 +264,9 @@ func writeSessionSSE(w http.ResponseWriter, flusher http.Flusher, event string, 
 	}
 	_, _ = fmt.Fprintf(w, "data: %s\n\n", raw)
 	flusher.Flush()
+}
+
+// writeAgentProgressSSE emits a progress event with schema_version and item_type in the JSON body.
+func writeAgentProgressSSE(w http.ResponseWriter, flusher http.Flusher, event string, data map[string]any) {
+	writeSessionSSE(w, flusher, event, runtime.ProgressPayload(event, data))
 }

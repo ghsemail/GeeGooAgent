@@ -3,9 +3,11 @@ package agent
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
+	ctxfrag "github.com/ghsemail/GeeGooAgent/internal/context"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
@@ -333,8 +335,16 @@ func (l *Loop) RunTurn(
 		"session_id": session.ID, "user_text": userText,
 	})
 	l.emitStatus("received", "已收到消息，准备处理")
-	l.runRetrievalGate(ctx, session, userText, &records)
-	matchedSkills := l.runProceduralMemory(session, userText, &records)
+	gateFrag := l.runRetrievalGate(ctx, session, userText, &records)
+	procFrag, matchedSkills := l.runProceduralMemory(session, userText, &records)
+	var dynFrags []ctxfrag.Fragment
+	if gateFrag != nil && strings.TrimSpace(gateFrag.Render()) != "" {
+		dynFrags = append(dynFrags, gateFrag)
+	}
+	if procFrag != nil && strings.TrimSpace(procFrag.Render()) != "" {
+		dynFrags = append(dynFrags, procFrag)
+	}
+	l.applyDynamicFragments(session, dynFrags, &records)
 	if extra := l.expandSkillSchemas(matchedSkills); len(extra) > 0 {
 		schemas = mergeToolSchemas(schemas, extra)
 	}

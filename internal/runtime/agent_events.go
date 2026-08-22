@@ -47,3 +47,22 @@ func ProgressToAgentEvent(event string, data map[string]any) AgentEvent {
 	e.ItemType = events.ItemTypeForEvent(event)
 	return e
 }
+
+// ProgressPayload builds an SSE/JSON map with schema_version, event, item_type, ts, and nested data.
+// Legacy clients keep reading flat fields (e.g. gate.decision); structured clients use item_type + data.
+func ProgressPayload(event string, data map[string]any) map[string]any {
+	ev := ProgressToAgentEvent(event, data)
+	out := map[string]any{
+		"schema_version": ev.SchemaVersion,
+		"event":          ev.Event,
+		"item_type":      ev.ItemType,
+		"ts":             ev.Ts,
+	}
+	for k, v := range ev.Data {
+		out[k] = v
+	}
+	if len(ev.Data) > 0 {
+		out["data"] = ev.Data
+	}
+	return out
+}

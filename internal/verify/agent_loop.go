@@ -1,10 +1,13 @@
 package verify
 
 import (
+	"fmt"
 	"strings"
 
+	"github.com/ghsemail/GeeGooAgent/internal/context"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
+	"github.com/ghsemail/GeeGooAgent/internal/runtime/events"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
@@ -44,6 +47,8 @@ func VerifyAgentLoopParity(reg ToolLookup) []AgentLoopCard {
 		checkNestedSchemaValidation(),
 		checkPlanGateHold(),
 		checkNDJSONProgressSchema(),
+		checkSSEProgressPayload(),
+		checkContextFragmentKinds(),
 	}
 	return checks
 }
@@ -197,4 +202,33 @@ func checkNDJSONProgressSchema() AgentLoopCard {
 		return AgentLoopCard{Name: "NDJSON progress schema", Passed: false, Detail: "schema version mismatch"}
 	}
 	return AgentLoopCard{Name: "NDJSON progress schema", Passed: true, Detail: "schema_version=1"}
+}
+
+func checkSSEProgressPayload() AgentLoopCard {
+	payload := runtime.ProgressPayload("gate", map[string]any{"decision": "skip"})
+	if payload["schema_version"] != 1 {
+		return AgentLoopCard{Name: "SSE progress payload", Passed: false, Detail: "schema_version missing"}
+	}
+	if payload["item_type"] != events.ItemStatus {
+		return AgentLoopCard{Name: "SSE progress payload", Passed: false, Detail: "item_type missing"}
+	}
+	if payload["decision"] != "skip" {
+		return AgentLoopCard{Name: "SSE progress payload", Passed: false, Detail: "legacy flat fields missing"}
+	}
+	return AgentLoopCard{Name: "SSE progress payload", Passed: true, Detail: "schema_version+item_type+legacy flat"}
+}
+
+func checkContextFragmentKinds() AgentLoopCard {
+	kinds := context.RegisteredKinds()
+	if len(kinds) < 6 {
+		return AgentLoopCard{Name: "context fragments", Passed: false, Detail: "kinds incomplete"}
+	}
+	text, applied, _ := context.Composer{MaxBytes: 80}.Compose([]context.Fragment{
+		context.RecallFragment("facts", "short recall"),
+		context.ToolResultFragment(strings.Repeat("x", 200)),
+	})
+	if text == "" || len(applied) == 0 {
+		return AgentLoopCard{Name: "context fragments", Passed: false, Detail: "compose failed"}
+	}
+	return AgentLoopCard{Name: "context fragments", Passed: true, Detail: fmt.Sprintf("%d kinds, compose ok", len(kinds))}
 }

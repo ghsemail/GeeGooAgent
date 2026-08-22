@@ -7,6 +7,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/app"
 	"github.com/ghsemail/GeeGooAgent/internal/chatprompt"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
+	"github.com/ghsemail/GeeGooAgent/internal/context"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 	"github.com/ghsemail/GeeGooAgent/internal/verify"
 )
@@ -29,7 +30,12 @@ type Report struct {
 	ProceduralSkills []ProceduralSkillSection
 	Runtime    RuntimeSection
 	ContextProfiles ContextProfilesSection
+	ContextFragments ContextFragmentsSection
 	Verify     []string
+}
+
+type ContextFragmentsSection struct {
+	Kinds []string
 }
 
 type ContextProfilesSection struct {
@@ -149,6 +155,9 @@ func Build(application *app.App, opts Options) Report {
 			r.ContextProfiles.LoadedCount++
 		}
 	}
+	for _, k := range context.RegisteredKinds() {
+		r.ContextFragments.Kinds = append(r.ContextFragments.Kinds, string(k))
+	}
 	if application.Registry != nil {
 		r.Tools.Registered = len(application.Registry.ListNames())
 		chatNames := application.ChatToolNames()
@@ -259,6 +268,13 @@ func FormatText(r Report) string {
 	b.WriteString(fmt.Sprintf("  loaded: %d  merged_bytes: %d\n", r.ContextProfiles.LoadedCount, r.ContextProfiles.MergedBytes))
 	for _, p := range r.ContextProfiles.Paths {
 		b.WriteString("  " + p + "\n")
+	}
+	b.WriteByte('\n')
+	b.WriteString("[Context Fragments]\n")
+	if len(r.ContextFragments.Kinds) == 0 {
+		b.WriteString("  (none)\n")
+	} else {
+		b.WriteString("  kinds: " + strings.Join(r.ContextFragments.Kinds, ", ") + "\n")
 	}
 	if len(r.Verify) > 0 {
 		b.WriteByte('\n')

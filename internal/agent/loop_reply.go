@@ -7,23 +7,28 @@ import (
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatprompt"
+	ctxfrag "github.com/ghsemail/GeeGooAgent/internal/context"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/markdownnorm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
-// withBudgetWarning appends a temporary user prompt when the turn is near the
-// tool-round cap or context pressure is high. The warning is NOT persisted.
-func withBudgetWarning(messages []llm.Message, round, maxRounds int, session *runtime.Session) []llm.Message {
+// withRoundBudgetFragments appends ephemeral budget fragments composed under byte budget.
+func withRoundBudgetFragments(messages []llm.Message, round, maxRounds int, session *runtime.Session) []llm.Message {
 	warn := budgetWarningText(round, maxRounds, session)
 	if warn == "" {
 		return messages
 	}
-	out := make([]llm.Message, len(messages)+1)
-	copy(out, messages)
-	out[len(messages)] = llm.Message{Role: llm.RoleUser, Content: warn}
-	return out
+	var frags []ctxfrag.Fragment
+	frags = append(frags, ctxfrag.RoundBudgetFragment(warn))
+	if session != nil && session.LastPromptTokens > 0 && session.LastPromptTokens >= 100000 {
+		ratio := float64(session.LastPromptTokens) / 128000.0
+		if f := ctxfrag.BudgetReminderFragment(ratio); f.Render() != "" {
+			frags = append(frags, f)
+		}
+	}
+	return appendEphemeralUserFragments(messages, frags, 4096)
 }
 
 func budgetWarningText(round, maxRounds int, session *runtime.Session) string {

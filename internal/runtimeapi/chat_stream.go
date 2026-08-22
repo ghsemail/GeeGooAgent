@@ -110,7 +110,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 		if live != nil {
 			live.Emit(event, data)
 		}
-		writeSessionSSE(w, flusher, event, data)
+		writeAgentProgressSSE(w, flusher, event, data)
 	}
 
 	h.App.Agent.SetProgress(func(event string, data map[string]any) {
@@ -265,12 +265,12 @@ func (h *Handler) sessionEventsStream(w http.ResponseWriter, r *http.Request) {
 			}
 			for i := seen; i < len(live.Events); i++ {
 				ev := live.Events[i]
-				writeSessionSSE(w, flusher, "progress", map[string]any{
-					"index": i,
-					"event": ev.Event,
-					"data":  ev.Data,
-					"at":    ev.At.Format(time.RFC3339Nano),
-				})
+				payload := runtime.ProgressPayload(ev.Event, ev.Data)
+				payload["index"] = i
+				if !ev.At.IsZero() {
+					payload["at"] = ev.At.Format(time.RFC3339Nano)
+				}
+				writeSessionSSE(w, flusher, "progress", payload)
 			}
 			seen = len(live.Events)
 		}

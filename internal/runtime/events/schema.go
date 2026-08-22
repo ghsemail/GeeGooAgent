@@ -52,7 +52,7 @@ func ItemTypeForEvent(event string) string {
 		return ItemTurnFailed
 	case TurnAborted:
 		return ItemTurnAborted
-	case "status", "step":
+	case "status", "step", "context_fragment_applied", "gate", "received", "hygiene", "round", "llm":
 		return ItemStatus
 	default:
 		return event

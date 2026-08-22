@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	ctxfrag "github.com/ghsemail/GeeGooAgent/internal/context"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/retrievalgate"
@@ -53,29 +54,17 @@ func formatGateMemory(hits []memport.RecallHit) string {
 	return b.String()
 }
 
-func (l *Loop) injectGateMemory(session *runtime.Session, block, source string) {
-	if session == nil || strings.TrimSpace(block) == "" {
-		return
-	}
-	label := "long-term memory (FTS)"
+func recallFragmentLabel(source string) string {
 	switch source {
 	case "facts":
-		label = "semantic facts (FTS)"
+		return "semantic facts (FTS)"
 	case "episodic":
-		label = "episodic memory (FTS)"
+		return "episodic memory (FTS)"
 	case "facts+episodic":
-		label = "semantic facts + episodic memory"
+		return "semantic facts + episodic memory"
+	default:
+		return "long-term memory (FTS)"
 	}
-	mem := llm.Message{
-		Role:    llm.RoleSystem,
-		Content: fmt.Sprintf("Retrieved from %s. Use only if relevant:\n%s", label, block),
-	}
-	n := len(session.Messages)
-	if n >= 1 && session.Messages[n-1].Role == llm.RoleUser {
-		session.Messages = append(session.Messages[:n-1], append([]llm.Message{mem}, session.Messages[n-1:]...)...)
-		return
-	}
-	session.AppendMessage(mem)
 }
 
 func (l *Loop) recordInjectionStep(records *[]runtime.StepRecord, kind, summary string) {
@@ -107,7 +96,7 @@ func gateDecisionSummary(d RetrievalGateDecision, source string) string {
 	return strings.Join(parts, " · ")
 }
 
-func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, userText string, records *[]runtime.StepRecord) {
+func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, userText string, records *[]runtime.StepRecord) ctxfrag.Fragment {
 	l.emitStatus("gate", "检查是否需要检索长期记忆…")
 	gate := retrievalgate.ShouldRetrieve(ctx, l.gateProvider, l.gatePolicy, userText)
 	decision := RetrievalGateDecision{
@@ -149,9 +138,6 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 				decision.Reason = fmt.Sprintf("gate matched %d memories", len(res.Hits))
 			}
 			l.emitStatus("gate", fmt.Sprintf("检索到 %d 条相关记忆（%s）", len(res.Hits), source))
-			if block := formatGateMemory(res.Hits); block != "" {
-				l.injectGateMemory(session, block, source)
-			}
 			factsN, episodesN := countRecallKinds(res.Hits)
 			l.emit("gate", map[string]any{
 				"decision":      decision.Decision,
@@ -163,7 +149,10 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 				"recall_source": source,
 			})
 			l.recordInjectionStep(records, "gate", gateDecisionSummary(decision, source))
-			return
+			if block := formatGateMemory(res.Hits); block != "" {
+				return ctxfrag.RecallFragment(recallFragmentLabel(source), block)
+			}
+			return nil
 		}
 	}
 	if !gate.Retrieve {
@@ -178,11 +167,12 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 		"query":    decision.Query,
 	})
 	l.recordInjectionStep(records, "gate", gateDecisionSummary(decision, source))
+	return nil
 }
 
-func (l *Loop) runProceduralMemory(session *runtime.Session, userText string, records *[]runtime.StepRecord) []string {
+func (l *Loop) runProceduralMemory(session *runtime.Session, userText string, records *[]runtime.StepRecord) (ctxfrag.Fragment, []string) {
 	if l == nil || l.skillLoader == nil || session == nil {
-		return nil
+		return nil, nil
 	}
 	maxSkills := l.maxSkills
 	if maxSkills <= 0 {
@@ -190,21 +180,20 @@ func (l *Loop) runProceduralMemory(session *runtime.Session, userText string, re
 	}
 	matched := l.skillLoader.Match(userText, maxSkills)
 	if len(matched) == 0 {
-		return nil
+		return nil, nil
 	}
 	block := procedural.Format(matched)
-	if block == "" {
-		return skillNames(matched)
-	}
 	names := skillNames(matched)
+	if block == "" {
+		return nil, names
+	}
 	l.emitStatus("gate", fmt.Sprintf("加载 %d 个相关技能 (procedural)", len(matched)))
 	l.emit("memory.procedural", map[string]any{
 		"skills": len(matched),
 		"names":  names,
 	})
-	injectProceduralMemory(session, block)
 	l.recordInjectionStep(records, "context_inject", fmt.Sprintf("procedural skills: %s", strings.Join(names, ", ")))
-	return names
+	return ctxfrag.ProceduralSkillFragment(block), names
 }
 
 func (l *Loop) expandSkillSchemas(skillNames []string) []llm.ToolSchema {
@@ -249,20 +238,4 @@ func skillNames(matched []procedural.Skill) []string {
 		out[i] = sk.Name
 	}
 	return out
-}
-
-func injectProceduralMemory(session *runtime.Session, block string) {
-	if session == nil || strings.TrimSpace(block) == "" {
-		return
-	}
-	mem := llm.Message{
-		Role:    llm.RoleSystem,
-		Content: "Relevant skill instructions (procedural memory). Follow only if applicable:\n" + block,
-	}
-	n := len(session.Messages)
-	if n >= 1 && session.Messages[n-1].Role == llm.RoleUser {
-		session.Messages = append(session.Messages[:n-1], append([]llm.Message{mem}, session.Messages[n-1:]...)...)
-		return
-	}
-	session.AppendMessage(mem)
 }

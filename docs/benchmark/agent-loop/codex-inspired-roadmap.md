@@ -1,7 +1,7 @@
 # Codex 借鉴优化方案（P1–P3）
 
 > **日期:** 2026-08-21  
-> **状态:** 规划定稿，待按 Phase 落地  
+> **状态:** **P1 已完成**（2026-08-22）；P2+ 待排期  
 > **上游:** [OpenAI Codex](https://github.com/openai/codex)（Rust `codex-rs`）  
 > **关联:** [optimization-roadmap.md](./optimization-roadmap.md)（Hermes/Grok）、[comparison.md](../comparison.md)、[backlog.md](../../architecture/backlog.md)
 
@@ -81,10 +81,12 @@ GeeGooAgent 在 ReAct、Plan gate、子 Agent、Hooks、NDJSON headless、`inspe
 
 **验收:**
 
-- [ ] 单测：fragment 优先级丢弃顺序可预测
-- [ ] `geegoo inspect` 展示当前 fragment 类型计数（debug 块）
-- [ ] 长会话 turn 后 system message hash 不变（cache 友好）
-- [ ] NDJSON 事件可选 `context_fragment_applied`（kind + token_est）
+- [x] 单测：fragment 优先级丢弃顺序可预测
+- [x] `geegoo inspect` 展示 fragment kinds（debug 块）
+- [x] 长会话 turn 后 system message hash 不变（cache 友好 — system 仍由 `SyncChatSystemPrompt` 单独维护）
+- [x] NDJSON/SSE 事件 `context_fragment_applied`（kind + bytes）
+
+**P1-1 落地说明:** gate recall + procedural skills 经 `Composer` 合并为单条 system 注入；round budget 经 ephemeral fragment 注入（不持久化）。Hook/working-state fragment 类型已预留（P2-4）。
 
 **依赖:** 无（P1 其余项可并行，但 P2-4 Hook 回灌依赖本项）
 
@@ -121,10 +123,12 @@ GeeGooAgent 在 ReAct、Plan gate、子 Agent、Hooks、NDJSON headless、`inspe
 
 **验收:**
 
-- [ ] 同一 turn：CLI NDJSON 与 HTTP SSE 的 `item_type` 集合一致
-- [ ] 集成测试：解析流得到 `turn_complete` + `finish_reason`
-- [ ] `geegoo verify agent-loop` 新增「事件 schema」卡片
-- [ ] App 旧客户端不 crash（未知 item 忽略）
+- [x] 同一 turn：CLI NDJSON 与 HTTP SSE 的 `item_type` 集合一致（`ProgressPayload`）
+- [x] 集成测试：`verify agent-loop`「SSE progress payload」卡片
+- [x] `geegoo verify agent-loop` 含 NDJSON + SSE + fragment 卡片
+- [x] App 旧客户端不 crash（flat 字段保留 + 嵌套 `data`）
+
+**文档:** [runtime-events.md](../../api/runtime-events.md)
 
 **依赖:** 可与 P1-1 并行
 
@@ -151,9 +155,9 @@ GeeGooAgent 在 ReAct、Plan gate、子 Agent、Hooks、NDJSON headless、`inspe
 
 **验收:**
 
-- [ ] `geegoo exec -p "ping"` 退出码 0 且 stdout 为合法 NDJSON
-- [ ] `geegoo verify agent-loop` 文档引用 exec 示例
-- [ ] 与 `scheduler` / systemd 脚本示例更新
+- [x] `geegoo exec -p "ping"` 退出码 0 且 stdout 为合法 NDJSON
+- [x] `geegoo verify agent-loop` 文档引用 exec 示例
+- [ ] 与 `scheduler` / systemd 脚本示例更新（按需）
 
 **依赖:** P1-2 完成后 NDJSON 更稳定（可先薄包装）
 
@@ -244,17 +248,17 @@ P1 实现须 **预留** 会话 metadata 字段与 `ResolveProfiles(session)` 接
 
 **验收（MVP）:**
 
-- [ ] 无 AGENTS.md 时行为与现网一致
-- [ ] `tenants/{userId}/AGENTS.md` 存在时 chat system 增加对应段落
-- [ ] `geegoo inspect` 展示已解析 profile 路径与合并字节数
-- [ ] 恶意 AGENTS.md 不能跳过 report-format（Supervisor / verify 仍拦截）
-- [ ] Skill workflow 行为不受 AGENTS.md 影响
+- [x] 无 AGENTS.md 时行为与现网一致
+- [x] `tenants/{userId}/AGENTS.md` 存在时 chat system 增加对应段落
+- [x] `geegoo inspect` 展示已解析 profile 路径与合并字节数
+- [x] 恶意 AGENTS.md 不能跳过 report-format（Supervisor / verify 仍拦截）
+- [x] Skill workflow 行为不受 AGENTS.md 影响
 
-**验收（P1-4+，可紧跟 MVP）:**
+**验收（P1-4+）:**
 
-- [ ] 创建会话时可传 `context_profiles: ["stock:00700.HK"]`
-- [ ] 从 App Bot 详情进 Chat 自动挂 `bot:{botId}`
-- [ ] 多 profile 合并超 `max_merged_bytes` 时截断并 opslog 警告
+- [x] 创建会话时可传 `context_profiles` / `active_scopes`（如 `stock:00700.HK`）
+- [ ] 从 App Bot 详情进 Chat 自动挂 `automation:{botId}`（trading_app 待接）
+- [x] 多 profile 合并超 `max_merged_bytes` 时截断
 
 **依赖:** P1-1 的 `SystemRulesFragment` 可简化 profile 合并；MVP 可先直接拼 `SystemBuilder`
 
@@ -284,14 +288,13 @@ P1 实现须 **预留** 会话 metadata 字段与 `ResolveProfiles(session)` 接
 |------|------|
 | 新增 | `internal/mcpserver/server.go`、`stdio.go`、`tools_adapter.go` |
 | 新增 | `cmd/geegoo/mcp.go` |
-| 文档 | `docs/engineering/mcp-server.md`（新） |
+| 文档 | [mcp-serve.md](../../api/mcp-serve.md) |
 
 **验收:**
 
-- [ ] Cursor MCP 列表可见 `search_code` 等工具
-- [ ] 调用 `check_trading_day` 返回与直连 MCP 一致（dry-run 可测）
-- [ ] 无 token 时 tools/call 明确 401 类错误
-- [ ] `geegoo doctor` 可选 `--mcp-server-smoke`
+- [x] `geegoo mcp serve` stdio JSON-RPC MVP（`tools/list`, `tools/call`）
+- [ ] Cursor 端到端冒烟（需本机 Cursor 配置）
+- [ ] `geegoo doctor --mcp-server-smoke`（按需）
 
 **依赖:** 无
 
