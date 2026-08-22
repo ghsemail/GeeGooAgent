@@ -108,6 +108,7 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "LLM not configured")
 		return
 	}
+	h.App.RefreshOpsEmbedding(false)
 	var req chatRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")

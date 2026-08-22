@@ -52,6 +52,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "LLM not configured")
 		return
 	}
+	h.App.RefreshOpsEmbedding(false)
 	store, err := h.App.SessionStore()
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, err.Error())

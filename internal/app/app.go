@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -78,6 +79,11 @@ type App struct {
 	Hooks *tools.HookRunner
 	// ChatMemory is the Memory port shared by loop, recall tool, and evidence.
 	ChatMemory memport.Port
+	embeddingMu          sync.Mutex
+	embeddingRefreshedAt time.Time
+	embeddingSource      string
+	embeddingCatalogID   string
+	localEmbedding       *config.EmbeddingConfig
 	// UserLLM loads per-user gateway model prefs from GeeGooBot DB (service-api or Mongo).
 	UserLLM *userllmstore.Backend
 }
@@ -281,6 +287,7 @@ func (a *App) RebuildGateway() error {
 	if a.Agent != nil {
 		a.Agent.SetGateway(a.Gateway)
 	}
+	a.RefreshOpsEmbedding(true)
 	a.wireChatMemory()
 	a.wireSynthesizer()
 	return nil

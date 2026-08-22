@@ -280,8 +280,15 @@ func (h *Handler) buildSettingsInfo(userID, gateway string) (map[string]any, err
 	catalogID = effective.CatalogModelID
 
 	embedding := config.ResolvedEmbedding{}
-	if h.App != nil && h.App.Config != nil {
-		embedding = h.App.Config.ResolvedEmbedding()
+	embeddingSource := "unset"
+	embeddingCatalogID := ""
+	if h.App != nil {
+		h.App.RefreshOpsEmbedding(true)
+		embeddingSource = h.App.EmbeddingSource()
+		embeddingCatalogID = h.App.EmbeddingCatalogID()
+		if h.App.Config != nil {
+			embedding = h.App.Config.ResolvedEmbedding()
+		}
 	}
 
 	chatConfigured := []string{}
@@ -350,6 +357,8 @@ func (h *Handler) buildSettingsInfo(userID, gateway string) (map[string]any, err
 		"embedding_base_url": embedding.BaseURL,
 		"embedding_dimensions": embedding.Dimensions,
 		"embedding_configured": embedding.Configured,
+		"embedding_source": embeddingSource,
+		"embedding_catalog_id": embeddingCatalogID,
 		"pinned": pinned, "providers": providers, "catalog": catalog,
 		"chat_toolsets": chatConfigured, "active_chat_toolsets": chatActive,
 		"chat_toolsets_default": chatUsingDefaults, "chat_tool_count": chatToolCount,

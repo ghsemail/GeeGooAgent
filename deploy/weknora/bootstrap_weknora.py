@@ -116,16 +116,23 @@ def catalog_models() -> tuple[dict, dict | None, dict]:
             primary = qdoc
     if not primary.get("name") or not primary.get("token"):
         raise SystemExit("ops primary model missing name/token")
+    emb_doc = data.get("embedding_model") or {}
+    emb_id = (data.get("embedding_model_id") or "").strip()
+    if not emb_doc.get("name") or not emb_doc.get("token"):
+        raise SystemExit(
+            "ops embedding_model not configured — set Embedding in Monday 模型管理 and save"
+        )
     emb_cfg = cfg.get("embedding") or {}
     embedding = {
-        "name": emb_cfg.get("model") or "kinfra-text-embedding-4b",
-        "base_url": (emb_cfg.get("base_url") or "https://tokenhub.tencentmaas.com/v1").rstrip("/"),
-        "token": emb_cfg.get("token_key") or env.get("OPENAI_API_KEY") or env.get("GEEGOO_OPENAI_API_KEY") or "",
+        "name": emb_doc.get("name") or emb_doc.get("display_name"),
+        "base_url": (emb_doc.get("base_url") or emb_cfg.get("base_url") or "https://tokenhub.tencentmaas.com/v1").rstrip("/"),
+        "token": emb_doc.get("token"),
         "dimensions": int(emb_cfg.get("dimensions") or 2560),
-        "provider": emb_cfg.get("provider") or "tencent-maas",
+        "provider": emb_doc.get("provider") or emb_cfg.get("provider") or "tencent-maas",
     }
     if not embedding["token"]:
-        raise SystemExit("embedding token missing in config.json")
+        raise SystemExit("ops embedding model missing token")
+    print("embedding_ops_id", emb_id or "(no id)")
     print(
         "primary",
         primary.get("display_name") or primary.get("name"),
