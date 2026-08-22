@@ -2,6 +2,7 @@ package chatprompt
 
 import (
 	"context"
+	"time"
 	"strings"
 )
 
@@ -22,7 +23,9 @@ func loadProfileMerged(home, userID string, ref ProfileRef) (LoadedProfile, bool
 	path := AgentsPathForRef(home, userID, ref)
 	out := LoadedProfile{Ref: ref, Path: path}
 	if profileBackend != nil {
-		content, ok := profileBackend.Get(context.Background(), userID, ref)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		content, ok := profileBackend.Get(ctx, userID, ref)
+		cancel()
 		if ok && strings.TrimSpace(content) != "" {
 			out.Content = strings.TrimRight(strings.TrimSpace(content), "\n") + "\n"
 			out.Bytes = len([]byte(out.Content))

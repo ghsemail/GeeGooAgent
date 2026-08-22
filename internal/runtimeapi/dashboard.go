@@ -254,6 +254,20 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 	}, nil
 }
 
+func (h *Handler) opsContextProfilesSummary() map[string]any {
+	return map[string]any{
+		"loaded_count": 0,
+		"db_scopes":    0,
+		"merged_bytes": 0,
+		"truncated":    false,
+		"paths":        []string{},
+		"inspect_url":  "/v1/context/profiles/inspect",
+		"kinds": []string{
+			"global", "user_default", "market", "stock", "automation",
+		},
+	}
+}
+
 func (h *Handler) buildDashboardDataOps(r *http.Request) (map[string]any, error) {
 	now := time.Now().UTC()
 	userID := resolveUserID(r)
@@ -330,7 +344,7 @@ func (h *Handler) buildDashboardDataOps(r *http.Request) (map[string]any, error)
 		"procedural_memory": map[string]any{},
 		"calendar": []map[string]any{}, "outbox": []map[string]any{},
 		"soul": soulTextForDashboard(firstNonEmpty(home, config.Home()), userID),
-		"context_profiles": h.buildContextProfilesSummary(userID),
+		"context_profiles": h.opsContextProfilesSummary(),
 		"consolidate_every": 4, "chat_pending": 0,
 		"tools": map[string]any{
 			"catalog": []map[string]any{}, "mcp": map[string]any{"configured": h.App != nil && h.App.MCP != nil},
