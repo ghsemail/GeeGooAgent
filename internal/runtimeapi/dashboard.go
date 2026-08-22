@@ -73,6 +73,9 @@ func (h *Handler) dashboardData(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
+	if strings.TrimSpace(r.Header.Get("X-Client-Source")) == "trading_operation" {
+		return h.buildDashboardDataOps(r)
+	}
 	now := time.Now().UTC()
 	provider := "geegoo"
 	model := defaultModel
@@ -246,6 +249,99 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 			"total_cost": totalCost, "calls": len(turns), "total_in": totalIn, "total_out": totalOut,
 			"by_day": []map[string]any{}, "by_provider": []map[string]any{},
 		},
+		"settings": h.buildDashboardSettingsLite(provider, model), "wake_scans": []map[string]any{},
+		"data_fleet": map[string]any{"ok": true},
+	}, nil
+}
+
+func (h *Handler) buildDashboardDataOps(r *http.Request) (map[string]any, error) {
+	now := time.Now().UTC()
+	userID := resolveUserID(r)
+	provider := "geegoo"
+	model := defaultModel
+	if h.App != nil && h.App.Gateway != nil {
+		if m := strings.TrimSpace(h.App.Gateway.Model()); m != "" {
+			model = m
+		}
+	}
+
+	facts := []map[string]any{}
+	episodes := []map[string]any{}
+	sessionsOut := []map[string]any{}
+	currentSession := ""
+
+	store, _ := h.safeSessionStore()
+	if store != nil {
+		entries, err := listSessionsForUser(store, userID)
+		if err == nil {
+			for i, e := range entries {
+				if i >= dashboardMaxListedSessions {
+					break
+				}
+				if i == 0 {
+					currentSession = e.ID
+				}
+				sessionsOut = append(sessionsOut, map[string]any{
+					"id": e.ID, "title": firstNonEmpty(e.Title, e.ID),
+					"messages": e.MessageCount, "steps": e.StepCount, "status": e.Status,
+					"last": chatsession.ListPreview(e), "last_at": e.UpdatedAt.Format(time.RFC3339),
+				})
+			}
+		}
+	}
+
+	if h.App != nil && h.App.Facts != nil {
+		if rows, err := h.App.Facts.List(r.Context(), userID, 80); err == nil {
+			for _, f := range rows {
+				facts = append(facts, map[string]any{
+					"id": f.ID, "subject": f.Subject, "content": f.Content,
+					"raw": factmem.Format(f.Subject, f.Content),
+					"source": f.Source, "user_id": f.UserID,
+					"created_at": f.CreatedAt.Format(time.RFC3339),
+				})
+			}
+		}
+	}
+	if h.App != nil && h.App.Episodic != nil {
+		if eps, err := h.App.Episodic.List(r.Context(), userID, 80); err == nil {
+			for _, ep := range eps {
+				episodes = append(episodes, map[string]any{
+					"id": ep.ID, "session_id": ep.SessionID,
+					"title": truncateRunes(ep.Summary, 60), "summary": ep.Summary,
+					"happened_at": ep.HappenedAt.Format(time.RFC3339),
+					"updated_at":  ep.HappenedAt.Format(time.RFC3339),
+					"source": "episodic",
+				})
+			}
+		}
+	}
+
+	home := ""
+	if h.App != nil {
+		home = h.App.Workspace
+	}
+
+	return map[string]any{
+		"generated_at": now.Format(time.RFC3339), "provider": provider, "model": model,
+		"small_model": model, "home": home, "current_session": currentSession,
+		"stats": map[string]any{"turns": 0, "tool_calls": 0, "gate_skips": 0, "gate_retrieves": 0},
+		"sessions": sessionsOut, "turns": []map[string]any{}, "chat_log": []map[string]any{},
+		"facts": facts, "episodes": episodes, "skills": []map[string]any{},
+		"procedural_memory": map[string]any{},
+		"calendar": []map[string]any{}, "outbox": []map[string]any{},
+		"soul": soulTextForDashboard(firstNonEmpty(home, config.Home()), userID),
+		"context_profiles": h.buildContextProfilesSummary(userID),
+		"consolidate_every": 4, "chat_pending": 0,
+		"tools": map[string]any{
+			"catalog": []map[string]any{}, "mcp": map[string]any{"configured": h.App != nil && h.App.MCP != nil},
+			"toolsets": []tools.ToolsetSummary{}, "taxonomies": []tools.TaxonomySummary{},
+			"routing_docs": []tools.RoutingDoc{},
+		},
+		"db": map[string]any{"path": "postgresql", "tables": []map[string]any{}, "all_tables": []string{}, "fts": []string{}},
+		"doctor_ok": true, "doctor_checks": []map[string]any{},
+		"eval_report": nil, "eval_history": []map[string]any{},
+		"trace_tail": []map[string]any{}, "trace_file": "",
+		"usage": map[string]any{"total_cost": 0, "calls": 0, "total_in": 0, "total_out": 0},
 		"settings": h.buildDashboardSettingsLite(provider, model), "wake_scans": []map[string]any{},
 		"data_fleet": map[string]any{"ok": true},
 	}, nil
