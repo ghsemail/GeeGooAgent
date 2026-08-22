@@ -74,6 +74,7 @@ var builtinToolsets = []Toolset{
 	newToolset("report_write", "报告写入", "Chat 中补写/修改盘前盘中盘后报告", true, reportWriteTools),
 	newToolset("report_workflow", "报告 Workflow", "盘前/盘后自动化流水线", true, reportWorkflowTools),
 	newToolset("agent_meta", "Agent 元能力", "记忆、澄清、委派等横切能力", true, agentMetaTools),
+	newToolset("knowledge", "知识库", "WeKnora 文档检索（仅 knowledge-base skill 注入）", false, knowledgeTools),
 }
 
 // workflowExclusiveTools are in report_workflow but not shared with any other toolset.
@@ -239,7 +240,7 @@ func FormatToolsetsListing(active []string) string {
 		}
 		chat := "chat"
 		if !ts.ChatDefault {
-			chat = "workflow"
+			chat = "opt-in"
 		}
 		lines = append(lines, fmt.Sprintf("  %s %-18s [%s] %s (%d tools)",
 			mark, ts.ID, chat, ts.Label, len(ts.names)))

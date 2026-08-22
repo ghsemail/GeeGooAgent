@@ -7,12 +7,13 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
+	"github.com/ghsemail/GeeGooAgent/internal/clients/weknora"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
-	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/episodic"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/facts"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/scoped"
+	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/tools/catalog"
 )
 
@@ -30,6 +31,7 @@ type Deps struct {
 	Preferences      *scoped.PreferencesStore
 	SkillLoader      *procedural.Loader
 	Home             string
+	WeKnora          *weknora.Client
 	// Delegate runs delegate_task sub-agent turns (optional; wired by app).
 	Delegate TaskDelegator
 }
@@ -42,9 +44,9 @@ type TaskDelegator interface {
 
 // BatchDelegateTask is one item for delegate_tasks.
 type BatchDelegateTask struct {
-	Task      string
+	Task       string
 	Background string
-	MaxSteps  int
+	MaxSteps   int
 }
 
 // WorkingLoader loads working memory for meta tools.

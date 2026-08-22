@@ -16,6 +16,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/clients/admin"
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
+	"github.com/ghsemail/GeeGooAgent/internal/clients/weknora"
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
@@ -41,20 +42,21 @@ var fallbackSessionCounter uint64
 
 // App wires config, MCP client, tools, LLM, and workflow.
 type App struct {
-	Config      *config.AppConfig
-	MCP         *mcp.Client
-	Registry    *tools.Registry
-	Gateway     *llm.Gateway
+	Config           *config.AppConfig
+	MCP              *mcp.Client
+	WeKnora          *weknora.Client
+	Registry         *tools.Registry
+	Gateway          *llm.Gateway
 	SynthesisGateway *llm.Gateway
-	Executor    *runtime.Executor
-	Workflow    *workflow.Runner
-	Working     *memory.WorkingStore
-	State       *infra.StateStore
-	Checkpoints *infra.CheckpointManager
-	EventBus    *infra.EventBus
-	Workspace   string
+	Executor         *runtime.Executor
+	Workflow         *workflow.Runner
+	Working          *memory.WorkingStore
+	State            *infra.StateStore
+	Checkpoints      *infra.CheckpointManager
+	EventBus         *infra.EventBus
+	Workspace        string
 	// P1 SQLite foundation. DB is nil when disabled via GEEGOO_DB=off or open failure.
-	DB       *infra.DB
+	DB *infra.DB
 	// Optional PostgreSQL platform DB (sessions, cockpit, semantic memory).
 	PG *infra.PostgresDB
 	// Semantic memory chunks when pgvector schema is enabled (legacy opt-in; Waku semantic = agent_facts).
@@ -69,7 +71,7 @@ type App struct {
 	Consolidator *consolidation.Distiller
 	// Procedural memory scans SKILL.md under skills/.
 	SkillLoader *procedural.Loader
-	Evidence *memory.EvidenceStore
+	Evidence    *memory.EvidenceStore
 	// P2c platform-agnostic agent core. Owns the ReAct loop; used by chat,
 	// runtime HTTP, and (later) workflow/scheduler.
 	Agent *agent.Agent
@@ -126,7 +128,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	wf := workflow.NewRunner(executor, working, cpAdapter)
 
 	app := &App{
-		Config: cfg, MCP: httpBackends.MCP, Registry: registry,
+		Config: cfg, MCP: httpBackends.MCP, WeKnora: weknora.NewFromResolved(cfg.ResolvedWeKnora()), Registry: registry,
 		Executor: executor, Workflow: wf, Working: working, State: state, Checkpoints: checkpoints, EventBus: eventBus, Workspace: workspace,
 		UserLLM: userllmstore.NewBackend(cfg, workspace),
 	}
@@ -150,8 +152,8 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	app.Agent.SetEventBus(eventBus)
 	sub := agent.NewSubAgent(agent.SubAgentConfig{
 		Gateway: app.Gateway, Executor: executor, Registry: registry,
-		MaxSteps: cfg.EffectiveSubAgentMaxSteps(),
-		MaxParallel: cfg.EffectiveDelegateMaxParallel(),
+		MaxSteps:      cfg.EffectiveSubAgentMaxSteps(),
+		MaxParallel:   cfg.EffectiveDelegateMaxParallel(),
 		ChatToolNames: app.ChatToolNames,
 	})
 	sub.SetEventBus(eventBus)
@@ -162,10 +164,11 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 		HTTP: httpBackends, WorkspaceRoot: workspace, ProjectRoot: findProjectRoot(),
 		Working: workingLoader, Search: cfg.EffectiveSearch(),
 		FeishuWebhookURL: cfg.EffectiveFeishuWebhookURL(),
-		Delegate: sub, Memory: app.ChatMemory,
+		Delegate:         sub, Memory: app.ChatMemory,
 		Facts: app.Facts, Episodic: app.Episodic, Home: config.Home(),
 		Preferences: app.Preferences,
 		SkillLoader: app.SkillLoader,
+		WeKnora:     app.WeKnora,
 	})
 	app.Agent.SetSubAgent(sub)
 	app.Workflow.SetToolExec(app.Agent.ToolExec())
@@ -680,6 +683,24 @@ func (a *App) wireProceduralMemory() {
 		a.SkillLoader.SetPolicy(procedural.PolicyFromConfig(&skillsCfg))
 	}
 	a.Agent.SetSkillLoader(a.SkillLoader, 2)
+	a.Agent.SetSkillToolExpander(a.expandSkillTools)
+}
+
+func (a *App) expandSkillTools(names []string) []llm.ToolSchema {
+	if a == nil || a.Registry == nil {
+		return nil
+	}
+	for _, name := range names {
+		if name != "knowledge-base" {
+			continue
+		}
+		ts, ok := tools.ToolsetByID("knowledge")
+		if !ok {
+			return nil
+		}
+		return a.Registry.Schemas(ts.Names())
+	}
+	return nil
 }
 
 func (a *App) wireConsolidator() {

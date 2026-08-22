@@ -16,21 +16,22 @@ import (
 )
 
 const (
-	defaultMaxToolRounds = 80
+	defaultMaxToolRounds   = 80
 	defaultToolMaxParallel = 4
 	defaultToolTimeout     = 120 * time.Second
 )
 
 // Loop runs plan → act → observe for one chat turn.
 type Loop struct {
-	gateway       *llm.Gateway
-	tools         *ToolExec
-	maxToolRounds int
-	onProgress    runtime.ProgressFunc
-	mem           memport.Port
-	skillLoader   *procedural.Loader
-	maxSkills     int
-	eventBus      tools.EventEmitter
+	gateway        *llm.Gateway
+	tools          *ToolExec
+	maxToolRounds  int
+	onProgress     runtime.ProgressFunc
+	mem            memport.Port
+	skillLoader    *procedural.Loader
+	maxSkills      int
+	skillTools     SkillToolExpander
+	eventBus       tools.EventEmitter
 	ranker         cognition.Ranker
 	evaluator      cognition.Evaluator
 	planPolicy     cognition.PlanPolicy
@@ -110,6 +111,17 @@ func (l *Loop) SetSkillLoader(loader *procedural.Loader, maxSkills int) {
 		maxSkills = 2
 	}
 	l.maxSkills = maxSkills
+}
+
+// SkillToolExpander adds opt-in tool schemas after a skill match (e.g. knowledge-base).
+type SkillToolExpander func(skillNames []string) []llm.ToolSchema
+
+// SetSkillToolExpander wires per-turn schema expansion from matched skills.
+func (l *Loop) SetSkillToolExpander(fn SkillToolExpander) {
+	if l == nil {
+		return
+	}
+	l.skillTools = fn
 }
 
 // SetMemory replaces the Memory port (compress / recall / store).
@@ -322,7 +334,10 @@ func (l *Loop) RunTurn(
 	})
 	l.emitStatus("received", "已收到消息，准备处理")
 	l.runRetrievalGate(ctx, session, userText, &records)
-	l.runProceduralMemory(session, userText, &records)
+	matchedSkills := l.runProceduralMemory(session, userText, &records)
+	if extra := l.expandSkillSchemas(matchedSkills); len(extra) > 0 {
+		schemas = mergeToolSchemas(schemas, extra)
+	}
 	messages = session.LLMMessages()
 	l.emitStatus("hygiene", "整理会话上下文…")
 	messages = l.applyHygiene(ctx, session, messages)

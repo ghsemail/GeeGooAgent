@@ -213,6 +213,7 @@ type AppConfig struct {
 	SignalAnalyzeAPIKeyField string `json:"signal_analyze_api_key,omitempty"`
 	DataBaseURL              string           `json:"data_base_url"`
 	DataNodes                []DataNodeConfig `json:"data_nodes,omitempty"`
+	WeKnora                  WeKnoraConfig    `json:"weknora,omitempty"`
 	BotMongoURI              string `json:"bot_mongo_uri,omitempty"`
 	BotMongoDB               string `json:"bot_mongo_db,omitempty"`
 	OpsMongoURI              string `json:"ops_mongo_uri,omitempty"`

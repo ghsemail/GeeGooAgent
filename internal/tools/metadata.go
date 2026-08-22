@@ -157,7 +157,7 @@ func toolsetIDsFor(name string) []string {
 
 func requiresMCPToken(name string) bool {
 	switch name {
-	case "search_code", "web_search", "get_index_signals", "get_signal_combinations", "clarify":
+	case "search_code", "web_search", "get_index_signals", "get_signal_combinations", "clarify", "search_knowledge":
 		return false
 	}
 	if strings.HasPrefix(name, "create_") && strings.Contains(name, "prompt_template") {
@@ -251,26 +251,26 @@ func contextForTool(name, impl string, requiresMCP bool) (injections []string, s
 // CatalogItemToMap converts CatalogItem to dashboard JSON map.
 func CatalogItemToMap(item CatalogItem) map[string]any {
 	return map[string]any{
-		"name":                item.Name,
-		"description":         item.Description,
-		"domain":              item.Domain,
-		"domain_label":        item.DomainLabel,
-		"domain_short_label":  item.DomainShortLabel,
-		"domain_order":        item.DomainOrder,
-		"domain_description":  item.DomainDescription,
-		"taxonomy":            item.Taxonomy,
-		"taxonomy_label":      item.TaxonomyLabel,
-		"taxonomy_order":      item.TaxonomyOrder,
-		"toolsets":            item.Toolsets,
-		"chat":                item.ChatEnabled,
-		"chat_enabled":        item.ChatEnabled,
-		"requires_mcp":        item.RequiresMCP,
-		"requires_approval":   item.RequiresApproval,
-		"implementation":      item.Implementation,
-		"http_path":           item.HTTPPath,
-		"context_summary":     item.ContextSummary,
-		"context_injections":  item.ContextInjections,
-		"routing_doc_ids":     item.RoutingDocIDs,
-		"source":              item.Implementation,
+		"name":               item.Name,
+		"description":        item.Description,
+		"domain":             item.Domain,
+		"domain_label":       item.DomainLabel,
+		"domain_short_label": item.DomainShortLabel,
+		"domain_order":       item.DomainOrder,
+		"domain_description": item.DomainDescription,
+		"taxonomy":           item.Taxonomy,
+		"taxonomy_label":     item.TaxonomyLabel,
+		"taxonomy_order":     item.TaxonomyOrder,
+		"toolsets":           item.Toolsets,
+		"chat":               item.ChatEnabled,
+		"chat_enabled":       item.ChatEnabled,
+		"requires_mcp":       item.RequiresMCP,
+		"requires_approval":  item.RequiresApproval,
+		"implementation":     item.Implementation,
+		"http_path":          item.HTTPPath,
+		"context_summary":    item.ContextSummary,
+		"context_injections": item.ContextInjections,
+		"routing_doc_ids":    item.RoutingDocIDs,
+		"source":             item.Implementation,
 	}
 }

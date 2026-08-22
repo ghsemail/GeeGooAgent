@@ -1,0 +1,21 @@
+# GeeGoo overlay: public Web :3480, API only via FRONTEND_PORT reverse proxy.
+# ParadeDB/Redis stay on the docker network (no host 5432).
+services:
+  frontend:
+    mem_limit: 192m
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  app:
+    mem_limit: 768m
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports: !override
+      - "127.0.0.1:3481:8080"
+  postgres:
+    mem_limit: 768m
+  redis:
+    mem_limit: 128m
+  docreader:
+    mem_limit: 1024m
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

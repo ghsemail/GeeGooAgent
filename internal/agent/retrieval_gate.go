@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
-	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/retrievalgate"
+	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 )
 
@@ -180,9 +180,9 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 	l.recordInjectionStep(records, "gate", gateDecisionSummary(decision, source))
 }
 
-func (l *Loop) runProceduralMemory(session *runtime.Session, userText string, records *[]runtime.StepRecord) {
+func (l *Loop) runProceduralMemory(session *runtime.Session, userText string, records *[]runtime.StepRecord) []string {
 	if l == nil || l.skillLoader == nil || session == nil {
-		return
+		return nil
 	}
 	maxSkills := l.maxSkills
 	if maxSkills <= 0 {
@@ -190,11 +190,11 @@ func (l *Loop) runProceduralMemory(session *runtime.Session, userText string, re
 	}
 	matched := l.skillLoader.Match(userText, maxSkills)
 	if len(matched) == 0 {
-		return
+		return nil
 	}
 	block := procedural.Format(matched)
 	if block == "" {
-		return
+		return skillNames(matched)
 	}
 	names := skillNames(matched)
 	l.emitStatus("gate", fmt.Sprintf("加载 %d 个相关技能 (procedural)", len(matched)))
@@ -204,6 +204,43 @@ func (l *Loop) runProceduralMemory(session *runtime.Session, userText string, re
 	})
 	injectProceduralMemory(session, block)
 	l.recordInjectionStep(records, "context_inject", fmt.Sprintf("procedural skills: %s", strings.Join(names, ", ")))
+	return names
+}
+
+func (l *Loop) expandSkillSchemas(skillNames []string) []llm.ToolSchema {
+	if l == nil || l.skillTools == nil || len(skillNames) == 0 {
+		return nil
+	}
+	return l.skillTools(skillNames)
+}
+
+func mergeToolSchemas(base, extra []llm.ToolSchema) []llm.ToolSchema {
+	if len(extra) == 0 {
+		return base
+	}
+	seen := map[string]struct{}{}
+	out := make([]llm.ToolSchema, 0, len(base)+len(extra))
+	for _, s := range base {
+		if s.Name == "" {
+			continue
+		}
+		if _, ok := seen[s.Name]; ok {
+			continue
+		}
+		seen[s.Name] = struct{}{}
+		out = append(out, s)
+	}
+	for _, s := range extra {
+		if s.Name == "" {
+			continue
+		}
+		if _, ok := seen[s.Name]; ok {
+			continue
+		}
+		seen[s.Name] = struct{}{}
+		out = append(out, s)
+	}
+	return out
 }
 
 func skillNames(matched []procedural.Skill) []string {

@@ -47,6 +47,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	h.registerGatewayFeishuRoutes(mux)
 	h.registerNotifyTradeRoutes(mux)
 	h.registerDataRoutes(mux)
+	h.registerKnowledgeRoutes(mux)
 }
 
 type chatRequest struct {

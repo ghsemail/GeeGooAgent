@@ -70,6 +70,13 @@ func (a *Agent) SetSkillLoader(loader *procedural.Loader, maxSkills int) {
 	}
 }
 
+// SetSkillToolExpander wires opt-in tool schemas after a skill match.
+func (a *Agent) SetSkillToolExpander(fn SkillToolExpander) {
+	if a != nil && a.Loop != nil {
+		a.Loop.SetSkillToolExpander(fn)
+	}
+}
+
 // SetMemory wires the Memory port on the owned loop and sub-agent.
 func (a *Agent) SetMemory(m memport.Port) {
 	if a != nil && a.Loop != nil {

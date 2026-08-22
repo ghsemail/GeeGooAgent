@@ -38,7 +38,7 @@ var (
 		botCRUD("hdg_bot"),
 	)
 	// botManagerTools is the legacy union (bot_manager alias).
-	botManagerTools = mergeSets(tradingBotTools, hedgeBotTools)
+	botManagerTools      = mergeSets(tradingBotTools, hedgeBotTools)
 	reminderManagerTools = union(
 		botCRUD("dca_reminder"),
 		botCRUD("grid_reminder"),
@@ -108,33 +108,36 @@ var (
 		"delete_custom_signal":            {},
 	}
 	marketTools = map[string]struct{}{
-		"check_trading_day":  {},
-		"get_current_price":  {},
-		"get_ticker":         {},
-		"get_broker":         {},
-		"get_position":       {},
-		"search_code":        {},
-		"fetch_market_news":  {},
-		"fetch_stock_news":   {},
-		"web_search":         {},
+		"check_trading_day": {},
+		"get_current_price": {},
+		"get_ticker":        {},
+		"get_broker":        {},
+		"get_position":      {},
+		"search_code":       {},
+		"fetch_market_news": {},
+		"fetch_stock_news":  {},
+		"web_search":        {},
 	}
 	agentMetaTools = map[string]struct{}{
-		"recall":         {},
-		"save_note":      {},
-		"manage_memory":  {},
-		"update_soul":        {},
-		"update_preference":  {},
-		"create_skill":   {},
-		"clarify":        {},
-		"delegate_task":  {},
-		"delegate_tasks": {},
+		"recall":            {},
+		"save_note":         {},
+		"manage_memory":     {},
+		"update_soul":       {},
+		"update_preference": {},
+		"create_skill":      {},
+		"clarify":           {},
+		"delegate_task":     {},
+		"delegate_tasks":    {},
 	}
 	strategyTools = map[string]struct{}{
 		"get_index_signals":       {},
 		"get_signal_combinations": {},
-		"generate_grid_strategy":    {},
+		"generate_grid_strategy":  {},
 		"generate_dca_strategy":   {},
 		"loopback_strategy":       {},
+	}
+	knowledgeTools = map[string]struct{}{
+		"search_knowledge": {},
 	}
 )
 
@@ -165,74 +168,78 @@ var ChatToolNames = ChatToolNamesForToolsets(nil)
 type ToolDomain string
 
 const (
-	DomainMarket            ToolDomain = "market"
-	DomainAnalystRuntime    ToolDomain = "analyst_runtime"
-	DomainPromptAdmin       ToolDomain = "prompt_admin"
-	DomainCustomSignal      ToolDomain = "custom_signal"
-	DomainStrategy          ToolDomain = "strategy"
-	DomainReportQuery       ToolDomain = "report_query"
-	DomainReportWrite       ToolDomain = "report_write"
-	DomainReportWorkflow    ToolDomain = "report_workflow"
-	DomainTradingBot        ToolDomain = "trading_bot"
-	DomainHedgeBot          ToolDomain = "hedge_bot"
-	DomainReminderManager   ToolDomain = "reminder_manager"
-	DomainAgentMeta         ToolDomain = "agent_meta"
-	DomainMeta              ToolDomain = "meta"
+	DomainMarket          ToolDomain = "market"
+	DomainAnalystRuntime  ToolDomain = "analyst_runtime"
+	DomainPromptAdmin     ToolDomain = "prompt_admin"
+	DomainCustomSignal    ToolDomain = "custom_signal"
+	DomainStrategy        ToolDomain = "strategy"
+	DomainReportQuery     ToolDomain = "report_query"
+	DomainReportWrite     ToolDomain = "report_write"
+	DomainReportWorkflow  ToolDomain = "report_workflow"
+	DomainTradingBot      ToolDomain = "trading_bot"
+	DomainHedgeBot        ToolDomain = "hedge_bot"
+	DomainReminderManager ToolDomain = "reminder_manager"
+	DomainAgentMeta       ToolDomain = "agent_meta"
+	DomainKnowledge       ToolDomain = "knowledge"
+	DomainMeta            ToolDomain = "meta"
 )
 
 var domainShortLabels = map[ToolDomain]string{
-	DomainMarket:            "行情与资金",
-	DomainAnalystRuntime:    "运行时分析",
-	DomainPromptAdmin:       "模板运营",
-	DomainCustomSignal:      "定制策略",
-	DomainStrategy:          "策略与回测",
-	DomainReportQuery:       "报告查询",
-	DomainReportWrite:       "报告写入",
-	DomainReportWorkflow:    "报告 Workflow",
-	DomainTradingBot:        "交易机器人",
-	DomainHedgeBot:          "对冲机器人",
-	DomainReminderManager:   "提醒机器人",
-	DomainAgentMeta:         "Agent 元能力",
-	DomainMeta:              "其他",
+	DomainMarket:          "行情与资金",
+	DomainAnalystRuntime:  "运行时分析",
+	DomainPromptAdmin:     "模板运营",
+	DomainCustomSignal:    "定制策略",
+	DomainStrategy:        "策略与回测",
+	DomainReportQuery:     "报告查询",
+	DomainReportWrite:     "报告写入",
+	DomainReportWorkflow:  "报告 Workflow",
+	DomainTradingBot:      "交易机器人",
+	DomainHedgeBot:        "对冲机器人",
+	DomainReminderManager: "提醒机器人",
+	DomainAgentMeta:       "Agent 元能力",
+	DomainKnowledge:       "知识库",
+	DomainMeta:            "其他",
 }
 
 var domainDescriptions = map[ToolDomain]string{
-	DomainMarket:            "交易日、搜码、行情快照、逐笔、席位、持仓、新闻检索",
-	DomainAnalystRuntime:    "运行时分析：读 single_prompt_template 启用列表（供 get_mcp_analysis 选 prompt_id）",
-	DomainPromptAdmin:       "模板运营：写 single_prompt_template / 竞品·ETF 用户模板（改完后需 switch 启用才出现在运行时列表）",
-	DomainCustomSignal:      "定制策略定义与 CRUD（Monday · signal_custom_db · :3210）",
-	DomainStrategy:          "信号列表、网格/DCA 生成与回测",
-	DomainReportQuery:       "读已有报告、Bot 态度与运行日志",
-	DomainReportWrite:       "Chat 中补写/修改盘前盘中盘后报告",
-	DomainReportWorkflow:    "盘前/盘后自动化流水线（勿用于查 Bot 列表）",
-	DomainTradingBot:        "DCA / GRID / SmartTrade 读写",
-	DomainHedgeBot:          "HDG 对冲机器人读写",
-	DomainReminderManager:   "DCA / GRID / Smart 提醒读写",
-	DomainAgentMeta:         "记忆、澄清、委派等横切能力",
-	DomainMeta:              "未归类的注册工具",
+	DomainMarket:          "交易日、搜码、行情快照、逐笔、席位、持仓、新闻检索",
+	DomainAnalystRuntime:  "运行时分析：读 single_prompt_template 启用列表（供 get_mcp_analysis 选 prompt_id）",
+	DomainPromptAdmin:     "模板运营：写 single_prompt_template / 竞品·ETF 用户模板（改完后需 switch 启用才出现在运行时列表）",
+	DomainCustomSignal:    "定制策略定义与 CRUD（Monday · signal_custom_db · :3210）",
+	DomainStrategy:        "信号列表、网格/DCA 生成与回测",
+	DomainReportQuery:     "读已有报告、Bot 态度与运行日志",
+	DomainReportWrite:     "Chat 中补写/修改盘前盘中盘后报告",
+	DomainReportWorkflow:  "盘前/盘后自动化流水线（勿用于查 Bot 列表）",
+	DomainTradingBot:      "DCA / GRID / SmartTrade 读写",
+	DomainHedgeBot:        "HDG 对冲机器人读写",
+	DomainReminderManager: "DCA / GRID / Smart 提醒读写",
+	DomainAgentMeta:       "记忆、澄清、委派等横切能力",
+	DomainKnowledge:       "WeKnora 知识库检索（按 skill 注入，不进默认 chat）",
+	DomainMeta:            "未归类的注册工具",
 }
 
 // domainLabels kept for CLI /tools listing compatibility.
 var domainLabels = map[ToolDomain]string{
-	DomainMarket:            "行情与资金",
-	DomainAnalystRuntime:    "运行时分析",
-	DomainPromptAdmin:       "模板运营（高级）",
-	DomainCustomSignal:      "定制策略",
-	DomainStrategy:          "策略与回测",
-	DomainReportQuery:       "报告查询",
-	DomainReportWrite:       "报告写入",
-	DomainReportWorkflow:    "报告 Workflow（自动化专用）",
-	DomainTradingBot:        "交易机器人（DCA/GRID/SmartTrade）",
-	DomainHedgeBot:          "对冲机器人（HDG）",
-	DomainReminderManager:   "提醒机器人（DCA/GRID/Smart）",
-	DomainAgentMeta:         "Agent 元能力",
-	DomainMeta:              "其他",
+	DomainMarket:          "行情与资金",
+	DomainAnalystRuntime:  "运行时分析",
+	DomainPromptAdmin:     "模板运营（高级）",
+	DomainCustomSignal:    "定制策略",
+	DomainStrategy:        "策略与回测",
+	DomainReportQuery:     "报告查询",
+	DomainReportWrite:     "报告写入",
+	DomainReportWorkflow:  "报告 Workflow（自动化专用）",
+	DomainTradingBot:      "交易机器人（DCA/GRID/SmartTrade）",
+	DomainHedgeBot:        "对冲机器人（HDG）",
+	DomainReminderManager: "提醒机器人（DCA/GRID/Smart）",
+	DomainAgentMeta:       "Agent 元能力",
+	DomainKnowledge:       "知识库",
+	DomainMeta:            "其他",
 }
 
 var domainOrderKeys = []ToolDomain{
 	DomainMarket, DomainAnalystRuntime, DomainPromptAdmin, DomainCustomSignal, DomainStrategy,
 	DomainTradingBot, DomainHedgeBot, DomainReminderManager,
-	DomainReportQuery, DomainReportWrite, DomainReportWorkflow, DomainAgentMeta, DomainMeta,
+	DomainReportQuery, DomainReportWrite, DomainReportWorkflow, DomainAgentMeta, DomainKnowledge, DomainMeta,
 }
 
 // DomainOrder returns stable display order for a tool domain (1-based).
@@ -350,6 +357,8 @@ func toolDomain(name string) ToolDomain {
 		return DomainHedgeBot
 	case inSet(name, reminderManagerTools):
 		return DomainReminderManager
+	case inSet(name, knowledgeTools):
+		return DomainKnowledge
 	default:
 		return DomainMeta
 	}

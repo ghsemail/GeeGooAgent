@@ -6,6 +6,7 @@ import "context"
 type MockProvider struct {
 	ModelName string
 	Responses []*Response
+	LastTools []ToolSchema
 	Err       error
 	Stream    bool // when true, ChatStream emits content rune-by-rune
 }
@@ -20,9 +21,9 @@ func (m *MockProvider) Model() string {
 func (m *MockProvider) Chat(ctx context.Context, messages []Message, tools []ToolSchema, temperature float64, maxTokens int) (*Response, error) {
 	_ = ctx
 	_ = messages
-	_ = tools
 	_ = temperature
 	_ = maxTokens
+	m.LastTools = tools
 	if m.Err != nil {
 		return nil, m.Err
 	}

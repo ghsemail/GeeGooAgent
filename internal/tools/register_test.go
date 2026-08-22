@@ -14,7 +14,7 @@ func TestRegisterAllViaInitRegistrars(t *testing.T) {
 	})
 	r := tools.NewRegistry()
 	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: t.TempDir()})
-	if len(r.Names()) != 98 {
-		t.Fatalf("expected 98 builtin tools, got %d", len(r.Names()))
+	if len(r.Names()) != 99 {
+		t.Fatalf("expected 99 builtin tools, got %d", len(r.Names()))
 	}
 }

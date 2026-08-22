@@ -12,8 +12,8 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
-	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
 	"github.com/ghsemail/GeeGooAgent/internal/search"
+	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
 )
 
 const indexPromptID = "69ec7035b9ccd3d9befc6c23"
@@ -32,6 +32,7 @@ func RegisterBespokeTools(r *Registry, deps Deps) {
 	registerAnalysisTools(r, deps)
 	registerReportTools(r, deps)
 	registerMetaTools(r, deps)
+	registerKnowledgeTools(r, deps)
 }
 
 func registerPerceptionTools(r *Registry, deps Deps) {
@@ -351,7 +352,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			data := map[string]any{
 				"code": code, "period": period, "prompt_id": promptID,
 				"analysis_result": result.AnalysisResult,
-				"model": result.Model, "create_date": result.CreateDate,
+				"model":           result.Model, "create_date": result.CreateDate,
 			}
 			if status, note, _ := ClassifyHTTPPayload("get_mcp_analysis", data, nil); status != StatusOK {
 				return Result{Status: status, Summary: note, Data: data}
@@ -557,7 +558,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 			}
 			if !found {
 				return Result{
-					Status: StatusSkip,
+					Status:  StatusSkip,
 					Summary: fmt.Sprintf("recall_yesterday_summary: no report for %s on %s", code, reportDate),
 					Data: map[string]any{
 						"code": code, "report_date": reportDate, "summary": "", "found": false, "implemented": true,
@@ -565,7 +566,7 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 				}
 			}
 			return Result{
-				Status: StatusOK,
+				Status:  StatusOK,
 				Summary: fmt.Sprintf("recall_yesterday_summary %s (%s): %d chars", code, reportDate, len(summary)),
 				Data: map[string]any{
 					"code": code, "report_date": reportDate, "summary": summary, "path": path,
@@ -926,8 +927,8 @@ func registerPromptTemplateTools(r *Registry, deps Deps) {
 			"type": "object",
 			"properties": map[string]any{
 				"type": map[string]any{
-					"type": "string",
-					"enum": []any{"index", "tech", "fundamental"},
+					"type":        "string",
+					"enum":        []any{"index", "tech", "fundamental"},
 					"description": "tech=技术分析；index=指标（MACD/EMA）；fundamental=基本面",
 				},
 				"period": map[string]any{
