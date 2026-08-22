@@ -321,8 +321,8 @@ func (l *Loop) RunTurn(
 		"session_id": session.ID, "user_text": userText,
 	})
 	l.emitStatus("received", "已收到消息，准备处理")
-	l.runRetrievalGate(ctx, session, userText)
-	l.runProceduralMemory(session, userText)
+	l.runRetrievalGate(ctx, session, userText, &records)
+	l.runProceduralMemory(session, userText, &records)
 	messages = session.LLMMessages()
 	l.emitStatus("hygiene", "整理会话上下文…")
 	messages = l.applyHygiene(ctx, session, messages)

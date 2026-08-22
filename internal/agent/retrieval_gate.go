@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
@@ -66,7 +67,7 @@ func (l *Loop) injectGateMemory(session *runtime.Session, block, source string) 
 		label = "semantic facts + episodic memory"
 	}
 	mem := llm.Message{
-		Role: llm.RoleSystem,
+		Role:    llm.RoleSystem,
 		Content: fmt.Sprintf("Retrieved from %s. Use only if relevant:\n%s", label, block),
 	}
 	n := len(session.Messages)
@@ -77,7 +78,36 @@ func (l *Loop) injectGateMemory(session *runtime.Session, block, source string) 
 	session.AppendMessage(mem)
 }
 
-func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, userText string) {
+func (l *Loop) recordInjectionStep(records *[]runtime.StepRecord, kind, summary string) {
+	if records == nil || strings.TrimSpace(summary) == "" {
+		return
+	}
+	*records = append(*records, runtime.StepRecord{
+		Step:      0,
+		Timestamp: time.Now().UTC(),
+		Kind:      kind,
+		Summary:   strings.TrimSpace(summary),
+	})
+}
+
+func gateDecisionSummary(d RetrievalGateDecision, source string) string {
+	parts := []string{
+		fmt.Sprintf("decision=%s", d.Decision),
+		fmt.Sprintf("hits=%d", d.Hits),
+	}
+	if q := strings.TrimSpace(d.Query); q != "" {
+		parts = append(parts, "query="+q)
+	}
+	if source != "" {
+		parts = append(parts, "source="+source)
+	}
+	if r := strings.TrimSpace(d.Reason); r != "" {
+		parts = append(parts, r)
+	}
+	return strings.Join(parts, " · ")
+}
+
+func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, userText string, records *[]runtime.StepRecord) {
 	l.emitStatus("gate", "检查是否需要检索长期记忆…")
 	gate := retrievalgate.ShouldRetrieve(ctx, l.gateProvider, l.gatePolicy, userText)
 	decision := RetrievalGateDecision{
@@ -85,6 +115,7 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 		Reason:   gate.Reason,
 		Query:    gate.Query,
 	}
+	source := ""
 	if gate.Retrieve && l.mem != nil {
 		topK := l.retrievalTopK
 		if topK <= 0 {
@@ -106,7 +137,7 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 		} else if len(res.Hits) == 0 {
 			decision.Reason = "retrieve=yes but no matching memories"
 		} else {
-			source := "facts+episodic"
+			source = "facts+episodic"
 			if res.Data != nil {
 				if v, ok := res.Data["recall_source"].(string); ok && v != "" {
 					source = v
@@ -131,6 +162,7 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 				"query":         query,
 				"recall_source": source,
 			})
+			l.recordInjectionStep(records, "gate", gateDecisionSummary(decision, source))
 			return
 		}
 	}
@@ -145,9 +177,10 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 		"hits":     decision.Hits,
 		"query":    decision.Query,
 	})
+	l.recordInjectionStep(records, "gate", gateDecisionSummary(decision, source))
 }
 
-func (l *Loop) runProceduralMemory(session *runtime.Session, userText string) {
+func (l *Loop) runProceduralMemory(session *runtime.Session, userText string, records *[]runtime.StepRecord) {
 	if l == nil || l.skillLoader == nil || session == nil {
 		return
 	}
@@ -163,12 +196,14 @@ func (l *Loop) runProceduralMemory(session *runtime.Session, userText string) {
 	if block == "" {
 		return
 	}
+	names := skillNames(matched)
 	l.emitStatus("gate", fmt.Sprintf("加载 %d 个相关技能 (procedural)", len(matched)))
 	l.emit("memory.procedural", map[string]any{
 		"skills": len(matched),
-		"names":  skillNames(matched),
+		"names":  names,
 	})
 	injectProceduralMemory(session, block)
+	l.recordInjectionStep(records, "context_inject", fmt.Sprintf("procedural skills: %s", strings.Join(names, ", ")))
 }
 
 func skillNames(matched []procedural.Skill) []string {
