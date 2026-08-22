@@ -40,6 +40,12 @@ type dataNodeFutu struct {
 	Port int    `json:"port,omitempty"`
 }
 
+type dataNodeExchange struct {
+	OK     bool   `json:"ok"`
+	Source string `json:"source,omitempty"`
+	Detail string `json:"detail,omitempty"`
+}
+
 type dataNodeCapabilities struct {
 	Regions     []string `json:"regions,omitempty"`
 	Quote       bool     `json:"quote"`
@@ -61,6 +67,7 @@ type dataFleetNode struct {
 	Regions      []string             `json:"regions,omitempty"`
 	Health       dataNodeHealth       `json:"health"`
 	Futu         *dataNodeFutu        `json:"futu,omitempty"`
+	Exchange     *dataNodeExchange    `json:"exchange,omitempty"`
 	Capabilities dataNodeCapabilities `json:"capabilities"`
 	News         dataNodeNewsSummary  `json:"news"`
 }
@@ -175,8 +182,15 @@ func (c *dataFleetCollector) probeNode(ctx context.Context, node config.Resolved
 	} else if health, ok := c.getNewsHealth(ctx, node); ok {
 		out.News.HealthySources = countHealthyNewsSources(health)
 	}
-	if futu, ok := c.getFutuHealth(ctx, node); ok {
-		out.Futu = &futu
+	if nodeServesFutu(out.Regions) {
+		if futu, ok := c.getFutuHealth(ctx, node); ok {
+			out.Futu = &futu
+		}
+	}
+	if nodeServesCrypto(out.Regions) {
+		if exchange, ok := c.getCryptoHealth(ctx, node); ok {
+			out.Exchange = &exchange
+		}
 	}
 	return out
 }
@@ -259,6 +273,41 @@ func futuHealthOK(raw map[string]any) bool {
 		return true
 	}
 	return strings.EqualFold(stringFromAny(raw["message"]), "ok")
+}
+
+func (c *dataFleetCollector) getCryptoHealth(ctx context.Context, node config.ResolvedDataNode) (dataNodeExchange, bool) {
+	body, status, err := c.doGET(ctx, node.BaseURL+"/v1/crypto/health", node.Bearer)
+	if err != nil || status < 200 || status >= 300 {
+		return dataNodeExchange{}, false
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return dataNodeExchange{OK: true, Source: "binance"}, true
+	}
+	return dataNodeExchange{
+		OK:     raw["ok"] == true || intFromAny(raw["code"]) == 100,
+		Source: stringFromAny(raw["source"]),
+		Detail: stringFromAny(raw["detail"]),
+	}, true
+}
+
+func nodeServesFutu(regions []string) bool {
+	for _, r := range regions {
+		switch strings.ToUpper(strings.TrimSpace(r)) {
+		case "CN", "HK", "US", "SH", "SZ":
+			return true
+		}
+	}
+	return false
+}
+
+func nodeServesCrypto(regions []string) bool {
+	for _, r := range regions {
+		if strings.EqualFold(strings.TrimSpace(r), "CRYPTO") {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *dataFleetCollector) probeBotHealth(ctx context.Context, botURL string) (bool, string) {

@@ -21,6 +21,13 @@
       "base_url": "http://47.80.14.120:3300",
       "regions": ["US", "HK"],
       "bearer_env": "GEEGOO_DATA_USHK_TOKEN"
+    },
+    {
+      "id": "crypto",
+      "label": "虚拟货币节点",
+      "base_url": "http://47.80.14.120:3301",
+      "regions": ["CRYPTO"],
+      "bearer_env": "GEEGOO_DATA_CRYPTO_TOKEN"
     }
   ],
   "signal_analyze_api_url": "http://127.0.0.1:3230",

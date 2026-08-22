@@ -56,7 +56,16 @@ func (h *Handler) dataProbe(w http.ResponseWriter, r *http.Request) {
 	}
 	code := strings.TrimSpace(req.Code)
 	if code == "" {
-		code = "600519.SH"
+		switch market {
+		case "US":
+			code = "AAPL"
+		case "HK":
+			code = "0700.HK"
+		case "CRYPTO":
+			code = "BTCUSDT"
+		default:
+			code = "600519.SH"
+		}
 	}
 	limit := req.Limit
 	if limit <= 0 {
