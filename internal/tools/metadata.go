@@ -164,7 +164,7 @@ func requiresMCPToken(name string) bool {
 		return true
 	}
 	switch name {
-	case "save_note", "manage_memory", "recall", "update_soul", "create_skill":
+	case "save_note", "manage_memory", "recall", "update_soul", "update_preference", "create_skill":
 		return false
 	}
 	return catalog.NeedsMCPToken(name) || catalog.BespokeNames[name]
@@ -175,7 +175,7 @@ func contextForTool(name, impl string, requiresMCP bool) (injections []string, s
 	summaryParts := []string{"会话历史与当前轮 step 记录会作为 Working Memory 提供给模型。"}
 
 	switch name {
-	case "save_note", "manage_memory", "update_soul", "create_skill":
+	case "save_note", "manage_memory", "update_soul", "update_preference", "create_skill":
 		injections = append(injections, "tenant_user_id", "postgres_facts")
 		summaryParts = append(summaryParts, "按登录租户 user_id 读写长期记忆（facts / SOUL / skills）。")
 	case "recall":

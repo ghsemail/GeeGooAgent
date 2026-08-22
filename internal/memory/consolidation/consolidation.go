@@ -11,6 +11,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/episodic"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/facts"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/scoped"
 )
 
 const metadataConsolidatedPairs = "memory_consolidated_pairs"
@@ -36,11 +37,12 @@ type Result struct {
 
 // Distiller batches chat exchanges into semantic facts and episodic summaries.
 type Distiller struct {
-	Provider llm.Provider
-	Policy   llm.Policy
-	Facts    *facts.PostgresStore
-	Episodic *episodic.PostgresStore
-	EveryN   int
+	Provider    llm.Provider
+	Policy      llm.Policy
+	Facts       *facts.PostgresStore
+	Episodic    *episodic.PostgresStore
+	Preferences *scoped.PreferencesStore
+	EveryN      int
 }
 
 // MaybeConsolidate runs when enough new user-assistant pairs accumulated.
@@ -81,8 +83,11 @@ func (d *Distiller) MaybeConsolidate(ctx context.Context, session *chatsession.C
 	}
 	if ep := strings.TrimSpace(distilled.Episode); ep != "" && d.Episodic != nil {
 		ep = "[consolidated] " + ep
-		if err := d.Episodic.Add(ctx, session.ID, userID, ep, time.Now().UTC()); err == nil {
-			out.Episode = true
+		scopes := consolidationScopes(session)
+		for _, sc := range scopes {
+			if _, err := d.Episodic.AddScoped(ctx, session.ID, userID, sc, ep, time.Now().UTC()); err == nil {
+				out.Episode = true
+			}
 		}
 	}
 	if session.Metadata == nil {
@@ -192,4 +197,21 @@ func formatExchangeLog(msgs []llm.Message, skipPairs int) string {
 		pairs++
 	}
 	return b.String()
+}
+
+func consolidationScopes(session *chatsession.ChatSession) []string {
+	active := scoped.NormalizeScopeList(chatsession.ActiveScopesFromSession(session))
+	seen := map[string]struct{}{scoped.ScopeUser: {}}
+	out := []string{scoped.ScopeUser}
+	for _, sc := range active {
+		if sc == scoped.ScopeUser || sc == scoped.ScopeGlobal {
+			continue
+		}
+		if _, ok := seen[sc]; ok {
+			continue
+		}
+		seen[sc] = struct{}{}
+		out = append(out, sc)
+	}
+	return out
 }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
+	"github.com/ghsemail/GeeGooAgent/internal/chatprompt"
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/clients/admin"
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
@@ -24,6 +25,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/memory/episodic"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/facts"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/scoped"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/semantic"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/opslog"
@@ -61,6 +63,8 @@ type App struct {
 	Facts *facts.PostgresStore
 	// Episodic memory (dated summaries) when PostgreSQL is enabled.
 	Episodic *episodic.PostgresStore
+	// Scoped preferences (context profiles in DB).
+	Preferences *scoped.PreferencesStore
 	// Consolidator distills chats into semantic facts + episodic rows.
 	Consolidator *consolidation.Distiller
 	// Procedural memory scans SKILL.md under skills/.
@@ -160,6 +164,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 		FeishuWebhookURL: cfg.EffectiveFeishuWebhookURL(),
 		Delegate: sub, Memory: app.ChatMemory,
 		Facts: app.Facts, Episodic: app.Episodic, Home: config.Home(),
+		Preferences: app.Preferences,
 		SkillLoader: app.SkillLoader,
 	})
 	app.Agent.SetSubAgent(sub)
@@ -214,6 +219,11 @@ func (a *App) openPostgres() error {
 	a.PG = pg
 	a.Episodic = episodic.NewPostgresStore(pg.SQL())
 	a.Facts = facts.NewPostgresStore(pg.SQL())
+	a.Preferences = scoped.NewPreferencesStore(pg.SQL())
+	chatprompt.SetProfileBackend(&scoped.ProfileBackend{
+		Home: config.Home(),
+		DB:   a.Preferences,
+	})
 	if n, _ := a.Facts.Count(context.Background(), ""); n == 0 {
 		if imported, err := a.Facts.MigrateFromLegacyChunks(context.Background()); err == nil && imported > 0 {
 			fmt.Fprintf(os.Stderr, "已迁移 %d 条 legacy semantic facts\n", imported)
@@ -681,11 +691,12 @@ func (a *App) wireConsolidator() {
 		return
 	}
 	a.Consolidator = &consolidation.Distiller{
-		Provider: provider,
-		Policy:   a.opsBackgroundPolicy(),
-		Facts:    a.Facts,
-		Episodic: a.Episodic,
-		EveryN:   3,
+		Provider:    provider,
+		Policy:      a.opsBackgroundPolicy(),
+		Facts:       a.Facts,
+		Episodic:    a.Episodic,
+		Preferences: a.Preferences,
+		EveryN:      3,
 	}
 }
 

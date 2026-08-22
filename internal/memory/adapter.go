@@ -3,12 +3,14 @@ package memory
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/episodic"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/facts"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/scoped"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 )
 
@@ -20,6 +22,7 @@ type FactsStore interface {
 // EpisodicStore searches dated episode summaries.
 type EpisodicStore interface {
 	SearchEpisodes(ctx context.Context, query, userID string, limit int) ([]episodic.Episode, error)
+	SearchScoped(ctx context.Context, query, userID string, scopes []string, limit int) ([]episodic.Episode, error)
 }
 
 // AdapterConfig wires existing backends into the Memory port.
@@ -139,7 +142,14 @@ func (a *Adapter) recallMemory(ctx context.Context, q memport.RecallQuery) (memp
 	}
 
 	if a.episodic != nil {
-		eps, err := a.episodic.SearchEpisodes(ctx, q.Query, q.UserID, 3)
+		scopes := recallScopes(a, q)
+		var eps []episodic.Episode
+		var err error
+		if len(scopes) > 0 {
+			eps, err = a.episodic.SearchScoped(ctx, q.Query, q.UserID, scopes, 3)
+		} else {
+			eps, err = a.episodic.SearchEpisodes(ctx, q.Query, q.UserID, 3)
+		}
 		if err != nil {
 			return memport.RecallResult{}, err
 		}
@@ -154,7 +164,7 @@ func (a *Adapter) recallMemory(ctx context.Context, q memport.RecallQuery) (memp
 				Score:   score,
 				Snippet: snippet,
 				Data: map[string]any{
-					"kind": "episode", "id": ep.ID, "session_id": ep.SessionID,
+					"kind": "episode", "id": ep.ID, "session_id": ep.SessionID, "scope": ep.Scope,
 				},
 			})
 		}
@@ -184,6 +194,22 @@ func (a *Adapter) recallMemory(ctx context.Context, q memport.RecallQuery) (memp
 		}
 	}
 	return out, nil
+}
+
+func recallScopes(a *Adapter, q memport.RecallQuery) []string {
+	if a == nil || a.sessions == nil || strings.TrimSpace(q.SessionID) == "" {
+		return nil
+	}
+	chat, err := a.sessions.Load(q.SessionID)
+	if err != nil || chat == nil {
+		return nil
+	}
+	active := scoped.NormalizeScopeList(chatsession.ActiveScopesFromSession(chat))
+	if len(active) == 0 {
+		return nil
+	}
+	// Always include user-scope episodes alongside active entity scopes.
+	return scoped.NormalizeScopeList(append(active, scoped.ScopeUser))
 }
 
 func (a *Adapter) recallEvidence(q memport.RecallQuery) (memport.RecallResult, error) {

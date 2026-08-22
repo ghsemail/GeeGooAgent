@@ -122,7 +122,8 @@ var (
 		"recall":         {},
 		"save_note":      {},
 		"manage_memory":  {},
-		"update_soul":    {},
+		"update_soul":        {},
+		"update_preference":  {},
 		"create_skill":   {},
 		"clarify":        {},
 		"delegate_task":  {},
@@ -298,7 +299,7 @@ func toolTaxonomy(name string) ToolTaxonomy {
 		return TaxonomyAct
 	case strings.HasPrefix(name, "read_"), name == "write_execution_log",
 		strings.HasPrefix(name, "save_"), strings.HasPrefix(name, "manage_"),
-		name == "clarify", name == "delegate_task", name == "update_soul", name == "create_skill":
+		name == "clarify", name == "delegate_task", name == "update_soul", name == "update_preference", name == "create_skill":
 		return TaxonomyMeta
 	default:
 		return TaxonomyOther

@@ -64,6 +64,29 @@ CREATE TABLE IF NOT EXISTS agent_facts (
 CREATE INDEX IF NOT EXISTS idx_agent_facts_user ON agent_facts (user_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_agent_facts_fts ON agent_facts USING GIN (search_vector);
 
+-- Scoped preferences (Chat context profiles); primary store when PostgreSQL is enabled.
+CREATE TABLE IF NOT EXISTS agent_scoped_preferences (
+    id         BIGSERIAL PRIMARY KEY,
+    user_id    TEXT NOT NULL DEFAULT '',
+    scope      TEXT NOT NULL,
+    content    TEXT NOT NULL,
+    source     TEXT NOT NULL DEFAULT 'ops',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, scope)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_scoped_prefs_user
+    ON agent_scoped_preferences (user_id, scope);
+
+DO $$ BEGIN
+    ALTER TABLE agent_episodes ADD COLUMN scope TEXT NOT NULL DEFAULT 'user';
+EXCEPTION
+    WHEN duplicate_column THEN NULL;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_agent_episodes_user_scope_date
+    ON agent_episodes (user_id, scope, happened_at DESC);
+
 CREATE TABLE IF NOT EXISTS agent_approvals (
     id          BIGSERIAL PRIMARY KEY,
     session_id  TEXT NOT NULL,

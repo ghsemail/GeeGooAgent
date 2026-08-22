@@ -95,10 +95,11 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 			query = userText
 		}
 		res, err := l.mem.Recall(ctx, memport.RecallQuery{
-			Kind:   memport.RecallSession,
-			Query:  query,
-			UserID: session.UserID,
-			Limit:  topK,
+			Kind:      memport.RecallSession,
+			Query:     query,
+			UserID:    session.UserID,
+			SessionID: session.ID,
+			Limit:     topK,
 		})
 		if err != nil {
 			decision.Reason = "recall error: " + err.Error()

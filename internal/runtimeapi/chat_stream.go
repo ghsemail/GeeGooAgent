@@ -28,6 +28,7 @@ type chatStreamRequest struct {
 	SessionID        string   `json:"session_id"`
 	MCPToken         string   `json:"mcp_token"`
 	ContextProfiles  []string `json:"context_profiles,omitempty"`
+	ActiveScopes     []string `json:"active_scopes,omitempty"`
 }
 
 type chatTurnEndPayload struct {
@@ -84,10 +85,10 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 		writeError(w, code, msg)
 		return
 	}
-	if len(req.ContextProfiles) > 0 {
-		chatsession.SetContextProfiles(chat, chatsession.MergeContextProfiles(
-			chatsession.ContextProfilesFromSession(chat),
-			req.ContextProfiles,
+	if len(req.ContextProfiles) > 0 || len(req.ActiveScopes) > 0 {
+		chatsession.SetActiveScopes(chat, chatsession.MergeContextProfiles(
+			chatsession.ActiveScopesFromSession(chat),
+			append(req.ContextProfiles, req.ActiveScopes...),
 		))
 		_ = store.Save(chat)
 	}

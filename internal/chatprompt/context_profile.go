@@ -44,13 +44,17 @@ type LoadedProfile struct {
 
 // MergeResult is the merged AGENTS block for system prompt injection.
 type MergeResult struct {
-	Text     string          `json:"text"`
-	Profiles []LoadedProfile `json:"profiles"`
-	Truncated bool           `json:"truncated,omitempty"`
+	Text      string          `json:"text"`
+	Profiles  []LoadedProfile `json:"profiles"`
+	Truncated bool            `json:"truncated,omitempty"`
 }
 
-// LoadProfile reads one AGENTS.md; missing file returns (LoadedProfile{Missing:true}, false).
+// LoadProfile reads profile content (DB backend first, then file).
 func LoadProfile(home, userID string, ref ProfileRef) (LoadedProfile, bool) {
+	return loadProfileMerged(home, userID, ref)
+}
+
+func loadProfileFile(home, userID string, ref ProfileRef) (LoadedProfile, bool) {
 	path := AgentsPathForRef(home, userID, ref)
 	out := LoadedProfile{Ref: ref, Path: path}
 	if path == "" {
@@ -72,7 +76,7 @@ func LoadProfile(home, userID string, ref ProfileRef) (LoadedProfile, bool) {
 	return out, true
 }
 
-// SaveProfile writes AGENTS.md for a profile ref.
+// SaveProfile writes profile content (DB backend when configured, else file).
 func SaveProfile(home, userID string, ref ProfileRef, content string) error {
 	text := strings.TrimSpace(content)
 	if text == "" {
@@ -81,6 +85,10 @@ func SaveProfile(home, userID string, ref ProfileRef, content string) error {
 	if len([]byte(text)) > AgentsMaxBytes {
 		return errAgentsTooLarge
 	}
+	return saveProfileMerged(home, userID, ref, text)
+}
+
+func saveProfileFile(home, userID string, ref ProfileRef, content string) error {
 	path := AgentsPathForRef(home, userID, ref)
 	if path == "" {
 		return errProfileRefInvalid
@@ -88,9 +96,10 @@ func SaveProfile(home, userID string, ref ProfileRef, content string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	payload := strings.TrimRight(text, "\n") + "\n"
+	payload := strings.TrimRight(content, "\n") + "\n"
 	return os.WriteFile(path, []byte(payload), 0o644)
 }
+
 var (
 	errAgentsEmpty    = errors.New("AGENTS cannot be empty")
 	errAgentsTooLarge = errors.New("AGENTS exceeds size limit")
@@ -149,7 +158,7 @@ func MergeProfiles(home, userID string, sessionRefs []string, limits ProfileLimi
 	var parts []string
 
 	add := func(ref ProfileRef) {
-		if lp, ok := LoadProfile(home, userID, ref); ok {
+		if lp, ok := loadProfileMerged(home, userID, ref); ok {
 			profiles = append(profiles, lp)
 			parts = append(parts, formatProfileSection(ref, lp.Content))
 		} else {
@@ -183,7 +192,6 @@ func truncateUTF8(s string, maxBytes int) string {
 	if len([]byte(s)) <= maxBytes {
 		return s
 	}
-	// Trim by bytes with safe boundary.
 	b := []byte(s)
 	if maxBytes > len(b) {
 		maxBytes = len(b)

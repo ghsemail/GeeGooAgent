@@ -34,6 +34,7 @@ type episodePayload struct {
 	SessionID  string `json:"session_id"`
 	Summary    string `json:"summary"`
 	HappenedAt string `json:"happened_at"`
+	Scope      string `json:"scope"`
 }
 
 type factPayload struct {
@@ -69,7 +70,7 @@ func (h *Handler) memoryEpisodeCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	userID := resolveUserID(r)
 	when := parseDate(req.HappenedAt)
-	id, err := h.App.Episodic.Create(r.Context(), strings.TrimSpace(req.SessionID), userID, req.Summary, when)
+	id, err := h.App.Episodic.CreateScoped(r.Context(), strings.TrimSpace(req.SessionID), userID, req.Scope, req.Summary, when)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -242,6 +243,7 @@ func episodeRow(ep *episodic.Episode) map[string]any {
 		"id":          ep.ID,
 		"session_id":  ep.SessionID,
 		"user_id":     ep.UserID,
+		"scope":       ep.Scope,
 		"summary":     ep.Summary,
 		"happened_at": ep.HappenedAt.Format(time.RFC3339),
 		"created_at":  ep.CreatedAt.Format(time.RFC3339),

@@ -1,6 +1,8 @@
 package runtimeapi
 
 import (
+	"context"
+
 	"github.com/ghsemail/GeeGooAgent/internal/chatprompt"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 )
@@ -16,8 +18,18 @@ func (h *Handler) buildContextProfilesSummary(userID string) map[string]any {
 			paths = append(paths, p.Path)
 		}
 	}
+	dbLoaded := 0
+	if h.App != nil && h.App.Preferences != nil {
+		if n, err := h.App.Preferences.CountLoaded(context.Background(), userID); err == nil {
+			dbLoaded = n
+		}
+	}
+	if dbLoaded > loaded {
+		loaded = dbLoaded
+	}
 	return map[string]any{
 		"loaded_count": loaded,
+		"db_scopes":    dbLoaded,
 		"merged_bytes": len([]byte(merge.Text)),
 		"truncated":    merge.Truncated,
 		"paths":        paths,

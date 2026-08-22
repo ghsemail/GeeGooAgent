@@ -11,6 +11,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/memory/episodic"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/facts"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/scoped"
 )
 
 const soulLearnedRules = "## Learned rules"
@@ -18,13 +19,19 @@ const soulLearnedRules = "## Learned rules"
 var skillSlugRE = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,40}$`)
 
 func registerMemoryTools(r *Registry, deps Deps) {
-	if deps.Facts == nil {
-		return
+	if deps.Facts != nil {
+		registerSaveNote(r, deps)
+		registerManageMemory(r, deps)
 	}
-	registerSaveNote(r, deps)
-	registerManageMemory(r, deps)
-	registerUpdateSoul(r, deps)
-	registerCreateSkill(r, deps)
+	if strings.TrimSpace(deps.Home) != "" {
+		registerUpdateSoul(r, deps)
+	}
+	if deps.Preferences != nil || strings.TrimSpace(deps.Home) != "" {
+		registerUpdatePreference(r, deps)
+	}
+	if strings.TrimSpace(deps.Home) != "" {
+		registerCreateSkill(r, deps)
+	}
 }
 
 func registerSaveNote(r *Registry, deps Deps) {
@@ -170,6 +177,57 @@ func registerUpdateSoul(r *Registry, deps Deps) {
 	})
 }
 
+func registerUpdatePreference(r *Registry, deps Deps) {
+	r.Register(Tool{
+		Name: "update_preference",
+		Description: "Save a scoped preference rule (context profile) for this user — market, stock, or automation scope. " +
+			"Takes effect next turn. Use when the user gives standing instructions about a specific stock, market, or bot.",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"scope": map[string]any{
+					"type":        "string",
+					"description": "memory scope, e.g. user, market:HK, stock:00700.HK, automation:bot-id (bot: alias ok)",
+				},
+				"rule": map[string]any{"type": "string", "description": "one preference rule, imperative"},
+			},
+			"required": []any{"rule"},
+		},
+		Handle: func(ctx Context, args map[string]any) Result {
+			rule := strings.TrimSpace(strings.TrimLeft(strArg(args, "rule", ""), "-"))
+			if rule == "" {
+				return Result{Status: StatusOK, Summary: "Nothing to add."}
+			}
+			scope := scoped.NormalizeScope(strArg(args, "scope", scoped.ScopeUser))
+			if ctx.DryRun {
+				return okDryRun("update_preference", map[string]any{"scope": scope, "rule": rule})
+			}
+			if deps.Preferences != nil {
+				if err := deps.Preferences.AppendRule(ctx.GoContext(), ctx.UserID, scope, rule, "chat"); err != nil {
+					return errResult(err)
+				}
+				return Result{Status: StatusOK, Summary: fmt.Sprintf("Saved preference for %s: %s", scope, rule)}
+			}
+			home := strings.TrimSpace(deps.Home)
+			ref, ok := scoped.RefFromScope(scope)
+			if !ok || home == "" {
+				return Result{Status: StatusError, Summary: "scoped preferences require PostgreSQL or a valid scope ref", ExitCode: 1}
+			}
+			lp, loaded := chatprompt.LoadProfile(home, ctx.UserID, ref)
+			text := lp.Content
+			if !loaded || strings.TrimSpace(text) == "" {
+				text = "- " + rule + "\n"
+			} else {
+				text = strings.TrimRight(text, "\n") + "\n- " + rule + "\n"
+			}
+			if err := chatprompt.SaveProfile(home, ctx.UserID, ref, text); err != nil {
+				return errResult(err)
+			}
+			return Result{Status: StatusOK, Summary: fmt.Sprintf("Saved preference for %s: %s", scope, rule)}
+		},
+	})
+}
+
 func registerCreateSkill(r *Registry, deps Deps) {
 	home := strings.TrimSpace(deps.Home)
 	if home == "" {
@@ -244,7 +302,7 @@ func manageMemorySearch(ctx Context, deps Deps, kind, query string) Result {
 		}
 		var lines []string
 		for _, r := range rows {
-			lines = append(lines, fmt.Sprintf("#%d %s", r.ID, episodic.Format(r.HappenedAt, r.Summary)))
+			lines = append(lines, fmt.Sprintf("#%d [%s] %s", r.ID, r.Scope, episodic.Format(r.HappenedAt, r.Summary)))
 		}
 		return Result{Status: StatusOK, Summary: strings.Join(lines, "\n")}
 	}

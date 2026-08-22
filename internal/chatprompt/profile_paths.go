@@ -62,6 +62,11 @@ func ParseProfileRef(raw string) (ProfileRef, error) {
 		return ProfileRef{Kind: kind, Key: key}, nil
 	case ProfileGlobal, ProfileUserDefault:
 		return ProfileRef{Kind: kind, Key: key}, nil
+	case ProfileKind("bot"):
+		if key == "" {
+			return ProfileRef{}, errProfileRefInvalid
+		}
+		return ProfileRef{Kind: ProfileAutomation, Key: key}, nil
 	default:
 		return ProfileRef{}, errProfileRefInvalid
 	}

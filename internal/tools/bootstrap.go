@@ -12,6 +12,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/memory/episodic"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/facts"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/scoped"
 	"github.com/ghsemail/GeeGooAgent/internal/tools/catalog"
 )
 
@@ -26,6 +27,7 @@ type Deps struct {
 	Memory           memport.Port
 	Facts            *facts.PostgresStore
 	Episodic         *episodic.PostgresStore
+	Preferences      *scoped.PreferencesStore
 	SkillLoader      *procedural.Loader
 	Home             string
 	// Delegate runs delegate_task sub-agent turns (optional; wired by app).
