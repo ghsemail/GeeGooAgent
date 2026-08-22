@@ -169,8 +169,10 @@ func (c *dataFleetCollector) probeNode(ctx context.Context, node config.Resolved
 		out.News.EnabledSources = countEnabledNewsSources(sources)
 		out.News.CacheMarketTTL = intFromAny(sources["cache_market_ttl_sec"])
 		out.News.CacheStockTTL = intFromAny(sources["cache_stock_ttl_sec"])
-	}
-	if health, ok := c.getNewsHealth(ctx, node); ok {
+		if health, ok := c.getNewsHealth(ctx, node); ok {
+			out.News.HealthySources = countHealthyEnabledNewsSources(sources, health)
+		}
+	} else if health, ok := c.getNewsHealth(ctx, node); ok {
 		out.News.HealthySources = countHealthyNewsSources(health)
 	}
 	if futu, ok := c.getFutuHealth(ctx, node); ok {
@@ -403,6 +405,76 @@ func countHealthyNewsSources(health map[string]any) int {
 			continue
 		}
 		if m["ok"] == true {
+			n++
+		}
+	}
+	return n
+}
+
+// countHealthyEnabledNewsSources counts enabled config slots whose source_id probe is ok.
+// Matches countEnabledNewsSources so overview ratios stay 1:1 when every probe passes.
+func countHealthyEnabledNewsSources(sources, health map[string]any) int {
+	probeOK := probeOKBySourceID(health)
+	return countEnabledNewsSourcesMatching(sources, func(id string) bool {
+		ok, known := probeOK[id]
+		return known && ok
+	})
+}
+
+func probeOKBySourceID(health map[string]any) map[string]bool {
+	out := make(map[string]bool)
+	list, ok := health["sources"].([]any)
+	if !ok {
+		return out
+	}
+	for _, item := range list {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		id := stringFromAny(m["id"])
+		if id == "" {
+			continue
+		}
+		out[id] = m["ok"] == true
+	}
+	return out
+}
+
+func countEnabledNewsSourcesMatching(sources map[string]any, match func(id string) bool) int {
+	regions, ok := sources["regions"].(map[string]any)
+	if !ok {
+		return 0
+	}
+	total := 0
+	for _, rv := range regions {
+		region, ok := rv.(map[string]any)
+		if !ok {
+			continue
+		}
+		total += countMatchingSourceList(region["market_sources"], match)
+		total += countMatchingSourceList(region["stock_sources"], match)
+		total += countMatchingSourceList(region["sources"], match)
+	}
+	return total
+}
+
+func countMatchingSourceList(v any, match func(id string) bool) int {
+	list, ok := v.([]any)
+	if !ok {
+		return 0
+	}
+	n := 0
+	for _, item := range list {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if m["enabled"] == false {
+			continue
+		}
+		id := stringFromAny(m["id"])
+		if id != "" && match(id) {
 			n++
 		}
 	}
