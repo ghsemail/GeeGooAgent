@@ -1,7 +1,6 @@
 package runtimeapi
 
 import (
-	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -145,7 +144,8 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	schemas := h.App.Registry.Schemas(h.App.ChatToolNames())
-	runCtx := context.WithoutCancel(r.Context())
+	// Respect client disconnect (stop button / tab close) so chatMu is not held forever.
+	runCtx := r.Context()
 	var result runtime.TurnResult
 	h.withUserAgentGateway(resolveUserID(r), resolveClientSource(r), func() {
 		result = h.App.Agent.Run(runCtx, rtSession, message, toolCtx, schemas)
