@@ -28,6 +28,14 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
+const (
+	// Ops dashboard must stay bounded: loading every session body + full DB samples OOM/stack-overflowed runtime.
+	dashboardMaxListedSessions = 50
+	dashboardMaxSessionDetail    = 20
+	dashboardMaxChatLogEntries   = 100
+	dashboardMaxTurns            = 30
+)
+
 func (h *Handler) registerDashboardRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/dashboard/data", h.dashboardData)
 	mux.HandleFunc("GET /v1/dashboard/events", h.dashboardEvents)
@@ -94,32 +102,41 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		entries, err := listSessionsForUser(store, userID)
 		if err == nil {
 			for i, e := range entries {
+				if i >= dashboardMaxListedSessions {
+					break
+				}
 				if i == 0 {
 					currentSession = e.ID
 				}
-				lastMsg := ""
-				if sess, err := store.Load(e.ID); err == nil && sess != nil {
-					for j := len(sess.Messages) - 1; j >= 0; j-- {
-						if sess.Messages[j].Role != llm.RoleSystem {
-							lastMsg = truncateRunes(sess.Messages[j].Content, 120)
-							break
+				lastMsg := chatsession.ListPreview(e)
+				loadDetail := i < dashboardMaxSessionDetail && len(chatLog) < dashboardMaxChatLogEntries
+				if loadDetail {
+					if sess, err := store.Load(e.ID); err == nil && sess != nil {
+						for j := len(sess.Messages) - 1; j >= 0; j-- {
+							if sess.Messages[j].Role != llm.RoleSystem {
+								lastMsg = truncateRunes(sess.Messages[j].Content, 120)
+								break
+							}
 						}
-					}
-					for _, msg := range sess.Messages {
-						if msg.Role == llm.RoleSystem {
-							continue
+						for _, msg := range sess.Messages {
+							if msg.Role == llm.RoleSystem {
+								continue
+							}
+							if len(chatLog) >= dashboardMaxChatLogEntries {
+								break
+							}
+							chatLog = append(chatLog, map[string]any{
+								"session_id": e.ID,
+								"role":       string(msg.Role),
+								"content":    truncateRunes(msg.Content, 200),
+							})
 						}
-						chatLog = append(chatLog, map[string]any{
-							"session_id": e.ID,
-							"role":       string(msg.Role),
-							"content":    truncateRunes(msg.Content, 200),
-						})
+						for _, rec := range sess.StepRecords {
+							totalIn += rec.PromptTokens
+							totalOut += rec.CompletionTokens
+						}
+						turns = append(turns, buildTurnsFromSession(sess, true)...)
 					}
-					for _, rec := range sess.StepRecords {
-						totalIn += rec.PromptTokens
-						totalOut += rec.CompletionTokens
-					}
-					turns = append(turns, buildTurnsFromSession(sess)...)
 				}
 				sources := []string{"web"}
 				if e.Metadata != nil {
@@ -148,8 +165,8 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		tj, _ := turns[j]["ts"].(string)
 		return ti > tj
 	})
-	if len(turns) > 30 {
-		turns = turns[:30]
+	if len(turns) > dashboardMaxTurns {
+		turns = turns[:dashboardMaxTurns]
 	}
 
 	toolCalls, toolErrors := 0, 0
@@ -263,7 +280,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		"soul": soulTextForDashboard(firstNonEmpty(home, config.Home()), userID),
 		"context_profiles": h.buildContextProfilesSummary(userID),
 		"consolidate_every": 4, "chat_pending": 0, "tools": toolsPayload,
-		"db": h.buildDBMeta(), "doctor_ok": doctorOK, "doctor_checks": doctorChecks,
+		"db": h.buildDBMetaSummary(), "doctor_ok": doctorOK, "doctor_checks": doctorChecks,
 		"eval_report": nil, "eval_history": []map[string]any{},
 		"trace_tail": h.buildTraceTail(store, userID), "trace_file": "",
 		"usage": map[string]any{
@@ -302,6 +319,33 @@ func (h *Handler) buildDashboardSettings(provider, model, userID string) map[str
 		}
 	}
 	return info
+}
+
+func (h *Handler) buildDBMetaSummary() map[string]any {
+	tables := []map[string]any{}
+	allTables := []string{}
+	path := ""
+	var db *sql.DB
+	if h.App != nil && h.App.PG != nil {
+		path = "postgresql"
+		db = h.App.PG.SQL()
+	} else if h.App != nil && h.App.DB != nil {
+		path = "sqlite"
+		db = h.App.DB.SQL()
+	}
+	if db != nil {
+		isPG := path == "postgresql"
+		names, err := listTableNames(db, isPG)
+		if err == nil {
+			allTables = names
+			for _, name := range names {
+				tables = append(tables, map[string]any{
+					"name": name, "count": countTableRows(db, name),
+				})
+			}
+		}
+	}
+	return map[string]any{"path": path, "size": 0, "tables": tables, "all_tables": allTables, "fts": []string{}}
 }
 
 func (h *Handler) buildDBMeta() map[string]any {
@@ -469,7 +513,7 @@ func assistantReplyForUserTurn(messages []llm.Message, userIdx int) string {
 	return reply
 }
 
-func buildTurnsFromSession(sess *chatsession.ChatSession) []map[string]any {
+func buildTurnsFromSession(sess *chatsession.ChatSession, light ...bool) []map[string]any {
 	if sess == nil {
 		return nil
 	}
@@ -515,7 +559,8 @@ func buildTurnsFromSession(sess *chatsession.ChatSession) []map[string]any {
 		}
 		user := sess.Messages[i].Content
 		reply := assistantReplyForUserTurn(sess.Messages, i)
-		if reply != "" {
+		skipClean := len(light) > 0 && light[0]
+		if reply != "" && !skipClean {
 			reply = agent.CleanAssistantVisibleText(reply)
 		}
 		for j := i + 1; j < len(sess.Messages); j++ {
