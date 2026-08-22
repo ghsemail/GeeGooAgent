@@ -67,6 +67,22 @@ func RefFromScope(scope string) (chatprompt.ProfileRef, bool) {
 	return ref, true
 }
 
+// FactScope maps legacy fact subjects to a memory scope label for UI grouping.
+func FactScope(subject string) string {
+	s := strings.TrimSpace(subject)
+	if s == "" {
+		return ScopeUser
+	}
+	n := NormalizeScope(s)
+	if n == ScopeGlobal || n == ScopeUser {
+		return n
+	}
+	if strings.HasPrefix(n, "market:") || strings.HasPrefix(n, "stock:") || strings.HasPrefix(n, "automation:") {
+		return n
+	}
+	return ScopeUser
+}
+
 // NormalizeScopeList dedupes and canonicalizes scope strings.
 func NormalizeScopeList(raw []string) []string {
 	seen := map[string]struct{}{}

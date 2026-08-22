@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory/fts"
@@ -25,6 +26,22 @@ type Episode struct {
 // PostgresStore persists dated episode summaries.
 type PostgresStore struct {
 	db *sql.DB
+}
+
+var backfillEpisodeScopesOnce sync.Once
+
+// BackfillEmptyScopes normalizes legacy rows missing scope.
+func (s *PostgresStore) BackfillEmptyScopes(ctx context.Context) error {
+	if s == nil || s.db == nil {
+		return nil
+	}
+	var err error
+	backfillEpisodeScopesOnce.Do(func() {
+		_, err = s.db.ExecContext(ctx, `
+            UPDATE agent_episodes SET scope = 'user'
+            WHERE scope IS NULL OR TRIM(scope) = ''`)
+	})
+	return err
 }
 
 // NewPostgresStore creates an episodic store.

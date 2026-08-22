@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
-	"github.com/ghsemail/GeeGooAgent/internal/chatprompt"
-	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/doctor"
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	factmem "github.com/ghsemail/GeeGooAgent/internal/memory/facts"
@@ -203,46 +201,6 @@ func (h *Handler) sessionTrace(w http.ResponseWriter, r *http.Request) {
 		StepRecords:      append([]chatsession.ChatStepRecord(nil), session.StepRecords...),
 		UpdatedAt:        session.UpdatedAt,
 	})
-}
-
-func (h *Handler) buildSessionContextInjection(session *chatsession.ChatSession) map[string]any {
-	if session == nil {
-		return nil
-	}
-	scopes := chatsession.ActiveScopesFromSession(session)
-	userID := chatsession.UserIDFromSession(session)
-	limits := chatprompt.DefaultProfileLimits()
-	if h != nil && h.App != nil && h.App.Config != nil {
-		limits.MaxMergedBytes = h.App.Config.EffectiveContextProfileMaxMergedBytes()
-		limits.MaxProfilesPerSession = h.App.Config.EffectiveContextProfileMaxPerSession()
-	}
-	merge := chatprompt.InspectProfiles(config.Home(), userID, scopes, limits)
-	profiles := make([]map[string]any, 0, len(merge.Profiles))
-	for _, p := range merge.Profiles {
-		if p.Missing || p.Bytes <= 0 {
-			continue
-		}
-		profiles = append(profiles, map[string]any{
-			"ref":   p.Ref.String(),
-			"bytes": p.Bytes,
-			"path":  p.Path,
-		})
-	}
-	return map[string]any{
-		"active_scopes": scopes,
-		"merged_bytes":  len([]byte(merge.Text)),
-		"truncated":     merge.Truncated,
-		"profiles":      profiles,
-		"assemble_order": []string{
-			"SOUL",
-			"global AGENTS",
-			"user AGENTS",
-			"session scopes (market/stock/automation)",
-			"hard rules",
-			"retrieval gate (facts/episodes)",
-			"procedural skills",
-		},
-	}
 }
 
 func (h *Handler) listTools(w http.ResponseWriter, r *http.Request) {

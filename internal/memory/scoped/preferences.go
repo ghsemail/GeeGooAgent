@@ -5,9 +5,18 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatprompt"
 )
+
+// PreferenceRow is one scoped preference row (DB).
+type PreferenceRow struct {
+	Scope     string
+	Bytes     int
+	Source    string
+	UpdatedAt time.Time
+}
 
 // PreferencesStore persists scoped preference text (replaces primary AGENTS.md storage).
 type PreferencesStore struct {
@@ -88,6 +97,32 @@ func (s *PreferencesStore) AppendRule(ctx context.Context, userID, scope, rule, 
 	}
 	text := strings.TrimRight(existing, "\n") + "\n" + line + "\n"
 	return s.Put(ctx, userID, scope, text, source)
+}
+
+// ListSummary returns non-empty scoped preferences without loading full content.
+func (s *PreferencesStore) ListSummary(ctx context.Context, userID string) ([]PreferenceRow, error) {
+	if s == nil || s.db == nil {
+		return nil, nil
+	}
+	rows, err := s.db.QueryContext(ctx, `
+        SELECT scope, LENGTH(content), source, updated_at
+        FROM agent_scoped_preferences
+        WHERE user_id = $1 AND content <> ''
+        ORDER BY scope`, strings.TrimSpace(userID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PreferenceRow
+	for rows.Next() {
+		var row PreferenceRow
+		if err := rows.Scan(&row.Scope, &row.Bytes, &row.Source, &row.UpdatedAt); err != nil {
+			return nil, err
+		}
+		row.Scope = NormalizeScope(row.Scope)
+		out = append(out, row)
+	}
+	return out, rows.Err()
 }
 
 // CountLoaded returns scopes with non-empty content for a user.

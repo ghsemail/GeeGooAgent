@@ -27,7 +27,7 @@ func TestContextProfilesGetAndPut(t *testing.T) {
 		t.Fatalf("put status=%d body=%s", putRec.Code, putRec.Body.String())
 	}
 
-	getReq := httptest.NewRequest(http.MethodGet, "/v1/context/profiles/inspect", nil)
+	getReq := httptest.NewRequest(http.MethodGet, "/v1/context/profiles/inspect?merged=1", nil)
 	getReq.Header.Set("X-User-Id", "u1")
 	getRec := httptest.NewRecorder()
 	mux.ServeHTTP(getRec, getReq)
@@ -36,5 +36,16 @@ func TestContextProfilesGetAndPut(t *testing.T) {
 	}
 	if !strings.Contains(getRec.Body.String(), "prefer concise replies") {
 		t.Fatalf("body=%s", getRec.Body.String())
+	}
+
+	liteReq := httptest.NewRequest(http.MethodGet, "/v1/context/profiles/inspect", nil)
+	liteReq.Header.Set("X-User-Id", "u1")
+	liteRec := httptest.NewRecorder()
+	mux.ServeHTTP(liteRec, liteReq)
+	if liteRec.Code != http.StatusOK {
+		t.Fatalf("lite status=%d body=%s", liteRec.Code, liteRec.Body.String())
+	}
+	if !strings.Contains(liteRec.Body.String(), `"scope":"user"`) {
+		t.Fatalf("lite body=%s", liteRec.Body.String())
 	}
 }

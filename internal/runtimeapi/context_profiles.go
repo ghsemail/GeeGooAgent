@@ -67,6 +67,10 @@ func (h *Handler) contextProfilesGet(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if strings.TrimSpace(r.URL.Query().Get("merged")) != "1" && kind == "" {
+		writeJSON(w, h.lightweightProfilesInspect(userID, sessionRefs))
+		return
+	}
 	merge := chatprompt.InspectProfiles(home, userID, sessionRefs, h.profileLimits())
 	writeJSON(w, map[string]any{
 		"user_id":  userID,

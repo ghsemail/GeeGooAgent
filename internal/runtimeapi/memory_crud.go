@@ -11,6 +11,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory/episodic"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/facts"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/scoped"
 )
 
 func (h *Handler) registerMemoryCRUDRoutes(mux *http.ServeMux) {
@@ -23,6 +24,8 @@ func (h *Handler) registerMemoryCRUDRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/memory/facts", h.memoryFactCreate)
 	mux.HandleFunc("PUT /v1/memory/facts/{id}", h.memoryFactUpdate)
 	mux.HandleFunc("DELETE /v1/memory/facts/{id}", h.memoryFactDelete)
+
+	mux.HandleFunc("GET /v1/memory/scoped-preferences", h.memoryScopedPreferencesList)
 
 	// Legacy aliases (dashboard/cockpit may still call chunks).
 	mux.HandleFunc("POST /v1/memory/chunks", h.memoryFactCreate)
@@ -47,6 +50,9 @@ func (h *Handler) memoryEpisodesList(w http.ResponseWriter, r *http.Request) {
 	if h.App == nil || h.App.Episodic == nil {
 		writeError(w, http.StatusServiceUnavailable, "episodic memory not enabled")
 		return
+	}
+	if h.App.Episodic != nil {
+		_ = h.App.Episodic.BackfillEmptyScopes(r.Context())
 	}
 	userID := resolveUserID(r)
 	limit := parseLimit(r, 50, 200)
@@ -243,7 +249,7 @@ func episodeRow(ep *episodic.Episode) map[string]any {
 		"id":          ep.ID,
 		"session_id":  ep.SessionID,
 		"user_id":     ep.UserID,
-		"scope":       ep.Scope,
+		"scope":       scoped.NormalizeScope(ep.Scope),
 		"summary":     ep.Summary,
 		"happened_at": ep.HappenedAt.Format(time.RFC3339),
 		"created_at":  ep.CreatedAt.Format(time.RFC3339),
@@ -268,6 +274,7 @@ func factRow(f *facts.Row) map[string]any {
 		"id":         f.ID,
 		"user_id":    f.UserID,
 		"subject":    f.Subject,
+		"scope":      scoped.FactScope(f.Subject),
 		"content":    f.Content,
 		"raw":        raw,
 		"source":     f.Source,

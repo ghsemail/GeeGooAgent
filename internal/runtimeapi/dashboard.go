@@ -21,6 +21,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	factmem "github.com/ghsemail/GeeGooAgent/internal/memory/facts"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/scoped"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/scheduler"
 	"github.com/ghsemail/GeeGooAgent/internal/skills"
@@ -214,6 +215,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 			for _, f := range rows {
 				facts = append(facts, map[string]any{
 					"id": f.ID, "subject": f.Subject, "content": f.Content,
+					"scope": scoped.FactScope(f.Subject),
 					"raw": factmem.Format(f.Subject, f.Content),
 					"source": f.Source, "user_id": f.UserID,
 					"created_at": f.CreatedAt.Format(time.RFC3339),
@@ -255,17 +257,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 }
 
 func (h *Handler) opsContextProfilesSummary() map[string]any {
-	return map[string]any{
-		"loaded_count": 0,
-		"db_scopes":    0,
-		"merged_bytes": 0,
-		"truncated":    false,
-		"paths":        []string{},
-		"inspect_url":  "/v1/context/profiles/inspect",
-		"kinds": []string{
-			"global", "user_default", "market", "stock", "automation",
-		},
-	}
+	return h.scopedPreferencesSummary("")
 }
 
 func (h *Handler) buildDashboardDataOps(r *http.Request) (map[string]any, error) {
@@ -309,6 +301,7 @@ func (h *Handler) buildDashboardDataOps(r *http.Request) (map[string]any, error)
 			for _, f := range rows {
 				facts = append(facts, map[string]any{
 					"id": f.ID, "subject": f.Subject, "content": f.Content,
+					"scope": scoped.FactScope(f.Subject),
 					"raw": factmem.Format(f.Subject, f.Content),
 					"source": f.Source, "user_id": f.UserID,
 					"created_at": f.CreatedAt.Format(time.RFC3339),
@@ -321,6 +314,7 @@ func (h *Handler) buildDashboardDataOps(r *http.Request) (map[string]any, error)
 			for _, ep := range eps {
 				episodes = append(episodes, map[string]any{
 					"id": ep.ID, "session_id": ep.SessionID,
+					"scope": scoped.NormalizeScope(ep.Scope),
 					"title": truncateRunes(ep.Summary, 60), "summary": ep.Summary,
 					"happened_at": ep.HappenedAt.Format(time.RFC3339),
 					"updated_at":  ep.HappenedAt.Format(time.RFC3339),
