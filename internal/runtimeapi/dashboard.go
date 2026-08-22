@@ -188,26 +188,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		}
 	}
 
-	toolsPayload := map[string]any{
-		"catalog": []map[string]any{}, "mcp": map[string]any{"configured": false, "servers": []string{}, "live": false},
-		"apple_on": false, "planned": []map[string]any{},
-		"toolsets": []tools.ToolsetSummary{}, "taxonomies": []tools.TaxonomySummary{},
-		"routing_docs": []tools.RoutingDoc{},
-	}
-	if h.App != nil && h.App.Registry != nil {
-		catalogItems := tools.BuildCatalog(h.App.Registry, h.App.ChatToolNames())
-		catalog := make([]map[string]any, 0, len(catalogItems))
-		for _, item := range catalogItems {
-			catalog = append(catalog, tools.CatalogItemToMap(item))
-		}
-		toolsPayload["catalog"] = catalog
-		toolsPayload["routing_docs"] = tools.AllRoutingDocs()
-		toolsPayload["toolsets"] = tools.BuildToolsetSummaries()
-		toolsPayload["taxonomies"] = tools.BuildTaxonomySummaries()
-		if h.App.MCP != nil {
-			toolsPayload["mcp"] = map[string]any{"configured": true, "servers": []string{"mcp"}, "live": true}
-		}
-	}
+	toolsPayload := h.buildToolsDashboardPayload()
 
 	if h.App != nil && h.App.Facts != nil {
 		userID := resolveUserID(r)
@@ -329,22 +310,20 @@ func (h *Handler) buildDashboardDataOps(r *http.Request) (map[string]any, error)
 		home = h.App.Workspace
 	}
 
+	skillsOut, proceduralMemory := buildProceduralSkillsPayloadLite(h.App)
+	toolsPayload := h.buildToolsDashboardPayload()
+
 	return map[string]any{
 		"generated_at": now.Format(time.RFC3339), "provider": provider, "model": model,
 		"small_model": model, "home": home, "current_session": currentSession,
 		"stats": map[string]any{"turns": 0, "tool_calls": 0, "gate_skips": 0, "gate_retrieves": 0},
 		"sessions": sessionsOut, "turns": []map[string]any{}, "chat_log": []map[string]any{},
-		"facts": facts, "episodes": episodes, "skills": []map[string]any{},
-		"procedural_memory": map[string]any{},
+		"facts": facts, "episodes": episodes, "skills": skillsOut, "procedural_memory": proceduralMemory,
 		"calendar": []map[string]any{}, "outbox": []map[string]any{},
 		"soul": soulTextForDashboard(firstNonEmpty(home, config.Home()), userID),
 		"context_profiles": h.opsContextProfilesSummary(),
 		"consolidate_every": 4, "chat_pending": 0,
-		"tools": map[string]any{
-			"catalog": []map[string]any{}, "mcp": map[string]any{"configured": h.App != nil && h.App.MCP != nil},
-			"toolsets": []tools.ToolsetSummary{}, "taxonomies": []tools.TaxonomySummary{},
-			"routing_docs": []tools.RoutingDoc{},
-		},
+		"tools": toolsPayload,
 		"db": map[string]any{"path": "postgresql", "tables": []map[string]any{}, "all_tables": []string{}, "fts": []string{}},
 		"doctor_ok": true, "doctor_checks": []map[string]any{},
 		"eval_report": nil, "eval_history": []map[string]any{},
@@ -353,6 +332,31 @@ func (h *Handler) buildDashboardDataOps(r *http.Request) (map[string]any, error)
 		"settings": h.buildDashboardSettingsLite(provider, model), "wake_scans": []map[string]any{},
 		"data_fleet": map[string]any{"ok": true},
 	}, nil
+}
+
+func (h *Handler) buildToolsDashboardPayload() map[string]any {
+	toolsPayload := map[string]any{
+		"catalog": []map[string]any{}, "mcp": map[string]any{"configured": false, "servers": []string{}, "live": false},
+		"apple_on": false, "planned": []map[string]any{},
+		"toolsets": []tools.ToolsetSummary{}, "taxonomies": []tools.TaxonomySummary{},
+		"routing_docs": []tools.RoutingDoc{},
+	}
+	if h == nil || h.App == nil || h.App.Registry == nil {
+		return toolsPayload
+	}
+	catalogItems := tools.BuildCatalog(h.App.Registry, h.App.ChatToolNames())
+	catalog := make([]map[string]any, 0, len(catalogItems))
+	for _, item := range catalogItems {
+		catalog = append(catalog, tools.CatalogItemToMap(item))
+	}
+	toolsPayload["catalog"] = catalog
+	toolsPayload["routing_docs"] = tools.AllRoutingDocs()
+	toolsPayload["toolsets"] = tools.BuildToolsetSummaries()
+	toolsPayload["taxonomies"] = tools.BuildTaxonomySummaries()
+	if h.App.MCP != nil {
+		toolsPayload["mcp"] = map[string]any{"configured": true, "servers": []string{"mcp"}, "live": true}
+	}
+	return toolsPayload
 }
 
 func (h *Handler) buildDataFleetSummary(r *http.Request) map[string]any {
