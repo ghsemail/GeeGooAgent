@@ -17,7 +17,6 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
-	"github.com/ghsemail/GeeGooAgent/internal/doctor"
 	"github.com/ghsemail/GeeGooAgent/internal/app"
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
@@ -109,35 +108,6 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 					currentSession = e.ID
 				}
 				lastMsg := chatsession.ListPreview(e)
-				loadDetail := i < dashboardMaxSessionDetail && len(chatLog) < dashboardMaxChatLogEntries
-				if loadDetail {
-					if sess, err := store.Load(e.ID); err == nil && sess != nil {
-						for j := len(sess.Messages) - 1; j >= 0; j-- {
-							if sess.Messages[j].Role != llm.RoleSystem {
-								lastMsg = truncateRunes(sess.Messages[j].Content, 120)
-								break
-							}
-						}
-						for _, msg := range sess.Messages {
-							if msg.Role == llm.RoleSystem {
-								continue
-							}
-							if len(chatLog) >= dashboardMaxChatLogEntries {
-								break
-							}
-							chatLog = append(chatLog, map[string]any{
-								"session_id": e.ID,
-								"role":       string(msg.Role),
-								"content":    truncateRunes(msg.Content, 200),
-							})
-						}
-						for _, rec := range sess.StepRecords {
-							totalIn += rec.PromptTokens
-							totalOut += rec.CompletionTokens
-						}
-						turns = append(turns, buildTurnsFromSession(sess, true)...)
-					}
-				}
 				sources := []string{"web"}
 				if e.Metadata != nil {
 					if src, ok := e.Metadata["source"].(string); ok && src != "" {
@@ -149,7 +119,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 					"messages": e.MessageCount, "steps": e.StepCount, "status": e.Status,
 					"sources": sources, "last": lastMsg, "last_at": e.UpdatedAt.Format(time.RFC3339),
 				})
-				if summary := strings.TrimSpace(e.Summary); summary != "" {
+				if summary := strings.TrimSpace(e.Summary); summary != "" && len(episodes) < 40 {
 					episodes = append(episodes, map[string]any{
 						"session_id": e.ID, "title": firstNonEmpty(e.Title, e.ID),
 						"summary": summary, "updated_at": e.UpdatedAt.Format(time.RFC3339),
@@ -195,7 +165,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		stats["latency_avg"] = sum / len(latencies)
 	}
 
-	skillsOut, proceduralMemory := buildProceduralSkillsPayload(h.App)
+	skillsOut, proceduralMemory := buildProceduralSkillsPayloadLite(h.App)
 
 	if h.App != nil && h.App.Episodic != nil {
 		if eps, err := h.App.Episodic.List(r.Context(), userID, 80); err == nil && len(eps) > 0 {
@@ -251,17 +221,6 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 
 	doctorOK := true
 	doctorChecks := []map[string]any{}
-	if h.App != nil && h.App.Config != nil {
-		rows, _ := doctor.CollectFromConfig(h.App.Config, doctor.Options{SkipConnectivity: true})
-		for _, row := range rows {
-			doctorChecks = append(doctorChecks, map[string]any{
-				"name": row.Name, "ok": row.OK, "warn": row.Warn, "detail": row.Detail,
-			})
-			if !row.OK && !row.Warn {
-				doctorOK = false
-			}
-		}
-	}
 
 	home := ""
 	if h.App != nil {
@@ -282,13 +241,13 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		"consolidate_every": 4, "chat_pending": 0, "tools": toolsPayload,
 		"db": h.buildDBMetaSummary(), "doctor_ok": doctorOK, "doctor_checks": doctorChecks,
 		"eval_report": nil, "eval_history": []map[string]any{},
-		"trace_tail": h.buildTraceTail(store, userID), "trace_file": "",
+		"trace_tail": []map[string]any{}, "trace_file": "",
 		"usage": map[string]any{
 			"total_cost": totalCost, "calls": len(turns), "total_in": totalIn, "total_out": totalOut,
 			"by_day": []map[string]any{}, "by_provider": []map[string]any{},
 		},
-		"settings": h.buildDashboardSettings(provider, model, userID), "wake_scans": []map[string]any{},
-		"data_fleet": h.buildDataFleetSummary(r),
+		"settings": h.buildDashboardSettingsLite(provider, model), "wake_scans": []map[string]any{},
+		"data_fleet": map[string]any{"ok": true},
 	}, nil
 }
 
@@ -923,6 +882,50 @@ func firstNonEmpty(a, b string) string {
 		return a
 	}
 	return b
+}
+
+func buildProceduralSkillsPayloadLite(app *app.App) ([]map[string]any, map[string]any) {
+	var loader *procedural.Loader
+	if app != nil {
+		loader = app.SkillLoader
+	}
+	cfg := procedural.BuildMemoryConfig(loader, procedural.DefaultMaxSkillsPerTurn)
+	out := make([]map[string]any, 0)
+	if loader != nil {
+		summaries := loader.ListSummaries()
+		sort.Slice(summaries, func(i, j int) bool {
+			if summaries[i].Kind != summaries[j].Kind {
+				return summaries[i].Kind < summaries[j].Kind
+			}
+			return summaries[i].Name < summaries[j].Name
+		})
+		for _, s := range summaries {
+			out = append(out, s.Map())
+		}
+	} else {
+		for _, sk := range skills.Default().List() {
+			skillRel := "skills/" + sk.Name + "/SKILL.md"
+			out = append(out, map[string]any{
+				"name": sk.Name, "description": sk.Description,
+				"body": sk.Description, "body_preview": sk.Description,
+				"path": skillRel, "rel": skillRel,
+				"kind": string(procedural.KindWorkflow), "kind_label": procedural.KindLabel(procedural.KindWorkflow),
+				"inject_in_chat": false, "editable": false,
+			})
+		}
+	}
+	return out, cfg.Map()
+}
+
+func (h *Handler) buildDashboardSettingsLite(provider, model string) map[string]any {
+	return map[string]any{
+		"provider": provider, "model": model, "small_model": model,
+		"pinned":     []map[string]any{{"provider": provider, "model": model, "default": true}},
+		"catalog":    []map[string]any{},
+		"providers":  []map[string]any{},
+		"toolsets":   tools.BuildToolsetSummaries(),
+		"chat_toolsets": []string{}, "active_chat_toolsets": tools.DefaultChatToolsetIDs(),
+	}
 }
 
 func buildProceduralSkillsPayload(app *app.App) ([]map[string]any, map[string]any) {
