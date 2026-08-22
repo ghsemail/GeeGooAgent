@@ -54,6 +54,11 @@ func LoadProfile(home, userID string, ref ProfileRef) (LoadedProfile, bool) {
 	return loadProfileMerged(home, userID, ref)
 }
 
+// LoadProfileFromFile reads profile content from disk only (skips DB backend).
+func LoadProfileFromFile(home, userID string, ref ProfileRef) (LoadedProfile, bool) {
+	return loadProfileFile(home, userID, ref)
+}
+
 func loadProfileFile(home, userID string, ref ProfileRef) (LoadedProfile, bool) {
 	path := AgentsPathForRef(home, userID, ref)
 	out := LoadedProfile{Ref: ref, Path: path}

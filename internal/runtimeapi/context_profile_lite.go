@@ -102,7 +102,7 @@ func (h *Handler) profileStatusEntries(userID string, sessionScopes []string) []
 			out = append(out, entry)
 			continue
 		}
-		lp, ok := chatprompt.LoadProfile(home, userID, ref)
+		lp, ok := chatprompt.LoadProfileFromFile(home, userID, ref)
 		if ok && lp.Bytes > 0 {
 			entry["bytes"] = lp.Bytes
 			entry["source"] = "file"

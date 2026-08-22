@@ -153,7 +153,7 @@ func (b *ProfileBackend) Get(ctx context.Context, userID string, ref chatprompt.
 			return c, true
 		}
 	}
-	if lp, ok := chatprompt.LoadProfile(b.Home, userID, ref); ok {
+	if lp, ok := chatprompt.LoadProfileFromFile(b.Home, userID, ref); ok {
 		return lp.Content, true
 	}
 	return "", false
