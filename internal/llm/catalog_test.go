@@ -24,6 +24,13 @@ func TestPickCatalogModel(t *testing.T) {
 	}
 }
 
+func TestCatalogModelLabel(t *testing.T) {
+	got := CatalogModelLabel(admin.ConfiguredModel{DisplayName: "kinfra", Kind: "embedding"})
+	if got != "kinfra [Embedding]" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestActiveCatalogModelID(t *testing.T) {
 	models := []admin.ConfiguredModel{{ModelID: "a", Type: "configured"}}
 	if got := ActiveCatalogModelID("x", models); got != "x" {

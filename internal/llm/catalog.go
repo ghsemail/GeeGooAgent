@@ -45,6 +45,9 @@ func CatalogModelLabel(m admin.ConfiguredModel) string {
 	if m.Type == "configured" {
 		return name + " [运营默认]"
 	}
+	if strings.EqualFold(strings.TrimSpace(m.Kind), "embedding") {
+		return name + " [Embedding]"
+	}
 	return name
 }
 

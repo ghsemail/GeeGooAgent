@@ -17,6 +17,7 @@ type ConfiguredModel struct {
 	Name        string `json:"name"`
 	DisplayName string `json:"display_name"`
 	Type        string `json:"type"`
+	Kind        string `json:"kind,omitempty"`
 	Token       string `json:"token"`
 	BaseURL     string `json:"base_url"`
 	Provider    string `json:"provider,omitempty"`
