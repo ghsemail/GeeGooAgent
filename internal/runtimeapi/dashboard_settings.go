@@ -130,7 +130,7 @@ func (h *Handler) dashboardApplySettings(w http.ResponseWriter, r *http.Request)
 	}
 	if id := strings.TrimSpace(req.CatalogModelID); id != "" {
 		llmCfg.CatalogModelID = id
-		useOps := true
+		useOps := false
 		llmCfg.UseOpsModel = &useOps
 	} else if req.UseOpsModel != nil {
 		llmCfg.UseOpsModel = req.UseOpsModel

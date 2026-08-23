@@ -19,6 +19,7 @@ type Runner struct {
 	Sessions *gateway.SessionMap
 	StoreDir string
 	DryRun   bool
+	clarify  *gateway.ClarifyHub
 
 	mu      sync.Mutex
 	tenants map[string]*tenantSlot
@@ -44,6 +45,7 @@ func NewRunner(application *app.App, sessions *gateway.SessionMap, storeDir stri
 		tenants:  map[string]*tenantSlot{},
 		chatMu:   map[string]*sync.Mutex{},
 		seen:     newDedupCache(4096),
+		clarify:  gateway.NewClarifyHub(),
 	}
 }
 

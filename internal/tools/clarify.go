@@ -56,9 +56,6 @@ func handleClarify(ctx Context, args map[string]any) Result {
 			Data:    map[string]any{"user_response": "(dry-run)"},
 		}
 	}
-	if !ctx.Interactive {
-		return Result{Status: StatusSkip, Summary: "clarify 仅用于交互式 chat"}
-	}
 	if ctx.ClarifyFn == nil {
 		return Result{Status: StatusError, Summary: "clarify 未配置（当前环境无用户输入回调）"}
 	}

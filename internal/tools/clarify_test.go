@@ -2,9 +2,18 @@ package tools
 
 import "testing"
 
-func TestHandleClarifyRequiresInteractive(t *testing.T) {
-	res := handleClarify(Context{Interactive: false}, map[string]any{"question": "pick one"})
-	if res.Status != StatusSkip {
+func TestHandleClarifyRequiresCallback(t *testing.T) {
+	res := handleClarify(Context{}, map[string]any{"question": "pick one"})
+	if res.Status != StatusError {
+		t.Fatalf("status=%s", res.Status)
+	}
+}
+
+func TestHandleClarifyWorksWithoutInteractiveFlag(t *testing.T) {
+	res := handleClarify(Context{
+		ClarifyFn: func(string, []string) (string, bool) { return "ok", true },
+	}, map[string]any{"question": "pick one"})
+	if res.Status != StatusOK {
 		t.Fatalf("status=%s", res.Status)
 	}
 }

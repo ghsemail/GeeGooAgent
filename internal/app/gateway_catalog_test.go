@@ -25,7 +25,7 @@ func TestRebuildGatewaySyncsCatalogModelToConfig(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	useOps := true
+	useOps := false
 	application := &App{
 		Config: &config.AppConfig{
 			LLM: config.LLMConfig{

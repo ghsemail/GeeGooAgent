@@ -15,18 +15,18 @@ type LLMConfig struct {
 	Provider        string      `json:"provider"`
 	TokenKey        string      `json:"token_key"`
 	Model           string      `json:"model"`
-	BaseURL         string      `json:"base_url,omitempty"` // optional local override; ops configured wins when use_ops_model
+	BaseURL         string      `json:"base_url,omitempty"` // local fallback base_url when use_ops_model=false
 	Temperature     float64     `json:"temperature"`
 	MaxTokens       int         `json:"max_tokens"`
 	Thinking        *bool       `json:"thinking"`
 	ReasoningEffort string      `json:"reasoning_effort"`
 	UseOpsModel     *bool       `json:"use_ops_model,omitempty"`
-	CatalogModelID  string      `json:"catalog_model_id,omitempty"` // empty = trading_operation configured model
+	CatalogModelID  string      `json:"catalog_model_id,omitempty"` // explicit catalog row; wins over use_ops_model
 	Fallbacks       []LLMConfig `json:"fallbacks,omitempty"`
 	PromptCache     *bool       `json:"prompt_cache,omitempty"`
 }
 
-// OpsModelEnabled reports whether RebuildGateway should query ops configured model.
+// OpsModelEnabled reports whether chat should use ops configured primary when catalog_model_id is empty.
 func (c *LLMConfig) OpsModelEnabled() bool {
 	if c.UseOpsModel == nil {
 		return true

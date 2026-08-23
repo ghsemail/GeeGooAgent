@@ -26,6 +26,8 @@ skip_retrieval_gate: true
 | 组合 | `get_signal_combinations` | 展示摘要（name、brief、规则数、indexes）；**选定后**用该项 `buy_signal`/`sell_signal` |
 | 高级/定制 | `get_custom_strategy_definitions` → `get_custom_signal_for_skill` | `index` = `strategy_key`；`param` 默认用注册表 `defaults` |
 
+**多匹配时必须 clarify**：`get_signal_combinations` / `get_index_signals` 有 2+ 项都符合用户描述时，调用 `clarify` 列出最多 4 个候选项（名称 + 一句话区别），选定后再组装规则；不要默认猜第一个。
+
 每条规则：`{"index":"MACD","type":"signal","param":{...}}`  
 `type` 枚举：**`signal`** | **`flag`**
 

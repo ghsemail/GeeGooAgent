@@ -40,6 +40,8 @@ skip_retrieval_gate: true
 | 组合 | `get_signal_combinations` | 列表选 `signal_id`；probe 用该项的 **`buy_signal` / `sell_signal` 整条链** |
 | 高级/定制 | `get_custom_signal_for_skill` + `get_custom_strategy_definitions` | `buy_signal` 项：`index`=注册表 `strategy_key`，`param` 用 `defaults` 或用户覆盖 |
 
+**多匹配时必须 clarify**：组合/单指标列表有 2+ 项都符合用户描述时，先 `clarify`（最多 4 项）再回测，勿默认第一个。
+
 **定制策略注册表（`get_custom_strategy_definitions`）**
 
 | strategy_key | 默认 frequency | supported_frequencies | 默认 param（节选） |

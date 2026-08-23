@@ -3,6 +3,7 @@ package multitenant
 import (
 	"context"
 	"log/slog"
+	"sync"
 
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
@@ -30,6 +31,10 @@ func (tr *Runner) handleOwned(ctx context.Context, ev gateway.InboundEvent, own 
 	key := gateway.SessionKey(ev.Platform, ev.ChatID, ev.UserID)
 	lock := tr.lockFor(key)
 	lock.Lock()
+	if tr.clarify.DeliverAnswer(key, text) {
+		lock.Unlock()
+		return nil
+	}
 	defer lock.Unlock()
 
 	adapter := own.Adapter
@@ -41,7 +46,7 @@ func (tr *Runner) handleOwned(ctx context.Context, ev gateway.InboundEvent, own 
 		_ = ind.MarkProcessing(ctx, ev.MessageID)
 	}
 
-	reply, err := tr.runOwnedTurn(ctx, key, ev, text, own)
+	reply, err := tr.runOwnedTurn(ctx, key, ev, text, own, lock)
 	if err != nil {
 		slog.Error("gateway: agent turn failed", "err", err, "owner", own.OwnerUserID)
 		if ind, ok := adapter.(gateway.ProcessingIndicator); ok && ev.MessageID != "" {
@@ -74,7 +79,7 @@ func (tr *Runner) handleOwned(ctx context.Context, ev gateway.InboundEvent, own 
 	return sendErr
 }
 
-func (tr *Runner) runOwnedTurn(ctx context.Context, key string, ev gateway.InboundEvent, text string, own ownedInbound) (string, error) {
+func (tr *Runner) runOwnedTurn(ctx context.Context, key string, ev gateway.InboundEvent, text string, own ownedInbound, chatLock *sync.Mutex) (string, error) {
 	store, err := tr.App.SessionStore()
 	if err != nil {
 		return "", err
@@ -91,11 +96,16 @@ func (tr *Runner) runOwnedTurn(ctx context.Context, key string, ev gateway.Inbou
 	schemas := tr.App.Registry.Schemas(toolNames)
 	toolCtx := tr.App.ToolContext(rt.ID)
 	toolCtx.DryRun = tr.DryRun || (tr.App.Config != nil && tr.App.Config.DryRun)
-	toolCtx.Interactive = false
 	toolCtx.UserID = own.OwnerUserID
 	if tok := trimText(own.MCPToken); tok != "" {
 		toolCtx.MCPToken = tok
 	}
+	toolCtx = gateway.WireIMClarify(ctx, toolCtx, tr.clarify, key, chatLock, func(msg string) error {
+		if own.Adapter == nil {
+			return errString("nil adapter")
+		}
+		return own.Adapter.SendText(ctx, gateway.OutboundText{ChatID: ev.ChatID, Text: msg, ReplyToID: ev.MessageID})
+	})
 
 	tr.agentMu.Lock()
 	defer tr.agentMu.Unlock()

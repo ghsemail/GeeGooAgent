@@ -30,6 +30,7 @@ type Runner struct {
 	Config   Config
 	Adapters []PlatformAdapter
 	Sessions *SessionMap
+	clarify  *ClarifyHub
 
 	mu     sync.Mutex
 	chatMu map[string]*sync.Mutex // serialise per SessionKey
@@ -46,6 +47,7 @@ func NewRunner(application *app.App, sessions *SessionMap, cfg Config, adapters 
 		Sessions: sessions,
 		chatMu:   map[string]*sync.Mutex{},
 		seen:     newDedupCache(4096),
+		clarify:  NewClarifyHub(),
 	}
 }
 
@@ -188,6 +190,10 @@ func (r *Runner) handleInbound(ctx context.Context, ev InboundEvent) error {
 	key := SessionKey(ev.Platform, ev.ChatID, ev.UserID)
 	lock := r.lockFor(key)
 	lock.Lock()
+	if r.clarify.DeliverAnswer(key, text) {
+		lock.Unlock()
+		return nil
+	}
 	defer lock.Unlock()
 
 	adapter := r.adapter(ev.Platform)
@@ -199,7 +205,7 @@ func (r *Runner) handleInbound(ctx context.Context, ev InboundEvent) error {
 		_ = ind.MarkProcessing(ctx, ev.MessageID)
 	}
 
-	reply, err := r.runAgentTurn(ctx, key, ev, text)
+	reply, err := r.runAgentTurn(ctx, key, ev, text, lock)
 	if err != nil {
 		slog.Error("gateway: agent turn failed", "err", err, "platform", ev.Platform)
 		if ind, ok := adapter.(ProcessingIndicator); ok && ev.MessageID != "" {
@@ -264,7 +270,7 @@ func (r *Runner) lockFor(key string) *sync.Mutex {
 	return m
 }
 
-func (r *Runner) runAgentTurn(ctx context.Context, key string, ev InboundEvent, text string) (string, error) {
+func (r *Runner) runAgentTurn(ctx context.Context, key string, ev InboundEvent, text string, chatLock *sync.Mutex) (string, error) {
 	store, err := r.App.SessionStore()
 	if err != nil {
 		return "", err
@@ -281,7 +287,13 @@ func (r *Runner) runAgentTurn(ctx context.Context, key string, ev InboundEvent, 
 	schemas := r.App.Registry.Schemas(toolNames)
 	toolCtx := r.App.ToolContext(rt.ID)
 	toolCtx.DryRun = r.Config.DryRun || (r.App.Config != nil && r.App.Config.DryRun)
-	toolCtx.Interactive = false // IM: no TUI clarify; mutating tools follow non-interactive policy
+	adapter := r.adapter(ev.Platform)
+	toolCtx = WireIMClarify(ctx, toolCtx, r.clarify, key, chatLock, func(msg string) error {
+		if adapter == nil {
+			return fmtError("no adapter")
+		}
+		return adapter.SendText(ctx, OutboundText{ChatID: ev.ChatID, Text: msg, ReplyToID: ev.MessageID})
+	})
 
 	r.agentMu.Lock()
 	defer r.agentMu.Unlock()

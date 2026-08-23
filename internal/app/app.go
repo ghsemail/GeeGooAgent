@@ -264,8 +264,8 @@ func vectorEnabled() bool {
 }
 
 // RebuildGateway recreates chat and synthesis LLM gateways.
-// Chat uses local config (catalog_model_id + config.json fallbacks).
-// Report synthesis (盘前/盘中/盘后) uses ops model-management 主备.
+// Chat resolves from cfg: catalog_model_id → ops default → local llm fields.
+// Report synthesis (盘前/盘中/盘后) always uses ops model-management 主备.
 func (a *App) RebuildGateway() error {
 	if a == nil || a.Config == nil {
 		return fmt.Errorf("app not configured")
@@ -293,14 +293,10 @@ func (a *App) RebuildGateway() error {
 	return nil
 }
 
-type resolvedLLMFields struct {
-	provider, tokenKey, model, baseURL string
-}
-
-// BuildChatGatewayFromLLMConfig builds the dialogue gateway from agent-local LLM config.
-// Does not use ops model-management; optional catalog_model_id still resolves from catalog-api.
+// BuildChatGatewayFromLLMConfig builds the dialogue gateway from explicit LLM selection
+// (catalog_model_id → ops default → local provider/model).
 func (a *App) BuildChatGatewayFromLLMConfig(cfg config.LLMConfig, syncGlobal bool) (*llm.Gateway, *resolvedLLMFields, error) {
-	return a.buildGatewayFromLLMConfig(cfg, syncGlobal, false)
+	return a.buildGatewayFromLLMConfig(cfg, syncGlobal)
 }
 
 // BuildSynthesisGatewayFromOps builds the report-synthesis gateway from ops 主备.
@@ -315,10 +311,7 @@ func (a *App) BuildSynthesisGatewayFromOps(cfg config.LLMConfig) (*llm.Gateway, 
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	targets := make([]admin.QueryTarget, 0, len(a.Config.AdminModelQueryTargets()))
-	for _, t := range a.Config.AdminModelQueryTargets() {
-		targets = append(targets, admin.QueryTarget{BaseURL: t.BaseURL, Bearer: t.Bearer})
-	}
+	targets := a.adminQueryTargets()
 	doc, src, err := admin.QueryConfiguredFromTargets(ctx, targets...)
 	if err != nil {
 		return nil, fmt.Errorf("query ops configured model: %w", err)
@@ -350,51 +343,25 @@ func (a *App) BuildGatewayFromLLMConfig(cfg config.LLMConfig, syncGlobal bool) (
 	return a.BuildChatGatewayFromLLMConfig(cfg, syncGlobal)
 }
 
-func (a *App) buildGatewayFromLLMConfig(cfg config.LLMConfig, syncGlobal bool, allowOpsPrimary bool) (*llm.Gateway, *resolvedLLMFields, error) {
-	if a == nil || a.Config == nil {
-		return nil, nil, fmt.Errorf("app not configured")
+func (a *App) buildGatewayFromLLMConfig(cfg config.LLMConfig, syncGlobal bool) (*llm.Gateway, *resolvedLLMFields, error) {
+	resolved, err := a.resolveLLMFromConfig(cfg)
+	if err != nil {
+		return nil, nil, err
 	}
-	providerName := cfg.Provider
-	tokenKey := cfg.TokenKey
-	model := cfg.Model
-	baseURL := strings.TrimSpace(cfg.BaseURL)
-	var resolved *resolvedLLMFields
-
-	if allowOpsPrimary && cfg.OpsModelEnabled() && strings.TrimSpace(cfg.CatalogModelID) == "" {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		targets := make([]admin.QueryTarget, 0, len(a.Config.AdminModelQueryTargets()))
-		for _, t := range a.Config.AdminModelQueryTargets() {
-			targets = append(targets, admin.QueryTarget{BaseURL: t.BaseURL, Bearer: t.Bearer})
-		}
-		doc, src, err := admin.QueryConfiguredFromTargets(ctx, targets...)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "警告: 拉取运营配置模型失败（回退本地 llm）: %v\n", err)
-		} else {
-			a.applyCatalogModelDoc(&doc, &providerName, &tokenKey, &model, &baseURL)
-			resolved = &resolvedLLMFields{provider: providerName, tokenKey: tokenKey, model: model, baseURL: baseURL}
-			if syncGlobal {
-				fmt.Fprintf(os.Stderr, "LLM: 使用运营配置 model=%s base_url=%s from %s\n", model, baseURL, src)
-			}
-		}
-	} else if id := strings.TrimSpace(cfg.CatalogModelID); id != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		targets := make([]admin.QueryTarget, 0, len(a.Config.AdminModelQueryTargets()))
-		for _, t := range a.Config.AdminModelQueryTargets() {
-			targets = append(targets, admin.QueryTarget{BaseURL: t.BaseURL, Bearer: t.Bearer})
-		}
-		doc, src, err := admin.QueryModelFromTargets(ctx, targets, id, false)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "警告: 拉取 catalog 模型失败（回退本地 llm）: %v\n", err)
-		} else {
-			a.applyCatalogModelDoc(&doc, &providerName, &tokenKey, &model, &baseURL)
-			resolved = &resolvedLLMFields{provider: providerName, tokenKey: tokenKey, model: model, baseURL: baseURL}
-			if syncGlobal {
-				fmt.Fprintf(os.Stderr, "LLM: 使用 catalog 模型 model=%s base_url=%s from %s\n", model, baseURL, src)
-			}
+	if syncGlobal && resolved != nil {
+		switch resolved.source {
+		case llmSourceCatalog:
+			fmt.Fprintf(os.Stderr, "LLM: catalog model=%s base_url=%s from %s\n", resolved.model, resolved.baseURL, resolved.catalogSrc)
+		case llmSourceOps:
+			fmt.Fprintf(os.Stderr, "LLM: ops default model=%s base_url=%s from %s\n", resolved.model, resolved.baseURL, resolved.catalogSrc)
+		case llmSourceLocal:
+			fmt.Fprintf(os.Stderr, "LLM: local model=%s provider=%s\n", resolved.model, resolved.provider)
 		}
 	}
+	providerName := resolved.provider
+	tokenKey := resolved.tokenKey
+	model := resolved.model
+	baseURL := resolved.baseURL
 
 	provider, err := llm.BuildProviderFromLLMFields(
 		providerName, tokenKey, model,

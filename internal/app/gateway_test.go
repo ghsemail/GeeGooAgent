@@ -13,12 +13,14 @@ import (
 func TestRebuildGatewayUpdatesAgentGateway(t *testing.T) {
 	registry := tools.NewRegistry()
 	initial := llm.NewGateway(&llm.MockProvider{}, llm.GatewayConfig{MaxRetries: 1})
+	useOps := false
 	application := &App{
 		Config: &config.AppConfig{
 			LLM: config.LLMConfig{
-				Provider: "openai",
-				TokenKey: "test-key",
-				Model:    "test-model",
+				Provider:    "openai",
+				TokenKey:    "test-key",
+				Model:       "test-model",
+				UseOpsModel: &useOps,
 			},
 			Compression: config.CompressionConfig{Enabled: boolPtr(false)},
 		},
