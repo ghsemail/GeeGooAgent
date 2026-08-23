@@ -75,9 +75,9 @@ skip_retrieval_gate: true
 | 字段 | 默认 | 枚举/范围 |
 |------|------|-----------|
 | `sl_switch` | true | |
-| `sl_mode` | **`fix`** | `fix` / `dynamic` |
-| `fix_sl` | **3%** | 预设 3 / 5 / 7 |
-| `sl_dynamic_index` | SAR | SAR / BBAND |
+| `sl_mode` | **`dynamic`** | `fix` / `dynamic` |
+| `sl_dynamic_index` | **SAR** | SAR / BBAND（`sl_mode=dynamic` 时） |
+| `fix_sl` | 3% | 仅 `sl_mode=fix` 时生效；预设 3 / 5 / 7 |
 | `stop_loss_trailing` | false | |
 | `stop_loss_trailing_deviation` | 1% | |
 
@@ -121,7 +121,7 @@ skip_retrieval_gate: true
 }
 ```
 
-若 `tp_mode`/`sl_mode`=`dynamic`：`get_indicator_series`（`role=sl` 或 `tp`，`index` 与配置一致）。
+若 `tp_mode`/`sl_mode`=`dynamic`（**止损默认 dynamic**）：`get_indicator_series`（`role=sl` 或 `tp`，`index` 与配置一致，止损默认 `SAR`）。
 
 ### 3. 完整 PnL 模拟
 
