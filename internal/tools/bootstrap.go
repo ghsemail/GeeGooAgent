@@ -207,7 +207,15 @@ func normalizeHTTPResponse(name string, payload any) (map[string]any, string) {
 			return v, fmt.Sprintf("probe_bot_signal: buy=%d sell=%d close=%v", buy, sell, v["close"])
 		case "list_strategy_backtest_logs":
 			if items, ok := v["items"].([]any); ok {
-				return v, fmt.Sprintf("list_strategy_backtest_logs: %d record(s)", len(items))
+				msg := fmt.Sprintf("list_strategy_backtest_logs: %d record(s)", len(items))
+				if len(items) > 0 {
+					if row, ok := items[0].(map[string]any); ok {
+						profitRate := nestedAny(row, "result", "profit_rate")
+						msg += fmt.Sprintf("; latest code=%v strategy=%v profit_rate=%v log_id=%v",
+							row["code"], row["strategy_label"], profitRate, row["log_id"])
+					}
+				}
+				return v, msg
 			}
 		case "get_strategy_backtest_log":
 			if run, ok := v["run"].(map[string]any); ok {
