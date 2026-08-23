@@ -13,8 +13,8 @@ import (
 
 func TestCatalogHTTPCount(t *testing.T) {
 	specs := catalog.AllHTTP()
-	if len(specs) != 73 {
-		t.Fatalf("expected 73 HTTP specs, got %d", len(specs))
+	if len(specs) != 78 {
+		t.Fatalf("expected 78 HTTP specs, got %d", len(specs))
 	}
 }
 
@@ -25,8 +25,8 @@ func TestRegisterAllToolCount(t *testing.T) {
 	r := tools.NewRegistry()
 	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: t.TempDir()})
 	names := r.Names()
-	if len(names) != 99 {
-		t.Fatalf("expected 99 tools, got %d", len(names))
+	if len(names) != 104 {
+		t.Fatalf("expected 104 tools, got %d", len(names))
 	}
 }
 

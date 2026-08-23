@@ -19,6 +19,12 @@ func TestHTTPBackendsForTool(t *testing.T) {
 	if b.ForTool("loopback_strategy") != sigC {
 		t.Fatal("loopback_strategy should use signal-api")
 	}
+	if b.ForTool("probe_bot_signal_series") != sigC {
+		t.Fatal("probe_bot_signal_series should use signal-api")
+	}
+	if b.ForTool("list_strategy_backtest_logs") != sigC {
+		t.Fatal("list_strategy_backtest_logs should use signal-api")
+	}
 	if b.ForTool("get_index_signals") != catC {
 		t.Fatal("get_index_signals should use catalog-api")
 	}

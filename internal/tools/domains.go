@@ -130,11 +130,16 @@ var (
 		"delegate_tasks":    {},
 	}
 	strategyTools = map[string]struct{}{
-		"get_index_signals":       {},
-		"get_signal_combinations": {},
-		"generate_grid_strategy":  {},
-		"generate_dca_strategy":   {},
-		"loopback_strategy":       {},
+		"get_index_signals":            {},
+		"get_signal_combinations":      {},
+		"generate_grid_strategy":       {},
+		"generate_dca_strategy":        {},
+		"loopback_strategy":            {},
+		"probe_bot_signal":             {},
+		"probe_bot_signal_series":      {},
+		"get_indicator_series":         {},
+		"list_strategy_backtest_logs":  {},
+		"get_strategy_backtest_log":    {},
 	}
 	knowledgeTools = map[string]struct{}{
 		"search_knowledge": {},

@@ -25,6 +25,14 @@ func ToolRouting() string {
 - 用户要 **网格策略 / 回测网格** 时：search_code → generate_grid_strategy(code, name, months_back) → 若 suitable 为 true，用返回的 param 调 loopback_strategy(type=grid, grid_param=param, frequency=5m, fund/months_back 向用户确认或沿用 generate 的 months_back)。grid generate 通常 40～60s（cn）或略长（en）
 - loopback_strategy 禁止缺 grid_param（grid）或缺 signal/sl_tp（dca）硬调；参数来自 generate_* 或用户明确给出
 
+### 策略开发 / 高级回测（trading_operation）
+- 用户要 **测信号 / 策略开发测试 / 有没有买卖点** → probe_bot_signal_series（必填 code、frequency、buy_signal）；单 bar 快速验证用 probe_bot_signal
+- 买卖规则来源：单指标 get_index_signals、组合 get_signal_combinations、定制 get_custom_signal_for_skill（index=custom.index）
+- 动态止盈止损需指标序列时 → get_indicator_series（role=sl 或 tp）
+- 用户要 **高级策略/SmartTrade 式回测盈亏**：probe 只能验证信号；完整 PnL 在 trading_operation 回测页运行后，用 list_strategy_backtest_logs → get_strategy_backtest_log(log_id) 读取
+- 用户要 **历史回测 / 上次回测结果** → list_strategy_backtest_logs（可按 code、strategy_label、日期筛选）→ get_strategy_backtest_log
+- **禁止**把 probe 的买卖次数说成收益率；DCA/Grid 服务端回测仍走 loopback_strategy
+
 ### 创建 Bot（写操作需用户确认）
 - **GRID**：generate_grid_strategy → 用户确认 botname/lot_size → create_grid_bot（grid=param，frequency 默认 5m）
 - **DCA**：generate_dca_strategy → 将 signal.buy_signal 写入 signal.buy_signal，tp/sl 按 comparison 选 dynamicParam 或 fixedParam 映射 → create_dca_bot

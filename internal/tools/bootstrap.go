@@ -195,10 +195,84 @@ func normalizeHTTPResponse(name string, payload any) (map[string]any, string) {
 				return v, fmt.Sprintf("%s: finalValue=%v profit_rate=%v", name, finalValue, profitRate)
 			}
 		}
+		switch name {
+		case "probe_bot_signal_series":
+			if bars, ok := v["bars"].([]any); ok {
+				return v, fmt.Sprintf("probe_bot_signal_series: %d bars, buy_hits=%d sell_hits=%d",
+					len(bars), countMergedSignals(v["buy_merged"], 1), countMergedSignals(v["sell_merged"], -1))
+			}
+		case "probe_bot_signal":
+			buy := nestedInt(v, "buy_signal", "signal")
+			sell := nestedInt(v, "sell_signal", "signal")
+			return v, fmt.Sprintf("probe_bot_signal: buy=%d sell=%d close=%v", buy, sell, v["close"])
+		case "list_strategy_backtest_logs":
+			if items, ok := v["items"].([]any); ok {
+				return v, fmt.Sprintf("list_strategy_backtest_logs: %d record(s)", len(items))
+			}
+		case "get_strategy_backtest_log":
+			if run, ok := v["run"].(map[string]any); ok {
+				profitRate := nestedAny(run, "result", "profit_rate")
+				trades := 0
+				if t, ok := v["trades"].([]any); ok {
+					trades = len(t)
+				}
+				return v, fmt.Sprintf("get_strategy_backtest_log: code=%v profit_rate=%v trades=%d",
+					run["code"], profitRate, trades)
+			}
+		case "get_indicator_series":
+			if values, ok := v["values"].([]any); ok {
+				return v, fmt.Sprintf("get_indicator_series: %d value(s) index=%v", len(values), v["index"])
+			}
+		}
 		return v, fmt.Sprintf("%s succeeded", name)
 	default:
 		return map[string]any{"value": payload}, fmt.Sprintf("%s succeeded", name)
 	}
+}
+
+func countMergedSignals(raw any, target int) int {
+	arr, ok := raw.([]any)
+	if !ok {
+		return 0
+	}
+	n := 0
+	for _, item := range arr {
+		switch v := item.(type) {
+		case float64:
+			if int(v) == target {
+				n++
+			}
+		case int:
+			if v == target {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+func nestedInt(m map[string]any, keys ...string) int {
+	v := nestedAny(m, keys...)
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	default:
+		return 0
+	}
+}
+
+func nestedAny(m map[string]any, keys ...string) any {
+	var cur any = m
+	for _, key := range keys {
+		obj, ok := cur.(map[string]any)
+		if !ok {
+			return nil
+		}
+		cur = obj[key]
+	}
+	return cur
 }
 
 func appendStrategyFollowUp(summary, strategyType string, data map[string]any) string {
