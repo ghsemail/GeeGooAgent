@@ -1,6 +1,7 @@
 ---
 name: strategy-backtest-history
 description: 策略回测历史、list_strategy_backtest_logs、get_strategy_backtest_log、回测结果查看、盈亏、时间线、log_id。用户要「历史回测」「上次回测结果」「打开某次回测」时触发。
+skip_retrieval_gate: true
 ---
 
 # 策略回测 · 历史与结果查看
@@ -15,7 +16,7 @@ description: 策略回测历史、list_strategy_backtest_logs、get_strategy_bac
 
 ### 1. 列历史
 
-`list_strategy_backtest_logs`
+`list_strategy_backtest_logs` — **优先直接调用**，默认 `limit=20` 即可；勿 delegate。
 
 | 参数 | 用途 |
 |------|------|
@@ -25,6 +26,8 @@ description: 策略回测历史、list_strategy_backtest_logs、get_strategy_bac
 | `limit` / `skip` | 分页，默认 limit=100 |
 
 摘要字段：`log_id`、`code`、`strategy_label`、`created_at`、`trade_count`、`result.profit`、`result.profit_rate`、`has_chart_data`
+
+回复用户时用表格呈现上述字段；**不要**为列表再调 `get_strategy_backtest_log`。
 
 ### 2. 读详情
 

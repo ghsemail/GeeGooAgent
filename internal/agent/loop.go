@@ -335,8 +335,14 @@ func (l *Loop) RunTurn(
 		"session_id": session.ID, "user_text": userText,
 	})
 	l.emitStatus("received", "已收到消息，准备处理")
-	gateFrag := l.runRetrievalGate(ctx, session, userText, &records)
 	procFrag, matchedSkills := l.runProceduralMemory(session, userText, &records)
+	var gateFrag ctxfrag.Fragment
+	if !ShouldSkipRetrievalGate(matchedSkills) {
+		gateFrag = l.runRetrievalGate(ctx, session, userText, &records)
+	} else {
+		l.emitStatus("gate", "工具型技能，跳过记忆检索")
+		l.recordInjectionStep(&records, "gate", "decision=skip · reason=tool-first playbook")
+	}
 	var dynFrags []ctxfrag.Fragment
 	if gateFrag != nil && strings.TrimSpace(gateFrag.Render()) != "" {
 		dynFrags = append(dynFrags, gateFrag)

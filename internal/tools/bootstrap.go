@@ -117,6 +117,7 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 						return Result{Status: StatusError, Summary: enrichHTTPError(spec.Name, err), ExitCode: 1,
 							Meta: MetaFromEnvelope(nil, started)}
 					}
+					data = compactHTTPPayload(spec.Name, data)
 					normalized, summary := normalizeHTTPResponse(spec.Name, data)
 					if spec.Name == "generate_grid_strategy" {
 						summary = appendStrategyFollowUp(summary, "grid", normalized)
@@ -185,7 +186,7 @@ func enrichHTTPError(toolName string, err error) string {
 func normalizeHTTPResponse(name string, payload any) (map[string]any, string) {
 	switch v := payload.(type) {
 	case []any:
-		return map[string]any{"items": v, "count": len(v)}, fmt.Sprintf("%s: %d item(s)", name, len(v))
+		return map[string]any{"items": v, "count": len(v)}, summarizeCatalogList(name, v)
 	case map[string]any:
 		if price, ok := v["price"]; ok {
 			return v, fmt.Sprintf("%s: price=%v", name, price)

@@ -32,7 +32,7 @@ func AllHTTP() []HTTPSpec {
 		{Name: "get_ticker", Description: "盘中逐笔行情 (MCP /getTicker)；区别于 get_current_price 现价快照。需富途 OpenD；非交易时段可能 skip。", Path: "/getTicker", Parameters: codeQueryParameters("标的代码")},
 		{Name: "get_broker", Description: "经纪席位分布。需富途；非交易时段或港股以外可能无数据。", Path: "/getBroker", Parameters: codeQueryParameters("标的代码")},
 		{Name: "get_index_signals", Description: "列出 DCA 可用的单指标信号（SAR/MACD/BBAND 等）；每项含 signal_id、name、brief、info、frequency、index。用户未指定信号类型时，与 get_signal_combinations 二选一后向用户介绍并让其选定。", Path: "/getIndexSignalForSkill", RequiresMCPToken: false, DirectResponse: true},
-		{Name: "get_signal_combinations", Description: "列出 DCA 可用的组合信号（buy_signal/sell_signal 指标链）；每项含 signal_id、name、brief、info。适合多指标共振；用户未指定时先问「单指标还是组合」，再展示 brief 供选择。", Path: "/getSignalCombinationForSkill", RequiresMCPToken: false, DirectResponse: true},
+		{Name: "get_signal_combinations", Description: "列出 DCA 组合信号摘要（signal_id、name、brief、frequency、buy/sell 规则数与 indexes）。用户选定 signal_id 后，用该项完整 buy_signal/sell_signal 调 probe。适合多指标共振；未指定时展示 brief 供选择。", Path: "/getSignalCombinationForSkill", RequiresMCPToken: false, DirectResponse: true},
 		{Name: "get_bot_log_by_type", Description: "按类型查询 Bot 日志。必填 type（DCA/GRID/SmartTrade/HDG 等）与 bot_id。", Path: "/getBotLogByType", Parameters: map[string]any{
 			"type": "object", "required": []string{"type", "bot_id"},
 			"properties": map[string]any{
