@@ -19,4 +19,25 @@ func TestNeedsMCPTokenDefaults(t *testing.T) {
 			t.Fatalf("%s should not require mcp_token", name)
 		}
 	}
+	for _, name := range []string{"add_index_signal", "get_custom_signal_for_skill", "add_custom_signal"} {
+		if !catalog.NeedsMCPToken(name) {
+			t.Fatalf("%s should require mcp_token", name)
+		}
+	}
+}
+
+func TestUsesBotMCPProxy(t *testing.T) {
+	t.Parallel()
+	if !catalog.UsesBotMCPProxy("get_custom_signal_for_skill") {
+		t.Fatal("custom skill read should use mcp-api proxy")
+	}
+	if catalog.UsesBotMCPProxy("get_custom_strategy_definitions") {
+		t.Fatal("strategy definitions should stay on catalog-api")
+	}
+	if catalog.UsesSignalCatalog("get_custom_signal_for_skill") {
+		t.Fatal("proxied tools should not use direct catalog-api")
+	}
+	if !catalog.UsesSignalCatalog("get_custom_strategy_definitions") {
+		t.Fatal("definitions should use direct catalog-api")
+	}
 }

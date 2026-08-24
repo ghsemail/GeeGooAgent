@@ -141,13 +141,12 @@ func MondayToolNames() []string {
 	return names
 }
 
-// UsesSignalCatalog reports whether a tool should call GeeGooSignal catalog-api :3210.
+// UsesSignalCatalog reports whether a tool should call GeeGooSignal catalog-api :3210 directly.
 func UsesSignalCatalog(name string) bool {
-	if _, ok := CatalogPromptTemplatePaths[name]; ok {
-		return true
+	if UsesBotMCPProxy(name) {
+		return false
 	}
-	switch name {
-	case "get_index_signals", "get_signal_combinations":
+	if _, ok := CatalogPromptTemplatePaths[name]; ok {
 		return true
 	}
 	for _, spec := range MondayHTTPSpecs() {

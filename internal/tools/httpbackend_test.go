@@ -25,11 +25,14 @@ func TestHTTPBackendsForTool(t *testing.T) {
 	if b.ForTool("list_strategy_backtest_logs") != sigC {
 		t.Fatal("list_strategy_backtest_logs should use signal-api")
 	}
-	if b.ForTool("get_index_signals") != catC {
-		t.Fatal("get_index_signals should use catalog-api")
+	if b.ForTool("get_index_signals") != mcpC {
+		t.Fatal("get_index_signals should use mcp-api")
 	}
-	if b.ForTool("get_signal_combinations") != catC {
-		t.Fatal("get_signal_combinations should use catalog-api")
+	if b.ForTool("get_signal_combinations") != mcpC {
+		t.Fatal("get_signal_combinations should use mcp-api")
+	}
+	if b.ForTool("add_index_signal") != mcpC {
+		t.Fatal("add_index_signal should use mcp-api")
 	}
 	analyzeC := mcp.NewClient("http://analyze", "k", opts)
 	b2 := HTTPBackends{MCP: mcpC, SignalAPI: sigC, SignalCatalog: catC, SignalAnalyze: analyzeC}
@@ -42,8 +45,11 @@ func TestHTTPBackendsForTool(t *testing.T) {
 	if b2.ForTool("get_mcp_analysis") != mcpC {
 		t.Fatal("get_mcp_analysis is bespoke and routes via mcp-api")
 	}
-	if b.ForTool("get_custom_signal_for_skill") != catC {
-		t.Fatal("get_custom_signal_for_skill should use catalog-api")
+	if b.ForTool("get_custom_signal_for_skill") != mcpC {
+		t.Fatal("get_custom_signal_for_skill should use mcp-api")
+	}
+	if b.ForTool("get_custom_strategy_definitions") != catC {
+		t.Fatal("get_custom_strategy_definitions should use catalog-api directly")
 	}
 	if b.ForTool("create_competitor_prompt_template") != catC {
 		t.Fatal("competitor prompt CRUD should use catalog-api")

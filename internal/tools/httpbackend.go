@@ -31,6 +31,11 @@ func (b HTTPBackends) HasMCPFallback(name string) bool {
 	}
 }
 func (b HTTPBackends) ForTool(name string) *mcp.Client {
+	if catalog.UsesBotMCPProxy(name) {
+		if b.MCP != nil {
+			return b.MCP
+		}
+	}
 	if catalog.UsesSignalCatalog(name) {
 		if b.SignalCatalog != nil {
 			return b.SignalCatalog
@@ -40,14 +45,9 @@ func (b HTTPBackends) ForTool(name string) *mcp.Client {
 	case "search_code", "loopback_strategy",
 		"probe_bot_signal", "probe_bot_signal_series",
 		"get_indicator_series",
-		"list_strategy_backtest_logs", "get_strategy_backtest_log",
-		"run_strategy_backtest":
+		"list_strategy_backtest_logs", "get_strategy_backtest_log":
 		if b.SignalAPI != nil {
 			return b.SignalAPI
-		}
-	case "get_index_signals", "get_signal_combinations":
-		if b.SignalCatalog != nil {
-			return b.SignalCatalog
 		}
 	case "generate_grid_strategy", "generate_dca_strategy":
 		if c := b.AnalysisClient(); c != nil {
