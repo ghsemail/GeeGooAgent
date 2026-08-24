@@ -30,6 +30,37 @@ func TestFormatClarifyMessageIncludesOther(t *testing.T) {
 	}
 }
 
+func TestFormatClarifyOpenEndedInquiry(t *testing.T) {
+	msg := FormatClarifyMessage("请说明你的目标", nil)
+	if !strings.Contains(msg, "请直接回复") {
+		t.Fatalf("msg=%q", msg)
+	}
+}
+
+func TestIsOtherClarifySelection(t *testing.T) {
+	choices := []string{"单指标", "组合信号"}
+	if !IsOtherClarifySelection("C", choices) {
+		t.Fatal("expected C -> other")
+	}
+	if IsOtherClarifySelection("A", choices) {
+		t.Fatal("expected A -> not other")
+	}
+}
+
+func TestIsClarifySkip(t *testing.T) {
+	if !IsClarifySkip("跳过") {
+		t.Fatal("expected skip")
+	}
+}
+
+func TestParseClarifyReplyOtherDoesNotReturnLetter(t *testing.T) {
+	choices := []string{"单指标", "组合信号"}
+	answer, ok := ParseClarifyReply("C", choices)
+	if ok || answer != "" {
+		t.Fatalf("answer=%q ok=%v", answer, ok)
+	}
+}
+
 func TestClarifyHubDeliverAnswer(t *testing.T) {
 	hub := NewClarifyHub()
 	key := "feishu:chat:user"
