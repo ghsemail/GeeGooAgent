@@ -46,6 +46,70 @@ INSERT INTO agent_eval_cases (
     '发送 hello 后分析指定或随机股票走势（默认单模型，在右侧 Dock Chat 展示完整过程）。',
     '["按配置清空 Chat 会话（仅 session，不影响评估日志）","发送 hello 与股票分析请求","等待回复完成并记录日志"]',
     TRUE,
-    '{"random_stock_enabled":true,"dual_model_eval":false,"session_cleanup":"before_run"}',
+    '{"category":"general","random_stock_enabled":true,"dual_model_eval":false,"session_cleanup":"before_run"}',
     0
+) ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO agent_eval_cases (
+    id, user_id, title, description, steps_json, supports_random_stock, options_json, sort_order
+) VALUES
+(
+    'strategy_signal_single',
+    '',
+    '单股 · 单策略 · 信号测试',
+    '随机抽取一只股票与一项高级策略，调用 probe 并汇报买卖信号。',
+    '["随机选股与策略","发送信号测试请求（含标的与策略名）","校验回复含信号/买卖信息"]',
+    TRUE,
+    '{"category":"strategy_signal","task":"signal_probe","scenario":"single","stock_count":1,"strategy_count":1,"random_stock_enabled":true,"min_reply_chars":80,"pass_keywords":["信号","买","卖"],"session_cleanup":"before_run"}',
+    10
+),
+(
+    'strategy_signal_multi_strategy',
+    '',
+    '单股 · 多策略 · 信号测试',
+    '同一只股票上对比 2 项随机策略的信号触发情况。',
+    '["随机选股与 2 项策略","发送多策略对比 probe 请求","校验回复含对比/信号摘要"]',
+    TRUE,
+    '{"category":"strategy_signal","task":"signal_probe","scenario":"multi_strategy","stock_count":1,"strategy_count":2,"random_stock_enabled":true,"min_reply_chars":100,"pass_keywords":["信号","对比"],"session_cleanup":"before_run"}',
+    11
+),
+(
+    'strategy_signal_multi_stock',
+    '',
+    '多股 · 单策略 · 信号测试',
+    '同一策略在 2 只随机股票上分别做信号测试并对比。',
+    '["随机选 2 只股票与 1 项策略","发送多标的信号测试请求","校验回复含各股信号对比"]',
+    TRUE,
+    '{"category":"strategy_signal","task":"signal_probe","scenario":"multi_stock","stock_count":2,"strategy_count":1,"random_stock_enabled":true,"min_reply_chars":100,"pass_keywords":["信号","对比"],"session_cleanup":"before_run"}',
+    12
+),
+(
+    'strategy_backtest_single',
+    '',
+    '单股 · 单策略 · 回测',
+    '随机单股单策略跑 run_strategy_backtest，汇报收益与 log_id。',
+    '["随机选股与策略","发送回测请求","校验回复含收益率与 log_id"]',
+    TRUE,
+    '{"category":"strategy_backtest","task":"backtest","scenario":"single","stock_count":1,"strategy_count":1,"random_stock_enabled":true,"min_reply_chars":80,"pass_keywords":["回测","收益","log"],"session_cleanup":"before_run"}',
+    20
+),
+(
+    'strategy_backtest_multi_strategy',
+    '',
+    '单股 · 多策略 · 回测',
+    '同一只股票上对比 2 项随机策略的回测收益。',
+    '["随机选股与 2 项策略","发送多策略回测对比请求","校验回复含收益对比与 log_id"]',
+    TRUE,
+    '{"category":"strategy_backtest","task":"backtest","scenario":"multi_strategy","stock_count":1,"strategy_count":2,"random_stock_enabled":true,"min_reply_chars":100,"pass_keywords":["回测","对比","log"],"session_cleanup":"before_run"}',
+    21
+),
+(
+    'strategy_backtest_multi_config',
+    '',
+    '单股 · 单策略 · 多参数回测',
+    '同一策略用不同回溯窗口（如 1 个月 vs 3 个月）跑回测并对比。',
+    '["随机选股与策略","发送多回溯窗口回测请求","校验回复含各套配置收益对比"]',
+    TRUE,
+    '{"category":"strategy_backtest","task":"backtest","scenario":"multi_config","stock_count":1,"strategy_count":1,"config_variants":["1个月","3个月"],"random_stock_enabled":true,"min_reply_chars":120,"pass_keywords":["回测","对比","log"],"session_cleanup":"before_run"}',
+    22
 ) ON CONFLICT (id) DO NOTHING;
