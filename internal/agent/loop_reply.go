@@ -71,14 +71,17 @@ func withReplyFormatReminder(messages []llm.Message, toolRound int) []llm.Messag
 }
 
 func toolResultContent(result tools.Result) string {
-	payload := map[string]any{
-		"status":  result.Status,
-		"summary": result.Summary,
+	// Struct keeps summary before data in JSON so truncation preserves counts.
+	type payload struct {
+		Status  string `json:"status"`
+		Summary string `json:"summary"`
+		Data    any    `json:"data,omitempty"`
 	}
-	if result.Data != nil {
-		payload["data"] = result.Data
-	}
-	raw, _ := json.Marshal(payload)
+	raw, _ := json.Marshal(payload{
+		Status:  string(result.Status),
+		Summary: result.Summary,
+		Data:    result.Data,
+	})
 	text := string(raw)
 	if len(text) > 6000 {
 		return text[:6000]

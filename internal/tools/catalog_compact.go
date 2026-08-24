@@ -12,8 +12,68 @@ func compactHTTPPayload(toolName string, payload any) any {
 		if items, ok := payload.([]any); ok {
 			return compactCatalogItems(toolName, items)
 		}
+	case "probe_bot_signal_series":
+		if row, ok := payload.(map[string]any); ok {
+			return compactProbeSeries(row)
+		}
 	}
 	return payload
+}
+
+func compactProbeSeries(v map[string]any) map[string]any {
+	out := map[string]any{
+		"code":        v["code"],
+		"frequency":   v["frequency"],
+		"months_back": v["months_back"],
+		"buy_hits":    countMergedSignals(v["buy_merged"], 1),
+		"sell_hits":   countMergedSignals(v["sell_merged"], -1),
+	}
+	if bars, ok := v["bars"].([]any); ok {
+		out["bar_count"] = len(bars)
+		if len(bars) > 0 {
+			if first, ok := bars[0].(map[string]any); ok {
+				out["range_start"] = first["time"]
+			}
+			if last, ok := bars[len(bars)-1].(map[string]any); ok {
+				out["range_end"] = last["time"]
+			}
+		}
+		out["recent_buy_times"] = recentSignalTimes(bars, v["buy_merged"], 1, 3)
+		out["recent_sell_times"] = recentSignalTimes(bars, v["sell_merged"], -1, 3)
+	}
+	return out
+}
+
+func recentSignalTimes(bars []any, mergedRaw any, target, maxN int) []string {
+	merged, ok := mergedRaw.([]any)
+	if !ok || len(merged) == 0 || maxN <= 0 {
+		return nil
+	}
+	limit := len(merged)
+	if len(bars) < limit {
+		limit = len(bars)
+	}
+	out := make([]string, 0, maxN)
+	for i := limit - 1; i >= 0 && len(out) < maxN; i-- {
+		hit := false
+		switch v := merged[i].(type) {
+		case float64:
+			hit = int(v) == target
+		case int:
+			hit = v == target
+		}
+		if !hit {
+			continue
+		}
+		bar, ok := bars[i].(map[string]any)
+		if !ok {
+			continue
+		}
+		if ts, ok := bar["time"].(string); ok && ts != "" {
+			out = append(out, ts)
+		}
+	}
+	return out
 }
 
 func compactCatalogItems(toolName string, items []any) []any {

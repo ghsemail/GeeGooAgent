@@ -32,9 +32,9 @@ func probeBotSignalSeriesParameters() map[string]any {
 			},
 			"limit": map[string]any{
 				"type":        "integer",
-				"description": "K 线根数，默认按 months_back 推算，最大 800",
+				"description": "可选：显式 K 线根数（最大 800）。默认不传，由 months_back 自动换算；仅 Web 对齐「1天/1周」或特殊下限才用",
 			},
-			"months_back": intProp("回溯月数，默认 3；与 trading_operation 策略开发/回测一致"),
+			"months_back": intProp("回溯月数（优先使用）。默认 3；1月→1、3月→3；服务端按 frequency 换算 limit"),
 		},
 	}
 }

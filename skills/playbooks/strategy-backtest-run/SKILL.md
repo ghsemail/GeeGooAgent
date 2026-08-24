@@ -24,7 +24,7 @@ skip_retrieval_gate: true
 
 **③ 同样/再跑**：`list` → get → 复用 `config` + `trade_config` + `period`  
 **④ 默认**：fund 100000 · base 100 · trade_config 见父 playbook（SL 默认 dynamic SAR）  
-**Macd4H/共振**：默认回溯 **3 月** · limit 见 **`strategy-signal-probe`**
+**Macd4H/共振**：默认 **`months_back: 3`**（勿手算 limit；见 **`strategy-signal-probe`**）
 
 主 Tool：**`run_strategy_backtest`**（probe+模拟+落库；`user_id`/`source` 自动注入）  
 仅验信号 → **`strategy-signal-probe`**
@@ -41,7 +41,7 @@ skip_retrieval_gate: true
 
 | 项 | 内容 |
 |----|------|
-| 固定 | rules · frequency · limit · **同一** trade_config · period |
+| 固定 | rules · frequency · **months_back/period** · **同一** trade_config |
 | 变化 | `code` |
 | memory | `list(strategy_label)` 不设 code → 已有各码收益可直接报；缺则循环 run |
 | 输出列 | code · profit_rate · drawdown · trade_count · log_id |
@@ -51,7 +51,7 @@ skip_retrieval_gate: true
 | 项 | 内容 |
 |----|------|
 | 固定 | `code` |
-| 变化 | 每策略 rules + frequency + limit + **配套** trade_config（共振→macd_resonance_v1） |
+| 变化 | 每策略 rules + frequency + **months_back** + **配套** trade_config（共振→macd_resonance_v1） |
 | memory | `list(code)` → 按 strategy_label 分组 |
 | 输出列 | strategy_label · frequency · profit_rate · drawdown · log_id |
 
@@ -60,7 +60,7 @@ skip_retrieval_gate: true
 | 项 | 内容 |
 |----|------|
 | 固定 | `code` + buy/sell 链 |
-| 变化 | `period` / `limit` / `trade_config` / `fund` 等（每次只改一项或一组） |
+| 变化 | **`period`** / **`months_back`** / `trade_config` / `fund` 等（每次只改一项或一组） |
 | memory | `list(code, strategy_label)` — 列表含 **period**+profit_rate，常够粗比；细比 TP/SL → get 2～4 条 |
 | 新跑 | 循环 run，仅改 config 块；记录 **配置摘要** + log_id |
 | 输出列 | 配置摘要 · profit_rate · drawdown · trade_count · log_id |

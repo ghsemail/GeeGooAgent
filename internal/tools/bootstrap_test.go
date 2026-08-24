@@ -13,8 +13,8 @@ import (
 
 func TestCatalogHTTPCount(t *testing.T) {
 	specs := catalog.AllHTTP()
-	if len(specs) != 78 {
-		t.Fatalf("expected 78 HTTP specs, got %d", len(specs))
+	if len(specs) != 79 {
+		t.Fatalf("expected 79 HTTP specs, got %d", len(specs))
 	}
 }
 
@@ -25,8 +25,8 @@ func TestRegisterAllToolCount(t *testing.T) {
 	r := tools.NewRegistry()
 	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: t.TempDir()})
 	names := r.Names()
-	if len(names) != 104 {
-		t.Fatalf("expected 104 tools, got %d", len(names))
+	if len(names) != 105 {
+		t.Fatalf("expected 105 tools, got %d", len(names))
 	}
 }
 
@@ -72,15 +72,14 @@ func TestNewsToolsSkipWithoutMCPToken(t *testing.T) {
 	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(nil), WorkspaceRoot: root, ProjectRoot: root})
 
 	ctx := tools.Context{SessionID: "test", MCPToken: "", WorkspaceRoot: root}
-	cases := []tools.CallRequest{
-		{Name: "fetch_market_news", Arguments: map[string]any{"market": "US"}},
-		{Name: "fetch_stock_news", Arguments: map[string]any{"code": "00700.HK"}},
+	result := r.Execute(tools.CallRequest{Name: "fetch_market_news", Arguments: map[string]any{"market": "US"}}, ctx)
+	if result.Status != tools.StatusSkip {
+		t.Fatalf("fetch_market_news status=%s summary=%s", result.Status, result.Summary)
 	}
-	for _, tc := range cases {
-		result := r.Execute(tc, ctx)
-		if result.Status != tools.StatusSkip {
-			t.Fatalf("%s status=%s summary=%s", tc.Name, result.Status, result.Summary)
-		}
+	// fetch_stock_news may succeed via web_search fallback even without MCP token.
+	stock := r.Execute(tools.CallRequest{Name: "fetch_stock_news", Arguments: map[string]any{"code": "00700.HK"}}, ctx)
+	if stock.Status != tools.StatusSkip && stock.Status != tools.StatusOK {
+		t.Fatalf("fetch_stock_news status=%s summary=%s", stock.Status, stock.Summary)
 	}
 }
 

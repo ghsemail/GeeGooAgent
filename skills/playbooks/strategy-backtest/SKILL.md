@@ -25,8 +25,8 @@ description: 策略回测、网格/DCA、信号测试、多标的对比、多策
 
 | 情形 | 固定 | 变化 | Probe | 回测 PnL | 读历史 | list 分组 memory |
 |------|------|------|-------|----------|--------|------------------|
-| **A · 同策略多标的** | 策略 rules · frequency · limit · trade_config | **`code[]`** | ✅ 循环 probe | ✅ 循环 `run_strategy_backtest` | ✅ 按 code 并列 | `list(strategy_label=…)` **不设 code** → 按 `code` 分组 |
-| **B · 同标的多策略** | **`code`** | **策略 rules**（frequency/limit 各不同） | ✅ 按策略循环 | ✅ 按策略循环 | ✅ 按策略并列 | `list(code=…)` **不设 strategy_label** → 按 `strategy_label` 分组 |
+| **A · 同策略多标的** | 策略 rules · frequency · **months_back/period** · trade_config | **`code[]`** | ✅ 循环 probe | ✅ 循环 `run_strategy_backtest` | ✅ 按 code 并列 | `list(strategy_label=…)` **不设 code** → 按 `code` 分组 |
+| **B · 同标的多策略** | **`code`** | **策略 rules**（frequency/**months_back** 各不同） | ✅ 按策略循环 | ✅ 按策略循环 | ✅ 按策略并列 | `list(code=…)` **不设 strategy_label** → 按 `strategy_label` 分组 |
 | **C · 同标的同策略多配置** | **`code` + rules** | period · trade_config · fund 等 | ⚠️ 仅看信号密度（不比 PnL） | ✅ **必须** 循环 run 或读 log | ✅ **主路径** | `list(code=…, strategy_label=…)` → 按 `period`/时间 对比 |
 
 **list 摘要已含**：`code`、`strategy_label`、`period`、`frequency`、`result.profit_rate`、`result.drawdown`、`trade_count` — **情形 A/B/C 的粗对比 often 无需 get**。  
@@ -77,7 +77,7 @@ catalog 2+ 匹配 → **clarify**。规则 JSON：`type`=`signal`|`flag`，**par
 
 ### A · 同策略多标的
 
-1. 固定策略 → rules + frequency + limit (+ trade_config)。  
+1. 固定策略 → rules + frequency + **months_back/period** (+ trade_config)。  
 2. 每个名称 `search_code`；歧义 clarify。  
 3. **循环**（只改 `code`）：`probe_bot_signal_series` 或 `run_strategy_backtest`。  
 4. memory：优先 `list(strategy_label)` 已有结果；新跑用同一套 trade_config。  
@@ -86,7 +86,7 @@ catalog 2+ 匹配 → **clarify**。规则 JSON：`type`=`signal`|`flag`，**par
 ### B · 同标的多策略
 
 1. `search_code` → 唯一 `code`。  
-2. 每个策略单独 rules + **该策略** frequency + **该策略** limit（见 signal-probe 表）。  
+2. 每个策略单独 rules + **该策略** frequency + **该策略 months_back**（见 signal-probe 表）。  
 3. MACDResonance → 可 `macd_resonance_v1` trade_config；Macd4H → generic_smarttrade。  
 4. memory：`list(code)` 按 `strategy_label` 取已有收益。  
 5. 输出列：`strategy_label` | frequency | 信号或收益指标。
@@ -98,7 +98,7 @@ catalog 2+ 匹配 → **clarify**。规则 JSON：`type`=`signal`|`flag`，**par
 
 | 轴 | 字段 |
 |----|------|
-| 回溯 | `period` · `limit` |
+| 回溯 | **`period`** · **`months_back`**（probe/run 均优先时长；勿手算 limit） |
 | 止盈止损 | `trade_config.tp` · `trade_config.sl` |
 | 资金/仓位 | `fund` · `base_order_size` · `position` |
 | 执行 | `execution_profile` · `macd_exec` |
@@ -106,7 +106,7 @@ catalog 2+ 匹配 → **clarify**。规则 JSON：`type`=`signal`|`flag`，**par
 3. **有历史**：`list(code, strategy_label)` → 列表比 `period`+`profit_rate`；比 TP/SL → get 2～4 条。  
 4. **新跑**：循环 `run_strategy_backtest`，每次只改 config 块；返回多个 `log_id`。  
 5. **配置摘要行**（输出用）：`{period} · TP{fix_tp}% · SL{sl_mode}/{index} · fund`  
-6. probe 改 limit 仅说明「信号条数差异」，**不得**替代 PnL 对比。
+6. probe 改 **months_back** 仅说明「信号条数差异」，**不得**替代 PnL 对比。
 
 ---
 
