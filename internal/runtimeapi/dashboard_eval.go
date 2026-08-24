@@ -62,11 +62,11 @@ func (h *Handler) evalCasesList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID := resolveUserID(r)
-	rows, err := db.QueryContext(r.Context(), `
+	rows, err := db.QueryContext(r.Context(), h.evalSQL(`
 		SELECT id, title, description, steps_json, supports_random_stock, options_json, sort_order, enabled
 		FROM agent_eval_cases
 		WHERE enabled = TRUE AND (user_id = '' OR user_id = ?)
-		ORDER BY sort_order ASC, id ASC`, userID)
+		ORDER BY sort_order ASC, id ASC`), userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -95,10 +95,10 @@ func (h *Handler) evalCaseGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID := resolveUserID(r)
-	row := db.QueryRowContext(r.Context(), `
+	row := db.QueryRowContext(r.Context(), h.evalSQL(`
 		SELECT id, title, description, steps_json, supports_random_stock, options_json, sort_order, enabled
 		FROM agent_eval_cases
-		WHERE id = ? AND enabled = TRUE AND (user_id = '' OR user_id = ?)`, id, userID)
+		WHERE id = ? AND enabled = TRUE AND (user_id = '' OR user_id = ?)`), id, userID)
 	caseRow, err := scanEvalCaseRow(row)
 	if err == sql.ErrNoRows {
 		writeError(w, http.StatusNotFound, "case not found")
@@ -134,10 +134,10 @@ func (h *Handler) evalCaseCreate(w http.ResponseWriter, r *http.Request) {
 	if req.Enabled != nil {
 		enabled = *req.Enabled
 	}
-	_, err := db.ExecContext(r.Context(), `
+	_, err := db.ExecContext(r.Context(), h.evalSQL(`
 		INSERT INTO agent_eval_cases (
 			id, user_id, title, description, steps_json, supports_random_stock, options_json, sort_order, enabled, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
 		id, userID, strings.TrimSpace(req.Title), strings.TrimSpace(req.Description),
 		string(stepsJSON), req.SupportsRandomStock, string(optsJSON), req.SortOrder, enabled, now, now)
 	if err != nil {
@@ -169,11 +169,11 @@ func (h *Handler) evalCaseUpdate(w http.ResponseWriter, r *http.Request) {
 	if req.Enabled != nil {
 		enabled = *req.Enabled
 	}
-	res, err := db.ExecContext(r.Context(), `
+	res, err := db.ExecContext(r.Context(), h.evalSQL(`
 		UPDATE agent_eval_cases SET
 			title = ?, description = ?, steps_json = ?, supports_random_stock = ?,
 			options_json = ?, sort_order = ?, enabled = ?, updated_at = ?
-		WHERE id = ? AND (user_id = '' OR user_id = ?)`,
+		WHERE id = ? AND (user_id = '' OR user_id = ?)`),
 		strings.TrimSpace(req.Title), strings.TrimSpace(req.Description), string(stepsJSON),
 		req.SupportsRandomStock, string(optsJSON), req.SortOrder, enabled, time.Now().UTC(),
 		id, userID)
@@ -204,8 +204,8 @@ func (h *Handler) evalCaseDelete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "cannot delete built-in case")
 		return
 	}
-	res, err := db.ExecContext(r.Context(), `
-		DELETE FROM agent_eval_cases WHERE id = ? AND user_id = ?`, id, userID)
+	res, err := db.ExecContext(r.Context(), h.evalSQL(`
+		DELETE FROM agent_eval_cases WHERE id = ? AND user_id = ?`), id, userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -225,13 +225,13 @@ func (h *Handler) evalRunsList(w http.ResponseWriter, r *http.Request) {
 	}
 	userID := resolveUserID(r)
 	limit := parseLimit(r, 100, 500)
-	rows, err := db.QueryContext(r.Context(), `
+	rows, err := db.QueryContext(r.Context(), h.evalSQL(`
 		SELECT id, case_id, title, status, dual_model, model_slot_a, model_slot_b,
 		       duration_ms, error_text, logs_json, started_at, ended_at
 		FROM agent_eval_runs
 		WHERE user_id = ? OR (? = '' AND user_id = '')
 		ORDER BY started_at DESC
-		LIMIT ?`, userID, userID, limit)
+		LIMIT ?`), userID, userID, limit)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -256,10 +256,10 @@ func (h *Handler) evalRunGet(w http.ResponseWriter, r *http.Request) {
 	}
 	id := strings.TrimSpace(r.PathValue("id"))
 	userID := resolveUserID(r)
-	row := db.QueryRowContext(r.Context(), `
+	row := db.QueryRowContext(r.Context(), h.evalSQL(`
 		SELECT id, case_id, title, status, dual_model, model_slot_a, model_slot_b,
 		       duration_ms, error_text, logs_json, started_at, ended_at
-		FROM agent_eval_runs WHERE id = ? AND (user_id = ? OR (? = '' AND user_id = ''))`,
+		FROM agent_eval_runs WHERE id = ? AND (user_id = ? OR (? = '' AND user_id = ''))`),
 		id, userID, userID)
 	runRow, err := scanEvalRunRow(row)
 	if err == sql.ErrNoRows {
@@ -305,7 +305,7 @@ func (h *Handler) evalRunUpsert(w http.ResponseWriter, r *http.Request) {
 		duration = sql.NullInt64{Int64: int64(*req.DurationMs), Valid: true}
 	}
 	now := time.Now().UTC()
-	_, err = db.ExecContext(r.Context(), `
+	_, err = db.ExecContext(r.Context(), h.evalSQL(`
 		INSERT INTO agent_eval_runs (
 			id, user_id, case_id, title, status, dual_model, model_slot_a, model_slot_b,
 			duration_ms, error_text, logs_json, started_at, ended_at, created_at
@@ -321,16 +321,16 @@ func (h *Handler) evalRunUpsert(w http.ResponseWriter, r *http.Request) {
 			error_text = excluded.error_text,
 			logs_json = excluded.logs_json,
 			started_at = excluded.started_at,
-			ended_at = excluded.ended_at`,
+			ended_at = excluded.ended_at`),
 		id, userID, strings.TrimSpace(req.CaseID), strings.TrimSpace(req.Title), strings.TrimSpace(req.Status),
 		req.DualModel, strings.TrimSpace(req.ModelSlotA), strings.TrimSpace(req.ModelSlotB),
 		duration, strings.TrimSpace(req.Error), string(logsJSON), started, ended, now)
-	if err != nil {
-		_, err2 := db.ExecContext(r.Context(), `
+	if err != nil && !h.usesPostgresEval() {
+		_, err2 := db.ExecContext(r.Context(), h.evalSQL(`
 			INSERT OR REPLACE INTO agent_eval_runs (
 				id, user_id, case_id, title, status, dual_model, model_slot_a, model_slot_b,
 				duration_ms, error_text, logs_json, started_at, ended_at, created_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
 			id, userID, strings.TrimSpace(req.CaseID), strings.TrimSpace(req.Title), strings.TrimSpace(req.Status),
 			req.DualModel, strings.TrimSpace(req.ModelSlotA), strings.TrimSpace(req.ModelSlotB),
 			duration, strings.TrimSpace(req.Error), string(logsJSON), started.Format(time.RFC3339),
@@ -339,6 +339,9 @@ func (h *Handler) evalRunUpsert(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 	writeJSON(w, map[string]any{"ok": true, "id": id})
 }
@@ -357,8 +360,8 @@ func (h *Handler) evalRunDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	id := strings.TrimSpace(r.PathValue("id"))
 	userID := resolveUserID(r)
-	res, err := db.ExecContext(r.Context(), `
-		DELETE FROM agent_eval_runs WHERE id = ? AND (user_id = ? OR (? = '' AND user_id = ''))`,
+	res, err := db.ExecContext(r.Context(), h.evalSQL(`
+		DELETE FROM agent_eval_runs WHERE id = ? AND (user_id = ? OR (? = '' AND user_id = ''))`),
 		id, userID, userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
