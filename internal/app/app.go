@@ -780,25 +780,35 @@ func (a *App) RunSkillContext(ctx context.Context, skill string, runOpts ...Skil
 	if len(runOpts) > 0 {
 		opts = runOpts[0]
 	}
+	var (
+		result workflow.RunResult
+		err    error
+	)
 	if skill == "premarket_stock" {
 		market := workflow.NormalizeMarket(opts.Market)
 		if market == "" {
 			return workflow.RunResult{}, fmt.Errorf("premarket_stock requires market=CN|HK|US")
 		}
-		return a.runPreMarketStockForMarket(ctx, market, opts)
+		result, err = a.runPreMarketStockForMarket(ctx, market, opts)
+		a.syncScheduledJobVerdict(skill, market, result, err)
+		return result, err
 	}
 	if skill == "postmarket_stock" {
 		market := workflow.NormalizeMarket(opts.Market)
 		if market == "" {
 			return workflow.RunResult{}, fmt.Errorf("postmarket_stock requires market=CN|HK|US")
 		}
-		return a.runPostMarketStockForMarket(ctx, market, opts)
+		result, err = a.runPostMarketStockForMarket(ctx, market, opts)
+		a.syncScheduledJobVerdict(skill, market, result, err)
+		return result, err
 	}
 	phaseA, perStock, err := a.resolveSkillSteps(skill, opts.Market)
 	if err != nil {
 		return workflow.RunResult{}, err
 	}
-	return a.runSkillWithSteps(ctx, skill, phaseA, perStock, opts)
+	result, err = a.runSkillWithSteps(ctx, skill, phaseA, perStock, opts)
+	a.syncScheduledJobVerdict(skill, opts.Market, result, err)
+	return result, err
 }
 
 func (a *App) resolveSkillSteps(skill, market string) ([]workflow.Step, []workflow.Step, error) {

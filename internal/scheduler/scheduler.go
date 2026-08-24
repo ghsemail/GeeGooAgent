@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/app"
+	"github.com/ghsemail/GeeGooAgent/internal/jobstore"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
 	"github.com/robfig/cron/v3"
 )
@@ -132,18 +133,7 @@ func (r *Runner) executeAndMaybeRetry(job Job) {
 }
 
 func (r *Runner) recordRun(job Job, verdict string) {
-	jf, err := LoadJobs(r.jobsDir)
-	if err != nil || jf == nil {
-		return
-	}
-	for i := range jf.Jobs {
-		if jf.Jobs[i].Name == job.Name {
-			jf.Jobs[i].LastRun = time.Now().UTC().Format(time.RFC3339)
-			jf.Jobs[i].LastVerdict = verdict
-			break
-		}
-	}
-	_ = SaveJobs(r.jobsDir, jf)
+	_ = jobstore.RecordSkillVerdict(r.jobsDir, job.Skill, job.Market, verdict)
 }
 
 // VerdictForTest exposes the retry-count logic boundary for tests.

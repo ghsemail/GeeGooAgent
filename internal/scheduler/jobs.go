@@ -1,233 +1,34 @@
 package scheduler
 
-import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
-	"sort"
-	"strings"
-	"time"
+import "github.com/ghsemail/GeeGooAgent/internal/jobstore"
+
+type (
+	// Job is one scheduled agent task.
+	Job = jobstore.Job
+	// JobsFile is the persisted job list.
+	JobsFile = jobstore.JobsFile
 )
 
-// Job is one scheduled agent task.
-type Job struct {
-	Name        string `json:"name"`
-	Skill       string `json:"skill"`
-	Market      string `json:"market,omitempty"` // CN/HK/US for premarket_market / premarket_stock
-	Cron        string `json:"cron"`               // standard 5-field cron: "0 8 * * 1-5"
-	Prompt      string `json:"prompt"`             // optional prompt context injected into the run
-	Enabled     bool   `json:"enabled"`
-	Platform    string `json:"platform"` // reserved: where to deliver result (log only for now)
-	LastRun     string `json:"last_run"` // RFC3339, updated after each tick
-	LastVerdict string `json:"last_verdict"`
-}
-
-// JobsFile is the persisted job list.
-type JobsFile struct {
-	Version int   `json:"version"`
-	Jobs    []Job `json:"jobs"`
-}
-
-// LoadJobs reads jobs.json from dir. Returns an empty list if the file does
-// not exist (callers may then seed defaults).
 func LoadJobs(dir string) (*JobsFile, error) {
-	path := filepath.Join(dir, "jobs.json")
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return &JobsFile{Version: 1}, nil
-		}
-		return nil, err
-	}
-	var jf JobsFile
-	if err := json.Unmarshal(raw, &jf); err != nil {
-		return nil, fmt.Errorf("parse jobs.json: %w", err)
-	}
-	if jf.Version == 0 {
-		jf.Version = 1
-	}
-	return &jf, nil
+	return jobstore.LoadJobs(dir)
 }
 
-// SaveJobs writes jobs.json atomically-ish to dir.
 func SaveJobs(dir string, jf *JobsFile) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	jf.Version = 1
-	raw, err := json.MarshalIndent(jf, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(dir, "jobs.json"), append(raw, '\n'), 0o644)
+	return jobstore.SaveJobs(dir, jf)
 }
 
-// DefaultJobs returns the production weekday schedule (Asia/Shanghai local cron).
 func DefaultJobs() *JobsFile {
-	return &JobsFile{
-		Version: 1,
-		Jobs: []Job{
-			{Name: "premarket_market_cn", Skill: "premarket_market", Market: "CN", Cron: "0 8 * * 1-5",
-				Enabled: true, Platform: "log"},
-			{Name: "premarket_stock_cn", Skill: "premarket_stock", Market: "CN", Cron: "10 8 * * 1-5",
-				Enabled: true, Platform: "feishu"},
-			{Name: "premarket_market_hk", Skill: "premarket_market", Market: "HK", Cron: "0 9 * * 1-5",
-				Enabled: true, Platform: "log"},
-			{Name: "premarket_stock_hk", Skill: "premarket_stock", Market: "HK", Cron: "10 9 * * 1-5",
-				Enabled: true, Platform: "feishu"},
-			{Name: "postmarket_stock_cn", Skill: "postmarket_stock", Market: "CN", Cron: "0 17 * * 1-5",
-				Enabled: true, Platform: "feishu"},
-			{Name: "postmarket_stock_hk", Skill: "postmarket_stock", Market: "HK", Cron: "0 17 * * 1-5",
-				Enabled: true, Platform: "feishu"},
-			{Name: "postmarket_stock_us", Skill: "postmarket_stock", Market: "US", Cron: "0 5 * * 2-6",
-				Enabled: true, Platform: "feishu"},
-			{Name: "premarket_market_us", Skill: "premarket_market", Market: "US", Cron: "0 21 * * 1-5",
-				Enabled: true, Platform: "log"},
-			{Name: "premarket_stock_us", Skill: "premarket_stock", Market: "US", Cron: "10 21 * * 1-5",
-				Enabled: true, Platform: "feishu"},
-		},
-	}
+	return jobstore.DefaultJobs()
 }
 
-// MigrateJobs upgrades legacy scheduler entries (pre_market → premarket_market, etc.).
-// Returns true when any job was changed.
 func MigrateJobs(jf *JobsFile) bool {
-	if jf == nil {
-		return false
-	}
-	skillAlias := map[string]string{
-		"pre_market":       "premarket_market",
-		"pre_market_stock": "premarket_stock",
-		"post_market":      "postmarket_stock",
-	}
-	changed := false
-	for i := range jf.Jobs {
-		j := &jf.Jobs[i]
-		if newSkill, ok := skillAlias[j.Skill]; ok {
-			j.Skill = newSkill
-			changed = true
-		}
-		if strings.TrimSpace(j.Market) != "" {
-			continue
-		}
-		name := strings.ToLower(j.Name)
-		switch {
-		case strings.Contains(name, "_cn") || strings.HasSuffix(name, "cn"):
-			j.Market = "CN"
-			changed = true
-		case strings.Contains(name, "_hk") || strings.HasSuffix(name, "hk"):
-			j.Market = "HK"
-			changed = true
-		case strings.Contains(name, "_us") || strings.HasSuffix(name, "us"):
-			j.Market = "US"
-			changed = true
-		}
-	}
-	if pruneLegacyJobs(jf) {
-		changed = true
-	}
-	ensurePostmarketMarketJobs(jf)
-	if upgradeStockJobPlatforms(jf) {
-		changed = true
-	}
-	return changed
+	return jobstore.MigrateJobs(jf)
 }
 
-// upgradeStockJobPlatforms sets Platform=feishu on stock-phase report jobs (cron IM digest).
-func upgradeStockJobPlatforms(jf *JobsFile) bool {
-	if jf == nil {
-		return false
-	}
-	changed := false
-	for i := range jf.Jobs {
-		j := &jf.Jobs[i]
-		if j.Skill != "premarket_stock" && j.Skill != "postmarket_stock" {
-			continue
-		}
-		if strings.EqualFold(strings.TrimSpace(j.Platform), "feishu") {
-			continue
-		}
-		j.Platform = "feishu"
-		changed = true
-	}
-	return changed
-}
-
-func isLegacyRemovedJob(j Job) bool {
-	if j.Name == "postmarket_stock_weekday" {
-		return true
-	}
-	// Old combined postmarket job without per-market scope.
-	return j.Skill == "postmarket_stock" && strings.TrimSpace(j.Market) == ""
-}
-
-func pruneLegacyJobs(jf *JobsFile) bool {
-	if jf == nil {
-		return false
-	}
-	out := make([]Job, 0, len(jf.Jobs))
-	removed := false
-	for _, j := range jf.Jobs {
-		if isLegacyRemovedJob(j) {
-			removed = true
-			continue
-		}
-		out = append(out, j)
-	}
-	if removed {
-		jf.Jobs = out
-	}
-	return removed
-}
-
-func ensurePostmarketMarketJobs(jf *JobsFile) {
-	if jf == nil {
-		return
-	}
-	has := map[string]bool{}
-	for _, j := range jf.Jobs {
-		if j.Skill != "postmarket_stock" || !j.Enabled {
-			continue
-		}
-		has[strings.ToUpper(strings.TrimSpace(j.Market))] = true
-	}
-	add := func(name, market, cron string) {
-		if has[market] {
-			return
-		}
-		jf.Jobs = append(jf.Jobs, Job{
-			Name: name, Skill: "postmarket_stock", Market: market, Cron: cron,
-			Enabled: true, Platform: "feishu",
-		})
-		has[market] = true
-	}
-	add("postmarket_stock_cn", "CN", "0 17 * * 1-5")
-	add("postmarket_stock_hk", "HK", "0 17 * * 1-5")
-	add("postmarket_stock_us", "US", "0 5 * * 2-6")
-}
-
-// SortJobs orders jobs by name for stable display.
 func SortJobs(jf *JobsFile) {
-	sort.Slice(jf.Jobs, func(i, j int) bool { return jf.Jobs[i].Name < jf.Jobs[j].Name })
+	jobstore.SortJobs(jf)
 }
 
-// FormatJob renders one job for `geegoo scheduler list`.
 func FormatJob(j Job) string {
-	state := "disabled"
-	if j.Enabled {
-		state = "enabled"
-	}
-	last := j.LastRun
-	if last == "" {
-		last = "(never)"
-	} else if t, err := time.Parse(time.RFC3339, last); err == nil {
-		last = t.Local().Format("2006-01-02 15:04")
-	}
-	verdict := j.LastVerdict
-	if verdict == "" {
-		verdict = "-"
-	}
-	return fmt.Sprintf("%-22s  %-12s  %-14s  %-8s  verdict=%-10s  last=%s",
-		j.Name, j.Skill, j.Cron, state, verdict, last)
+	return jobstore.FormatJob(j)
 }
