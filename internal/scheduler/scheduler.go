@@ -92,6 +92,13 @@ func (r *Runner) executeAndMaybeRetry(job Job) {
 	if application == nil {
 		return
 	}
+	if skillRequiresSynthesis(job.Skill) && !application.SynthesisReady() {
+		slog.Error("scheduler: synthesis not ready, deferring job", "job", job.Name, "skill", job.Skill, "market", job.Market)
+		r.recordRun(job, "deferred")
+		jobRef := job
+		time.AfterFunc(5*time.Minute, func() { r.executeAndMaybeRetry(jobRef) })
+		return
+	}
 	result, err := application.RunSkillContext(context.Background(), job.Skill, app.SkillRunOptions{
 		Market:       job.Market,
 		NotifyFeishu: strings.EqualFold(strings.TrimSpace(job.Platform), "feishu") && shouldNotifyJob(job),

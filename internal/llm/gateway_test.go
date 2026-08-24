@@ -71,6 +71,35 @@ func TestGatewayChatSynthesisFailoverOnParseError(t *testing.T) {
 	}
 }
 
+func TestGatewayChatSynthesisFallbackAfterParentDeadline(t *testing.T) {
+	t.Parallel()
+	primary := &llm.MockProvider{
+		ModelName: "primary-model",
+		Responses: []*llm.Response{{Content: "<html>bad</html>"}},
+	}
+	fallback := &llm.MockProvider{
+		ModelName: "fallback-model",
+		Responses: []*llm.Response{{Content: `{"ok":true}`}},
+	}
+	gw := llm.NewGateway(primary, llm.GatewayConfig{MaxRetries: 1, RetryWait: time.Millisecond})
+	gw.SetFallbacks([]llm.Provider{fallback})
+	parentCtx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	time.Sleep(2 * time.Millisecond)
+	resp, err := gw.ChatSynthesis(parentCtx, nil, func(r *llm.Response) error {
+		if strings.TrimSpace(r.Content) != `{"ok":true}` {
+			return fmt.Errorf("invalid content %q", r.Content)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Content != `{"ok":true}` {
+		t.Fatalf("got %q", resp.Content)
+	}
+}
+
 func TestGatewayFailoverOnRateLimit(t *testing.T) {
 	t.Parallel()
 	primary := &llm.MockProvider{Err: &llm.HTTPError{StatusCode: 429, Body: "rate limit"}}

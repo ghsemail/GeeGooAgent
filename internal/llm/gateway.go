@@ -129,8 +129,22 @@ func (g *Gateway) ChatStream(
 // Returning an error triggers failover to the next configured provider.
 type SynthesisAccept func(*Response) error
 
+const (
+	defaultSynthesisPrimaryTimeout  = 90 * time.Second
+	defaultSynthesisFallbackTimeout = 120 * time.Second
+)
+
+func synthesisProviderTimeout(index int) time.Duration {
+	if index == 0 {
+		return defaultSynthesisPrimaryTimeout
+	}
+	return defaultSynthesisFallbackTimeout
+}
+
 // ChatSynthesis invokes providers in order, failing over on transport errors or when
 // accept rejects the response (e.g. empty body, JSON parse failure).
+// Each provider gets an independent timeout so a slow or invalid primary response
+// does not starve the ops-configured fallback.
 func (g *Gateway) ChatSynthesis(ctx context.Context, messages []Message, accept SynthesisAccept) (*Response, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -142,7 +156,9 @@ func (g *Gateway) ChatSynthesis(ctx context.Context, messages []Message, accept 
 	}
 	var attempts []string
 	for i, provider := range providers {
-		resp, err := g.chatStreamWithRetries(ctx, provider, messages, nil, nil)
+		providerCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), synthesisProviderTimeout(i))
+		resp, err := g.chatSynthesisOnce(providerCtx, provider, messages)
+		cancel()
 		if err != nil {
 			attempts = append(attempts, fmt.Sprintf("%s: %v", provider.Model(), err))
 			if i < len(providers)-1 {
@@ -165,6 +181,24 @@ func (g *Gateway) ChatSynthesis(ctx context.Context, messages []Message, accept 
 		return resp, nil
 	}
 	return nil, fmt.Errorf("synthesis failed after %d provider(s): %s", len(providers), strings.Join(attempts, "; "))
+}
+
+// chatSynthesisOnce performs a single transport attempt per provider for synthesis.
+// Validation failures are handled by ChatSynthesis failover; transport retries are
+// limited to avoid burning the provider timeout budget.
+func (g *Gateway) chatSynthesisOnce(ctx context.Context, provider Provider, messages []Message) (*Response, error) {
+	if g == nil || provider == nil {
+		return nil, fmt.Errorf("provider not configured")
+	}
+	temp, maxTok := g.resolveCallParams(ctx)
+	resp, err := invokeProvider(ctx, provider, messages, nil, temp, maxTok, nil)
+	if err != nil {
+		return nil, err
+	}
+	if MalformedToolCallResponse(resp) {
+		return nil, fmt.Errorf("malformed tool_calls response (finish_reason=%q)", resp.FinishReason)
+	}
+	return resp, nil
 }
 
 func (g *Gateway) providers() []Provider {
