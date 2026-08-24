@@ -114,6 +114,8 @@ func applyLiveEvent(state *LiveSessionState, event string, data map[string]any) 
 		state.Status = "tool"
 	case "reply_start":
 		state.Status = "replying"
+	case "clarify":
+		state.Status = "clarify"
 	case "error":
 		state.Busy = false
 		state.Status = "error"

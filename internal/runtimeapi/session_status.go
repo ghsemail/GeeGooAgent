@@ -24,18 +24,25 @@ const (
 
 // SessionStatusPayload is the debug snapshot for a chat session.
 type SessionStatusPayload struct {
-	SessionID    string                      `json:"session_id"`
-	ResolvedFrom string                      `json:"resolved_from,omitempty"`
-	Title        string                      `json:"title"`
-	Status       string                      `json:"status"`
-	Busy         bool                        `json:"busy"`
-	LiveStatus   string                      `json:"live_status,omitempty"`
-	MessageCount int                         `json:"message_count"`
-	StepCount    int                         `json:"step_count"`
-	UpdatedAt    time.Time                   `json:"updated_at"`
-	Messages     []SessionMessageSummary     `json:"messages"`
-	StepRecords  []chatsession.ChatStepRecord `json:"step_records"`
-	Live         *chatsession.LiveSessionState `json:"live,omitempty"`
+	SessionID      string                        `json:"session_id"`
+	ResolvedFrom   string                        `json:"resolved_from,omitempty"`
+	Title          string                        `json:"title"`
+	Status         string                        `json:"status"`
+	Busy           bool                          `json:"busy"`
+	LiveStatus     string                        `json:"live_status,omitempty"`
+	MessageCount   int                           `json:"message_count"`
+	StepCount      int                           `json:"step_count"`
+	UpdatedAt      time.Time                     `json:"updated_at"`
+	Messages       []SessionMessageSummary       `json:"messages"`
+	StepRecords    []chatsession.ChatStepRecord  `json:"step_records"`
+	Live           *chatsession.LiveSessionState `json:"live,omitempty"`
+	PendingClarify *PendingClarifyStatus         `json:"pending_clarify,omitempty"`
+}
+
+// PendingClarifyStatus is the in-flight clarify prompt for Web clients.
+type PendingClarifyStatus struct {
+	Question string   `json:"question"`
+	Choices  []string `json:"choices"`
 }
 
 // SessionMessageSummary is a compact message row for remote debugging.
@@ -91,7 +98,7 @@ func (h *Handler) sessionStatusStream(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	writeSessionSSE(w, flusher, "connected", map[string]any{
-		"session_id": payload.SessionID,
+		"session_id":    payload.SessionID,
 		"resolved_from": payload.ResolvedFrom,
 	})
 	writeSessionSSE(w, flusher, "snapshot", payload)
@@ -150,7 +157,7 @@ func (h *Handler) resolveSessionStatus(r *http.Request, store chatsession.Sessio
 		return nil, http.StatusInternalServerError, err.Error()
 	}
 	if payload == nil {
-		return nil, http.StatusNotFound, "session not found: "+sessionID
+		return nil, http.StatusNotFound, "session not found: " + sessionID
 	}
 	if chat, err := store.Load(sessionID); err == nil && chat != nil {
 		if !chatsession.EnforceAccess(chat, userID) {
@@ -172,7 +179,27 @@ func (h *Handler) loadSessionStatus(store chatsession.SessionStore, sessionID, r
 	if h.App != nil && h.App.State != nil {
 		live, _ = chatsession.LoadLiveState(h.App.State, sessionID)
 	}
-	return buildSessionStatus(session, live, resolvedFrom), nil
+	payload := buildSessionStatus(session, live, resolvedFrom)
+	h.attachPendingClarify(payload)
+	return payload, nil
+}
+
+func (h *Handler) attachPendingClarify(payload *SessionStatusPayload) {
+	if h == nil || h.clarify == nil || payload == nil || payload.SessionID == "" {
+		return
+	}
+	p, ok := h.clarify.Pending(payload.SessionID)
+	if !ok {
+		return
+	}
+	payload.PendingClarify = &PendingClarifyStatus{
+		Question: p.Question,
+		Choices:  append([]string(nil), p.Choices...),
+	}
+	payload.Busy = true
+	if payload.LiveStatus == "" || payload.LiveStatus == "tool" {
+		payload.LiveStatus = "clarify"
+	}
 }
 
 func buildSessionStatus(session *chatsession.ChatSession, live *chatsession.LiveSessionState, resolvedFrom string) *SessionStatusPayload {
