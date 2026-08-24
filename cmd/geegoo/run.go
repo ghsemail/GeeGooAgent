@@ -26,6 +26,7 @@ func runSkill(args []string) {
 	tradeType := fs.String("trade-type", "", "intraday: signal type (e.g. 信号买入)")
 	reportDate := fs.String("report-date", "", "YYYY-MM-DD (intraday default today; premarket_market backfill skips non-trading-day gate)")
 	market := fs.String("market", "", "premarket_market/stock: CN, HK, or US")
+	noNotifyFeishu := fs.Bool("no-notify-feishu", false, "skip Feishu digest (default: notify for premarket_stock/postmarket_stock)")
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
 	}
@@ -79,6 +80,7 @@ func runSkill(args []string) {
 	if v := strings.TrimSpace(*reportDate); v != "" {
 		runOpts.ReportDate = v
 	}
+	runOpts.NotifyFeishu = defaultFeishuNotifyForSkill(skill) && !*noNotifyFeishu
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
@@ -93,5 +95,14 @@ func runSkill(args []string) {
 	}
 	if !result.OK() {
 		os.Exit(1)
+	}
+}
+
+func defaultFeishuNotifyForSkill(skill string) bool {
+	switch strings.TrimSpace(skill) {
+	case "premarket_stock", "postmarket_stock":
+		return true
+	default:
+		return false
 	}
 }

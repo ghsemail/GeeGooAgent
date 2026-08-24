@@ -12,6 +12,11 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
 )
 
+// NotifyUserStockFeishu pushes a stock pre/post market digest to the user's Feishu bot.
+func (a *App) NotifyUserStockFeishu(ctx context.Context, userID, skill, market string, result workflow.RunResult) bool {
+	return a.maybeNotifyUserStockFeishu(ctx, userID, skill, market, result)
+}
+
 func (a *App) maybeNotifyUserStockFeishu(ctx context.Context, userID, skill, market string, result workflow.RunResult) bool {
 	if a == nil {
 		return false

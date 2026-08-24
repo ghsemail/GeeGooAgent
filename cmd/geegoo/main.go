@@ -35,6 +35,8 @@ func main() {
 		runChat(os.Args[2:])
 	case "run":
 		runSkill(os.Args[2:])
+	case "notify-stock":
+		notifyStock(os.Args[2:])
 	case "migrate":
 		runMigrate(os.Args[2:])
 	case "skills":
@@ -81,7 +83,8 @@ Usage:
   %s exec -p "..." [--config PATH] [--session ID] [--output-format ndjson|text] [--dry-run]
   %s mcp serve [--config PATH] [--toolset chat|workflow] [--dry-run]
   %s chat [--config PATH] [--dry-run] [--message TEXT] [--output-format text|ndjson] [--session ID] [--tui|--cli]
-  %s run <skill> [--config PATH] [--dry-run]
+  %s run <skill> [--config PATH] [--dry-run] [--no-notify-feishu]
+  %s notify-stock --session ID --skill premarket_stock|postmarket_stock --market CN|HK|US
   %s migrate [--config PATH] [--from file|sqlite] [--to sqlite|postgres] [--dry-run]
   %s migrate tenant --assign-user UID [--session ID] [--compare-from PATH] [--dry-run]
   %s skills list [--config PATH]
@@ -91,5 +94,5 @@ Usage:
   %s verify --codes CODES [--date YYYY-MM-DD] [--config PATH]
   %s verify agent-loop [--config PATH]
 
-`, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
+`, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
 }
