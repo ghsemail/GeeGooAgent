@@ -343,7 +343,7 @@ func (l *Loop) RunTurn(
 		l.emitStatus("gate", "工具型技能，跳过记忆检索")
 		l.recordInjectionStep(&records, "gate", "decision=skip · reason=tool-first playbook")
 	}
-	var dynFrags []ctxfrag.Fragment
+	dynFrags := []ctxfrag.Fragment{ctxfrag.ClockFragment(clockNow())}
 	if gateFrag != nil && strings.TrimSpace(gateFrag.Render()) != "" {
 		dynFrags = append(dynFrags, gateFrag)
 	}

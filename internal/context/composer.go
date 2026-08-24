@@ -13,6 +13,7 @@ const (
 	KindHookInject     Kind = "hook_inject"
 	KindSystemRules    Kind = "system_rules"
 	KindBudgetReminder Kind = "budget_reminder"
+	KindClock          Kind = "clock"
 )
 
 // Fragment is one injectable user-side context block with compression priority.

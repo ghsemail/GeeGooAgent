@@ -15,6 +15,7 @@ func RegisteredKinds() []Kind {
 		KindHookInject,
 		KindSystemRules,
 		KindBudgetReminder,
+		KindClock,
 	}
 }
 
