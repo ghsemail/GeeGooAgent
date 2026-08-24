@@ -7,10 +7,10 @@ func UsesSignalAPI(name string) bool {
 		"loopback_strategy",
 		"probe_bot_signal",
 		"probe_bot_signal_series",
+		"run_strategy_backtest",
 		"get_indicator_series",
 		"list_strategy_backtest_logs",
-		"get_strategy_backtest_log",
-		"run_strategy_backtest":
+		"get_strategy_backtest_log":
 		return true
 	default:
 		return false

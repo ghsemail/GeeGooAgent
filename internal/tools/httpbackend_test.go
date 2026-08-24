@@ -25,6 +25,9 @@ func TestHTTPBackendsForTool(t *testing.T) {
 	if b.ForTool("list_strategy_backtest_logs") != sigC {
 		t.Fatal("list_strategy_backtest_logs should use signal-api")
 	}
+	if b.ForTool("run_strategy_backtest") != sigC {
+		t.Fatal("run_strategy_backtest should use signal-api")
+	}
 	if b.ForTool("get_index_signals") != mcpC {
 		t.Fatal("get_index_signals should use mcp-api")
 	}

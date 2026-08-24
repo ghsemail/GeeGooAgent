@@ -25,13 +25,15 @@ func ToolRouting() string {
 - 用户要 **网格策略 / 回测网格** 时：search_code → generate_grid_strategy(code, name, months_back) → 若 suitable 为 true，用返回的 param 调 loopback_strategy(type=grid, grid_param=param, frequency=5m, fund/months_back 向用户确认或沿用 generate 的 months_back)。grid generate 通常 40～60s（cn）或略长（en）
 - loopback_strategy 禁止缺 grid_param（grid）或缺 signal/sl_tp（dca）硬调；参数来自 generate_* 或用户明确给出
 
-### 策略开发 / 高级回测（trading_operation）
-- 用户要 **测信号 / 策略开发测试 / 有没有买卖点** → probe_bot_signal_series（必填 code、frequency、buy_signal）；单 bar 快速验证用 probe_bot_signal
+### 策略开发 / SmartTrade 回测（默认路径）
+- 用户说 **回测 / 跑回测 / 看收益 / 回撤 / 成交笔数 / 验证策略**，且**未**明确 DCA/定投/网格 → **run_strategy_backtest**（与 Web 回测页一致；返回 log_id + 收益摘要）。可先 search_code + 选信号，不必先 probe；probe 仅用于「只看买卖点、不要 PnL」
+- **禁止**在上述场景调 generate_dca_strategy 或 generate_grid_strategy；二者仅用于 DCA/Grid Bot 方案生成（路径 B）
+- 用户要 **只测信号 / 有没有买卖点 / 信号密度**（不要 PnL）→ probe_bot_signal_series；单 bar 用 probe_bot_signal
 - 买卖规则来源：单指标 get_index_signals、组合 get_signal_combinations、定制 get_custom_signal_for_skill（index=custom.index）
+- 用户只说「RSI」做信号/回测：默认 catalog **RSI阈值信号**（type=signal）；说金死叉→RSI金死叉；仍 2+ 匹配→**clarify(choices=各 name)**，禁止正文-only 提问
 - 动态止盈止损需指标序列时 → get_indicator_series（role=sl 或 tp）
-- 用户要 **高级策略/SmartTrade 式回测盈亏**：优先 **run_strategy_backtest**（probe + 模拟 + 写入 log，返回 log_id）；勿仅用 probe_bot_signal_series 声称回测完成
-- 用户要 **历史回测 / 上次回测结果** → list_strategy_backtest_logs（自动按当前用户筛选）→ get_strategy_backtest_log(log_id)
-- **禁止**把 probe 的买卖次数说成收益率；DCA/Grid 服务端回测仍走 loopback_strategy
+- 用户要 **历史回测 / 上次回测结果** → list_strategy_backtest_logs（可按 code、strategy_label、日期筛选）→ get_strategy_backtest_log
+- **禁止**把 probe 的买卖次数说成收益率；DCA/Grid 老路径回测仍走 generate_* + loopback_strategy
 
 ### 创建 Bot（写操作需用户确认）
 - **GRID**：generate_grid_strategy → 用户确认 botname/lot_size → create_grid_bot（grid=param，frequency 默认 5m）
