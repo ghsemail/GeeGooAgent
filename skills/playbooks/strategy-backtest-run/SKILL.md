@@ -1,175 +1,133 @@
 ---
 name: strategy-backtest-run
-description: 策略回测运行、probe 后验证、loopback、高级策略 SmartTrade 回测、止盈止损、动态止损。用户要「跑回测」「验证策略收益」「最新回测」时触发。
+description: 策略回测运行、probe 后验证、loopback、高级策略 SmartTrade 回测、止盈止损、动态止损。用户要「跑回测」「验证策略收益」「同样参数再跑」「最新回测」时触发。
 skip_retrieval_gate: true
 ---
 
 # 策略回测 · 运行
 
-覆盖两类回测路径，与 `trading_operation` **策略回测**页对齐。
+覆盖 **路径 A**（高级 / SmartTrade）与 **路径 B**（DCA/GRID `loopback`）。与 UI **策略回测**页对齐。
+
+> **继承父 playbook `strategy-backtest`**：参数解析 ①→⑤、memory、clarify、买卖规则来源。  
+> **本 playbook 重点**：③ 历史 log **优先于** UI 默认表；完整 PnL 用 **`run_strategy_backtest`**。
 
 ## 适用 Toolset
 
 `strategy` · `custom_signal` · `market`
 
-## 路径 A：高级策略 / SmartTrade 式回测（trading_operation 新版）
+---
 
-新版回测在客户端模拟止盈止损后写入 Mongo；Agent **信号 + 读结果** 流程如下：
+## 流程（路径 A · 高级 / SmartTrade）
 
-### 1. 确认参数（用户未指定时用 UI 默认值）
+```
+解析参数（①→⑤，③ 优先）→ run_strategy_backtest →（可选 get 详情）
+```
 
-向用户确认或从上下文读取；**能推断则直接采用默认，勿逐项追问**。
+仅验证信号、不要 PnL 时 → **`probe_bot_signal_series`**（见 **`strategy-signal-probe`**）。
 
-#### 行情与回溯
+### 1. 解析参数
 
-| 字段 | 默认值 | 可选值 | 说明 |
-|------|--------|--------|------|
-| `code` | — | 须 `search_code` | 如 `00700.HK` |
-| `frequency` | **`60m`** | `5m` / `15m` / `60m` / `daily` | 定制策略须在其 `supported_frequencies` 内 |
-| `period`（UI 回溯） | **`1m`** | 5m 周期：`2w`/`1m`/`2m`；其他：`1m`/`2m`/`3m` | 映射为 probe 的 `months_back` |
-| `months_back` | **1**（来自 period） | 1～12 | probe / 回测 API 用整数月 |
-| `limit` | 按 months 推算 | 30～800 | 策略开发可只传 limit |
-| `fund` | **100000** | 100000 / 200000 / 500000 或自定义 | 初始资金（随市场币种） |
-| `base_order_size` | **100** | 100 / 200 / 500 或自定义 | 每次买入股数；crypto 为 USDT 额 |
+**顺序**：父 playbook **① 明文 → ② 会话 → ③ list/get 回测 log → ④ 默认表 → ⑤ clarify**。
 
-#### 买卖规则来源（Monday catalog-api）
+用户说 **「同样 / 再跑 / 上次 / 按那次回测」** 时：
 
-| 策略类型 | Tool | 取参方式 |
-|----------|------|----------|
-| 单指标 | `get_index_signals` | 列表选 `signal_id`；probe 用该项的 `index`+`param` 模板 |
-| 组合 | `get_signal_combinations` | 列表选 `signal_id`；probe 用该项的 **`buy_signal` / `sell_signal` 整条链** |
-| 高级/定制 | `get_custom_signal_for_skill` + `get_custom_strategy_definitions` | `buy_signal` 项：`index`=注册表 `strategy_key`，`param` 用 `defaults` 或用户覆盖 |
+1. `list_strategy_backtest_logs`（`code` / `strategy_label`，`limit=5`）  
+2. 唯一 → `get_strategy_backtest_log(log_id)`  
+3. 从 `run` 提取下表字段组装 **`run_strategy_backtest`** / probe 入参  
 
-**多匹配时必须 clarify**：组合/单指标列表有 2+ 项都符合用户描述时，先 `clarify`（最多 4 项）再回测，勿默认第一个。
+| run 字段 | 用途 |
+|----------|------|
+| `code` · `frequency` · `period` | 标的与周期 |
+| `config.buy_rules` · `config.sell_rules` | 买卖链 |
+| `trade_config` | 止盈止损 · 仓位 · 风控 · MACD 配套 |
+| `fund` · `base_order_size` · `is_crypto` | 资金与下单规模 |
+| `chart_data.probe` | 可选：还原 probe 范围 |
 
-**定制策略注册表（`get_custom_strategy_definitions`）**
+**多条历史** → `clarify` 选 `log_id`（带日期、收益率）。**无历史** → ④ 默认表。
 
-| strategy_key | 默认 frequency | supported_frequencies | 默认 param（节选） |
-|--------------|----------------|----------------------|-------------------|
-| `MACDResonance` | 15m | `15m`, `5m` | fastPeriod=12, slowPeriod=26, signalPeriod=9, zeroAxisRatio=0.002, breakoutLookback=5 |
-| `Macd4HRhythm` | 60m | `60m` | fastPeriod=5, slowPeriod=13, signalPeriod=9, rhythmPeriod=89, zone1Ratio=0.0015 |
+#### ④ 默认表（仅无 ①②③ 时）
 
-`custom.type` 枚举：`signal` | `flag`（须在该策略 `supported_types` 内）。
+**行情与回溯**
 
-#### 交易参数 `trade_config`（与 UI「交易参数」三 Tab 对齐）
-
-**执行模式 `execution_profile`**
-
-| 值 | 标签 | 何时用 |
-|----|------|--------|
-| `generic_smarttrade` | 标准止盈止损 | **默认**；通用指标/组合 |
-| `macd_resonance_v1` | 策略配套 | 仅当 **全部** buy 规则 `index=MACDRESONANCE` 时 UI 自动切换 |
-
-**止盈 `tp`（默认）**
-
-| 字段 | 默认 | 枚举/范围 |
-|------|------|-----------|
-| `tp_switch` | true | |
-| `tp_mode` | **`fix`** | `fix` / `dynamic` |
-| `fix_tp` | **5%** | 预设 3 / 5 / 7 |
-| `tp_dynamic_index` | SAR | SAR / BBAND（`tp_mode=dynamic` 时） |
-| `tp_dynamic_factor` | 1.0 | |
-| `profit_trailing` | true | 盈利回撤跟踪 |
-| `profit_trailing_deviation` | 1% | |
-
-**止损 `sl`（默认）**
-
-| 字段 | 默认 | 枚举/范围 |
-|------|------|-----------|
-| `sl_switch` | true | |
-| `sl_mode` | **`dynamic`** | `fix` / `dynamic` |
-| `sl_dynamic_index` | **SAR** | SAR / BBAND（`sl_mode=dynamic` 时） |
-| `fix_sl` | 3% | 仅 `sl_mode=fix` 时生效；预设 3 / 5 / 7 |
-| `stop_loss_trailing` | false | |
-| `stop_loss_trailing_deviation` | 1% | |
-
-**出场**：`use_signal_sell` 默认 **true**（信号卖出 + 止盈止损并存）。
-
-**仓位 `position`（默认）**
-
-| 字段 | 默认 | 枚举 |
+| 字段 | 默认 | 说明 |
 |------|------|------|
-| `sizing_mode` | **`fixed`** | `fixed` 固定股数 / `riskBased` 按资金比例 |
-| `base_order_size` | 100 | |
-| `position_mode` | **`addOn`** | `single` 单次建仓 / `addOn` 允许加仓 |
-| `per_trade_risk_pct` | 2% | `riskBased` 时用 |
-| `cap_by_fixed_order_size` | true | |
+| `code` | — | `search_code` |
+| `frequency` | **`60m`** | 须在 `supported_frequencies` 内 |
+| `period` | **`1m`** | 5m：`2w`/`1m`/`2m`；其他：`1m`/`2m`/`3m` |
+| `limit` | 见 **`strategy-signal-probe`** | Macd4H **≥450**；crypto 显式 limit |
+| `fund` | **100000** | |
+| `base_order_size` | **100** | crypto 为 USDT 额 |
 
-**风控 `risk`（默认）**
+**Macd4HRhythm / MACDResonance**：UI 默认回溯 **3 月**（非通用 1 月）——与 signal-probe playbook 一致。
 
-| 字段 | 默认 |
-|------|------|
-| `per_trade_enabled` | false |
-| `monthly_halt_enabled` | **true** |
-| `monthly_loss_limit_pct` | **6%** |
+**买卖规则**：父 playbook 来源表；定制 param 默认 registry **`defaults`**。
 
-**MACD 配套执行 `macd_exec`**（仅 `macd_resonance_v1`）：breakoutLookback=5, atrPeriod=14, perTradeRiskPct=2%, takeProfitHalfR=2, breakevenR=3；5m/15m 小周期需大周期 `60m` MACD 反向出场。
+**`trade_config`（UI 默认 · 用户说「按常规」即用，勿逐项问）**
 
-用户只说「默认回测」「按常规」→ 用上表默认 + 选定信号的 buy/sell 链，**不要**展开问止盈止损。
+| 块 | 默认要点 |
+|----|----------|
+| `execution_profile` | `generic_smarttrade`；全 MACDResonance → `macd_resonance_v1` |
+| `tp` | 开 · fix **5%** · 跟踪回撤 1% |
+| `sl` | 开 · **dynamic SAR** · fix 3% 仅 fix 模式 |
+| `use_signal_sell` | **true** |
+| `position` | fixed · base 100 · addOn |
+| `risk` | 月度熔断 **6%** 开 |
 
-### 2. 信号探测（必做）
+MACD 配套 `macd_exec`：breakoutLookback 5 · atrPeriod 14 · perTradeRiskPct 2% · takeProfitHalfR 2 · breakevenR 3。
 
-`probe_bot_signal_series` — 与 UI「运行回测」第一步相同。
+### 2. 运行回测（路径 A 主路径）
 
-入参示例：
+**优先** **`run_strategy_backtest`**（服务端 probe + SmartTrade 模拟 + 写入 `strategy_backtest_log`），返回 `log_id`、`profit_rate`、`final_value`。
+
+- 入参与 `probe_bot_signal_series` 相同，另可传 `strategy_label`、`fund`、`base_order_size`、`trade_config`、`period` 等  
+- **`user_id` / `source=agent` 由运行时自动注入，勿手写**  
+- `tp_mode`/`sl_mode=dynamic` 时服务端会拉 indicator 数据，**无需** Agent 单独调 `get_indicator_series`  
+- **`sell_signal`**：单指标/定制策略默认同 `buy_signal`（见 signal-probe playbook）
+
+示例（Macd4HRhythm · 含 sell 镜像）：
 
 ```json
 {
   "code": "00700.HK",
   "frequency": "60m",
-  "months_back": 1,
-  "buy_signal": [{"index": "Macd4HRhythm", "type": "signal", "param": {"fastPeriod": "5", "slowPeriod": "13", "signalPeriod": "9"}}],
-  "sell_signal": []
+  "limit": 462,
+  "buy_signal": [{"index": "Macd4HRhythm", "type": "signal", "param": {"fastPeriod": 5, "slowPeriod": 13, "signalPeriod": 9, "rhythmPeriod": 89}}],
+  "sell_signal": [{"index": "Macd4HRhythm", "type": "signal", "param": {"fastPeriod": 5, "slowPeriod": 13, "signalPeriod": 9, "rhythmPeriod": 89}}]
 }
 ```
 
-若 `tp_mode`/`sl_mode`=`dynamic`（**止损默认 dynamic**）：`get_indicator_series`（`role=sl` 或 `tp`，`index` 与配置一致，止损默认 `SAR`）。
+回测完成后可用 **`get_strategy_backtest_log(log_id)`** 读详情；或 **`list_strategy_backtest_logs`** 列当前用户历史（详见 **`strategy-backtest-history`**）。
 
-### 3. 完整 PnL 模拟与落库
-
-**优先**调用 **`run_strategy_backtest`**（服务端 probe + SmartTrade 模拟 + 写入 `strategy_backtest_log`），返回 `log_id`、`profit_rate`、`final_value`。
-
-- 入参与 `probe_bot_signal_series` 相同，另可传 `strategy_label`、`fund`、`base_order_size`、`trade_config`、`period` 等
-- `user_id` / `source=agent` 由运行时自动注入，**勿手写**
-- 若 `tp_mode`/`sl_mode`=`dynamic`：服务端会拉 `get_indicator_series` 等价数据，**无需** Agent 单独调
-
-回测完成后可用 **`get_strategy_backtest_log(log_id)`** 读详情；或 **`list_strategy_backtest_logs`** 列当前用户历史。
-
-**备选**：用户在 `trading_operation` 回测页点击运行也会写入同库（`source=trading_operation`），Agent 用 list/get 读取即可。
+**备选**：用户在 `trading_operation` 回测页运行也会写入同库（`source=trading_operation`），Agent 用 list/get 读取即可。
 
 **注意**：`probe_bot_signal_series` **仅**验证信号，**不能**单独声称已完成带止盈止损的盈亏回测。
 
-## 路径 B：DCA / GRID 服务端回测（loopback）
+---
 
-适合 Bot 方案验证，与旧版 `loopback_strategy` 一致：
+## 路径 B：DCA / GRID · loopback
 
-1. `search_code`
-2. `get_signal_combinations` 或 `get_index_signals` → 选 `signal_id`
-3. `generate_dca_strategy` 或 `generate_grid_strategy`（告知等待时间）
-4. `loopback_strategy`：
-   - **grid**：`type=grid`，`grid_param` = generate 的 `param`，`frequency=5m`
-   - **dca**：`type=dca`，`signal` = `signal.buy_signal`，`sl_tp` 由 `dynamicParam`/`fixedParam` 组装，`frequency=60m`
+见 **父 playbook §DCA/GRID**（`generate_*` → `loopback_strategy`）。  
+memory 来自 **generate 输出**，不是 `strategy_backtest_log`。缺 `fund`/`months_back` → **100000 / 1**。
 
-缺 `fund` / `months_back` 时用 **100000 / 1**。
+---
 
 ## 硬规则
 
-- **禁止**把 `probe` 的买卖次数直接说成收益率
-- **禁止**无 `grid_param` / `signal`+`sl_tp` 裸调 `loopback_strategy`
-- 动态/跟踪止损出场可能**盈利**，动作仍可能标「止损」— 以 `realized_pnl` 为准
-- 列表类 catalog 返回已摘要；**probe 前**若需完整 `buy_signal` 链，用户选定 `signal_id` 后从组合项取用（勿重复拉全量 info）
+- **禁止**把 probe 买卖次数当收益率  
+- **禁止**无 generate 参数裸调 `loopback_strategy`  
+- **禁止**用户说「同样参数」却跳过 ③ 直接用 registry 默认  
+- 动态止损出场可能盈利仍标「止损」— 以 `realized_pnl` 为准  
 
 ## 反模式
 
-- 跳过 probe / `run_strategy_backtest` 直接声称「回测完成」
-- 混淆 `loopback_strategy`（DCA/Grid）与 trading_operation 高级回测
-- 用户只问「有哪些组合策略」时 dump 全量 `info` 或完整规则 JSON
+- 跳过 **`run_strategy_backtest`** / probe 直接声称「回测完成」  
+- 混淆 loopback 与 SmartTrade 回测  
+- 为列表问题 dump 全量 `info` / rules JSON  
 
 ## 输出
 
-- **run_strategy_backtest**：`log_id`、`profit_rate`、`final_value`、`trade_count`（已落库）
-- **probe 阶段**（仅探测时）：信号统计 + 是否值得继续（买卖次数、最近 3 次触发时间）
-- **loopback**：`finalValue`、`profit_rate`、`drawdown`、`annualized_return`
-- **读历史**：`result` 摘要 + 关键成交 + `log_id`
+- **`run_strategy_backtest`**：`log_id`、`profit_rate`、`final_value`、`trade_count`（已落库）+ 参数来源（历史 log / 默认）  
+- **probe 阶段**（仅探测时）：信号统计 + 最近 3 次触发  
+- **loopback**：`finalValue`、`profit_rate`、`drawdown`、`annualized_return`  
 
 免责声明：仅供参考，非投资建议。
