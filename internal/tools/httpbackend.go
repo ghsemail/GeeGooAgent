@@ -40,7 +40,8 @@ func (b HTTPBackends) ForTool(name string) *mcp.Client {
 	case "search_code", "loopback_strategy",
 		"probe_bot_signal", "probe_bot_signal_series",
 		"get_indicator_series",
-		"list_strategy_backtest_logs", "get_strategy_backtest_log":
+		"list_strategy_backtest_logs", "get_strategy_backtest_log",
+		"run_strategy_backtest":
 		if b.SignalAPI != nil {
 			return b.SignalAPI
 		}

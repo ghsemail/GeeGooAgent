@@ -6,7 +6,7 @@ skip_retrieval_gate: true
 
 # 策略回测 · 历史与结果查看
 
-读取 `trading_operation` 策略回测页保存的 Mongo 记录（`strategy_backtest_log`）。
+读取 `trading_operation` 策略回测页与 Agent **`run_strategy_backtest`** 写入的 Mongo 记录（`strategy_backtest_log`）。**按当前用户 `user_id` 隔离**；未带 `user_id` 的旧记录不会出现在列表中。
 
 ## 适用 Toolset
 
@@ -16,7 +16,7 @@ skip_retrieval_gate: true
 
 ### 1. 列历史
 
-`list_strategy_backtest_logs` — **优先直接调用**，默认 `limit=20` 即可；勿 delegate。
+`list_strategy_backtest_logs` — **优先直接调用**，默认 `limit=20` 即可；勿 delegate。**`user_id` 由运行时自动注入**，只返回当前用户记录。
 
 | 参数 | 用途 |
 |------|------|

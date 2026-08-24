@@ -9,7 +9,8 @@ func UsesSignalAPI(name string) bool {
 		"probe_bot_signal_series",
 		"get_indicator_series",
 		"list_strategy_backtest_logs",
-		"get_strategy_backtest_log":
+		"get_strategy_backtest_log",
+		"run_strategy_backtest":
 		return true
 	default:
 		return false

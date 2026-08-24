@@ -29,8 +29,8 @@ func ToolRouting() string {
 - 用户要 **测信号 / 策略开发测试 / 有没有买卖点** → probe_bot_signal_series（必填 code、frequency、buy_signal）；单 bar 快速验证用 probe_bot_signal
 - 买卖规则来源：单指标 get_index_signals、组合 get_signal_combinations、定制 get_custom_signal_for_skill（index=custom.index）
 - 动态止盈止损需指标序列时 → get_indicator_series（role=sl 或 tp）
-- 用户要 **高级策略/SmartTrade 式回测盈亏**：probe 只能验证信号；完整 PnL 在 trading_operation 回测页运行后，用 list_strategy_backtest_logs → get_strategy_backtest_log(log_id) 读取
-- 用户要 **历史回测 / 上次回测结果** → list_strategy_backtest_logs（可按 code、strategy_label、日期筛选）→ get_strategy_backtest_log
+- 用户要 **高级策略/SmartTrade 式回测盈亏**：优先 **run_strategy_backtest**（probe + 模拟 + 写入 log，返回 log_id）；勿仅用 probe_bot_signal_series 声称回测完成
+- 用户要 **历史回测 / 上次回测结果** → list_strategy_backtest_logs（自动按当前用户筛选）→ get_strategy_backtest_log(log_id)
 - **禁止**把 probe 的买卖次数说成收益率；DCA/Grid 服务端回测仍走 loopback_strategy
 
 ### 创建 Bot（写操作需用户确认）

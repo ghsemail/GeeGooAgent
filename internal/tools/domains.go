@@ -140,6 +140,7 @@ var (
 		"get_indicator_series":         {},
 		"list_strategy_backtest_logs":  {},
 		"get_strategy_backtest_log":    {},
+		"run_strategy_backtest":        {},
 	}
 	knowledgeTools = map[string]struct{}{
 		"search_knowledge": {},

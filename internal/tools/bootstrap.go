@@ -71,6 +71,17 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 					}
 				}
 				body := buildHTTPBody(args, spec.MergePayload)
+				if uid := strings.TrimSpace(ctx.UserID); uid != "" {
+					switch spec.Name {
+					case "run_strategy_backtest", "list_strategy_backtest_logs":
+						body["user_id"] = uid
+					}
+					if spec.Name == "run_strategy_backtest" {
+						if _, ok := body["source"]; !ok {
+							body["source"] = "agent"
+						}
+					}
+				}
 				if catalog.NeedsMCPToken(spec.Name) {
 					if strings.TrimSpace(ctx.MCPToken) == "" {
 						return Result{
@@ -218,6 +229,9 @@ func normalizeHTTPResponse(name string, payload any) (map[string]any, string) {
 				}
 				return v, msg
 			}
+		case "run_strategy_backtest":
+			return v, fmt.Sprintf("run_strategy_backtest: log_id=%v code=%v profit_rate=%v final_value=%v",
+				v["log_id"], v["code"], v["profit_rate"], v["final_value"])
 		case "get_strategy_backtest_log":
 			if run, ok := v["run"].(map[string]any); ok {
 				profitRate := nestedAny(run, "result", "profit_rate")

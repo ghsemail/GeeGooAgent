@@ -125,13 +125,19 @@ skip_retrieval_gate: true
 
 若 `tp_mode`/`sl_mode`=`dynamic`（**止损默认 dynamic**）：`get_indicator_series`（`role=sl` 或 `tp`，`index` 与配置一致，止损默认 `SAR`）。
 
-### 3. 完整 PnL 模拟
+### 3. 完整 PnL 模拟与落库
 
-- **Agent 侧**：`probe` 只能验证信号，**不能**在服务端算 SmartTrade 盈亏
-- **用户在 trading_operation 回测页点击运行**后，记录写入 Mongo
-- Agent 用 **`list_strategy_backtest_logs`** → **`get_strategy_backtest_log`** 读取结果
+**优先**调用 **`run_strategy_backtest`**（服务端 probe + SmartTrade 模拟 + 写入 `strategy_backtest_log`），返回 `log_id`、`profit_rate`、`final_value`。
 
-向用户说明：若需带止盈止损的精确盈亏，请在回测页运行一次，再由 Agent 读 `log_id`。
+- 入参与 `probe_bot_signal_series` 相同，另可传 `strategy_label`、`fund`、`base_order_size`、`trade_config`、`period` 等
+- `user_id` / `source=agent` 由运行时自动注入，**勿手写**
+- 若 `tp_mode`/`sl_mode`=`dynamic`：服务端会拉 `get_indicator_series` 等价数据，**无需** Agent 单独调
+
+回测完成后可用 **`get_strategy_backtest_log(log_id)`** 读详情；或 **`list_strategy_backtest_logs`** 列当前用户历史。
+
+**备选**：用户在 `trading_operation` 回测页点击运行也会写入同库（`source=trading_operation`），Agent 用 list/get 读取即可。
+
+**注意**：`probe_bot_signal_series` **仅**验证信号，**不能**单独声称已完成带止盈止损的盈亏回测。
 
 ## 路径 B：DCA / GRID 服务端回测（loopback）
 
@@ -155,13 +161,14 @@ skip_retrieval_gate: true
 
 ## 反模式
 
-- 跳过 probe 直接声称「回测完成」
+- 跳过 probe / `run_strategy_backtest` 直接声称「回测完成」
 - 混淆 `loopback_strategy`（DCA/Grid）与 trading_operation 高级回测
 - 用户只问「有哪些组合策略」时 dump 全量 `info` 或完整规则 JSON
 
 ## 输出
 
-- **probe 阶段**：信号统计 + 是否值得继续（买卖次数、最近 3 次触发时间）
+- **run_strategy_backtest**：`log_id`、`profit_rate`、`final_value`、`trade_count`（已落库）
+- **probe 阶段**（仅探测时）：信号统计 + 是否值得继续（买卖次数、最近 3 次触发时间）
 - **loopback**：`finalValue`、`profit_rate`、`drawdown`、`annualized_return`
 - **读历史**：`result` 摘要 + 关键成交 + `log_id`
 
