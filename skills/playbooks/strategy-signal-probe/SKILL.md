@@ -1,134 +1,96 @@
 ---
 name: strategy-signal-probe
-description: 策略开发信号测试、probe_bot_signal、probe_bot_signal_series、买卖信号验证、K 线信号序列、定制策略 Macd4HRhythm。用户要「测信号」「有没有买卖点」「策略开发测试」时触发。
+description: 策略信号测试、probe、买卖点、多标的测信号、多策略比信号、Macd4HRhythm。用户要「测信号」「有没有买卖」「几只一起测信号」「哪个策略信号多」时触发。
 skip_retrieval_gate: true
 ---
 
 # 策略开发 · 信号测试
 
-与 `trading_operation` **策略开发**页「信号测试」等价（GeeGooSignal `probeBotSignalSeries`）。
+等价于 `trading_operation` 策略开发页 · Tool：`probe_bot_signal_series` / `probe_bot_signal`。
 
-> **继承父 playbook `strategy-backtest`**：参数解析优先级 ①→⑤、买卖规则来源、Gateway `clarify` 规则。本节仅写 **probe 专有** 流程与默认值。
+> 继承 **`strategy-backtest`**：参数 ①→⑤、规则来源、Gateway、**§三维场景**（本 playbook 仅 **A/B**）。
 
 ## 适用 Toolset
 
-`strategy` · `custom_signal` · `market`（`search_code`）
+`strategy` · `custom_signal` · `market`
 
 ---
 
-## 流程
+## 单标的流程
 
 ```
-确认 code → 组装 buy/sell 规则 → 定 frequency + limit → probe_bot_signal_series → 解读
+判定维数 → search_code → 组 rules → frequency+limit → probe → 解读
 ```
 
-### 1. 确认标的
+1. **标的**：`search_code`（crypto：`BTCUSDT`）  
+2. **规则**：父 playbook 来源表；「上次配置」→ ③ get log 的 `config` / `chart_data.probe`  
+3. **`sell_signal`**：单指标/定制 **默认同 `buy_signal`**（否则无卖出）  
+4. **limit 优先于 months_back**（服务端 60m 按 7 根/天；crypto 自行算）：
 
-`search_code` → `code`、`name`、`lot_size`。crypto 用 `BTCUSDT` 等形式。
-
-### 2. 组装规则（继承父 playbook 来源表）
-
-- **单指标 / 组合 / 定制**：按父 playbook「买卖规则来源」取链  
-- **用户说「上次回测那套 / 同样配置」**：先父 playbook **③** `list` → `get`，从 `run.config.buy_rules` / `sell_rules` 或 `chart_data.probe` 取规则；**勿**直接用 registry 覆盖  
-- **定制策略 param**：默认 registry **`defaults`**；仅用户指定「我保存的那条」才读 `get_custom_signal_for_skill`
-
-**probe 专有 · `sell_signal`**：单指标 / 定制策略与 UI 一致——未单独指定卖出时，**`sell_signal` = `buy_signal`**（同一 index 产出 ±1；仅 buy 会看不到卖出）。
-
-### 3. frequency 与 limit（对齐 UI 策略开发页）
-
-**frequency**：须在策略 `supported_frequencies` 内。
+| 场景 | limit |
+|------|-------|
+| 一般 60m · 1 月 | 154 |
+| **Macd4HRhythm** | **≥450**，默认 **462**（3 月） |
+| **MACDResonance** | 3 月量级 |
+| Crypto 60m | min(24×天, **800**) |
 
 | 策略 | frequency |
 |------|-----------|
-| Macd4HRhythm | **`60m` 唯一** |
-| MACDResonance | **`15m`**（或 `5m`） |
-| 单指标 / 组合 | catalog 项 |
+| Macd4HRhythm | **60m** |
+| MACDResonance | **15m**（或 5m） |
+| 其他 | catalog |
 
-**limit（优先于 `months_back`）**：UI 只传 `limit`。服务端 `months_back` 推算按股票 **7 根/天**（60m），crypto 须自行算 limit。
+5. **解读**：买卖次数 + 最近 3 次时间；零信号查 limit/sell/frequency
 
-| 场景 | limit 建议 |
-|------|------------|
-| 一般 60m 股票 · 约 1 月 | **154**（22×7） |
-| **Macd4HRhythm** | **≥450**；默认 **3 月 ≈462**（89 均线预热） |
-| **MACDResonance** | 建议 **3 月**（信号稀疏） |
-| Crypto 60m | `min(24×天数, **800**)` |
-| 快速扫一眼（非 Macd4H） | 100～300 |
+**registry defaults**：Macd4H — 5/13/9, rhythm 89…；共振 — 12/26/9, zeroAxisRatio 0.002…
 
-`months_back` 工具 schema 默认 3；**对齐 UI 时请显式传 `limit`**，勿单靠 `months_back`。
+---
 
-#### 定制策略 defaults（registry）
+## 三维 · 本 playbook 覆盖
 
-**MACDResonance**（`15m`/`5m`）：fastPeriod 12 / slowPeriod 26 / signalPeriod 9 · zeroAxisRatio 0.002 · crossTouchRatio 0.002 · breakoutLookback 5 · enablePseudoCross true · highTfLoadLimit 400
+| 情形 | 覆盖 | 不覆盖 |
+|------|------|--------|
+| **A 同策略多标的** | ✅ 固定 rules/limit，**循环 code** | — |
+| **B 同标的多策略** | ✅ 固定 code，**循环策略**（各 frequency/limit） | — |
+| **C 多回测配置** | ⚠️ 可改 limit 看信号条数 | ❌ **盈亏对比** → `strategy-backtest-run` |
 
-**Macd4HRhythm**（`60m`）：fastPeriod 5 / slowPeriod 13 / signalPeriod 9 · rhythmPeriod 89 · zone1Ratio 0.0015 · zone3Ratio 0.0045 · minRoundBars 5 · enableExtremeReversal true
+### A · 同策略多标的
 
-### 4. 调用
+- 用户：「Macd4H 看腾讯、小米、美团」  
+- 步骤：定策略 → 每名称 `search_code` → **最多 4 码** → 循环 probe（共享 buy/sell/limit/frequency）  
+- memory：`list(strategy_label)` 看是否已有各 code 的回测信号侧写（optional）  
+- 输出：**code | 买次 | 卖次 | 最近触发**
 
-| 场景 | Tool |
+### B · 同标的多策略
+
+- 用户：「腾讯共振 vs 4H 节奏哪个信号多」  
+- 步骤：定 code → 每策略组 rules + **专属** frequency/limit → 循环 probe  
+- memory：`list(code)` 按 `strategy_label` 参考历史（optional）  
+- 输出：**strategy | frequency | 买次 | 卖次 | 最近触发**
+
+### 路由
+
+- 用户要 **收益/回撤/止盈止损** → **`strategy-backtest-run`**（含 A/B/C）  
+- 用户要 **旧 log 数字** → **`strategy-backtest-history`**
+
+---
+
+## 配置推断
+
+| 说法 | 推断 |
 |------|------|
-| 整段 K 线触发序列 | **`probe_bot_signal_series`** |
-| 单 bar（默认最后一根） | `probe_bot_signal`（可选 `at`） |
-
-**最小可用示例**（Macd4HRhythm · 对齐 UI）：
-
-```json
-{
-  "code": "00700.HK",
-  "frequency": "60m",
-  "limit": 462,
-  "buy_signal": [{
-    "index": "Macd4HRhythm",
-    "type": "signal",
-    "param": {
-      "fastPeriod": 5, "slowPeriod": 13, "signalPeriod": 9,
-      "rhythmPeriod": 89, "zone1Ratio": 0.0015, "zone3Ratio": 0.0045
-    }
-  }],
-  "sell_signal": [{
-    "index": "Macd4HRhythm",
-    "type": "signal",
-    "param": {
-      "fastPeriod": 5, "slowPeriod": 13, "signalPeriod": 9,
-      "rhythmPeriod": 89, "zone1Ratio": 0.0015, "zone3Ratio": 0.0045
-    }
-  }]
-}
-```
-
-### 5. 解读
-
-- `buy_merged`：`1` = 买；`sell_merged`：`-1` = 卖  
-- **零信号**：查 frequency、limit 是否过低、param 是否过严、`sell_signal` 是否缺失  
-- 汇报：**买卖次数 + 最近 3 次触发时间**；`invalid` / `error` 单独列出  
+| 按 UI + Macd4H | 60m · limit≥450 · defaults · sell 镜像 |
+| 上次/同样配置 | ③ get log |
+| 多标的 / 多策略 | 先识别 **A 或 B**（父 playbook） |
 
 ---
 
-## 配置推断（在父 playbook ①～④ 之后）
+## 硬规则 · 反模式
 
-| 用户说法 | 推断 |
-|----------|------|
-| 「按 UI / 默认」+ Macd4HRhythm | 60m · limit≥450（3 月）· registry defaults · sell 镜像 |
-| 「按 UI / 默认」+ MACDResonance | 15m · 3 月 limit · defaults |
-| 「上次 / 同样 / 那次回测配置」 | **③** get log → config 或 chart_data.probe |
-| 「MACD 共振」 | MACDResonance · 15m |
-| 「4 小时节奏」 | Macd4HRhythm · 60m |
-| 已给 code + 策略名 | 直接 probe，勿逐项问周期 |
-
----
-
-## 硬规则
-
-- 必填：`code` + `frequency` + 至少一条 `buy_signal`  
-- 定制 `index` 须在 `get_custom_strategy_definitions` 注册表中  
-- 最多 **800** bar；禁止 dump 全量 `bars` / `signal_series`  
-- 完整 PnL → 路由 **`strategy-backtest-run`** 或 **`strategy-backtest-history`**
-
-## 反模式
-
-- 未 `search_code` 硬编码 code  
-- Macd4HRhythm 用 `months_back=1` 或不传 sell（易 0 信号 / 无卖出）  
-- 把 probe 当最终收益率  
+- 必填 code + frequency + buy_signal；禁止 dump bars  
+- 禁止 Macd4H months_back=1 或无 sell  
+- 禁止情形 C 用 probe 结论「哪套更赚」
 
 ## 输出
 
-表格：标的、周期、limit/回溯、买/卖触发次数、最近 3 次信号时间、参数来源（明文/历史/默认）。
+单次表 · **A/B 并列表** + 一句结论 · 注明参数来源
