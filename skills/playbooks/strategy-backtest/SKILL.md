@@ -58,6 +58,30 @@ description: 策略回测、网格/DCA、信号测试、多标的对比、多策
 
 **定制 param**：默认 registry **`defaults`**；仅用户指定「我保存的那条」才用 `get_custom_signal_for_skill`。
 
+---
+
+## 回测前 · 可买性预检（仅路径 A · `run_strategy_backtest`）
+
+**`strategy-signal-probe` 不测成交，不需要此步。** 用户只要「有没有买卖信号」→ 直接 probe。
+
+用户要 **收益 / 回撤 / 成交笔数**（含 Eval 回测用例）→ **`strategy-backtest-run`** 在 **首次 `run_strategy_backtest` 前** 预检；多标的 A 场景 **每个 code 各检一次**。
+
+```
+search_code → lot_size
+get_current_price（或已知 probe 最后一根 close 粗估）
+对照 fund / base_order_size / trade_config.position
+```
+
+| 检查项 | 默认 / 来源 | 不够买时 |
+|--------|-------------|----------|
+| **1 手最低成本** | `现价 × lot_size`（`search_code.lot_size`；缺省 HK/CN=100、US=1） | `fund` 须 ≥ 该值（默认 fund=100000）；否则 **先告知**「资金不够买 1 手」，clarify 调高 fund 或换标的，**勿 silent run** |
+| **固定每次买入量** | `base_order_size` 默认 100 | 须 ≥ `lot_size`；不足则提到应 ≥ 1 手，或改用 UI 默认 |
+| **以损定仓** | `position_mode=riskBased` | 须 **`sl_switch` 开启**；否则同 Web：不能跑 |
+
+说明：服务端模拟器在 `affordable ≤ 0` 时会 **riskSkip 跳过买入**，回测可能「有信号、0 成交、收益≈0」且不易察觉——预检就是为提前暴露这个问题。
+
+**probe 与预检分工**：信号够不够 → probe；钱够不够买 → 仅回测前预检。两者不要混为一谈。
+
 ### 买卖规则来源
 
 | 类型 | Tool | 用法 |

@@ -22,7 +22,9 @@ skip_retrieval_gate: true
 判定维数 → search_code → 组 rules → frequency + 回溯时长 → probe → 解读
 ```
 
-1. **标的**：`search_code`（crypto：`BTCUSDT`）  
+> **不测能否买入。** 可买性（fund / lot_size / base_order_size）只在 **`strategy-backtest-run`** 跑 PnL 前预检；本 playbook 只管信号。
+
+1. **标的**：`search_code`（crypto：`BTCUSDT`）
 2. **规则**：父 playbook 来源表；「上次配置」→ ③ get log 的 `config` / `chart_data.probe`  
 3. **`sell_signal`**：单指标/定制 **默认同 `buy_signal`**（否则无卖出）  
 4. **回溯时长（优先 `months_back`，不要手算 `limit`）**：

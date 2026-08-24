@@ -19,8 +19,10 @@ skip_retrieval_gate: true
 ## 路径 A · 单标的
 
 ```
-判定维数 → 解析参数（③优先）→ run_strategy_backtest →（可选 get）
+判定维数 → 解析参数（③优先）→ 可买性预检 → run_strategy_backtest →（可选 get）
 ```
+
+**可买性预检**：继承父 playbook §回测前 · 可买性预检；`search_code` 后、`run` 前执行。多标的 A 每码各检。
 
 **③ 同样/再跑**：`list` → get → 复用 `config` + `trade_config` + `period`  
 **④ 默认**：fund 100000 · base 100 · trade_config 见父 playbook（SL 默认 dynamic SAR）  

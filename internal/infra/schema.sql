@@ -195,10 +195,18 @@ INSERT OR IGNORE INTO agent_eval_cases (
     21, 1, datetime('now'), datetime('now')
 ),
 (
-    'strategy_backtest_multi_config', '', '单股 · 单策略 · 多参数回测',
-    '同一策略用不同回溯窗口（如 1 个月 vs 3 个月）跑回测并对比。',
-    '["随机选股与策略","发送多回溯窗口回测请求","校验回复含各套配置收益对比"]',
+    'strategy_backtest_multi_config', '', '单股 · 单策略 · 多止盈止损回测',
+    '同一策略用两套止盈止损参数（如 5%/3% vs 7%/5%）跑回测并对比。',
+    '["随机选股与策略","发送多止盈止损参数回测请求","校验回复含各套配置收益对比"]',
     1,
-    '{"category":"strategy_backtest","task":"backtest","scenario":"multi_config","stock_count":1,"strategy_count":1,"config_variants":["1个月","3个月"],"random_stock_enabled":true,"min_reply_chars":120,"pass_keywords":["回测","对比","log"],"session_cleanup":"before_run"}',
+    '{"category":"strategy_backtest","task":"backtest","scenario":"multi_config","stock_count":1,"strategy_count":1,"config_variants":["止盈5%止损3%","止盈7%止损5%"],"random_stock_enabled":true,"min_reply_chars":120,"pass_keywords":["回测","对比","止盈"],"session_cleanup":"before_run"}',
     22, 1, datetime('now'), datetime('now')
 );
+
+UPDATE agent_eval_cases SET
+    title = '单股 · 单策略 · 多止盈止损回测',
+    description = '同一策略用两套止盈止损参数（如 5%/3% vs 7%/5%）跑回测并对比。',
+    steps_json = '["随机选股与策略","发送多止盈止损参数回测请求","校验回复含各套配置收益对比"]',
+    options_json = '{"category":"strategy_backtest","task":"backtest","scenario":"multi_config","stock_count":1,"strategy_count":1,"config_variants":["止盈5%止损3%","止盈7%止损5%"],"random_stock_enabled":true,"min_reply_chars":120,"pass_keywords":["回测","对比","止盈"],"session_cleanup":"before_run"}',
+    updated_at = datetime('now')
+WHERE id = 'strategy_backtest_multi_config';
