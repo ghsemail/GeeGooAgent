@@ -95,6 +95,34 @@ func (s *ReportSynthesizer) SynthesizeMarket(
 	return res, nil
 }
 
+// SynthesizeStockPreMarket generates a full stock pre-market report bundle.
+func (s *ReportSynthesizer) SynthesizeStockPreMarket(
+	ctx context.Context,
+	ws memory.StockWorkspace,
+	draft string,
+	evidence []memory.EvidenceRef,
+	marketContext memory.MarketContext,
+	marketReportSummary, template string,
+) (report.StockPreMarketSynthesisResult, error) {
+	if s == nil || s.inner == nil || !s.inner.Available() {
+		return report.StockPreMarketSynthesisResult{}, fmt.Errorf("report synthesizer not available")
+	}
+	s.emit("StockPreMarketSynthesisStarted", map[string]any{
+		"code": ws.Code, "stock_name": ws.StockName, "evidence_count": len(evidence),
+	})
+	res, err := s.inner.SynthesizeStockPreMarket(ctx, ws, draft, evidence, marketContext, marketReportSummary, template)
+	if err != nil {
+		s.emit("StockPreMarketSynthesisFailed", map[string]any{
+			"code": ws.Code, "error": err.Error(),
+		})
+		return report.StockPreMarketSynthesisResult{}, err
+	}
+	s.emit("StockPreMarketSynthesisCompleted", map[string]any{
+		"code": ws.Code, "result": res.Result, "confidence": res.Confidence, "summary_chars": len(res.Summary),
+	})
+	return res, nil
+}
+
 // SynthesizeIntraday generates summary and reason for intraday decision reports.
 func (s *ReportSynthesizer) SynthesizeIntraday(
 	ctx context.Context,

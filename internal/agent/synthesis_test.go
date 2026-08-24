@@ -11,7 +11,10 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow"
 )
+
+var _ workflow.StockPreMarketSynthesizerProvider = (*agent.ReportSynthesizer)(nil)
 
 func TestReportSynthesizerEmitsEvents(t *testing.T) {
 	bus := infra.NewEventBus()
@@ -53,5 +56,26 @@ func TestAgentSetGatewayDoesNotUpdateReportSynthesizer(t *testing.T) {
 	}
 	if !synth.Available() {
 		t.Fatal("synthesizer should remain available")
+	}
+}
+
+func TestReportSynthesizerSynthesizeStockPreMarket(t *testing.T) {
+	reason := strings.Repeat("依据周线与资金流判断 ", 12)
+	provider := &llm.MockProvider{Responses: []*llm.Response{{
+		Content: `{"report":"## 市场背景\n\n正文","result":"long","confidence":"high","reason":"` + reason + `","suggestion":"hold","summary":"持有观望"}`,
+	}}}
+	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
+	synth := agent.NewReportSynthesizer(gateway, "mock", nil)
+	ctx := workflow.ContextWithSynthesizer(context.Background(), synth)
+	got := workflow.StockPreMarketSynthesizerFrom(ctx)
+	if got == nil {
+		t.Fatal("ReportSynthesizer should implement StockPreMarketSynthesizerProvider")
+	}
+	res, err := got.SynthesizeStockPreMarket(ctx, memory.StockWorkspace{Code: "00700.HK"}, "draft", nil, memory.MarketContext{}, "市场摘要", "")
+	if err != nil {
+		t.Fatalf("synthesize stock premarket: %v", err)
+	}
+	if res.Result != "long" || res.Summary != "持有观望" {
+		t.Fatalf("unexpected result: %+v", res)
 	}
 }
