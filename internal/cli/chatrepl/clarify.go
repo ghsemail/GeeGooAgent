@@ -2,6 +2,7 @@ package chatrepl
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"strings"
 
@@ -16,9 +17,10 @@ func (r *Repl) SetClarifyFn(fn tools.ClarifyFunc) {
 	r.clarifyFn = fn
 }
 
-func (r *Repl) promptClarify(question string, choices []string) (string, bool) {
+func (r *Repl) promptClarify(waitCtx context.Context, question string, choices []string) (string, bool) {
+	_ = waitCtx
 	if r.clarifyFn != nil {
-		return r.clarifyFn(question, choices)
+		return r.clarifyFn(waitCtx, question, choices)
 	}
 	return promptClarifyCLI(r, question, choices)
 }

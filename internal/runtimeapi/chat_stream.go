@@ -1,6 +1,7 @@
 package runtimeapi
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -138,7 +139,26 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 			"choices":    p.Choices,
 		})
 	}
-	toolCtx.ClarifyFn = h.clarifyFn(r.Context(), chat.ID, clarifyNotify)
+	userID := resolveUserID(r)
+	source := resolveClientSource(r)
+	progressFn := func(event string, data map[string]any) { emit(event, data) }
+	toolCtx.ClarifyFn = func(waitCtx context.Context, question string, choices []string) (string, bool) {
+		ctx := waitCtx
+		if ctx == nil {
+			ctx = r.Context()
+		}
+		// Waiting for the user must not freeze every other chat behind chatMu.
+		h.App.Agent.SetProgress(nil)
+		h.chatMu.Unlock()
+		defer func() {
+			h.chatMu.Lock()
+			if gw := h.userGateway(userID, source); gw != nil {
+				h.App.Agent.SetGateway(gw)
+			}
+			h.App.Agent.SetProgress(progressFn)
+		}()
+		return h.clarify.Wait(ctx, chat.ID, question, choices, clarifyNotify)
+	}
 	if h.App.Config != nil {
 		h.App.Agent.SetPlanGate(h.App.Config.EffectivePlanGate())
 	}
@@ -147,7 +167,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	// Respect client disconnect (stop button / tab close) so chatMu is not held forever.
 	runCtx := r.Context()
 	var result runtime.TurnResult
-	h.withUserAgentGateway(resolveUserID(r), resolveClientSource(r), func() {
+	h.withUserAgentGateway(userID, source, func() {
 		result = h.App.Agent.Run(runCtx, rtSession, message, toolCtx, schemas)
 	})
 
@@ -157,7 +177,6 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 		slog.Error("chat stream save session failed", "session_id", chat.ID, "error", err)
 		emit("save_error", map[string]any{"session_id": chat.ID, "message": err.Error()})
 	}
-	userID := resolveUserID(r)
 	_ = h.persistTurnMemory(runCtx, chat, userID)
 	if h.App.Consolidator != nil {
 		if res, err := h.App.Consolidator.MaybeConsolidate(runCtx, chat); err == nil && (res.Facts > 0 || res.Episode) {

@@ -94,10 +94,14 @@ func (h *Handler) withUserAgentGateway(userID, gateway string, fn func()) {
 		return
 	}
 	h.gatewayMu.Lock()
-	defer h.gatewayMu.Unlock()
 	prev := h.App.Agent.Gateway
 	h.App.Agent.SetGateway(gw)
-	defer h.App.Agent.SetGateway(prev)
+	h.gatewayMu.Unlock()
+	defer func() {
+		h.gatewayMu.Lock()
+		h.App.Agent.SetGateway(prev)
+		h.gatewayMu.Unlock()
+	}()
 	fn()
 }
 

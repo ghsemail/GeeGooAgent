@@ -19,14 +19,18 @@ func WireIMClarify(
 	if hub == nil || send == nil {
 		return toolCtx
 	}
-	toolCtx.ClarifyFn = func(question string, choices []string) (string, bool) {
+	toolCtx.ClarifyFn = func(waitCtx context.Context, question string, choices []string) (string, bool) {
 		if err := send(FormatClarifyMessage(question, choices)); err != nil {
 			return "", false
 		}
 		if chatLock != nil {
 			chatLock.Unlock()
 		}
-		raw, ok := hub.Wait(ctx, sessionKey)
+		useCtx := waitCtx
+		if useCtx == nil {
+			useCtx = ctx
+		}
+		raw, ok := hub.Wait(useCtx, sessionKey)
 		if chatLock != nil {
 			chatLock.Lock()
 		}

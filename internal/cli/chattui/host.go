@@ -1,6 +1,7 @@
 package chattui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -51,7 +52,8 @@ func (h *ReplHost) promptApproval(toolName string, args map[string]any) bool {
 	return <-h.approveCh
 }
 
-func (h *ReplHost) promptClarify(question string, choices []string) (string, bool) {
+func (h *ReplHost) promptClarify(waitCtx context.Context, question string, choices []string) (string, bool) {
+	_ = waitCtx
 	select {
 	case h.askClarifyCh <- clarifyAsk{Question: question, Choices: append([]string(nil), choices...)}:
 	default:

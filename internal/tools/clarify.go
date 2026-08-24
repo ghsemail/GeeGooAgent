@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"strings"
 )
@@ -13,7 +14,8 @@ const (
 )
 
 // ClarifyFunc blocks until the user answers a clarify prompt (interactive chat only).
-type ClarifyFunc func(question string, choices []string) (answer string, ok bool)
+// waitCtx is the per-invocation context (tool timeout / client disconnect).
+type ClarifyFunc func(waitCtx context.Context, question string, choices []string) (answer string, ok bool)
 
 func registerClarifyTool(r *Registry) {
 	r.Register(Tool{
@@ -59,7 +61,7 @@ func handleClarify(ctx Context, args map[string]any) Result {
 	if ctx.ClarifyFn == nil {
 		return Result{Status: StatusError, Summary: "clarify 未配置（当前环境无用户输入回调）"}
 	}
-	answer, ok := ctx.ClarifyFn(question, choices)
+	answer, ok := ctx.ClarifyFn(ctx.Ctx, question, choices)
 	answer = strings.TrimSpace(answer)
 	if !ok {
 		return Result{

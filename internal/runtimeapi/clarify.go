@@ -62,8 +62,12 @@ func (h *Handler) chatClarify(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok"})
 }
 
-func (h *Handler) clarifyFn(ctx context.Context, sessionID string, onPending func(PendingClarify)) func(string, []string) (string, bool) {
-	return func(question string, choices []string) (string, bool) {
+func (h *Handler) clarifyFn(fallback context.Context, sessionID string, onPending func(PendingClarify)) func(context.Context, string, []string) (string, bool) {
+	return func(waitCtx context.Context, question string, choices []string) (string, bool) {
+		ctx := waitCtx
+		if ctx == nil {
+			ctx = fallback
+		}
 		return h.clarify.Wait(ctx, sessionID, question, choices, onPending)
 	}
 }
