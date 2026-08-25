@@ -501,9 +501,10 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 				return errResult(err)
 			}
 			count := len(reports.PreMarket)
+			already := premarketAlreadyReportedForSession(code, reportDate, reports.PreMarket)
 			return Result{Status: StatusOK, Summary: fmt.Sprintf("Found %d premarket_market report(s)", count), Data: map[string]any{
 				"code": code, "report_date": reportDate, "count": count,
-				"reports": reports.PreMarket, "already_reported": count > 0,
+				"reports": reports.PreMarket, "already_reported": already,
 			}}
 		},
 	})
