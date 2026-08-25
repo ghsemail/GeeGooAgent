@@ -179,6 +179,7 @@ func (l *Loop) runProceduralMemory(session *runtime.Session, userText string, re
 		maxSkills = 2
 	}
 	matched := l.skillLoader.Match(userText, maxSkills)
+	matched = l.skillLoader.PrioritizeBacktestRunPlaybook(userText, matched, maxSkills)
 	if len(matched) == 0 {
 		return nil, nil
 	}

@@ -26,7 +26,7 @@ func ToolRouting() string {
 - loopback_strategy 禁止缺 grid_param（grid）或缺 signal/sl_tp（dca）硬调；参数来自 generate_* 或用户明确给出
 
 ### 策略开发 / SmartTrade 回测（默认路径）
-- 用户说 **回测 / 跑回测 / 看收益 / 回撤 / 成交笔数 / 验证策略**，且**未**明确 DCA/定投/网格 → **run_strategy_backtest**（与 Web 回测页一致；返回 log_id + 收益摘要）。可先 search_code + 选信号，不必先 probe；probe 仅用于「只看买卖点、不要 PnL」
+- 用户说 **回测 / 跑回测 / 看收益 / 回撤 / 成交笔数 / 验证策略**，且**未**明确 DCA/定投/网格 → **run_strategy_backtest**（与 Web 回测页一致；返回 log_id + 收益摘要）。组合信号（SAR+MACD 等）回测也走此路径，可先 search_code + 选信号，不必先 probe；probe 仅用于「只看买卖点、不要 PnL」
 - **禁止**在上述场景调 generate_dca_strategy 或 generate_grid_strategy；二者仅用于 DCA/Grid Bot 方案生成（路径 B）
 - 用户要 **只测信号 / 有没有买卖点 / 信号密度**（不要 PnL）→ probe_bot_signal_series；单 bar 用 probe_bot_signal
 - 买卖规则来源：单指标 get_index_signals、组合 get_signal_combinations、定制 get_custom_signal_for_skill（index=custom.index）
