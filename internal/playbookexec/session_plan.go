@@ -9,8 +9,8 @@ import (
 )
 
 var sessionBacktestContextTokens = []string{
-	"回测", "run_strategy_backtest", "loopback_strategy", "generate_dca_strategy",
-	"smarttrade", "sar", "macd", "组合信号", "strategy-backtest",
+	"回测", "run_strategy_backtest", "run_strategy_backtest", "log_id", "playbookexec",
+	"strategy-backtest-run", "strategy-backtest",
 }
 
 func sessionHasBacktestContext(session *runtime.Session) bool {
@@ -18,6 +18,9 @@ func sessionHasBacktestContext(session *runtime.Session) bool {
 		return false
 	}
 	for _, msg := range session.LLMMessages() {
+		if msg.Role != llm.RoleUser && msg.Role != llm.RoleAssistant {
+			continue
+		}
 		text := strings.ToLower(strings.TrimSpace(msg.Content))
 		if text == "" {
 			continue
@@ -37,6 +40,9 @@ func enrichPlanFromSession(plan *BacktestRunPlan, session *runtime.Session) {
 	}
 	msgs := session.LLMMessages()
 	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role != llm.RoleUser && msgs[i].Role != llm.RoleAssistant {
+			continue
+		}
 		content := strings.TrimSpace(msgs[i].Content)
 		if content == "" {
 			continue

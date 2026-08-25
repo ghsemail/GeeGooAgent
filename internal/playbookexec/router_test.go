@@ -23,11 +23,16 @@ func TestRouteBacktestRun(t *testing.T) {
 
 func TestRouteBacktestWithoutMatchedSkills(t *testing.T) {
 	msg := "用现成的来回测，不要新建"
-	if !procedural.BacktestRunIntent(msg) {
-		t.Fatal("expected backtest intent")
+	if procedural.BacktestRunIntent(msg) {
+		t.Fatal("continue phrasing should not count as backtest run intent")
 	}
-	if p, ok := Route(nil, msg, nil); !ok || p != playbookBacktestRun {
-		t.Fatalf("route=%q ok=%v want playbook without matched skills", p, ok)
+	if p, ok := Route(nil, msg, nil); ok {
+		t.Fatalf("continue without session should not route, got %q", p)
+	}
+	session := runtime.NewSession()
+	session.AppendMessage(llm.Message{Role: llm.RoleUser, Content: "帮我回测 sar+macd 小米"})
+	if p, ok := Route(nil, msg, session); !ok || p != playbookBacktestRun {
+		t.Fatalf("route=%q ok=%v want playbook with session context", p, ok)
 	}
 }
 
@@ -46,6 +51,29 @@ func TestHeuristicBacktestPlan(t *testing.T) {
 	}
 	if plan.SignalKind != "combination" {
 		t.Fatalf("kind=%q", plan.SignalKind)
+	}
+}
+
+func TestHeuristicBacktestPlanAppleMACDStrategy(t *testing.T) {
+	msg := "请帮我用「4小时MACD市场节奏」策略测试一下Apple（AAPL · 美股）。"
+	plan := heuristicBacktestPlan(msg)
+	if plan.StockQuery != "AAPL" {
+		t.Fatalf("stock=%q want AAPL", plan.StockQuery)
+	}
+	if plan.SignalQuery != "4小时MACD市场节奏" {
+		t.Fatalf("signal=%q want named strategy", plan.SignalQuery)
+	}
+	if plan.SignalKind != "combination" {
+		t.Fatalf("kind=%q", plan.SignalKind)
+	}
+}
+
+func TestExtractStockQuerySkipsIndicatorTokens(t *testing.T) {
+	if q := extractStockQuery("回测 MACD 组合在 Tesla"); q != "TESLA" {
+		t.Fatalf("stock=%q want TESLA", q)
+	}
+	if q := extractStockQuery("「4小时MACD市场节奏」Apple（AAPL）"); q != "AAPL" {
+		t.Fatalf("stock=%q", q)
 	}
 }
 

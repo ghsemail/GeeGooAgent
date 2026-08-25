@@ -4,18 +4,22 @@ import "strings"
 
 const backtestRunPlaybook = "strategy-backtest-run"
 
+// Explicit backtest verbs only — avoid hijacking generic analysis chat
+// (e.g. "验证策略文档", "看收益率", "smarttrade 是什么").
 var backtestRunIntentTokens = []string{
-	"回测", "来回测", "跑回测", "看收益", "收益率", "回撤", "成交笔数", "验证策略",
-	"backtest", "smarttrade",
+	"回测", "来回测", "跑回测", "backtest",
 }
 
 var backtestContinueIntentTokens = []string{
-	"用现成的", "不要新建", "继续回测", "再回测", "再跑", "同样", "上次", "刚才",
-	"原有的", "现有的", "那套", "沿用",
+	"用现成的来回测", "不要新建", "继续回测", "再回测", "再跑回测", "沿用上次回测", "沿用那套回测",
+	"就用刚才那套", "刚才那套", "沿用上次", "沿用那套",
 }
 
 // BacktestRunIntent reports whether the user wants PnL backtest rather than signal-only probe.
 func BacktestRunIntent(message string) bool {
+	if BacktestContinueIntent(message) {
+		return false
+	}
 	msg := strings.ToLower(strings.TrimSpace(message))
 	if msg == "" {
 		return false
@@ -47,7 +51,7 @@ func ShouldBlockLegacyBacktestTools(message string) bool {
 	if BacktestDCABypass(message) {
 		return false
 	}
-	return BacktestRunIntent(message) || BacktestContinueIntent(message)
+	return BacktestRunIntent(message)
 }
 
 // BacktestDCABypass reports explicit DCA/grid/loopback intent that should stay on the legacy path.

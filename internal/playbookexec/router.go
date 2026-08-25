@@ -66,13 +66,13 @@ func (r *Router) TryRun(ctx context.Context, in Input) (runtime.TurnResult, bool
 	}
 	switch playbook {
 	case playbookBacktestRun:
-		return r.runBacktest(ctx, in), true
+		return r.runBacktest(ctx, in)
 	default:
 		return runtime.TurnResult{}, false
 	}
 }
 
-func (r *Router) runBacktest(ctx context.Context, in Input) runtime.TurnResult {
+func (r *Router) runBacktest(ctx context.Context, in Input) (runtime.TurnResult, bool) {
 	records := []runtime.StepRecord{}
 	step := in.StepBase
 	if step <= 0 {
@@ -100,9 +100,7 @@ func (r *Router) runBacktest(ctx context.Context, in Input) runtime.TurnResult {
 	plan, planNote, err := r.buildBacktestPlan(ctx, in, step)
 	recordPlan(planNote)
 	if err != nil {
-		msg := fmt.Sprintf("回测计划解析失败：%v", err)
-		in.Session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: msg})
-		return runtime.TurnResult{AssistantText: msg, Failed: true, Error: err.Error(), StepRecords: records}
+		return runtime.TurnResult{}, false
 	}
 
 	toolCtx := in.ToolCtx
@@ -116,25 +114,25 @@ func (r *Router) runBacktest(ctx context.Context, in Input) runtime.TurnResult {
 
 	code, name, market, err := r.resolveStock(ctx, toolCtx, plan, recordTool)
 	if err != nil {
-		msg := err.Error()
-		in.Session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: msg})
-		return runtime.TurnResult{AssistantText: msg, Failed: true, Error: msg, StepRecords: records}
+		return runtime.TurnResult{}, false
 	}
 
 	buy, sell, frequency, strategyLabel, err := r.resolveSignals(ctx, toolCtx, plan, recordTool)
 	if err != nil {
-		msg := err.Error()
-		in.Session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: msg})
-		return runtime.TurnResult{AssistantText: msg, Failed: true, Error: msg, StepRecords: records}
+		return runtime.TurnResult{}, false
 	}
 
+	strategyKind := strings.TrimSpace(plan.SignalKind)
+	if strategyKind == "" {
+		strategyKind = "combination"
+	}
 	runArgs := map[string]any{
 		"code":            code,
 		"frequency":       frequency,
 		"buy_signal":      buy,
 		"sell_signal":     sell,
 		"strategy_label":  strategyLabel,
-		"strategy_kind":   "combination",
+		"strategy_kind":   strategyKind,
 		"stock_name":      name,
 		"market":          market,
 		"fund":            plan.Fund,
@@ -146,7 +144,7 @@ func (r *Router) runBacktest(ctx context.Context, in Input) runtime.TurnResult {
 	if runRes.Status != tools.StatusOK {
 		msg := fmt.Sprintf("回测执行失败：%s", runRes.Summary)
 		in.Session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: msg})
-		return runtime.TurnResult{AssistantText: msg, Failed: true, Error: runRes.Summary, StepRecords: records}
+		return runtime.TurnResult{AssistantText: msg, Failed: true, Error: runRes.Summary, StepRecords: records}, true
 	}
 
 	reply := formatBacktestReply(code, name, strategyLabel, runRes.Data)
@@ -154,7 +152,7 @@ func (r *Router) runBacktest(ctx context.Context, in Input) runtime.TurnResult {
 	records = append(records, runtime.StepRecord{
 		Step: step, Timestamp: time.Now().UTC(), Kind: "reply", Summary: truncate(reply, 300),
 	})
-	return runtime.TurnResult{AssistantText: reply, StepRecords: records}
+	return runtime.TurnResult{AssistantText: reply, StepRecords: records}, true
 }
 
 func (r *Router) runTool(
