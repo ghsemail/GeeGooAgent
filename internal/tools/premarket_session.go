@@ -5,9 +5,13 @@ import (
 	"time"
 )
 
+const usPremarketEveningHour = 20 // US premarket cron runs at 21:00/21:10 Asia/Shanghai.
+
 // premarketAlreadyReportedForSession reports whether MCP premarket rows satisfy
 // idempotency for the workflow session date. US symbols only count when the row
-// was created on the same local calendar day as sessionDate.
+// was created during the same local evening session (>= 20:00 on sessionDate).
+// This avoids stale prior-evening rows and manual daytime backfills blocking the
+// scheduled 21:10 run.
 func premarketAlreadyReportedForSession(code, sessionDate string, reports []map[string]any) bool {
 	if len(reports) == 0 {
 		return false
@@ -29,12 +33,20 @@ func premarketAlreadyReportedForSession(code, sessionDate string, reports []map[
 		if created.IsZero() {
 			continue
 		}
-		c := created.In(loc)
-		if c.Year() == session.Year() && c.YearDay() == session.YearDay() {
+		if usPremarketSessionReport(created, session, loc) {
 			return true
 		}
 	}
 	return false
+}
+
+func usPremarketSessionReport(created, session time.Time, loc *time.Location) bool {
+	c := created.In(loc)
+	s := session.In(loc)
+	if c.Year() != s.Year() || c.YearDay() != s.YearDay() {
+		return false
+	}
+	return c.Hour() >= usPremarketEveningHour
 }
 
 func parseReportTimestamp(v any) time.Time {
