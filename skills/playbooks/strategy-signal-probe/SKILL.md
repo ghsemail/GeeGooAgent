@@ -92,6 +92,21 @@ skip_retrieval_gate: true
 
 ---
 
+## 单指标歧义（RSI 等）
+
+GeeGooSignal catalog 里 RSI 常见 3 条：**阈值信号**、**金死叉信号**（买卖交叉）、**阈值趋势**（type=flag，只判多空，**不能**当 probe/回测买卖点）。
+
+| 用户说法 | 选用 |
+|----------|------|
+| RSI / RSI策略 / 测RSI / Eval「RSI阈值信号」 | catalog **RSI阈值信号**（type=signal） |
+| RSI金死叉 / RSI交叉 / 快慢线 | **RSI金死叉信号**（index RSICROSS） |
+| RSI趋势 / 只看多空 | **RSI阈值趋势**（type=flag；仅用户明确要 flag 时用） |
+
+- `get_index_signals` 按「RSI」仍命中 **2+ 条**且用户**未**指定上表 → **必须** `clarify(question, choices=[最多 4 个 catalog name])` 并停等；**禁止**只在正文写「请选择 A/B/C」——Web **只有 clarify 工具**才会出现选项按钮。
+- 信号测试 / 回测：**禁止**默认 type=flag 的「阈值趋势」。
+
+---
+
 ## 硬规则 · 反模式
 
 - 必填 code + frequency + buy_signal；**默认只传 `months_back`，禁止手算 limit**；禁止 dump bars  

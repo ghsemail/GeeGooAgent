@@ -143,8 +143,9 @@ catalog 2+ 匹配 → **clarify**。规则 JSON：`type`=`signal`|`flag`，**par
 | B 策略 >4 | 「先比哪几个策略？」 |
 | C 多套 config | 「比 1m/3m 还是比 TP5%/7%？」 |
 | list 多条 | 「选哪次回测？」（带 date + profit_rate + period） |
+| 指标/信号 2+ 匹配 | 「选哪个 RSI 信号？」choices=各 catalog **name**（如 RSI阈值信号 / RSI金死叉信号） |
 
-Web/App/飞书均用 **`clarify(choices?)`**；y/n 写操作用 **`approval`**。
+Web/App/飞书均用 **`clarify(choices?)`**；**禁止**仅在 assistant 正文列选项而不调 clarify（否则 Web 无按钮）。y/n 写操作用 **`approval`**。
 
 ---
 

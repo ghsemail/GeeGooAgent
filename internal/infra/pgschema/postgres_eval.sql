@@ -57,7 +57,7 @@ INSERT INTO agent_eval_cases (
     'strategy_signal_single',
     '',
     '单股 · 单策略 · 信号测试',
-    '随机抽取一只股票与一项高级策略，调用 probe 并汇报买卖信号。',
+    '随机抽取一只股票与一项高级策略，发送自然语言信号测试请求。',
     '["随机选股与策略","发送信号测试请求（含标的与策略名）","校验回复含信号/买卖信息"]',
     TRUE,
     '{"category":"strategy_signal","task":"signal_probe","scenario":"single","stock_count":1,"strategy_count":1,"random_stock_enabled":true,"min_reply_chars":80,"pass_keywords":["信号","买","卖"],"session_cleanup":"before_run"}',
@@ -68,7 +68,7 @@ INSERT INTO agent_eval_cases (
     '',
     '单股 · 多策略 · 信号测试',
     '同一只股票上对比 2 项随机策略的信号触发情况。',
-    '["随机选股与 2 项策略","发送多策略对比 probe 请求","校验回复含对比/信号摘要"]',
+    '["随机选股与 2 项策略","发送多策略对比信号测试请求","校验回复含对比/信号摘要"]',
     TRUE,
     '{"category":"strategy_signal","task":"signal_probe","scenario":"multi_strategy","stock_count":1,"strategy_count":2,"random_stock_enabled":true,"min_reply_chars":100,"pass_keywords":["信号","对比"],"session_cleanup":"before_run"}',
     11
@@ -87,7 +87,7 @@ INSERT INTO agent_eval_cases (
     'strategy_backtest_single',
     '',
     '单股 · 单策略 · 回测',
-    '随机单股单策略跑 run_strategy_backtest，汇报收益与 log_id。',
+    '随机单股单策略发送回测请求，校验收益与 log_id。',
     '["随机选股与策略","发送回测请求","校验回复含收益率与 log_id"]',
     TRUE,
     '{"category":"strategy_backtest","task":"backtest","scenario":"single","stock_count":1,"strategy_count":1,"random_stock_enabled":true,"min_reply_chars":80,"pass_keywords":["回测","收益","log"],"session_cleanup":"before_run"}',
@@ -113,6 +113,22 @@ INSERT INTO agent_eval_cases (
     '{"category":"strategy_backtest","task":"backtest","scenario":"multi_config","stock_count":1,"strategy_count":1,"config_variants":["止盈5%止损3%","止盈7%止损5%"],"random_stock_enabled":true,"min_reply_chars":120,"pass_keywords":["回测","对比","止盈"],"session_cleanup":"before_run"}',
     22
 ) ON CONFLICT (id) DO NOTHING;
+
+UPDATE agent_eval_cases SET
+    description = '随机抽取一只股票与一项高级策略，发送自然语言信号测试请求。',
+    steps_json = '["随机选股与策略","发送信号测试请求（含标的与策略名）","校验回复含信号/买卖信息"]',
+    updated_at = NOW()
+WHERE id = 'strategy_signal_single';
+
+UPDATE agent_eval_cases SET
+    steps_json = '["随机选股与 2 项策略","发送多策略对比信号测试请求","校验回复含对比/信号摘要"]',
+    updated_at = NOW()
+WHERE id = 'strategy_signal_multi_strategy';
+
+UPDATE agent_eval_cases SET
+    description = '随机单股单策略发送回测请求，校验收益与 log_id。',
+    updated_at = NOW()
+WHERE id = 'strategy_backtest_single';
 
 UPDATE agent_eval_cases SET
     title = '单股 · 单策略 · 多止盈止损回测',
