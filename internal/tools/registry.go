@@ -45,6 +45,8 @@ type Context struct {
 	ClarifyFn ClarifyFunc
 	// UserID scopes memory tools and recall to the tenant owner.
 	UserID string
+	// FullCatalogPayload keeps full buy_signal/sell_signal on catalog list tools (playbook executor).
+	FullCatalogPayload bool
 	// Hooks runs optional audit scripts around tool execution.
 	Hooks *HookRunner
 }

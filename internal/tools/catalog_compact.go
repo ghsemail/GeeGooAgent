@@ -6,7 +6,10 @@ import (
 )
 
 // compactHTTPPayload trims large catalog list responses before they reach the LLM.
-func compactHTTPPayload(toolName string, payload any) any {
+func compactHTTPPayload(ctx Context, toolName string, payload any) any {
+	if ctx.FullCatalogPayload {
+		return payload
+	}
 	switch toolName {
 	case "get_signal_combinations", "get_index_signals", "get_custom_signal_for_skill":
 		if items, ok := payload.([]any); ok {

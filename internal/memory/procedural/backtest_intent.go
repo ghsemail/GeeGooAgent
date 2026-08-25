@@ -22,6 +22,17 @@ func BacktestRunIntent(message string) bool {
 	return false
 }
 
+// BacktestDCABypass reports explicit DCA/grid/loopback intent that should stay on the legacy path.
+func BacktestDCABypass(message string) bool {
+	msg := strings.ToLower(strings.TrimSpace(message))
+	for _, tok := range []string{"dca", "定投", "网格", "grid", "loopback", "generate_dca"} {
+		if strings.Contains(msg, tok) {
+			return true
+		}
+	}
+	return false
+}
+
 // FindByName returns a loaded skill by name.
 func (l *Loader) FindByName(name string) (Skill, bool) {
 	if l == nil || strings.TrimSpace(name) == "" {

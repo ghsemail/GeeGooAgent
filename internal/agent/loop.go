@@ -12,6 +12,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
+	"github.com/ghsemail/GeeGooAgent/internal/playbookexec"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -41,6 +42,7 @@ type Loop struct {
 	gateProvider   llm.Provider
 	gatePolicy     llm.Policy
 	retrievalTopK  int
+	playbookRouter *playbookexec.Router
 }
 
 // NewLoop creates an agent loop.
@@ -354,6 +356,21 @@ func (l *Loop) RunTurn(
 	if extra := l.expandSkillSchemas(matchedSkills); len(extra) > 0 {
 		schemas = mergeToolSchemas(schemas, extra)
 	}
+
+	if l.playbookRouter != nil {
+		if result, handled := l.playbookRouter.TryRun(ctx, playbookexec.Input{
+			Session:       session,
+			UserText:      userText,
+			MatchedSkills: matchedSkills,
+			ToolCtx:       toolCtx,
+			StepBase:      session.StepCounter + 1,
+			OnProgress:    l.onProgress,
+		}); handled {
+			l.evaluateTurn(ctx, session, result)
+			return result
+		}
+	}
+
 	messages = session.LLMMessages()
 	l.emitStatus("hygiene", "整理会话上下文…")
 	messages = l.applyHygiene(ctx, session, messages)

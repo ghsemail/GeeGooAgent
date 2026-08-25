@@ -28,6 +28,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/memory/facts"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/scoped"
+	"github.com/ghsemail/GeeGooAgent/internal/playbookexec"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/semantic"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/opslog"
@@ -658,6 +659,17 @@ func (a *App) wireProceduralMemory() {
 	}
 	a.Agent.SetSkillLoader(a.SkillLoader, 2)
 	a.Agent.SetSkillToolExpander(a.expandSkillTools)
+	a.wirePlaybookExecutor()
+}
+
+func (a *App) wirePlaybookExecutor() {
+	if a == nil || a.Agent == nil || a.Agent.Loop == nil {
+		return
+	}
+	a.Agent.Loop.SetPlaybookRouter(&playbookexec.Router{
+		Gateway: a.Gateway,
+		RunTool: a.Agent.Loop.ExecuteTool,
+	})
 }
 
 func (a *App) expandSkillTools(names []string) []llm.ToolSchema {

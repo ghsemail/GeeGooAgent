@@ -15,7 +15,7 @@ func TestCompactProbeSeries(t *testing.T) {
 		"buy_merged":  []any{0, 1, 0},
 		"sell_merged": []any{0, 0, -1},
 	}
-	compact := compactHTTPPayload("probe_bot_signal_series", payload)
+	compact := compactHTTPPayload(Context{}, "probe_bot_signal_series", payload)
 	row, ok := compact.(map[string]any)
 	if !ok {
 		t.Fatalf("unexpected compact: %#v", compact)
@@ -52,7 +52,7 @@ func TestCompactSignalCombinations(t *testing.T) {
 			},
 		},
 	}
-	compact := compactHTTPPayload("get_signal_combinations", payload)
+	compact := compactHTTPPayload(Context{}, "get_signal_combinations", payload)
 	items, ok := compact.([]any)
 	if !ok || len(items) != 1 {
 		t.Fatalf("unexpected compact: %#v", compact)

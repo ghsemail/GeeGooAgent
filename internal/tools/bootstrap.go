@@ -128,7 +128,7 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 						return Result{Status: StatusError, Summary: enrichHTTPError(spec.Name, err), ExitCode: 1,
 							Meta: MetaFromEnvelope(nil, started)}
 					}
-					data = compactHTTPPayload(spec.Name, data)
+					data = compactHTTPPayload(ctx, spec.Name, data)
 					normalized, summary := normalizeHTTPResponse(spec.Name, data)
 					if spec.Name == "generate_grid_strategy" {
 						summary = appendStrategyFollowUp(summary, "grid", normalized)
