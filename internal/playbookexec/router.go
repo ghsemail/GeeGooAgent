@@ -37,20 +37,18 @@ type Input struct {
 }
 
 // Route reports whether a playbook executor should handle the turn.
-func Route(matchedSkills []string, userText string) (playbook string, ok bool) {
+func Route(matchedSkills []string, userText string, session *runtime.Session) (playbook string, ok bool) {
 	if procedural.BacktestDCABypass(userText) {
 		return "", false
 	}
-	if !procedural.BacktestRunIntent(userText) {
-		return "", false
+	if procedural.BacktestRunIntent(userText) {
+		return playbookBacktestRun, true
+	}
+	if procedural.BacktestContinueIntent(userText) && sessionHasBacktestContext(session) {
+		return playbookBacktestRun, true
 	}
 	for _, name := range matchedSkills {
-		if name == playbookBacktestRun {
-			return playbookBacktestRun, true
-		}
-	}
-	for _, name := range matchedSkills {
-		if name == "strategy-backtest" {
+		if name == playbookBacktestRun || name == "strategy-backtest" {
 			return playbookBacktestRun, true
 		}
 	}
@@ -62,7 +60,7 @@ func (r *Router) TryRun(ctx context.Context, in Input) (runtime.TurnResult, bool
 	if r == nil || r.RunTool == nil {
 		return runtime.TurnResult{}, false
 	}
-	playbook, ok := Route(in.MatchedSkills, in.UserText)
+	playbook, ok := Route(in.MatchedSkills, in.UserText, in.Session)
 	if !ok {
 		return runtime.TurnResult{}, false
 	}

@@ -5,7 +5,13 @@ import "strings"
 const backtestRunPlaybook = "strategy-backtest-run"
 
 var backtestRunIntentTokens = []string{
-	"回测", "跑回测", "看收益", "收益率", "回撤", "成交笔数", "验证策略", "backtest",
+	"回测", "来回测", "跑回测", "看收益", "收益率", "回撤", "成交笔数", "验证策略",
+	"backtest", "smarttrade",
+}
+
+var backtestContinueIntentTokens = []string{
+	"用现成的", "不要新建", "继续回测", "再回测", "再跑", "同样", "上次", "刚才",
+	"原有的", "现有的", "那套", "沿用",
 }
 
 // BacktestRunIntent reports whether the user wants PnL backtest rather than signal-only probe.
@@ -20,6 +26,28 @@ func BacktestRunIntent(message string) bool {
 		}
 	}
 	return false
+}
+
+// BacktestContinueIntent reports follow-up turns that reuse an existing backtest setup.
+func BacktestContinueIntent(message string) bool {
+	msg := strings.ToLower(strings.TrimSpace(message))
+	if msg == "" {
+		return false
+	}
+	for _, tok := range backtestContinueIntentTokens {
+		if strings.Contains(msg, tok) {
+			return true
+		}
+	}
+	return false
+}
+
+// ShouldBlockLegacyBacktestTools reports when ReAct must not pick DCA/grid loopback tools.
+func ShouldBlockLegacyBacktestTools(message string) bool {
+	if BacktestDCABypass(message) {
+		return false
+	}
+	return BacktestRunIntent(message) || BacktestContinueIntent(message)
 }
 
 // BacktestDCABypass reports explicit DCA/grid/loopback intent that should stay on the legacy path.

@@ -6,8 +6,23 @@ func TestBacktestRunIntent(t *testing.T) {
 	if !BacktestRunIntent("帮我回测一下sar信号加macd趋势在小米") {
 		t.Fatal("expected backtest intent")
 	}
+	if !BacktestRunIntent("用现成的来回测，不要新建") {
+		t.Fatal("expected backtest intent for reuse message")
+	}
 	if BacktestRunIntent("帮我测一下有没有买卖信号") {
 		t.Fatal("signal-only probe should not count as backtest run intent")
+	}
+}
+
+func TestBacktestContinueIntent(t *testing.T) {
+	if !BacktestContinueIntent("就用刚才那套") {
+		t.Fatal("expected continue intent")
+	}
+	if ShouldBlockLegacyBacktestTools("帮我做 dca 定投回测") {
+		t.Fatal("dca bypass should not block legacy tools")
+	}
+	if !ShouldBlockLegacyBacktestTools("用现成的来回测") {
+		t.Fatal("expected legacy tool block")
 	}
 }
 

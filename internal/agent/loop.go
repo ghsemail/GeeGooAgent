@@ -370,6 +370,7 @@ func (l *Loop) RunTurn(
 			return result
 		}
 	}
+	schemas = playbookexec.FilterLegacyBacktestTools(schemas, userText, session)
 
 	messages = session.LLMMessages()
 	l.emitStatus("hygiene", "整理会话上下文…")

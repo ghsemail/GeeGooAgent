@@ -37,6 +37,7 @@ var (
 
 func (r *Router) buildBacktestPlan(ctx context.Context, in Input, step int) (BacktestRunPlan, string, error) {
 	plan := heuristicBacktestPlan(in.UserText)
+	enrichPlanFromSession(&plan, in.Session)
 	if strings.TrimSpace(plan.StockQuery) != "" && strings.TrimSpace(plan.SignalQuery) != "" {
 		return plan, fmt.Sprintf("playbookexec plan(heuristic): stock=%q signal=%q kind=%s",
 			plan.StockQuery, plan.SignalQuery, plan.SignalKind), nil
@@ -47,9 +48,15 @@ func (r *Router) buildBacktestPlan(ctx context.Context, in Input, step int) (Bac
 		}
 		return plan, "playbookexec plan(heuristic partial)", nil
 	}
+	planUser := in.UserText
+	if in.Session != nil {
+		if ctxText := recentSessionContext(in.Session, 6); ctxText != "" {
+			planUser = "会话上下文：\n" + ctxText + "\n\n当前用户消息：\n" + in.UserText
+		}
+	}
 	messages := []llm.Message{
 		{Role: llm.RoleSystem, Content: backtestPlanSystem},
-		{Role: llm.RoleUser, Content: in.UserText},
+		{Role: llm.RoleUser, Content: planUser},
 	}
 	callCtx := llm.WithCallMeta(ctx, llm.CallMeta{Kind: llm.TaskChat, ToolSchemaCount: 0})
 	resp, err := r.Gateway.ChatStream(callCtx, messages, nil, in.Session.ID, step, nil)
