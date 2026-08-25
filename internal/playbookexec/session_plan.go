@@ -9,7 +9,7 @@ import (
 )
 
 var sessionBacktestContextTokens = []string{
-	"回测", "run_strategy_backtest", "run_strategy_backtest", "log_id", "playbookexec",
+	"回测", "run_strategy_backtest", "log_id", "playbookexec",
 	"strategy-backtest-run", "strategy-backtest",
 }
 
