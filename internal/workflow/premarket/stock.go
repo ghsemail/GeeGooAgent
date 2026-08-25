@@ -22,7 +22,7 @@ import (
 func PerStockSteps() []step.Step {
 	return []step.Step{
 		{Name: "list_today_reports", Tool: "list_today_reports", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
-			return map[string]any{"code": w.CurrentStock}
+			return map[string]any{"code": w.CurrentStock, "report_date": ReportDateFor(w)}
 		}},
 		{Name: "stock_news", Tool: "fetch_stock_news", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			ws := w.Stocks[w.CurrentStock]
@@ -51,6 +51,7 @@ func PerStockSteps() []step.Step {
 			}
 			return map[string]any{
 				"code": w.CurrentStock, "content": content, "report_type": "premarket",
+				"report_date": ReportDateFor(w),
 			}, nil
 		}},
 		{Name: "create_stock_premarket_report", Tool: "create_stock_premarket_report", ContextArgFunc: func(ctx context.Context, w *memory.PreMarketWorking) (map[string]any, error) {
@@ -256,6 +257,7 @@ func BuildCreateReportArgsContext(ctx context.Context, w *memory.PreMarketWorkin
 		"bot_name": bot.BotName, "bot_type": bot.BotType,
 		"result": bundle.Result, "confidence": bundle.Confidence,
 		"reason": bundle.Reason, "suggestion": bundle.Suggestion, "report": bundle.Report, "summary": bundle.Summary,
+		"report_date":                ReportDateFor(w),
 		"evidence_refs":              evidenceIDs(evidence),
 		"market_premarket_report_id": strings.TrimSpace(w.MarketReportID),
 	}
