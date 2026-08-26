@@ -6,6 +6,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
+	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
 func TestRouteBacktestRun(t *testing.T) {
@@ -104,7 +105,7 @@ func TestFilterLegacyBacktestTools(t *testing.T) {
 
 func TestPickCombination(t *testing.T) {
 	items := []map[string]any{
-		{"name": "SAR信号配套MACD直方图趋势", "signal_id": "a", "buy_signal": []any{map[string]any{"index": "SAR"}}},
+		{"name": "SAR信号配套MACD直方图趋势", "signal_id": "a", "buy_signal": []any{map[string]any{"index": "SAR"}}, "frequency": []any{"5m", "60m", "daily"}},
 		{"name": "RSI阈值信号", "signal_id": "b", "buy_signal": []any{map[string]any{"index": "RSI"}}},
 	}
 	row, err := pickCombination(items, "SAR MACD")
@@ -113,5 +114,8 @@ func TestPickCombination(t *testing.T) {
 	}
 	if row["signal_id"] != "a" {
 		t.Fatalf("picked=%v", row["signal_id"])
+	}
+	if got := tools.NormalizeCatalogFrequency(row["frequency"]); got != "60m" {
+		t.Fatalf("frequency=%q want 60m", got)
 	}
 }

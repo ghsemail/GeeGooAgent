@@ -101,10 +101,7 @@ func (r *Router) resolveSignals(
 	} else {
 		sell = tools.NormalizeSignalRules(sell)
 	}
-	frequency = strings.TrimSpace(fmt.Sprint(row["frequency"]))
-	if frequency == "" {
-		frequency = "60m"
-	}
+	frequency = tools.NormalizeCatalogFrequency(row["frequency"])
 	strategyLabel = strings.TrimSpace(fmt.Sprint(row["name"]))
 	return buy, sell, frequency, strategyLabel, nil
 }
@@ -135,10 +132,7 @@ func (r *Router) resolveIndexSignal(
 		buy = []any{map[string]any{"index": idx, "type": "signal", "param": row["param"]}}
 	}
 	sell = buy
-	frequency = strings.TrimSpace(fmt.Sprint(row["frequency"]))
-	if frequency == "" {
-		frequency = "60m"
-	}
+	frequency = tools.NormalizeCatalogFrequency(row["frequency"])
 	strategyLabel = strings.TrimSpace(fmt.Sprint(row["name"]))
 	return buy, sell, frequency, strategyLabel, nil
 }

@@ -18,6 +18,24 @@ func TestNormalizeSignalRulesFillsType(t *testing.T) {
 	}
 }
 
+func TestNormalizeCatalogFrequency(t *testing.T) {
+	if got := NormalizeCatalogFrequency("daily"); got != "daily" {
+		t.Fatalf("string=%q", got)
+	}
+	if got := NormalizeCatalogFrequency([]any{"5m", "60m", "daily"}); got != "60m" {
+		t.Fatalf("array=%q want 60m", got)
+	}
+	if got := NormalizeCatalogFrequency([]string{"5m", "daily"}); got != "daily" {
+		t.Fatalf("[]string=%q want daily", got)
+	}
+	if got := NormalizeCatalogFrequency(nil); got != "60m" {
+		t.Fatalf("nil=%q", got)
+	}
+	if got := NormalizeCatalogFrequency("[5m 60m daily]"); got != "60m" {
+		t.Fatalf("sprint-array=%q", got)
+	}
+}
+
 func TestSanitizeBacktestSignalArgs(t *testing.T) {
 	args := map[string]any{
 		"buy_signal":  []any{map[string]any{"index": "SAR"}},
