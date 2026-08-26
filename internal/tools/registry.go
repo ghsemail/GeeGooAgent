@@ -147,6 +147,10 @@ func (r *Registry) Execute(req CallRequest, ctx Context) Result {
 	if req.Arguments == nil {
 		req.Arguments = map[string]any{}
 	}
+	switch req.Name {
+	case "run_strategy_backtest", "probe_bot_signal_series", "probe_bot_signal":
+		SanitizeBacktestSignalArgs(req.Arguments)
+	}
 	if err := ValidateArguments(t.Parameters, req.Arguments); err != nil {
 		return Result{
 			Status:  StatusError,

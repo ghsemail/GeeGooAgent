@@ -95,8 +95,11 @@ func (r *Router) resolveSignals(
 	if len(buy) == 0 {
 		return nil, nil, "", "", fmt.Errorf("组合信号缺少 buy_signal")
 	}
+	buy = tools.NormalizeSignalRules(buy)
 	if len(sell) == 0 {
-		sell = buy
+		sell = tools.NormalizeSignalRules(buy)
+	} else {
+		sell = tools.NormalizeSignalRules(sell)
 	}
 	frequency = strings.TrimSpace(fmt.Sprint(row["frequency"]))
 	if frequency == "" {
@@ -123,7 +126,7 @@ func (r *Router) resolveIndexSignal(
 	}
 	// Index signals need probe-style rules; fetch full combination-like shape from index row if present.
 	if rawBuy, ok := row["buy_signal"].([]any); ok && len(rawBuy) > 0 {
-		buy = rawBuy
+		buy = tools.NormalizeSignalRules(rawBuy)
 	} else {
 		idx := strings.TrimSpace(fmt.Sprint(row["index"]))
 		if idx == "" {

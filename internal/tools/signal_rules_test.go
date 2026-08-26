@@ -1,0 +1,30 @@
+package tools
+
+import "testing"
+
+func TestNormalizeSignalRulesFillsType(t *testing.T) {
+	out := NormalizeSignalRules([]any{
+		map[string]any{"index": "SAR"},
+		map[string]any{"index": "MACD", "type": "flag"},
+	})
+	if len(out) != 2 {
+		t.Fatalf("len=%d", len(out))
+	}
+	if out[0].(map[string]any)["type"] != "signal" {
+		t.Fatalf("first type=%v", out[0].(map[string]any)["type"])
+	}
+	if out[1].(map[string]any)["type"] != "flag" {
+		t.Fatalf("second type=%v", out[1].(map[string]any)["type"])
+	}
+}
+
+func TestSanitizeBacktestSignalArgs(t *testing.T) {
+	args := map[string]any{
+		"buy_signal":  []any{map[string]any{"index": "SAR"}},
+		"sell_signal": []any{map[string]any{"index": "MACD"}},
+	}
+	SanitizeBacktestSignalArgs(args)
+	if args["sell_signal"].([]any)[0].(map[string]any)["type"] != "signal" {
+		t.Fatal("expected sell type=signal")
+	}
+}
