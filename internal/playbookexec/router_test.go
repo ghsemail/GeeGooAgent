@@ -119,3 +119,27 @@ func TestPickCombination(t *testing.T) {
 		t.Fatalf("frequency=%q want 60m", got)
 	}
 }
+
+func TestPickCombinationDisambiguatesMultipleMatches(t *testing.T) {
+	items := []map[string]any{
+		{"name": "SAR信号配套MACD直方图趋势", "signal_id": "a"},
+		{"name": "MACD金死叉配套SAR趋势", "signal_id": "b"},
+		{"name": "SAR抛物线配套MACD与EMA复合策略", "signal_id": "c"},
+	}
+	row, err := pickCombination(items, "SAR MACD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row["signal_id"] != "a" {
+		t.Fatalf("picked=%v want a (SAR before MACD, shorter name)", row["signal_id"])
+	}
+}
+
+func TestScoreCombinationMatchPrefersTokenOrder(t *testing.T) {
+	tokens := signalTokens("SAR MACD")
+	sarFirst := scoreCombinationMatch("SAR信号配套MACD直方图趋势", tokens)
+	macdFirst := scoreCombinationMatch("MACD金死叉配套SAR趋势", tokens)
+	if sarFirst <= macdFirst {
+		t.Fatalf("sarFirst=%d macdFirst=%d", sarFirst, macdFirst)
+	}
+}
