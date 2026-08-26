@@ -22,6 +22,8 @@ LOG_RUNTIME="${APP_DIR}/agent-runtime.out"
 PID_RUNTIME="${APP_DIR}/agent-runtime.pid"
 LOG_SCHEDULER="${APP_DIR}/scheduler.out"
 PID_SCHEDULER="${APP_DIR}/scheduler.pid"
+LOG_GATEWAY="${APP_DIR}/gateway.out"
+PID_GATEWAY="${APP_DIR}/gateway.pid"
 
 log() { echo "[GeeGooAgent] $*"; }
 
@@ -111,20 +113,54 @@ status_scheduler() {
   fi
 }
 
+start_gateway() {
+  if [[ -f "$PID_GATEWAY" ]] && kill -0 "$(cat "$PID_GATEWAY")" 2>/dev/null; then
+    log "gateway already running (PID $(cat "$PID_GATEWAY"))"
+    return 0
+  fi
+  export GEEGOO_CONFIG="$CONFIG_PATH"
+  cd "$APP_DIR"
+  nohup "$BIN_DIR/geegoo" gateway run --config "$CONFIG_PATH" > "$LOG_GATEWAY" 2>&1 &
+  echo $! > "$PID_GATEWAY"
+  log "gateway started PID=$(cat "$PID_GATEWAY") log=${LOG_GATEWAY}"
+}
+
+stop_gateway() {
+  if [[ -f "$PID_GATEWAY" ]]; then
+    kill "$(cat "$PID_GATEWAY")" 2>/dev/null || true
+    rm -f "$PID_GATEWAY"
+  fi
+  pkill -f 'geegoo.*gateway run' 2>/dev/null || true
+  pkill -f 'geegoo.bin gateway run' 2>/dev/null || true
+  log "gateway stopped"
+}
+
+status_gateway() {
+  if [[ -f "$PID_GATEWAY" ]] && kill -0 "$(cat "$PID_GATEWAY")" 2>/dev/null; then
+    echo "gateway running PID=$(cat "$PID_GATEWAY")"
+    "$BIN_DIR/geegoo" gateway status --config "$CONFIG_PATH" 2>/dev/null || true
+  else
+    echo "gateway not running"
+  fi
+}
+
 case "${1:-help}" in
   build) build ;;
   start-runtime) start_runtime ;;
   stop-runtime) stop_runtime ;;
   restart-runtime) stop_runtime; build; start_runtime ;;
-  status) status_runtime; status_scheduler ;;
+  status) status_runtime; status_scheduler; status_gateway ;;
   start-scheduler) start_scheduler ;;
   stop-scheduler) stop_scheduler ;;
   restart-scheduler) stop_scheduler; build; start_scheduler ;;
-  start-all) start_runtime; start_scheduler ;;
-  stop-all) stop_scheduler; stop_runtime ;;
-  restart-all) stop_scheduler; stop_runtime; build; start_runtime; start_scheduler ;;
+  start-gateway) start_gateway ;;
+  stop-gateway) stop_gateway ;;
+  restart-gateway) stop_gateway; build; start_gateway ;;
+  start-all) start_runtime; start_scheduler; start_gateway ;;
+  stop-all) stop_gateway; stop_scheduler; stop_runtime ;;
+  restart-all) stop_gateway; stop_scheduler; stop_runtime; build; start_runtime; start_scheduler; start_gateway ;;
   *)
-    echo "Usage: $0 {build|start-runtime|stop-runtime|restart-runtime|start-scheduler|stop-scheduler|restart-scheduler|start-all|stop-all|restart-all|status}"
+    echo "Usage: $0 {build|start-runtime|stop-runtime|restart-runtime|start-scheduler|stop-scheduler|restart-scheduler|start-gateway|stop-gateway|restart-gateway|start-all|stop-all|restart-all|status}"
     exit 1
     ;;
 esac
