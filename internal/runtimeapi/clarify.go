@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
 type clarifyRequest struct {
@@ -68,6 +70,18 @@ func (h *Handler) clarifyFn(fallback context.Context, sessionID string, onPendin
 		if ctx == nil {
 			ctx = fallback
 		}
-		return h.clarify.Wait(ctx, sessionID, question, choices, onPending)
+		bounded, cancel := context.WithTimeout(ctx, clarifyAutoPickWait)
+		defer cancel()
+		return h.waitClarifyOrAuto(bounded, sessionID, question, choices, onPending)
 	}
+}
+
+func (h *Handler) waitClarifyOrAuto(ctx context.Context, sessionID, question string, choices []string, onPending func(PendingClarify)) (string, bool) {
+	answer, ok := h.clarify.Wait(ctx, sessionID, question, choices, onPending)
+	if !ok && len(choices) > 0 {
+		if auto, picked := tools.AutoClarifyChoice(question, choices); picked {
+			return auto, true
+		}
+	}
+	return answer, ok
 }
