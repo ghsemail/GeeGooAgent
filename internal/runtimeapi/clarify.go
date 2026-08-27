@@ -57,14 +57,24 @@ func (h *Handler) chatClarify(w http.ResponseWriter, r *http.Request) {
 	}
 	ok := !req.Skip
 	if !h.clarify.Answer(sessionID, answer, ok) {
-		writeError(w, http.StatusNotFound, "no pending clarify for session")
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status":           "ok",
+			"already_resolved": true,
+		})
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok"})
 }
 
-func (h *Handler) clarifyFn(fallback context.Context, sessionID string, onPending func(PendingClarify)) func(context.Context, string, []string) (string, bool) {
+// ClarifyHooks wires SSE/UI callbacks for pending and auto-resolved clarify prompts.
+type ClarifyHooks struct {
+	OnPending      func(PendingClarify)
+	OnAutoResolved func(PendingClarify, string)
+}
+
+func (h *Handler) clarifyFn(fallback context.Context, sessionID string, hooks ClarifyHooks) func(context.Context, string, []string) (string, bool) {
 	return func(waitCtx context.Context, question string, choices []string) (string, bool) {
 		ctx := waitCtx
 		if ctx == nil {
@@ -72,14 +82,22 @@ func (h *Handler) clarifyFn(fallback context.Context, sessionID string, onPendin
 		}
 		bounded, cancel := context.WithTimeout(ctx, clarifyAutoPickWait)
 		defer cancel()
-		return h.waitClarifyOrAuto(bounded, sessionID, question, choices, onPending)
+		return h.waitClarifyOrAuto(bounded, sessionID, question, choices, hooks)
 	}
 }
 
-func (h *Handler) waitClarifyOrAuto(ctx context.Context, sessionID, question string, choices []string, onPending func(PendingClarify)) (string, bool) {
-	answer, ok := h.clarify.Wait(ctx, sessionID, question, choices, onPending)
+func (h *Handler) waitClarifyOrAuto(ctx context.Context, sessionID, question string, choices []string, hooks ClarifyHooks) (string, bool) {
+	answer, ok := h.clarify.Wait(ctx, sessionID, question, choices, hooks.OnPending)
 	if !ok && len(choices) > 0 {
 		if auto, picked := tools.AutoClarifyChoice(question, choices); picked {
+			pending := PendingClarify{
+				SessionID: sessionID,
+				Question:  question,
+				Choices:   append([]string(nil), choices...),
+			}
+			if hooks.OnAutoResolved != nil {
+				hooks.OnAutoResolved(pending, auto)
+			}
 			return auto, true
 		}
 	}

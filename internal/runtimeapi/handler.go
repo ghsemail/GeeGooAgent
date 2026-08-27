@@ -132,11 +132,7 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 	if approveWrites(r) {
 		ctx.Approved = true
 	}
-	clarifyNotify := func(p PendingClarify) {
-		// non-stream: no-op; stream handler wires SSE
-		_ = p
-	}
-	ctx.ClarifyFn = h.clarifyFn(r.Context(), sessionID, clarifyNotify)
+	ctx.ClarifyFn = h.clarifyFn(r.Context(), sessionID, ClarifyHooks{})
 
 	upstream := make([]runtime.UpstreamMessage, 0, len(req.Messages))
 	for _, m := range req.Messages {
@@ -218,15 +214,28 @@ func (h *Handler) streamChat(
 
 	writeChunk(chatMessage{Role: "assistant"}, nil)
 
-	clarifyNotify := func(p PendingClarify) {
-		mu.Lock()
-		defer mu.Unlock()
-		writeAgentEvent(w, flusher, map[string]any{
-			"event":       "clarify",
-			"session_id":  p.SessionID,
-			"question":    p.Question,
-			"choices":     p.Choices,
-		})
+	clarifyHooks := ClarifyHooks{
+		OnPending: func(p PendingClarify) {
+			mu.Lock()
+			defer mu.Unlock()
+			writeAgentEvent(w, flusher, map[string]any{
+				"event":      "clarify",
+				"session_id": p.SessionID,
+				"question":   p.Question,
+				"choices":    p.Choices,
+			})
+		},
+		OnAutoResolved: func(p PendingClarify, answer string) {
+			mu.Lock()
+			defer mu.Unlock()
+			writeAgentEvent(w, flusher, map[string]any{
+				"event":      "clarify_auto_resolved",
+				"session_id": p.SessionID,
+				"question":   p.Question,
+				"choices":    p.Choices,
+				"answer":     answer,
+			})
+		},
 	}
 
 	runCtx := llm.WithStreamHandler(r.Context(), func(delta llm.StreamDelta) {
@@ -236,7 +245,7 @@ func (h *Handler) streamChat(
 		streamed.Store(true)
 		writeChunk(chatMessage{Content: delta.Content}, nil)
 	})
-	toolCtx.ClarifyFn = h.clarifyFn(r.Context(), sessionID, clarifyNotify)
+	toolCtx.ClarifyFn = h.clarifyFn(r.Context(), sessionID, clarifyHooks)
 
 	result := h.App.Agent.Run(runCtx, session, lastUser, toolCtx, schemas)
 	if !streamed.Load() && result.AssistantText != "" {
