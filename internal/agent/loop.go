@@ -371,6 +371,7 @@ func (l *Loop) RunTurn(
 		}
 	}
 	schemas = playbookexec.FilterLegacyBacktestTools(schemas, userText, session)
+	schemas = playbookexec.FilterSmartTradeBacktestTools(schemas, userText, session)
 
 	messages = session.LLMMessages()
 	l.emitStatus("hygiene", "整理会话上下文…")

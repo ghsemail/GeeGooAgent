@@ -106,6 +106,22 @@ func recentSessionContext(session *runtime.Session, maxMessages int) string {
 	return strings.TrimSpace(b.String())
 }
 
+// FilterSmartTradeBacktestTools removes run_strategy_backtest when signal-only probe is intended.
+func FilterSmartTradeBacktestTools(schemas []llm.ToolSchema, userText string, session *runtime.Session) []llm.ToolSchema {
+	if !procedural.ShouldBlockSmartTradeBacktestTools(userText) {
+		return schemas
+	}
+	_ = session
+	out := make([]llm.ToolSchema, 0, len(schemas))
+	for _, s := range schemas {
+		if s.Name == "run_strategy_backtest" {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
 // FilterLegacyBacktestTools removes DCA/grid loopback tools when SmartTrade backtest is intended.
 func FilterLegacyBacktestTools(schemas []llm.ToolSchema, userText string, session *runtime.Session) []llm.ToolSchema {
 	if !procedural.ShouldBlockLegacyBacktestTools(userText) {

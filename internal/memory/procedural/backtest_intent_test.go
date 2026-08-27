@@ -55,3 +55,42 @@ func TestPrioritizeBacktestRunPlaybook(t *testing.T) {
 		}
 	}
 }
+
+func TestPrioritizeSignalProbePlaybook(t *testing.T) {
+	loader := NewLoader("../../../skills")
+	msg := "请帮我用「SAR抛物线」策略测试一下腾讯控股（0700.HK · 港股）。"
+	if !SignalProbeIntent(msg) {
+		t.Fatal("expected signal probe intent")
+	}
+	matched := loader.Match(msg, 2)
+	got := loader.PrioritizeSignalProbePlaybook(msg, matched, 2)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 prioritized matches, got %d: %v", len(got), skillNamesForTest(got))
+	}
+	if got[0].Name != "strategy-signal-probe" {
+		t.Fatalf("first skill=%q want strategy-signal-probe", got[0].Name)
+	}
+	for _, sk := range got {
+		if sk.Name == "strategy-backtest-run" {
+			t.Fatal("strategy-backtest-run should be dropped for signal probe intent")
+		}
+	}
+}
+
+func TestShouldBlockSmartTradeBacktestTools(t *testing.T) {
+	msg := "请帮我用「SAR抛物线」策略测试一下腾讯控股（0700.HK · 港股）。"
+	if !ShouldBlockSmartTradeBacktestTools(msg) {
+		t.Fatal("expected smart trade backtest block for signal probe")
+	}
+	if ShouldBlockSmartTradeBacktestTools("帮我回测一下 sar+macd 在小米") {
+		t.Fatal("explicit backtest should not block run_strategy_backtest")
+	}
+}
+
+func skillNamesForTest(skills []Skill) []string {
+	out := make([]string, len(skills))
+	for i, sk := range skills {
+		out[i] = sk.Name
+	}
+	return out
+}

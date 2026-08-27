@@ -103,6 +103,21 @@ func TestFilterLegacyBacktestTools(t *testing.T) {
 	}
 }
 
+func TestFilterSmartTradeBacktestTools(t *testing.T) {
+	schemas := []llm.ToolSchema{
+		{Name: "run_strategy_backtest"},
+		{Name: "probe_bot_signal_series"},
+	}
+	msg := "请帮我用「SAR抛物线」策略测试一下腾讯控股（0700.HK · 港股）。"
+	out := FilterSmartTradeBacktestTools(schemas, msg, nil)
+	if len(out) != 1 || out[0].Name != "probe_bot_signal_series" {
+		t.Fatalf("filtered=%v", out)
+	}
+	if len(FilterSmartTradeBacktestTools(schemas, "帮我回测一下", nil)) != 2 {
+		t.Fatal("backtest intent should keep run_strategy_backtest")
+	}
+}
+
 func TestRouteSignalProbeEvalMessage(t *testing.T) {
 	skills := []string{"strategy-backtest-run", "strategy-backtest", "strategy-signal-probe"}
 	msg := "请帮我用「SAR抛物线」策略测试一下腾讯控股（0700.HK · 港股）。"

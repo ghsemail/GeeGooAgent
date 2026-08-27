@@ -79,6 +79,64 @@ func (l *Loader) FindByName(name string) (Skill, bool) {
 	return Skill{}, false
 }
 
+// PrioritizeSignalProbePlaybook keeps strategy-signal-probe and parent strategy-backtest
+// when the user wants signal-only probe; drops strategy-backtest-run from the matched set.
+func (l *Loader) PrioritizeSignalProbePlaybook(message string, matched []Skill, maxSkills int) []Skill {
+	if l == nil || !SignalProbeIntent(message) {
+		return matched
+	}
+	if maxSkills <= 0 {
+		maxSkills = 2
+	}
+	byName := map[string]Skill{}
+	for _, sk := range matched {
+		byName[sk.Name] = sk
+	}
+	if probe, ok := l.FindByName("strategy-signal-probe"); ok {
+		byName[probe.Name] = probe
+	}
+	if parent, ok := l.FindByName("strategy-backtest"); ok {
+		byName[parent.Name] = parent
+	}
+	priority := []string{"strategy-signal-probe", "strategy-backtest"}
+	out := make([]Skill, 0, maxSkills)
+	seen := map[string]struct{}{}
+	for _, name := range priority {
+		sk, ok := byName[name]
+		if !ok {
+			continue
+		}
+		out = append(out, sk)
+		seen[name] = struct{}{}
+		if len(out) >= maxSkills {
+			return out
+		}
+	}
+	var rest []Skill
+	for _, sk := range matched {
+		if _, ok := seen[sk.Name]; ok {
+			continue
+		}
+		if sk.Name == backtestRunPlaybook {
+			continue
+		}
+		rest = append(rest, sk)
+	}
+	for len(out) < maxSkills && len(rest) > 0 {
+		out = append(out, rest[0])
+		rest = rest[1:]
+	}
+	if len(out) > maxSkills {
+		out = out[:maxSkills]
+	}
+	return out
+}
+
+// ShouldBlockSmartTradeBacktestTools reports when ReAct must not pick run_strategy_backtest.
+func ShouldBlockSmartTradeBacktestTools(message string) bool {
+	return SignalProbeIntent(message)
+}
+
 // PrioritizeBacktestRunPlaybook keeps strategy-backtest-run in the matched set when the user asks to run backtests.
 func (l *Loader) PrioritizeBacktestRunPlaybook(message string, matched []Skill, maxSkills int) []Skill {
 	if l == nil || !BacktestRunIntent(message) {
