@@ -12,14 +12,34 @@ import (
 
 var backtestThinkBlockRE = regexp.MustCompile(`(?is)<(?:redacted_thinking|think)>(.*?)</(?:redacted_thinking|think)>`)
 
-const backtestReplySystem = `你是 GeeGoo 策略回测助手。根据提供的 JSON 回测数据写 Markdown 回复（中文），必须包含：
-1. 标题：标的名称/代码 + 策略名
-2. **回测配置**：frequency、months_back/period、fund、base_order_size、trade_config 要点、买卖规则概要（index 链）
-3. **结果摘要**：收益率、最终资产、最大回撤、成交笔数、log_id
-4. **成交明细表**（若有 trades）：列 时间 | 方向(买/卖) | 价格 | 数量；最多展示 15 笔，超出说明「共 N 笔，仅列前 15 笔」
-5. 1～2 句简短结论
-文末加「仅供参考，非投资建议。」
-禁止编造 JSON 中不存在的数据；数值与 log_id 必须与 JSON 一致。`
+const backtestReplySystem = `你是 GeeGoo 策略回测助手。根据 JSON 为普通投资者写 Markdown 回复（中文）。
+
+结构必须如下：
+## {股票名} {代码} · 策略回测
+
+### 一句话结论
+1 句概括赚亏与风险（含收益率、最大回撤）
+
+### 怎么测的
+- 策略名称（中文）
+- K 线周期、回测区间、初始资金、每次买入股数
+- 止盈止损（人话，如「止盈5%，SAR动态止损」）
+- 买卖条件（人话，不要写 type/param/index 英文字段）
+
+### 结果怎么样
+用表格列：指标 | 数值
+必含：收益率、最终资产、最大回撤、成交笔数
+
+### 成交记录
+表格：时间 | 操作 | 价格 | 数量
+最多 12 行；超出注明总笔数
+
+### 小结
+1～2 句 actionable 观察
+
+禁止：log_id、signal_id、strategy_ids、months_back、frequency、JSON、trade_config 字段名、英文 API 参数。
+禁止编造数据。
+文末：仅供参考，非投资建议。`
 
 type backtestReplyInput struct {
 	Code           string
@@ -80,97 +100,61 @@ func (r *Router) formatBacktestReply(ctx context.Context, in Input, step int, bu
 
 func buildBacktestLLMPayload(bundle backtestReplyInput) map[string]any {
 	out := map[string]any{
-		"code":             bundle.Code,
-		"name":             bundle.Name,
-		"market":           bundle.Market,
-		"strategy_label":   bundle.StrategyLabel,
-		"strategy_kind":    bundle.StrategyKind,
-		"frequency":        bundle.Frequency,
-		"period":           bundle.Period,
-		"months_back":      bundle.MonthsBack,
-		"fund":             bundle.Fund,
-		"base_order_size":  bundle.BaseOrderSize,
-		"signal_id":        bundle.SignalID,
-		"strategy_ids":     strategyIDsForPayload(bundle),
-		"buy_signal":       bundle.BuySignal,
-		"sell_signal":      bundle.SellSignal,
-		"trade_config":     bundle.TradeConfig,
-		"run_summary":      slimRunSummary(bundle.RunSummary),
+		"stock": map[string]any{
+			"name": bundle.Name,
+			"code": bundle.Code,
+		},
+		"strategy": map[string]any{
+			"name":      bundle.StrategyLabel,
+			"buy_rule":  humanSignalRules(bundle.BuySignal, nil, ""),
+			"sell_rule": humanSignalRules(bundle.SellSignal, nil, ""),
+		},
+		"settings": map[string]any{
+			"kline":           humanFrequency(bundle.Frequency),
+			"time_range":      humanPeriod(bundle.Period, bundle.MonthsBack),
+			"initial_cash":    humanFund(bundle.Fund),
+			"order_size":      humanOrderSize(bundle.BaseOrderSize),
+			"risk_management": humanTradeConfigSummary(bundle.TradeConfig, bundle.BaseOrderSize),
+		},
+		"results": buildHumanResults(bundle),
 	}
 	if bundle.LogDetail != nil {
-		out["trades"] = normalizeTradesForPayload(extractTradesList(bundle.LogDetail), 30)
-		if runMeta := extractRunMeta(bundle.LogDetail); len(runMeta) > 0 {
-			out["run"] = runMeta
-		}
+		out["trades"] = normalizeTradesForPayload(extractTradesList(bundle.LogDetail), 20)
 	}
 	return out
 }
 
-func strategyIDsForPayload(bundle backtestReplyInput) []any {
-	if bundle.SignalID != "" {
-		return []any{bundle.SignalID}
-	}
-	if runMeta := extractRunMeta(bundle.LogDetail); runMeta != nil {
-		if ids, ok := runMeta["strategy_ids"].([]any); ok && len(ids) > 0 {
-			return ids
-		}
-	}
-	return nil
-}
-
-func slimRunSummary(run map[string]any) map[string]any {
+func buildHumanResults(bundle backtestReplyInput) map[string]any {
+	run := bundle.RunSummary
 	if run == nil {
-		return nil
+		run = map[string]any{}
 	}
-	keys := []string{"log_id", "code", "profit_rate", "profit", "final_value", "drawdown", "trade_count", "closed_trades", "strategy_label"}
-	out := map[string]any{}
-	for _, key := range keys {
-		if v, ok := run[key]; ok && fmt.Sprint(v) != "" {
-			out[key] = v
+	var resMap map[string]any
+	if r := nestedMap(bundle.LogDetail, "run"); r != nil {
+		if nested, ok := r["result"].(map[string]any); ok {
+			resMap = nested
 		}
 	}
-	return out
-}
-
-func extractRunMeta(logDetail map[string]any) map[string]any {
-	run, _ := logDetail["run"].(map[string]any)
-	if run == nil {
-		return nil
-	}
-	out := map[string]any{}
-	for _, key := range []string{
-		"log_id", "code", "strategy_label", "strategy_kind", "frequency", "period",
-		"fund", "base_order_size", "trade_count", "strategy_ids", "trade_config", "result",
-	} {
-		if v, ok := run[key]; ok && v != nil {
-			out[key] = v
-		}
-	}
-	if rules := extractSavedSignalRules(run); len(rules) > 0 {
-		out["saved_signal_rules"] = rules
-	}
-	return out
-}
-
-func extractSavedSignalRules(run map[string]any) map[string]any {
-	out := map[string]any{}
-	for _, source := range []map[string]any{
-		nestedMap(run, "probe_snapshot"),
-		nestedMap(nestedMap(run, "chart_data"), "probe"),
-	} {
-		if source == nil {
-			continue
-		}
-		for _, key := range []string{"buy_rules", "sell_rules", "buyrules", "sellrules", "buy_signal", "sell_signal"} {
-			if v, ok := source[key]; ok && v != nil {
-				out[key] = v
+	get := func(keys ...string) any {
+		for _, k := range keys {
+			if v, ok := run[k]; ok && fmt.Sprint(v) != "" && fmt.Sprint(v) != "<nil>" {
+				return v
+			}
+			if resMap != nil {
+				if v, ok := resMap[k]; ok && fmt.Sprint(v) != "" && fmt.Sprint(v) != "<nil>" {
+					return v
+				}
 			}
 		}
-	}
-	if len(out) == 0 {
 		return nil
 	}
-	return out
+	return map[string]any{
+		"profit_rate_pct":  formatPercent(get("profit_rate")),
+		"final_value":      formatMoney(get("final_value")),
+		"max_drawdown_pct": formatPercent(get("drawdown")),
+		"trade_count":      get("trade_count"),
+		"closed_trades":    get("closed_trades"),
+	}
 }
 
 func extractTradesList(logDetail map[string]any) []any {
@@ -205,13 +189,10 @@ func normalizeTradesForPayload(trades []any, max int) []map[string]any {
 			continue
 		}
 		out = append(out, map[string]any{
-			"time":         firstNonEmpty(row["time"], row["at"], row["datetime"]),
-			"side":         tradeSideLabel(row),
-			"action":       row["action"],
-			"action_label": row["action_label"],
-			"price":        firstNonEmpty(row["trade_price"], row["price"], row["close"]),
-			"qty":          firstNonEmpty(row["position"], row["qty"], row["quantity"], row["size"]),
-			"realized_pnl": row["realized_pnl"],
+			"time":   firstNonEmpty(row["time"], row["at"], row["datetime"]),
+			"action": tradeSideLabel(row),
+			"price":  firstNonEmpty(row["trade_price"], row["price"], row["close"]),
+			"qty":    firstNonEmpty(row["position"], row["qty"], row["quantity"], row["size"]),
 		})
 	}
 	return out
@@ -235,92 +216,45 @@ func stripReasoningTags(text string) string {
 }
 
 func formatBacktestReplyFallback(bundle backtestReplyInput) string {
-	run := bundle.RunSummary
-	if run == nil {
-		run = map[string]any{}
-	}
-	profit := fmt.Sprint(firstNonEmpty(run["profit_rate"], nestedAny(run, "result", "profit_rate")))
-	finalValue := fmt.Sprint(firstNonEmpty(run["final_value"], nestedAny(run, "result", "final_value")))
-	drawdown := fmt.Sprint(firstNonEmpty(run["drawdown"], nestedAny(run, "result", "drawdown")))
-	trades := fmt.Sprint(firstNonEmpty(run["trade_count"], nestedAny(run, "result", "trade_count")))
-	logID := fmt.Sprint(run["log_id"])
+	results := buildHumanResults(bundle)
+	profit := fmt.Sprint(results["profit_rate_pct"])
+	finalValue := fmt.Sprint(results["final_value"])
+	drawdown := fmt.Sprint(results["max_drawdown_pct"])
+	trades := fmt.Sprint(results["trade_count"])
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "## %s %s · SmartTrade 回测\n\n", bundle.Name, bundle.Code)
-	fmt.Fprintf(&b, "- **策略**：%s\n", bundle.StrategyLabel)
-	fmt.Fprintf(&b, "- **周期**：%s · 回溯 %s（months_back=%d）\n", bundle.Frequency, bundle.Period, bundle.MonthsBack)
-	fmt.Fprintf(&b, "- **资金**：%.0f · 每次买入 %d 股\n", bundle.Fund, bundle.BaseOrderSize)
-	if bundle.SignalID != "" {
-		fmt.Fprintf(&b, "- **关联 signal_id**：%s\n", bundle.SignalID)
-	}
-	fmt.Fprintf(&b, "- **收益率**：%s%%\n", profit)
-	fmt.Fprintf(&b, "- **最终资产**：%s\n", finalValue)
-	fmt.Fprintf(&b, "- **最大回撤**：%s%%\n", drawdown)
-	fmt.Fprintf(&b, "- **成交笔数**：%s\n", trades)
-	fmt.Fprintf(&b, "- **log_id**：%s\n\n", logID)
+	fmt.Fprintf(&b, "## %s %s · 策略回测\n\n", bundle.Name, bundle.Code)
 
-	if tc := summarizeTradeConfig(bundle.TradeConfig); tc != "" {
-		b.WriteString("### 交易参数\n\n")
-		b.WriteString(tc)
-		b.WriteString("\n\n")
-	}
-	if rules := summarizeSignalRules(bundle.BuySignal, bundle.SellSignal); rules != "" {
-		b.WriteString("### 买卖规则\n\n")
-		b.WriteString(rules)
-		b.WriteString("\n\n")
-	}
+	b.WriteString("### 一句话结论\n\n")
+	fmt.Fprintf(&b, "在 %s、%s 条件下，收益率 **%s**，最大回撤 **%s**，共成交 **%s** 笔。\n\n",
+		humanFrequency(bundle.Frequency), humanPeriod(bundle.Period, bundle.MonthsBack), profit, drawdown, trades)
+
+	b.WriteString("### 怎么测的\n\n")
+	fmt.Fprintf(&b, "- **策略**：%s\n", humanSignalRules(bundle.BuySignal, bundle.SellSignal, bundle.StrategyLabel))
+	fmt.Fprintf(&b, "- **K 线 / 区间**：%s · %s\n", humanFrequency(bundle.Frequency), humanPeriod(bundle.Period, bundle.MonthsBack))
+	fmt.Fprintf(&b, "- **资金**：初始 %s，%s\n", humanFund(bundle.Fund), humanOrderSize(bundle.BaseOrderSize))
+	fmt.Fprintf(&b, "- **风控**：%s\n\n", humanTradeConfigSummary(bundle.TradeConfig, bundle.BaseOrderSize))
+
+	b.WriteString("### 结果怎么样\n\n")
+	b.WriteString("| 指标 | 数值 |\n| --- | --- |\n")
+	fmt.Fprintf(&b, "| 收益率 | %s |\n", profit)
+	fmt.Fprintf(&b, "| 最终资产 | %s |\n", finalValue)
+	fmt.Fprintf(&b, "| 最大回撤 | %s |\n", drawdown)
+	fmt.Fprintf(&b, "| 成交笔数 | %s |\n\n", trades)
+
 	if table := formatTradesTable(bundle.LogDetail); table != "" {
-		b.WriteString("### 成交明细\n\n")
-		b.WriteString(table)
+		b.WriteString("### 成交记录\n\n")
+		b.WriteString(strings.Replace(table, "| 方向 |", "| 操作 |", 1))
 		b.WriteString("\n\n")
 	}
-	b.WriteString("> 仅供参考，非投资建议。")
+
+	b.WriteString("### 小结\n\n")
+	fmt.Fprintf(&b, "本次回测最终资产 %s，回撤 %s。", finalValue, drawdown)
+	if bundle.SellSignal != nil {
+		b.WriteString(" 以上为历史模拟结果，不代表未来表现。")
+	}
+	b.WriteString("\n\n> 仅供参考，非投资建议。")
 	return b.String()
-}
-
-func summarizeTradeConfig(tc map[string]any) string {
-	if len(tc) == 0 {
-		return ""
-	}
-	raw, err := json.Marshal(tc)
-	if err != nil {
-		return ""
-	}
-	return "```json\n" + string(raw) + "\n```"
-}
-
-func summarizeSignalRules(buy, sell []any) string {
-	desc := func(label string, rules []any) string {
-		if len(rules) == 0 {
-			return ""
-		}
-		parts := make([]string, 0, len(rules))
-		for _, raw := range rules {
-			row, ok := raw.(map[string]any)
-			if !ok {
-				continue
-			}
-			idx := strings.TrimSpace(fmt.Sprint(row["index"]))
-			typ := strings.TrimSpace(fmt.Sprint(row["type"]))
-			if idx == "" {
-				continue
-			}
-			parts = append(parts, fmt.Sprintf("%s(%s)", idx, typ))
-		}
-		if len(parts) == 0 {
-			return ""
-		}
-		return label + ": " + strings.Join(parts, " → ")
-	}
-	buyLine := desc("买", buy)
-	sellLine := desc("卖", sell)
-	if buyLine == "" && sellLine == "" {
-		return ""
-	}
-	if sellLine == "" || sellLine == buyLine {
-		return buyLine
-	}
-	return buyLine + "\n" + sellLine
 }
 
 func formatTradesTable(logDetail map[string]any) string {
@@ -335,7 +269,7 @@ func formatTradesTable(logDetail map[string]any) string {
 		suffix = fmt.Sprintf("\n\n共 %d 笔，仅列前 15 笔。", len(trades))
 	}
 	var b strings.Builder
-	b.WriteString("| 时间 | 方向 | 价格 | 数量 |\n| --- | --- | --- | --- |\n")
+	b.WriteString("| 时间 | 操作 | 价格 | 数量 |\n| --- | --- | --- | --- |\n")
 	for i := 0; i < limit; i++ {
 		row, ok := trades[i].(map[string]any)
 		if !ok {
@@ -391,18 +325,6 @@ func firstNonEmpty(values ...any) any {
 		}
 	}
 	return ""
-}
-
-func nestedAny(v any, keys ...string) any {
-	cur := v
-	for _, key := range keys {
-		m, ok := cur.(map[string]any)
-		if !ok {
-			return nil
-		}
-		cur = m[key]
-	}
-	return cur
 }
 
 func signalIDFromRow(row map[string]any) string {

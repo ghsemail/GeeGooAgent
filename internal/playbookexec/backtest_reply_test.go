@@ -51,15 +51,14 @@ func TestBuildBacktestLLMPayloadIncludesTradesWithoutChartData(t *testing.T) {
 	if !ok || len(tr) != 17 {
 		t.Fatalf("trades=%v", payload["trades"])
 	}
-	if tr[0]["price"] == nil || tr[0]["side"] == nil {
+	if tr[0]["price"] == nil || tr[0]["action"] == nil {
 		t.Fatalf("normalized trade=%v", tr[0])
 	}
-	run, ok := payload["run"].(map[string]any)
-	if !ok || run["strategy_ids"] == nil {
-		t.Fatalf("run meta missing strategy_ids: %v", payload["run"])
+	if _, ok := payload["stock"]; !ok {
+		t.Fatalf("payload should use human sections: %v", payload)
 	}
-	if strings.Contains(string(raw), `"bars"`) {
-		t.Fatal("chart bars should be excluded from LLM payload")
+	if strings.Contains(string(raw), "signal_id") || strings.Contains(string(raw), "months_back") {
+		t.Fatal("payload should not contain internal field names")
 	}
 }
 
@@ -112,14 +111,14 @@ func TestFormatBacktestReplyFallbackIncludesConfigAndTrades(t *testing.T) {
 			},
 		},
 	})
-	if !stringsContains(reply, "662d0424c4cee7ffb800d0af") {
-		t.Fatalf("missing signal_id in reply: %s", reply)
+	if !stringsContains(reply, "策略回测") {
+		t.Fatalf("missing backtest title: %s", reply)
 	}
-	if !stringsContains(reply, "成交明细") {
-		t.Fatalf("missing trades table: %s", reply)
+	if !stringsContains(reply, "成交记录") || !stringsContains(reply, "信号买入") {
+		t.Fatalf("missing trades section: %s", reply)
 	}
-	if !stringsContains(reply, "交易参数") {
-		t.Fatalf("missing trade_config: %s", reply)
+	if stringsContains(reply, "log_id") || stringsContains(reply, "signal_id") {
+		t.Fatalf("should not expose internal ids: %s", reply)
 	}
 }
 

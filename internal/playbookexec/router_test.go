@@ -121,8 +121,8 @@ func TestFilterSmartTradeBacktestTools(t *testing.T) {
 func TestRouteSignalProbeEvalMessage(t *testing.T) {
 	skills := []string{"strategy-backtest-run", "strategy-backtest", "strategy-signal-probe"}
 	msg := "请帮我用「SAR抛物线」策略测试一下腾讯控股（0700.HK · 港股）。"
-	if p, ok := Route(skills, msg, nil); ok {
-		t.Fatalf("signal probe eval should not route to playbook, got %q", p)
+	if p, ok := Route(skills, msg, nil); !ok || p != playbookSignalProbe {
+		t.Fatalf("signal probe eval should route to signal probe playbook, got %q ok=%v", p, ok)
 	}
 }
 

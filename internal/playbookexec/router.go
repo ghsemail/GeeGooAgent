@@ -17,6 +17,8 @@ import (
 
 const playbookBacktestRun = "strategy-backtest-run"
 
+const playbookSignalProbe = "strategy-signal-probe"
+
 // ToolRunner executes one tool call (typically agent.ToolExec.Execute).
 type ToolRunner func(ctx context.Context, req tools.CallRequest, toolCtx tools.Context) tools.Result
 
@@ -48,7 +50,7 @@ func Route(matchedSkills []string, userText string, session *runtime.Session) (p
 		return playbookBacktestRun, true
 	}
 	if procedural.SignalProbeIntent(userText) {
-		return "", false
+		return playbookSignalProbe, true
 	}
 	for _, name := range matchedSkills {
 		if name == playbookBacktestRun || name == "strategy-backtest" {
@@ -70,6 +72,8 @@ func (r *Router) TryRun(ctx context.Context, in Input) (runtime.TurnResult, bool
 	switch playbook {
 	case playbookBacktestRun:
 		return r.runBacktest(ctx, in)
+	case playbookSignalProbe:
+		return r.runSignalProbe(ctx, in)
 	default:
 		return runtime.TurnResult{}, false
 	}
