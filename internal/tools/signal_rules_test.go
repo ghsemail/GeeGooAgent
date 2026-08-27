@@ -46,3 +46,26 @@ func TestSanitizeBacktestSignalArgs(t *testing.T) {
 		t.Fatal("expected sell type=signal")
 	}
 }
+
+func TestNormalizeBacktestStrategyLinkFromSignalID(t *testing.T) {
+	args := map[string]any{
+		"signal_id": "662d0424c4cee7ffb800d0af",
+	}
+	NormalizeBacktestStrategyLink(args)
+	ids, ok := args["strategy_ids"].([]string)
+	if !ok || len(ids) != 1 || ids[0] != "662d0424c4cee7ffb800d0af" {
+		t.Fatalf("strategy_ids=%v", args["strategy_ids"])
+	}
+}
+
+func TestNormalizeBacktestStrategyLinkKeepsExistingIDs(t *testing.T) {
+	args := map[string]any{
+		"signal_id":     "aaa",
+		"strategy_ids":  []any{"bbb"},
+		"strategy_kind": "combination",
+	}
+	NormalizeBacktestStrategyLink(args)
+	if args["strategy_ids"].([]any)[0] != "bbb" {
+		t.Fatalf("should not overwrite existing ids: %v", args["strategy_ids"])
+	}
+}

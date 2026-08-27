@@ -129,7 +129,10 @@ func (r *Router) runBacktest(ctx context.Context, in Input) (runtime.TurnResult,
 		return runtime.TurnResult{}, false
 	}
 
-	strategyKind := strings.TrimSpace(plan.SignalKind)
+	strategyKind := strings.TrimSpace(signals.StrategyKind)
+	if strategyKind == "" {
+		strategyKind = strings.TrimSpace(plan.SignalKind)
+	}
 	if strategyKind == "" {
 		strategyKind = "combination"
 	}
@@ -151,7 +154,7 @@ func (r *Router) runBacktest(ctx context.Context, in Input) (runtime.TurnResult,
 		"trade_config":    tradeConfig,
 	}
 	if signals.SignalID != "" {
-		runArgs["strategy_ids"] = []any{signals.SignalID}
+		runArgs["strategy_ids"] = []string{signals.SignalID}
 		runArgs["signal_id"] = signals.SignalID
 	}
 	runRes := r.runTool(ctx, toolCtx, "run_strategy_backtest", runArgs, recordTool)

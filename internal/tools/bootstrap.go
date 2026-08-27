@@ -71,6 +71,9 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 					}
 				}
 				body := buildHTTPBody(args, spec.MergePayload)
+				if spec.Name == "run_strategy_backtest" {
+					NormalizeBacktestStrategyLink(body)
+				}
 				if uid := strings.TrimSpace(ctx.UserID); uid != "" {
 					switch spec.Name {
 					case "run_strategy_backtest", "list_strategy_backtest_logs":

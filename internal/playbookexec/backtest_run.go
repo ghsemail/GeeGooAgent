@@ -59,6 +59,7 @@ type resolvedSignals struct {
 	Frequency     string
 	StrategyLabel string
 	SignalID      string
+	StrategyKind  string // combination | indicator | custom
 }
 
 func (r *Router) resolveSignals(
@@ -67,9 +68,44 @@ func (r *Router) resolveSignals(
 	plan BacktestRunPlan,
 	recordTool func(name, status, summary string),
 ) (resolvedSignals, error) {
-	if plan.SignalKind == "indicator" || strings.TrimSpace(plan.SignalQuery) == "" {
-		return r.resolveIndexSignal(ctx, toolCtx, plan, recordTool)
+	query := strings.TrimSpace(plan.SignalQuery)
+	kind := strings.TrimSpace(plan.SignalKind)
+
+	if kind == "indicator" || query == "" {
+		if sig, err := r.resolveIndexSignal(ctx, toolCtx, plan, recordTool); err == nil {
+			return sig, nil
+		} else if query == "" {
+			return resolvedSignals{}, err
+		}
 	}
+	if kind != "indicator" {
+		if sig, err := r.resolveCombinationSignal(ctx, toolCtx, plan, recordTool); err == nil {
+			return sig, nil
+		} else if kind == "combination" {
+			// fall through to custom/index before giving up
+		} else if kind == "custom" {
+			return r.resolveCustomSignal(ctx, toolCtx, plan, recordTool)
+		}
+	}
+	if query != "" {
+		if sig, err := r.resolveCustomSignal(ctx, toolCtx, plan, recordTool); err == nil {
+			return sig, nil
+		}
+	}
+	if kind != "indicator" {
+		if sig, err := r.resolveIndexSignal(ctx, toolCtx, plan, recordTool); err == nil {
+			return sig, nil
+		}
+	}
+	return resolvedSignals{}, fmt.Errorf("未找到匹配「%s」的信号策略", query)
+}
+
+func (r *Router) resolveCombinationSignal(
+	ctx context.Context,
+	toolCtx tools.Context,
+	plan BacktestRunPlan,
+	recordTool func(name, status, summary string),
+) (resolvedSignals, error) {
 	res := r.runTool(ctx, toolCtx, "get_signal_combinations", map[string]any{}, recordTool)
 	if res.Status != tools.StatusOK {
 		return resolvedSignals{}, fmt.Errorf("get_signal_combinations 失败：%s", res.Summary)
@@ -139,7 +175,109 @@ func (r *Router) resolveSignals(
 		Frequency:     tools.NormalizeCatalogFrequency(row["frequency"]),
 		StrategyLabel: strings.TrimSpace(fmt.Sprint(row["name"])),
 		SignalID:      signalIDFromRow(row),
+		StrategyKind:  "combination",
 	}, nil
+}
+
+func (r *Router) resolveCustomSignal(
+	ctx context.Context,
+	toolCtx tools.Context,
+	plan BacktestRunPlan,
+	recordTool func(name, status, summary string),
+) (resolvedSignals, error) {
+	res := r.runTool(ctx, toolCtx, "get_custom_signal_for_skill", map[string]any{}, recordTool)
+	if res.Status != tools.StatusOK {
+		return resolvedSignals{}, fmt.Errorf("get_custom_signal_for_skill 失败：%s", res.Summary)
+	}
+	items := catalogItems(res.Data)
+	if len(items) == 0 {
+		return resolvedSignals{}, fmt.Errorf("没有可用的定制策略")
+	}
+	row, pickErr := pickCustomSignal(items, plan.SignalQuery)
+	if pickErr != nil {
+		return resolvedSignals{}, pickErr
+	}
+	buy, sell, err := customSignalRules(row)
+	if err != nil {
+		return resolvedSignals{}, err
+	}
+	return resolvedSignals{
+		Buy:           buy,
+		Sell:          sell,
+		Frequency:     tools.NormalizeCatalogFrequency(row["supported_frequencies"]),
+		StrategyLabel: strings.TrimSpace(fmt.Sprint(row["name"])),
+		SignalID:      signalIDFromRow(row),
+		StrategyKind:  "custom",
+	}, nil
+}
+
+func customSignalRules(row map[string]any) (buy, sell []any, err error) {
+	if rawBuy, ok := row["buy_signal"].([]any); ok && len(rawBuy) > 0 {
+		buy = tools.NormalizeSignalRules(rawBuy)
+	} else if custom, ok := row["custom"].(map[string]any); ok {
+		idx := strings.TrimSpace(fmt.Sprint(custom["index"]))
+		if idx == "" {
+			return nil, nil, fmt.Errorf("定制策略缺少 custom.index")
+		}
+		typ := strings.TrimSpace(fmt.Sprint(custom["type"]))
+		if typ == "" {
+			typ = "signal"
+		}
+		rule := map[string]any{"index": idx, "type": typ}
+		if param, ok := custom["param"]; ok && param != nil {
+			rule["param"] = param
+		}
+		buy = []any{rule}
+	} else {
+		return nil, nil, fmt.Errorf("定制策略缺少 buy_signal/custom")
+	}
+	if rawSell, ok := row["sell_signal"].([]any); ok && len(rawSell) > 0 {
+		sell = tools.NormalizeSignalRules(rawSell)
+	} else {
+		sell = buy
+	}
+	return buy, sell, nil
+}
+
+func pickCustomSignal(items []map[string]any, query string) (map[string]any, error) {
+	q := strings.TrimSpace(query)
+	if q == "" {
+		if len(items) == 1 {
+			return items[0], nil
+		}
+		return nil, fmt.Errorf("请说明要用哪种定制策略")
+	}
+	upper := strings.ToUpper(q)
+	var matches []map[string]any
+	for _, row := range items {
+		name := strings.ToUpper(fmt.Sprint(row["name"]))
+		if strings.Contains(name, upper) || strings.Contains(upper, name) {
+			matches = append(matches, row)
+			continue
+		}
+		if custom, ok := row["custom"].(map[string]any); ok {
+			idx := strings.ToUpper(fmt.Sprint(custom["index"]))
+			if idx != "" && strings.Contains(idx, upper) {
+				matches = append(matches, row)
+			}
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("未找到匹配「%s」的定制策略", query)
+	}
+	// prefer shortest name match
+	best := matches[0]
+	bestLen := len([]rune(fmt.Sprint(best["name"])))
+	for _, row := range matches[1:] {
+		if n := len([]rune(fmt.Sprint(row["name"]))); n < bestLen {
+			best = row
+			bestLen = n
+		}
+	}
+	return best, nil
 }
 
 func (r *Router) resolveIndexSignal(
@@ -175,6 +313,7 @@ func (r *Router) resolveIndexSignal(
 		Frequency:     tools.NormalizeCatalogFrequency(row["frequency"]),
 		StrategyLabel: strings.TrimSpace(fmt.Sprint(row["name"])),
 		SignalID:      signalIDFromRow(row),
+		StrategyKind:  "indicator",
 	}, nil
 }
 

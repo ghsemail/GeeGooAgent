@@ -114,4 +114,50 @@ func SanitizeBacktestSignalArgs(args map[string]any) {
 	if sell, ok := args["sell_signal"].([]any); ok && len(sell) > 0 {
 		args["sell_signal"] = NormalizeSignalRules(sell)
 	}
+	NormalizeBacktestStrategyLink(args)
+}
+
+// NormalizeBacktestStrategyLink ensures catalog signal IDs are persisted for Web history UI.
+func NormalizeBacktestStrategyLink(args map[string]any) {
+	if args == nil {
+		return
+	}
+	signalID := strings.TrimSpace(fmt.Sprint(args["signal_id"]))
+	if signalID == "" || signalID == "<nil>" {
+		return
+	}
+	if _, ok := args["strategy_ids"]; !ok {
+		args["strategy_ids"] = []string{signalID}
+		return
+	}
+	ids, err := asStringSlice(args["strategy_ids"])
+	if err != nil || len(ids) == 0 {
+		args["strategy_ids"] = []string{signalID}
+	}
+	if kind := strings.TrimSpace(fmt.Sprint(args["strategy_kind"])); kind == "" || kind == "<nil>" {
+		args["strategy_kind"] = "custom"
+	}
+}
+
+func asStringSlice(v any) ([]string, error) {
+	switch t := v.(type) {
+	case []string:
+		out := make([]string, 0, len(t))
+		for _, s := range t {
+			if s = strings.TrimSpace(s); s != "" {
+				out = append(out, s)
+			}
+		}
+		return out, nil
+	case []any:
+		out := make([]string, 0, len(t))
+		for _, raw := range t {
+			if s := strings.TrimSpace(fmt.Sprint(raw)); s != "" && s != "<nil>" {
+				out = append(out, s)
+			}
+		}
+		return out, nil
+	default:
+		return nil, fmt.Errorf("not array")
+	}
 }

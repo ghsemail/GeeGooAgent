@@ -332,9 +332,25 @@ func signalIDFromRow(row map[string]any) string {
 		return ""
 	}
 	for _, key := range []string{"signal_id", "id", "_id"} {
-		if id := strings.TrimSpace(fmt.Sprint(row[key])); id != "" && id != "<nil>" {
+		if id := stringID(row[key]); id != "" {
 			return id
 		}
 	}
 	return ""
+}
+
+func stringID(v any) string {
+	switch t := v.(type) {
+	case string:
+		return strings.TrimSpace(t)
+	case map[string]any:
+		if oid := strings.TrimSpace(fmt.Sprint(t["$oid"])); oid != "" && oid != "<nil>" {
+			return oid
+		}
+	}
+	s := strings.TrimSpace(fmt.Sprint(v))
+	if s == "" || s == "<nil>" {
+		return ""
+	}
+	return s
 }

@@ -14,6 +14,9 @@ func TestSignalIDFromRow(t *testing.T) {
 	if signalIDFromRow(nil) != "" {
 		t.Fatal("nil row should return empty")
 	}
+	if got := signalIDFromRow(map[string]any{"_id": map[string]any{"$oid": "662d0424c4cee7ffb800d0af"}}); got != "662d0424c4cee7ffb800d0af" {
+		t.Fatalf("oid=%q", got)
+	}
 }
 
 func TestBuildBacktestLLMPayloadIncludesTradesWithoutChartData(t *testing.T) {
