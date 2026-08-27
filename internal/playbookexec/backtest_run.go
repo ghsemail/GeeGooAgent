@@ -23,19 +23,23 @@ func (r *Router) resolveStock(
 		return "", "", "", fmt.Errorf("未找到标的「%s」，请换名称或代码", plan.StockQuery)
 	}
 	row := items[0]
-	if len(items) > 1 && toolCtx.ClarifyFn != nil {
-		choices := make([]string, 0, minInt(len(items), 4))
-		for i := 0; i < len(items) && i < 4; i++ {
-			it := items[i]
-			choices = append(choices, fmt.Sprintf("%v %v", it["code"], it["name"]))
-		}
-		answer, ok := toolCtx.ClarifyFn(ctx, "找到多个标的，请选择：", choices)
-		if ok {
-			for _, it := range items {
-				label := fmt.Sprintf("%v %v", it["code"], it["name"])
-				if label == answer || strings.Contains(answer, fmt.Sprint(it["code"])) {
-					row = it
-					break
+	if len(items) > 1 {
+		if picked, ok := pickStockRow(items, plan.StockQuery); ok {
+			row = picked
+		} else if toolCtx.ClarifyFn != nil {
+			choices := make([]string, 0, minInt(len(items), 4))
+			for i := 0; i < len(items) && i < 4; i++ {
+				it := items[i]
+				choices = append(choices, fmt.Sprintf("%v %v", it["code"], it["name"]))
+			}
+			answer, ok := toolCtx.ClarifyFn(ctx, "找到多个标的，请选择：", choices)
+			if ok {
+				for _, it := range items {
+					label := fmt.Sprintf("%v %v", it["code"], it["name"])
+					if label == answer || strings.Contains(answer, fmt.Sprint(it["code"])) {
+						row = it
+						break
+					}
 				}
 			}
 		}
@@ -49,35 +53,63 @@ func (r *Router) resolveStock(
 	return code, name, market, nil
 }
 
+type resolvedSignals struct {
+	Buy           []any
+	Sell          []any
+	Frequency     string
+	StrategyLabel string
+	SignalID      string
+}
+
 func (r *Router) resolveSignals(
 	ctx context.Context,
 	toolCtx tools.Context,
 	plan BacktestRunPlan,
 	recordTool func(name, status, summary string),
-) (buy, sell []any, frequency, strategyLabel string, err error) {
+) (resolvedSignals, error) {
 	if plan.SignalKind == "indicator" || strings.TrimSpace(plan.SignalQuery) == "" {
 		return r.resolveIndexSignal(ctx, toolCtx, plan, recordTool)
 	}
 	res := r.runTool(ctx, toolCtx, "get_signal_combinations", map[string]any{}, recordTool)
 	if res.Status != tools.StatusOK {
-		return nil, nil, "", "", fmt.Errorf("get_signal_combinations 失败：%s", res.Summary)
+		return resolvedSignals{}, fmt.Errorf("get_signal_combinations 失败：%s", res.Summary)
 	}
 	items := catalogItems(res.Data)
 	if len(items) == 0 {
-		return nil, nil, "", "", fmt.Errorf("没有可用的组合信号")
+		return resolvedSignals{}, fmt.Errorf("没有可用的组合信号")
 	}
 	row, pickErr := pickCombination(items, plan.SignalQuery)
 	if pickErr != nil {
 		if toolCtx.ClarifyFn == nil {
-			return nil, nil, "", "", pickErr
+			return resolvedSignals{}, pickErr
 		}
-		choices := make([]string, 0, minInt(len(items), 4))
-		for i := 0; i < len(items) && i < 4; i++ {
-			choices = append(choices, fmt.Sprint(items[i]["name"]))
+		candidates := items
+		if tokens := signalTokens(plan.SignalQuery); len(tokens) > 0 {
+			var matched []map[string]any
+			for _, row := range items {
+				name := strings.ToUpper(fmt.Sprint(row["name"]))
+				ok := true
+				for _, tok := range tokens {
+					if !strings.Contains(name, tok) {
+						ok = false
+						break
+					}
+				}
+				if ok {
+					matched = append(matched, row)
+				}
+			}
+			if len(matched) > 0 {
+				candidates = matched
+			}
+		}
+		choices := make([]string, 0, minInt(len(candidates), 4))
+		for i := 0; i < len(candidates) && i < 4; i++ {
+			choices = append(choices, fmt.Sprint(candidates[i]["name"]))
 		}
 		answer, ok := toolCtx.ClarifyFn(ctx, "请选择组合信号：", choices)
 		if !ok {
-			return nil, nil, "", "", pickErr
+			return resolvedSignals{}, pickErr
 		}
 		for _, it := range items {
 			if fmt.Sprint(it["name"]) == answer {
@@ -87,23 +119,27 @@ func (r *Router) resolveSignals(
 			}
 		}
 		if pickErr != nil {
-			return nil, nil, "", "", pickErr
+			return resolvedSignals{}, pickErr
 		}
 	}
-	buy, _ = row["buy_signal"].([]any)
-	sell, _ = row["sell_signal"].([]any)
+	buy, _ := row["buy_signal"].([]any)
+	sell, _ := row["sell_signal"].([]any)
 	if len(buy) == 0 {
-		return nil, nil, "", "", fmt.Errorf("组合信号缺少 buy_signal")
+		return resolvedSignals{}, fmt.Errorf("组合信号缺少 buy_signal")
 	}
+	buy = tools.NormalizeSignalRules(buy)
 	if len(sell) == 0 {
-		sell = buy
+		sell = tools.NormalizeSignalRules(buy)
+	} else {
+		sell = tools.NormalizeSignalRules(sell)
 	}
-	frequency = strings.TrimSpace(fmt.Sprint(row["frequency"]))
-	if frequency == "" {
-		frequency = "60m"
-	}
-	strategyLabel = strings.TrimSpace(fmt.Sprint(row["name"]))
-	return buy, sell, frequency, strategyLabel, nil
+	return resolvedSignals{
+		Buy:           buy,
+		Sell:          sell,
+		Frequency:     tools.NormalizeCatalogFrequency(row["frequency"]),
+		StrategyLabel: strings.TrimSpace(fmt.Sprint(row["name"])),
+		SignalID:      signalIDFromRow(row),
+	}, nil
 }
 
 func (r *Router) resolveIndexSignal(
@@ -111,33 +147,35 @@ func (r *Router) resolveIndexSignal(
 	toolCtx tools.Context,
 	plan BacktestRunPlan,
 	recordTool func(name, status, summary string),
-) (buy, sell []any, frequency, strategyLabel string, err error) {
+) (resolvedSignals, error) {
 	res := r.runTool(ctx, toolCtx, "get_index_signals", map[string]any{}, recordTool)
 	if res.Status != tools.StatusOK {
-		return nil, nil, "", "", fmt.Errorf("get_index_signals 失败：%s", res.Summary)
+		return resolvedSignals{}, fmt.Errorf("get_index_signals 失败：%s", res.Summary)
 	}
 	items := catalogItems(res.Data)
 	row, pickErr := pickIndexSignal(items, plan.SignalQuery)
 	if pickErr != nil {
-		return nil, nil, "", "", pickErr
+		return resolvedSignals{}, pickErr
 	}
+	var buy []any
 	// Index signals need probe-style rules; fetch full combination-like shape from index row if present.
 	if rawBuy, ok := row["buy_signal"].([]any); ok && len(rawBuy) > 0 {
-		buy = rawBuy
+		buy = tools.NormalizeSignalRules(rawBuy)
 	} else {
 		idx := strings.TrimSpace(fmt.Sprint(row["index"]))
 		if idx == "" {
-			return nil, nil, "", "", fmt.Errorf("单指标信号缺少 index")
+			return resolvedSignals{}, fmt.Errorf("单指标信号缺少 index")
 		}
 		buy = []any{map[string]any{"index": idx, "type": "signal", "param": row["param"]}}
 	}
-	sell = buy
-	frequency = strings.TrimSpace(fmt.Sprint(row["frequency"]))
-	if frequency == "" {
-		frequency = "60m"
-	}
-	strategyLabel = strings.TrimSpace(fmt.Sprint(row["name"]))
-	return buy, sell, frequency, strategyLabel, nil
+	sell := buy
+	return resolvedSignals{
+		Buy:           buy,
+		Sell:          sell,
+		Frequency:     tools.NormalizeCatalogFrequency(row["frequency"]),
+		StrategyLabel: strings.TrimSpace(fmt.Sprint(row["name"])),
+		SignalID:      signalIDFromRow(row),
+	}, nil
 }
 
 func catalogItems(data map[string]any) []map[string]any {
@@ -165,6 +203,43 @@ func mapsFromAny(items []any) []map[string]any {
 		}
 	}
 	return out
+}
+
+func pickStockRow(items []map[string]any, query string) (map[string]any, bool) {
+	q := strings.ToUpper(strings.TrimSpace(query))
+	if q == "" || len(items) == 0 {
+		return nil, false
+	}
+	qDigits := strings.TrimLeft(q, "0")
+	var containsMatches []map[string]any
+	for _, row := range items {
+		code := strings.ToUpper(strings.TrimSpace(fmt.Sprint(row["code"])))
+		if code == "" {
+			continue
+		}
+		if code == q {
+			return row, true
+		}
+		codeBase := strings.TrimSuffix(code, ".HK")
+		codeBase = strings.TrimSuffix(codeBase, ".SH")
+		codeBase = strings.TrimSuffix(codeBase, ".SZ")
+		codeBase = strings.TrimSuffix(codeBase, ".US")
+		if strings.HasSuffix(q, ".HK") || strings.HasSuffix(q, ".SH") || strings.HasSuffix(q, ".SZ") || strings.HasSuffix(q, ".US") {
+			if code == q || strings.HasPrefix(code, q) {
+				return row, true
+			}
+		}
+		if qDigits != "" && (codeBase == qDigits || strings.HasSuffix(codeBase, qDigits) || strings.HasSuffix(qDigits, strings.TrimLeft(codeBase, "0"))) {
+			return row, true
+		}
+		if strings.Contains(code, q) || strings.Contains(q, codeBase) {
+			containsMatches = append(containsMatches, row)
+		}
+	}
+	if len(containsMatches) == 1 {
+		return containsMatches[0], true
+	}
+	return nil, false
 }
 
 func pickCombination(items []map[string]any, query string) (map[string]any, error) {
@@ -198,7 +273,44 @@ func pickCombination(items []map[string]any, query string) (map[string]any, erro
 	if len(matches) == 0 {
 		return nil, fmt.Errorf("未找到匹配「%s」的组合信号", query)
 	}
-	return nil, fmt.Errorf("找到 %d 个匹配的组合信号，需要 clarify", len(matches))
+	return bestCombinationMatch(matches, tokens), nil
+}
+
+func bestCombinationMatch(matches []map[string]any, tokens []string) map[string]any {
+	best := matches[0]
+	bestScore := scoreCombinationMatch(fmt.Sprint(best["name"]), tokens)
+	for _, row := range matches[1:] {
+		if score := scoreCombinationMatch(fmt.Sprint(row["name"]), tokens); score > bestScore {
+			best = row
+			bestScore = score
+		}
+	}
+	return best
+}
+
+func scoreCombinationMatch(name string, tokens []string) int {
+	upper := strings.ToUpper(name)
+	score := 0
+	prevPos := -1
+	for i, tok := range tokens {
+		pos := strings.Index(upper, tok)
+		if pos < 0 {
+			return -1
+		}
+		if i == 0 && pos == 0 {
+			score += 30
+		}
+		if prevPos >= 0 {
+			if pos >= prevPos {
+				score += 100 - (pos-prevPos)/10
+			} else {
+				score -= 50
+			}
+		}
+		prevPos = pos
+	}
+	score -= len([]rune(name)) / 10
+	return score
 }
 
 func pickIndexSignal(items []map[string]any, query string) (map[string]any, error) {
@@ -234,16 +346,6 @@ func signalTokens(query string) []string {
 		out = append(out, p)
 	}
 	return out
-}
-
-func formatBacktestReply(code, name, strategyLabel string, data map[string]any) string {
-	profit := fmt.Sprint(data["profit_rate"])
-	finalValue := fmt.Sprint(data["final_value"])
-	logID := fmt.Sprint(data["log_id"])
-	trades := fmt.Sprint(data["trade_count"])
-	drawdown := fmt.Sprint(data["drawdown"])
-	return fmt.Sprintf("## %s %s · SmartTrade 回测\n\n- **策略**：%s\n- **收益率**：%s%%\n- **最终资产**：%s\n- **最大回撤**：%s%%\n- **成交笔数**：%s\n- **log_id**：%s\n\n> 由 playbook 确定性执行（run_strategy_backtest）",
-		name, code, strategyLabel, profit, finalValue, drawdown, trades, logID)
 }
 
 func minInt(a, b int) int {

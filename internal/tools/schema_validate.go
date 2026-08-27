@@ -65,8 +65,8 @@ func validateValue(field string, prop map[string]any, value any) error {
 			return fmt.Errorf("参数 %q 应为布尔值", field)
 		}
 	case "array":
-		items, ok := value.([]any)
-		if !ok {
+		items, err := asAnySlice(value)
+		if err != nil {
 			return fmt.Errorf("参数 %q 应为数组", field)
 		}
 		if min, ok := prop["minItems"].(float64); ok && float64(len(items)) < min {
@@ -171,6 +171,21 @@ func isNumber(v any) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func asAnySlice(value any) ([]any, error) {
+	switch v := value.(type) {
+	case []any:
+		return v, nil
+	case []string:
+		out := make([]any, len(v))
+		for i, s := range v {
+			out[i] = s
+		}
+		return out, nil
+	default:
+		return nil, fmt.Errorf("not array")
 	}
 }
 
