@@ -32,7 +32,7 @@ const backtestPlanSystem = `你是 GeeGoo 策略回测计划解析器。只输�
 
 var (
 	reMonths         = regexp.MustCompile(`(?i)(\d+)\s*(个)?月`)
-	reFund           = regexp.MustCompile(`(?i)(?:资金|本金|fund)?\s*(\d+)\s*(?:万|w)?`)
+	reFund           = regexp.MustCompile(`(?i)(?:资金|本金|fund)\s*(\d+)\s*(?:万|w)?|(\d+)\s*(?:万|w)\b`)
 	reStrategyQuoted = regexp.MustCompile(`「([^」]+)」`)
 	reParenTicker    = regexp.MustCompile(`[（(]\s*([A-Z]{1,5})(?:\s*[·\.]\s*[^）)]*)?[）)]`)
 	reParenCode      = regexp.MustCompile(`[（(]\s*(\d{4,5}(?:\.(?:HK|SH|SZ|US))?)\s*(?:[·\.][^）)]*)?[）)]`)
@@ -100,11 +100,16 @@ func heuristicBacktestPlan(message string) BacktestRunPlan {
 			plan.Period = fmt.Sprintf("%dm", n)
 		}
 	}
-	if m := reFund.FindStringSubmatch(msg); len(m) > 1 {
-		if n, err := parseInt(m[1]); err == nil && n > 0 {
-			if strings.Contains(msg, "万") {
+	if m := reFund.FindStringSubmatch(msg); len(m) > 0 {
+		num := strings.TrimSpace(m[1])
+		if num == "" && len(m) > 2 {
+			num = strings.TrimSpace(m[2])
+		}
+		if n, err := parseInt(num); err == nil && n > 0 {
+			if strings.Contains(msg, "万") || strings.Contains(strings.ToLower(msg), "w") {
 				plan.Fund = float64(n * 10000)
-			} else {
+			} else if strings.Contains(strings.ToLower(msg), "fund") ||
+				strings.Contains(msg, "资金") || strings.Contains(msg, "本金") {
 				plan.Fund = float64(n)
 			}
 		}

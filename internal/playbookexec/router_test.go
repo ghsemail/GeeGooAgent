@@ -132,6 +132,9 @@ func TestHeuristicBacktestPlanEvalStockCode(t *testing.T) {
 	if plan.StockQuery != "0700.HK" {
 		t.Fatalf("stock=%q want 0700.HK", plan.StockQuery)
 	}
+	if plan.Fund != 100000 {
+		t.Fatalf("fund=%v want default 100000, not stock code digits", plan.Fund)
+	}
 	if plan.SignalQuery != "SAR抛物线" {
 		t.Fatalf("signal=%q want SAR抛物线", plan.SignalQuery)
 	}
