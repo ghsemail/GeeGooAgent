@@ -1,6 +1,10 @@
 package playbookexec
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 func TestSignalIDFromRow(t *testing.T) {
 	row := map[string]any{"signal_id": "662d0424c4cee7ffb800d0af", "name": "SAR+MACD"}
@@ -9,6 +13,74 @@ func TestSignalIDFromRow(t *testing.T) {
 	}
 	if signalIDFromRow(nil) != "" {
 		t.Fatal("nil row should return empty")
+	}
+}
+
+func TestBuildBacktestLLMPayloadIncludesTradesWithoutChartData(t *testing.T) {
+	trades := make([]any, 0, 17)
+	for i := 0; i < 17; i++ {
+		trades = append(trades, map[string]any{
+			"time": "2026-05-13 14:00:00", "action": "signalBuy", "action_label": "信号买入",
+			"trade_price": 463.4, "position": 100,
+		})
+	}
+	logDetail := map[string]any{
+		"trades": trades,
+		"run": map[string]any{
+			"strategy_ids": []any{"662d0424c4cee7ffb800d0af"},
+			"chart_data": map[string]any{
+				"probe": map[string]any{"bars": make([]any, 462)},
+			},
+			"probe_snapshot": map[string]any{
+				"buy_rules": []any{map[string]any{"index": "SAR"}},
+			},
+		},
+	}
+	payload := buildBacktestLLMPayload(backtestReplyInput{
+		Code: "00700.HK", Name: "腾讯控股", SignalID: "662d0424c4cee7ffb800d0af",
+		LogDetail: logDetail, RunSummary: map[string]any{"log_id": "x", "profit_rate": 1.2},
+	})
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) > 20000 {
+		t.Fatalf("payload too large: %d bytes", len(raw))
+	}
+	tr, ok := payload["trades"].([]map[string]any)
+	if !ok || len(tr) != 17 {
+		t.Fatalf("trades=%v", payload["trades"])
+	}
+	if tr[0]["price"] == nil || tr[0]["side"] == nil {
+		t.Fatalf("normalized trade=%v", tr[0])
+	}
+	run, ok := payload["run"].(map[string]any)
+	if !ok || run["strategy_ids"] == nil {
+		t.Fatalf("run meta missing strategy_ids: %v", payload["run"])
+	}
+	if strings.Contains(string(raw), `"bars"`) {
+		t.Fatal("chart bars should be excluded from LLM payload")
+	}
+}
+
+func TestFormatTradesTableUsesSignalAPIFields(t *testing.T) {
+	table := formatTradesTable(map[string]any{
+		"trades": []any{
+			map[string]any{
+				"time": "2026-05-13 14:00:00", "action": "signalBuy", "action_label": "信号买入",
+				"trade_price": 463.4, "position": 100,
+			},
+		},
+	})
+	if !stringsContains(table, "信号买入") || !stringsContains(table, "463.4") {
+		t.Fatalf("table=%q", table)
+	}
+}
+
+func TestStripReasoningTags(t *testing.T) {
+	in := "<think>hidden</think>\n\n## 回测结果"
+	if got := stripReasoningTags(in); got != "## 回测结果" {
+		t.Fatalf("got=%q", got)
 	}
 }
 
@@ -27,16 +99,16 @@ func TestFormatBacktestReplyFallbackIncludesConfigAndTrades(t *testing.T) {
 		SellSignal:    []any{map[string]any{"index": "SAR", "type": "signal"}},
 		TradeConfig:   defaultSmartTradeTradeConfig(),
 		RunSummary: map[string]any{
-			"log_id":       "log-123",
-			"profit_rate":  12.5,
-			"final_value":  112500,
-			"drawdown":     4.2,
-			"trade_count":  2,
+			"log_id":      "log-123",
+			"profit_rate": 12.5,
+			"final_value": 112500,
+			"drawdown":    4.2,
+			"trade_count": 2,
 		},
 		LogDetail: map[string]any{
 			"trades": []any{
-				map[string]any{"time": "2026-01-01", "side": "buy", "price": 300, "qty": 100},
-				map[string]any{"time": "2026-02-01", "side": "sell", "price": 320, "qty": 100},
+				map[string]any{"time": "2026-01-01", "action_label": "信号买入", "trade_price": 300, "position": 100},
+				map[string]any{"time": "2026-02-01", "action_label": "止损", "trade_price": 320, "position": 100},
 			},
 		},
 	})
@@ -52,14 +124,5 @@ func TestFormatBacktestReplyFallbackIncludesConfigAndTrades(t *testing.T) {
 }
 
 func stringsContains(s, sub string) bool {
-	return len(s) >= len(sub) && (s == sub || len(sub) == 0 || indexOf(s, sub) >= 0)
-}
-
-func indexOf(s, sub string) int {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return i
-		}
-	}
-	return -1
+	return strings.Contains(s, sub)
 }

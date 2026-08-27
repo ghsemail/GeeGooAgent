@@ -90,6 +90,7 @@ func runStrategyBacktestParameters() map[string]any {
 		out[k] = v
 	}
 	out["strategy_label"] = stringProp("策略展示名，如 4小时MACD市场节奏")
+	out["signal_id"] = stringProp("catalog 信号 ID（与 strategy_ids 二选一或同时传；落库关联规则推荐传 strategy_ids）")
 	out["strategy_kind"] = stringProp("indicator / combination / custom，默认 custom")
 	out["period"] = stringProp("回溯周期 UI 标签：1m/2m/3m 或 2w，默认 1m")
 	out["fund"] = intProp("初始资金，默认 100000")

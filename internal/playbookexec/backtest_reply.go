@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
+
+var backtestThinkBlockRE = regexp.MustCompile(`(?is)<(?:redacted_thinking|think)>(.*?)</(?:redacted_thinking|think)>`)
 
 const backtestReplySystem = `你是 GeeGoo 策略回测助手。根据提供的 JSON 回测数据写 Markdown 回复（中文），必须包含：
 1. 标题：标的名称/代码 + 策略名
@@ -57,22 +60,178 @@ func defaultSmartTradeTradeConfig() map[string]any {
 
 func (r *Router) formatBacktestReply(ctx context.Context, in Input, step int, bundle backtestReplyInput) string {
 	if r != nil && r.Gateway != nil {
-		payload, err := json.Marshal(bundle)
+		payload, err := json.Marshal(buildBacktestLLMPayload(bundle))
 		if err == nil {
 			messages := []llm.Message{
 				{Role: llm.RoleSystem, Content: backtestReplySystem},
-				{Role: llm.RoleUser, Content: "回测数据 JSON：\n" + truncate(string(payload), 12000)},
+				{Role: llm.RoleUser, Content: "回测数据 JSON：\n" + string(payload)},
 			}
 			callCtx := llm.WithCallMeta(ctx, llm.CallMeta{Kind: llm.TaskChat, ToolSchemaCount: 0})
 			resp, err := r.Gateway.ChatStream(callCtx, messages, nil, in.Session.ID, step, nil)
 			if err == nil {
-				if text := strings.TrimSpace(resp.Content); text != "" {
+				if text := strings.TrimSpace(stripReasoningTags(resp.Content)); text != "" {
 					return text
 				}
 			}
 		}
 	}
 	return formatBacktestReplyFallback(bundle)
+}
+
+func buildBacktestLLMPayload(bundle backtestReplyInput) map[string]any {
+	out := map[string]any{
+		"code":             bundle.Code,
+		"name":             bundle.Name,
+		"market":           bundle.Market,
+		"strategy_label":   bundle.StrategyLabel,
+		"strategy_kind":    bundle.StrategyKind,
+		"frequency":        bundle.Frequency,
+		"period":           bundle.Period,
+		"months_back":      bundle.MonthsBack,
+		"fund":             bundle.Fund,
+		"base_order_size":  bundle.BaseOrderSize,
+		"signal_id":        bundle.SignalID,
+		"strategy_ids":     strategyIDsForPayload(bundle),
+		"buy_signal":       bundle.BuySignal,
+		"sell_signal":      bundle.SellSignal,
+		"trade_config":     bundle.TradeConfig,
+		"run_summary":      slimRunSummary(bundle.RunSummary),
+	}
+	if bundle.LogDetail != nil {
+		out["trades"] = normalizeTradesForPayload(extractTradesList(bundle.LogDetail), 30)
+		if runMeta := extractRunMeta(bundle.LogDetail); len(runMeta) > 0 {
+			out["run"] = runMeta
+		}
+	}
+	return out
+}
+
+func strategyIDsForPayload(bundle backtestReplyInput) []any {
+	if bundle.SignalID != "" {
+		return []any{bundle.SignalID}
+	}
+	if runMeta := extractRunMeta(bundle.LogDetail); runMeta != nil {
+		if ids, ok := runMeta["strategy_ids"].([]any); ok && len(ids) > 0 {
+			return ids
+		}
+	}
+	return nil
+}
+
+func slimRunSummary(run map[string]any) map[string]any {
+	if run == nil {
+		return nil
+	}
+	keys := []string{"log_id", "code", "profit_rate", "profit", "final_value", "drawdown", "trade_count", "closed_trades", "strategy_label"}
+	out := map[string]any{}
+	for _, key := range keys {
+		if v, ok := run[key]; ok && fmt.Sprint(v) != "" {
+			out[key] = v
+		}
+	}
+	return out
+}
+
+func extractRunMeta(logDetail map[string]any) map[string]any {
+	run, _ := logDetail["run"].(map[string]any)
+	if run == nil {
+		return nil
+	}
+	out := map[string]any{}
+	for _, key := range []string{
+		"log_id", "code", "strategy_label", "strategy_kind", "frequency", "period",
+		"fund", "base_order_size", "trade_count", "strategy_ids", "trade_config", "result",
+	} {
+		if v, ok := run[key]; ok && v != nil {
+			out[key] = v
+		}
+	}
+	if rules := extractSavedSignalRules(run); len(rules) > 0 {
+		out["saved_signal_rules"] = rules
+	}
+	return out
+}
+
+func extractSavedSignalRules(run map[string]any) map[string]any {
+	out := map[string]any{}
+	for _, source := range []map[string]any{
+		nestedMap(run, "probe_snapshot"),
+		nestedMap(nestedMap(run, "chart_data"), "probe"),
+	} {
+		if source == nil {
+			continue
+		}
+		for _, key := range []string{"buy_rules", "sell_rules", "buyrules", "sellrules", "buy_signal", "sell_signal"} {
+			if v, ok := source[key]; ok && v != nil {
+				out[key] = v
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func extractTradesList(logDetail map[string]any) []any {
+	if logDetail == nil {
+		return nil
+	}
+	if trades, ok := logDetail["trades"].([]any); ok {
+		return trades
+	}
+	if run, ok := logDetail["run"].(map[string]any); ok {
+		if trades, ok := run["trades"].([]any); ok {
+			return trades
+		}
+	}
+	return nil
+}
+
+func normalizeTradesForPayload(trades []any, max int) []map[string]any {
+	if len(trades) == 0 {
+		return nil
+	}
+	if max <= 0 {
+		max = 30
+	}
+	if len(trades) > max {
+		trades = trades[:max]
+	}
+	out := make([]map[string]any, 0, len(trades))
+	for _, raw := range trades {
+		row, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		out = append(out, map[string]any{
+			"time":         firstNonEmpty(row["time"], row["at"], row["datetime"]),
+			"side":         tradeSideLabel(row),
+			"action":       row["action"],
+			"action_label": row["action_label"],
+			"price":        firstNonEmpty(row["trade_price"], row["price"], row["close"]),
+			"qty":          firstNonEmpty(row["position"], row["qty"], row["quantity"], row["size"]),
+			"realized_pnl": row["realized_pnl"],
+		})
+	}
+	return out
+}
+
+func nestedMap(v any, key string) map[string]any {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return nil
+	}
+	child, ok := m[key].(map[string]any)
+	if !ok {
+		return nil
+	}
+	return child
+}
+
+func stripReasoningTags(text string) string {
+	text = strings.TrimSpace(backtestThinkBlockRE.ReplaceAllString(text, ""))
+	return strings.TrimSpace(text)
 }
 
 func formatBacktestReplyFallback(bundle backtestReplyInput) string {
@@ -165,32 +324,28 @@ func summarizeSignalRules(buy, sell []any) string {
 }
 
 func formatTradesTable(logDetail map[string]any) string {
-	if logDetail == nil {
+	trades := extractTradesList(logDetail)
+	if len(trades) == 0 {
 		return ""
 	}
-	raw, ok := logDetail["trades"].([]any)
-	if !ok || len(raw) == 0 {
-		return ""
-	}
-	limit := len(raw)
+	limit := len(trades)
 	suffix := ""
 	if limit > 15 {
 		limit = 15
-		suffix = fmt.Sprintf("\n\n共 %d 笔，仅列前 15 笔。", len(raw))
+		suffix = fmt.Sprintf("\n\n共 %d 笔，仅列前 15 笔。", len(trades))
 	}
 	var b strings.Builder
 	b.WriteString("| 时间 | 方向 | 价格 | 数量 |\n| --- | --- | --- | --- |\n")
 	for i := 0; i < limit; i++ {
-		row, ok := raw[i].(map[string]any)
+		row, ok := trades[i].(map[string]any)
 		if !ok {
 			continue
 		}
-		side := tradeSideLabel(row)
 		fmt.Fprintf(&b, "| %v | %s | %v | %v |\n",
 			firstNonEmpty(row["time"], row["at"], row["datetime"]),
-			side,
-			firstNonEmpty(row["price"], row["close"]),
-			firstNonEmpty(row["qty"], row["quantity"], row["size"]),
+			tradeSideLabel(row),
+			firstNonEmpty(row["trade_price"], row["price"], row["close"]),
+			firstNonEmpty(row["position"], row["qty"], row["quantity"], row["size"]),
 		)
 	}
 	b.WriteString(suffix)
@@ -198,7 +353,17 @@ func formatTradesTable(logDetail map[string]any) string {
 }
 
 func tradeSideLabel(row map[string]any) string {
-	for _, key := range []string{"side", "direction", "action", "type"} {
+	if label := strings.TrimSpace(fmt.Sprint(row["action_label"])); label != "" && label != "<nil>" {
+		return label
+	}
+	action := strings.ToLower(strings.TrimSpace(fmt.Sprint(row["action"])))
+	switch {
+	case strings.Contains(action, "buy"), action == "signalbuy":
+		return "买"
+	case strings.Contains(action, "sell"), strings.Contains(action, "stop"), strings.Contains(action, "profit"), action == "stoploss", action == "takeprofit":
+		return "卖"
+	}
+	for _, key := range []string{"side", "direction", "type"} {
 		v := strings.ToLower(strings.TrimSpace(fmt.Sprint(row[key])))
 		switch v {
 		case "buy", "b", "1", "long":

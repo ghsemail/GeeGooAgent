@@ -148,6 +148,7 @@ func (r *Router) runBacktest(ctx context.Context, in Input) (runtime.TurnResult,
 	}
 	if signals.SignalID != "" {
 		runArgs["strategy_ids"] = []any{signals.SignalID}
+		runArgs["signal_id"] = signals.SignalID
 	}
 	runRes := r.runTool(ctx, toolCtx, "run_strategy_backtest", runArgs, recordTool)
 	if runRes.Status != tools.StatusOK {
