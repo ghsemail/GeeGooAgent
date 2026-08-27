@@ -53,27 +53,35 @@ func (r *Router) resolveStock(
 	return code, name, market, nil
 }
 
+type resolvedSignals struct {
+	Buy           []any
+	Sell          []any
+	Frequency     string
+	StrategyLabel string
+	SignalID      string
+}
+
 func (r *Router) resolveSignals(
 	ctx context.Context,
 	toolCtx tools.Context,
 	plan BacktestRunPlan,
 	recordTool func(name, status, summary string),
-) (buy, sell []any, frequency, strategyLabel string, err error) {
+) (resolvedSignals, error) {
 	if plan.SignalKind == "indicator" || strings.TrimSpace(plan.SignalQuery) == "" {
 		return r.resolveIndexSignal(ctx, toolCtx, plan, recordTool)
 	}
 	res := r.runTool(ctx, toolCtx, "get_signal_combinations", map[string]any{}, recordTool)
 	if res.Status != tools.StatusOK {
-		return nil, nil, "", "", fmt.Errorf("get_signal_combinations 失败：%s", res.Summary)
+		return resolvedSignals{}, fmt.Errorf("get_signal_combinations 失败：%s", res.Summary)
 	}
 	items := catalogItems(res.Data)
 	if len(items) == 0 {
-		return nil, nil, "", "", fmt.Errorf("没有可用的组合信号")
+		return resolvedSignals{}, fmt.Errorf("没有可用的组合信号")
 	}
 	row, pickErr := pickCombination(items, plan.SignalQuery)
 	if pickErr != nil {
 		if toolCtx.ClarifyFn == nil {
-			return nil, nil, "", "", pickErr
+			return resolvedSignals{}, pickErr
 		}
 		candidates := items
 		if tokens := signalTokens(plan.SignalQuery); len(tokens) > 0 {
@@ -101,7 +109,7 @@ func (r *Router) resolveSignals(
 		}
 		answer, ok := toolCtx.ClarifyFn(ctx, "请选择组合信号：", choices)
 		if !ok {
-			return nil, nil, "", "", pickErr
+			return resolvedSignals{}, pickErr
 		}
 		for _, it := range items {
 			if fmt.Sprint(it["name"]) == answer {
@@ -111,13 +119,13 @@ func (r *Router) resolveSignals(
 			}
 		}
 		if pickErr != nil {
-			return nil, nil, "", "", pickErr
+			return resolvedSignals{}, pickErr
 		}
 	}
-	buy, _ = row["buy_signal"].([]any)
-	sell, _ = row["sell_signal"].([]any)
+	buy, _ := row["buy_signal"].([]any)
+	sell, _ := row["sell_signal"].([]any)
 	if len(buy) == 0 {
-		return nil, nil, "", "", fmt.Errorf("组合信号缺少 buy_signal")
+		return resolvedSignals{}, fmt.Errorf("组合信号缺少 buy_signal")
 	}
 	buy = tools.NormalizeSignalRules(buy)
 	if len(sell) == 0 {
@@ -125,9 +133,13 @@ func (r *Router) resolveSignals(
 	} else {
 		sell = tools.NormalizeSignalRules(sell)
 	}
-	frequency = tools.NormalizeCatalogFrequency(row["frequency"])
-	strategyLabel = strings.TrimSpace(fmt.Sprint(row["name"]))
-	return buy, sell, frequency, strategyLabel, nil
+	return resolvedSignals{
+		Buy:           buy,
+		Sell:          sell,
+		Frequency:     tools.NormalizeCatalogFrequency(row["frequency"]),
+		StrategyLabel: strings.TrimSpace(fmt.Sprint(row["name"])),
+		SignalID:      signalIDFromRow(row),
+	}, nil
 }
 
 func (r *Router) resolveIndexSignal(
@@ -135,30 +147,35 @@ func (r *Router) resolveIndexSignal(
 	toolCtx tools.Context,
 	plan BacktestRunPlan,
 	recordTool func(name, status, summary string),
-) (buy, sell []any, frequency, strategyLabel string, err error) {
+) (resolvedSignals, error) {
 	res := r.runTool(ctx, toolCtx, "get_index_signals", map[string]any{}, recordTool)
 	if res.Status != tools.StatusOK {
-		return nil, nil, "", "", fmt.Errorf("get_index_signals 失败：%s", res.Summary)
+		return resolvedSignals{}, fmt.Errorf("get_index_signals 失败：%s", res.Summary)
 	}
 	items := catalogItems(res.Data)
 	row, pickErr := pickIndexSignal(items, plan.SignalQuery)
 	if pickErr != nil {
-		return nil, nil, "", "", pickErr
+		return resolvedSignals{}, pickErr
 	}
+	var buy []any
 	// Index signals need probe-style rules; fetch full combination-like shape from index row if present.
 	if rawBuy, ok := row["buy_signal"].([]any); ok && len(rawBuy) > 0 {
 		buy = tools.NormalizeSignalRules(rawBuy)
 	} else {
 		idx := strings.TrimSpace(fmt.Sprint(row["index"]))
 		if idx == "" {
-			return nil, nil, "", "", fmt.Errorf("单指标信号缺少 index")
+			return resolvedSignals{}, fmt.Errorf("单指标信号缺少 index")
 		}
 		buy = []any{map[string]any{"index": idx, "type": "signal", "param": row["param"]}}
 	}
-	sell = buy
-	frequency = tools.NormalizeCatalogFrequency(row["frequency"])
-	strategyLabel = strings.TrimSpace(fmt.Sprint(row["name"]))
-	return buy, sell, frequency, strategyLabel, nil
+	sell := buy
+	return resolvedSignals{
+		Buy:           buy,
+		Sell:          sell,
+		Frequency:     tools.NormalizeCatalogFrequency(row["frequency"]),
+		StrategyLabel: strings.TrimSpace(fmt.Sprint(row["name"])),
+		SignalID:      signalIDFromRow(row),
+	}, nil
 }
 
 func catalogItems(data map[string]any) []map[string]any {
@@ -329,16 +346,6 @@ func signalTokens(query string) []string {
 		out = append(out, p)
 	}
 	return out
-}
-
-func formatBacktestReply(code, name, strategyLabel string, data map[string]any) string {
-	profit := fmt.Sprint(data["profit_rate"])
-	finalValue := fmt.Sprint(data["final_value"])
-	logID := fmt.Sprint(data["log_id"])
-	trades := fmt.Sprint(data["trade_count"])
-	drawdown := fmt.Sprint(data["drawdown"])
-	return fmt.Sprintf("## %s %s · SmartTrade 回测\n\n- **策略**：%s\n- **收益率**：%s%%\n- **最终资产**：%s\n- **最大回撤**：%s%%\n- **成交笔数**：%s\n- **log_id**：%s\n\n> 由 playbook 确定性执行（run_strategy_backtest）",
-		name, code, strategyLabel, profit, finalValue, drawdown, trades, logID)
 }
 
 func minInt(a, b int) int {

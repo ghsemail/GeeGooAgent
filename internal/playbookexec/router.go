@@ -120,7 +120,7 @@ func (r *Router) runBacktest(ctx context.Context, in Input) (runtime.TurnResult,
 		return runtime.TurnResult{}, false
 	}
 
-	buy, sell, frequency, strategyLabel, err := r.resolveSignals(ctx, toolCtx, plan, recordTool)
+	signals, err := r.resolveSignals(ctx, toolCtx, plan, recordTool)
 	if err != nil {
 		return runtime.TurnResult{}, false
 	}
@@ -129,19 +129,25 @@ func (r *Router) runBacktest(ctx context.Context, in Input) (runtime.TurnResult,
 	if strategyKind == "" {
 		strategyKind = "combination"
 	}
+	tradeConfig := defaultSmartTradeTradeConfig()
+	baseOrderSize := 100
 	runArgs := map[string]any{
 		"code":            code,
-		"frequency":       frequency,
-		"buy_signal":      buy,
-		"sell_signal":     sell,
-		"strategy_label":  strategyLabel,
+		"frequency":       signals.Frequency,
+		"buy_signal":      signals.Buy,
+		"sell_signal":     signals.Sell,
+		"strategy_label":  signals.StrategyLabel,
 		"strategy_kind":   strategyKind,
 		"stock_name":      name,
 		"market":          market,
 		"fund":            plan.Fund,
 		"months_back":     plan.MonthsBack,
-		"base_order_size": 100,
+		"base_order_size": baseOrderSize,
 		"period":          plan.Period,
+		"trade_config":    tradeConfig,
+	}
+	if signals.SignalID != "" {
+		runArgs["strategy_ids"] = []string{signals.SignalID}
 	}
 	runRes := r.runTool(ctx, toolCtx, "run_strategy_backtest", runArgs, recordTool)
 	if runRes.Status != tools.StatusOK {
@@ -150,7 +156,32 @@ func (r *Router) runBacktest(ctx context.Context, in Input) (runtime.TurnResult,
 		return runtime.TurnResult{AssistantText: msg, Failed: true, Error: runRes.Summary, StepRecords: records}, true
 	}
 
-	reply := formatBacktestReply(code, name, strategyLabel, runRes.Data)
+	logDetail := map[string]any(nil)
+	if logID := strings.TrimSpace(fmt.Sprint(runRes.Data["log_id"])); logID != "" {
+		logRes := r.runTool(ctx, toolCtx, "get_strategy_backtest_log", map[string]any{"log_id": logID}, recordTool)
+		if logRes.Status == tools.StatusOK {
+			logDetail = logRes.Data
+		}
+	}
+
+	reply := r.formatBacktestReply(ctx, in, step, backtestReplyInput{
+		Code:          code,
+		Name:          name,
+		Market:        market,
+		StrategyLabel: signals.StrategyLabel,
+		StrategyKind:  strategyKind,
+		Frequency:     signals.Frequency,
+		Period:        plan.Period,
+		MonthsBack:    plan.MonthsBack,
+		Fund:          plan.Fund,
+		BaseOrderSize: baseOrderSize,
+		BuySignal:     signals.Buy,
+		SellSignal:    signals.Sell,
+		SignalID:      signals.SignalID,
+		TradeConfig:   tradeConfig,
+		RunSummary:    runRes.Data,
+		LogDetail:     logDetail,
+	})
 	in.Session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: reply})
 	records = append(records, runtime.StepRecord{
 		Step: step, Timestamp: time.Now().UTC(), Kind: "reply", Summary: truncate(reply, 300),
