@@ -133,23 +133,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	toolCtx.MCPToken = mcpToken
 	toolCtx.Interactive = true
 	toolCtx.Approved = approveWrites(r)
-	clarifyHooks := ClarifyHooks{
-		OnPending: func(p PendingClarify) {
-			emit("clarify", map[string]any{
-				"session_id": p.SessionID,
-				"question":   p.Question,
-				"choices":    p.Choices,
-			})
-		},
-		OnAutoResolved: func(p PendingClarify, answer string) {
-			emit("clarify_auto_resolved", map[string]any{
-				"session_id": p.SessionID,
-				"question":   p.Question,
-				"choices":    p.Choices,
-				"answer":     answer,
-			})
-		},
-	}
+	clarifyHooks := newChatStreamClarifyHooks(emit)
 	userID := resolveUserID(r)
 	source := resolveClientSource(r)
 	progressFn := func(event string, data map[string]any) { emit(event, data) }

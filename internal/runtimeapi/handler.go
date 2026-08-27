@@ -214,29 +214,11 @@ func (h *Handler) streamChat(
 
 	writeChunk(chatMessage{Role: "assistant"}, nil)
 
-	clarifyHooks := ClarifyHooks{
-		OnPending: func(p PendingClarify) {
-			mu.Lock()
-			defer mu.Unlock()
-			writeAgentEvent(w, flusher, map[string]any{
-				"event":      "clarify",
-				"session_id": p.SessionID,
-				"question":   p.Question,
-				"choices":    p.Choices,
-			})
-		},
-		OnAutoResolved: func(p PendingClarify, answer string) {
-			mu.Lock()
-			defer mu.Unlock()
-			writeAgentEvent(w, flusher, map[string]any{
-				"event":      "clarify_auto_resolved",
-				"session_id": p.SessionID,
-				"question":   p.Question,
-				"choices":    p.Choices,
-				"answer":     answer,
-			})
-		},
-	}
+	clarifyHooks := newAgentEventClarifyHooks(func(payload map[string]any) {
+		mu.Lock()
+		defer mu.Unlock()
+		writeAgentEvent(w, flusher, payload)
+	})
 
 	runCtx := llm.WithStreamHandler(r.Context(), func(delta llm.StreamDelta) {
 		if delta.Content == "" {
