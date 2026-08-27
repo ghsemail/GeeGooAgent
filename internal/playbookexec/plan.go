@@ -35,6 +35,7 @@ var (
 	reFund           = regexp.MustCompile(`(?i)(?:资金|本金|fund)?\s*(\d+)\s*(?:万|w)?`)
 	reStrategyQuoted = regexp.MustCompile(`「([^」]+)」`)
 	reParenTicker    = regexp.MustCompile(`[（(]\s*([A-Z]{1,5})(?:\s*[·\.]\s*[^）)]*)?[）)]`)
+	reParenCode      = regexp.MustCompile(`[（(]\s*(\d{4,5}(?:\.(?:HK|SH|SZ|US))?)\s*(?:[·\.][^）)]*)?[）)]`)
 	reTicker         = regexp.MustCompile(`\b([A-Z]{1,5})(?:\.US)?\b`)
 	reHKCode         = regexp.MustCompile(`(\d{4,5})(?:\.HK)?`)
 )
@@ -133,6 +134,11 @@ func heuristicBacktestPlan(message string) BacktestRunPlan {
 }
 
 func extractStockQuery(msg string) string {
+	if m := reParenCode.FindStringSubmatch(msg); len(m) > 1 {
+		if code := strings.ToUpper(strings.TrimSpace(m[1])); code != "" {
+			return code
+		}
+	}
 	if m := reParenTicker.FindStringSubmatch(msg); len(m) > 1 {
 		if ticker := strings.ToUpper(strings.TrimSpace(m[1])); !isBlockedStockToken(ticker) {
 			return ticker

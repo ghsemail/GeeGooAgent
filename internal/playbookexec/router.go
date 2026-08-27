@@ -47,6 +47,9 @@ func Route(matchedSkills []string, userText string, session *runtime.Session) (p
 	if procedural.BacktestContinueIntent(userText) && sessionHasBacktestContext(session) {
 		return playbookBacktestRun, true
 	}
+	if procedural.SignalProbeIntent(userText) {
+		return "", false
+	}
 	for _, name := range matchedSkills {
 		if name == playbookBacktestRun || name == "strategy-backtest" {
 			return playbookBacktestRun, true

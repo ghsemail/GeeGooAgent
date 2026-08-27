@@ -23,19 +23,23 @@ func (r *Router) resolveStock(
 		return "", "", "", fmt.Errorf("未找到标的「%s」，请换名称或代码", plan.StockQuery)
 	}
 	row := items[0]
-	if len(items) > 1 && toolCtx.ClarifyFn != nil {
-		choices := make([]string, 0, minInt(len(items), 4))
-		for i := 0; i < len(items) && i < 4; i++ {
-			it := items[i]
-			choices = append(choices, fmt.Sprintf("%v %v", it["code"], it["name"]))
-		}
-		answer, ok := toolCtx.ClarifyFn(ctx, "找到多个标的，请选择：", choices)
-		if ok {
-			for _, it := range items {
-				label := fmt.Sprintf("%v %v", it["code"], it["name"])
-				if label == answer || strings.Contains(answer, fmt.Sprint(it["code"])) {
-					row = it
-					break
+	if len(items) > 1 {
+		if picked, ok := pickStockRow(items, plan.StockQuery); ok {
+			row = picked
+		} else if toolCtx.ClarifyFn != nil {
+			choices := make([]string, 0, minInt(len(items), 4))
+			for i := 0; i < len(items) && i < 4; i++ {
+				it := items[i]
+				choices = append(choices, fmt.Sprintf("%v %v", it["code"], it["name"]))
+			}
+			answer, ok := toolCtx.ClarifyFn(ctx, "找到多个标的，请选择：", choices)
+			if ok {
+				for _, it := range items {
+					label := fmt.Sprintf("%v %v", it["code"], it["name"])
+					if label == answer || strings.Contains(answer, fmt.Sprint(it["code"])) {
+						row = it
+						break
+					}
 				}
 			}
 		}
@@ -182,6 +186,43 @@ func mapsFromAny(items []any) []map[string]any {
 		}
 	}
 	return out
+}
+
+func pickStockRow(items []map[string]any, query string) (map[string]any, bool) {
+	q := strings.ToUpper(strings.TrimSpace(query))
+	if q == "" || len(items) == 0 {
+		return nil, false
+	}
+	qDigits := strings.TrimLeft(q, "0")
+	var containsMatches []map[string]any
+	for _, row := range items {
+		code := strings.ToUpper(strings.TrimSpace(fmt.Sprint(row["code"])))
+		if code == "" {
+			continue
+		}
+		if code == q {
+			return row, true
+		}
+		codeBase := strings.TrimSuffix(code, ".HK")
+		codeBase = strings.TrimSuffix(codeBase, ".SH")
+		codeBase = strings.TrimSuffix(codeBase, ".SZ")
+		codeBase = strings.TrimSuffix(codeBase, ".US")
+		if strings.HasSuffix(q, ".HK") || strings.HasSuffix(q, ".SH") || strings.HasSuffix(q, ".SZ") || strings.HasSuffix(q, ".US") {
+			if code == q || strings.HasPrefix(code, q) {
+				return row, true
+			}
+		}
+		if qDigits != "" && (codeBase == qDigits || strings.HasSuffix(codeBase, qDigits) || strings.HasSuffix(qDigits, strings.TrimLeft(codeBase, "0"))) {
+			return row, true
+		}
+		if strings.Contains(code, q) || strings.Contains(q, codeBase) {
+			containsMatches = append(containsMatches, row)
+		}
+	}
+	if len(containsMatches) == 1 {
+		return containsMatches[0], true
+	}
+	return nil, false
 }
 
 func pickCombination(items []map[string]any, query string) (map[string]any, error) {

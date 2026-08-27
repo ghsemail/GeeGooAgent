@@ -103,6 +103,36 @@ func TestFilterLegacyBacktestTools(t *testing.T) {
 	}
 }
 
+func TestRouteSignalProbeEvalMessage(t *testing.T) {
+	skills := []string{"strategy-backtest-run", "strategy-backtest", "strategy-signal-probe"}
+	msg := "请帮我用「SAR抛物线」策略测试一下腾讯控股（0700.HK · 港股）。"
+	if p, ok := Route(skills, msg, nil); ok {
+		t.Fatalf("signal probe eval should not route to playbook, got %q", p)
+	}
+}
+
+func TestHeuristicBacktestPlanEvalStockCode(t *testing.T) {
+	msg := "请帮我用「SAR抛物线」策略测试一下腾讯控股（0700.HK · 港股）。"
+	plan := heuristicBacktestPlan(msg)
+	if plan.StockQuery != "0700.HK" {
+		t.Fatalf("stock=%q want 0700.HK", plan.StockQuery)
+	}
+	if plan.SignalQuery != "SAR抛物线" {
+		t.Fatalf("signal=%q want SAR抛物线", plan.SignalQuery)
+	}
+}
+
+func TestPickStockRowByCode(t *testing.T) {
+	items := []map[string]any{
+		{"code": "00700.HK", "name": "腾讯控股"},
+		{"code": "01698.HK", "name": "腾讯音乐-SW"},
+	}
+	row, ok := pickStockRow(items, "0700.HK")
+	if !ok || row["code"] != "00700.HK" {
+		t.Fatalf("picked=%v ok=%v", row, ok)
+	}
+}
+
 func TestPickCombination(t *testing.T) {
 	items := []map[string]any{
 		{"name": "SAR信号配套MACD直方图趋势", "signal_id": "a", "buy_signal": []any{map[string]any{"index": "SAR"}}, "frequency": []any{"5m", "60m", "daily"}},
