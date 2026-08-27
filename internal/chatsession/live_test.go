@@ -39,3 +39,21 @@ func TestLivePublisherRoundTrip(t *testing.T) {
 	}
 	_ = time.Now()
 }
+
+func TestLivePublisherClarifyResolvedClearsClarifyStatus(t *testing.T) {
+	state := infra.NewStateStore(t.TempDir())
+	pub := chatsession.NewLivePublisher(state, "chat-clarify")
+	pub.Emit("turn_start", nil)
+	pub.Emit("clarify", map[string]any{"question": "pick"})
+	pub.Emit("clarify_resolved", map[string]any{"answer": "60m", "auto": false})
+	live, err := chatsession.LoadLiveState(state, "chat-clarify")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if live.Status != "tool" {
+		t.Fatalf("status=%q want tool", live.Status)
+	}
+	if live.LastEvent != "clarify_resolved" {
+		t.Fatalf("last_event=%q", live.LastEvent)
+	}
+}

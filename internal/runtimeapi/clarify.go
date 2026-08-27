@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
 type clarifyRequest struct {
@@ -55,19 +57,55 @@ func (h *Handler) chatClarify(w http.ResponseWriter, r *http.Request) {
 	}
 	ok := !req.Skip
 	if !h.clarify.Answer(sessionID, answer, ok) {
-		writeError(w, http.StatusNotFound, "no pending clarify for session")
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status":           "ok",
+			"already_resolved": true,
+		})
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok"})
 }
 
-func (h *Handler) clarifyFn(fallback context.Context, sessionID string, onPending func(PendingClarify)) func(context.Context, string, []string) (string, bool) {
+// ClarifyHooks wires SSE/UI callbacks for pending and resolved clarify prompts.
+type ClarifyHooks struct {
+	OnPending  func(PendingClarify)
+	OnResolved func(p PendingClarify, answer string, auto bool)
+}
+
+func (h *Handler) clarifyFn(fallback context.Context, sessionID string, hooks ClarifyHooks) func(context.Context, string, []string) (string, bool) {
 	return func(waitCtx context.Context, question string, choices []string) (string, bool) {
 		ctx := waitCtx
 		if ctx == nil {
 			ctx = fallback
 		}
-		return h.clarify.Wait(ctx, sessionID, question, choices, onPending)
+		bounded, cancel := context.WithTimeout(ctx, clarifyAutoPickWait)
+		defer cancel()
+		return h.waitClarifyOrAuto(bounded, sessionID, question, choices, hooks)
 	}
+}
+
+func (h *Handler) waitClarifyOrAuto(ctx context.Context, sessionID, question string, choices []string, hooks ClarifyHooks) (string, bool) {
+	pending := PendingClarify{
+		SessionID: sessionID,
+		Question:  question,
+		Choices:   append([]string(nil), choices...),
+	}
+	answer, ok := h.clarify.Wait(ctx, sessionID, question, choices, hooks.OnPending)
+	if ok {
+		if hooks.OnResolved != nil {
+			hooks.OnResolved(pending, answer, false)
+		}
+		return answer, ok
+	}
+	if len(choices) > 0 {
+		if auto, picked := tools.AutoClarifyChoice(question, choices); picked {
+			if hooks.OnResolved != nil {
+				hooks.OnResolved(pending, auto, true)
+			}
+			return auto, true
+		}
+	}
+	return answer, ok
 }

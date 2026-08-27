@@ -31,9 +31,19 @@ const backtestPlanSystem = `你是 GeeGoo 策略回测计划解析器。只输�
 用户未提到的字段用默认值。`
 
 var (
-	reMonths = regexp.MustCompile(`(?i)(\d+)\s*(个)?月`)
-	reFund   = regexp.MustCompile(`(?i)(?:资金|本金|fund)?\s*(\d+)\s*(?:万|w)?`)
+	reMonths         = regexp.MustCompile(`(?i)(\d+)\s*(个)?月`)
+	reFund           = regexp.MustCompile(`(?i)(?:资金|本金|fund)\s*(\d+)\s*(?:万|w)?|(\d+)\s*(?:万|w)\b`)
+	reStrategyQuoted = regexp.MustCompile(`「([^」]+)」`)
+	reParenTicker    = regexp.MustCompile(`[（(]\s*([A-Z]{1,5})(?:\s*[·\.]\s*[^）)]*)?[）)]`)
+	reParenCode      = regexp.MustCompile(`[（(]\s*(\d{4,5}(?:\.(?:HK|SH|SZ|US))?)\s*(?:[·\.][^）)]*)?[）)]`)
+	reTicker         = regexp.MustCompile(`\b([A-Z]{1,5})(?:\.US)?\b`)
+	reHKCode         = regexp.MustCompile(`(\d{4,5})(?:\.HK)?`)
 )
+
+var stockQueryBlocklist = map[string]struct{}{
+	"MACD": {}, "SAR": {}, "RSI": {}, "KDJ": {}, "EMA": {}, "SMA": {},
+	"BOLL": {}, "DMI": {}, "ATR": {}, "OBV": {}, "US": {}, "HK": {},
+}
 
 func (r *Router) buildBacktestPlan(ctx context.Context, in Input, step int) (BacktestRunPlan, string, error) {
 	plan := heuristicBacktestPlan(in.UserText)
@@ -90,27 +100,38 @@ func heuristicBacktestPlan(message string) BacktestRunPlan {
 			plan.Period = fmt.Sprintf("%dm", n)
 		}
 	}
-	if m := reFund.FindStringSubmatch(msg); len(m) > 1 {
-		if n, err := parseInt(m[1]); err == nil && n > 0 {
-			if strings.Contains(msg, "万") {
+	if m := reFund.FindStringSubmatch(msg); len(m) > 0 {
+		num := strings.TrimSpace(m[1])
+		if num == "" && len(m) > 2 {
+			num = strings.TrimSpace(m[2])
+		}
+		if n, err := parseInt(num); err == nil && n > 0 {
+			if strings.Contains(msg, "万") || strings.Contains(strings.ToLower(msg), "w") {
 				plan.Fund = float64(n * 10000)
-			} else {
+			} else if strings.Contains(strings.ToLower(msg), "fund") ||
+				strings.Contains(msg, "资金") || strings.Contains(msg, "本金") {
 				plan.Fund = float64(n)
 			}
 		}
 	}
 
 	plan.StockQuery = extractStockQuery(msg)
-	if strings.Contains(upper, "SAR") && strings.Contains(upper, "MACD") {
+	if m := reStrategyQuoted.FindStringSubmatch(msg); len(m) > 1 {
+		if name := strings.TrimSpace(m[1]); name != "" {
+			plan.SignalKind = "combination"
+			plan.SignalQuery = name
+		}
+	}
+	if strings.TrimSpace(plan.SignalQuery) == "" && strings.Contains(upper, "SAR") && strings.Contains(upper, "MACD") {
 		plan.SignalKind = "combination"
 		plan.SignalQuery = "SAR MACD"
-	} else if strings.Contains(upper, "RSI") {
+	} else if strings.TrimSpace(plan.SignalQuery) == "" && strings.Contains(upper, "RSI") {
 		plan.SignalKind = "indicator"
 		plan.SignalQuery = "RSI"
-	} else if strings.Contains(upper, "SAR") {
+	} else if strings.TrimSpace(plan.SignalQuery) == "" && strings.Contains(upper, "SAR") {
 		plan.SignalKind = "indicator"
 		plan.SignalQuery = "SAR"
-	} else if strings.Contains(msg, "组合") || strings.Contains(msg, "共振") {
+	} else if strings.TrimSpace(plan.SignalQuery) == "" && (strings.Contains(msg, "组合") || strings.Contains(msg, "共振")) {
 		plan.SignalKind = "combination"
 		plan.SignalQuery = msg
 	}
@@ -118,18 +139,39 @@ func heuristicBacktestPlan(message string) BacktestRunPlan {
 }
 
 func extractStockQuery(msg string) string {
+	if m := reParenCode.FindStringSubmatch(msg); len(m) > 1 {
+		if code := strings.ToUpper(strings.TrimSpace(m[1])); code != "" {
+			return code
+		}
+	}
+	if m := reParenTicker.FindStringSubmatch(msg); len(m) > 1 {
+		if ticker := strings.ToUpper(strings.TrimSpace(m[1])); !isBlockedStockToken(ticker) {
+			return ticker
+		}
+	}
 	for _, key := range []string{"小米", "腾讯", "茅台", "苹果", "特斯拉", "英伟达", "微软", "谷歌", "阿里", "拼多多"} {
 		if strings.Contains(msg, key) {
 			return key
 		}
 	}
-	if m := regexp.MustCompile(`\b([A-Z]{1,5})(?:\.US)?\b`).FindStringSubmatch(strings.ToUpper(msg)); len(m) > 1 {
-		return m[1]
+	if regexp.MustCompile(`(?i)\bApple\b`).MatchString(msg) {
+		return "苹果"
 	}
-	if m := regexp.MustCompile(`(\d{4,5})(?:\.HK)?`).FindStringSubmatch(msg); len(m) > 1 {
+	upper := strings.ToUpper(msg)
+	for _, m := range reTicker.FindAllStringSubmatch(upper, -1) {
+		if len(m) > 1 && !isBlockedStockToken(m[1]) {
+			return m[1]
+		}
+	}
+	if m := reHKCode.FindStringSubmatch(msg); len(m) > 1 {
 		return m[1]
 	}
 	return ""
+}
+
+func isBlockedStockToken(token string) bool {
+	_, ok := stockQueryBlocklist[strings.ToUpper(strings.TrimSpace(token))]
+	return ok
 }
 
 func parseBacktestPlanJSON(raw string) (BacktestRunPlan, error) {

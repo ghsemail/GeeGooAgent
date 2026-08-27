@@ -187,7 +187,7 @@ func (e *ToolExec) ExecuteBatch(
 		results[i] = result
 	}
 
-	if len(calls) == 1 || needsInteractiveApproval(toolCtx, calls) {
+	if len(calls) == 1 || needsInteractiveApproval(toolCtx, calls) || hasClarifyTool(calls) {
 		for i, call := range calls {
 			runOne(i, call)
 		}
@@ -256,4 +256,13 @@ func mutatingToolNames(calls []llm.ToolCall) []string {
 		}
 	}
 	return names
+}
+
+func hasClarifyTool(calls []llm.ToolCall) bool {
+	for _, call := range calls {
+		if call.Name == "clarify" {
+			return true
+		}
+	}
+	return false
 }

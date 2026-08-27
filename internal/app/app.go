@@ -1036,13 +1036,37 @@ func ProjectRoot() string {
 }
 
 func findProjectRoot() string {
+	if v := strings.TrimSpace(os.Getenv("GEEGOO_PROJECT_ROOT")); v != "" {
+		if projectRootHasSkills(v) {
+			return v
+		}
+	}
+	if root := findProjectRootFromDir(wdOrDot()); root != "" {
+		return root
+	}
+	for _, dir := range standardProjectRootCandidates() {
+		if projectRootHasSkills(dir) {
+			return dir
+		}
+	}
+	return wdOrDot()
+}
+
+func wdOrDot() string {
 	wd, err := os.Getwd()
-	if err != nil {
+	if err != nil || strings.TrimSpace(wd) == "" {
 		return "."
 	}
-	dir := wd
+	return wd
+}
+
+func findProjectRootFromDir(start string) string {
+	dir := strings.TrimSpace(start)
+	if dir == "" {
+		return ""
+	}
 	for i := 0; i < 8; i++ {
-		if _, err := os.Stat(filepath.Join(dir, "skills", "premarket_market", "SKILL.md")); err == nil {
+		if projectRootHasSkills(dir) {
 			return dir
 		}
 		parent := filepath.Dir(dir)
@@ -1051,7 +1075,30 @@ func findProjectRoot() string {
 		}
 		dir = parent
 	}
-	return wd
+	return ""
+}
+
+func standardProjectRootCandidates() []string {
+	home := config.Home()
+	candidates := []string{
+		filepath.Join(home, "geegoo-agent"),
+	}
+	if exe, err := os.Executable(); err == nil {
+		binDir := filepath.Dir(exe)
+		candidates = append(candidates,
+			filepath.Join(binDir, "..", "geegoo-agent"),
+			filepath.Join(binDir, "..", "..", "geegoo-agent"),
+		)
+	}
+	return candidates
+}
+
+func projectRootHasSkills(dir string) bool {
+	if strings.TrimSpace(dir) == "" {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(dir, "skills", "premarket_market", "SKILL.md"))
+	return err == nil
 }
 
 func newSessionID() string {

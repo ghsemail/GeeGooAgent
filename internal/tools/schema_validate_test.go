@@ -107,6 +107,24 @@ func TestValidateArgumentsMinItems(t *testing.T) {
 	}
 }
 
+func TestValidateArgumentsStringArray(t *testing.T) {
+	t.Parallel()
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"strategy_ids": map[string]any{
+				"type":  "array",
+				"items": map[string]any{"type": "string"},
+			},
+		},
+	}
+	if err := tools.ValidateArguments(schema, map[string]any{
+		"strategy_ids": []string{"662d0424c4cee7ffb800d0af"},
+	}); err != nil {
+		t.Fatalf("[]string should validate as array: %v", err)
+	}
+}
+
 func TestRegistryRejectsInvalidArgs(t *testing.T) {
 	t.Parallel()
 	r := tools.NewRegistry()
