@@ -1,0 +1,7 @@
+# 示例：~/.geegoo/tool_policy.yaml
+# 也可用 tool_policy.json（优先加载 json）
+rules:
+  - match: "delete_*"
+    action: prompt
+  - match: "get_*|list_*|search_*|check_*|fetch_*"
+    action: allow

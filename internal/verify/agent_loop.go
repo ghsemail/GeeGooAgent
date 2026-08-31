@@ -49,6 +49,7 @@ func VerifyAgentLoopParity(reg ToolLookup) []AgentLoopCard {
 		checkNDJSONProgressSchema(),
 		checkSSEProgressPayload(),
 		checkContextFragmentKinds(),
+		checkToolSpecResolved(reg),
 	}
 	return checks
 }
@@ -231,4 +232,26 @@ func checkContextFragmentKinds() AgentLoopCard {
 		return AgentLoopCard{Name: "context fragments", Passed: false, Detail: "compose failed"}
 	}
 	return AgentLoopCard{Name: "context fragments", Passed: true, Detail: fmt.Sprintf("%d kinds, compose ok", len(kinds))}
+}
+
+func checkToolSpecResolved(reg ToolLookup) AgentLoopCard {
+	r, ok := reg.(*tools.Registry)
+	if !ok || r == nil {
+		return AgentLoopCard{Name: "tool spec metadata", Passed: true, Detail: "skip (non-registry)"}
+	}
+	if r.EffectivePolicy("create_dca_bot") != tools.PolicyPrompt {
+		return AgentLoopCard{Name: "tool spec metadata", Passed: false, Detail: "mutating policy not prompt"}
+	}
+	if !r.IsConcurrencySafe("search_code") {
+		return AgentLoopCard{Name: "tool spec metadata", Passed: false, Detail: "search_code not concurrency-safe"}
+	}
+	stats := r.CollectSpecStats()
+	if stats.Registered < 5 {
+		return AgentLoopCard{Name: "tool spec metadata", Passed: false, Detail: "too few tools"}
+	}
+	return AgentLoopCard{
+		Name:   "tool spec metadata",
+		Passed: true,
+		Detail: fmt.Sprintf("registered=%d prompt=%d readonly=%d", stats.Registered, stats.PromptTools, stats.ReadOnlyTools),
+	}
 }

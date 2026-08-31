@@ -77,9 +77,13 @@ type ToolsetSection struct {
 }
 
 type ToolsSection struct {
-	Registered int
-	ChatActive int
+	Registered        int
+	ChatActive        int
 	WorkflowExclusive int
+	PromptTools       int
+	ReadOnlyTools     int
+	DeferLoadTools    int
+	ConcurrencySafe   int
 }
 
 type ProceduralSkillSection struct {
@@ -159,7 +163,12 @@ func Build(application *app.App, opts Options) Report {
 		r.ContextFragments.Kinds = append(r.ContextFragments.Kinds, string(k))
 	}
 	if application.Registry != nil {
-		r.Tools.Registered = len(application.Registry.ListNames())
+		stats := application.Registry.CollectSpecStats()
+		r.Tools.Registered = stats.Registered
+		r.Tools.PromptTools = stats.PromptTools
+		r.Tools.ReadOnlyTools = stats.ReadOnlyTools
+		r.Tools.DeferLoadTools = stats.DeferLoadTools
+		r.Tools.ConcurrencySafe = stats.ConcurrencySafe
 		chatNames := application.ChatToolNames()
 		r.Tools.ChatActive = len(chatNames)
 		r.Tools.WorkflowExclusive = len(tools.WorkflowExclusiveToolNames())
@@ -224,6 +233,8 @@ func FormatText(r Report) string {
 	b.WriteString("[Tools]\n")
 	b.WriteString(fmt.Sprintf("  registered: %d  chat_active: %d  workflow_exclusive: %d\n",
 		r.Tools.Registered, r.Tools.ChatActive, r.Tools.WorkflowExclusive))
+	b.WriteString(fmt.Sprintf("  prompt: %d  readonly: %d  defer_load: %d  concurrency_safe: %d\n",
+		r.Tools.PromptTools, r.Tools.ReadOnlyTools, r.Tools.DeferLoadTools, r.Tools.ConcurrencySafe))
 	b.WriteByte('\n')
 	b.WriteString("[Toolsets]\n")
 	for _, ts := range r.Toolsets {

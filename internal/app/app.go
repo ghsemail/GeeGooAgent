@@ -124,6 +124,11 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	}
 
 	registry := tools.NewRegistry()
+	if policyPath := tools.DefaultPolicyPath(config.Home()); policyPath != "" {
+		if err := tools.LoadPolicyFile(policyPath); err != nil {
+			fmt.Fprintf(os.Stderr, "警告: tool_policy.yaml: %v\n", err)
+		}
+	}
 	workingLoader := workflow.WorkingLoaderAdapter{Store: working}
 	executor := runtime.NewExecutor(registry)
 	cpAdapter := workflow.CheckpointAdapter{SaveFn: func(sessionID, skill, status, lastTool string, step int, w *memory.PreMarketWorking) error {

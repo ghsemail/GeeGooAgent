@@ -4,26 +4,20 @@ import "strings"
 
 // ApprovalRequired reports whether a tool performs a mutating/dangerous
 // operation that should be confirmed before execution in interactive chat.
-// Workflow (premarket_market) runs are deterministic and pre-authorized, so this
-// gate only applies to ad-hoc chat invocations.
-//
-// The check is name-based and conservative: any create_/update_/delete_/edit_/switch
-// tool is considered mutating. Read-only tools (list_/get_/search_) are not.
-var ApprovalRequired = func(toolName string) bool {
-	name := strings.ToLower(toolName)
-	for _, prefix := range []string{"create_", "update_", "delete_", "edit_", "switch_", "add_"} {
-		if strings.HasPrefix(name, prefix) {
-			return true
-		}
-	}
-	return false
+func ApprovalRequired(toolName string) bool {
+	return EffectivePolicyForName(toolName) == PolicyPrompt
 }
 
-// ApprovalGate wraps a tool handler with a confirmation check. When the
-// context marks the session as interactive (Interactive=true) and the tool
-// is mutating, the handler is skipped with StatusSkip unless ctx.Approved
-// is true. Workflow callers set Approved=true; chat sets Interactive=true
-// and prompts the user via the UI before setting Approved.
+// EffectivePolicyForName resolves policy without a registry (inference + YAML rules).
+func EffectivePolicyForName(toolName string) PolicyAction {
+	policy := inferPolicy(toolName)
+	if override := matchPolicyRule(toolName); override != "" {
+		return override
+	}
+	return policy
+}
+
+// ApprovalGate wraps a tool handler with a confirmation check.
 func ApprovalGate(name string, handle Handler) Handler {
 	if !ApprovalRequired(name) {
 		return handle
@@ -41,4 +35,15 @@ func ApprovalGate(name string, handle Handler) Handler {
 			Data:    map[string]any{"tool": name, "approval_required": true},
 		}
 	}
+}
+
+// IsMutatingPrefix is a legacy helper for tests; prefer ApprovalRequired.
+func IsMutatingPrefix(toolName string) bool {
+	name := strings.ToLower(toolName)
+	for _, prefix := range []string{"create_", "update_", "delete_", "edit_", "switch_", "add_"} {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
 }

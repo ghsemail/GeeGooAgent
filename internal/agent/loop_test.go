@@ -360,8 +360,9 @@ func TestRunTurnParallelToolCallsPreserveOrder(t *testing.T) {
 			return tools.Result{Status: tools.StatusOK, Summary: label}
 		}
 	}
-	registry.Register(tools.Tool{Name: "slow_a", Description: "a", Handle: slow("A")})
-	registry.Register(tools.Tool{Name: "slow_b", Description: "b", Handle: slow("B")})
+	concurrent := true
+	registry.Register(tools.Tool{Name: "slow_a", Description: "a", Spec: tools.ToolSpec{ConcurrencySafe: &concurrent}, Handle: slow("A")})
+	registry.Register(tools.Tool{Name: "slow_b", Description: "b", Spec: tools.ToolSpec{ConcurrencySafe: &concurrent}, Handle: slow("B")})
 
 	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 	session := runtime.NewSession()

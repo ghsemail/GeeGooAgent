@@ -86,7 +86,7 @@ func (l *Loop) appendToolResults(
 			ToolName: call.Name, ToolStatus: string(result.Status), Summary: summary,
 		})
 		toolMsg := llm.Message{
-			Role: llm.RoleTool, Content: toolResultContent(result), ToolCallID: call.ID,
+			Role: llm.RoleTool, Content: l.tools.RenderResult(call.Name, result), ToolCallID: call.ID,
 		}
 		session.AppendMessage(toolMsg)
 		*messages = append(*messages, toolMsg)

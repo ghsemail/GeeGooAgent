@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -70,23 +69,8 @@ func withReplyFormatReminder(messages []llm.Message, toolRound int) []llm.Messag
 	return out
 }
 
-func toolResultContent(result tools.Result) string {
-	// Struct keeps summary before data in JSON so truncation preserves counts.
-	type payload struct {
-		Status  string `json:"status"`
-		Summary string `json:"summary"`
-		Data    any    `json:"data,omitempty"`
-	}
-	raw, _ := json.Marshal(payload{
-		Status:  string(result.Status),
-		Summary: result.Summary,
-		Data:    result.Data,
-	})
-	text := string(raw)
-	if len(text) > 6000 {
-		return text[:6000]
-	}
-	return text
+func toolResultContent(toolName string, result tools.Result) string {
+	return tools.RenderResultForLLM(toolName, result, 0)
 }
 
 func emptyReplyMessage(resp *llm.Response, records []runtime.StepRecord) string {

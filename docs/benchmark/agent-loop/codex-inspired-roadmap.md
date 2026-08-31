@@ -359,6 +359,8 @@ P1 实现须 **预留** 会话 metadata 字段与 `ResolveProfiles(session)` 接
 
 ### P2-3 声明式 Tool Policy（金融版 execpolicy）
 
+**完整工具平台改造（含本项阶段 B）：** [tool-platform-overhaul.md](../../engineering/tool-platform-overhaul.md)
+
 **Codex 参考:** `codex-rs/execpolicy` — prefix_rule、allow/prompt/forbidden。
 
 **方案:**

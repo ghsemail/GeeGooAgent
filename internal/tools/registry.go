@@ -88,6 +88,8 @@ type Tool struct {
 	Description string
 	Parameters  map[string]any
 	Handle      Handler
+	Spec        ToolSpec
+	resolved    resolvedMeta
 }
 
 // Registry maps tool names to implementations.
@@ -102,6 +104,7 @@ func NewRegistry() *Registry {
 
 // Register adds a tool.
 func (r *Registry) Register(t Tool) {
+	t.resolved = resolveToolMeta(t)
 	r.tools[t.Name] = t
 }
 

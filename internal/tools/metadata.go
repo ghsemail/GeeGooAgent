@@ -99,7 +99,7 @@ func BuildCatalog(registry *Registry, chatNames []string) []CatalogItem {
 			Toolsets:          toolsetIDsFor(name),
 			ChatEnabled:       chat,
 			RequiresMCP:       reqMCP,
-			RequiresApproval:  ApprovalRequired(name),
+			RequiresApproval:  tool.resolved.Policy == PolicyPrompt,
 			Implementation:    impl,
 			HTTPPath:          path,
 			ContextSummary:    summary,

@@ -15,9 +15,9 @@ import (
 type ToolProgress func(event string, data map[string]any)
 
 // ToolExec dispatches tool calls with timeout, optional approval, and batch parallelism.
-// Shared by the ReAct loop and deterministic workflow runner.
 type ToolExec struct {
 	executor            *runtime.Executor
+	registry            *tools.Registry
 	timeout             time.Duration
 	maxParallel         int
 	delegateMaxParallel int
@@ -27,12 +27,25 @@ type ToolExec struct {
 
 // NewToolExec creates a tool dispatcher backed by the registry executor.
 func NewToolExec(executor *runtime.Executor) *ToolExec {
+	reg := (*tools.Registry)(nil)
+	if executor != nil {
+		reg = executor.Registry()
+	}
 	return &ToolExec{
 		executor:    executor,
+		registry:    reg,
 		timeout:     defaultToolTimeout,
 		maxParallel: defaultToolMaxParallel,
 		planGate:    true,
 	}
+}
+
+// RenderResult formats a tool result for LLM consumption.
+func (e *ToolExec) RenderResult(toolName string, result tools.Result) string {
+	if e != nil && e.registry != nil {
+		return e.registry.RenderResult(toolName, result)
+	}
+	return tools.RenderResultForLLM(toolName, result, 0)
 }
 
 // SetMaxParallel caps concurrent tool executions in ExecuteBatch.
@@ -187,7 +200,7 @@ func (e *ToolExec) ExecuteBatch(
 		results[i] = result
 	}
 
-	if len(calls) == 1 || needsInteractiveApproval(toolCtx, calls) {
+	if len(calls) == 1 || needsInteractiveApproval(toolCtx, calls) || !e.batchConcurrencySafe(calls) {
 		for i, call := range calls {
 			runOne(i, call)
 		}
@@ -234,6 +247,21 @@ func emitProgress(fn ToolProgress, event string, data map[string]any) {
 	if fn != nil {
 		fn(event, data)
 	}
+}
+
+func (e *ToolExec) batchConcurrencySafe(calls []llm.ToolCall) bool {
+	for _, call := range calls {
+		if e != nil && e.registry != nil {
+			if !e.registry.IsConcurrencySafe(call.Name) {
+				return false
+			}
+			continue
+		}
+		if !tools.InferConcurrencySafeForName(call.Name) {
+			return false
+		}
+	}
+	return true
 }
 
 func needsInteractiveApproval(toolCtx tools.Context, calls []llm.ToolCall) bool {

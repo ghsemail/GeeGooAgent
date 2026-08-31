@@ -1,6 +1,6 @@
 # L2 — ToolRegistry
 
-> Go 实现：`internal/tools/registry.go`、`bootstrap.go`、`bespoke.go`
+> Go 实现：`internal/tools/registry.go`、`spec.go`、`policy.go`、`bootstrap.go`
 
 ## 职责
 
@@ -8,108 +8,57 @@
 - 按 toolset / chat 白名单过滤 Schema
 - 导出 JSON Schema 供 LLM function calling
 - 执行 Tool 并返回统一 `Result`
+- **ToolSpec**：权限、并发、超时、结果上限在 `Register` 时解析
 
 ## 核心类型
 
 ```go
-// internal/tools/registry.go
+type ToolSpec struct {
+    Policy          PolicyAction   // allow | prompt | forbidden
+    ReadOnly        *bool
+    ConcurrencySafe *bool
+    MaxResultChars  int
+    Timeout         time.Duration
+    DeferLoad       bool
+    UserFacingLabel string
+}
 
 type Tool struct {
-    Name        string
-    Description string
-    Parameters  map[string]any  // JSON Schema
-    Handle      Handler
+    Name, Description string
+    Parameters        map[string]any
+    Handle            Handler
+    Spec              ToolSpec      // 可选覆盖
+    resolved          resolvedMeta  // Register 时填充
 }
-
-type Handler func(ctx Context, args map[string]any) Result
-
-type Result struct {
-    Status   Status   // ok | error | dry_run | skipped
-    Summary  string
-    Data     map[string]any
-    ExitCode int
-    Meta     map[string]any  // api_code, duration_ms, ...
-}
-
-type Registry struct { /* map[string]Tool */ }
-
-func (r *Registry) Register(t Tool)
-func (r *Registry) Schemas(filter []string) []llm.ToolSchema
-func (r *Registry) Execute(req CallRequest, ctx Context) Result
 ```
+
+详见 [tool-spec.md](../../engineering/tool-spec.md)（M1 已实施）与 [tool-platform-overhaul.md](../../engineering/tool-platform-overhaul.md)（阶段 A～E 彻底改造）。
 
 ## 注册流程
 
 ```text
 tools.RegisterAll(r, deps)
-  ├── RegisterHTTPFromCatalog   // catalog.AllHTTP()，排除 BespokeNames
+  ├── RegisterHTTPFromCatalog   // catalog.AllHTTP()
   └── RegisterBespokeTools
-        ├── registerPerceptionTools
-        ├── registerAnalysisTools
-        └── registerReportTools + registerMetaTools
 ```
 
-`catalog.BespokeNames` 中的 Tool **不**走通用 HTTP 转发（如 `search_code` 直连 Signal `:3200` 的 `SearchCode` 客户端）。
+`Register()` 调用 `resolveToolMeta()`：显式 Spec + 名称推断 + `~/.geegoo/tool_policy.{yaml,json}`。
 
-## HTTP 转发路径
+## 策略与审批
 
-`bootstrap.go` 中每个 `HTTPSpec` 包装为：
-
-1. `ApprovalGate(spec.Name, handler)` — 写操作门控
-2. `buildHTTPBody` — 支持 `MergePayload`（Bot CRUD）
-3. `catalog.NeedsMCPToken` → 注入 `mcp_token`
-4. `deps.HTTP.ForTool(name).Post` 或 `PostDirect`
-5. `ClassifyHTTPPayload` — 空 data → skipped
-
-## Toolset 过滤
-
-Chat 白名单：`ChatToolNamesForToolsets(ids)`（`domains.go` + `toolset.go`）
-
-```go
-// 默认：5 个 ChatDefault=true 的 toolset；排除 workflow 独占 tool 后约 69 个
-RegisteredChatToolNamesFor(registry, nil)
-```
-
-**workflow 独占 vs 共享**（`toolset.go` → `workflowExclusiveTools`）：仅存在于 `report_workflow` 的 7 个 tool 默认不进 chat；与 `market` 共享的 `get_bot_yesterday_attitude` 仍进默认 chat。完整 7 个独占 tool 见 [tools-status.md §十五](./tools-status.md)。
-
-## ApprovalGate
-
-`create_` / `update_` / `delete_` / `edit_` / `switch_` 前缀：
-
-| 条件 | 行为 |
+| 来源 | 行为 |
 |------|------|
-| `DryRun` | dry_run |
-| `Interactive && !Approved` | skipped + 提示确认 |
-| workflow / 非 interactive | 正常执行 |
+| 名称推断 | `create_/update_/delete_/...` → `prompt` |
+| `tool_policy.yaml` | 覆盖推断（Codex execpolicy 风格） |
+| `ApprovalGate` | interactive + prompt → skip 待确认 |
 
-## 与 Python 蓝图差异
+## 并发与结果
 
-早期设计的 `perceive.py` / `analyze.py` 等分文件 → 现为：
-
-| 原规划 | 现实现 |
-|--------|--------|
-| `perceive.py` | `bespoke.go` perception 段 + catalog HTTP |
-| `analyze.py` | `bespoke.go` analysis 段 + catalog |
-| `act_*.py` | catalog HTTP（Bot/报告 CRUD） |
-| `meta.py` | `bespoke.go` meta + `approval.go` |
-
-## MVP vs 当前
-
-| 指标 | MVP 目标 | 当前 |
-|------|----------|------|
-| Tool 数 | ~19（盘前） | 82 注册 |
-| 盘前子集 | manifest.yaml 列出 | workflow 硬编码 |
-| Bash | 禁止 | 禁止 |
-
-全量设计目录：[tool-catalog.md](./tool-catalog.md)  
-运行态可用性：[tools-status.md](./tools-status.md)
-
-Workflow 路径不使用 toolset 过滤——步骤在 `workflow/premarket.go` 硬编码 Tool 名。
+- `ExecuteBatch`：仅当**全部** tool 为 `ConcurrencySafe` 时并行
+- `RenderResult`：按 `MaxResultChars` 截断 LLM 可见输出
 
 ## 测试
 
-- `bootstrap_test.go` — 注册 **82**、HTTP catalog **61**、dry-run 全工具
-- `toolset_test.go` — toolset 并集、默认 chat **69**、workflow 独占/共享
-- `approval_test.go` — 门控（含 `edit_*`）
-- `catalog/geegoobot_contract_test.go` — HTTP 规格、无 bespoke 泄漏
-- `contract_test.go` — 空成功分类
+- `spec_test.go` — 推断、policy、render
+- `bootstrap_test.go` — 注册数量
+- `approval_test.go` — 门控
