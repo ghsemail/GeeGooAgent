@@ -43,6 +43,7 @@ type Loop struct {
 	gatePolicy     llm.Policy
 	retrievalTopK  int
 	playbookRouter *playbookexec.Router
+	schemaProvider func(session *runtime.Session) []llm.ToolSchema
 }
 
 // NewLoop creates an agent loop.
@@ -126,6 +127,14 @@ func (l *Loop) SetSkillToolExpander(fn SkillToolExpander) {
 		return
 	}
 	l.skillTools = fn
+}
+
+// SetSchemaProvider rebuilds chat tool schemas each round (policy v2 / defer load / active toolsets).
+func (l *Loop) SetSchemaProvider(fn func(session *runtime.Session) []llm.ToolSchema) {
+	if l == nil {
+		return
+	}
+	l.schemaProvider = fn
 }
 
 // SetMemory replaces the Memory port (compress / recall / store).
@@ -321,6 +330,7 @@ func (l *Loop) RunTurn(
 		ctx = context.Background()
 	}
 	toolCtx.Ctx = ctx
+	toolCtx.ActiveToolsets = &session.ActiveToolsets
 	if toolCtx.EventBus == nil && l.eventBus != nil {
 		toolCtx.EventBus = l.eventBus
 	}
@@ -396,6 +406,16 @@ func (l *Loop) RunTurn(
 	for round := 0; round < l.maxToolRounds; round++ {
 		if err := ctx.Err(); err != nil {
 			return l.failTurn(ctx, session, err, records)
+		}
+		if l.schemaProvider != nil {
+			schemas = l.schemaProvider(session)
+			if toolCtx.Interactive {
+				schemas = filterInteractiveSchemas(schemas)
+			}
+			if extra := l.expandSkillSchemas(matchedSkills); len(extra) > 0 {
+				schemas = mergeToolSchemas(schemas, extra)
+			}
+			schemas = playbookexec.FilterLegacyBacktestTools(schemas, userText, session)
 		}
 		done, result := l.runRound(ctx, session, &messages, toolCtx, schemas, round, &records)
 		if done {

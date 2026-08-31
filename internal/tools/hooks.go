@@ -11,6 +11,7 @@ import (
 )
 
 const defaultHookTimeout = 5 * time.Second
+const maxHookInjectBytes = 2048
 
 // HookRunner executes configured shell hooks around tool calls.
 type HookRunner struct {
@@ -31,10 +32,10 @@ type HookPayload struct {
 	Summary   string         `json:"summary,omitempty"`
 }
 
-// RunToolBefore invokes tool_before hooks. Returns error when FailClosed and hook fails.
-func (h *HookRunner) RunToolBefore(ctx Context, toolName string, args map[string]any) error {
+// RunToolBefore invokes tool_before hooks. Returns inject text and error when FailClosed and hook fails.
+func (h *HookRunner) RunToolBefore(ctx Context, toolName string, args map[string]any) (string, error) {
 	if h == nil || len(h.ToolBefore) == 0 {
-		return nil
+		return "", nil
 	}
 	payload := HookPayload{
 		Phase: "tool_before", Tool: toolName, SessionID: ctx.SessionID,
@@ -44,9 +45,9 @@ func (h *HookRunner) RunToolBefore(ctx Context, toolName string, args map[string
 }
 
 // RunToolAfter invokes tool_after hooks.
-func (h *HookRunner) RunToolAfter(ctx Context, toolName string, args map[string]any, result Result) error {
+func (h *HookRunner) RunToolAfter(ctx Context, toolName string, args map[string]any, result Result) (string, error) {
 	if h == nil || len(h.ToolAfter) == 0 {
-		return nil
+		return "", nil
 	}
 	payload := HookPayload{
 		Phase: "tool_after", Tool: toolName, SessionID: ctx.SessionID,
@@ -55,9 +56,9 @@ func (h *HookRunner) RunToolAfter(ctx Context, toolName string, args map[string]
 	return h.runAll(ctx.GoContext(), h.ToolAfter, payload)
 }
 
-func (h *HookRunner) runAll(ctx context.Context, scripts []string, payload HookPayload) error {
+func (h *HookRunner) runAll(ctx context.Context, scripts []string, payload HookPayload) (string, error) {
 	if h == nil {
-		return nil
+		return "", nil
 	}
 	timeout := h.Timeout
 	if timeout <= 0 {
@@ -65,8 +66,9 @@ func (h *HookRunner) runAll(ctx context.Context, scripts []string, payload HookP
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
-		return err
+		return "", err
 	}
+	var injectParts []string
 	var errs []string
 	for _, script := range scripts {
 		script = strings.TrimSpace(script)
@@ -74,19 +76,41 @@ func (h *HookRunner) runAll(ctx context.Context, scripts []string, payload HookP
 			continue
 		}
 		runCtx, cancel := context.WithTimeout(ctx, timeout)
+		var stdout bytes.Buffer
 		cmd := exec.CommandContext(runCtx, script)
 		cmd.Stdin = bytes.NewReader(raw)
+		cmd.Stdout = &stdout
 		if err := cmd.Run(); err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", script, err))
+		} else if text := parseHookInject(stdout.String()); text != "" {
+			injectParts = append(injectParts, text)
 		}
 		cancel()
 	}
+	inject := strings.Join(injectParts, "\n")
+	if len(inject) > maxHookInjectBytes {
+		inject = inject[:maxHookInjectBytes]
+	}
 	if len(errs) == 0 {
-		return nil
+		return inject, nil
 	}
 	err = fmt.Errorf("hook failed: %s", strings.Join(errs, "; "))
 	if h.FailClosed {
-		return err
+		return inject, err
 	}
-	return nil
+	return inject, nil
+}
+
+func parseHookInject(stdout string) string {
+	stdout = strings.TrimSpace(stdout)
+	if stdout == "" {
+		return ""
+	}
+	var payload struct {
+		Inject string `json:"inject"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &payload); err == nil && strings.TrimSpace(payload.Inject) != "" {
+		return strings.TrimSpace(payload.Inject)
+	}
+	return stdout
 }

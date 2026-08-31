@@ -246,6 +246,14 @@ type AppConfig struct {
 	ActiveProfile    string            `json:"active_profile,omitempty"`
 	Profiles         map[string]ProfileConfig `json:"profiles,omitempty"`
 	ResolvedProfile  string            `json:"-"`
+	Agent            AgentRuntimeConfig `json:"agent,omitempty"`
+}
+
+// AgentRuntimeConfig toggles M2–M5 tool platform behavior.
+type AgentRuntimeConfig struct {
+	PolicyV2           *bool `json:"policy_v2,omitempty"`
+	DeferLoadTools       *bool `json:"defer_load_tools,omitempty"`
+	ToolFragmentInject   *bool `json:"tool_fragment_inject,omitempty"`
 }
 
 // ConfigError indicates invalid or missing configuration.
@@ -503,6 +511,30 @@ func (c *AppConfig) EffectiveChatToolsets() []string {
 		return nil
 	}
 	return c.ChatToolsets
+}
+
+// EffectivePolicyV2 enables forbidden-tool schema filtering and execute blocking (default true).
+func (c *AppConfig) EffectivePolicyV2() bool {
+	if c == nil || c.Agent.PolicyV2 == nil {
+		return true
+	}
+	return *c.Agent.PolicyV2
+}
+
+// EffectiveDeferLoadTools enables core-only chat schema with discover/activate (default true).
+func (c *AppConfig) EffectiveDeferLoadTools() bool {
+	if c == nil || c.Agent.DeferLoadTools == nil {
+		return true
+	}
+	return *c.Agent.DeferLoadTools
+}
+
+// EffectiveToolFragmentInject routes tool/hook output through fragment composer (default true).
+func (c *AppConfig) EffectiveToolFragmentInject() bool {
+	if c == nil || c.Agent.ToolFragmentInject == nil {
+		return true
+	}
+	return *c.Agent.ToolFragmentInject
 }
 
 // EffectivePlanGate reports whether mutating tools should emit plan_proposed before approval (default true).

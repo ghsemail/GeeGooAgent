@@ -28,6 +28,7 @@ func (l *Loop) runRound(
 
 	*messages = l.applyCompression(ctx, session, *messages)
 	apiMessages := withRoundBudgetFragments(*messages, round, l.maxToolRounds, session)
+	apiMessages = withHookInjectFragments(apiMessages, session, l)
 	apiMessages = withReplyFormatReminder(apiMessages, round)
 	apiMessages = llm.SanitizeMessages(apiMessages)
 	if len(apiMessages) > len(*messages) {

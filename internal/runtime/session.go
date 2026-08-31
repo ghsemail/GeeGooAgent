@@ -32,6 +32,10 @@ type Session struct {
 	CompactionGeneration int
 	// PendingPlan holds mutating tool_calls awaiting user confirmation (plan gate).
 	PendingPlan *PendingPlan
+	// ActiveToolsets are session-scoped toolset activations (discover_tools / activate_toolset).
+	ActiveToolsets []string
+	// PendingHookInject carries hook stdout inject text for the next LLM round.
+	PendingHookInject string
 	// LineageChain records each context compression/hygiene event (newest last).
 	LineageChain []lineage.Record
 	// UserID is the tenant owner for session recall scoping (from chat metadata).

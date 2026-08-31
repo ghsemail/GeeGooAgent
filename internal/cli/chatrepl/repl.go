@@ -343,7 +343,7 @@ func (r *Repl) printFooter(result runtime.TurnResult) {
 func (r *Repl) runTurn(text string) runtime.TurnResult {
 	r.Chat.SyncChatSystemPrompt()
 	r.Session.Messages = r.Chat.RuntimeMessages()
-	schemas := r.Registry.Schemas(r.chatToolNames())
+	schemas := r.App.ChatSchemasForSession(r.Session)
 	ctx := r.App.ToolContext(r.Session.ID)
 	ctx.DryRun = r.DryRun
 	// Chat is an interactive, user-facing entry point.  Mutating tools must
