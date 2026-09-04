@@ -54,6 +54,40 @@ func TestTurnPlanDoesNotRunBacktestOnAnalysis(t *testing.T) {
 	}
 }
 
+func TestTurnPlanFollowsLastDomainOnSymbolSwitch(t *testing.T) {
+	provider := &llm.MockProvider{
+		Responses: []*llm.Response{
+			{Content: "腾讯技术面偏强。"},
+			{Content: "茅台继续观察。"},
+		},
+	}
+	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
+	gateway.SetSleep(func(time.Duration) {})
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
+
+	var domains []string
+	loop.SetProgress(func(event string, data map[string]any) {
+		if event == "turn_plan" {
+			if d, ok := data["domain"].(string); ok {
+				domains = append(domains, d)
+			}
+		}
+	})
+
+	session := runtime.NewSession()
+	_ = loop.RunTurn(context.Background(), session, "腾讯现在怎么样", tools.Context{}, nil)
+	_ = loop.RunTurn(context.Background(), session, "换成贵州茅台", tools.Context{}, nil)
+	if len(domains) != 2 {
+		t.Fatalf("domains=%v", domains)
+	}
+	if domains[0] != string(cognition.DomainStockAnalysis) || domains[1] != string(cognition.DomainStockAnalysis) {
+		t.Fatalf("expected sticky analysis, got %v", domains)
+	}
+	if session.LastTurnDomain != string(cognition.DomainStockAnalysis) {
+		t.Fatalf("LastTurnDomain=%q", session.LastTurnDomain)
+	}
+}
+
 func TestTurnPlanRunsPlaybookOnlyForExplicitBacktest(t *testing.T) {
 	provider := &llm.MockProvider{
 		Responses: []*llm.Response{{Content: "unused"}},

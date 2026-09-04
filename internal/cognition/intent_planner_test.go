@@ -1,6 +1,7 @@
 package cognition
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
@@ -31,6 +32,7 @@ func TestRulePlannerRoutesAcrossDomains(t *testing.T) {
 		{msg: "改一下定制信号参数", domain: DomainCustomSignal, mode: ModeGather, want: "get_custom_signal"},
 		{msg: "加一个 EMA 模板", domain: DomainPromptAdmin, mode: ModeExecute, want: "add_single_prompt_template"},
 		{msg: "准吗", domain: DomainChat, mode: ModeTalk, forbid: []string{"run_strategy_backtest"}},
+		{msg: "MACD", domain: DomainAmbiguous, mode: ModeClarify, forbid: []string{"run_strategy_backtest"}},
 	}
 	for _, tc := range cases {
 		plan := p.Plan(PlanInput{UserText: tc.msg})
@@ -72,6 +74,89 @@ func TestFilterSchemasIntersectsAllowList(t *testing.T) {
 	}
 	if names["run_strategy_backtest"] || names["create_dca_bot"] {
 		t.Fatalf("backtest/bot tools leaked: %v", names)
+	}
+}
+
+func TestRulePlannerFollowsLastDomainAndClarifyChoices(t *testing.T) {
+	p := RulePlanner{}
+	cases := []struct {
+		msg      string
+		last     Domain
+		domain   Domain
+		mode     Mode
+		playbook bool
+	}{
+		{msg: "换成贵州茅台", last: DomainStockAnalysis, domain: DomainStockAnalysis, mode: ModeGather},
+		{msg: "MACD", last: DomainStockAnalysis, domain: DomainStockAnalysis, mode: ModeGather},
+		{msg: "个股/指标分析", last: DomainAmbiguous, domain: DomainStockAnalysis, mode: ModeGather},
+		{msg: "测买卖点", last: DomainAmbiguous, domain: DomainSignalProbe, mode: ModeExecute},
+		{msg: "跑回测看收益", last: DomainAmbiguous, domain: DomainBacktestRun, mode: ModeExecute, playbook: true},
+		{msg: "先问答，先不操作", last: DomainAmbiguous, domain: DomainChat, mode: ModeTalk},
+		{msg: "帮我回测小米", last: DomainStockAnalysis, domain: DomainBacktestRun, mode: ModeExecute, playbook: true},
+		{msg: "MACD", last: "", domain: DomainAmbiguous, mode: ModeClarify},
+	}
+	for _, tc := range cases {
+		plan := p.Plan(PlanInput{UserText: tc.msg, LastDomain: tc.last})
+		if plan.Domain != tc.domain || plan.Mode != tc.mode {
+			t.Fatalf("%q last=%s: got %s/%s want %s/%s (%s)",
+				tc.msg, tc.last, plan.Domain, plan.Mode, tc.domain, tc.mode, plan.Reason)
+		}
+		if plan.ShouldRunBacktestPlaybook() != tc.playbook {
+			t.Fatalf("%q playbook=%v want %v", tc.msg, plan.ShouldRunBacktestPlaybook(), tc.playbook)
+		}
+	}
+}
+
+type classifyMock struct {
+	calls int
+	body  string
+}
+
+func (m *classifyMock) Model() string { return "gate-mock" }
+
+func (m *classifyMock) Chat(_ context.Context, _ []llm.Message, _ []llm.ToolSchema, _ float64, _ int) (*llm.Response, error) {
+	m.calls++
+	return &llm.Response{Content: m.body}, nil
+}
+
+func TestIntentPlannerUsesLLMOnlyInGrayZone(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"stock_analysis","confidence":0.8,"reason":"indicator mention"}`}
+	p := IntentPlanner{Rules: RulePlanner{}, LLM: mock}
+
+	hi := p.Plan(PlanInput{UserText: "腾讯现在怎么样"})
+	if hi.Domain != DomainStockAnalysis {
+		t.Fatalf("analysis domain=%s", hi.Domain)
+	}
+	if mock.calls != 0 {
+		t.Fatalf("high-confidence analysis must not call LLM, calls=%d", mock.calls)
+	}
+
+	got := p.Plan(PlanInput{UserText: "MACD"})
+	if mock.calls != 1 {
+		t.Fatalf("ambiguous MACD should call LLM, calls=%d", mock.calls)
+	}
+	if got.Domain != DomainStockAnalysis || got.ShouldRunBacktestPlaybook() {
+		t.Fatalf("MACD llm plan=%s/%s playbook=%v", got.Domain, got.Mode, got.ShouldRunBacktestPlaybook())
+	}
+}
+
+func TestIntentPlannerRejectsBacktestWithoutVerb(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"backtest_run","confidence":0.99,"reason":"signals"}`}
+	p := IntentPlanner{Rules: RulePlanner{}, LLM: mock}
+	got := p.Plan(PlanInput{UserText: "这个信号怎么样"})
+	if got.ShouldRunBacktestPlaybook() || got.Domain == DomainBacktestRun {
+		t.Fatalf("must not accept backtest_run without verb: %+v", got)
+	}
+	if got.Domain != DomainAmbiguous {
+		t.Fatalf("keep clarify on blocked backtest, got %s", got.Domain)
+	}
+}
+
+func TestIntentPlannerNilLLMKeepsRules(t *testing.T) {
+	p := IntentPlanner{Rules: RulePlanner{}}
+	got := p.Plan(PlanInput{UserText: "MACD"})
+	if got.Domain != DomainAmbiguous {
+		t.Fatalf("nil LLM should keep rules, got %s", got.Domain)
 	}
 }
 

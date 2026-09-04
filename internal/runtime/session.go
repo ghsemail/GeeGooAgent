@@ -36,6 +36,8 @@ type Session struct {
 	LineageChain []lineage.Record
 	// UserID is the tenant owner for session recall scoping (from chat metadata).
 	UserID string
+	// LastTurnDomain is the cognition domain from the previous user turn.
+	LastTurnDomain string
 }
 
 // PendingPlan is a held mutating-tool batch from one LLM round.

@@ -222,6 +222,9 @@ func (l *Loop) effectivePlanner() cognition.Planner {
 	if l != nil && l.planner != nil {
 		return l.planner
 	}
+	if l != nil && l.gateProvider != nil {
+		return cognition.IntentPlanner{Rules: cognition.RulePlanner{}, LLM: l.gateProvider}
+	}
 	return cognition.RulePlanner{}
 }
 
@@ -367,7 +370,12 @@ func (l *Loop) RunTurn(
 		session.PendingPlan = nil
 	}
 
-	turnPlan := l.effectivePlanner().Plan(cognition.PlanInput{UserText: userText})
+	turnPlan := l.effectivePlanner().Plan(cognition.PlanInput{
+		Ctx:        ctx,
+		UserText:   userText,
+		LastDomain: cognition.Domain(session.LastTurnDomain),
+	})
+	session.LastTurnDomain = string(turnPlan.Domain)
 	l.emit("turn_plan", map[string]any{
 		"domain":     string(turnPlan.Domain),
 		"act":        turnPlan.Act,

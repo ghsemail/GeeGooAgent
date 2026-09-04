@@ -1,6 +1,7 @@
 package cognition
 
 import (
+	"context"
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
@@ -52,6 +53,7 @@ type TurnPlan struct {
 
 // PlanInput is the planner view of the current user turn.
 type PlanInput struct {
+	Ctx        context.Context
 	UserText   string
 	LastDomain Domain
 }

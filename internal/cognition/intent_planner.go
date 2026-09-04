@@ -9,48 +9,52 @@ type RulePlanner struct{}
 // Plan implements Planner.
 func (RulePlanner) Plan(in PlanInput) TurnPlan {
 	msg := strings.TrimSpace(in.UserText)
+	if in.LastDomain == DomainAmbiguous {
+		if d, ok := mapClarifyChoice(msg); ok {
+			p := planForDomain(d)
+			p.Reason = "用户选择了上一轮澄清选项"
+			p.Confidence = 0.9
+			return p
+		}
+	}
 	switch {
 	case isDefinitionOrChitchat(msg):
-		return makePlan(DomainChat, "qa", ModeTalk, 0.9, "问答/解释，不调用业务工具", nil, toolsChat)
+		return planForDomain(DomainChat)
 	case hasAny(msg, promptAdminTokens):
-		return makePlan(DomainPromptAdmin, "admin", ModeExecute, 0.86, "Prompt 模板运营", []string{"prompt-template-admin"}, toolsPromptAdmin)
+		return planForDomain(DomainPromptAdmin)
 	case hasAny(msg, customSignalTokens):
-		return makePlan(DomainCustomSignal, "admin", ModeGather, 0.84, "定制信号管理", []string{"custom-signal-admin"}, toolsCustomSignal)
+		return planForDomain(DomainCustomSignal)
 	case hasAny(msg, reportWriteTokens):
-		return makePlan(DomainReportWrite, "write", ModeExecute, 0.88, "写入报告", []string{"report-write"}, toolsReportWrite)
+		return planForDomain(DomainReportWrite)
 	case hasAny(msg, reportLookupTokens):
-		return makePlan(DomainReportLookup, "lookup", ModeGather, 0.88, "查询报告", []string{"report-lookup"}, toolsReportLookup)
+		return planForDomain(DomainReportLookup)
 	case hasAny(msg, knowledgeTokens):
-		return makePlan(DomainKnowledge, "lookup", ModeGather, 0.9, "知识库检索", []string{"knowledge-base"}, toolsKnowledge)
+		return planForDomain(DomainKnowledge)
 	case hasAny(msg, newsTokens):
-		return makePlan(DomainNews, "lookup", ModeGather, 0.82, "新闻检索", nil, toolsNews)
+		return planForDomain(DomainNews)
 	case hasAny(msg, botManageTokens):
-		mode := ModeGather
+		p := planForDomain(DomainBotManage)
 		if hasAny(msg, []string{"建", "创建", "改", "删除", "停"}) {
-			mode = ModeExecute
+			p.Mode = ModeExecute
 		}
-		return makePlan(DomainBotManage, "bot", mode, 0.88, "交易/提醒机器人", []string{"bot-manager"}, toolsBotManage)
+		return p
 	case hasAny(msg, dcaGridTokens):
-		return makePlan(DomainDCAGrid, "dca_grid", ModeExecute, 0.9, "DCA/网格方案，不走 SmartTrade 回测", []string{"strategy-backtest"}, toolsDCAGrid)
+		return planForDomain(DomainDCAGrid)
 	case hasAny(msg, backtestHistoryTokens):
-		return makePlan(DomainBacktestHistory, "lookup", ModeGather, 0.9, "回测历史", []string{"strategy-backtest-history"}, toolsBacktestHistory)
+		return planForDomain(DomainBacktestHistory)
 	case isSignalProbe(msg):
-		return makePlan(DomainSignalProbe, "probe", ModeExecute, 0.9, "只测买卖点，不跑 PnL", []string{"strategy-signal-probe"}, toolsSignalProbe)
+		return planForDomain(DomainSignalProbe)
 	case isBacktestRun(msg):
-		return makePlan(DomainBacktestRun, "backtest", ModeExecute, 0.92, "明确要跑 SmartTrade 回测", []string{"strategy-backtest-run"}, toolsBacktestRun)
+		return planForDomain(DomainBacktestRun)
+	case isStickyDomain(in.LastDomain) && (isFollowUpUtterance(msg) || isBareStrategyTalk(msg)):
+		p := planForDomain(in.LastDomain)
+		p.Reason = "沿用上一轮领域 " + string(in.LastDomain)
+		p.Confidence = 0.8
+		return p
 	case isBareStrategyTalk(msg):
-		return TurnPlan{
-			Domain:          DomainAmbiguous,
-			Act:             "disambiguate",
-			Mode:            ModeClarify,
-			Confidence:      0.55,
-			Reason:          "提到策略/信号但未说明要分析、测点还是回测",
-			ToolsAllow:      []string{alwaysAllowClarify},
-			ClarifyQuestion: "你是想做哪一件？",
-			ClarifyChoices:  []string{"个股/指标分析", "测买卖点", "跑回测看收益", "先问答，先不操作"},
-		}
+		return planForDomain(DomainAmbiguous)
 	case isStockAnalysis(msg):
-		return makePlan(DomainStockAnalysis, "analyze", ModeGather, 0.86, "个股分析/行情", []string{"stock-analysis"}, toolsStockAnalysis)
+		return planForDomain(DomainStockAnalysis)
 	default:
 		return makePlan(DomainChat, "qa", ModeTalk, 0.7, "未匹配业务意图，按对话处理", nil, toolsChat)
 	}
@@ -66,6 +70,73 @@ func makePlan(domain Domain, act string, mode Mode, conf float64, reason string,
 		Reason:     reason,
 		Skills:     skills,
 		ToolsAllow: uniq(allow),
+	}
+}
+
+func planForDomain(d Domain) TurnPlan {
+	switch d {
+	case DomainPromptAdmin:
+		return makePlan(DomainPromptAdmin, "admin", ModeExecute, 0.86, "Prompt 模板运营", []string{"prompt-template-admin"}, toolsPromptAdmin)
+	case DomainCustomSignal:
+		return makePlan(DomainCustomSignal, "admin", ModeGather, 0.84, "定制信号管理", []string{"custom-signal-admin"}, toolsCustomSignal)
+	case DomainReportWrite:
+		return makePlan(DomainReportWrite, "write", ModeExecute, 0.88, "写入报告", []string{"report-write"}, toolsReportWrite)
+	case DomainReportLookup:
+		return makePlan(DomainReportLookup, "lookup", ModeGather, 0.88, "查询报告", []string{"report-lookup"}, toolsReportLookup)
+	case DomainKnowledge:
+		return makePlan(DomainKnowledge, "lookup", ModeGather, 0.9, "知识库检索", []string{"knowledge-base"}, toolsKnowledge)
+	case DomainNews:
+		return makePlan(DomainNews, "lookup", ModeGather, 0.82, "新闻检索", nil, toolsNews)
+	case DomainBotManage:
+		return makePlan(DomainBotManage, "bot", ModeGather, 0.88, "交易/提醒机器人", []string{"bot-manager"}, toolsBotManage)
+	case DomainDCAGrid:
+		return makePlan(DomainDCAGrid, "dca_grid", ModeExecute, 0.9, "DCA/网格方案，不走 SmartTrade 回测", []string{"strategy-backtest"}, toolsDCAGrid)
+	case DomainBacktestHistory:
+		return makePlan(DomainBacktestHistory, "lookup", ModeGather, 0.9, "回测历史", []string{"strategy-backtest-history"}, toolsBacktestHistory)
+	case DomainSignalProbe:
+		return makePlan(DomainSignalProbe, "probe", ModeExecute, 0.9, "只测买卖点，不跑 PnL", []string{"strategy-signal-probe"}, toolsSignalProbe)
+	case DomainBacktestRun:
+		return makePlan(DomainBacktestRun, "backtest", ModeExecute, 0.92, "明确要跑 SmartTrade 回测", []string{"strategy-backtest-run"}, toolsBacktestRun)
+	case DomainStockAnalysis:
+		return makePlan(DomainStockAnalysis, "analyze", ModeGather, 0.86, "个股分析/行情", []string{"stock-analysis"}, toolsStockAnalysis)
+	case DomainAmbiguous:
+		return TurnPlan{
+			Domain:          DomainAmbiguous,
+			Act:             "disambiguate",
+			Mode:            ModeClarify,
+			Confidence:      0.55,
+			Reason:          "提到策略/信号但未说明要分析、测点还是回测",
+			ToolsAllow:      []string{alwaysAllowClarify},
+			ClarifyQuestion: "你是想做哪一件？",
+			ClarifyChoices:  []string{"个股/指标分析", "测买卖点", "跑回测看收益", "先问答，先不操作"},
+		}
+	default:
+		return makePlan(DomainChat, "qa", ModeTalk, 0.9, "问答/解释，不调用业务工具", nil, toolsChat)
+	}
+}
+
+func isStickyDomain(d Domain) bool {
+	return d != "" && d != DomainChat && d != DomainAmbiguous
+}
+
+func isFollowUpUtterance(msg string) bool {
+	return hasAny(msg, []string{"换成", "改成", "继续", "再看看", "还是那个", "同样的", "刚才那个标的", "换一个标的"})
+}
+
+func mapClarifyChoice(msg string) (Domain, bool) {
+	switch {
+	case hasAny(msg, []string{"个股/指标分析", "指标分析", "先分析"}):
+		return DomainStockAnalysis, true
+	case msg == "分析":
+		return DomainStockAnalysis, true
+	case hasAny(msg, []string{"测买卖点", "只测点"}):
+		return DomainSignalProbe, true
+	case hasAny(msg, []string{"跑回测看收益", "看收益"}):
+		return DomainBacktestRun, true
+	case hasAny(msg, []string{"先问答", "先不操作"}):
+		return DomainChat, true
+	default:
+		return "", false
 	}
 }
 
