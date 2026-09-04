@@ -33,6 +33,7 @@ func TestRulePlannerRoutesAcrossDomains(t *testing.T) {
 		{msg: "加一个 EMA 模板", domain: DomainPromptAdmin, mode: ModeExecute, want: "add_single_prompt_template"},
 		{msg: "准吗", domain: DomainChat, mode: ModeTalk, forbid: []string{"run_strategy_backtest"}},
 		{msg: "MACD", domain: DomainAmbiguous, mode: ModeClarify, forbid: []string{"run_strategy_backtest"}},
+		{msg: "中际旭创呢", domain: DomainStockAnalysis, mode: ModeGather, want: "search_code"},
 	}
 	for _, tc := range cases {
 		plan := p.Plan(PlanInput{UserText: tc.msg})
@@ -48,11 +49,11 @@ func TestRulePlannerRoutesAcrossDomains(t *testing.T) {
 				t.Fatalf("%q: tools should not include %s", tc.msg, bad)
 			}
 		}
-		if tc.domain == DomainBacktestRun && !plan.ShouldRunBacktestPlaybook() {
-			t.Fatalf("%q: expected backtest playbook", tc.msg)
+		if tc.domain == DomainBacktestRun && !plan.ShouldRunDomainSOP() {
+			t.Fatalf("%q: expected domain SOP", tc.msg)
 		}
-		if tc.domain != DomainBacktestRun && plan.ShouldRunBacktestPlaybook() {
-			t.Fatalf("%q: must not run backtest playbook", tc.msg)
+		if tc.domain != DomainBacktestRun && tc.domain != DomainStockAnalysis && tc.domain != DomainSignalProbe && plan.ShouldRunDomainSOP() {
+			t.Fatalf("%q: must not run domain SOP", tc.msg)
 		}
 	}
 }

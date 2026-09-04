@@ -6,6 +6,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
+	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
 var sessionBacktestContextTokens = []string{
@@ -56,7 +57,7 @@ func enrichPlanFromSession(plan *BacktestRunPlan, session *runtime.Session) {
 			continue
 		}
 		if strings.TrimSpace(plan.StockQuery) == "" {
-			if q := extractStockQuery(content); q != "" {
+			if q := slots.ExtractStockQuery(content); q != "" {
 				plan.StockQuery = q
 			}
 		}
@@ -90,7 +91,7 @@ func lastConfirmedStock(session *runtime.Session) string {
 		for _, line := range strings.Split(content, "\n") {
 			line = strings.TrimSpace(line)
 			if strings.HasPrefix(line, "##") {
-				if q := extractStockQuery(line); q != "" {
+				if q := slots.ExtractStockQuery(line); q != "" {
 					return q
 				}
 			}

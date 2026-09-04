@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ghsemail/GeeGooAgent/internal/slots"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
@@ -14,39 +15,10 @@ func (r *Router) resolveStock(
 	plan BacktestRunPlan,
 	recordTool func(name, status, summary string),
 ) (code, name, market string, err error) {
-	res := r.runTool(ctx, toolCtx, "search_code", map[string]any{"regex": plan.StockQuery}, recordTool)
-	if res.Status != tools.StatusOK {
-		return "", "", "", fmt.Errorf("search_code 失败：%s", res.Summary)
+	runTool := func(ctx context.Context, req tools.CallRequest, tc tools.Context) tools.Result {
+		return r.runTool(ctx, tc, req.Name, req.Arguments, recordTool)
 	}
-	items := catalogItems(res.Data)
-	if len(items) == 0 {
-		return "", "", "", fmt.Errorf("未找到标的「%s」，请换名称或代码", plan.StockQuery)
-	}
-	row := items[0]
-	if len(items) > 1 && toolCtx.ClarifyFn != nil {
-		choices := make([]string, 0, minInt(len(items), 4))
-		for i := 0; i < len(items) && i < 4; i++ {
-			it := items[i]
-			choices = append(choices, fmt.Sprintf("%v %v", it["code"], it["name"]))
-		}
-		answer, ok := toolCtx.ClarifyFn(ctx, "找到多个标的，请选择：", choices)
-		if ok {
-			for _, it := range items {
-				label := fmt.Sprintf("%v %v", it["code"], it["name"])
-				if label == answer || strings.Contains(answer, fmt.Sprint(it["code"])) {
-					row = it
-					break
-				}
-			}
-		}
-	}
-	code = strings.TrimSpace(fmt.Sprint(row["code"]))
-	name = strings.TrimSpace(fmt.Sprint(row["name"]))
-	market = strings.TrimSpace(fmt.Sprint(row["market"]))
-	if code == "" {
-		return "", "", "", fmt.Errorf("search_code 未返回有效 code")
-	}
-	return code, name, market, nil
+	return slots.ResolveStock(ctx, toolCtx, runTool, plan.StockQuery)
 }
 
 func (r *Router) resolveSignals(

@@ -408,15 +408,15 @@ func (l *Loop) RunTurn(
 	}
 	schemas = cognition.FilterSchemas(schemas, turnPlan)
 
-	if turnPlan.ShouldRunBacktestPlaybook() && l.playbookRouter != nil {
-		if result, handled := l.playbookRouter.TryRun(ctx, playbookexec.Input{
+	if turnPlan.ShouldRunDomainSOP() && l.playbookRouter != nil {
+		if result, handled := l.playbookRouter.TryRunFromPlan(ctx, playbookexec.Input{
 			Session:       session,
 			UserText:      userText,
 			MatchedSkills: matchedSkills,
 			ToolCtx:       toolCtx,
 			StepBase:      session.StepCounter + 1,
 			OnProgress:    l.onProgress,
-		}); handled {
+		}, string(turnPlan.Domain)); handled {
 			l.evaluateTurn(ctx, session, result)
 			return result
 		}

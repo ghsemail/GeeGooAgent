@@ -2,6 +2,7 @@ package agent_test
 
 import (
 	"context"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,6 +15,35 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
+func analysisPlaybookTool(ctx context.Context, req tools.CallRequest, toolCtx tools.Context) tools.Result {
+	switch req.Name {
+	case "search_code":
+		return tools.Result{
+			Status: tools.StatusOK,
+			Data: map[string]any{
+				"items": []any{map[string]any{"code": "00700.HK", "name": "腾讯控股", "market": "HK"}},
+			},
+		}
+	case "get_single_prompt_template":
+		return tools.Result{
+			Status: tools.StatusOK,
+			Data: map[string]any{"selected_prompt_id": "p1", "selected_prompt_name": "股价分析"},
+		}
+	case "get_mcp_analysis":
+		return tools.Result{
+			Status:  tools.StatusOK,
+			Summary: "mock analysis",
+			Data:    map[string]any{"analysis_result": "腾讯技术面偏强。"},
+		}
+	default:
+		return tools.Result{Status: tools.StatusError, Summary: "unexpected " + req.Name}
+	}
+}
+
+func analysisPlaybookRouter() *playbookexec.Router {
+	return &playbookexec.Router{RunTool: analysisPlaybookTool}
+}
+
 func TestTurnPlanDoesNotRunBacktestOnAnalysis(t *testing.T) {
 	provider := &llm.MockProvider{
 		Responses: []*llm.Response{{
@@ -24,11 +54,13 @@ func TestTurnPlanDoesNotRunBacktestOnAnalysis(t *testing.T) {
 	gateway.SetSleep(func(time.Duration) {})
 	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
 
-	var playbookCalls atomic.Int32
+	var backtestCalls atomic.Int32
 	loop.SetPlaybookRouter(&playbookexec.Router{
 		RunTool: func(ctx context.Context, req tools.CallRequest, toolCtx tools.Context) tools.Result {
-			playbookCalls.Add(1)
-			return tools.Result{Status: tools.StatusOK, Summary: "should not run"}
+			if req.Name == "run_strategy_backtest" {
+				backtestCalls.Add(1)
+			}
+			return analysisPlaybookTool(ctx, req, toolCtx)
 		},
 	})
 
@@ -49,8 +81,11 @@ func TestTurnPlanDoesNotRunBacktestOnAnalysis(t *testing.T) {
 	if domain != string(cognition.DomainStockAnalysis) {
 		t.Fatalf("domain=%q", domain)
 	}
-	if playbookCalls.Load() != 0 {
-		t.Fatal("analysis turn must not enter backtest playbook")
+	if backtestCalls.Load() != 0 {
+		t.Fatal("analysis turn must not run backtest playbook")
+	}
+	if !strings.Contains(result.AssistantText, "腾讯") {
+		t.Fatalf("expected analysis reply, got %q", result.AssistantText)
 	}
 }
 
@@ -64,6 +99,7 @@ func TestTurnPlanFollowsLastDomainOnSymbolSwitch(t *testing.T) {
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
 	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
+	loop.SetPlaybookRouter(analysisPlaybookRouter())
 
 	var domains []string
 	loop.SetProgress(func(event string, data map[string]any) {
