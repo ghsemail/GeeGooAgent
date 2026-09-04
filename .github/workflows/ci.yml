@@ -17,7 +17,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Import boundaries
-        run: go run scripts/check_import_boundaries.go
+        run: go run scripts/dev/check_import_boundaries.go
 
       - name: Unit tests
         run: |

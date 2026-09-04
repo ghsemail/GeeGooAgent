@@ -1,7 +1,7 @@
 //go:build ignore
 
 // check_import_boundaries verifies Agent OS package dependency rules (P5).
-// Usage: go run scripts/check_import_boundaries.go
+// Usage: go run scripts/dev/check_import_boundaries.go
 package main
 
 import (
