@@ -22,23 +22,9 @@ func (r *Router) resolveStock(
 	if len(items) == 0 {
 		return "", "", "", fmt.Errorf("未找到标的「%s」，请换名称或代码", plan.StockQuery)
 	}
-	row := items[0]
-	if len(items) > 1 && toolCtx.ClarifyFn != nil {
-		choices := make([]string, 0, minInt(len(items), 4))
-		for i := 0; i < len(items) && i < 4; i++ {
-			it := items[i]
-			choices = append(choices, fmt.Sprintf("%v %v", it["code"], it["name"]))
-		}
-		answer, ok := toolCtx.ClarifyFn(ctx, "找到多个标的，请选择：", choices)
-		if ok {
-			for _, it := range items {
-				label := fmt.Sprintf("%v %v", it["code"], it["name"])
-				if label == answer || strings.Contains(answer, fmt.Sprint(it["code"])) {
-					row = it
-					break
-				}
-			}
-		}
+	row, err := pickStockRow(ctx, toolCtx, plan.StockQuery, items)
+	if err != nil {
+		return "", "", "", err
 	}
 	code = strings.TrimSpace(fmt.Sprint(row["code"]))
 	name = strings.TrimSpace(fmt.Sprint(row["name"]))
@@ -47,6 +33,36 @@ func (r *Router) resolveStock(
 		return "", "", "", fmt.Errorf("search_code 未返回有效 code")
 	}
 	return code, name, market, nil
+}
+
+func pickStockRow(ctx context.Context, toolCtx tools.Context, query string, items []map[string]any) (map[string]any, error) {
+	if len(items) == 1 {
+		return items[0], nil
+	}
+	limit := minInt(len(items), 4)
+	choices := make([]string, 0, limit)
+	for i := 0; i < limit; i++ {
+		it := items[i]
+		choices = append(choices, fmt.Sprintf("%v %v", it["code"], it["name"]))
+	}
+	question := "找到多个标的，请选择："
+	if q := strings.TrimSpace(query); q != "" {
+		question = fmt.Sprintf("搜索「%s」找到多个标的，请选择：", q)
+	}
+	if toolCtx.ClarifyFn == nil {
+		return nil, fmt.Errorf("%s %s", question, strings.Join(choices, " / "))
+	}
+	answer, ok := toolCtx.ClarifyFn(ctx, question, choices)
+	if !ok {
+		return nil, fmt.Errorf("请选择要回测的标的")
+	}
+	for _, it := range items {
+		label := fmt.Sprintf("%v %v", it["code"], it["name"])
+		if label == answer || strings.Contains(answer, fmt.Sprint(it["code"])) {
+			return it, nil
+		}
+	}
+	return nil, fmt.Errorf("未匹配所选标的「%s」", answer)
 }
 
 func (r *Router) resolveSignals(

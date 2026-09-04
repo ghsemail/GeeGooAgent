@@ -1,6 +1,7 @@
 package playbookexec
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
+	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
 func TestRouteBacktestRun(t *testing.T) {
@@ -209,5 +211,69 @@ func TestPickCombinationAutoPicksBestAmongMultiple(t *testing.T) {
 	name := fmt.Sprint(row["name"])
 	if !strings.Contains(strings.ToUpper(name), "SAR") || !strings.Contains(strings.ToUpper(name), "MACD") {
 		t.Fatalf("picked=%v name=%v", row["signal_id"], name)
+	}
+}
+
+func TestResolveStockClarifiesMultipleHits(t *testing.T) {
+	r := &Router{
+		RunTool: func(ctx context.Context, req tools.CallRequest, toolCtx tools.Context) tools.Result {
+			return tools.Result{
+				Status: tools.StatusOK,
+				Data: map[string]any{"items": []any{
+					map[string]any{"code": "DJCO.US", "name": "每日期刊", "market": "us"},
+					map[string]any{"code": "300308.SZ", "name": "中际旭创", "market": "cn"},
+				}},
+			}
+		},
+	}
+	var question string
+	var choices []string
+	code, name, market, err := r.resolveStock(context.Background(), tools.Context{
+		ClarifyFn: func(_ context.Context, q string, ch []string) (string, bool) {
+			question, choices = q, ch
+			return "300308.SZ 中际旭创", true
+		},
+	}, BacktestRunPlan{StockQuery: "中际旭创"}, func(string, string, string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != "300308.SZ" || name != "中际旭创" || market != "cn" {
+		t.Fatalf("code=%s name=%s market=%s", code, name, market)
+	}
+	if !strings.Contains(question, "多个标的") {
+		t.Fatalf("question=%q", question)
+	}
+	if len(choices) != 2 {
+		t.Fatalf("choices=%v", choices)
+	}
+}
+
+func TestResolveStockDoesNotAutopickFirstHit(t *testing.T) {
+	r := &Router{
+		RunTool: func(ctx context.Context, req tools.CallRequest, toolCtx tools.Context) tools.Result {
+			return tools.Result{
+				Status: tools.StatusOK,
+				Data: map[string]any{"items": []any{
+					map[string]any{"code": "DJCO.US", "name": "每日期刊", "market": "us"},
+					map[string]any{"code": "300308.SZ", "name": "中际旭创", "market": "cn"},
+				}},
+			}
+		},
+	}
+	_, _, _, err := r.resolveStock(context.Background(), tools.Context{
+		ClarifyFn: func(context.Context, string, []string) (string, bool) {
+			return "", false
+		},
+	}, BacktestRunPlan{StockQuery: "中际旭创"}, func(string, string, string) {})
+	if err == nil {
+		t.Fatal("expected error instead of silent first hit")
+	}
+	if !strings.Contains(err.Error(), "请选择") {
+		t.Fatalf("err=%v", err)
+	}
+
+	_, _, _, err = r.resolveStock(context.Background(), tools.Context{}, BacktestRunPlan{StockQuery: "中际旭创"}, func(string, string, string) {})
+	if err == nil {
+		t.Fatal("nil ClarifyFn must not autopick")
 	}
 }

@@ -25,6 +25,9 @@ func turnPlanFragment(plan cognition.TurnPlan) ctxfrag.Fragment {
 		}
 	}
 	b.WriteString("- only call tools listed for this domain; do not run backtest unless domain is backtest_run")
+	if plan.Domain == cognition.DomainBacktestRun {
+		b.WriteString("\n- search_code: if more than one stock matches, clarify and wait; never pick the first hit")
+	}
 	return ctxfrag.StaticFragment{K: ctxfrag.KindSystemRules, Text: b.String(), Prio: 22}
 }
 
