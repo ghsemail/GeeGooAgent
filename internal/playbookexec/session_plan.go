@@ -41,13 +41,18 @@ func enrichPlanFromSession(plan *BacktestRunPlan, session *runtime.Session) {
 			plan.SignalKind = "combination"
 		}
 	}
+	if strings.TrimSpace(plan.StockQuery) == "" {
+		if q := lastConfirmedStock(session); q != "" {
+			plan.StockQuery = q
+		}
+	}
 	msgs := session.LLMMessages()
 	for i := len(msgs) - 1; i >= 0; i-- {
-		if msgs[i].Role != llm.RoleUser && msgs[i].Role != llm.RoleAssistant {
+		if msgs[i].Role != llm.RoleUser {
 			continue
 		}
 		content := strings.TrimSpace(msgs[i].Content)
-		if content == "" {
+		if content == "" || !isBacktestSlotMessage(content) {
 			continue
 		}
 		if strings.TrimSpace(plan.StockQuery) == "" {
@@ -65,6 +70,35 @@ func enrichPlanFromSession(plan *BacktestRunPlan, session *runtime.Session) {
 	normalizeBacktestPlan(plan)
 }
 
+func isBacktestSlotMessage(content string) bool {
+	return strings.Contains(content, "回测") || procedural.BacktestContinueIntent(content)
+}
+
+func lastConfirmedStock(session *runtime.Session) string {
+	if session == nil {
+		return ""
+	}
+	msgs := session.LLMMessages()
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role != llm.RoleAssistant {
+			continue
+		}
+		content := msgs[i].Content
+		if !strings.Contains(content, "回测") {
+			continue
+		}
+		for _, line := range strings.Split(content, "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "##") {
+				if q := extractStockQuery(line); q != "" {
+					return q
+				}
+			}
+		}
+	}
+	return ""
+}
+
 func lastStrategyLabel(session *runtime.Session) string {
 	if session == nil {
 		return ""
@@ -74,7 +108,11 @@ func lastStrategyLabel(session *runtime.Session) string {
 		if msgs[i].Role != llm.RoleAssistant {
 			continue
 		}
-		for _, line := range strings.Split(msgs[i].Content, "\n") {
+		content := msgs[i].Content
+		if !strings.Contains(content, "回测") && !strings.Contains(content, "收益率") {
+			continue
+		}
+		for _, line := range strings.Split(content, "\n") {
 			line = strings.TrimSpace(line)
 			line = strings.TrimPrefix(line, "- ")
 			if strings.HasPrefix(line, "**策略**：") {

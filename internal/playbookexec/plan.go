@@ -31,14 +31,38 @@ const backtestPlanSystem = `你是 GeeGoo 策略回测计划解析器。只输�
 当前消息未指定的字段：沿用会话里已出现的标的/策略名；没有就留空或用默认值。不要编造新的信号。`
 
 var (
-	reMonths = regexp.MustCompile(`(?i)(\d+)\s*(个)?月`)
-	reFund   = regexp.MustCompile(`(?i)(?:资金|本金|fund)?\s*(\d+)\s*(?:万|w)?`)
+	reMonths    = regexp.MustCompile(`(?i)(\d+)\s*(个)?月`)
+	reFund      = regexp.MustCompile(`(?i)(?:资金|本金|fund)?\s*(\d+)\s*(?:万|w)?`)
+	reUSTicker  = regexp.MustCompile(`\b([A-Z]{1,5})(?:\.US)?\b`)
+	reHKCode    = regexp.MustCompile(`\b(\d{4,5})(?:\.HK)?\b`)
+	reAShare    = regexp.MustCompile(`(?i)\b(\d{6})(?:\.(?:SZ|SH|BJ))?\b`)
+	reCJKRun    = regexp.MustCompile(`\p{Han}{2,8}`)
+	reIntentPad = regexp.MustCompile(`帮我回测一下|帮我测试一下|帮我回测|回测一下|跑回测|来回测|再回测|测试一下|看一下|就用刚才那套|刚才那套|用现成的来回测|不要新建`)
 )
+
+var tickerStopwords = map[string]struct{}{
+	"DAILY": {}, "WEEKLY": {}, "MONTHLY": {}, "YEARLY": {},
+	"MACD": {}, "RSI": {}, "SAR": {}, "EMA": {}, "SMA": {}, "KDJ": {}, "BOLL": {}, "ATR": {},
+	"US": {}, "HK": {}, "CN": {}, "SZ": {}, "SH": {}, "BJ": {},
+	"JSON": {}, "HTTP": {}, "HTML": {}, "SMART": {}, "TRADE": {},
+	"AND": {}, "OR": {}, "THE": {}, "FOR": {}, "WITH": {},
+}
+
+var cjkStockStops = []string{
+	"组合信号", "组合", "信号", "策略", "回测", "收益", "收益率", "回撤", "成交",
+	"趋势", "直方图", "金叉", "死叉", "抛物线", "共振", "哪些", "现在", "标的",
+	"股票", "一下", "请问", "帮我", "测试", "频率", "支持", "配套", "规则",
+	"买入", "卖出", "简介", "当前", "全部", "三种", "共有",
+}
+
+var knownStockAliases = []string{
+	"小米", "腾讯", "茅台", "苹果", "特斯拉", "英伟达", "微软", "谷歌", "阿里", "拼多多",
+}
 
 func (r *Router) buildBacktestPlan(ctx context.Context, in Input, step int) (BacktestRunPlan, string, error) {
 	plan := heuristicBacktestPlan(in.UserText)
 	enrichPlanFromSession(&plan, in.Session)
-	if strings.TrimSpace(plan.StockQuery) != "" && strings.TrimSpace(plan.SignalQuery) != "" {
+	if heuristicSlotsReady(plan) {
 		return plan, fmt.Sprintf("playbookexec plan(heuristic): stock=%q signal=%q kind=%s",
 			plan.StockQuery, plan.SignalQuery, plan.SignalKind), nil
 	}
@@ -105,18 +129,65 @@ func heuristicBacktestPlan(message string) BacktestRunPlan {
 }
 
 func extractStockQuery(msg string) string {
-	for _, key := range []string{"小米", "腾讯", "茅台", "苹果", "特斯拉", "英伟达", "微软", "谷歌", "阿里", "拼多多"} {
+	msg = strings.TrimSpace(msg)
+	if msg == "" {
+		return ""
+	}
+	for _, key := range knownStockAliases {
 		if strings.Contains(msg, key) {
 			return key
 		}
 	}
-	if m := regexp.MustCompile(`\b([A-Z]{1,5})(?:\.US)?\b`).FindStringSubmatch(strings.ToUpper(msg)); len(m) > 1 {
+	if m := reAShare.FindStringSubmatch(msg); len(m) > 1 {
+		if !(strings.Contains(msg, "资金") || strings.Contains(msg, "本金") || strings.Contains(strings.ToLower(msg), "fund")) {
+			return strings.ToUpper(m[1])
+		}
+	}
+	if m := reHKCode.FindStringSubmatch(msg); len(m) > 1 {
 		return m[1]
 	}
-	if m := regexp.MustCompile(`(\d{4,5})(?:\.HK)?`).FindStringSubmatch(msg); len(m) > 1 {
-		return m[1]
+	upper := strings.ToUpper(msg)
+	if m := reUSTicker.FindStringSubmatch(upper); len(m) > 1 {
+		tok := m[1]
+		if _, stop := tickerStopwords[tok]; !stop {
+			return tok
+		}
+	}
+	stripped := reIntentPad.ReplaceAllString(msg, " ")
+	cjk := reCJKRun.FindAllString(stripped, -1)
+	for i := len(cjk) - 1; i >= 0; i-- {
+		if !isCJKStockStop(cjk[i]) {
+			return cjk[i]
+		}
 	}
 	return ""
+}
+
+func isCJKStockStop(s string) bool {
+	for _, tok := range cjkStockStops {
+		if s == tok || strings.Contains(s, tok) {
+			return true
+		}
+	}
+	return false
+}
+
+func looksLikeStockQuery(q string) bool {
+	q = strings.TrimSpace(q)
+	if q == "" {
+		return false
+	}
+	if _, stop := tickerStopwords[strings.ToUpper(q)]; stop {
+		return false
+	}
+	if isCJKStockStop(q) {
+		return false
+	}
+	return true
+}
+
+func heuristicSlotsReady(plan BacktestRunPlan) bool {
+	return looksLikeStockQuery(plan.StockQuery) && strings.TrimSpace(plan.SignalQuery) != ""
 }
 
 func parseBacktestPlanJSON(raw string) (BacktestRunPlan, error) {

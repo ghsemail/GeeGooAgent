@@ -120,6 +120,56 @@ func TestHeuristicDoesNotCopyWholeMessageAsSignal(t *testing.T) {
 	}
 }
 
+func TestExtractStockQueryChineseNameAndRejectsDaily(t *testing.T) {
+	if got := extractStockQuery("帮我回测一下中际旭创"); got != "中际旭创" {
+		t.Fatalf("stock=%q want 中际旭创", got)
+	}
+	if got := extractStockQuery("回测 300308"); got != "300308" {
+		t.Fatalf("ashare=%q", got)
+	}
+	catalog := "当前共有 **6 个组合信号**（全部支持 5m /60m / daily三种频率）：\nSAR信号配套MACD直方图趋势"
+	if got := extractStockQuery(catalog); got != "" {
+		t.Fatalf("catalog prose must not yield ticker, got %q", got)
+	}
+	if got := extractStockQuery("帮我回测 MACD"); got != "" {
+		t.Fatalf("indicator must not be stock, got %q", got)
+	}
+}
+
+func TestZhongjiBacktestDoesNotInheritDailyFromCatalog(t *testing.T) {
+	session := runtime.NewSession()
+	session.AppendMessage(llm.Message{Role: llm.RoleUser, Content: "现在有哪些组合信号"})
+	session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: "当前共有 **6 个组合信号**（全部支持 5m /60m / daily三种频率）：\n\n- **SAR信号配套MACD直方图趋势**"})
+	plan := heuristicBacktestPlan("帮我回测一下中际旭创")
+	enrichPlanFromSession(&plan, session)
+	if plan.StockQuery != "中际旭创" {
+		t.Fatalf("stock=%q", plan.StockQuery)
+	}
+	if plan.StockQuery == "DAILY" || strings.EqualFold(plan.StockQuery, "daily") {
+		t.Fatal("daily frequency leaked as stock")
+	}
+	if strings.Contains(strings.ToUpper(plan.SignalQuery), "SAR") {
+		t.Fatalf("catalog listing must not become selected signal, got %q", plan.SignalQuery)
+	}
+}
+
+func TestCurrentStockOverridesSessionAndReusesConfirmedStrategy(t *testing.T) {
+	session := runtime.NewSession()
+	session.AppendMessage(llm.Message{Role: llm.RoleUser, Content: "帮我回测 sar+macd 小米"})
+	session.AppendMessage(llm.Message{
+		Role:    llm.RoleAssistant,
+		Content: "## 小米 01810 · SmartTrade 回测\n\n- **策略**：SAR信号配套MACD直方图趋势\n- **收益率**：1.2%",
+	})
+	plan := heuristicBacktestPlan("帮我回测一下中际旭创")
+	enrichPlanFromSession(&plan, session)
+	if plan.StockQuery != "中际旭创" {
+		t.Fatalf("current stock must win, got %q", plan.StockQuery)
+	}
+	if plan.SignalQuery != "SAR信号配套MACD直方图趋势" {
+		t.Fatalf("confirmed backtest strategy should reuse, got %q", plan.SignalQuery)
+	}
+}
+
 func TestFilterLegacyBacktestTools(t *testing.T) {
 	schemas := []llm.ToolSchema{
 		{Name: "run_strategy_backtest"},
