@@ -84,6 +84,7 @@ skip_retrieval_gate: true
 - 禁止跳过 run 声称回测完成；禁止「同样参数」却不用 ③  
 - 禁止 A 场景对每码用不同 trade_config（除非用户明确要求）  
 - 禁止 B 场景强行统一 frequency（除非用户要求）
+- **`search_code` 命中多个标的时必须 clarify 让用户选，禁止默认第一条**
 
 ## 输出
 

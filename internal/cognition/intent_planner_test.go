@@ -16,7 +16,7 @@ func TestRulePlannerRoutesAcrossDomains(t *testing.T) {
 		forbid []string
 		want   string
 	}{
-		{msg: "腾讯现在怎么样", domain: DomainStockAnalysis, mode: ModeGather, want: "search_code"},
+		{msg: "帮我分析一下中际旭创", domain: DomainStockAnalysis, mode: ModeGather, want: "search_code", forbid: []string{"run_strategy_backtest", "get_index_signals"}},
 		{msg: "MACD 是什么", domain: DomainChat, mode: ModeTalk, forbid: []string{"run_strategy_backtest", "get_index_signals"}},
 		{msg: "有没有买卖点", domain: DomainSignalProbe, mode: ModeExecute, want: "probe_bot_signal_series"},
 		{msg: "帮我回测小米 SAR+MACD", domain: DomainBacktestRun, mode: ModeExecute, want: "run_strategy_backtest"},
