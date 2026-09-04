@@ -203,6 +203,18 @@ INSERT OR IGNORE INTO agent_eval_cases (
     22, 1, datetime('now'), datetime('now')
 );
 
+INSERT OR IGNORE INTO agent_eval_cases (
+    id, user_id, title, description, steps_json, supports_random_stock, options_json, sort_order, enabled, created_at, updated_at
+) VALUES (
+    'turn_plan_routing', '',
+    'TurnPlan · 意图路由回归',
+    '纯规则 TurnPlan 回归：分析/测点/回测/澄清/复合意图/sticky，不调用 LLM 与业务 Tool（plan_only）。',
+    '["清空会话","逐条发送固定用户话术","校验 turn_plan domain/mode/SOP 与工具白名单"]',
+    0,
+    '{"category":"turn_plan","plan_only":true,"session_cleanup":"before_run","dual_model_eval":false,"turns":[{"id":"stock_analysis_explicit","message":"腾讯现在怎么样","expect_domain":"stock_analysis","expect_mode":"gather","expect_sop":true,"forbid_tools":["run_strategy_backtest"],"require_tools":["search_code","get_mcp_analysis"]},{"id":"stock_colloquial","message":"中际旭创呢","expect_domain":"stock_analysis","expect_mode":"gather","expect_sop":true,"forbid_tools":["run_strategy_backtest"],"require_tools":["search_code"]},{"id":"signal_probe","message":"有没有买卖点","expect_domain":"signal_probe","expect_mode":"execute","expect_sop":true,"require_tools":["probe_bot_signal_series"]},{"id":"backtest_explicit","message":"帮我回测小米 SAR+MACD","expect_domain":"backtest_run","expect_mode":"execute","expect_sop":true,"require_tools":["run_strategy_backtest"]},{"id":"ambiguous_bare_macd","message":"MACD","expect_domain":"ambiguous","expect_mode":"clarify","expect_sop":false,"forbid_tools":["run_strategy_backtest","probe_bot_signal_series"]},{"id":"compound_analysis_backtest","message":"分析一下中际旭创再回测","expect_domain":"ambiguous","expect_mode":"clarify","expect_sop":false,"forbid_tools":["run_strategy_backtest"]},{"id":"chat_definition","message":"MACD 是什么","expect_domain":"chat","expect_mode":"talk","expect_sop":false,"forbid_tools":["run_strategy_backtest","get_mcp_analysis"]},{"id":"sticky_symbol_switch","message":"换成贵州茅台","last_domain":"stock_analysis","expect_domain":"stock_analysis","expect_mode":"gather","expect_sop":true,"require_tools":["search_code"]},{"id":"backtest_after_analysis","message":"帮我回测小米","last_domain":"stock_analysis","expect_domain":"backtest_run","expect_mode":"execute","expect_sop":true,"require_tools":["run_strategy_backtest"]}]}',
+    5, 1, datetime('now'), datetime('now')
+);
+
 UPDATE agent_eval_cases SET
     title = '单股 · 单策略 · 多止盈止损回测',
     description = '同一策略用两套止盈止损参数（如 5%/3% vs 7%/5%）跑回测并对比。',
