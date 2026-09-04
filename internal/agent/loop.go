@@ -38,6 +38,7 @@ type Loop struct {
 	ranker         cognition.Ranker
 	evaluator      cognition.Evaluator
 	planPolicy     cognition.PlanPolicy
+	planner        cognition.Planner
 	evalMaxRetries int
 	gateProvider   llm.Provider
 	gatePolicy     llm.Policy
@@ -55,6 +56,7 @@ func NewLoop(gateway *llm.Gateway, executor *runtime.Executor) *Loop {
 		ranker:        d.Ranker,
 		evaluator:     d.Evaluator,
 		planPolicy:    d.PlanPolicy,
+		planner:       d.Planner,
 		mem:           memport.Noop(),
 	}
 }
@@ -211,6 +213,16 @@ func (l *Loop) SetCognition(b cognition.Bundle) {
 	if b.PlanPolicy != nil {
 		l.planPolicy = b.PlanPolicy
 	}
+	if b.Planner != nil {
+		l.planner = b.Planner
+	}
+}
+
+func (l *Loop) effectivePlanner() cognition.Planner {
+	if l != nil && l.planner != nil {
+		return l.planner
+	}
+	return cognition.RulePlanner{}
 }
 
 func (l *Loop) effectivePlanPolicy() cognition.PlanPolicy {
@@ -337,7 +349,37 @@ func (l *Loop) RunTurn(
 		"session_id": session.ID, "user_text": userText,
 	})
 	l.emitStatus("received", "已收到消息，准备处理")
-	procFrag, matchedSkills := l.runProceduralMemory(session, userText, &records)
+
+	policy := l.effectivePlanPolicy()
+	if session.PendingPlan != nil {
+		messages = session.LLMMessages()
+		if policy.IsApproval(userText) {
+			result := l.resumePendingPlan(ctx, session, &messages, toolCtx, schemas, &records)
+			l.evaluateTurn(ctx, session, result)
+			return result
+		}
+		if policy.IsRejection(userText) {
+			result := l.cancelPendingPlan(session)
+			result.StepRecords = records
+			l.evaluateTurn(ctx, session, result)
+			return result
+		}
+		session.PendingPlan = nil
+	}
+
+	turnPlan := l.effectivePlanner().Plan(cognition.PlanInput{UserText: userText})
+	l.emit("turn_plan", map[string]any{
+		"domain":     string(turnPlan.Domain),
+		"act":        turnPlan.Act,
+		"mode":       string(turnPlan.Mode),
+		"reason":     turnPlan.Reason,
+		"skills":     turnPlan.Skills,
+		"tools":      turnPlan.ToolsAllow,
+		"confidence": turnPlan.Confidence,
+	})
+	l.emitStatus("plan", fmt.Sprintf("判断：%s/%s", turnPlan.Domain, turnPlan.Mode))
+
+	procFrag, matchedSkills := l.loadPlanSkills(turnPlan, &records)
 	var gateFrag ctxfrag.Fragment
 	if !ShouldSkipRetrievalGate(matchedSkills) {
 		gateFrag = l.runRetrievalGate(ctx, session, userText, &records)
@@ -345,7 +387,7 @@ func (l *Loop) RunTurn(
 		l.emitStatus("gate", "工具型技能，跳过记忆检索")
 		l.recordInjectionStep(&records, "gate", "decision=skip · reason=tool-first playbook")
 	}
-	dynFrags := []ctxfrag.Fragment{ctxfrag.ClockFragment(clockNow())}
+	dynFrags := []ctxfrag.Fragment{ctxfrag.ClockFragment(clockNow()), turnPlanFragment(turnPlan)}
 	if gateFrag != nil && strings.TrimSpace(gateFrag.Render()) != "" {
 		dynFrags = append(dynFrags, gateFrag)
 	}
@@ -356,8 +398,9 @@ func (l *Loop) RunTurn(
 	if extra := l.expandSkillSchemas(matchedSkills); len(extra) > 0 {
 		schemas = mergeToolSchemas(schemas, extra)
 	}
+	schemas = cognition.FilterSchemas(schemas, turnPlan)
 
-	if l.playbookRouter != nil {
+	if turnPlan.ShouldRunBacktestPlaybook() && l.playbookRouter != nil {
 		if result, handled := l.playbookRouter.TryRun(ctx, playbookexec.Input{
 			Session:       session,
 			UserText:      userText,
@@ -376,22 +419,6 @@ func (l *Loop) RunTurn(
 	l.emitStatus("hygiene", "整理会话上下文…")
 	messages = l.applyHygiene(ctx, session, messages)
 	evalRetriesLeft := l.evalMaxRetries
-
-	policy := l.effectivePlanPolicy()
-	if session.PendingPlan != nil {
-		if policy.IsApproval(userText) {
-			result := l.resumePendingPlan(ctx, session, &messages, toolCtx, schemas, &records)
-			l.evaluateTurn(ctx, session, result)
-			return result
-		}
-		if policy.IsRejection(userText) {
-			result := l.cancelPendingPlan(session)
-			result.StepRecords = records
-			l.evaluateTurn(ctx, session, result)
-			return result
-		}
-		session.PendingPlan = nil
-	}
 
 	for round := 0; round < l.maxToolRounds; round++ {
 		if err := ctx.Err(); err != nil {

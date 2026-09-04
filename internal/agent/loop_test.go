@@ -209,7 +209,7 @@ func TestReActLoopSlimRetryAfterMalformedToolCalls(t *testing.T) {
 	})
 	// Extra unused schemas to trigger slim path (len(slim) < len(schemas)).
 	extra := []llm.ToolSchema{{
-		Name: "create_smart_trade", Description: "create",
+		Name: "get_capital_flow", Description: "capital",
 		Parameters: map[string]any{"type": "object", "properties": map[string]any{}},
 	}}
 	schemas := append(registry.Schemas([]string{"search_code", "get_current_price"}), extra...)
