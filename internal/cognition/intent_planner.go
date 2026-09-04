@@ -180,6 +180,8 @@ var (
 	botManageTokens    = []string{
 		"机器人", "我的网格", "建个网格", "建个 dca", "建个DCA", "提醒机器人",
 		"改 DCA", "改DCA", "list_dca", "我的 bot", "我的Bot", "创建 bot", "创建bot",
+		"reminder", "Reminder", "smarttrade", "SmartTrade",
+		"网格bot", "网格Bot", "网格 bot", "有哪些bot", "有哪些Bot",
 	}
 	dcaGridTokens = []string{
 		"定投", "dca", "DCA", "网格策略", "网格参数", "网格回测",
