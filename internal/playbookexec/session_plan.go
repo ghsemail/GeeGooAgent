@@ -35,8 +35,17 @@ func enrichPlanFromSession(plan *BacktestRunPlan, session *runtime.Session) {
 	if plan == nil || session == nil {
 		return
 	}
+	if strings.TrimSpace(plan.SignalQuery) == "" {
+		if label := lastStrategyLabel(session); label != "" {
+			plan.SignalQuery = label
+			plan.SignalKind = "combination"
+		}
+	}
 	msgs := session.LLMMessages()
 	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role != llm.RoleUser && msgs[i].Role != llm.RoleAssistant {
+			continue
+		}
 		content := strings.TrimSpace(msgs[i].Content)
 		if content == "" {
 			continue
@@ -56,6 +65,29 @@ func enrichPlanFromSession(plan *BacktestRunPlan, session *runtime.Session) {
 	normalizeBacktestPlan(plan)
 }
 
+func lastStrategyLabel(session *runtime.Session) string {
+	if session == nil {
+		return ""
+	}
+	msgs := session.LLMMessages()
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role != llm.RoleAssistant {
+			continue
+		}
+		for _, line := range strings.Split(msgs[i].Content, "\n") {
+			line = strings.TrimSpace(line)
+			line = strings.TrimPrefix(line, "- ")
+			if strings.HasPrefix(line, "**策略**：") {
+				return strings.TrimSpace(strings.TrimPrefix(line, "**策略**："))
+			}
+			if strings.HasPrefix(line, "**策略**:") {
+				return strings.TrimSpace(strings.TrimPrefix(line, "**策略**:"))
+			}
+		}
+	}
+	return ""
+}
+
 func applySignalHeuristics(plan *BacktestRunPlan, content string) {
 	upper := strings.ToUpper(content)
 	switch {
@@ -68,9 +100,16 @@ func applySignalHeuristics(plan *BacktestRunPlan, content string) {
 	case strings.Contains(upper, "SAR"):
 		plan.SignalKind = "indicator"
 		plan.SignalQuery = "SAR"
-	case strings.Contains(content, "组合") || strings.Contains(content, "共振"):
+	case strings.Contains(content, "共振"):
 		plan.SignalKind = "combination"
-		plan.SignalQuery = content
+		if strings.TrimSpace(plan.SignalQuery) == "" {
+			plan.SignalQuery = "共振"
+		}
+	case strings.Contains(content, "组合"):
+		plan.SignalKind = "combination"
+		if strings.TrimSpace(plan.SignalQuery) == "" {
+			plan.SignalQuery = "组合"
+		}
 	}
 }
 

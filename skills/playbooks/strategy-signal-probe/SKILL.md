@@ -102,7 +102,7 @@ GeeGooSignal catalog 里 RSI 常见 3 条：**阈值信号**、**金死叉信号
 | RSI金死叉 / RSI交叉 / 快慢线 | **RSI金死叉信号**（index RSICROSS） |
 | RSI趋势 / 只看多空 | **RSI阈值趋势**（type=flag；仅用户明确要 flag 时用） |
 
-- `get_index_signals` 按「RSI」仍命中 **2+ 条**且用户**未**指定上表 → **必须** `clarify(question, choices=[最多 4 个 catalog name])` 并停等；**禁止**只在正文写「请选择 A/B/C」——Web **只有 clarify 工具**才会出现选项按钮。
+- `get_index_signals` 按「RSI」仍命中 **2+ 条**且用户**未**指定上表、会话也**还没有**已选信号 → **必须** `clarify(question, choices=[最多 4 个 catalog name])` 并停等；已选过则沿用。**禁止**只在正文写「请选择 A/B/C」——Web **只有 clarify 工具**才会出现选项按钮。**禁止**每轮对话重复选信号。
 - 信号测试 / 回测：**禁止**默认 type=flag 的「阈值趋势」。
 
 ---

@@ -18,6 +18,12 @@ func TestBacktestContinueIntent(t *testing.T) {
 	if !BacktestContinueIntent("就用刚才那套") {
 		t.Fatal("expected continue intent")
 	}
+	if BacktestContinueIntent("刚才那个收益是多少") {
+		t.Fatal("asking about last result is not continue-backtest intent")
+	}
+	if BacktestContinueIntent("同样看看行情") {
+		t.Fatal("generic 同样/刚才 should not count as continue intent")
+	}
 	if ShouldBlockLegacyBacktestTools("帮我做 dca 定投回测") {
 		t.Fatal("dca bypass should not block legacy tools")
 	}

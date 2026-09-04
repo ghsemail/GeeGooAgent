@@ -12,23 +12,23 @@ import (
 
 // BacktestRunPlan is the structured plan extracted before deterministic execution.
 type BacktestRunPlan struct {
-	StockQuery   string  `json:"stock_query"`
-	SignalQuery  string  `json:"signal_query"`
-	SignalKind   string  `json:"signal_kind"` // combination | indicator
-	Period       string  `json:"period"`
-	MonthsBack   int     `json:"months_back"`
-	Fund         float64 `json:"fund"`
+	StockQuery  string  `json:"stock_query"`
+	SignalQuery string  `json:"signal_query"`
+	SignalKind  string  `json:"signal_kind"` // combination | indicator
+	Period      string  `json:"period"`
+	MonthsBack  int     `json:"months_back"`
+	Fund        float64 `json:"fund"`
 }
 
 const backtestPlanSystem = `你是 GeeGoo 策略回测计划解析器。只输出一个 JSON 对象，不要 markdown，不要解释。
 字段：
 - stock_query: 用户提到的标的名称或代码片段（如 小米、AAPL、00700）
-- signal_query: 信号描述（如 SAR+MACD、RSI阈值）
+- signal_query: 信号描述（如 SAR+MACD、RSI阈值）。必须是短标签，禁止把整句用户话填进来。
 - signal_kind: combination 或 indicator
 - period: 1m/2m/3m，默认 3m
 - months_back: 整数，默认 3
 - fund: 初始资金，默认 100000
-用户未提到的字段用默认值。`
+当前消息未指定的字段：沿用会话里已出现的标的/策略名；没有就留空或用默认值。不要编造新的信号。`
 
 var (
 	reMonths = regexp.MustCompile(`(?i)(\d+)\s*(个)?月`)
@@ -82,7 +82,6 @@ func heuristicBacktestPlan(message string) BacktestRunPlan {
 		Fund:       100000,
 	}
 	msg := strings.TrimSpace(message)
-	upper := strings.ToUpper(msg)
 
 	if m := reMonths.FindStringSubmatch(msg); len(m) > 1 {
 		if n, err := parseInt(m[1]); err == nil && n > 0 {
@@ -101,19 +100,7 @@ func heuristicBacktestPlan(message string) BacktestRunPlan {
 	}
 
 	plan.StockQuery = extractStockQuery(msg)
-	if strings.Contains(upper, "SAR") && strings.Contains(upper, "MACD") {
-		plan.SignalKind = "combination"
-		plan.SignalQuery = "SAR MACD"
-	} else if strings.Contains(upper, "RSI") {
-		plan.SignalKind = "indicator"
-		plan.SignalQuery = "RSI"
-	} else if strings.Contains(upper, "SAR") {
-		plan.SignalKind = "indicator"
-		plan.SignalQuery = "SAR"
-	} else if strings.Contains(msg, "组合") || strings.Contains(msg, "共振") {
-		plan.SignalKind = "combination"
-		plan.SignalQuery = msg
-	}
+	applySignalHeuristics(&plan, msg)
 	return plan
 }
 

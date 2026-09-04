@@ -198,7 +198,44 @@ func pickCombination(items []map[string]any, query string) (map[string]any, erro
 	if len(matches) == 0 {
 		return nil, fmt.Errorf("未找到匹配「%s」的组合信号", query)
 	}
-	return nil, fmt.Errorf("找到 %d 个匹配的组合信号，需要 clarify", len(matches))
+	return bestCombinationMatch(matches, tokens), nil
+}
+
+func bestCombinationMatch(matches []map[string]any, tokens []string) map[string]any {
+	best := matches[0]
+	bestScore := scoreCombinationMatch(fmt.Sprint(best["name"]), tokens)
+	for _, row := range matches[1:] {
+		if score := scoreCombinationMatch(fmt.Sprint(row["name"]), tokens); score > bestScore {
+			best = row
+			bestScore = score
+		}
+	}
+	return best
+}
+
+func scoreCombinationMatch(name string, tokens []string) int {
+	upper := strings.ToUpper(name)
+	score := 0
+	prevPos := -1
+	for i, tok := range tokens {
+		pos := strings.Index(upper, tok)
+		if pos < 0 {
+			return -1
+		}
+		if i == 0 && pos == 0 {
+			score += 30
+		}
+		if prevPos >= 0 {
+			if pos >= prevPos {
+				score += 100 - (pos-prevPos)/10
+			} else {
+				score -= 50
+			}
+		}
+		prevPos = pos
+	}
+	score -= len([]rune(name)) / 10
+	return score
 }
 
 func pickIndexSignal(items []map[string]any, query string) (map[string]any, error) {

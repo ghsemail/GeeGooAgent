@@ -90,7 +90,7 @@ get_current_price（或已知 probe 最后一根 close 粗估）
 | 组合 | `get_signal_combinations` | 整条 buy/sell 链 |
 | 高级/定制 | `get_custom_strategy_definitions` | `strategy_key` + **defaults** |
 
-catalog 2+ 匹配 → **clarify**。规则 JSON：`type`=`signal`|`flag`，**param 用数字/布尔**。
+catalog 2+ 匹配且会话**还没有**已选信号 → **clarify 一次**；已选过的信号后续沿用，禁止每句话重复 clarify。规则 JSON：`type`=`signal`|`flag`，**param 用数字/布尔**。
 
 ---
 

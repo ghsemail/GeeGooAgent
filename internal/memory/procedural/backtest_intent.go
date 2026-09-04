@@ -9,9 +9,10 @@ var backtestRunIntentTokens = []string{
 	"backtest", "smarttrade",
 }
 
+// Phrases only — single words like 刚才/同样/上次 appear in ordinary follow-ups.
 var backtestContinueIntentTokens = []string{
-	"用现成的", "不要新建", "继续回测", "再回测", "再跑", "同样", "上次", "刚才",
-	"原有的", "现有的", "那套", "沿用",
+	"用现成的来回测", "不要新建", "继续回测", "再回测", "再跑回测",
+	"就用刚才那套", "刚才那套", "沿用上次回测", "沿用那套回测", "沿用上次", "沿用那套",
 }
 
 // BacktestRunIntent reports whether the user wants PnL backtest rather than signal-only probe.

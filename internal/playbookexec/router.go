@@ -47,11 +47,8 @@ func Route(matchedSkills []string, userText string, session *runtime.Session) (p
 	if procedural.BacktestContinueIntent(userText) && sessionHasBacktestContext(session) {
 		return playbookBacktestRun, true
 	}
-	for _, name := range matchedSkills {
-		if name == playbookBacktestRun || name == "strategy-backtest" {
-			return playbookBacktestRun, true
-		}
-	}
+	// Parent skill strategy-backtest matches everyday 策略/信号 talk via
+	// unigram overlap. Do not hijack those turns into a new backtest plan.
 	return "", false
 }
 
