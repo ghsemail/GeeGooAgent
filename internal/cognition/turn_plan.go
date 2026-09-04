@@ -68,6 +68,18 @@ func (p TurnPlan) ShouldRunBacktestPlaybook() bool {
 	return p.Domain == DomainBacktestRun && p.Mode == ModeExecute
 }
 
+// ShouldRunDomainSOP reports whether a deterministic domain playbook may run.
+func (p TurnPlan) ShouldRunDomainSOP() bool {
+	switch p.Domain {
+	case DomainBacktestRun, DomainSignalProbe:
+		return p.Mode == ModeExecute
+	case DomainStockAnalysis:
+		return p.Mode == ModeGather
+	default:
+		return false
+	}
+}
+
 // FilterSchemas keeps only tools allowed by the plan (plus clarify).
 // If the incoming list is already a subset (tests pass a single tool), the
 // intersection with ToolsAllow is applied; unknown provided tools are dropped.

@@ -6,6 +6,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
+	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
 var sessionBacktestContextTokens = []string{
@@ -56,12 +57,15 @@ func enrichPlanFromSession(plan *BacktestRunPlan, session *runtime.Session) {
 			continue
 		}
 		if strings.TrimSpace(plan.StockQuery) == "" {
-			if q := extractStockQuery(content); q != "" {
+			if q := slots.ExtractStockQuery(content); q != "" {
 				plan.StockQuery = q
 			}
 		}
 		if strings.TrimSpace(plan.SignalQuery) == "" {
-			applySignalHeuristics(plan, content)
+			sp := slots.SignalPlan{SignalQuery: plan.SignalQuery, SignalKind: plan.SignalKind}
+			slots.ApplySignalHeuristics(&sp, content)
+			plan.SignalQuery = sp.SignalQuery
+			plan.SignalKind = sp.SignalKind
 		}
 		if strings.TrimSpace(plan.StockQuery) != "" && strings.TrimSpace(plan.SignalQuery) != "" {
 			break
@@ -90,7 +94,7 @@ func lastConfirmedStock(session *runtime.Session) string {
 		for _, line := range strings.Split(content, "\n") {
 			line = strings.TrimSpace(line)
 			if strings.HasPrefix(line, "##") {
-				if q := extractStockQuery(line); q != "" {
+				if q := slots.ExtractStockQuery(line); q != "" {
 					return q
 				}
 			}
@@ -127,28 +131,10 @@ func lastStrategyLabel(session *runtime.Session) string {
 }
 
 func applySignalHeuristics(plan *BacktestRunPlan, content string) {
-	upper := strings.ToUpper(content)
-	switch {
-	case strings.Contains(upper, "SAR") && strings.Contains(upper, "MACD"):
-		plan.SignalKind = "combination"
-		plan.SignalQuery = "SAR MACD"
-	case strings.Contains(upper, "RSI"):
-		plan.SignalKind = "indicator"
-		plan.SignalQuery = "RSI"
-	case strings.Contains(upper, "SAR"):
-		plan.SignalKind = "indicator"
-		plan.SignalQuery = "SAR"
-	case strings.Contains(content, "共振"):
-		plan.SignalKind = "combination"
-		if strings.TrimSpace(plan.SignalQuery) == "" {
-			plan.SignalQuery = "共振"
-		}
-	case strings.Contains(content, "组合"):
-		plan.SignalKind = "combination"
-		if strings.TrimSpace(plan.SignalQuery) == "" {
-			plan.SignalQuery = "组合"
-		}
-	}
+	sp := slots.SignalPlan{SignalQuery: plan.SignalQuery, SignalKind: plan.SignalKind}
+	slots.ApplySignalHeuristics(&sp, content)
+	plan.SignalQuery = sp.SignalQuery
+	plan.SignalKind = sp.SignalKind
 }
 
 func recentSessionContext(session *runtime.Session, maxMessages int) string {

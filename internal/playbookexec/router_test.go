@@ -8,6 +8,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
+	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
 func TestRouteBacktestRun(t *testing.T) {
@@ -121,17 +122,17 @@ func TestHeuristicDoesNotCopyWholeMessageAsSignal(t *testing.T) {
 }
 
 func TestExtractStockQueryChineseNameAndRejectsDaily(t *testing.T) {
-	if got := extractStockQuery("帮我回测一下中际旭创"); got != "中际旭创" {
+	if got := slots.ExtractStockQuery("帮我回测一下中际旭创"); got != "中际旭创" {
 		t.Fatalf("stock=%q want 中际旭创", got)
 	}
-	if got := extractStockQuery("回测 300308"); got != "300308" {
+	if got := slots.ExtractStockQuery("回测 300308"); got != "300308" {
 		t.Fatalf("ashare=%q", got)
 	}
 	catalog := "当前共有 **6 个组合信号**（全部支持 5m /60m / daily三种频率）：\nSAR信号配套MACD直方图趋势"
-	if got := extractStockQuery(catalog); got != "" {
+	if got := slots.ExtractStockQuery(catalog); got != "" {
 		t.Fatalf("catalog prose must not yield ticker, got %q", got)
 	}
-	if got := extractStockQuery("帮我回测 MACD"); got != "" {
+	if got := slots.ExtractStockQuery("帮我回测 MACD"); got != "" {
 		t.Fatalf("indicator must not be stock, got %q", got)
 	}
 }
@@ -187,7 +188,7 @@ func TestPickCombination(t *testing.T) {
 		{"name": "SAR信号配套MACD直方图趋势", "signal_id": "a", "buy_signal": []any{map[string]any{"index": "SAR"}}},
 		{"name": "RSI阈值信号", "signal_id": "b", "buy_signal": []any{map[string]any{"index": "RSI"}}},
 	}
-	row, err := pickCombination(items, "SAR MACD")
+	row, err := slots.PickCombination(items, "SAR MACD")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +203,7 @@ func TestPickCombinationAutoPicksBestAmongMultiple(t *testing.T) {
 		{"name": "SAR信号配套MACD直方图趋势", "signal_id": "best"},
 		{"name": "SAR+MACD+RSI 三指标组合", "signal_id": "extra"},
 	}
-	row, err := pickCombination(items, "SAR MACD")
+	row, err := slots.PickCombination(items, "SAR MACD")
 	if err != nil {
 		t.Fatalf("multi-match should auto-pick, got %v", err)
 	}

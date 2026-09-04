@@ -1,6 +1,10 @@
 package cognition
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/ghsemail/GeeGooAgent/internal/slots"
+)
 
 // RulePlanner classifies turns with domain rules. Gray-zone utterances
 // become clarify/talk instead of silently executing a playbook.
@@ -42,11 +46,13 @@ func (RulePlanner) Plan(in PlanInput) TurnPlan {
 		return planForDomain(DomainDCAGrid)
 	case hasAny(msg, backtestHistoryTokens):
 		return planForDomain(DomainBacktestHistory)
+	case isCompoundIntent(msg):
+		return planForDomain(DomainAmbiguous)
 	case isSignalProbe(msg):
 		return planForDomain(DomainSignalProbe)
 	case isBacktestRun(msg):
 		return planForDomain(DomainBacktestRun)
-	case isStickyDomain(in.LastDomain) && (isFollowUpUtterance(msg) || isBareStrategyTalk(msg)):
+	case isStickyDomain(in.LastDomain) && (isFollowUpUtterance(msg) || isBareStrategyTalk(msg) || slots.IsLikelyStockUtterance(msg)):
 		p := planForDomain(in.LastDomain)
 		p.Reason = "沿用上一轮领域 " + string(in.LastDomain)
 		p.Confidence = 0.8
@@ -55,63 +61,13 @@ func (RulePlanner) Plan(in PlanInput) TurnPlan {
 		return planForDomain(DomainAmbiguous)
 	case isStockAnalysis(msg):
 		return planForDomain(DomainStockAnalysis)
+	case slots.IsLikelyStockUtterance(msg):
+		p := planForDomain(DomainStockAnalysis)
+		p.Reason = "口语标的名，默认个股分析"
+		p.Confidence = 0.82
+		return p
 	default:
-		return makePlan(DomainChat, "qa", ModeTalk, 0.7, "未匹配业务意图，按对话处理", nil, toolsChat)
-	}
-}
-
-func makePlan(domain Domain, act string, mode Mode, conf float64, reason string, skills, tools []string) TurnPlan {
-	allow := append([]string{alwaysAllowClarify}, tools...)
-	return TurnPlan{
-		Domain:     domain,
-		Act:        act,
-		Mode:       mode,
-		Confidence: conf,
-		Reason:     reason,
-		Skills:     skills,
-		ToolsAllow: uniq(allow),
-	}
-}
-
-func planForDomain(d Domain) TurnPlan {
-	switch d {
-	case DomainPromptAdmin:
-		return makePlan(DomainPromptAdmin, "admin", ModeExecute, 0.86, "Prompt 模板运营", []string{"prompt-template-admin"}, toolsPromptAdmin)
-	case DomainCustomSignal:
-		return makePlan(DomainCustomSignal, "admin", ModeGather, 0.84, "定制信号管理", []string{"custom-signal-admin"}, toolsCustomSignal)
-	case DomainReportWrite:
-		return makePlan(DomainReportWrite, "write", ModeExecute, 0.88, "写入报告", []string{"report-write"}, toolsReportWrite)
-	case DomainReportLookup:
-		return makePlan(DomainReportLookup, "lookup", ModeGather, 0.88, "查询报告", []string{"report-lookup"}, toolsReportLookup)
-	case DomainKnowledge:
-		return makePlan(DomainKnowledge, "lookup", ModeGather, 0.9, "知识库检索", []string{"knowledge-base"}, toolsKnowledge)
-	case DomainNews:
-		return makePlan(DomainNews, "lookup", ModeGather, 0.82, "新闻检索", nil, toolsNews)
-	case DomainBotManage:
-		return makePlan(DomainBotManage, "bot", ModeGather, 0.88, "交易/提醒机器人", []string{"bot-manager"}, toolsBotManage)
-	case DomainDCAGrid:
-		return makePlan(DomainDCAGrid, "dca_grid", ModeExecute, 0.9, "DCA/网格方案，不走 SmartTrade 回测", []string{"strategy-backtest"}, toolsDCAGrid)
-	case DomainBacktestHistory:
-		return makePlan(DomainBacktestHistory, "lookup", ModeGather, 0.9, "回测历史", []string{"strategy-backtest-history"}, toolsBacktestHistory)
-	case DomainSignalProbe:
-		return makePlan(DomainSignalProbe, "probe", ModeExecute, 0.9, "只测买卖点，不跑 PnL", []string{"strategy-signal-probe"}, toolsSignalProbe)
-	case DomainBacktestRun:
-		return makePlan(DomainBacktestRun, "backtest", ModeExecute, 0.92, "明确要跑 SmartTrade 回测", []string{"strategy-backtest-run"}, toolsBacktestRun)
-	case DomainStockAnalysis:
-		return makePlan(DomainStockAnalysis, "analyze", ModeGather, 0.86, "个股分析/行情", []string{"stock-analysis"}, toolsStockAnalysis)
-	case DomainAmbiguous:
-		return TurnPlan{
-			Domain:          DomainAmbiguous,
-			Act:             "disambiguate",
-			Mode:            ModeClarify,
-			Confidence:      0.55,
-			Reason:          "提到策略/信号但未说明要分析、测点还是回测",
-			ToolsAllow:      []string{alwaysAllowClarify},
-			ClarifyQuestion: "你是想做哪一件？",
-			ClarifyChoices:  []string{"个股/指标分析", "测买卖点", "跑回测看收益", "先问答，先不操作"},
-		}
-	default:
-		return makePlan(DomainChat, "qa", ModeTalk, 0.9, "问答/解释，不调用业务工具", nil, toolsChat)
+		return planForDomain(DomainChat)
 	}
 }
 
@@ -178,6 +134,22 @@ func isBareStrategyTalk(msg string) bool {
 	return true
 }
 
+func isCompoundIntent(msg string) bool {
+	verbs := 0
+	if hasAny(msg, []string{
+		"分析", "技术面", "基本面", "走势", "趋势", "行情", "多少钱", "股价",
+	}) {
+		verbs++
+	}
+	if hasAny(msg, []string{"回测", "跑回测", "再回测", "backtest", "看收益"}) {
+		verbs++
+	}
+	if hasAny(msg, []string{"测信号", "买卖点", "有没有买卖", "信号密度", "只看买卖"}) {
+		verbs++
+	}
+	return verbs >= 2
+}
+
 func isStockAnalysis(msg string) bool {
 	return hasAny(msg, []string{
 		"分析", "技术面", "基本面", "走势", "趋势", "现价", "股价", "价格", "多少钱",
@@ -196,23 +168,6 @@ func hasAny(msg string, tokens []string) bool {
 		}
 	}
 	return false
-}
-
-func uniq(in []string) []string {
-	seen := map[string]struct{}{}
-	out := make([]string, 0, len(in))
-	for _, s := range in {
-		s = strings.TrimSpace(s)
-		if s == "" {
-			continue
-		}
-		if _, ok := seen[s]; ok {
-			continue
-		}
-		seen[s] = struct{}{}
-		out = append(out, s)
-	}
-	return out
 }
 
 var (

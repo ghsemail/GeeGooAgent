@@ -18,6 +18,10 @@ func runVerify(args []string) {
 		runVerifyAgentLoop(args[1:])
 		return
 	}
+	if len(args) > 0 && args[0] == "turn-plan" {
+		runVerifyTurnPlan(args[1:])
+		return
+	}
 	runVerifyReports(args)
 }
 

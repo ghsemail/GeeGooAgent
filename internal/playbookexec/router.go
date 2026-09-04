@@ -15,7 +15,11 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
-const playbookBacktestRun = "strategy-backtest-run"
+const (
+	playbookBacktestRun  = "strategy-backtest-run"
+	playbookStockAnalysis = "stock-analysis"
+	playbookSignalProbe   = "strategy-signal-probe"
+)
 
 // ToolRunner executes one tool call (typically agent.ToolExec.Execute).
 type ToolRunner func(ctx context.Context, req tools.CallRequest, toolCtx tools.Context) tools.Result
@@ -50,6 +54,29 @@ func Route(matchedSkills []string, userText string, session *runtime.Session) (p
 	// Parent skill strategy-backtest matches everyday 策略/信号 talk via
 	// unigram overlap. Do not hijack those turns into a new backtest plan.
 	return "", false
+}
+
+// TryRunFromPlan executes a deterministic domain SOP when the TurnPlan requests it.
+func (r *Router) TryRunFromPlan(ctx context.Context, in Input, domain string) (runtime.TurnResult, bool) {
+	if r == nil || r.RunTool == nil {
+		return runtime.TurnResult{}, false
+	}
+	switch domain {
+	case "backtest_run":
+		if _, ok := Route(in.MatchedSkills, in.UserText, in.Session); !ok {
+			if !procedural.BacktestRunIntent(in.UserText) &&
+				!(procedural.BacktestContinueIntent(in.UserText) && sessionHasBacktestContext(in.Session)) {
+				return runtime.TurnResult{}, false
+			}
+		}
+		return r.runBacktest(ctx, in), true
+	case "stock_analysis":
+		return r.runAnalysis(ctx, in), true
+	case "signal_probe":
+		return r.runProbe(ctx, in), true
+	default:
+		return runtime.TurnResult{}, false
+	}
 }
 
 // TryRun executes a deterministic playbook when Route matches.
