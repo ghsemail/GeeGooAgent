@@ -62,17 +62,17 @@ func (r *Router) runProbe(ctx context.Context, in Input) runtime.TurnResult {
 		return runtime.TurnResult{AssistantText: msg, Failed: true, Error: msg, StepRecords: records}
 	}
 
-	btPlan := BacktestRunPlan{
-		StockQuery:  plan.StockQuery,
+	btPlan := slots.SignalPlan{
 		SignalQuery: plan.SignalQuery,
 		SignalKind:  plan.SignalKind,
 	}
-	buy, sell, frequency, strategyLabel, err := r.resolveSignals(ctx, toolCtx, btPlan, recordTool)
+	sig, err := slots.ResolveSignal(ctx, toolCtx, runTool, btPlan)
 	if err != nil {
 		msg := err.Error()
 		in.Session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: msg})
 		return runtime.TurnResult{AssistantText: msg, Failed: true, Error: msg, StepRecords: records}
 	}
+	buy, sell, frequency, strategyLabel := sig.Buy, sig.Sell, sig.Frequency, sig.StrategyLabel
 	if strings.TrimSpace(plan.Frequency) != "" {
 		frequency = plan.Frequency
 	}

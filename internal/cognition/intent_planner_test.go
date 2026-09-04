@@ -34,6 +34,7 @@ func TestRulePlannerRoutesAcrossDomains(t *testing.T) {
 		{msg: "准吗", domain: DomainChat, mode: ModeTalk, forbid: []string{"run_strategy_backtest"}},
 		{msg: "MACD", domain: DomainAmbiguous, mode: ModeClarify, forbid: []string{"run_strategy_backtest"}},
 		{msg: "中际旭创呢", domain: DomainStockAnalysis, mode: ModeGather, want: "search_code"},
+		{msg: "分析一下中际旭创再回测", domain: DomainAmbiguous, mode: ModeClarify},
 	}
 	for _, tc := range cases {
 		plan := p.Plan(PlanInput{UserText: tc.msg})

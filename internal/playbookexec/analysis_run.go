@@ -35,6 +35,7 @@ func (r *Router) runAnalysis(ctx context.Context, in Input) runtime.TurnResult {
 	}
 
 	plan := heuristicAnalysisPlan(in.UserText)
+	enrichAnalysisFromSession(&plan, in.Session)
 	if strings.TrimSpace(plan.StockQuery) == "" {
 		msg := "请说明要分析哪只股票或标的"
 		in.Session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: msg})
@@ -117,6 +118,46 @@ func heuristicAnalysisPlan(message string) AnalysisRunPlan {
 		plan.Tag, plan.IndexName = "index", "BOLL"
 	}
 	return plan
+}
+
+func enrichAnalysisFromSession(plan *AnalysisRunPlan, session *runtime.Session) {
+	if plan == nil || session == nil {
+		return
+	}
+	if strings.TrimSpace(plan.StockQuery) == "" {
+		if q := lastConfirmedStock(session); q != "" {
+			plan.StockQuery = q
+		}
+	}
+	if strings.TrimSpace(plan.StockQuery) == "" {
+		if q := lastConfirmedAnalysisStock(session); q != "" {
+			plan.StockQuery = q
+		}
+	}
+}
+
+func lastConfirmedAnalysisStock(session *runtime.Session) string {
+	if session == nil {
+		return ""
+	}
+	for i := len(session.LLMMessages()) - 1; i >= 0; i-- {
+		msg := session.LLMMessages()[i]
+		if msg.Role != llm.RoleAssistant {
+			continue
+		}
+		if !strings.Contains(msg.Content, "get_mcp_analysis") && !strings.Contains(msg.Content, "·") {
+			continue
+		}
+		for _, line := range strings.Split(msg.Content, "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "##") {
+				if q := slots.ExtractStockQuery(line); q != "" {
+					return q
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func (r *Router) resolveAnalysisTemplate(

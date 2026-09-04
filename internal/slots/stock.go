@@ -14,7 +14,7 @@ var (
 	reHKCode    = regexp.MustCompile(`\b(\d{4,5})(?:\.HK)?\b`)
 	reAShare    = regexp.MustCompile(`(?i)\b(\d{6})(?:\.(?:SZ|SH|BJ))?\b`)
 	reCJKRun    = regexp.MustCompile(`\p{Han}{2,8}`)
-	reIntentPad = regexp.MustCompile(`帮我回测一下|帮我测试一下|帮我回测|回测一下|跑回测|来回测|再回测|测试一下|看一下|分析一下|帮我分析|分析一下|就用刚才那套|刚才那套|用现成的来回测|不要新建`)
+	reIntentPad = regexp.MustCompile(`帮我回测一下|帮我测试一下|帮我回测|回测一下|跑回测|来回测|再回测|测试一下|测一下|看一下|分析一下|帮我分析|分析一下|就用刚才那套|刚才那套|用现成的来回测|不要新建`)
 )
 
 var tickerStopwords = map[string]struct{}{
@@ -30,6 +30,7 @@ var cjkStockStops = []string{
 	"趋势", "直方图", "金叉", "死叉", "抛物线", "共振", "哪些", "现在", "标的",
 	"股票", "一下", "请问", "帮我", "测试", "频率", "支持", "配套", "规则",
 	"买入", "卖出", "简介", "当前", "全部", "三种", "共有", "怎么样", "分析",
+	"有没有", "买卖点", "买卖",
 }
 
 var knownStockAliases = []string{
@@ -116,7 +117,7 @@ func ResolveStock(
 	if res.Status != tools.StatusOK {
 		return "", "", "", fmt.Errorf("search_code 失败：%s", res.Summary)
 	}
-	items := catalogItems(res.Data)
+	items := CatalogItems(res.Data)
 	if len(items) == 0 {
 		return "", "", "", fmt.Errorf("未找到标的「%s」，请换名称或代码", query)
 	}
@@ -161,33 +162,6 @@ func pickStockRow(ctx context.Context, toolCtx tools.Context, query string, item
 		}
 	}
 	return nil, fmt.Errorf("未匹配所选标的「%s」", answer)
-}
-
-func catalogItems(data map[string]any) []map[string]any {
-	if data == nil {
-		return nil
-	}
-	if items, ok := data["items"].([]any); ok {
-		return mapsFromAny(items)
-	}
-	if arr, ok := data["data"].([]any); ok {
-		return mapsFromAny(arr)
-	}
-	if arr, ok := data["value"].([]any); ok {
-		return mapsFromAny(arr)
-	}
-	return mapsFromAny([]any{data})
-}
-
-func mapsFromAny(items []any) []map[string]any {
-	out := make([]map[string]any, 0, len(items))
-	for _, raw := range items {
-		row, ok := raw.(map[string]any)
-		if ok {
-			out = append(out, row)
-		}
-	}
-	return out
 }
 
 func minInt(a, b int) int {

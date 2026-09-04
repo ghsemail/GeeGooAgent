@@ -2,6 +2,13 @@ package slots
 
 import "testing"
 
+func TestExtractStockQueryProbeMessage(t *testing.T) {
+	got := ExtractStockQuery("测一下中际旭创 SAR+MACD 买卖点")
+	if got != "中际旭创" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestExtractStockQueryZhongji(t *testing.T) {
 	if got := ExtractStockQuery("帮我回测一下中际旭创"); got != "中际旭创" {
 		t.Fatalf("got %q", got)

@@ -46,11 +46,13 @@ func (RulePlanner) Plan(in PlanInput) TurnPlan {
 		return planForDomain(DomainDCAGrid)
 	case hasAny(msg, backtestHistoryTokens):
 		return planForDomain(DomainBacktestHistory)
+	case isCompoundIntent(msg):
+		return planForDomain(DomainAmbiguous)
 	case isSignalProbe(msg):
 		return planForDomain(DomainSignalProbe)
 	case isBacktestRun(msg):
 		return planForDomain(DomainBacktestRun)
-	case isStickyDomain(in.LastDomain) && (isFollowUpUtterance(msg) || isBareStrategyTalk(msg)):
+	case isStickyDomain(in.LastDomain) && (isFollowUpUtterance(msg) || isBareStrategyTalk(msg) || slots.IsLikelyStockUtterance(msg)):
 		p := planForDomain(in.LastDomain)
 		p.Reason = "沿用上一轮领域 " + string(in.LastDomain)
 		p.Confidence = 0.8
@@ -130,6 +132,22 @@ func isBareStrategyTalk(msg string) bool {
 		return false
 	}
 	return true
+}
+
+func isCompoundIntent(msg string) bool {
+	verbs := 0
+	if hasAny(msg, []string{
+		"分析", "技术面", "基本面", "走势", "趋势", "行情", "多少钱", "股价",
+	}) {
+		verbs++
+	}
+	if hasAny(msg, []string{"回测", "跑回测", "再回测", "backtest", "看收益"}) {
+		verbs++
+	}
+	if hasAny(msg, []string{"测信号", "买卖点", "有没有买卖", "信号密度", "只看买卖"}) {
+		verbs++
+	}
+	return verbs >= 2
 }
 
 func isStockAnalysis(msg string) bool {

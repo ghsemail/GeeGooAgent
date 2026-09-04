@@ -188,7 +188,7 @@ func TestPickCombination(t *testing.T) {
 		{"name": "SAR信号配套MACD直方图趋势", "signal_id": "a", "buy_signal": []any{map[string]any{"index": "SAR"}}},
 		{"name": "RSI阈值信号", "signal_id": "b", "buy_signal": []any{map[string]any{"index": "RSI"}}},
 	}
-	row, err := pickCombination(items, "SAR MACD")
+	row, err := slots.PickCombination(items, "SAR MACD")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestPickCombinationAutoPicksBestAmongMultiple(t *testing.T) {
 		{"name": "SAR信号配套MACD直方图趋势", "signal_id": "best"},
 		{"name": "SAR+MACD+RSI 三指标组合", "signal_id": "extra"},
 	}
-	row, err := pickCombination(items, "SAR MACD")
+	row, err := slots.PickCombination(items, "SAR MACD")
 	if err != nil {
 		t.Fatalf("multi-match should auto-pick, got %v", err)
 	}
