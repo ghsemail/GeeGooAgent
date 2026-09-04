@@ -19,6 +19,7 @@ func (h *Handler) registerEvalRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/dashboard/eval/runs/{id}", h.evalRunGet)
 	mux.HandleFunc("POST /v1/dashboard/eval/runs", h.evalRunUpsert)
 	mux.HandleFunc("DELETE /v1/dashboard/eval/runs/{id}", h.evalRunDelete)
+	h.registerEvalTurnPlanRoutes(mux)
 }
 
 type evalCasePayload struct {
