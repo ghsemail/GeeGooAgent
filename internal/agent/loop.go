@@ -352,7 +352,6 @@ func (l *Loop) RunTurn(
 		"session_id": session.ID, "user_text": userText,
 	})
 	l.emitStatus("received", "已收到消息，准备处理")
-	l.emitStatus("plan", "正在判断本轮意图…")
 
 	policy := l.effectivePlanPolicy()
 	if session.PendingPlan != nil {
@@ -371,11 +370,16 @@ func (l *Loop) RunTurn(
 		session.PendingPlan = nil
 	}
 
+	l.emitStatus("plan", "正在判断本轮意图…")
+	stopPlanHB := l.startStatusHeartbeat("plan", "意图分类：辅助模型推理中", 2*time.Second)
+	planStarted := time.Now()
 	turnPlan := l.effectivePlanner().Plan(cognition.PlanInput{
 		Ctx:        ctx,
 		UserText:   userText,
 		LastDomain: cognition.Domain(session.LastTurnDomain),
 	})
+	stopPlanHB()
+	planMS := time.Since(planStarted).Milliseconds()
 	session.LastTurnDomain = string(turnPlan.Domain)
 	session.LastTurnMode = string(turnPlan.Mode)
 	session.LastTurnSOP = turnPlan.ShouldRunDomainSOP()
@@ -389,24 +393,19 @@ func (l *Loop) RunTurn(
 		"tools":      turnPlan.ToolsAllow,
 		"confidence": turnPlan.Confidence,
 	})
-	l.emitStatus("plan", fmt.Sprintf("判断：%s/%s", turnPlan.Domain, turnPlan.Mode))
+	l.emitStatus("plan", fmt.Sprintf("判断：%s/%s（%dms）", turnPlan.Domain, turnPlan.Mode, planMS))
 
 	procFrag, matchedSkills := l.loadPlanSkills(turnPlan, &records)
 	var gateFrag ctxfrag.Fragment
-	skipMemory := ShouldSkipRetrievalGate(matchedSkills) || turnPlan.ShouldRunDomainSOP()
-	if !skipMemory {
+	if !ShouldSkipRetrievalGate(matchedSkills) {
 		gateFrag = l.runRetrievalGate(ctx, session, userText, &records)
 	} else {
-		reason := "tool-first playbook"
-		if turnPlan.ShouldRunDomainSOP() {
-			reason = "domain SOP"
-		}
-		l.emitStatus("gate", "公开行情/工具流程，跳过长期记忆检索")
+		l.emitStatus("gate", "工具型技能，跳过记忆检索")
 		l.emit("gate", map[string]any{
 			"decision": "skip",
-			"reason":   reason,
+			"reason":   "tool-first playbook",
 		})
-		l.recordInjectionStep(&records, "gate", "decision=skip · reason="+reason)
+		l.recordInjectionStep(&records, "gate", "decision=skip · reason=tool-first playbook")
 	}
 	dynFrags := []ctxfrag.Fragment{ctxfrag.ClockFragment(clockNow()), turnPlanFragment(turnPlan)}
 	if gateFrag != nil && strings.TrimSpace(gateFrag.Render()) != "" {

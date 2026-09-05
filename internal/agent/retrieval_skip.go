@@ -8,7 +8,6 @@ var toolFirstPlaybooks = map[string]struct{}{
 	"strategy-backtest-history": {},
 	"strategy-backtest-run":     {},
 	"strategy-signal-probe":     {},
-	"stock-analysis":            {},
 }
 
 // ShouldSkipRetrievalGate reports whether matched procedural skills are tool-first
