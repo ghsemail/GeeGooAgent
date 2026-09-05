@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
@@ -108,7 +109,10 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	})
 
 	live := chatsession.NewLivePublisher(h.App.State, chat.ID)
+	var sseMu sync.Mutex
 	emit := func(event string, data map[string]any) {
+		sseMu.Lock()
+		defer sseMu.Unlock()
 		if live != nil {
 			live.Emit(event, data)
 		}

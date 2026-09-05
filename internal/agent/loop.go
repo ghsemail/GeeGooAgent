@@ -371,7 +371,7 @@ func (l *Loop) RunTurn(
 	}
 
 	l.emitStatus("plan", "正在判断本轮意图…")
-	stopPlanHB := l.startStatusHeartbeat("plan", "意图分类：辅助模型推理中", 2*time.Second)
+	stopPlanHB := l.startStatusHeartbeat("plan", "意图分类：辅助模型推理中", time.Second)
 	planStarted := time.Now()
 	turnPlan := l.effectivePlanner().Plan(cognition.PlanInput{
 		Ctx:        ctx,

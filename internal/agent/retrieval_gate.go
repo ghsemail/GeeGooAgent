@@ -102,7 +102,7 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 	} else {
 		l.emitStatus("gate", "记忆门控：正在调用辅助模型，判断要不要检索长期记忆")
 	}
-	stopHB := l.startStatusHeartbeat("gate", "记忆门控：辅助模型推理中", 2*time.Second)
+	stopHB := l.startStatusHeartbeat("gate", "记忆门控：辅助模型推理中", time.Second)
 	gateStarted := time.Now()
 	gate := retrievalgate.ShouldRetrieve(ctx, l.gateProvider, l.gatePolicy, userText)
 	stopHB()
