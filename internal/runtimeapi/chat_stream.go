@@ -158,9 +158,10 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 			}
 			h.App.Agent.SetProgress(progressFn)
 		}()
-		waitCtx, cancel := context.WithTimeout(ctx, clarifyAutoPickWait)
-		defer cancel()
-		return h.waitClarifyOrAuto(waitCtx, chat.ID, question, choices, clarifyNotify)
+		// Interactive Dock Chat: wait until the user answers or the SSE client
+		// disconnects. A short auto-pick timeout races the UI and turns a
+		// stock tap into HTTP 404 "no pending clarify".
+		return h.clarify.Wait(ctx, chat.ID, question, choices, clarifyNotify)
 	}
 	if h.App.Config != nil {
 		h.App.Agent.SetPlanGate(h.App.Config.EffectivePlanGate())
