@@ -16,6 +16,7 @@ func TestShouldSkipRetrievalGate(t *testing.T) {
 		{[]string{"strategy-backtest-history"}, true},
 		{[]string{"strategy-signal-probe", "strategy-backtest"}, true},
 		{[]string{"knowledge-base", "strategy-backtest-run"}, true},
+		{[]string{"stock-analysis"}, true},
 	}
 	for _, tc := range tests {
 		got := agent.ShouldSkipRetrievalGate(tc.skills)

@@ -352,6 +352,7 @@ func (l *Loop) RunTurn(
 		"session_id": session.ID, "user_text": userText,
 	})
 	l.emitStatus("received", "已收到消息，准备处理")
+	l.emitStatus("plan", "正在判断本轮意图…")
 
 	policy := l.effectivePlanPolicy()
 	if session.PendingPlan != nil {
@@ -392,15 +393,20 @@ func (l *Loop) RunTurn(
 
 	procFrag, matchedSkills := l.loadPlanSkills(turnPlan, &records)
 	var gateFrag ctxfrag.Fragment
-	if !ShouldSkipRetrievalGate(matchedSkills) {
+	skipMemory := ShouldSkipRetrievalGate(matchedSkills) || turnPlan.ShouldRunDomainSOP()
+	if !skipMemory {
 		gateFrag = l.runRetrievalGate(ctx, session, userText, &records)
 	} else {
-		l.emitStatus("gate", "工具型技能，跳过记忆检索")
+		reason := "tool-first playbook"
+		if turnPlan.ShouldRunDomainSOP() {
+			reason = "domain SOP"
+		}
+		l.emitStatus("gate", "公开行情/工具流程，跳过长期记忆检索")
 		l.emit("gate", map[string]any{
 			"decision": "skip",
-			"reason":   "tool-first playbook",
+			"reason":   reason,
 		})
-		l.recordInjectionStep(&records, "gate", "decision=skip · reason=tool-first playbook")
+		l.recordInjectionStep(&records, "gate", "decision=skip · reason="+reason)
 	}
 	dynFrags := []ctxfrag.Fragment{ctxfrag.ClockFragment(clockNow()), turnPlanFragment(turnPlan)}
 	if gateFrag != nil && strings.TrimSpace(gateFrag.Render()) != "" {

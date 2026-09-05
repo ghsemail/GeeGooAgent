@@ -97,7 +97,7 @@ func gateDecisionSummary(d RetrievalGateDecision, source string) string {
 }
 
 func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, userText string, records *[]runtime.StepRecord) ctxfrag.Fragment {
-	l.emitStatus("gate", "检查是否需要检索长期记忆…")
+	l.emitStatus("gate", "正在询问小模型：这条是否需要长期记忆…")
 	gate := retrievalgate.ShouldRetrieve(ctx, l.gateProvider, l.gatePolicy, userText)
 	decision := RetrievalGateDecision{
 		Decision: "skip",
