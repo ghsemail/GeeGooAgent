@@ -138,6 +138,9 @@ func pickStockRow(ctx context.Context, toolCtx tools.Context, query string, item
 	if len(items) == 1 {
 		return items[0], nil
 	}
+	if picked, ok := pickStockRowByCode(items, query); ok {
+		return picked, nil
+	}
 	limit := minInt(len(items), 4)
 	choices := make([]string, 0, limit)
 	for i := 0; i < limit; i++ {
@@ -162,6 +165,43 @@ func pickStockRow(ctx context.Context, toolCtx tools.Context, query string, item
 		}
 	}
 	return nil, fmt.Errorf("未匹配所选标的「%s」", answer)
+}
+
+func pickStockRowByCode(items []map[string]any, query string) (map[string]any, bool) {
+	q := strings.ToUpper(strings.TrimSpace(query))
+	if q == "" || len(items) == 0 {
+		return nil, false
+	}
+	qDigits := strings.TrimLeft(q, "0")
+	var containsMatches []map[string]any
+	for _, row := range items {
+		code := strings.ToUpper(strings.TrimSpace(fmt.Sprint(row["code"])))
+		if code == "" {
+			continue
+		}
+		if code == q {
+			return row, true
+		}
+		codeBase := strings.TrimSuffix(code, ".HK")
+		codeBase = strings.TrimSuffix(codeBase, ".SH")
+		codeBase = strings.TrimSuffix(codeBase, ".SZ")
+		codeBase = strings.TrimSuffix(codeBase, ".US")
+		if strings.HasSuffix(q, ".HK") || strings.HasSuffix(q, ".SH") || strings.HasSuffix(q, ".SZ") || strings.HasSuffix(q, ".US") {
+			if code == q || strings.HasPrefix(code, q) {
+				return row, true
+			}
+		}
+		if qDigits != "" && (codeBase == qDigits || strings.HasSuffix(codeBase, qDigits) || strings.HasSuffix(qDigits, strings.TrimLeft(codeBase, "0"))) {
+			return row, true
+		}
+		if strings.Contains(code, q) || strings.Contains(q, codeBase) {
+			containsMatches = append(containsMatches, row)
+		}
+	}
+	if len(containsMatches) == 1 {
+		return containsMatches[0], true
+	}
+	return nil, false
 }
 
 func minInt(a, b int) int {

@@ -200,7 +200,7 @@ func (e *ToolExec) ExecuteBatch(
 		results[i] = result
 	}
 
-	if len(calls) == 1 || needsInteractiveApproval(toolCtx, calls) || !e.batchConcurrencySafe(calls) {
+	if len(calls) == 1 || needsInteractiveApproval(toolCtx, calls) || hasClarifyTool(calls) || !e.batchConcurrencySafe(calls) {
 		for i, call := range calls {
 			runOne(i, call)
 		}
@@ -270,6 +270,15 @@ func needsInteractiveApproval(toolCtx tools.Context, calls []llm.ToolCall) bool 
 	}
 	for _, call := range calls {
 		if tools.ApprovalRequired(call.Name) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasClarifyTool(calls []llm.ToolCall) bool {
+	for _, call := range calls {
+		if call.Name == "clarify" {
 			return true
 		}
 	}

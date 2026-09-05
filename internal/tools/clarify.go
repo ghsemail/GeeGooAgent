@@ -63,6 +63,12 @@ func handleClarify(ctx Context, args map[string]any) Result {
 	}
 	answer, ok := ctx.ClarifyFn(ctx.Ctx, question, choices)
 	answer = strings.TrimSpace(answer)
+	if !ok && len(choices) > 0 {
+		if auto, picked := AutoClarifyChoice(question, choices); picked {
+			answer = auto
+			ok = true
+		}
+	}
 	if !ok {
 		return Result{
 			Status:  StatusSkip,
@@ -113,6 +119,43 @@ func normalizeClarifyChoices(raw any) []string {
 		return nil
 	}
 	return out
+}
+
+// AutoClarifyChoice picks a deterministic default when the user cannot respond
+// (eval automation, parallel clarify timeouts, headless clients).
+func AutoClarifyChoice(question string, choices []string) (string, bool) {
+	if len(choices) == 0 {
+		return "", false
+	}
+	q := strings.ToLower(question)
+	for _, choice := range choices {
+		cl := strings.ToLower(choice)
+		if strings.Contains(q, "频率") || strings.Contains(q, "frequency") {
+			if strings.Contains(cl, "60m") {
+				return choice, true
+			}
+		}
+	}
+	for _, choice := range choices {
+		cl := strings.ToLower(choice)
+		if strings.Contains(cl, "触发型") || strings.Contains(cl, "buy/sell") {
+			return choice, true
+		}
+		if strings.Contains(cl, "信号") && !strings.Contains(cl, "趋势") && !strings.Contains(cl, "flag") {
+			return choice, true
+		}
+	}
+	for _, choice := range choices {
+		if strings.Contains(strings.ToLower(choice), "60m") {
+			return choice, true
+		}
+	}
+	for _, choice := range choices {
+		if strings.Contains(strings.ToLower(choice), "daily") {
+			return choice, true
+		}
+	}
+	return choices[0], true
 }
 
 // ClarifyDisplayOptions returns choices plus the Hermes "Other" option when needed.

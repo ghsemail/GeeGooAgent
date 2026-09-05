@@ -19,11 +19,11 @@ type clarifyWaiter struct {
 // ClarifyHub blocks agent clarify tool calls until Answer is submitted.
 type ClarifyHub struct {
 	mu      sync.Mutex
-	waiters map[string]*clarifyWaiter
+	waiters map[string][]*clarifyWaiter
 }
 
 func newClarifyHub() *ClarifyHub {
-	return &ClarifyHub{waiters: map[string]*clarifyWaiter{}}
+	return &ClarifyHub{waiters: map[string][]*clarifyWaiter{}}
 }
 
 // Pending describes an in-flight clarify prompt.
@@ -38,13 +38,13 @@ func (h *ClarifyHub) Wait(ctx context.Context, sessionID, question string, choic
 	if h == nil {
 		return "", false
 	}
-	ch := make(chan clarifyAnswer, 1)
-	h.mu.Lock()
-	h.waiters[sessionID] = &clarifyWaiter{
+	w := &clarifyWaiter{
 		question: question,
 		choices:  append([]string(nil), choices...),
-		ch:       ch,
+		ch:       make(chan clarifyAnswer, 1),
 	}
+	h.mu.Lock()
+	h.waiters[sessionID] = append(h.waiters[sessionID], w)
 	h.mu.Unlock()
 	if onPending != nil {
 		onPending(PendingClarify{
@@ -54,43 +54,69 @@ func (h *ClarifyHub) Wait(ctx context.Context, sessionID, question string, choic
 		})
 	}
 	select {
-	case res := <-ch:
+	case res := <-w.ch:
 		return res.answer, res.ok
 	case <-ctx.Done():
-		h.mu.Lock()
-		delete(h.waiters, sessionID)
-		h.mu.Unlock()
+		h.removeWaiter(sessionID, w)
 		return "", false
 	}
 }
 
-// Answer unblocks a pending clarify for sessionID.
+func (h *ClarifyHub) removeWaiter(sessionID string, target *clarifyWaiter) {
+	if h == nil || target == nil {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	queue := h.waiters[sessionID]
+	out := queue[:0]
+	for _, w := range queue {
+		if w != target {
+			out = append(out, w)
+		}
+	}
+	if len(out) == 0 {
+		delete(h.waiters, sessionID)
+		return
+	}
+	h.waiters[sessionID] = out
+}
+
+// Answer unblocks the oldest pending clarify for sessionID.
 func (h *ClarifyHub) Answer(sessionID, answer string, ok bool) bool {
 	if h == nil {
 		return false
 	}
 	h.mu.Lock()
-	w := h.waiters[sessionID]
-	delete(h.waiters, sessionID)
-	h.mu.Unlock()
-	if w == nil {
+	queue := h.waiters[sessionID]
+	if len(queue) == 0 {
+		h.mu.Unlock()
 		return false
 	}
+	w := queue[0]
+	queue = queue[1:]
+	if len(queue) == 0 {
+		delete(h.waiters, sessionID)
+	} else {
+		h.waiters[sessionID] = queue
+	}
+	h.mu.Unlock()
 	w.ch <- clarifyAnswer{answer: answer, ok: ok}
 	return true
 }
 
-// Pending returns the current clarify for sessionID if any.
+// Pending returns the oldest pending clarify for sessionID if any.
 func (h *ClarifyHub) Pending(sessionID string) (PendingClarify, bool) {
 	if h == nil {
 		return PendingClarify{}, false
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	w, ok := h.waiters[sessionID]
-	if !ok || w == nil {
+	queue := h.waiters[sessionID]
+	if len(queue) == 0 || queue[0] == nil {
 		return PendingClarify{}, false
 	}
+	w := queue[0]
 	return PendingClarify{
 		SessionID: sessionID,
 		Question:  w.question,
