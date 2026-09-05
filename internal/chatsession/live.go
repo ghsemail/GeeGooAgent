@@ -114,8 +114,19 @@ func applyLiveEvent(state *LiveSessionState, event string, data map[string]any) 
 		state.Status = "tool"
 	case "reply_start":
 		state.Status = "replying"
-	case "clarify":
+	case "clarify", "clarify_plan":
 		state.Status = "clarify"
+	case "status":
+		if phase, _ := data["phase"].(string); phase != "" {
+			switch phase {
+			case "clarify":
+				state.Status = "clarify"
+			case "gate":
+				state.Status = "gate"
+			case "plan":
+				state.Status = "planning"
+			}
+		}
 	case "error":
 		state.Busy = false
 		state.Status = "error"

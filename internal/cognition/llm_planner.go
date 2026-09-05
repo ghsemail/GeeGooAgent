@@ -10,7 +10,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
-const classifyTimeout = 8 * time.Second
+const classifyTimeout = 2 * time.Second
 
 const classifyPrompt = `You classify one user chat turn for a finance assistant.
 Reply with ONLY JSON:
@@ -55,8 +55,11 @@ func (p IntentPlanner) Plan(in PlanInput) TurnPlan {
 }
 
 func needsLLMAssist(base TurnPlan) bool {
-	if base.Domain == DomainAmbiguous {
-		return true
+	// Clarify is a user-facing turn. Do not block it on a classify LLM call
+	// (that call used the same auxiliary provider as the memory gate and
+	// could leave the UI on “记忆门控” / 意图分类 for many seconds).
+	if base.Mode == ModeClarify || base.Domain == DomainAmbiguous {
+		return false
 	}
 	return base.Domain == DomainChat && base.Confidence < 0.75
 }

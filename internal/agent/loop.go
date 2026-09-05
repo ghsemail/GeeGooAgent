@@ -344,7 +344,6 @@ func (l *Loop) RunTurn(
 	}
 
 	session.AppendMessage(llm.Message{Role: llm.RoleUser, Content: userText})
-	messages := session.LLMMessages()
 	records := []runtime.StepRecord{}
 
 	l.emit("turn_start", map[string]any{"user_text": userText})
@@ -352,6 +351,18 @@ func (l *Loop) RunTurn(
 		"session_id": session.ID, "user_text": userText,
 	})
 	l.emitStatus("received", "已收到消息，准备处理")
+	return l.runPreparedTurn(ctx, session, userText, toolCtx, schemas, records)
+}
+
+func (l *Loop) runPreparedTurn(
+	ctx context.Context,
+	session *runtime.Session,
+	userText string,
+	toolCtx tools.Context,
+	schemas []llm.ToolSchema,
+	records []runtime.StepRecord,
+) runtime.TurnResult {
+	messages := session.LLMMessages()
 
 	policy := l.effectivePlanPolicy()
 	if session.PendingPlan != nil {
@@ -371,14 +382,12 @@ func (l *Loop) RunTurn(
 	}
 
 	l.emitStatus("plan", "正在判断本轮意图…")
-	stopPlanHB := l.startStatusHeartbeat("plan", "意图分类：辅助模型推理中", time.Second)
 	planStarted := time.Now()
 	turnPlan := l.effectivePlanner().Plan(cognition.PlanInput{
 		Ctx:        ctx,
 		UserText:   userText,
 		LastDomain: cognition.Domain(session.LastTurnDomain),
 	})
-	stopPlanHB()
 	planMS := time.Since(planStarted).Milliseconds()
 	session.LastTurnDomain = string(turnPlan.Domain)
 	session.LastTurnMode = string(turnPlan.Mode)
@@ -397,19 +406,21 @@ func (l *Loop) RunTurn(
 
 	procFrag, matchedSkills := l.loadPlanSkills(turnPlan, &records)
 	var gateFrag ctxfrag.Fragment
-	if ShouldSkipRetrievalGate(matchedSkills, turnPlan) {
-		reason := "tool-first playbook"
-		msg := "工具型技能，跳过记忆检索"
+	if ShouldSkipRetrievalGate(matchedSkills, turnPlan, userText) {
+		reason := skipRetrievalReason(matchedSkills, turnPlan, userText)
 		if turnPlan.Mode == cognition.ModeClarify {
-			reason = "clarify turn"
-			msg = "澄清轮次，跳过记忆检索"
+			l.recordInjectionStep(&records, "gate", "decision=skip · reason="+reason)
+			l.emit("gate", map[string]any{"decision": "skip", "reason": reason})
+		} else {
+			if reason == "tool-first playbook" {
+				l.emitStatus("gate", "工具型技能，跳过记忆检索")
+			}
+			l.emit("gate", map[string]any{
+				"decision": "skip",
+				"reason":   reason,
+			})
+			l.recordInjectionStep(&records, "gate", "decision=skip · reason="+reason)
 		}
-		l.emitStatus("gate", msg)
-		l.emit("gate", map[string]any{
-			"decision": "skip",
-			"reason":   reason,
-		})
-		l.recordInjectionStep(&records, "gate", "decision=skip · reason="+reason)
 	} else {
 		gateFrag = l.runRetrievalGate(ctx, session, userText, &records)
 	}
@@ -427,7 +438,6 @@ func (l *Loop) RunTurn(
 	schemas = cognition.FilterSchemas(schemas, turnPlan)
 
 	if result, handled := l.tryPresetClarify(ctx, session, turnPlan, toolCtx, &records, schemas); handled {
-		l.evaluateTurn(ctx, session, result)
 		return result
 	}
 

@@ -15,6 +15,8 @@ func TestItemTypeForEvent(t *testing.T) {
 		"tool_end":        events.ItemToolResult,
 		"budget_warning":  events.ItemBudgetWarning,
 		"turn_end":        events.ItemTurnComplete,
+		"clarify":         events.ItemClarifyPrompt,
+		"clarify_plan":    events.ItemClarifyPrompt,
 		"context_fragment_applied": events.ItemStatus,
 	}
 	for event, want := range cases {

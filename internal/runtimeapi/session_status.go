@@ -197,7 +197,8 @@ func (h *Handler) attachPendingClarify(payload *SessionStatusPayload) {
 		Choices:  append([]string(nil), p.Choices...),
 	}
 	payload.Busy = true
-	if payload.LiveStatus == "" || payload.LiveStatus == "tool" {
+	switch payload.LiveStatus {
+	case "", "tool", "gate", "thinking", "planning":
 		payload.LiveStatus = "clarify"
 	}
 }

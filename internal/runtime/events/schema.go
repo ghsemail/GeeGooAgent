@@ -42,7 +42,7 @@ func ItemTypeForEvent(event string) string {
 		return ItemToolResult
 	case "plan_proposed", "plan_proposal":
 		return ItemPlanProposal
-	case "clarify":
+	case "clarify", "clarify_plan":
 		return ItemClarifyPrompt
 	case "budget_warning":
 		return ItemBudgetWarning

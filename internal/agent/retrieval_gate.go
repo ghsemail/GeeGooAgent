@@ -97,12 +97,18 @@ func gateDecisionSummary(d RetrievalGateDecision, source string) string {
 }
 
 func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, userText string, records *[]runtime.StepRecord) ctxfrag.Fragment {
-	if l.gateProvider == nil {
-		l.emitStatus("gate", "记忆门控：未配置辅助模型，使用本地启发式")
-	} else {
+	useLLM := l.gateProvider != nil && retrievalgate.HasMemoryCue(userText)
+	if useLLM {
 		l.emitStatus("gate", "记忆门控：正在调用辅助模型，判断要不要检索长期记忆")
+	} else {
+		l.emitStatus("gate", "记忆门控：无记忆线索，跳过辅助模型")
 	}
-	stopHB := l.startStatusHeartbeat("gate", "记忆门控：辅助模型推理中", time.Second)
+	var stopHB func()
+	if useLLM {
+		stopHB = l.startStatusHeartbeat("gate", "记忆门控：辅助模型推理中", time.Second)
+	} else {
+		stopHB = func() {}
+	}
 	gateStarted := time.Now()
 	gate := retrievalgate.ShouldRetrieve(ctx, l.gateProvider, l.gatePolicy, userText)
 	stopHB()

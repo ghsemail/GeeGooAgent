@@ -11,8 +11,8 @@ import (
 )
 
 // tryPresetClarify blocks on the interactive clarify UI when TurnPlan already
-// carries a preset question/choices (ambiguous domain). Skips waiting for the
-// main model to call clarify and avoids getting stuck behind the memory gate.
+// carries a preset question/choices (ambiguous domain). After the user answers,
+// the same turn continues via runPreparedTurn (no nested RunTurn / extra gate).
 func (l *Loop) tryPresetClarify(
 	ctx context.Context,
 	session *runtime.Session,
@@ -30,10 +30,12 @@ func (l *Loop) tryPresetClarify(
 	}
 	choices := append([]string(nil), turnPlan.ClarifyChoices...)
 	l.emitStatus("clarify", question)
-	l.emit("clarify_plan", map[string]any{
+	payload := map[string]any{
 		"question": question,
 		"choices":  choices,
-	})
+	}
+	l.emit("clarify_plan", payload)
+	l.emit("clarify", payload)
 	l.recordInjectionStep(records, "clarify", "preset question: "+question)
 
 	answer, ok := toolCtx.ClarifyFn(ctx, question, choices)
@@ -44,12 +46,15 @@ func (l *Loop) tryPresetClarify(
 			text = "澄清已中断。"
 		}
 		session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: text})
-		return runtime.TurnResult{AssistantText: text, StepRecords: *records}, true
+		result := runtime.TurnResult{AssistantText: text, StepRecords: *records}
+		l.evaluateTurn(ctx, session, result)
+		return result, true
 	}
 
 	l.emit("clarify_answer", map[string]any{"answer": answer})
 	l.recordInjectionStep(records, "clarify", "answer="+answer)
-	child := l.RunTurn(ctx, session, answer, toolCtx, schemas)
-	child.StepRecords = append(*records, child.StepRecords...)
+	session.AppendMessage(llm.Message{Role: llm.RoleUser, Content: answer})
+	l.emitStatus("received", "已选择："+answer)
+	child := l.runPreparedTurn(ctx, session, answer, toolCtx, schemas, *records)
 	return child, true
 }

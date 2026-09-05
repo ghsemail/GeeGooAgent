@@ -2,6 +2,7 @@ package agent
 
 import (
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/retrievalgate"
 )
 
 // toolFirstPlaybooks are procedural skills that route directly to HTTP/MCP tools
@@ -15,8 +16,7 @@ var toolFirstPlaybooks = map[string]struct{}{
 }
 
 // ShouldSkipRetrievalGate reports whether the turn can skip the LLM retrieval gate.
-// Clarify turns and tool-first playbooks do not need long-term memory recall.
-func ShouldSkipRetrievalGate(matchedSkills []string, plan cognition.TurnPlan) bool {
+func ShouldSkipRetrievalGate(matchedSkills []string, plan cognition.TurnPlan, userText string) bool {
 	if plan.Mode == cognition.ModeClarify {
 		return true
 	}
@@ -25,5 +25,20 @@ func ShouldSkipRetrievalGate(matchedSkills []string, plan cognition.TurnPlan) bo
 			return true
 		}
 	}
-	return false
+	return !retrievalgate.HasMemoryCue(userText)
+}
+
+func skipRetrievalReason(matchedSkills []string, plan cognition.TurnPlan, userText string) string {
+	if plan.Mode == cognition.ModeClarify {
+		return "clarify turn"
+	}
+	for _, name := range matchedSkills {
+		if _, ok := toolFirstPlaybooks[name]; ok {
+			return "tool-first playbook"
+		}
+	}
+	if !retrievalgate.HasMemoryCue(userText) {
+		return "no memory cue"
+	}
+	return "skip"
 }

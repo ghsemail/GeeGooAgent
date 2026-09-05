@@ -134,11 +134,11 @@ func TestIntentPlannerUsesLLMOnlyInGrayZone(t *testing.T) {
 	}
 
 	got := p.Plan(PlanInput{UserText: "MACD"})
-	if mock.calls != 1 {
-		t.Fatalf("ambiguous MACD should call LLM, calls=%d", mock.calls)
+	if mock.calls != 0 {
+		t.Fatalf("ambiguous/clarify must not call classify LLM, calls=%d", mock.calls)
 	}
-	if got.Domain != DomainStockAnalysis || got.ShouldRunBacktestPlaybook() {
-		t.Fatalf("MACD llm plan=%s/%s playbook=%v", got.Domain, got.Mode, got.ShouldRunBacktestPlaybook())
+	if got.Domain != DomainAmbiguous || got.Mode != ModeClarify {
+		t.Fatalf("MACD should stay clarify, got %s/%s", got.Domain, got.Mode)
 	}
 }
 

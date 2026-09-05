@@ -39,3 +39,18 @@ func TestLivePublisherRoundTrip(t *testing.T) {
 	}
 	_ = time.Now()
 }
+
+func TestLivePublisherClarifyOverridesGate(t *testing.T) {
+	state := infra.NewStateStore(t.TempDir())
+	pub := chatsession.NewLivePublisher(state, "chat-clarify")
+	pub.Emit("turn_start", nil)
+	pub.Emit("status", map[string]any{"phase": "gate", "message": "记忆门控"})
+	pub.Emit("clarify", map[string]any{"question": "你是想做哪一件？", "choices": []string{"A", "B"}})
+	live, err := chatsession.LoadLiveState(state, "chat-clarify")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if live.Status != "clarify" {
+		t.Fatalf("status=%q want clarify", live.Status)
+	}
+}

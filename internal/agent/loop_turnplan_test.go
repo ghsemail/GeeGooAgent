@@ -246,7 +246,9 @@ func TestAmbiguousTurnSkipsGateAndUsesPresetClarify(t *testing.T) {
 	loop.SetRetrievalGate(gateMock, nil, 4)
 
 	var statuses []string
+	var events []string
 	loop.SetProgress(func(event string, data map[string]any) {
+		events = append(events, event)
 		if event != "status" {
 			return
 		}
@@ -272,17 +274,31 @@ func TestAmbiguousTurnSkipsGateAndUsesPresetClarify(t *testing.T) {
 	if result.Failed {
 		t.Fatalf("failed: %s", result.Error)
 	}
-	foundSkip := false
-	for _, msg := range statuses {
-		if strings.Contains(msg, "澄清轮次，跳过记忆检索") {
-			foundSkip = true
-			break
+	turnStarts := 0
+	sawClarify := false
+	for _, ev := range events {
+		if ev == "turn_start" {
+			turnStarts++
+		}
+		if ev == "clarify" {
+			sawClarify = true
 		}
 	}
-	if !foundSkip {
-		t.Fatalf("expected clarify gate skip in statuses=%v", statuses)
+	if turnStarts != 1 {
+		t.Fatalf("nested RunTurn would emit extra turn_start, got %d events=%v", turnStarts, events)
+	}
+	if !sawClarify {
+		t.Fatalf("missing clarify event in %v", events)
+	}
+	for _, msg := range statuses {
+		if strings.Contains(msg, "辅助模型推理中") || strings.Contains(msg, "正在调用辅助模型") {
+			t.Fatalf("clarify turn must not wait on auxiliary model: %q statuses=%v", msg, statuses)
+		}
 	}
 	if clarifyQuestion != "你是想做哪一件？" {
 		t.Fatalf("question=%q", clarifyQuestion)
+	}
+	if session.LastTurnDomain != string(cognition.DomainStockAnalysis) {
+		t.Fatalf("after choice LastTurnDomain=%q", session.LastTurnDomain)
 	}
 }
