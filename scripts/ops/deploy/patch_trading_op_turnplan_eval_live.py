@@ -29,22 +29,25 @@ for(;;)switch(s){case 0:l=p.a
 k=a.a
 j=a.b
 h=p.d
-o=J.aT(h)
-case 2:if(o.v()){f=o.gO(o)
+o=t.j.b(h)?J.aT(h):null
+case 2:if(o==null||!o.v()){s=6
+break}f=o.gO(o)
 n=J.v(f)
 l.fd(B.co,j+" setup: "+A.k(n),p.c)
 s=3
-return A.i(l.aSj(k,20,j+" setup",p.c,n),$async$$1)}case 3:if(!c){q=!1
+return A.i(l.aSj(k,20,j+" setup",p.c,n),$async$$1)
+case 3:if(!c){q=!1
 s=1
 break}s=2
 break
-m=J.v(p.e)
+case 6:m=J.v(p.e)
 l.fd(B.co,j+" send: "+A.k(m),p.c)
 s=4
 return A.i(l.aSj(k,20,j+" turn",p.c,m),$async$$1)
 case 4:if(!c){q=!1
 s=1
-break}i=k.cy.gh(0)
+break}i=k.cy
+i=i==null||i===$?null:i.gh(0)
 if(i==null||J.aL(i)===0)throw A.o(A.aF("missing session_id"))
 s=5
 return A.i(p.f.a.hh(A.df()+"/v1/dashboard/eval/cases/"+p.c+"/verify",A.m(["session_id",i],t.N,t.z),A.cF(p.f.dh(),null,null),t.z),$async$$1)
@@ -71,7 +74,10 @@ if($.bG.a5(0,a0.bq(0,A.aW(a),null))){a0=$.c;(a0==null?$.c=B.d:a0).k(0,null,a).nI
 return A.i(A.ph(),$async$uF)
 case 2:m=n.a6Q()
 a=B.c.a0(J.v(a8),0,19)
-a1=A.bA_(b4,!1,null,null,null,b0,null,m.p2.gh(0),null,a8,B.l9,a7.b+" \xb7 "+a)
+a0=m.p2
+a0=a0==null||a0===$?null:a0.gh(0)
+if(a0==null)a0=n.db.gh(0)
+a1=A.bA_(b4,!1,null,null,null,b0,null,a0,null,a8,B.l9,a7.b+" \xb7 "+a)
 n.go=a1
 a2=n.ay
 a2.hw(a2,0,a1)
@@ -112,6 +118,7 @@ if(t.f.b(b3))b2=J.F(b3,"message")}
 if(b2==null||J.aL(J.v(b2))===0)throw A.o(A.aF("missing utterance"))
 b3=J.F(b4d,"setup_utterances")
 if(b3==null&&t.f.b(J.F(b4d,"options")))b3=J.F(J.F(b4d,"options"),"setup_messages")
+if(!t.j.b(b3))b3=A.b([],t.s)
 a3=t.Ch
 j=A.b([new A.ua(m,"Dock")],a3)
 for(a3=j,a4=a3.length,a5=0;a5<a3.length;a3.length===a4||(0,A.Q)(a3),++a5){i=a3[a5]
@@ -183,9 +190,52 @@ DUPLICATE_UF_END = "return A.t($async$uF,r)},\nreturn A.t($async$uF,r)},\n"
 ATQ2_INSERT_BEFORE = "A.arn.prototype={"
 
 
+CATEGORY_ENUM_OLD = 'B.hX=new A.xY(2,"strategyBacktest")'
+CATEGORY_ENUM_NEW = 'B.hX=new A.xY(2,"strategyBacktest")\nB.tpC=new A.xY(3,"turnPlan")'
+CATEGORY_PARSE_OLD = 'if("strategy_backtest"===o){r=B.hX\nbreak A}r=B.nB'
+CATEGORY_PARSE_NEW = 'if("strategy_backtest"===o){r=B.hX\nbreak A}if("turn_plan"===o){r=B.tpC\nbreak A}r=B.nB'
+CATEGORY_TAB_OLD = 'B.akW=new A.C_(B.hX,"\\u7b56\\u7565\\u56de\\u6d4b")\nB.aaz=s([B.akR,B.aly,B.alu,B.akW]'
+CATEGORY_TAB_NEW = (
+    'B.akW=new A.C_(B.hX,"\\u7b56\\u7565\\u56de\\u6d4b")\n'
+    'B.tpL=new A.C_(B.tpC,"Plan \\u6d4b\\u8bd5")\n'
+    "B.aaz=s([B.akR,B.aly,B.alu,B.akW,B.tpL]"
+)
+
+
 def repair_broken_uf_patch(content: str) -> str:
     if DUPLICATE_UF_END in content:
         return content.replace(DUPLICATE_UF_END, "return A.t($async$uF,r)},\n", 1)
+    return content
+
+
+def replace_atq2_proto(content: str) -> str:
+    start = content.find("A.aTQ2.prototype={")
+    if start < 0:
+        return content
+    end = content.find(ATQ2_INSERT_BEFORE, start)
+    if end < 0:
+        raise RuntimeError("aTQ2 proto end anchor not found")
+    return content[:start] + ATQ2_PROTO + "\n" + content[end:]
+
+
+def patch_eval_category(content: str) -> str:
+    if "B.tpC=new A.xY(3," not in content:
+        if CATEGORY_ENUM_OLD not in content:
+            raise RuntimeError("category enum anchor not found")
+        content = content.replace(CATEGORY_ENUM_OLD, CATEGORY_ENUM_NEW, 1)
+    if 'if("turn_plan"===o)' not in content:
+        if CATEGORY_PARSE_OLD not in content:
+            raise RuntimeError("category parse anchor not found")
+        content = content.replace(CATEGORY_PARSE_OLD, CATEGORY_PARSE_NEW, 1)
+    if "B.tpL=new A.C_(B.tpC," not in content:
+        if CATEGORY_TAB_OLD not in content:
+            raise RuntimeError("category tab list anchor not found")
+        content = content.replace(CATEGORY_TAB_OLD, CATEGORY_TAB_NEW, 1)
+    if "o<B.aaz.length;++o){n=B.aaz[o]" not in content:
+        loop_old = "for(p=i.fr,o=0;o<4;++o){n=B.aaz[o]"
+        if loop_old not in content:
+            raise RuntimeError("category tab loop anchor not found")
+        content = content.replace(loop_old, "for(p=i.fr,o=0;o<B.aaz.length;++o){n=B.aaz[o]", 1)
     return content
 
 
@@ -193,6 +243,12 @@ def is_fully_patched(content: str) -> bool:
     if DUPLICATE_UF_END in content:
         return False
     if "$S:197}\naTQ2:function aTQ2" in content:
+        return False
+    if "o=t.j.b(h)?J.aT(h):null" not in content:
+        return False
+    if "B.tpC=new A.xY(3," not in content:
+        return False
+    if "o<B.aaz.length;++o){n=B.aaz[o]" not in content:
         return False
     return (
         "A.aTQ2.prototype" in content
@@ -229,6 +285,8 @@ def patch_main_dart_js(content: str) -> str:
             ATQ2_PROTO + "\n" + ATQ2_INSERT_BEFORE,
             1,
         )
+    else:
+        content = replace_atq2_proto(content)
 
     start = content.find(UF_ANCHOR_START)
     if start < 0:
@@ -237,7 +295,7 @@ def patch_main_dart_js(content: str) -> str:
     if end < 0:
         raise RuntimeError("uF end anchor not found")
     content = content[:start] + UF_METHOD + "\n" + UF_TAIL + "\n" + content[end + len(UF_ANCHOR_END) :]
-    return content
+    return patch_eval_category(content)
 
 
 def patch_file(path: Path) -> bool:
@@ -295,7 +353,8 @@ def deploy_remote(host: str, user: str, password: str, web_dir: str) -> int:
         f"echo nginx=$NGINX; "
         f"docker cp {web_dir}/. ${{NGINX}}:/usr/share/nginx/html/; "
         'docker exec $NGINX sh -c \'grep -c "turn_plan_" /usr/share/nginx/html/main.dart.js; '
-        'grep -c aTQ2 /usr/share/nginx/html/main.dart.js\'',
+        'grep -c aTQ2 /usr/share/nginx/html/main.dart.js; '
+        'grep -c tpC /usr/share/nginx/html/main.dart.js\'',
     )
     client.close()
     return 0
