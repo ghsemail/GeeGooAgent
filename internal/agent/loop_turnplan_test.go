@@ -2,6 +2,8 @@ package agent_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -10,6 +12,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/playbookexec"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -144,5 +147,88 @@ func TestTurnPlanRunsPlaybookOnlyForExplicitBacktest(t *testing.T) {
 	_ = loop.RunTurn(context.Background(), session, "帮我回测小米 SAR+MACD", tools.Context{}, nil)
 	if ran.Load() == 0 {
 		t.Fatal("expected playbook tools for explicit backtest")
+	}
+}
+
+func TestStockAnalysisEmitsGateBeforeTools(t *testing.T) {
+	provider := &llm.MockProvider{
+		Responses: []*llm.Response{{Content: "腾讯技术面偏强。"}},
+	}
+	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
+	gateway.SetSleep(func(time.Duration) {})
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
+	loop.SetPlaybookRouter(analysisPlaybookRouter())
+
+	var events []string
+	loop.SetProgress(func(event string, data map[string]any) {
+		events = append(events, event)
+	})
+
+	session := runtime.NewSession()
+	result := loop.RunTurn(context.Background(), session, "帮我查一下腾讯的股价", tools.Context{}, nil)
+	if result.Failed {
+		t.Fatalf("failed: %s", result.Error)
+	}
+
+	gateAt, toolAt := -1, -1
+	for i, ev := range events {
+		if ev == "gate" && gateAt < 0 {
+			gateAt = i
+		}
+		if ev == "tool_start" && toolAt < 0 {
+			toolAt = i
+		}
+	}
+	if gateAt < 0 {
+		t.Fatalf("missing gate event in %v", events)
+	}
+	if toolAt < 0 {
+		t.Fatalf("missing tool_start in %v", events)
+	}
+	if gateAt > toolAt {
+		t.Fatalf("gate after tool_start: gate=%d tool=%d events=%v", gateAt, toolAt, events)
+	}
+}
+
+func TestToolFirstSkipEmitsGateEvent(t *testing.T) {
+	dir := t.TempDir()
+	skillDir := filepath.Join(dir, "strategy-backtest-run")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "---\nname: strategy-backtest-run\ndescription: 回测、跑回测、SAR MACD\n---\n\n先解析标的再跑回测。\n"
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	provider := &llm.MockProvider{
+		Responses: []*llm.Response{{Content: "unused"}},
+	}
+	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
+	gateway.SetSleep(func(time.Duration) {})
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
+	loop.SetSkillLoader(procedural.NewLoader(dir), 4)
+	loop.SetPlaybookRouter(&playbookexec.Router{
+		RunTool: func(ctx context.Context, req tools.CallRequest, toolCtx tools.Context) tools.Result {
+			return tools.Result{Status: tools.StatusError, Summary: "stop"}
+		},
+	})
+
+	var gateDecision string
+	loop.SetProgress(func(event string, data map[string]any) {
+		if event == "gate" {
+			if d, ok := data["decision"].(string); ok {
+				gateDecision = d
+			}
+			if r, ok := data["reason"].(string); ok && strings.Contains(r, "tool-first") {
+				gateDecision = "skip:" + r
+			}
+		}
+	})
+
+	session := runtime.NewSession()
+	_ = loop.RunTurn(context.Background(), session, "帮我回测小米 SAR+MACD", tools.Context{}, nil)
+	if !strings.HasPrefix(gateDecision, "skip") {
+		t.Fatalf("expected skip gate, got %q", gateDecision)
 	}
 }

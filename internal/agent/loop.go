@@ -396,6 +396,10 @@ func (l *Loop) RunTurn(
 		gateFrag = l.runRetrievalGate(ctx, session, userText, &records)
 	} else {
 		l.emitStatus("gate", "工具型技能，跳过记忆检索")
+		l.emit("gate", map[string]any{
+			"decision": "skip",
+			"reason":   "tool-first playbook",
+		})
 		l.recordInjectionStep(&records, "gate", "decision=skip · reason=tool-first playbook")
 	}
 	dynFrags := []ctxfrag.Fragment{ctxfrag.ClockFragment(clockNow()), turnPlanFragment(turnPlan)}
