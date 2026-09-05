@@ -32,21 +32,25 @@ func TestEvalRunTurnPlanBuiltin(t *testing.T) {
 	}
 }
 
-func TestEvalCaseRunTurnPlanRouting(t *testing.T) {
+func TestEvalCaseRunTurnPlanLiveRejectsBatchRun(t *testing.T) {
 	handler := testCockpitHandler(t)
-	req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/eval/cases/turn_plan_routing/run", nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/eval/cases/turn_plan_stock_price_lookup/run", nil)
 	req.Header.Set("Authorization", "Bearer test-runtime-key")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
+	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
-	var body map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
-		t.Fatal(err)
-	}
-	if body["case_id"] != "turn_plan_routing" {
-		t.Fatalf("case_id=%v", body["case_id"])
+}
+
+func TestEvalCaseVerifyTurnPlanRequiresSession(t *testing.T) {
+	handler := testCockpitHandler(t)
+	req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/eval/cases/turn_plan_stock_price_lookup/verify", nil)
+	req.Header.Set("Authorization", "Bearer test-runtime-key")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
 

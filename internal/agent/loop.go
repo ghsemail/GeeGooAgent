@@ -376,6 +376,9 @@ func (l *Loop) RunTurn(
 		LastDomain: cognition.Domain(session.LastTurnDomain),
 	})
 	session.LastTurnDomain = string(turnPlan.Domain)
+	session.LastTurnMode = string(turnPlan.Mode)
+	session.LastTurnSOP = turnPlan.ShouldRunDomainSOP()
+	session.LastTurnToolsAllow = append([]string(nil), turnPlan.ToolsAllow...)
 	l.emit("turn_plan", map[string]any{
 		"domain":     string(turnPlan.Domain),
 		"act":        turnPlan.Act,

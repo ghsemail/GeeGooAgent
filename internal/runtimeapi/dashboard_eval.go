@@ -82,6 +82,9 @@ func (h *Handler) evalCasesList(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, row)
 	}
+	for i := range out {
+		enrichEvalCaseRow(out[i])
+	}
 	writeJSON(w, map[string]any{"cases": out, "total": len(out)})
 }
 
@@ -109,6 +112,7 @@ func (h *Handler) evalCaseGet(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	enrichEvalCaseRow(caseRow)
 	writeJSON(w, map[string]any{"case": caseRow})
 }
 

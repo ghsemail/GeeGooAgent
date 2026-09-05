@@ -38,6 +38,12 @@ type Session struct {
 	UserID string
 	// LastTurnDomain is the cognition domain from the previous user turn.
 	LastTurnDomain string
+	// LastTurnMode is the cognition mode from the previous user turn.
+	LastTurnMode string
+	// LastTurnSOP mirrors ShouldRunDomainSOP for the previous user turn.
+	LastTurnSOP bool
+	// LastTurnToolsAllow is the tool whitelist from the previous turn plan.
+	LastTurnToolsAllow []string
 }
 
 // PendingPlan is a held mutating-tool batch from one LLM round.

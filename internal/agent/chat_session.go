@@ -36,6 +36,8 @@ func SyncChatFromRuntime(chat *chatsession.ChatSession, rt *runtime.Session, new
 	chat.SyncFromRuntime(rt.Messages, rt.StepCounter, newRecords)
 	chat.SyncLineageFromRuntime(rt.ParentID, rt.LineageRoot, rt.CompactionGeneration)
 	chat.SyncLineageChain(rt.LineageChain)
+	chat.SyncLastTurnPlan(rt.LastTurnDomain, rt.LastTurnMode, rt.LastTurnSOP, rt.LastTurnToolsAllow)
+	chat.SyncLastTurnToolsCalled(chatsession.ToolsCalledFromStepRecords(newRecords))
 	if rt.PendingPlan != nil && len(rt.PendingPlan.ToolCalls) > 0 {
 		chat.SyncHeldPlan(rt.PendingPlan.Step, rt.PendingPlan.ToolCalls)
 	} else {
