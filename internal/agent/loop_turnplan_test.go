@@ -232,3 +232,57 @@ func TestToolFirstSkipEmitsGateEvent(t *testing.T) {
 		t.Fatalf("expected skip gate, got %q", gateDecision)
 	}
 }
+
+func TestAmbiguousTurnSkipsGateAndUsesPresetClarify(t *testing.T) {
+	gateMock := &llm.MockProvider{
+		Responses: []*llm.Response{{Content: `{"retrieve":false,"query":"","reason":"test"}`}},
+	}
+	provider := &llm.MockProvider{
+		Responses: []*llm.Response{{Content: "好的，继续分析。"}},
+	}
+	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
+	gateway.SetSleep(func(time.Duration) {})
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
+	loop.SetRetrievalGate(gateMock, nil, 4)
+
+	var statuses []string
+	loop.SetProgress(func(event string, data map[string]any) {
+		if event != "status" {
+			return
+		}
+		if msg, ok := data["message"].(string); ok {
+			statuses = append(statuses, msg)
+		}
+	})
+
+	var clarifyQuestion string
+	toolCtx := tools.Context{
+		Interactive: true,
+		ClarifyFn: func(_ context.Context, question string, choices []string) (string, bool) {
+			clarifyQuestion = question
+			if len(choices) != 4 {
+				t.Fatalf("choices=%v", choices)
+			}
+			return "个股/指标分析", true
+		},
+	}
+
+	session := runtime.NewSession()
+	result := loop.RunTurn(context.Background(), session, "MACD", toolCtx, nil)
+	if result.Failed {
+		t.Fatalf("failed: %s", result.Error)
+	}
+	foundSkip := false
+	for _, msg := range statuses {
+		if strings.Contains(msg, "澄清轮次，跳过记忆检索") {
+			foundSkip = true
+			break
+		}
+	}
+	if !foundSkip {
+		t.Fatalf("expected clarify gate skip in statuses=%v", statuses)
+	}
+	if clarifyQuestion != "你是想做哪一件？" {
+		t.Fatalf("question=%q", clarifyQuestion)
+	}
+}

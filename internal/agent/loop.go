@@ -397,15 +397,21 @@ func (l *Loop) RunTurn(
 
 	procFrag, matchedSkills := l.loadPlanSkills(turnPlan, &records)
 	var gateFrag ctxfrag.Fragment
-	if !ShouldSkipRetrievalGate(matchedSkills) {
-		gateFrag = l.runRetrievalGate(ctx, session, userText, &records)
-	} else {
-		l.emitStatus("gate", "工具型技能，跳过记忆检索")
+	if ShouldSkipRetrievalGate(matchedSkills, turnPlan) {
+		reason := "tool-first playbook"
+		msg := "工具型技能，跳过记忆检索"
+		if turnPlan.Mode == cognition.ModeClarify {
+			reason = "clarify turn"
+			msg = "澄清轮次，跳过记忆检索"
+		}
+		l.emitStatus("gate", msg)
 		l.emit("gate", map[string]any{
 			"decision": "skip",
-			"reason":   "tool-first playbook",
+			"reason":   reason,
 		})
-		l.recordInjectionStep(&records, "gate", "decision=skip · reason=tool-first playbook")
+		l.recordInjectionStep(&records, "gate", "decision=skip · reason="+reason)
+	} else {
+		gateFrag = l.runRetrievalGate(ctx, session, userText, &records)
 	}
 	dynFrags := []ctxfrag.Fragment{ctxfrag.ClockFragment(clockNow()), turnPlanFragment(turnPlan)}
 	if gateFrag != nil && strings.TrimSpace(gateFrag.Render()) != "" {
@@ -419,6 +425,11 @@ func (l *Loop) RunTurn(
 		schemas = mergeToolSchemas(schemas, extra)
 	}
 	schemas = cognition.FilterSchemas(schemas, turnPlan)
+
+	if result, handled := l.tryPresetClarify(ctx, session, turnPlan, toolCtx, &records, schemas); handled {
+		l.evaluateTurn(ctx, session, result)
+		return result
+	}
 
 	if turnPlan.ShouldRunDomainSOP() && l.playbookRouter != nil {
 		if result, handled := l.playbookRouter.TryRunFromPlan(ctx, playbookexec.Input{
