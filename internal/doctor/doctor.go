@@ -10,6 +10,7 @@ import (
 // Options tune doctor behavior.
 type Options struct {
 	SkipConnectivity bool
+	ToolsDrift       bool
 }
 
 // CheckResult is one diagnostic line.
@@ -64,6 +65,14 @@ func RunWithOptions(configPath string, opts Options) int {
 		}
 		if anyWarned(probeResults) {
 			fmt.Println("\n部分 tool 探针为 [WARN]（多为非交易时段、空仓或新闻源弱）；出站服务可达。")
+		}
+	}
+	if opts.ToolsDrift {
+		printResults([]CheckResult{CheckToolPolicy()})
+		driftResults := CheckToolPlatformDrift(configPath)
+		printResults(driftResults)
+		if anyFailed(driftResults) {
+			return 1
 		}
 	}
 

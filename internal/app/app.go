@@ -162,6 +162,12 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	app.Agent.SetEvalMaxRetries(cfg.EffectiveEvalMaxRetries())
 	app.Agent.SetDelegateMaxParallel(cfg.EffectiveDelegateMaxParallel())
 	app.Agent.SetEventBus(eventBus)
+	app.Registry.SetPlatformConfig(tools.PlatformConfig{
+		PolicyV2:           cfg.EffectivePolicyV2(),
+		DeferLoadTools:     cfg.EffectiveDeferLoadTools(),
+		ToolFragmentInject: cfg.EffectiveToolFragmentInject(),
+	})
+	app.Agent.Loop.SetSchemaProvider(app.ChatSchemasForSession)
 	sub := agent.NewSubAgent(agent.SubAgentConfig{
 		Gateway: app.Gateway, Executor: executor, Registry: registry,
 		MaxSteps:      cfg.EffectiveSubAgentMaxSteps(),
@@ -1020,6 +1026,18 @@ func (a *App) ChatToolNames() []string {
 		ids = a.Config.EffectiveChatToolsets()
 	}
 	return tools.RegisteredChatToolNamesFor(a.Registry, ids)
+}
+
+// ChatSchemasForSession exports platform-filtered tool schemas for a chat session.
+func (a *App) ChatSchemasForSession(session *runtime.Session) []llm.ToolSchema {
+	if a == nil || a.Registry == nil {
+		return nil
+	}
+	active := []string(nil)
+	if session != nil {
+		active = session.ActiveToolsets
+	}
+	return a.Registry.ChatSchemas(a.ChatToolNames(), active)
 }
 
 // EndpointSummary prints GeeGoo service endpoints.

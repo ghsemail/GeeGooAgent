@@ -739,6 +739,7 @@ func registerReportTools(r *Registry, deps Deps) {
 
 func registerMetaTools(r *Registry, deps Deps) {
 	registerMemoryTools(r, deps)
+	RegisterDiscoverTools(r)
 	r.Register(Tool{
 		Name: "write_execution_log", Description: "Append workflow step to execution log.",
 		Handle: func(ctx Context, args map[string]any) Result {

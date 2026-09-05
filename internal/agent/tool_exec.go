@@ -40,6 +40,22 @@ func NewToolExec(executor *runtime.Executor) *ToolExec {
 	}
 }
 
+// FragmentInjectEnabled reports whether tool results use the fragment composer.
+func (e *ToolExec) FragmentInjectEnabled() bool {
+	if e == nil || e.registry == nil {
+		return false
+	}
+	return e.registry.PlatformConfig().ToolFragmentInject
+}
+
+// MaxResultChars returns the resolved LLM output budget for a tool.
+func (e *ToolExec) MaxResultChars(toolName string) int {
+	if e != nil && e.registry != nil {
+		return e.registry.MaxResultChars(toolName)
+	}
+	return 6000
+}
+
 // RenderResult formats a tool result for LLM consumption.
 func (e *ToolExec) RenderResult(toolName string, result tools.Result) string {
 	if e != nil && e.registry != nil {

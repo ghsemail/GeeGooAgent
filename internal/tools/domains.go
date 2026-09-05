@@ -128,6 +128,8 @@ var (
 		"clarify":           {},
 		"delegate_task":     {},
 		"delegate_tasks":    {},
+		"discover_tools":    {},
+		"activate_toolset":  {},
 	}
 	strategyTools = map[string]struct{}{
 		"get_index_signals":              {},

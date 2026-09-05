@@ -26,8 +26,9 @@ type CatalogItem struct {
 	Implementation    string   `json:"implementation"` // http | bespoke
 	HTTPPath          string   `json:"http_path,omitempty"`
 	ContextSummary    string   `json:"context_summary"`
-	ContextInjections []string `json:"context_injections"`
-	RoutingDocIDs     []string `json:"routing_doc_ids"`
+	ContextInjections []string         `json:"context_injections"`
+	RoutingDocIDs     []string         `json:"routing_doc_ids"`
+	Parameters        map[string]any   `json:"parameters,omitempty"`
 }
 
 // ToolsetSummary describes a builtin toolset for UI grouping.
@@ -105,6 +106,7 @@ func BuildCatalog(registry *Registry, chatNames []string) []CatalogItem {
 			ContextSummary:    summary,
 			ContextInjections: injections,
 			RoutingDocIDs:     routingIDs,
+			Parameters:        tool.Parameters,
 		})
 	}
 	sort.Slice(items, func(i, j int) bool {
@@ -271,6 +273,7 @@ func CatalogItemToMap(item CatalogItem) map[string]any {
 		"context_summary":    item.ContextSummary,
 		"context_injections": item.ContextInjections,
 		"routing_doc_ids":    item.RoutingDocIDs,
+		"parameters":         item.Parameters,
 		"source":             item.Implementation,
 	}
 }

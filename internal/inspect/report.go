@@ -16,6 +16,7 @@ import (
 type Options struct {
 	ConfigPath string
 	QuickLoop  bool // run verify agent-loop cards
+	ShowPolicy bool
 }
 
 // Report is a read-only snapshot of agent loop configuration.
@@ -67,6 +68,9 @@ type LoopSection struct {
 	HooksBefore         int
 	HooksAfter          int
 	HooksFailClosed     bool
+	PolicyV2            bool
+	DeferLoadTools      bool
+	ToolFragmentInject  bool
 }
 
 type ToolsetSection struct {
@@ -84,6 +88,8 @@ type ToolsSection struct {
 	ReadOnlyTools     int
 	DeferLoadTools    int
 	ConcurrencySafe   int
+	PolicyRules       int
+	CoreSchemaTools   int
 }
 
 type ProceduralSkillSection struct {
@@ -136,6 +142,9 @@ func Build(application *app.App, opts Options) Report {
 			HooksBefore:         len(cfg.Hooks.ToolBefore),
 			HooksAfter:          len(cfg.Hooks.ToolAfter),
 			HooksFailClosed:     cfg.Hooks.FailClosed,
+			PolicyV2:            cfg.EffectivePolicyV2(),
+			DeferLoadTools:      cfg.EffectiveDeferLoadTools(),
+			ToolFragmentInject:  cfg.EffectiveToolFragmentInject(),
 		}
 		r.Runtime.OutputDir = cfg.OutputDir
 	}
@@ -172,6 +181,8 @@ func Build(application *app.App, opts Options) Report {
 		chatNames := application.ChatToolNames()
 		r.Tools.ChatActive = len(chatNames)
 		r.Tools.WorkflowExclusive = len(tools.WorkflowExclusiveToolNames())
+		r.Tools.PolicyRules = tools.PolicyRuleCount()
+		r.Tools.CoreSchemaTools = len(application.Registry.ChatSchemas(chatNames, nil))
 	}
 	enabled := map[string]bool{}
 	if cfg != nil {
@@ -227,6 +238,8 @@ func FormatText(r Report) string {
 		r.Loop.ToolMaxParallel, r.Loop.DelegateMaxParallel, r.Loop.MCPMaxParallel, r.Loop.ToolTimeoutSec))
 	b.WriteString(fmt.Sprintf("  plan_gate: %v  hooks: configured=%v before=%d after=%d fail_closed=%v\n",
 		r.Loop.PlanGate, r.Loop.HooksConfigured, r.Loop.HooksBefore, r.Loop.HooksAfter, r.Loop.HooksFailClosed))
+	b.WriteString(fmt.Sprintf("  policy_v2: %v  defer_load_tools: %v  tool_fragment_inject: %v\n",
+		r.Loop.PolicyV2, r.Loop.DeferLoadTools, r.Loop.ToolFragmentInject))
 	b.WriteString(fmt.Sprintf("  compression: enabled=%v threshold=%.2f hygiene=%.2f context_length=%d\n",
 		r.Loop.CompressEnabled, r.Loop.CompressThreshold, r.Loop.HygieneThreshold, r.Loop.ContextLength))
 	b.WriteByte('\n')
@@ -235,6 +248,8 @@ func FormatText(r Report) string {
 		r.Tools.Registered, r.Tools.ChatActive, r.Tools.WorkflowExclusive))
 	b.WriteString(fmt.Sprintf("  prompt: %d  readonly: %d  defer_load: %d  concurrency_safe: %d\n",
 		r.Tools.PromptTools, r.Tools.ReadOnlyTools, r.Tools.DeferLoadTools, r.Tools.ConcurrencySafe))
+	b.WriteString(fmt.Sprintf("  policy_rules: %d  core_schema_tools: %d\n",
+		r.Tools.PolicyRules, r.Tools.CoreSchemaTools))
 	b.WriteByte('\n')
 	b.WriteString("[Toolsets]\n")
 	for _, ts := range r.Toolsets {

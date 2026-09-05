@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
+	ctxfrag "github.com/ghsemail/GeeGooAgent/internal/context"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -85,8 +86,33 @@ func (l *Loop) appendToolResults(
 			Step: step, Timestamp: time.Now().UTC(), Kind: "tool",
 			ToolName: call.Name, ToolStatus: string(result.Status), Summary: summary,
 		})
+		if result.Meta != nil {
+			if inject, ok := result.Meta["hook_inject"].(string); ok {
+				inject = strings.TrimSpace(inject)
+				if inject != "" {
+					if session.PendingHookInject != "" {
+						session.PendingHookInject += "\n"
+					}
+					session.PendingHookInject += inject
+				}
+			}
+		}
+		rendered := l.tools.RenderResult(call.Name, result)
+		if l.tools != nil && l.tools.FragmentInjectEnabled() {
+			maxChars := l.tools.MaxResultChars(call.Name)
+			frag := ctxfrag.ToolResultFragment(rendered)
+			composed, applied, dropped := ctxfrag.Composer{MaxBytes: maxChars}.Compose([]ctxfrag.Fragment{frag})
+			if composed != "" {
+				rendered = composed
+			}
+			l.emit("context_fragment_applied", map[string]any{
+				"source": "tool", "tool": call.Name,
+				"kinds":   ctxfrag.KindsToStrings(applied),
+				"dropped": ctxfrag.KindsToStrings(dropped),
+			})
+		}
 		toolMsg := llm.Message{
-			Role: llm.RoleTool, Content: l.tools.RenderResult(call.Name, result), ToolCallID: call.ID,
+			Role: llm.RoleTool, Content: rendered, ToolCallID: call.ID,
 		}
 		session.AppendMessage(toolMsg)
 		*messages = append(*messages, toolMsg)

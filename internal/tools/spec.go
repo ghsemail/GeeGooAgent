@@ -55,9 +55,9 @@ func resolveToolMeta(t Tool) resolvedMeta {
 	policy := t.Spec.Policy
 	if policy == "" {
 		policy = inferPolicy(name)
-	}
-	if override := matchPolicyRule(name); override != "" {
-		policy = override
+		if override := matchPolicyRule(name); override != "" {
+			policy = override
+		}
 	}
 
 	readOnly := inferReadOnly(name, policy)

@@ -15,6 +15,7 @@ func runInspect(args []string) {
 	fs := flag.NewFlagSet("inspect", flag.ExitOnError)
 	configPath := fs.String("config", config.DefaultPath(), "path to config.json")
 	quick := fs.Bool("quick", false, "run geegoo verify agent-loop cards")
+	policy := fs.Bool("policy", false, "show tool policy rule count")
 	sessionID := fs.String("session", "", "show compaction lineage for a chat session id")
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
@@ -49,6 +50,7 @@ func runInspect(args []string) {
 	report := inspect.Build(application, inspect.Options{
 		ConfigPath: *configPath,
 		QuickLoop:  *quick,
+		ShowPolicy: *policy,
 	})
 	fmt.Print(inspect.FormatText(report))
 }

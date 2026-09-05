@@ -10,7 +10,6 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/app"
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
-	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
 // Config holds Runner options shared across platforms.
@@ -283,8 +282,7 @@ func (r *Runner) runAgentTurn(ctx context.Context, key string, ev InboundEvent, 
 	chat.SyncChatSystemPrompt()
 	rt.Messages = chat.RuntimeMessages()
 
-	toolNames := tools.RegisteredChatToolNamesFor(r.App.Registry, r.App.Config.EffectiveChatToolsets())
-	schemas := r.App.Registry.Schemas(toolNames)
+	schemas := r.App.ChatSchemasForSession(rt)
 	toolCtx := r.App.ToolContext(rt.ID)
 	toolCtx.DryRun = r.Config.DryRun || (r.App.Config != nil && r.App.Config.DryRun)
 	adapter := r.adapter(ev.Platform)
