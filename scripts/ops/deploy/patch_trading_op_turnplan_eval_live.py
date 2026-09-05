@@ -19,6 +19,8 @@ this.d=d
 this.e=e
 this.f=f},"""
 
+ATQ2_CTOR_ANCHOR = "arn:function arn(a,b){this.a=a"
+
 ATQ2_PROTO = r"""A.aTQ2.prototype={
 $1(a){return this.anq(a)},
 anq(a){var s=0,r=A.u(t.y),q,p=this,o,n,m,l,k,j,i,h,g,f
@@ -27,14 +29,16 @@ for(;;)switch(s){case 0:l=p.a
 k=a.a
 j=a.b
 h=p.d
-if(t.j.b(h))for(g=J.aT(h);g.v();){f=g.gO(g)
+o=J.aT(h)
+case 2:if(o.v()){f=o.gO(o)
 n=J.v(f)
 l.fd(B.co,j+" setup: "+A.k(n),p.c)
 s=3
-return A.i(l.aSj(k,20,j+" setup",p.c,n),$async$$1)
-case 3:if(!c){q=!1
+return A.i(l.aSj(k,20,j+" setup",p.c,n),$async$$1)}case 3:if(!c){q=!1
 s=1
-break}}m=J.v(p.e)
+break}s=2
+break
+m=J.v(p.e)
 l.fd(B.co,j+" send: "+A.k(m),p.c)
 s=4
 return A.i(l.aSj(k,20,j+" turn",p.c,m),$async$$1)
@@ -173,12 +177,34 @@ return A.t($async$uF,r)},"""
 
 UF_ANCHOR_START = "uF(a){return this.aTQ(a)},"
 UF_ANCHOR_END = "return A.t($async$uF,r)},\nAY(a){return this.apA(a)},"
+UF_TAIL = "AY(a){return this.apA(a)},"
+DUPLICATE_UF_END = "return A.t($async$uF,r)},\nreturn A.t($async$uF,r)},\n"
 
 ATQ2_INSERT_BEFORE = "A.arn.prototype={"
 
 
+def repair_broken_uf_patch(content: str) -> str:
+    if DUPLICATE_UF_END in content:
+        return content.replace(DUPLICATE_UF_END, "return A.t($async$uF,r)},\n", 1)
+    return content
+
+
+def is_fully_patched(content: str) -> bool:
+    if DUPLICATE_UF_END in content:
+        return False
+    if "$S:197}\naTQ2:function aTQ2" in content:
+        return False
+    return (
+        "A.aTQ2.prototype" in content
+        and 'B.c.aS(a,"turn_plan_")?9' in content
+        and "/verify" in content
+        and ATQ2_CTOR_ANCHOR in content
+    )
+
+
 def patch_main_dart_js(content: str) -> str:
-    if "A.aTQ2.prototype" in content and 'B.c.aS(a,"turn_plan_")?9' in content:
+    content = repair_broken_uf_patch(content)
+    if is_fully_patched(content):
         return content
 
     if BRANCH_OLD in content:
@@ -186,12 +212,21 @@ def patch_main_dart_js(content: str) -> str:
     elif BRANCH_NEW not in content:
         raise RuntimeError("bb3 branch pattern not found in main.dart.js")
 
+    if ATQ2_CTOR_ANCHOR not in content:
+        raise RuntimeError("aTQ2 ctor anchor not found")
+    if "aTQ2:function aTQ2(a,b,c,d,e,f)" not in content:
+        content = content.replace(
+            ATQ2_CTOR_ANCHOR,
+            ATQ2_CLASS + "\n" + ATQ2_CTOR_ANCHOR,
+            1,
+        )
+
     if ATQ2_INSERT_BEFORE not in content:
         raise RuntimeError("aTQ2 insert anchor not found")
-    if "aTQ2:function aTQ2" not in content:
+    if "A.aTQ2.prototype" not in content:
         content = content.replace(
             ATQ2_INSERT_BEFORE,
-            ATQ2_CLASS + "\n" + ATQ2_PROTO + ",\n" + ATQ2_INSERT_BEFORE,
+            ATQ2_PROTO + "\n" + ATQ2_INSERT_BEFORE,
             1,
         )
 
@@ -201,7 +236,7 @@ def patch_main_dart_js(content: str) -> str:
     end = content.find(UF_ANCHOR_END, start)
     if end < 0:
         raise RuntimeError("uF end anchor not found")
-    content = content[:start] + UF_METHOD + "\n" + UF_ANCHOR_END + content[end + len(UF_ANCHOR_END) :]
+    content = content[:start] + UF_METHOD + "\n" + UF_TAIL + "\n" + content[end + len(UF_ANCHOR_END) :]
     return content
 
 
@@ -245,7 +280,12 @@ def deploy_remote(host: str, user: str, password: str, web_dir: str) -> int:
     sftp.close()
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    restore_backup = f"{remote_js}.bak-20260905013404"
     ssh_run(client, f"cp {remote_js} {remote_js}.bak-{ts}")
+    ssh_run(
+        client,
+        f"test -f {restore_backup} && cp {restore_backup} {remote_js} || true",
+    )
     ssh_run(client, f"python3 {remote_script} --file {remote_js}")
 
     print("=== sync web -> nginx container ===")
