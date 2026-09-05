@@ -12,6 +12,12 @@ config.prod.json
 # Runtime data
 data/
 
+# start.sh process manager logs & pid files
+agent-runtime.out
+agent-runtime.pid
+scheduler.out
+scheduler.pid
+
 # Python
 __pycache__/
 *.py[cod]

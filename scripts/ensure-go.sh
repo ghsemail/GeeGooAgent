@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Install Go toolchain to /usr/local/go if missing.
+# Default version must satisfy the `go` directive in go.mod (currently 1.25.0);
+# an older toolchain cannot build the module.
 set -euo pipefail
 
-GO_VERSION="${GO_VERSION:-1.22.10}"
+GO_VERSION="${GO_VERSION:-1.25.0}"
 ARCH="$(uname -m)"
 case "$ARCH" in
   x86_64) GO_ARCH=amd64 ;;
