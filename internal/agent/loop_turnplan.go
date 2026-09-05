@@ -48,7 +48,7 @@ func (l *Loop) loadPlanSkills(plan cognition.TurnPlan, records *[]runtime.StepRe
 	if block == "" {
 		return nil, names
 	}
-	l.emitStatus("gate", fmt.Sprintf("加载 %d 个相关技能 (plan)", len(matched)))
+	l.emitStatus("plan", fmt.Sprintf("加载 %d 个相关技能", len(matched)))
 	l.emit("memory.procedural", map[string]any{
 		"skills": len(matched),
 		"names":  names,

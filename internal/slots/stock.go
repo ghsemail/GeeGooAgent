@@ -114,6 +114,7 @@ func ResolveStock(
 	query string,
 ) (code, name, market string, err error) {
 	res := runTool(ctx, tools.CallRequest{Name: "search_code", Arguments: map[string]any{"regex": query}}, toolCtx)
+	defer emitCatalogToolDone(toolCtx, "search_code", res, map[string]any{"regex": query})
 	if res.Status != tools.StatusOK {
 		return "", "", "", fmt.Errorf("search_code 失败：%s", res.Summary)
 	}
@@ -154,6 +155,7 @@ func pickStockRow(ctx context.Context, toolCtx tools.Context, query string, item
 	if toolCtx.ClarifyFn == nil {
 		return nil, fmt.Errorf("%s %s", question, strings.Join(choices, " / "))
 	}
+	NotifyClarify(toolCtx, question, choices)
 	answer, ok := toolCtx.ClarifyFn(ctx, question, choices)
 	if !ok {
 		return nil, fmt.Errorf("请选择要操作的标的")

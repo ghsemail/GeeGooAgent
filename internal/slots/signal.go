@@ -33,6 +33,7 @@ func ResolveSignal(
 		return resolveIndexSignal(ctx, toolCtx, runTool, plan)
 	}
 	res := runTool(ctx, tools.CallRequest{Name: "get_signal_combinations", Arguments: map[string]any{}}, toolCtx)
+	defer emitCatalogToolDone(toolCtx, "get_signal_combinations", res, map[string]any{})
 	if res.Status != tools.StatusOK {
 		return ResolvedSignal{}, fmt.Errorf("get_signal_combinations 失败：%s", res.Summary)
 	}
@@ -49,6 +50,7 @@ func ResolveSignal(
 		for i := 0; i < len(items) && i < 4; i++ {
 			choices = append(choices, fmt.Sprint(items[i]["name"]))
 		}
+		NotifyClarify(toolCtx, "请选择组合信号：", choices)
 		answer, ok := toolCtx.ClarifyFn(ctx, "请选择组合信号：", choices)
 		if !ok {
 			return ResolvedSignal{}, pickErr
@@ -74,6 +76,7 @@ func resolveIndexSignal(
 	plan SignalPlan,
 ) (ResolvedSignal, error) {
 	res := runTool(ctx, tools.CallRequest{Name: "get_index_signals", Arguments: map[string]any{}}, toolCtx)
+	defer emitCatalogToolDone(toolCtx, "get_index_signals", res, map[string]any{})
 	if res.Status != tools.StatusOK {
 		return ResolvedSignal{}, fmt.Errorf("get_index_signals 失败：%s", res.Summary)
 	}
@@ -117,6 +120,7 @@ func pickIndexSignal(ctx context.Context, toolCtx tools.Context, items []map[str
 	if toolCtx.ClarifyFn == nil {
 		return nil, fmt.Errorf("%s %s", question, strings.Join(choices, " / "))
 	}
+	NotifyClarify(toolCtx, question, choices)
 	answer, ok := toolCtx.ClarifyFn(ctx, question, choices)
 	if !ok {
 		return nil, fmt.Errorf("请选择信号")

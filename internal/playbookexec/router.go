@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	playbookBacktestRun  = "strategy-backtest-run"
+	playbookBacktestRun   = "strategy-backtest-run"
 	playbookStockAnalysis = "stock-analysis"
 	playbookSignalProbe   = "strategy-signal-probe"
 )
@@ -192,13 +192,22 @@ func (r *Router) runTool(
 		toolCtx.Progress("tool_start", map[string]any{"name": name, "arguments": args})
 	}
 	res := r.RunTool(ctx, tools.CallRequest{Name: name, Arguments: args}, toolCtx)
-	if toolCtx.Progress != nil {
+	if toolCtx.Progress != nil && !holdCatalogToolDone(name) {
 		toolCtx.Progress("tool_done", map[string]any{
 			"name": name, "status": string(res.Status), "summary": res.Summary, "arguments": args,
 		})
 	}
 	recordTool(name, string(res.Status), res.Summary)
 	return res
+}
+
+func holdCatalogToolDone(name string) bool {
+	switch name {
+	case "search_code", "get_index_signals", "get_signal_combinations":
+		return true
+	default:
+		return false
+	}
 }
 
 func truncate(s string, n int) string {

@@ -38,7 +38,7 @@ func ItemTypeForEvent(event string) string {
 		return ItemAssistantMessage
 	case "tool_start", "tool_call":
 		return ItemToolCall
-	case "tool_end", "tool_result":
+	case "tool_end", "tool_result", "tool_done":
 		return ItemToolResult
 	case "plan_proposed", "plan_proposal":
 		return ItemPlanProposal

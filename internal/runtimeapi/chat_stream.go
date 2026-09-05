@@ -26,11 +26,11 @@ const (
 )
 
 type chatStreamRequest struct {
-	Message          string   `json:"message"`
-	SessionID        string   `json:"session_id"`
-	MCPToken         string   `json:"mcp_token"`
-	ContextProfiles  []string `json:"context_profiles,omitempty"`
-	ActiveScopes     []string `json:"active_scopes,omitempty"`
+	Message         string   `json:"message"`
+	SessionID       string   `json:"session_id"`
+	MCPToken        string   `json:"mcp_token"`
+	ContextProfiles []string `json:"context_profiles,omitempty"`
+	ActiveScopes    []string `json:"active_scopes,omitempty"`
 }
 
 type chatTurnEndPayload struct {
@@ -137,13 +137,6 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	toolCtx.MCPToken = mcpToken
 	toolCtx.Interactive = true
 	toolCtx.Approved = approveWrites(r)
-	clarifyNotify := func(p PendingClarify) {
-		emit("clarify", map[string]any{
-			"session_id": p.SessionID,
-			"question":   p.Question,
-			"choices":    p.Choices,
-		})
-	}
 	userID := resolveUserID(r)
 	source := resolveClientSource(r)
 	progressFn := func(event string, data map[string]any) { emit(event, data) }
@@ -152,6 +145,15 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 		if ctx == nil {
 			ctx = r.Context()
 		}
+		payload := map[string]any{
+			"session_id": chat.ID,
+			"question":   question,
+			"choices":    choices,
+		}
+		// Emit while Agent progress is still wired so Dock Chat can open the
+		// option sheet before search_code is marked done.
+		emit("status", map[string]any{"phase": "clarify", "message": question})
+		emit("clarify", payload)
 		// Waiting for the user must not freeze every other chat behind chatMu.
 		h.App.Agent.SetProgress(nil)
 		h.chatMu.Unlock()
@@ -165,7 +167,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 		// Interactive Dock Chat: wait until the user answers or the SSE client
 		// disconnects. A short auto-pick timeout races the UI and turns a
 		// stock tap into HTTP 404 "no pending clarify".
-		return h.clarify.Wait(ctx, chat.ID, question, choices, clarifyNotify)
+		return h.clarify.Wait(ctx, chat.ID, question, choices, nil)
 	}
 	if h.App.Config != nil {
 		h.App.Agent.SetPlanGate(h.App.Config.EffectivePlanGate())
