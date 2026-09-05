@@ -17,6 +17,7 @@ import (
 )
 
 const (
+	clarifyAutoPickWait = 15 * time.Second
 	defaultEventsPollMS = 200
 	minEventsPollMS     = 100
 	maxEventsPollMS     = 2000
@@ -157,7 +158,9 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 			}
 			h.App.Agent.SetProgress(progressFn)
 		}()
-		return h.clarify.Wait(ctx, chat.ID, question, choices, clarifyNotify)
+		waitCtx, cancel := context.WithTimeout(ctx, clarifyAutoPickWait)
+		defer cancel()
+		return h.waitClarifyOrAuto(waitCtx, chat.ID, question, choices, clarifyNotify)
 	}
 	if h.App.Config != nil {
 		h.App.Agent.SetPlanGate(h.App.Config.EffectivePlanGate())
