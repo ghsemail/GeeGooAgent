@@ -32,3 +32,14 @@ func TestLooksLikeStockQueryRejectsDaily(t *testing.T) {
 		t.Fatal("DAILY must be rejected")
 	}
 }
+
+func TestPickStockRowByCode(t *testing.T) {
+	items := []map[string]any{
+		{"code": "00700.HK", "name": "腾讯控股"},
+		{"code": "01698.HK", "name": "腾讯音乐-SW"},
+	}
+	row, ok := pickStockRowByCode(items, "0700.HK")
+	if !ok || row["code"] != "00700.HK" {
+		t.Fatalf("picked=%v ok=%v", row, ok)
+	}
+}
