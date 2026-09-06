@@ -280,7 +280,7 @@ func TestAmbiguousTurnSkipsGateAndUsesPresetClarify(t *testing.T) {
 		if ev == "turn_start" {
 			turnStarts++
 		}
-		if ev == "clarify" {
+		if ev == "clarify_plan" {
 			sawClarify = true
 		}
 	}

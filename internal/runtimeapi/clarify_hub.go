@@ -46,6 +46,8 @@ func (h *ClarifyHub) Wait(ctx context.Context, sessionID, question string, choic
 	h.mu.Lock()
 	h.waiters[sessionID] = append(h.waiters[sessionID], w)
 	h.mu.Unlock()
+	// onPending runs after the waiter is visible to Pending/Answer so the
+	// Web client cannot POST clarify into a 404 window.
 	if onPending != nil {
 		onPending(PendingClarify{
 			SessionID: sessionID,

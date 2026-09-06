@@ -92,6 +92,7 @@ func TestAnalysisClarifyBeforeSearchCodeDone(t *testing.T) {
 			}
 		},
 	}
+	var clarifyAfterDone bool
 	result, ok := router.TryRunFromPlan(context.Background(), Input{
 		Session:  session,
 		UserText: "分析一下腾讯",
@@ -101,6 +102,11 @@ func TestAnalysisClarifyBeforeSearchCodeDone(t *testing.T) {
 		},
 		ToolCtx: tools.Context{
 			ClarifyFn: func(_ context.Context, _ string, choices []string) (string, bool) {
+				for _, ev := range events {
+					if ev == "tool_done" {
+						clarifyAfterDone = true
+					}
+				}
 				return choices[0], true
 			},
 		},
@@ -108,23 +114,20 @@ func TestAnalysisClarifyBeforeSearchCodeDone(t *testing.T) {
 	if !ok || result.Failed {
 		t.Fatalf("ok=%v failed=%v err=%s events=%v", ok, result.Failed, result.Error, events)
 	}
-	startAt, clarifyAt, doneAt := -1, -1, -1
+	startAt, doneAt := -1, -1
 	for i, ev := range events {
 		if ev == "tool_start" && startAt < 0 {
 			startAt = i
-		}
-		if ev == "clarify" && clarifyAt < 0 {
-			clarifyAt = i
 		}
 		if ev == "tool_done" && doneAt < 0 {
 			doneAt = i
 		}
 	}
-	if startAt < 0 || clarifyAt < 0 || doneAt < 0 {
-		t.Fatalf("missing events=%v", events)
+	if startAt < 0 || doneAt < 0 || startAt >= doneAt {
+		t.Fatalf("want search_code start then done: start=%d done=%d events=%v", startAt, doneAt, events)
 	}
-	if !(startAt < doneAt && doneAt < clarifyAt) {
-		t.Fatalf("want search_code done before clarify: start=%d done=%d clarify=%d events=%v", startAt, doneAt, clarifyAt, events)
+	if !clarifyAfterDone {
+		t.Fatalf("want stock clarify after search_code done, events=%v", events)
 	}
 }
 

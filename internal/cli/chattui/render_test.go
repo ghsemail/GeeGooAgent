@@ -55,6 +55,15 @@ func stripANSI(s string) string {
 	return out.String()
 }
 
+func findLineContaining(s, sub string) string {
+	for _, line := range strings.Split(s, "\n") {
+		if strings.Contains(line, sub) {
+			return line
+		}
+	}
+	return ""
+}
+
 func TestRenderSoftDividerShorterThanRule(t *testing.T) {
 	soft := stripANSI(chatui.RenderSoftDivider(80))
 	rule := stripANSI(chatui.RenderRule(80))

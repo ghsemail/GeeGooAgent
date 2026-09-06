@@ -17,10 +17,10 @@ func TestShouldSkipRetrievalGate(t *testing.T) {
 	}{
 		{nil, cognition.TurnPlan{}, "还记得上次的标的吗", false},
 		{[]string{"knowledge-base"}, cognition.TurnPlan{}, "还记得上次", false},
-		{[]string{"knowledge-base"}, cognition.TurnPlan{}, "MACD", true},
-		{[]string{"strategy-backtest-history"}, cognition.TurnPlan{}, "还记得上次", true},
-		{[]string{"strategy-signal-probe", "strategy-backtest"}, cognition.TurnPlan{}, "帮我测信号", true},
-		{[]string{"knowledge-base", "strategy-backtest-run"}, cognition.TurnPlan{}, "帮我回测", true},
+		{[]string{"knowledge-base"}, cognition.TurnPlan{}, "MACD", false},
+		{[]string{"strategy-backtest-history"}, cognition.TurnPlan{}, "还记得上次", false},
+		{[]string{"strategy-signal-probe", "strategy-backtest"}, cognition.TurnPlan{}, "帮我测信号", false},
+		{[]string{"knowledge-base", "strategy-backtest-run"}, cognition.TurnPlan{}, "帮我回测", false},
 		{nil, clarifyPlan, "MACD", true},
 		{[]string{"knowledge-base"}, clarifyPlan, "还记得", true},
 	}

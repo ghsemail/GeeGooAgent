@@ -41,8 +41,10 @@ type SessionStatusPayload struct {
 
 // PendingClarifyStatus is the in-flight clarify prompt for Web clients.
 type PendingClarifyStatus struct {
-	Question string   `json:"question"`
-	Choices  []string `json:"choices"`
+	Question       string              `json:"question"`
+	Choices        []string            `json:"choices"`
+	Options        []string            `json:"options,omitempty"`
+	DisplayChoices []ClarifyChoiceCard `json:"display_choices,omitempty"`
 }
 
 // SessionMessageSummary is a compact message row for remote debugging.
@@ -192,9 +194,12 @@ func (h *Handler) attachPendingClarify(payload *SessionStatusPayload) {
 	if !ok {
 		return
 	}
+	choices := normalizeClarifyChoiceList(p.Choices)
 	payload.PendingClarify = &PendingClarifyStatus{
-		Question: p.Question,
-		Choices:  append([]string(nil), p.Choices...),
+		Question:       strings.TrimSpace(p.Question),
+		Choices:        choices,
+		Options:        choices,
+		DisplayChoices: clarifyChoiceCards(choices),
 	}
 	payload.Busy = true
 	switch payload.LiveStatus {

@@ -97,23 +97,10 @@ func gateDecisionSummary(d RetrievalGateDecision, source string) string {
 }
 
 func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, userText string, records *[]runtime.StepRecord) ctxfrag.Fragment {
-	useLLM := l.gateProvider != nil && retrievalgate.HasMemoryCue(userText)
-	if useLLM {
-		l.emitStatus("gate", "记忆门控：正在调用辅助模型，判断要不要检索长期记忆")
-	} else {
-		l.emitStatus("gate", "记忆门控：无记忆线索，跳过辅助模型")
-	}
-	var stopHB func()
-	if useLLM {
-		stopHB = l.startStatusHeartbeat("gate", "记忆门控：辅助模型推理中", time.Second)
-	} else {
-		stopHB = func() {}
-	}
+	l.emitStatus("gate", "正在检索长期记忆")
 	gateStarted := time.Now()
 	gate := retrievalgate.ShouldRetrieve(ctx, l.gateProvider, l.gatePolicy, userText)
-	stopHB()
 	gateMS := time.Since(gateStarted).Milliseconds()
-	l.emitStatus("gate", fmt.Sprintf("记忆门控模型已返回（%dms）· %s", gateMS, strings.TrimSpace(gate.Reason)))
 	decision := RetrievalGateDecision{
 		Decision: "skip",
 		Reason:   gate.Reason,
@@ -129,7 +116,7 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 		if query == "" {
 			query = userText
 		}
-		l.emitStatus("gate", fmt.Sprintf("记忆门控决定检索，正在查 facts/episodic（query=%s）", truncateGateQuery(query)))
+		l.emitStatus("gate", fmt.Sprintf("正在查 facts/episodic（query=%s）", truncateGateQuery(query)))
 		recallStarted := time.Now()
 		res, err := l.mem.Recall(ctx, memport.RecallQuery{
 			Kind:      memport.RecallSession,
@@ -178,9 +165,9 @@ func (l *Loop) runRetrievalGate(ctx context.Context, session *runtime.Session, u
 		}
 	}
 	if !gate.Retrieve {
-		l.emitStatus("gate", fmt.Sprintf("无需检索长期记忆，跳过（模型 %dms）", gateMS))
+		l.emitStatus("gate", "跳过长期记忆检索")
 	} else {
-		l.emitStatus("gate", fmt.Sprintf("需要检索但未命中记忆（模型 %dms）", gateMS))
+		l.emitStatus("gate", fmt.Sprintf("长期记忆未命中（%dms）", gateMS))
 	}
 	l.emit("gate", map[string]any{
 		"decision": decision.Decision,
