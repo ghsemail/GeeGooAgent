@@ -87,7 +87,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 				rowItems = append(rowItems, row)
 				anyItems = append(anyItems, row)
 			}
-			if picked, ok := stockpick.AutoPick(regex, rowItems); ok && len(rowItems) > 1 {
+			if picked, ok := stockpick.AutoPickConservative(regex, rowItems); ok && len(rowItems) > 1 {
 				anyItems = []any{picked}
 				label := fmt.Sprint(picked["name"])
 				if label == "" || label == "<nil>" {

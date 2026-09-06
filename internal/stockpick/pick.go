@@ -19,6 +19,21 @@ var primaryStockAliases = map[string]string{
 	"拼多多": "PDD",
 }
 
+// AutoPickConservative resolves only when query matches a known alias or exact code.
+// Ambiguous multi-match names still require user clarify.
+func AutoPickConservative(query string, items []map[string]any) (map[string]any, bool) {
+	if len(items) == 0 {
+		return nil, false
+	}
+	if len(items) == 1 {
+		return items[0], true
+	}
+	if picked, ok := pickByCode(items, query); ok {
+		return picked, true
+	}
+	return pickByPrimaryAlias(query, items)
+}
+
 // AutoPick returns a single catalog row when the query clearly identifies one symbol.
 func AutoPick(query string, items []map[string]any) (map[string]any, bool) {
 	if len(items) == 0 {
