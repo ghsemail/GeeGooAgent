@@ -57,6 +57,12 @@ func (RulePlanner) Plan(in PlanInput) TurnPlan {
 		p.Reason = "沿用上一轮领域 " + string(in.LastDomain)
 		p.Confidence = 0.8
 		return p
+	case isSignalCatalogList(msg):
+		p := planForDomain(DomainDCAGrid)
+		p.Mode = ModeGather
+		p.Reason = "列举可用信号/组合"
+		p.Confidence = 0.88
+		return p
 	case isBareStrategyTalk(msg):
 		return planForDomain(DomainAmbiguous)
 	case isStockAnalysis(msg):
@@ -122,6 +128,22 @@ func isBacktestRun(msg string) bool {
 		return false
 	}
 	return hasAny(msg, []string{"回测", "跑回测", "再回测", "backtest", "就用刚才那套", "再跑回测"})
+}
+
+func isSignalCatalogList(msg string) bool {
+	if !hasAny(msg, []string{"信号", "策略", "组合信号"}) {
+		return false
+	}
+	if !hasAny(msg, []string{"有哪些", "列出", "看看", "查询", "有什么", "列举", "可用"}) {
+		return false
+	}
+	if hasAny(msg, []string{
+		"测", "买卖", "回测", "生成", "创建", "改", "删除", "分析", "股价", "多少钱",
+		"准吗", "靠谱吗", "怎么样", "机器人", "bot", "Bot",
+	}) {
+		return false
+	}
+	return true
 }
 
 func isBareStrategyTalk(msg string) bool {
