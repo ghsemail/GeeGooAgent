@@ -20,6 +20,19 @@ func TestExtractStockQueryZhongji(t *testing.T) {
 	}
 }
 
+func TestExtractExplicitStockReferenceIgnoresKLineFollowUp(t *testing.T) {
+	msg := "可以，分析下技术面的价格和K线图"
+	if got := ExtractExplicitStockReference(msg); got != "" {
+		t.Fatalf("got %q want empty", got)
+	}
+}
+
+func TestExtractExplicitStockReferenceFindsSwitch(t *testing.T) {
+	if got := ExtractExplicitStockReference("那就换成贵州茅台吧"); got != "贵州茅台" && got != "茅台" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestIsLikelyStockUtterance(t *testing.T) {
 	if !IsLikelyStockUtterance("中际旭创呢") {
 		t.Fatal("colloquial stock name should match")

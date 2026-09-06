@@ -31,11 +31,54 @@ var cjkStockStops = []string{
 	"趋势", "直方图", "金叉", "死叉", "抛物线", "共振", "哪些", "现在", "标的",
 	"股票", "一下", "请问", "帮我", "测试", "频率", "支持", "配套", "规则",
 	"买入", "卖出", "简介", "当前", "全部", "三种", "共有", "怎么样", "分析",
-	"有没有", "买卖点", "买卖",
+	"有没有", "买卖点", "买卖", "技术面", "价格", "K线", "线图", "蜡烛",
 }
 
 var knownStockAliases = []string{
 	"小米", "腾讯", "茅台", "苹果", "特斯拉", "英伟达", "微软", "谷歌", "阿里", "拼多多",
+}
+
+// ExtractExplicitStockReference returns a stock only when the user clearly names one
+// (alias, code, or a multi-character Chinese name). Follow-up phrases like「分析 K 线」return empty.
+func ExtractExplicitStockReference(msg string) string {
+	msg = strings.TrimSpace(msg)
+	if msg == "" {
+		return ""
+	}
+	for _, key := range knownStockAliases {
+		if strings.Contains(msg, key) {
+			return key
+		}
+	}
+	if m := reAShare.FindStringSubmatch(msg); len(m) > 1 {
+		if !(strings.Contains(msg, "资金") || strings.Contains(msg, "本金") || strings.Contains(strings.ToLower(msg), "fund")) {
+			return strings.ToUpper(m[1])
+		}
+	}
+	if m := reHKCode.FindStringSubmatch(msg); len(m) > 1 {
+		return m[1]
+	}
+	upper := strings.ToUpper(msg)
+	if m := reUSTicker.FindStringSubmatch(upper); len(m) > 1 {
+		tok := m[1]
+		if _, stop := tickerStopwords[tok]; !stop {
+			if len(tok) == 1 && containsHanRun(msg) {
+				// skip
+			} else {
+				return tok
+			}
+		}
+	}
+	stripped := reIntentPad.ReplaceAllString(msg, " ")
+	for _, run := range reCJKRun.FindAllString(stripped, -1) {
+		if len([]rune(run)) < 3 {
+			continue
+		}
+		if !isCJKStockStop(run) {
+			return run
+		}
+	}
+	return ""
 }
 
 // ExtractStockQuery pulls a stock name or code fragment from user text.
@@ -61,7 +104,12 @@ func ExtractStockQuery(msg string) string {
 	if m := reUSTicker.FindStringSubmatch(upper); len(m) > 1 {
 		tok := m[1]
 		if _, stop := tickerStopwords[tok]; !stop {
-			return tok
+			// 「K线图」「KDJ」等中文句里的单字母 Latin 不是美股代码。
+			if len(tok) == 1 && containsHanRun(msg) {
+				// fall through to CJK extraction
+			} else {
+				return tok
+			}
 		}
 	}
 	stripped := reIntentPad.ReplaceAllString(msg, " ")
@@ -81,6 +129,15 @@ func IsLikelyStockUtterance(msg string) bool {
 		return false
 	}
 	return LooksLikeStockQuery(q)
+}
+
+func containsHanRun(s string) bool {
+	for _, r := range s {
+		if r >= '\u4e00' && r <= '\u9fff' {
+			return true
+		}
+	}
+	return false
 }
 
 func isCJKStockStop(s string) bool {

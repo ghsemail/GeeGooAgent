@@ -2,6 +2,7 @@ package playbookexec
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
@@ -56,9 +57,58 @@ func TestEnrichAnalysisFromSession(t *testing.T) {
 	session := runtime.NewSession()
 	session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: "## 腾讯控股 00700.HK · 股价分析（daily）\n\n偏强"})
 	plan := AnalysisRunPlan{}
-	enrichAnalysisFromSession(&plan, session)
-	if plan.StockQuery != "腾讯控股" && plan.StockQuery != "腾讯" {
+	enrichAnalysisFromSession(&plan, "", session)
+	if plan.StockQuery != "腾讯控股" && plan.StockQuery != "腾讯" && plan.StockQuery != "00700.HK" {
 		t.Fatalf("stock=%q", plan.StockQuery)
+	}
+}
+
+func TestAnalysisFollowUpReusesSessionStock(t *testing.T) {
+	session := runtime.NewSession()
+	session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: "## 腾讯控股 00700.HK · <nil>（daily）\n\n偏强"})
+	var searchRegex string
+	router := &Router{
+		RunTool: func(_ context.Context, req tools.CallRequest, _ tools.Context) tools.Result {
+			switch req.Name {
+			case "search_code":
+				searchRegex = fmt.Sprint(req.Arguments["regex"])
+				return tools.Result{
+					Status: tools.StatusOK,
+					Data: map[string]any{"items": []any{
+						map[string]any{"code": "00700.HK", "name": "腾讯控股", "market": "HK"},
+					}},
+				}
+			case "get_single_prompt_template":
+				return tools.Result{
+					Status: tools.StatusOK,
+					Data:   map[string]any{"selected_prompt_id": "p1", "selected_prompt_name": "K线"},
+				}
+			case "get_mcp_analysis":
+				return tools.Result{Status: tools.StatusOK, Data: map[string]any{"analysis_result": "K线偏强"}}
+			default:
+				return tools.Result{Status: tools.StatusError, Summary: "unexpected " + req.Name}
+			}
+		},
+	}
+	result, ok := router.TryRunFromPlan(context.Background(), Input{
+		Session:  session,
+		UserText: "可以，分析下技术面的价格和K线图",
+		StepBase: 2,
+		ToolCtx: tools.Context{
+			ClarifyFn: func(_ context.Context, _ string, _ []string) (string, bool) {
+				t.Fatal("follow-up should not clarify")
+				return "", false
+			},
+		},
+	}, "stock_analysis")
+	if !ok || result.Failed {
+		t.Fatalf("ok=%v failed=%v err=%s regex=%q", ok, result.Failed, result.Error, searchRegex)
+	}
+	if searchRegex != "00700.HK" {
+		t.Fatalf("search regex=%q want 00700.HK", searchRegex)
+	}
+	if !contains(result.AssistantText, "腾讯") {
+		t.Fatalf("reply=%q", result.AssistantText)
 	}
 }
 
