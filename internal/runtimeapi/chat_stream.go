@@ -116,6 +116,12 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 		if live != nil {
 			live.Emit(event, data)
 		}
+		// Dock Chat's axz reads top-level question/choices. ProgressPayload
+		// wrapping caused the option sheet to never mount; send clarify flat.
+		if event == "clarify" {
+			writeSessionSSE(w, flusher, "clarify", data)
+			return
+		}
 		writeAgentProgressSSE(w, flusher, event, data)
 	}
 
@@ -145,16 +151,9 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 		if ctx == nil {
 			ctx = r.Context()
 		}
-		payload := map[string]any{
-			"session_id": chat.ID,
-			"question":   question,
-			"choices":    choices,
-		}
-		// Emit while Agent progress is still wired so Dock Chat can open the
-		// option sheet before search_code is marked done.
-		emit("status", map[string]any{"phase": "clarify", "message": question})
-		emit("clarify", payload)
-		// Waiting for the user must not freeze every other chat behind chatMu.
+		// Waiting must not freeze every other chat behind chatMu. Emit the
+		// option sheet only after the hub waiter exists so POST /v1/chat/clarify
+		// and pending_clarify polling cannot 404 / clear the panel.
 		h.App.Agent.SetProgress(nil)
 		h.chatMu.Unlock()
 		defer func() {
@@ -164,10 +163,11 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 			}
 			h.App.Agent.SetProgress(progressFn)
 		}()
-		// Interactive Dock Chat: wait until the user answers or the SSE client
-		// disconnects. A short auto-pick timeout races the UI and turns a
-		// stock tap into HTTP 404 "no pending clarify".
-		return h.clarify.Wait(ctx, chat.ID, question, choices, nil)
+		return h.clarify.Wait(ctx, chat.ID, question, choices, func(p PendingClarify) {
+			payload := ClarifyProgressPayload(p.SessionID, p.Question, p.Choices)
+			emit("status", map[string]any{"phase": "clarify", "message": p.Question})
+			emit("clarify", payload)
+		})
 	}
 	if h.App.Config != nil {
 		h.App.Agent.SetPlanGate(h.App.Config.EffectivePlanGate())

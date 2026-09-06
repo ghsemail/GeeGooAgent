@@ -31,16 +31,18 @@ func TestRenderClarifyPanelFocusStablePrefix(t *testing.T) {
 	opts := []string{"A方案", "B方案", "C方案"}
 	a := stripANSI(chatui.RenderClarifyPanel("选哪种？", opts, 0, 80))
 	b := stripANSI(chatui.RenderClarifyPanel("选哪种？", opts, 1, 80))
-	lineA0 := strings.Split(a, "\n")[1]
-	lineB0 := strings.Split(b, "\n")[1]
+	lineA0 := findLineContaining(a, "A方案")
+	lineB0 := findLineContaining(b, "A方案")
 	if lineA0 == "" || lineB0 == "" {
 		t.Fatal("missing option lines")
 	}
 	if strings.Index(lineA0, "[A]") != strings.Index(lineB0, "[A]") {
 		t.Fatalf("option columns shifted:\nfocus0=%q\nfocus1=%q", lineA0, lineB0)
 	}
-	if strings.Index(lineA0, "[B]") != strings.Index(lineB0, "[B]") {
-		t.Fatalf("option B column shifted:\nfocus0=%q\nfocus1=%q", lineA0, lineB0)
+	lineAB := findLineContaining(a, "B方案")
+	lineBB := findLineContaining(b, "B方案")
+	if strings.Index(lineAB, "[B]") != strings.Index(lineBB, "[B]") {
+		t.Fatalf("option B column shifted:\nfocus0=%q\nfocus1=%q", lineAB, lineBB)
 	}
 }
 

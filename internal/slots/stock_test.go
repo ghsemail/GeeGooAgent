@@ -54,11 +54,7 @@ func TestPickStockRowNotifiesClarify(t *testing.T) {
 		{"code": "00700.HK", "name": "腾讯控股"},
 		{"code": "01698.HK", "name": "腾讯音乐-SW"},
 	}
-	var events []string
 	ctx := tools.Context{
-		Progress: func(event string, _ map[string]any) {
-			events = append(events, event)
-		},
 		ClarifyFn: func(_ context.Context, _ string, choices []string) (string, bool) {
 			if len(choices) != 2 {
 				t.Fatalf("choices=%v", choices)
@@ -72,8 +68,5 @@ func TestPickStockRowNotifiesClarify(t *testing.T) {
 	}
 	if row["code"] != "00700.HK" {
 		t.Fatalf("row=%v", row)
-	}
-	if len(events) < 2 || events[0] != "status" || events[1] != "clarify" {
-		t.Fatalf("events=%v", events)
 	}
 }

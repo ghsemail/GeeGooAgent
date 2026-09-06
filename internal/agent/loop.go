@@ -408,19 +408,8 @@ func (l *Loop) runPreparedTurn(
 	var gateFrag ctxfrag.Fragment
 	if ShouldSkipRetrievalGate(matchedSkills, turnPlan, userText) {
 		reason := skipRetrievalReason(matchedSkills, turnPlan, userText)
-		if turnPlan.Mode == cognition.ModeClarify {
-			l.recordInjectionStep(&records, "gate", "decision=skip · reason="+reason)
-			l.emit("gate", map[string]any{"decision": "skip", "reason": reason})
-		} else {
-			if reason == "tool-first playbook" {
-				l.emitStatus("gate", "工具型技能，跳过记忆检索")
-			}
-			l.emit("gate", map[string]any{
-				"decision": "skip",
-				"reason":   reason,
-			})
-			l.recordInjectionStep(&records, "gate", "decision=skip · reason="+reason)
-		}
+		l.recordInjectionStep(&records, "gate", "decision=skip · reason="+reason)
+		l.emit("gate", map[string]any{"decision": "skip", "reason": reason})
 	} else {
 		gateFrag = l.runRetrievalGate(ctx, session, userText, &records)
 	}

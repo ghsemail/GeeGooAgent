@@ -223,13 +223,15 @@ func RenderClarifyPanel(question string, options []string, focus int, width int)
 
 	var body strings.Builder
 	if len(options) > 0 {
+		body.WriteString(styleWhisper.Render(WrapPlain("  请点选或按字母确认", innerW)))
+		body.WriteByte('\n')
 		for i, opt := range options {
 			if i > 0 {
 				body.WriteByte('\n')
 			}
 			marker := "  "
 			if i == focus {
-				marker = "› "
+				marker = "> "
 			}
 			label := fmt.Sprintf("  [%s] ", choiceLabel(i))
 			prefix := marker + label
@@ -242,7 +244,7 @@ func RenderClarifyPanel(question string, options []string, focus int, width int)
 			}
 		}
 		body.WriteByte('\n')
-		body.WriteString(styleWhisper.Render(WrapPlain("  ↑↓ 选择 · Enter 确认 · A/B/C 或 1/2/3 · Esc 跳过", innerW)))
+		body.WriteString(styleWhisper.Render(WrapPlain("  ↑↓ 选择 · Enter 确认 · A/B/C · Esc 跳过", innerW)))
 	} else {
 		body.WriteString(styleWhisper.Render(WrapPlain("  在下方输入回答 · Esc 跳过", innerW)))
 	}

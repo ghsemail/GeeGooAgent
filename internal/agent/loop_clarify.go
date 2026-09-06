@@ -30,12 +30,10 @@ func (l *Loop) tryPresetClarify(
 	}
 	choices := append([]string(nil), turnPlan.ClarifyChoices...)
 	l.emitStatus("clarify", question)
-	payload := map[string]any{
+	l.emit("clarify_plan", map[string]any{
 		"question": question,
 		"choices":  choices,
-	}
-	l.emit("clarify_plan", payload)
-	l.emit("clarify", payload)
+	})
 	l.recordInjectionStep(records, "clarify", "preset question: "+question)
 
 	answer, ok := toolCtx.ClarifyFn(ctx, question, choices)
