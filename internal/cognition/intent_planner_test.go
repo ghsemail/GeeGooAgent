@@ -26,6 +26,7 @@ func TestRulePlannerRoutesAcrossDomains(t *testing.T) {
 		{msg: "按知识库讲 4H MACD", domain: DomainKnowledge, mode: ModeGather, want: "search_knowledge"},
 		{msg: "这个信号怎么样", domain: DomainAmbiguous, mode: ModeClarify},
 		{msg: "帮我做 dca 定投回测", domain: DomainDCAGrid, mode: ModeExecute, want: "generate_dca_strategy"},
+		{msg: "帮我看看我有哪些信号策略", domain: DomainDCAGrid, mode: ModeGather, want: "get_signal_combinations"},
 		{msg: "上次回测结果", domain: DomainBacktestHistory, mode: ModeGather, want: "list_strategy_backtest_logs"},
 		{msg: "有什么新闻", domain: DomainNews, mode: ModeGather, want: "fetch_market_news"},
 		{msg: "把分析写成报告", domain: DomainReportWrite, mode: ModeExecute, want: "create_stock_intraday_report"},
@@ -53,7 +54,11 @@ func TestRulePlannerRoutesAcrossDomains(t *testing.T) {
 		if tc.domain == DomainBacktestRun && !plan.ShouldRunDomainSOP() {
 			t.Fatalf("%q: expected domain SOP", tc.msg)
 		}
-		if tc.domain != DomainBacktestRun && tc.domain != DomainStockAnalysis && tc.domain != DomainSignalProbe && plan.ShouldRunDomainSOP() {
+		if tc.msg == "帮我看看我有哪些信号策略" && !plan.ShouldRunDomainSOP() {
+			t.Fatalf("%q: catalog list should run gather SOP", tc.msg)
+		}
+		if tc.domain != DomainBacktestRun && tc.domain != DomainStockAnalysis && tc.domain != DomainSignalProbe &&
+			!(tc.domain == DomainDCAGrid && tc.mode == ModeGather) && plan.ShouldRunDomainSOP() {
 			t.Fatalf("%q: must not run domain SOP", tc.msg)
 		}
 	}

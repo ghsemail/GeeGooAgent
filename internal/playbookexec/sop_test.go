@@ -251,3 +251,40 @@ func stringIndex(s, sub string) int {
 	}
 	return -1
 }
+
+func TestRunSignalCatalogSOP(t *testing.T) {
+	r := &Router{
+		RunTool: func(_ context.Context, req tools.CallRequest, _ tools.Context) tools.Result {
+			switch req.Name {
+			case "get_signal_combinations":
+				return tools.Result{
+					Status: tools.StatusOK,
+					Data: map[string]any{"items": []any{map[string]any{
+						"name": "SAR信号配套MACD直方图趋势", "brief": "SAR+MACD 共振", "frequency": "60m",
+					}}},
+				}
+			case "get_index_signals":
+				return tools.Result{
+					Status: tools.StatusOK,
+					Data: map[string]any{"items": []any{map[string]any{
+						"name": "RSI超买超卖", "index": "RSI", "frequency": "60m",
+					}}},
+				}
+			default:
+				return tools.Result{Status: tools.StatusError, Summary: "unexpected " + req.Name}
+			}
+		},
+	}
+	session := runtime.NewSession()
+	result, ok := r.TryRunFromPlan(context.Background(), Input{
+		Session:  session,
+		UserText: "帮我看看我有哪些信号策略",
+		StepBase: 1,
+	}, "dca_grid")
+	if !ok || result.Failed {
+		t.Fatalf("ok=%v failed=%v err=%s", ok, result.Failed, result.Error)
+	}
+	if !contains(result.AssistantText, "组合信号") || !contains(result.AssistantText, "SAR") {
+		t.Fatalf("reply=%q", result.AssistantText)
+	}
+}

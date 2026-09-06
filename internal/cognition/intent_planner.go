@@ -57,7 +57,7 @@ func (RulePlanner) Plan(in PlanInput) TurnPlan {
 		p.Reason = "沿用上一轮领域 " + string(in.LastDomain)
 		p.Confidence = 0.8
 		return p
-	case isSignalCatalogList(msg):
+	case IsSignalCatalogList(msg):
 		p := planForDomain(DomainDCAGrid)
 		p.Mode = ModeGather
 		p.Reason = "列举可用信号/组合"
@@ -130,7 +130,8 @@ func isBacktestRun(msg string) bool {
 	return hasAny(msg, []string{"回测", "跑回测", "再回测", "backtest", "就用刚才那套", "再跑回测"})
 }
 
-func isSignalCatalogList(msg string) bool {
+// IsSignalCatalogList reports list/catalog intents (有哪些信号/策略) without probe/backtest verbs.
+func IsSignalCatalogList(msg string) bool {
 	if !hasAny(msg, []string{"信号", "策略", "组合信号"}) {
 		return false
 	}

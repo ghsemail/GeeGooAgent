@@ -73,7 +73,7 @@ func (p TurnPlan) ShouldRunDomainSOP() bool {
 	switch p.Domain {
 	case DomainBacktestRun, DomainSignalProbe:
 		return p.Mode == ModeExecute
-	case DomainStockAnalysis:
+	case DomainStockAnalysis, DomainDCAGrid:
 		return p.Mode == ModeGather
 	default:
 		return false

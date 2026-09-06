@@ -251,6 +251,21 @@ func (a *Adapter) Store(ctx context.Context, rec memport.Record) error {
 	}
 }
 
+// WouldCompress reports whether Compress would run compaction for the input.
+func (a *Adapter) WouldCompress(in memport.CompressInput) bool {
+	if a == nil || a.compressor == nil || len(in.Messages) == 0 {
+		return false
+	}
+	est := in.EstimatedTokens
+	if est <= 0 {
+		est = prompt.EstimateTokens(in.Messages)
+	}
+	if in.Hygiene {
+		return a.compressor.ShouldHygiene(est, len(in.Messages))
+	}
+	return a.compressor.ShouldCompress(est, len(in.Messages))
+}
+
 // Compress runs Hermes-style compaction via prompt.Compressor.
 func (a *Adapter) Compress(ctx context.Context, in memport.CompressInput) (memport.CompressOutput, error) {
 	out := memport.CompressOutput{

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
@@ -74,6 +75,11 @@ func (r *Router) TryRunFromPlan(ctx context.Context, in Input, domain string) (r
 		return r.runAnalysis(ctx, in), true
 	case "signal_probe":
 		return r.runProbe(ctx, in), true
+	case "dca_grid":
+		if cognition.IsSignalCatalogList(in.UserText) {
+			return r.runSignalCatalog(ctx, in), true
+		}
+		return runtime.TurnResult{}, false
 	default:
 		return runtime.TurnResult{}, false
 	}

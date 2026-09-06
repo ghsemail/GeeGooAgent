@@ -28,16 +28,21 @@ func (l *Loop) runCompression(ctx context.Context, session *runtime.Session, mes
 	if est <= 0 {
 		est = prompt.EstimateTokens(session.Messages)
 	}
-	if hygiene {
-		l.emitStatus("hygiene", "压缩过长上下文（辅助模型）…")
-	}
-	out, err := mem.Compress(ctx, memport.CompressInput{
+	in := memport.CompressInput{
 		SessionID:       session.ID,
 		Messages:        session.Messages,
 		PreviousSummary: session.PreviousSummary,
 		EstimatedTokens: est,
 		Hygiene:         hygiene,
-	})
+	}
+	if hygiene {
+		if preview, ok := mem.(interface {
+			WouldCompress(memport.CompressInput) bool
+		}); ok && preview.WouldCompress(in) {
+			l.emitStatus("hygiene", "压缩过长上下文（辅助模型）…")
+		}
+	}
+	out, err := mem.Compress(ctx, in)
 	if err != nil || !out.DidCompress {
 		return messages
 	}
