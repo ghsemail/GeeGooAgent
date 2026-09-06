@@ -49,7 +49,7 @@ func TestPickStockRowByCode(t *testing.T) {
 	}
 }
 
-func TestPickStockRowNotifiesClarify(t *testing.T) {
+func TestPickStockRowAutoResolvesTencentWithoutClarify(t *testing.T) {
 	items := []map[string]any{
 		{"code": "00700.HK", "name": "腾讯控股"},
 		{"code": "01698.HK", "name": "腾讯音乐-SW"},
@@ -59,11 +59,9 @@ func TestPickStockRowNotifiesClarify(t *testing.T) {
 		Progress: func(event string, _ map[string]any) {
 			events = append(events, event)
 		},
-		ClarifyFn: func(_ context.Context, _ string, choices []string) (string, bool) {
-			if len(choices) != 2 {
-				t.Fatalf("choices=%v", choices)
-			}
-			return choices[0], true
+		ClarifyFn: func(_ context.Context, _ string, _ []string) (string, bool) {
+			t.Fatal("clarify should not run for common alias 腾讯")
+			return "", false
 		},
 	}
 	row, err := pickStockRow(context.Background(), ctx, "腾讯", items)
@@ -73,7 +71,32 @@ func TestPickStockRowNotifiesClarify(t *testing.T) {
 	if row["code"] != "00700.HK" {
 		t.Fatalf("row=%v", row)
 	}
-	if len(events) < 2 || events[0] != "status" || events[1] != "clarify" {
-		t.Fatalf("events=%v", events)
+	for _, ev := range events {
+		if ev == "clarify" {
+			t.Fatalf("unexpected clarify event: %v", events)
+		}
+	}
+}
+
+func TestPickStockRowByPrimaryAliasTencent(t *testing.T) {
+	items := []map[string]any{
+		{"code": "01698.HK", "name": "腾讯音乐-SW"},
+		{"code": "00700.HK", "name": "腾讯控股"},
+		{"code": "TCEHY", "name": "Tencent Holdings ADR"},
+	}
+	row, ok := pickStockRowByPrimaryAlias("腾讯", items)
+	if !ok || row["code"] != "00700.HK" {
+		t.Fatalf("picked=%v ok=%v", row, ok)
+	}
+}
+
+func TestPickStockRowByNameRankTencent(t *testing.T) {
+	items := []map[string]any{
+		{"code": "01698.HK", "name": "腾讯音乐-SW"},
+		{"code": "00700.HK", "name": "腾讯控股"},
+	}
+	row, ok := pickStockRowByNameRank("腾讯", items)
+	if !ok || row["code"] != "00700.HK" {
+		t.Fatalf("picked=%v ok=%v", row, ok)
 	}
 }

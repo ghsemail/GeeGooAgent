@@ -37,6 +37,21 @@ var knownStockAliases = []string{
 	"小米", "腾讯", "茅台", "苹果", "特斯拉", "英伟达", "微软", "谷歌", "阿里", "拼多多",
 }
 
+// primaryStockByAlias maps common Chinese nicknames to the primary listing when
+// search_code returns multiple related symbols (e.g. 腾讯音乐 vs 腾讯控股).
+var primaryStockByAlias = map[string]string{
+	"腾讯":   "00700.HK",
+	"茅台":   "600519.SH",
+	"小米":   "01810.HK",
+	"阿里":   "09988.HK",
+	"拼多多":  "PDD",
+	"苹果":   "AAPL",
+	"特斯拉":  "TSLA",
+	"英伟达":  "NVDA",
+	"微软":   "MSFT",
+	"谷歌":   "GOOGL",
+}
+
 // ExtractStockQuery pulls a stock name or code fragment from user text.
 func ExtractStockQuery(msg string) string {
 	msg = strings.TrimSpace(msg)
@@ -141,6 +156,12 @@ func pickStockRow(ctx context.Context, toolCtx tools.Context, query string, item
 	if picked, ok := pickStockRowByCode(items, query); ok {
 		return picked, nil
 	}
+	if picked, ok := pickStockRowByPrimaryAlias(query, items); ok {
+		return picked, nil
+	}
+	if picked, ok := pickStockRowByNameRank(query, items); ok {
+		return picked, nil
+	}
 	limit := minInt(len(items), 4)
 	choices := make([]string, 0, limit)
 	for i := 0; i < limit; i++ {
@@ -152,11 +173,17 @@ func pickStockRow(ctx context.Context, toolCtx tools.Context, query string, item
 		question = fmt.Sprintf("搜索「%s」找到多个标的，请选择：", q)
 	}
 	if toolCtx.ClarifyFn == nil {
+		if picked, ok := pickStockRowFallback(items); ok {
+			return picked, nil
+		}
 		return nil, fmt.Errorf("%s %s", question, strings.Join(choices, " / "))
 	}
 	NotifyClarify(toolCtx, question, choices)
 	answer, ok := toolCtx.ClarifyFn(ctx, question, choices)
 	if !ok {
+		if picked, ok := pickStockRowFallback(items); ok {
+			return picked, nil
+		}
 		return nil, fmt.Errorf("请选择要操作的标的")
 	}
 	for _, it := range items {
@@ -166,6 +193,102 @@ func pickStockRow(ctx context.Context, toolCtx tools.Context, query string, item
 		}
 	}
 	return nil, fmt.Errorf("未匹配所选标的「%s」", answer)
+}
+
+func pickStockRowByPrimaryAlias(query string, items []map[string]any) (map[string]any, bool) {
+	q := strings.TrimSpace(query)
+	if q == "" {
+		return nil, false
+	}
+	want, ok := primaryStockByAlias[q]
+	if !ok {
+		return nil, false
+	}
+	want = strings.ToUpper(strings.TrimSpace(want))
+	for _, row := range items {
+		code := strings.ToUpper(strings.TrimSpace(fmt.Sprint(row["code"])))
+		if code == want || strings.HasPrefix(code, want+".") {
+			return row, true
+		}
+	}
+	return nil, false
+}
+
+func pickStockRowByNameRank(query string, items []map[string]any) (map[string]any, bool) {
+	q := strings.TrimSpace(query)
+	if q == "" || len(items) < 2 {
+		return nil, false
+	}
+	type scored struct {
+		row   map[string]any
+		score int
+	}
+	scoredRows := make([]scored, 0, len(items))
+	for _, row := range items {
+		score := scoreStockNameMatch(q, row)
+		if score <= 0 {
+			continue
+		}
+		scoredRows = append(scoredRows, scored{row: row, score: score})
+	}
+	if len(scoredRows) == 0 {
+		return nil, false
+	}
+	bestIdx := 0
+	for i := 1; i < len(scoredRows); i++ {
+		if scoredRows[i].score > scoredRows[bestIdx].score {
+			bestIdx = i
+		}
+	}
+	best := scoredRows[bestIdx]
+	secondBest := 0
+	for i, cand := range scoredRows {
+		if i == bestIdx {
+			continue
+		}
+		if cand.score > secondBest {
+			secondBest = cand.score
+		}
+	}
+	if best.score >= 80 && best.score-secondBest >= 20 {
+		return best.row, true
+	}
+	return nil, false
+}
+
+func scoreStockNameMatch(query string, row map[string]any) int {
+	name := strings.TrimSpace(fmt.Sprint(row["name"]))
+	code := strings.ToUpper(strings.TrimSpace(fmt.Sprint(row["code"])))
+	if name == "" {
+		return 0
+	}
+	score := 0
+	if name == query {
+		score += 100
+	}
+	if strings.HasPrefix(name, query) {
+		score += 70
+		if strings.Contains(name, "控股") || strings.Contains(name, "Group") {
+			score += 15
+		}
+	}
+	if strings.Contains(name, query) {
+		score += 40
+	}
+	if strings.Contains(name, "音乐") || strings.Contains(name, "ADR") || strings.Contains(strings.ToUpper(name), "-SW") {
+		score -= 25
+	}
+	if strings.HasSuffix(code, ".HK") && len([]rune(query)) >= 2 {
+		score += 5
+	}
+	return score
+}
+
+func pickStockRowFallback(items []map[string]any) (map[string]any, bool) {
+	if len(items) == 0 {
+		return nil, false
+	}
+	return items[0], true
 }
 
 func pickStockRowByCode(items []map[string]any, query string) (map[string]any, bool) {
