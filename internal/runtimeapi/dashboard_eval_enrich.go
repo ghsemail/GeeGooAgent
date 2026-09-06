@@ -2,10 +2,40 @@ package runtimeapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/eval"
 )
+
+func persistEvalCaseOptions(opts map[string]any) map[string]any {
+	if opts == nil {
+		return opts
+	}
+	category, _ := opts["category"].(string)
+	if category != "turn_plan" {
+		return opts
+	}
+	raw, err := json.Marshal(opts)
+	if err != nil {
+		return opts
+	}
+	parsed, err := eval.ParseTurnPlanCaseOptions(raw)
+	if err != nil {
+		return opts
+	}
+	parsed = parsed.Normalize().SyncLegacyUtterances()
+	out := map[string]any{}
+	if err := json.Unmarshal(mustJSON(parsed), &out); err != nil {
+		return opts
+	}
+	return out
+}
+
+func mustJSON(v any) []byte {
+	b, _ := json.Marshal(v)
+	return b
+}
 
 func enrichEvalCaseRow(row map[string]any) {
 	opts, _ := row["options"].(map[string]any)
@@ -37,6 +67,16 @@ func enrichGenericEvalCaseRow(row map[string]any, opts map[string]any) {
 }
 
 func enrichTurnPlanUtterances(row map[string]any, opts map[string]any) {
+	if dialogue, ok := opts["dialogue"].([]any); ok && len(dialogue) > 0 {
+		setup, msg := utterancesFromDialogue(dialogue)
+		if msg != "" {
+			row["utterance"] = msg
+		}
+		if len(setup) > 0 {
+			row["setup_utterances"] = setup
+		}
+		return
+	}
 	if msg, ok := opts["message"].(string); ok && strings.TrimSpace(msg) != "" {
 		row["utterance"] = strings.TrimSpace(msg)
 	}
@@ -99,4 +139,23 @@ func legacyDialogueFromOpts(opts map[string]any) []map[string]any {
 		})
 	}
 	return out
+}
+
+func utterancesFromDialogue(dialogue []any) (setup []string, message string) {
+	for i, item := range dialogue {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		text := strings.TrimSpace(fmt.Sprint(m["text"]))
+		if text == "" || text == "<nil>" {
+			continue
+		}
+		if i == len(dialogue)-1 {
+			message = text
+		} else {
+			setup = append(setup, text)
+		}
+	}
+	return setup, message
 }

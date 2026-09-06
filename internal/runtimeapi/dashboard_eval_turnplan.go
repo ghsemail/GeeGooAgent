@@ -156,32 +156,31 @@ func (h *Handler) loadTurnPlanCaseOptions(r *http.Request, caseID string) (eval.
 	if caseID == "" {
 		return eval.TurnPlanCaseOptions{}, "", fmt.Errorf("case id required")
 	}
-	for _, def := range eval.IndividualTurnPlanEvalCases() {
-		if def.ID == caseID {
-			return def.Options, def.Title, nil
+	db := h.dashboardSQLDB()
+	if db != nil {
+		userID := resolveUserID(r)
+		row := db.QueryRowContext(r.Context(), h.evalSQL(`
+			SELECT title, options_json
+			FROM agent_eval_cases
+			WHERE id = ? AND enabled = TRUE AND (user_id = '' OR user_id = ?)`), caseID, userID)
+		var title, optsJSON string
+		if err := row.Scan(&title, &optsJSON); err == nil {
+			opts, err := eval.ParseTurnPlanCaseOptions([]byte(optsJSON))
+			if err != nil {
+				return eval.TurnPlanCaseOptions{}, "", err
+			}
+			if opts.Category != "turn_plan" {
+				return eval.TurnPlanCaseOptions{}, "", errEvalCaseNotTurnPlan
+			}
+			return opts.Normalize().SyncLegacyUtterances(), title, nil
 		}
 	}
-	db := h.dashboardSQLDB()
-	if db == nil {
-		return eval.TurnPlanCaseOptions{}, "", errEvalCaseNotFound
+	for _, def := range eval.IndividualTurnPlanEvalCases() {
+		if def.ID == caseID {
+			return def.Options.Normalize().SyncLegacyUtterances(), def.Title, nil
+		}
 	}
-	userID := resolveUserID(r)
-	row := db.QueryRowContext(r.Context(), h.evalSQL(`
-		SELECT title, options_json
-		FROM agent_eval_cases
-		WHERE id = ? AND enabled = TRUE AND (user_id = '' OR user_id = ?)`), caseID, userID)
-	var title, optsJSON string
-	if err := row.Scan(&title, &optsJSON); err != nil {
-		return eval.TurnPlanCaseOptions{}, "", errEvalCaseNotFound
-	}
-	opts, err := eval.ParseTurnPlanCaseOptions([]byte(optsJSON))
-	if err != nil {
-		return eval.TurnPlanCaseOptions{}, "", err
-	}
-	if opts.Category != "turn_plan" {
-		return eval.TurnPlanCaseOptions{}, "", errEvalCaseNotTurnPlan
-	}
-	return opts, title, nil
+	return eval.TurnPlanCaseOptions{}, "", errEvalCaseNotFound
 }
 
 func newEvalRunID(caseID string) string {

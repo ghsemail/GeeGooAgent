@@ -15,7 +15,8 @@ var (
 	reHKCode    = regexp.MustCompile(`\b(\d{4,5})(?:\.HK)?\b`)
 	reAShare    = regexp.MustCompile(`(?i)\b(\d{6})(?:\.(?:SZ|SH|BJ))?\b`)
 	reCJKRun    = regexp.MustCompile(`\p{Han}{2,8}`)
-	reIntentPad = regexp.MustCompile(`帮我回测一下|帮我测试一下|帮我回测|回测一下|跑回测|来回测|再回测|测试一下|测一下|看一下|分析一下|帮我分析|分析一下|就用刚才那套|刚才那套|用现成的来回测|不要新建`)
+	reIntentPad = regexp.MustCompile(`帮我回测一下|帮我测试一下|帮我回测|回测一下|跑回测|来回测|再回测|测试一下|测一下|看一下|帮我分析一下|分析一下|帮我分析|就用刚才那套|刚才那套|用现成的来回测|不要新建`)
+	reStockAfterIntent = regexp.MustCompile(`(?:分析|回测|查|看|测)(?:一下|下)?\s*([\p{Han}]{2,8})`)
 )
 
 var tickerStopwords = map[string]struct{}{
@@ -69,6 +70,12 @@ func ExtractExplicitStockReference(msg string) string {
 			}
 		}
 	}
+	if q := extractStockAfterIntentVerb(msg); q != "" {
+		return q
+	}
+	if q := extractTrailingCJKStock(msg); q != "" {
+		return q
+	}
 	stripped := reIntentPad.ReplaceAllString(msg, " ")
 	for _, run := range reCJKRun.FindAllString(stripped, -1) {
 		if len([]rune(run)) < 3 {
@@ -112,6 +119,12 @@ func ExtractStockQuery(msg string) string {
 			}
 		}
 	}
+	if q := extractStockAfterIntentVerb(msg); q != "" {
+		return q
+	}
+	if q := extractTrailingCJKStock(msg); q != "" {
+		return q
+	}
 	stripped := reIntentPad.ReplaceAllString(msg, " ")
 	cjk := reCJKRun.FindAllString(stripped, -1)
 	for i := len(cjk) - 1; i >= 0; i-- {
@@ -120,6 +133,64 @@ func ExtractStockQuery(msg string) string {
 		}
 	}
 	return ""
+}
+
+func extractStockAfterIntentVerb(msg string) string {
+	matches := reStockAfterIntent.FindAllStringSubmatch(msg, -1)
+	for i := len(matches) - 1; i >= 0; i-- {
+		if len(matches[i]) < 2 {
+			continue
+		}
+		cand := trimTrailingStockParticles(strings.TrimSpace(matches[i][1]))
+		if cand == "" {
+			continue
+		}
+		n := len([]rune(cand))
+		if n >= 3 && !isCJKStockStop(cand) {
+			return cand
+		}
+		if n >= 2 && !isCJKStockStop(cand) {
+			return cand
+		}
+	}
+	return ""
+}
+
+// extractTrailingCJKStock reads the trailing Han company-name fragment at the end of the utterance.
+func extractTrailingCJKStock(msg string) string {
+	runes := []rune(strings.TrimSpace(msg))
+	var buf []rune
+	for i := len(runes) - 1; i >= 0; i-- {
+		r := runes[i]
+		if r >= '\u4e00' && r <= '\u9fff' {
+			buf = append([]rune{r}, buf...)
+			continue
+		}
+		if len(buf) > 0 {
+			break
+		}
+	}
+	cand := trimTrailingStockParticles(string(buf))
+	if len([]rune(cand)) >= 3 && !isCJKStockStop(cand) {
+		return cand
+	}
+	return ""
+}
+
+func trimTrailingStockParticles(s string) string {
+	particles := []string{"吧", "呢", "啊", "吗", "的", "了", "呀"}
+	for {
+		changed := false
+		for _, p := range particles {
+			if strings.HasSuffix(s, p) && len([]rune(s)) > len([]rune(p)) {
+				s = strings.TrimSuffix(s, p)
+				changed = true
+			}
+		}
+		if !changed {
+			return strings.TrimSpace(s)
+		}
+	}
 }
 
 // IsLikelyStockUtterance reports bare stock names like「中际旭创呢」.

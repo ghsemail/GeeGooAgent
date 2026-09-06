@@ -134,7 +134,7 @@ func (h *Handler) evalCaseCreate(w http.ResponseWriter, r *http.Request) {
 	userID := resolveUserID(r)
 	now := time.Now().UTC()
 	stepsJSON, _ := json.Marshal(req.Steps)
-	optsJSON, _ := json.Marshal(req.Options)
+	optsJSON, _ := json.Marshal(persistEvalCaseOptions(req.Options))
 	enabled := true
 	if req.Enabled != nil {
 		enabled = *req.Enabled
@@ -169,7 +169,7 @@ func (h *Handler) evalCaseUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	userID := resolveUserID(r)
 	stepsJSON, _ := json.Marshal(req.Steps)
-	optsJSON, _ := json.Marshal(req.Options)
+	optsJSON, _ := json.Marshal(persistEvalCaseOptions(req.Options))
 	enabled := true
 	if req.Enabled != nil {
 		enabled = *req.Enabled

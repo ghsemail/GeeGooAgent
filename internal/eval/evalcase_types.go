@@ -115,6 +115,24 @@ func (o TurnPlanCaseOptions) Normalize() TurnPlanCaseOptions {
 	return out
 }
 
+// SyncLegacyUtterances copies Dialogue back into Message / SetupMessages for runners that still read legacy fields.
+func (o TurnPlanCaseOptions) SyncLegacyUtterances() TurnPlanCaseOptions {
+	out := o.Normalize()
+	if len(out.Dialogue) == 0 {
+		return out
+	}
+	last := len(out.Dialogue) - 1
+	out.Message = strings.TrimSpace(out.Dialogue[last].Text)
+	setup := make([]string, 0, last)
+	for i := 0; i < last; i++ {
+		if text := strings.TrimSpace(out.Dialogue[i].Text); text != "" {
+			setup = append(setup, text)
+		}
+	}
+	out.SetupMessages = setup
+	return out
+}
+
 func (o TurnPlanCaseOptions) routing() ExpectRoutingSpec {
 	n := o.Normalize()
 	if n.ExpectRouting != nil {

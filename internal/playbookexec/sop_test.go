@@ -112,11 +112,50 @@ func TestAnalysisFollowUpReusesSessionStock(t *testing.T) {
 	}
 }
 
+func TestAnalysisZhongjiRunsSearchCode(t *testing.T) {
+	session := runtime.NewSession()
+	var searchRegex string
+	router := &Router{
+		RunTool: func(_ context.Context, req tools.CallRequest, _ tools.Context) tools.Result {
+			switch req.Name {
+			case "search_code":
+				searchRegex = fmt.Sprint(req.Arguments["regex"])
+				return tools.Result{
+					Status: tools.StatusOK,
+					Data: map[string]any{"items": []any{
+						map[string]any{"code": "300308.SZ", "name": "中际旭创", "market": "CN"},
+					}},
+				}
+			case "get_single_prompt_template":
+				return tools.Result{
+					Status: tools.StatusOK,
+					Data:   map[string]any{"selected_prompt_id": "p1", "selected_prompt_name": "股价分析"},
+				}
+			case "get_mcp_analysis":
+				return tools.Result{Status: tools.StatusOK, Data: map[string]any{"analysis_result": "偏强"}}
+			default:
+				return tools.Result{Status: tools.StatusError, Summary: "unexpected " + req.Name}
+			}
+		},
+	}
+	result, ok := router.TryRunFromPlan(context.Background(), Input{
+		Session:  session,
+		UserText: "帮我分析一下中际旭创",
+		StepBase: 1,
+	}, "stock_analysis")
+	if !ok || result.Failed {
+		t.Fatalf("ok=%v failed=%v err=%s regex=%q", ok, result.Failed, result.Error, searchRegex)
+	}
+	if searchRegex != "中际旭创" {
+		t.Fatalf("search regex=%q", searchRegex)
+	}
+}
+
 func contains(s, sub string) bool {
 	return len(sub) == 0 || (len(s) >= len(sub) && stringIndex(s, sub) >= 0)
 }
 
-func TestAnalysisClarifyBeforeSearchCodeDone(t *testing.T) {
+func TestAnalysisAutoPicksTencentWithoutClarify(t *testing.T) {
 	session := runtime.NewSession()
 	var events []string
 	router := &Router{
@@ -150,31 +189,19 @@ func TestAnalysisClarifyBeforeSearchCodeDone(t *testing.T) {
 			events = append(events, event)
 		},
 		ToolCtx: tools.Context{
-			ClarifyFn: func(_ context.Context, _ string, choices []string) (string, bool) {
-				return choices[0], true
+			ClarifyFn: func(_ context.Context, _ string, _ []string) (string, bool) {
+				t.Fatal("clarify should not run for alias 腾讯")
+				return "", false
 			},
 		},
 	}, "stock_analysis")
 	if !ok || result.Failed {
 		t.Fatalf("ok=%v failed=%v err=%s events=%v", ok, result.Failed, result.Error, events)
 	}
-	startAt, clarifyAt, doneAt := -1, -1, -1
-	for i, ev := range events {
-		if ev == "tool_start" && startAt < 0 {
-			startAt = i
+	for _, ev := range events {
+		if ev == "clarify" {
+			t.Fatalf("unexpected clarify: %v", events)
 		}
-		if ev == "clarify" && clarifyAt < 0 {
-			clarifyAt = i
-		}
-		if ev == "tool_done" && doneAt < 0 {
-			doneAt = i
-		}
-	}
-	if startAt < 0 || clarifyAt < 0 || doneAt < 0 {
-		t.Fatalf("missing events=%v", events)
-	}
-	if !(startAt < doneAt && doneAt < clarifyAt) {
-		t.Fatalf("want search_code done before clarify: start=%d done=%d clarify=%d events=%v", startAt, doneAt, clarifyAt, events)
 	}
 }
 
