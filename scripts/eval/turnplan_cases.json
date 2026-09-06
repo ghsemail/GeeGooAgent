@@ -1,0 +1,425 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "ID": "stock_analysis",
+      "Title": "股票分析",
+      "Order": 1
+    },
+    {
+      "ID": "signal",
+      "Title": "信号 / 策略",
+      "Order": 2
+    },
+    {
+      "ID": "backtest",
+      "Title": "策略回测",
+      "Order": 3
+    },
+    {
+      "ID": "clarify",
+      "Title": "灰区 / 澄清",
+      "Order": 4
+    },
+    {
+      "ID": "chat",
+      "Title": "闲聊 / QA",
+      "Order": 5
+    },
+    {
+      "ID": "bot_manage",
+      "Title": "Bot 管理",
+      "Order": 6
+    },
+    {
+      "ID": "history_report",
+      "Title": "历史 / 报告",
+      "Order": 7
+    },
+    {
+      "ID": "knowledge_news",
+      "Title": "知识 / 新闻",
+      "Order": 8
+    }
+  ],
+  "cases": [
+    {
+      "id": "turn_plan_stock_price",
+      "turn_id": "stock_price",
+      "category": "stock_analysis",
+      "title": "TurnPlan · 单轮 · 查股价",
+      "description": "独立 session：查询腾讯控股现价。",
+      "setup": null,
+      "message": "帮我查一下腾讯控股现在的股价",
+      "expect_domain": "stock_analysis",
+      "expect_mode": "gather",
+      "expect_sop": false,
+      "require_tools": [
+        "search_code",
+        "get_mcp_analysis"
+      ],
+      "forbid_tools": [
+        "run_strategy_backtest"
+      ]
+    },
+    {
+      "id": "turn_plan_stock_technical_chain",
+      "turn_id": "stock_technical_chain",
+      "category": "stock_analysis",
+      "title": "TurnPlan · 多轮 · 查价后看技术面",
+      "description": "同 session：先查腾讯股价，再自然续问技术面/K 线。",
+      "setup": [
+        "帮我查一下腾讯控股现在的股价"
+      ],
+      "message": "再帮我看看腾讯的技术面和K线图",
+      "expect_domain": "stock_analysis",
+      "expect_mode": "gather",
+      "expect_sop": false,
+      "require_tools": [
+        "search_code",
+        "get_mcp_analysis"
+      ],
+      "forbid_tools": [
+        "run_strategy_backtest"
+      ]
+    },
+    {
+      "id": "turn_plan_stock_symbol_switch",
+      "turn_id": "stock_symbol_switch",
+      "category": "stock_analysis",
+      "title": "TurnPlan · 多轮 · 切换分析标的",
+      "description": "同 session：先分析中际旭创，再明确改聊贵州茅台。",
+      "setup": [
+        "帮我分析一下中际旭创"
+      ],
+      "message": "不聊中际旭创了，帮我分析一下贵州茅台",
+      "expect_domain": "stock_analysis",
+      "expect_mode": "gather",
+      "expect_sop": false,
+      "require_tools": [
+        "search_code"
+      ],
+      "forbid_tools": [
+        "run_strategy_backtest"
+      ]
+    },
+    {
+      "id": "turn_plan_stock_colloquial_ref",
+      "turn_id": "stock_colloquial_ref",
+      "category": "stock_analysis",
+      "title": "TurnPlan · 多轮 · 代词指代续问",
+      "description": "同 session：建立中际旭创上下文后，用「它」续问同一标的走势。",
+      "setup": [
+        "帮我分析一下中际旭创"
+      ],
+      "message": "它最近走势怎么样",
+      "expect_domain": "stock_analysis",
+      "expect_mode": "gather",
+      "expect_sop": false,
+      "require_tools": [
+        "search_code"
+      ],
+      "forbid_tools": [
+        "run_strategy_backtest"
+      ]
+    },
+    {
+      "id": "turn_plan_signal_catalog_list",
+      "turn_id": "signal_catalog_list",
+      "category": "signal",
+      "title": "TurnPlan · 单轮 · 列信号策略",
+      "description": "独立 session：列举可用信号/组合策略，plan 路由 dca_grid/gather 后由模型调 catalog 工具。",
+      "setup": null,
+      "message": "帮我看看我有哪些信号策略",
+      "expect_domain": "dca_grid",
+      "expect_mode": "gather",
+      "expect_sop": false,
+      "require_tools": [
+        "get_signal_combinations"
+      ]
+    },
+    {
+      "id": "turn_plan_signal_list_then_probe",
+      "turn_id": "signal_list_then_probe",
+      "category": "signal",
+      "title": "TurnPlan · 多轮 · 列策略后测买卖点",
+      "description": "同 session：先列出可用信号策略，再指定 SAR+MACD 测中际旭创买卖点。",
+      "setup": [
+        "帮我看看我有哪些信号策略"
+      ],
+      "message": "我想用SAR加MACD组合，测一下中际旭创有没有买卖点",
+      "expect_domain": "signal_probe",
+      "expect_mode": "execute",
+      "expect_sop": false,
+      "require_tools": [
+        "probe_bot_signal_series"
+      ]
+    },
+    {
+      "id": "turn_plan_signal_probe_direct",
+      "turn_id": "signal_probe_direct",
+      "category": "signal",
+      "title": "TurnPlan · 单轮 · 直接测买卖点",
+      "description": "独立 session：显式指定标的与 signal_probe 意图。",
+      "setup": null,
+      "message": "帮我看看中际旭创有没有买卖点",
+      "expect_domain": "signal_probe",
+      "expect_mode": "execute",
+      "expect_sop": false,
+      "require_tools": [
+        "probe_bot_signal_series"
+      ]
+    },
+    {
+      "id": "turn_plan_backtest_explicit",
+      "turn_id": "backtest_explicit",
+      "category": "backtest",
+      "title": "TurnPlan · 单轮 · 显式回测",
+      "description": "独立 session：指定 SAR+MACD 回测小米。",
+      "setup": null,
+      "message": "帮我用SAR加MACD回测一下小米",
+      "expect_domain": "backtest_run",
+      "expect_mode": "execute",
+      "expect_sop": false,
+      "require_tools": [
+        "run_strategy_backtest"
+      ]
+    },
+    {
+      "id": "turn_plan_backtest_colloquial",
+      "turn_id": "backtest_colloquial",
+      "category": "backtest",
+      "title": "TurnPlan · 单轮 · 口语回测",
+      "description": "独立 session：省略策略名但仍应路由到 backtest_run。",
+      "setup": null,
+      "message": "帮我回测一下中际旭创",
+      "expect_domain": "backtest_run",
+      "expect_mode": "execute",
+      "expect_sop": false,
+      "require_tools": [
+        "run_strategy_backtest"
+      ]
+    },
+    {
+      "id": "turn_plan_analysis_then_backtest",
+      "turn_id": "analysis_then_backtest",
+      "category": "backtest",
+      "title": "TurnPlan · 多轮 · 分析后回测",
+      "description": "同 session：先分析小米，再在同一语境下发起回测。",
+      "setup": [
+        "帮我分析一下小米"
+      ],
+      "message": "接着用SAR加MACD帮小米跑个回测",
+      "expect_domain": "backtest_run",
+      "expect_mode": "execute",
+      "expect_sop": false,
+      "require_tools": [
+        "run_strategy_backtest"
+      ]
+    },
+    {
+      "id": "turn_plan_strategy_list_then_backtest",
+      "turn_id": "strategy_list_then_backtest",
+      "category": "backtest",
+      "title": "TurnPlan · 多轮 · 选策略后回测",
+      "description": "同 session：先问可回测策略，再指定 SAR+MACD 回测中际旭创。",
+      "setup": [
+        "帮我看看有哪些可以回测的策略"
+      ],
+      "message": "用SAR加MACD组合回测中际旭创",
+      "expect_domain": "backtest_run",
+      "expect_mode": "execute",
+      "expect_sop": false,
+      "require_tools": [
+        "run_strategy_backtest"
+      ]
+    },
+    {
+      "id": "turn_plan_ambiguous_bare_macd",
+      "turn_id": "ambiguous_bare_macd",
+      "category": "clarify",
+      "title": "TurnPlan · 单轮 · 模糊 MACD",
+      "description": "独立 session：无上下文的 MACD 用法问题，应 clarify。",
+      "setup": null,
+      "message": "这个MACD信号平时该怎么用比较好",
+      "expect_domain": "ambiguous",
+      "expect_mode": "clarify",
+      "expect_sop": false,
+      "forbid_tools": [
+        "run_strategy_backtest",
+        "probe_bot_signal_series"
+      ]
+    },
+    {
+      "id": "turn_plan_compound_analysis_backtest",
+      "turn_id": "compound_analysis_backtest",
+      "category": "clarify",
+      "title": "TurnPlan · 单轮 · 分析+回测复合",
+      "description": "独立 session：一句话含分析与回测，应澄清而非直接执行。",
+      "setup": null,
+      "message": "帮我把中际旭创分析一下，然后再跑个回测看看效果",
+      "expect_domain": "ambiguous",
+      "expect_mode": "clarify",
+      "expect_sop": false,
+      "forbid_tools": [
+        "run_strategy_backtest"
+      ]
+    },
+    {
+      "id": "turn_plan_chat_definition",
+      "turn_id": "chat_definition",
+      "category": "chat",
+      "title": "TurnPlan · 单轮 · 指标释义",
+      "description": "独立 session：纯知识问答，plan 路由 chat/talk，不调用业务工具。",
+      "setup": null,
+      "message": "MACD 指标是什么意思",
+      "expect_domain": "chat",
+      "expect_mode": "talk",
+      "expect_sop": false,
+      "forbid_tools": [
+        "run_strategy_backtest",
+        "get_mcp_analysis"
+      ]
+    },
+    {
+      "id": "turn_plan_chat_signal_quality",
+      "turn_id": "chat_signal_quality",
+      "category": "chat",
+      "title": "TurnPlan · 多轮 · 测点后问信号质量",
+      "description": "同 session：先测买卖点，再问信号是否靠谱。",
+      "setup": [
+        "帮我看看中际旭创有没有买卖点"
+      ],
+      "message": "刚才那个买卖点信号靠谱吗",
+      "expect_domain": "chat",
+      "expect_mode": "talk",
+      "expect_sop": false,
+      "forbid_tools": [
+        "run_strategy_backtest",
+        "probe_bot_signal_series"
+      ]
+    },
+    {
+      "id": "turn_plan_bot_reminder_list",
+      "turn_id": "bot_reminder_list",
+      "category": "bot_manage",
+      "title": "TurnPlan · 单轮 · Reminder 列表",
+      "description": "独立 session：查询 DCA reminder 列表。",
+      "setup": null,
+      "message": "我现在有哪些 Reminder 提醒",
+      "expect_domain": "bot_manage",
+      "expect_mode": "gather",
+      "expect_sop": false,
+      "require_tools": [
+        "list_dca_reminders"
+      ]
+    },
+    {
+      "id": "turn_plan_bot_grid_pnl",
+      "turn_id": "bot_grid_pnl",
+      "category": "bot_manage",
+      "title": "TurnPlan · 单轮 · 网格 Bot 盈亏",
+      "description": "独立 session：查询腾讯网格 Bot 盈亏。",
+      "setup": null,
+      "message": "帮我看看腾讯网格 Bot 的盈亏情况",
+      "expect_domain": "bot_manage",
+      "expect_mode": "gather",
+      "expect_sop": false,
+      "require_tools": [
+        "list_grid_bots"
+      ]
+    },
+    {
+      "id": "turn_plan_bot_smarttrade_list",
+      "turn_id": "bot_smarttrade_list",
+      "category": "bot_manage",
+      "title": "TurnPlan · 单轮 · SmartTrade 列表",
+      "description": "独立 session：列出 SmartTrade 实例。",
+      "setup": null,
+      "message": "帮我查一下我运行中的 SmartTrade 有哪些",
+      "expect_domain": "bot_manage",
+      "expect_mode": "gather",
+      "expect_sop": false,
+      "require_tools": [
+        "list_smart_trades"
+      ]
+    },
+    {
+      "id": "turn_plan_backtest_history",
+      "turn_id": "backtest_history",
+      "category": "history_report",
+      "title": "TurnPlan · 多轮 · 回测后查历史",
+      "description": "同 session：先跑回测，再问小米上次回测结果。",
+      "setup": [
+        "帮我用SAR加MACD回测一下小米"
+      ],
+      "message": "小米上次回测结果怎么样",
+      "expect_domain": "backtest_history",
+      "expect_mode": "gather",
+      "expect_sop": false,
+      "require_tools": [
+        "list_strategy_backtest_logs"
+      ]
+    },
+    {
+      "id": "turn_plan_report_lookup",
+      "turn_id": "report_lookup",
+      "category": "history_report",
+      "title": "TurnPlan · 单轮 · 盘前报告",
+      "description": "独立 session：查询盘前报告内容。",
+      "setup": null,
+      "message": "今天盘前报告写了什么内容",
+      "expect_domain": "report_lookup",
+      "expect_mode": "gather",
+      "expect_sop": false,
+      "require_tools": [
+        "get_stock_premarket_reports"
+      ]
+    },
+    {
+      "id": "turn_plan_knowledge_lookup",
+      "turn_id": "knowledge_lookup",
+      "category": "knowledge_news",
+      "title": "TurnPlan · 单轮 · 知识库检索",
+      "description": "独立 session：从知识库讲解 4H MACD。",
+      "setup": null,
+      "message": "按知识库帮我讲讲4小时MACD怎么用",
+      "expect_domain": "knowledge",
+      "expect_mode": "gather",
+      "expect_sop": false,
+      "require_tools": [
+        "search_knowledge"
+      ]
+    },
+    {
+      "id": "turn_plan_news_lookup",
+      "turn_id": "news_lookup",
+      "category": "knowledge_news",
+      "title": "TurnPlan · 单轮 · 新闻查询",
+      "description": "独立 session：拉取市场新闻。",
+      "setup": null,
+      "message": "最近有什么财经新闻",
+      "expect_domain": "news",
+      "expect_mode": "gather",
+      "expect_sop": false,
+      "require_tools": [
+        "fetch_market_news"
+      ]
+    },
+    {
+      "id": "turn_plan_dca_grid_backtest",
+      "turn_id": "dca_grid_backtest",
+      "category": "backtest",
+      "title": "TurnPlan · 单轮 · DCA 定投回测",
+      "description": "独立 session：DCA/网格类回测意图。",
+      "setup": null,
+      "message": "帮我做一个DCA定投策略回测",
+      "expect_domain": "dca_grid",
+      "expect_mode": "execute",
+      "expect_sop": false,
+      "require_tools": [
+        "generate_dca_strategy"
+      ]
+    }
+  ]
+}

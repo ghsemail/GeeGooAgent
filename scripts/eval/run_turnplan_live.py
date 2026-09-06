@@ -1,42 +1,30 @@
 #!/usr/bin/env python3
-"""Run TurnPlan stock_analysis live eval cases via agent-runtime API (remote localhost)."""
+"""Run TurnPlan live eval cases via agent-runtime (chat/stream + verify).
+
+Reads case manifest from turnplan_cases.json (generated from Go source).
+Intended to run on the agent host (localhost :3400).
+"""
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import textwrap
 import urllib.error
 import urllib.request
-import os
+from pathlib import Path
 
-CASES = [
-    {
-        "id": "turn_plan_stock_price",
-        "setup": [],
-        "message": "帮我查一下腾讯控股现在的股价",
-    },
-    {
-        "id": "turn_plan_stock_technical_chain",
-        "setup": ["帮我查一下腾讯控股现在的股价"],
-        "message": "再帮我看看腾讯的技术面和K线图",
-    },
-    {
-        "id": "turn_plan_stock_symbol_switch",
-        "setup": ["帮我分析一下中际旭创"],
-        "message": "不聊中际旭创了，帮我分析一下贵州茅台",
-    },
-    {
-        "id": "turn_plan_stock_colloquial_ref",
-        "setup": ["帮我分析一下中际旭创"],
-        "message": "它最近走势怎么样",
-    },
-]
+MANIFEST = Path(__file__).with_name("turnplan_cases.json")
+CHAT_TIMEOUT = int(os.environ.get("TURNPLAN_CHAT_TIMEOUT", "900"))
+VERIFY_TIMEOUT = int(os.environ.get("TURNPLAN_VERIFY_TIMEOUT", "120"))
+
+
+def load_manifest() -> dict:
+    return json.loads(MANIFEST.read_text(encoding="utf-8"))
 
 
 def load_env() -> tuple[str, str]:
-    import os
-
     home = os.path.expanduser("~/.geegoo")
     env: dict[str, str] = {}
     with open(os.path.join(home, "agent.env"), encoding="utf-8") as f:
@@ -57,7 +45,7 @@ def load_env() -> tuple[str, str]:
     return runtime_key, mcp_token
 
 
-def post_json(url: str, body: dict, headers: dict, timeout: int = 900) -> tuple[int, str]:
+def post_json(url: str, body: dict, headers: dict, timeout: int) -> tuple[int, str]:
     data = json.dumps(body, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     try:
@@ -76,7 +64,7 @@ def chat_turn(runtime_key: str, mcp_token: str, message: str, session_id: str = 
     body = {"message": message, "mcp_token": mcp_token}
     if session_id:
         body["session_id"] = session_id
-    status, raw = post_json("http://127.0.0.1:3400/v1/chat/stream", body, headers, timeout=900)
+    status, raw = post_json("http://127.0.0.1:3400/v1/chat/stream", body, headers, CHAT_TIMEOUT)
     if status != 200:
         return {"ok": False, "error": f"chat HTTP {status}: {raw[:500]}"}
 
@@ -98,27 +86,22 @@ def chat_turn(runtime_key: str, mcp_token: str, message: str, session_id: str = 
                     turn_end = json.loads(payload)
                 except json.JSONDecodeError:
                     turn_end = {"raw": payload}
-    failed = bool(turn_end.get("failed"))
-    reply = turn_end.get("assistant_text") or ""
     return {
-        "ok": not failed,
+        "ok": not bool(turn_end.get("failed")),
         "session_id": sid,
-        "reply": reply,
-        "failed": failed,
+        "reply": turn_end.get("assistant_text") or "",
+        "failed": bool(turn_end.get("failed")),
         "error": turn_end.get("error", ""),
     }
 
 
 def verify_case(runtime_key: str, case_id: str, session_id: str) -> dict:
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {runtime_key}",
-    }
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {runtime_key}"}
     status, raw = post_json(
         f"http://127.0.0.1:3400/v1/dashboard/eval/cases/{case_id}/verify",
         {"session_id": session_id},
         headers,
-        timeout=120,
+        VERIFY_TIMEOUT,
     )
     try:
         data = json.loads(raw)
@@ -144,7 +127,13 @@ def run_case(runtime_key: str, mcp_token: str, case: dict) -> dict:
         return {"case_id": cid, "passed": False, "stage": "final", "error": r}
     session_id = r["session_id"]
     if not r.get("ok"):
-        return {"case_id": cid, "passed": False, "stage": "final", "error": r, "reply_preview": r.get("reply", "")[:200]}
+        return {
+            "case_id": cid,
+            "passed": False,
+            "stage": "final",
+            "error": r,
+            "reply_preview": (r.get("reply") or "")[:200],
+        }
 
     v = verify_case(runtime_key, cid, session_id)
     passed = bool(v.get("ok")) and v.get("http") == 200
@@ -157,21 +146,72 @@ def run_case(runtime_key: str, mcp_token: str, case: dict) -> dict:
     }
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--case", help="run single case id (default: all)")
-    args = parser.parse_args()
-
-    runtime_key, mcp_token = load_env()
-    cases = CASES
+def select_cases(manifest: dict, *, case_id: str, category: str) -> list[dict]:
+    cases = manifest.get("cases") or []
     only = os.environ.get("TURNPLAN_ONLY_CASE", "").strip()
     if only:
-        cases = [c for c in CASES if c["id"] == only]
-    if args.case:
-        cases = [c for c in CASES if c["id"] == args.case]
-        if not cases:
-            print(f"unknown case: {args.case}", file=sys.stderr)
-            return 2
+        case_id = only
+    if case_id:
+        picked = [c for c in cases if c["id"] == case_id]
+        if not picked:
+            raise SystemExit(f"unknown case: {case_id}")
+        return picked
+    if category:
+        picked = [c for c in cases if c.get("category") == category]
+        if not picked:
+            raise SystemExit(f"unknown category: {category}")
+        return picked
+    return cases
+
+
+def print_case_result(res: dict) -> None:
+    if res.get("passed"):
+        print(f"PASS  session={res.get('session_id')}", flush=True)
+        preview = res.get("reply_preview") or ""
+        if preview:
+            print(textwrap.fill(preview, width=88), flush=True)
+        return
+    print(f"FAIL  stage={res.get('stage', 'verify')}", flush=True)
+    if res.get("reply_preview"):
+        print("reply:", res["reply_preview"], flush=True)
+    verify = res.get("verify") or res.get("error") or {}
+    detail = verify.get("detail") if isinstance(verify, dict) else str(verify)
+    if detail:
+        print("detail:", detail, flush=True)
+    checks = verify.get("checks") if isinstance(verify, dict) else None
+    if checks:
+        for c in checks:
+            if not c.get("passed"):
+                print(f"  - {c.get('type')}: {c.get('detail')}", flush=True)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Run TurnPlan live eval via agent-runtime")
+    parser.add_argument("--list", action="store_true", help="list cases grouped by category")
+    parser.add_argument("--case", help="run one case id, e.g. turn_plan_stock_price")
+    parser.add_argument("--category", help="run one category, e.g. stock_analysis")
+    args = parser.parse_args()
+
+    manifest = load_manifest()
+    if args.list:
+        cats = {c["id"]: c["title"] for c in manifest.get("categories", [])}
+        by_cat: dict[str, list[str]] = {}
+        for c in manifest.get("cases", []):
+            by_cat.setdefault(c.get("category", "?"), []).append(c["id"])
+        for cat in manifest.get("categories", []):
+            title = cat.get("title") or cat["id"]
+            ids = by_cat.get(cat["id"], [])
+            print(f"\n[{cat['id']}] {title} ({len(ids)})")
+            for cid in ids:
+                print(f"  - {cid}")
+        return 0
+
+    runtime_key, mcp_token = load_env()
+    try:
+        cases = select_cases(manifest, case_id=args.case or "", category=args.category or "")
+    except SystemExit as e:
+        print(e, file=sys.stderr)
+        return 2
 
     results = []
     all_ok = True
@@ -179,25 +219,9 @@ def main() -> int:
         print(f"\n======== {case['id']} ========", flush=True)
         res = run_case(runtime_key, mcp_token, case)
         results.append(res)
-        if res.get("passed"):
-            print(f"PASS  session={res.get('session_id')}", flush=True)
-            preview = res.get("reply_preview") or ""
-            if preview:
-                print(textwrap.fill(preview, width=88), flush=True)
-        else:
+        print_case_result(res)
+        if not res.get("passed"):
             all_ok = False
-            print(f"FAIL  stage={res.get('stage', 'verify')}", flush=True)
-            if res.get("reply_preview"):
-                print("reply:", res["reply_preview"], flush=True)
-            verify = res.get("verify") or res.get("error") or {}
-            detail = verify.get("detail") if isinstance(verify, dict) else str(verify)
-            if detail:
-                print("detail:", detail, flush=True)
-            checks = verify.get("checks") if isinstance(verify, dict) else None
-            if checks:
-                for c in checks:
-                    if not c.get("passed"):
-                        print(f"  - {c.get('type')}: {c.get('detail')}", flush=True)
 
     print("\n======== SUMMARY ========", flush=True)
     for r in results:

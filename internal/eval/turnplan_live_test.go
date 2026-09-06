@@ -14,6 +14,22 @@ func TestIndividualTurnPlanEvalCasesCount(t *testing.T) {
 	if len(cases) != 23 {
 		t.Fatalf("cases=%d want 23", len(cases))
 	}
+	live := eval.DefaultTurnPlanLiveCases()
+	if len(live) != 23 {
+		t.Fatalf("live=%d want 23", len(live))
+	}
+	seen := map[string]int{}
+	for _, c := range live {
+		if c.Category == "" {
+			t.Fatalf("%s missing category", c.ID)
+		}
+		seen[c.Category]++
+	}
+	for _, cat := range eval.TurnPlanCategories() {
+		if seen[cat.ID] == 0 {
+			t.Fatalf("category %s has no cases", cat.ID)
+		}
+	}
 	for _, c := range cases {
 		if c.Options.PlanOnly {
 			t.Fatalf("%s still plan_only", c.ID)
