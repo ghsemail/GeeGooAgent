@@ -101,7 +101,7 @@ func (r *Router) runProbe(ctx context.Context, in Input) runtime.TurnResult {
 func heuristicProbePlan(message string) ProbeRunPlan {
 	plan := ProbeRunPlan{MonthsBack: 3, Frequency: ""}
 	msg := strings.TrimSpace(message)
-	plan.StockQuery = slots.ExtractStockQuery(msg)
+	plan.StockQuery = slots.SanitizeStockQuery(slots.ExtractStockQuery(msg))
 	upper := strings.ToUpper(msg)
 	switch {
 	case strings.Contains(upper, "SAR") && strings.Contains(upper, "MACD"):

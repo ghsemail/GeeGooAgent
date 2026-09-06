@@ -15,8 +15,8 @@ var (
 	reHKCode    = regexp.MustCompile(`\b(\d{4,5})(?:\.HK)?\b`)
 	reAShare    = regexp.MustCompile(`(?i)\b(\d{6})(?:\.(?:SZ|SH|BJ))?\b`)
 	reCJKRun    = regexp.MustCompile(`\p{Han}{2,8}`)
-	reIntentPad = regexp.MustCompile(`帮我回测一下|帮我测试一下|帮我回测|回测一下|跑回测|来回测|再回测|测试一下|测一下|看一下|帮我分析一下|分析一下|帮我分析|就用刚才那套|刚才那套|用现成的来回测|不要新建`)
-	reStockAfterIntent = regexp.MustCompile(`(?:分析|回测|查|看|测)(?:一下|下)?\s*([\p{Han}]{2,8})`)
+	reIntentPad = regexp.MustCompile(`帮我回测一下|帮我测试一下|帮我回测|回测一下|跑回测|来回测|再回测|测试一下|测一下|看一下|帮我看看|看看|帮我分析一下|分析一下|帮我分析|帮我|就用刚才那套|刚才那套|用现成的来回测|不要新建`)
+	reStockAfterIntent = regexp.MustCompile(`(?:分析(?:一下|下)?|回测(?:一下|下)?|查(?:一下|下)?|看(?:一下|下)|测(?:一下|下)?)\s*([\p{Han}]{2,12})`)
 )
 
 var tickerStopwords = map[string]struct{}{
@@ -32,7 +32,13 @@ var cjkStockStops = []string{
 	"趋势", "直方图", "金叉", "死叉", "抛物线", "共振", "哪些", "现在", "标的",
 	"股票", "一下", "请问", "帮我", "测试", "频率", "支持", "配套", "规则",
 	"买入", "卖出", "简介", "当前", "全部", "三种", "共有", "怎么样", "分析",
-	"有没有", "买卖点", "买卖", "技术面", "价格", "K线", "线图", "蜡烛",
+	"有没有", "买卖点", "买卖", "买点", "卖点", "技术面", "价格", "K线", "线图", "蜡烛",
+}
+
+// Longest-first suffixes glued to a company name in probe/backtest utterances.
+var stockIntentSuffixes = []string{
+	"有没有买卖点", "有没有买卖", "有没有买点", "有没有卖点",
+	"有没有买", "有没有卖", "有没有", "买卖点", "买点", "卖点", "买卖",
 }
 
 var knownStockAliases = []string{
@@ -78,11 +84,8 @@ func ExtractExplicitStockReference(msg string) string {
 	}
 	stripped := reIntentPad.ReplaceAllString(msg, " ")
 	for _, run := range reCJKRun.FindAllString(stripped, -1) {
-		if len([]rune(run)) < 3 {
-			continue
-		}
-		if !isCJKStockStop(run) {
-			return run
+		if q, ok := acceptStockCandidate(run); ok {
+			return q
 		}
 	}
 	return ""
@@ -128,8 +131,8 @@ func ExtractStockQuery(msg string) string {
 	stripped := reIntentPad.ReplaceAllString(msg, " ")
 	cjk := reCJKRun.FindAllString(stripped, -1)
 	for i := len(cjk) - 1; i >= 0; i-- {
-		if !isCJKStockStop(cjk[i]) {
-			return cjk[i]
+		if q, ok := acceptStockCandidate(cjk[i]); ok {
+			return q
 		}
 	}
 	return ""
@@ -141,16 +144,8 @@ func extractStockAfterIntentVerb(msg string) string {
 		if len(matches[i]) < 2 {
 			continue
 		}
-		cand := trimTrailingStockParticles(strings.TrimSpace(matches[i][1]))
-		if cand == "" {
-			continue
-		}
-		n := len([]rune(cand))
-		if n >= 3 && !isCJKStockStop(cand) {
-			return cand
-		}
-		if n >= 2 && !isCJKStockStop(cand) {
-			return cand
+		if q, ok := acceptStockCandidate(matches[i][1]); ok {
+			return q
 		}
 	}
 	return ""
@@ -170,11 +165,68 @@ func extractTrailingCJKStock(msg string) string {
 			break
 		}
 	}
-	cand := trimTrailingStockParticles(string(buf))
-	if len([]rune(cand)) >= 3 && !isCJKStockStop(cand) {
-		return cand
+	if q, ok := acceptStockCandidate(string(buf)); ok {
+		return q
 	}
 	return ""
+}
+
+// normalizeStockCandidate strips intent glue words accidentally merged with a company name.
+func normalizeStockCandidate(raw string) string {
+	s := trimTrailingStockParticles(strings.TrimSpace(raw))
+	if s == "" {
+		return ""
+	}
+	if idx := strings.Index(s, "有没有"); idx > 0 {
+		prefix := strings.TrimSpace(s[:idx])
+		if len([]rune(prefix)) >= 2 {
+			s = prefix
+		}
+	}
+	for {
+		changed := false
+		for _, suf := range stockIntentSuffixes {
+			if strings.HasSuffix(s, suf) && len([]rune(s)) > len([]rune(suf)) {
+				s = strings.TrimSpace(strings.TrimSuffix(s, suf))
+				changed = true
+			}
+		}
+		if !changed {
+			break
+		}
+	}
+	for _, prefix := range []string{"看看", "看下", "看一下", "分析", "查", "看", "测"} {
+		if strings.HasPrefix(s, prefix) && len([]rune(s)) > len([]rune(prefix)) {
+			s = strings.TrimSpace(strings.TrimPrefix(s, prefix))
+		}
+	}
+	return strings.TrimSpace(s)
+}
+
+func acceptStockCandidate(raw string) (string, bool) {
+	q := normalizeStockCandidate(raw)
+	if q == "" {
+		return "", false
+	}
+	n := len([]rune(q))
+	if n < 2 {
+		return "", false
+	}
+	if isCJKStockStop(q) {
+		return "", false
+	}
+	if _, stop := tickerStopwords[strings.ToUpper(q)]; stop {
+		return "", false
+	}
+	if n == 2 {
+		for _, alias := range knownStockAliases {
+			if q == alias {
+				return q, true
+			}
+		}
+		return "", false
+	}
+	return q, true
 }
 
 func trimTrailingStockParticles(s string) string {
@@ -218,6 +270,15 @@ func isCJKStockStop(s string) bool {
 		}
 	}
 	return false
+}
+
+// SanitizeStockQuery keeps ExtractStockQuery output only when it plausibly names a ticker.
+func SanitizeStockQuery(q string) string {
+	q = strings.TrimSpace(q)
+	if q == "" || !LooksLikeStockQuery(q) {
+		return ""
+	}
+	return q
 }
 
 // LooksLikeStockQuery rejects frequency words and indicator tokens mistaken as tickers.

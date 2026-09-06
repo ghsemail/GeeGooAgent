@@ -20,6 +20,61 @@ func TestExtractStockQueryZhongji(t *testing.T) {
 	}
 }
 
+func TestExtractStockQueryProbeWithMaiMaiDian(t *testing.T) {
+	cases := []struct {
+		msg  string
+		want string
+	}{
+		{
+			msg:  "就用SAR加MACD组合，帮我测一下中际旭创有没有买卖点",
+			want: "中际旭创",
+		},
+		{
+			msg:  "帮我看看中际旭创有没有买卖点",
+			want: "中际旭创",
+		},
+		{
+			msg:  "测一下中际旭创有没有买点",
+			want: "中际旭创",
+		},
+		{
+			msg:  "测一下中际旭创有没有卖点",
+			want: "中际旭创",
+		},
+	}
+	for _, tc := range cases {
+		if got := ExtractStockQuery(tc.msg); got != tc.want {
+			t.Fatalf("ExtractStockQuery(%q)=%q want %q", tc.msg, got, tc.want)
+		}
+	}
+}
+
+func TestExtractStockQueryRejectsMaiMaiDianFragments(t *testing.T) {
+	for _, msg := range []string{"有没有买卖点", "卖点", "买点", "有没有买"} {
+		if got := ExtractStockQuery(msg); got != "" {
+			t.Fatalf("ExtractStockQuery(%q)=%q want empty", msg, got)
+		}
+	}
+}
+
+func TestNormalizeStockCandidate(t *testing.T) {
+	cases := map[string]string{
+		"中际旭创有没有买":   "中际旭创",
+		"中际旭创有没有买卖点": "中际旭创",
+		"腾讯有没有卖点":    "腾讯",
+	}
+	for in, want := range cases {
+		if got := normalizeStockCandidate(in); got != want {
+			t.Fatalf("normalizeStockCandidate(%q)=%q want %q", in, got, want)
+		}
+	}
+	for _, bad := range []string{"卖点", "买点", "有没有买"} {
+		if _, ok := acceptStockCandidate(bad); ok {
+			t.Fatalf("acceptStockCandidate(%q) should reject", bad)
+		}
+	}
+}
+
 func TestExtractExplicitStockReferenceIgnoresKLineFollowUp(t *testing.T) {
 	msg := "可以，分析下技术面的价格和K线图"
 	if got := ExtractExplicitStockReference(msg); got != "" {

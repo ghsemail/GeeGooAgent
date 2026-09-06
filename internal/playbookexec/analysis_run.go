@@ -93,7 +93,7 @@ func (r *Router) runAnalysis(ctx context.Context, in Input) runtime.TurnResult {
 func heuristicAnalysisPlan(message string) AnalysisRunPlan {
 	plan := AnalysisRunPlan{Period: "daily", Tag: "price"}
 	msg := strings.TrimSpace(message)
-	plan.StockQuery = slots.ExtractStockQuery(msg)
+	plan.StockQuery = slots.SanitizeStockQuery(slots.ExtractStockQuery(msg))
 	lower := strings.ToLower(msg)
 	if analysisHasAny(msg, []string{"这周", "周线", "weekly"}) {
 		plan.Period = "weekly"

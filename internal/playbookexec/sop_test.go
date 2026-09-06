@@ -10,12 +10,15 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
-func TestRunProbeSOP(t *testing.T) {
-	session := runtime.NewSession()
-	router := &Router{
+func probeTestRouter(t *testing.T, searchRegex *string) *Router {
+	t.Helper()
+	return &Router{
 		RunTool: func(_ context.Context, req tools.CallRequest, _ tools.Context) tools.Result {
 			switch req.Name {
 			case "search_code":
+				if searchRegex != nil {
+					*searchRegex = fmt.Sprint(req.Arguments["regex"])
+				}
 				return tools.Result{
 					Status: tools.StatusOK,
 					Data:   map[string]any{"items": []any{map[string]any{"code": "300308.SZ", "name": "中际旭创", "market": "CN"}}},
@@ -40,13 +43,36 @@ func TestRunProbeSOP(t *testing.T) {
 			}
 		},
 	}
-	result, ok := router.TryRunFromPlan(context.Background(), Input{
+}
+
+func TestRunProbeSOP(t *testing.T) {
+	session := runtime.NewSession()
+	result, ok := probeTestRouter(t, nil).TryRunFromPlan(context.Background(), Input{
 		Session:  session,
 		UserText: "测一下中际旭创 SAR+MACD 买卖点",
 		StepBase: 1,
 	}, "signal_probe")
 	if !ok || result.Failed {
 		t.Fatalf("ok=%v failed=%v err=%s", ok, result.Failed, result.Error)
+	}
+	if !contains(result.AssistantText, "信号探测") {
+		t.Fatalf("reply=%q", result.AssistantText)
+	}
+}
+
+func TestRunProbeSOPEvalFollowUpMessage(t *testing.T) {
+	session := runtime.NewSession()
+	var searchRegex string
+	result, ok := probeTestRouter(t, &searchRegex).TryRunFromPlan(context.Background(), Input{
+		Session:  session,
+		UserText: "就用SAR加MACD组合，帮我测一下中际旭创有没有买卖点",
+		StepBase: 1,
+	}, "signal_probe")
+	if !ok || result.Failed {
+		t.Fatalf("ok=%v failed=%v err=%s regex=%q", ok, result.Failed, result.Error, searchRegex)
+	}
+	if searchRegex != "中际旭创" {
+		t.Fatalf("search regex=%q want 中际旭创", searchRegex)
 	}
 	if !contains(result.AssistantText, "信号探测") {
 		t.Fatalf("reply=%q", result.AssistantText)

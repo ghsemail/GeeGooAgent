@@ -100,7 +100,7 @@ func heuristicBacktestPlan(message string) BacktestRunPlan {
 		}
 	}
 
-	plan.StockQuery = slots.ExtractStockQuery(msg)
+	plan.StockQuery = slots.SanitizeStockQuery(slots.ExtractStockQuery(msg))
 	applySignalHeuristics(&plan, msg)
 	return plan
 }
