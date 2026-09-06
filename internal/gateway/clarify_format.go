@@ -26,7 +26,7 @@ func FormatClarifyMessage(question string, choices []string) string {
 		b.WriteString(choice)
 		b.WriteByte('\n')
 	}
-	b.WriteString("\n回复字母（如 A）或输入你的选择；回复「跳过」可暂不回答。")
+	b.WriteString("\n回复 A / B / C。")
 	return b.String()
 }
 

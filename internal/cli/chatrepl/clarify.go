@@ -43,7 +43,7 @@ func promptClarifyCLI(r *Repl, question string, choices []string) (string, bool)
 	for i, opt := range options {
 		r.UI.PrintInfo(fmt.Sprintf("  [%s] %s", tools.ClarifyChoiceLabel(i), opt))
 	}
-	r.UI.PrintInfo("输入 A/B/C…、编号、选项全文，或 Esc 跳过（空行跳过）")
+	r.UI.PrintInfo("输入 A / B / C，或 Esc 跳过（空行跳过）")
 	r.UI.PrintPrompt()
 	line, err := readClarifyLine(r)
 	if err != nil {
