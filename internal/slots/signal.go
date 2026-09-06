@@ -147,6 +147,7 @@ func indexRowToRules(row map[string]any) (buy, sell []any, frequency, label stri
 		frequency = "60m"
 	}
 	label = strings.TrimSpace(fmt.Sprint(row["name"]))
+	buy, sell = normalizeSignalRulesPair(buy, sell)
 	return buy, sell, frequency, label, nil
 }
 
@@ -156,9 +157,7 @@ func rowToResolved(row map[string]any) (ResolvedSignal, error) {
 	if len(buy) == 0 {
 		return ResolvedSignal{}, fmt.Errorf("组合信号缺少 buy_signal")
 	}
-	if len(sell) == 0 {
-		sell = buy
-	}
+	buy, sell = normalizeSignalRulesPair(buy, sell)
 	frequency := strings.TrimSpace(fmt.Sprint(row["frequency"]))
 	if frequency == "" {
 		frequency = "60m"

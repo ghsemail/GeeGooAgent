@@ -28,9 +28,16 @@ func probeTestRouter(t *testing.T, searchRegex *string, withLLMPlan bool) *Route
 				return tools.Result{
 					Status: tools.StatusOK,
 					Data: map[string]any{"items": []any{map[string]any{
-						"name":       "SAR信号配套MACD直方图趋势",
-						"buy_signal": []any{map[string]any{"index": "SAR"}},
-						"frequency":  "60m",
+						"name": "SAR信号配套MACD直方图趋势",
+						"buy_signal": []any{
+							map[string]any{"index": "SAR", "type": "signal", "param": map[string]any{}},
+							map[string]any{"index": "MACD", "type": "flag", "param": map[string]any{}},
+						},
+						"sell_signal": []any{
+							map[string]any{"index": "SAR", "param": map[string]any{}},
+							map[string]any{"index": "MACD", "param": map[string]any{}},
+						},
+						"frequency": "60m",
 					}}},
 				}
 			case "probe_bot_signal_series":
