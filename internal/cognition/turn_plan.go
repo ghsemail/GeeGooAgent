@@ -64,20 +64,15 @@ type Planner interface {
 }
 
 // ShouldRunBacktestPlaybook reports whether the deterministic backtest SOP may run.
+// Deprecated: execution is always model-driven via ReAct; kept for compatibility.
 func (p TurnPlan) ShouldRunBacktestPlaybook() bool {
-	return p.Domain == DomainBacktestRun && p.Mode == ModeExecute
+	return false
 }
 
 // ShouldRunDomainSOP reports whether a deterministic domain playbook may run.
+// Execution always follows TurnPlan tool allow-list + ReAct (Cursor/Codex style).
 func (p TurnPlan) ShouldRunDomainSOP() bool {
-	switch p.Domain {
-	case DomainBacktestRun, DomainSignalProbe:
-		return p.Mode == ModeExecute
-	case DomainStockAnalysis, DomainDCAGrid:
-		return p.Mode == ModeGather
-	default:
-		return false
-	}
+	return false
 }
 
 // FilterSchemas keeps only tools allowed by the plan (plus clarify).

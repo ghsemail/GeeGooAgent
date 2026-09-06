@@ -51,16 +51,6 @@ func TestRulePlannerRoutesAcrossDomains(t *testing.T) {
 				t.Fatalf("%q: tools should not include %s", tc.msg, bad)
 			}
 		}
-		if tc.domain == DomainBacktestRun && !plan.ShouldRunDomainSOP() {
-			t.Fatalf("%q: expected domain SOP", tc.msg)
-		}
-		if tc.msg == "帮我看看我有哪些信号策略" && !plan.ShouldRunDomainSOP() {
-			t.Fatalf("%q: catalog list should run gather SOP", tc.msg)
-		}
-		if tc.domain != DomainBacktestRun && tc.domain != DomainStockAnalysis && tc.domain != DomainSignalProbe &&
-			!(tc.domain == DomainDCAGrid && tc.mode == ModeGather) && plan.ShouldRunDomainSOP() {
-			t.Fatalf("%q: must not run domain SOP", tc.msg)
-		}
 	}
 }
 
@@ -91,15 +81,16 @@ func TestRulePlannerFollowsLastDomainAndClarifyChoices(t *testing.T) {
 		last     Domain
 		domain   Domain
 		mode     Mode
-		playbook bool
 	}{
 		{msg: "换成贵州茅台", last: DomainStockAnalysis, domain: DomainStockAnalysis, mode: ModeGather},
+		{msg: "不聊中际旭创了，帮我分析一下贵州茅台", last: DomainStockAnalysis, domain: DomainStockAnalysis, mode: ModeGather},
+		{msg: "它最近走势怎么样", last: DomainStockAnalysis, domain: DomainStockAnalysis, mode: ModeGather},
 		{msg: "MACD", last: DomainStockAnalysis, domain: DomainStockAnalysis, mode: ModeGather},
 		{msg: "个股/指标分析", last: DomainAmbiguous, domain: DomainStockAnalysis, mode: ModeGather},
 		{msg: "测买卖点", last: DomainAmbiguous, domain: DomainSignalProbe, mode: ModeExecute},
-		{msg: "跑回测看收益", last: DomainAmbiguous, domain: DomainBacktestRun, mode: ModeExecute, playbook: true},
+		{msg: "跑回测看收益", last: DomainAmbiguous, domain: DomainBacktestRun, mode: ModeExecute},
 		{msg: "先问答，先不操作", last: DomainAmbiguous, domain: DomainChat, mode: ModeTalk},
-		{msg: "帮我回测小米", last: DomainStockAnalysis, domain: DomainBacktestRun, mode: ModeExecute, playbook: true},
+		{msg: "帮我回测小米", last: DomainStockAnalysis, domain: DomainBacktestRun, mode: ModeExecute},
 		{msg: "MACD", last: "", domain: DomainAmbiguous, mode: ModeClarify},
 	}
 	for _, tc := range cases {
@@ -107,9 +98,6 @@ func TestRulePlannerFollowsLastDomainAndClarifyChoices(t *testing.T) {
 		if plan.Domain != tc.domain || plan.Mode != tc.mode {
 			t.Fatalf("%q last=%s: got %s/%s want %s/%s (%s)",
 				tc.msg, tc.last, plan.Domain, plan.Mode, tc.domain, tc.mode, plan.Reason)
-		}
-		if plan.ShouldRunBacktestPlaybook() != tc.playbook {
-			t.Fatalf("%q playbook=%v want %v", tc.msg, plan.ShouldRunBacktestPlaybook(), tc.playbook)
 		}
 	}
 }
@@ -126,29 +114,43 @@ func (m *classifyMock) Chat(_ context.Context, _ []llm.Message, _ []llm.ToolSche
 	return &llm.Response{Content: m.body}, nil
 }
 
-func TestIntentPlannerUsesLLMOnlyInGrayZone(t *testing.T) {
-	mock := &classifyMock{body: `{"domain":"stock_analysis","confidence":0.8,"reason":"indicator mention"}`}
+func TestIntentPlannerPrefersLLMWhenAvailable(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"stock_analysis","mode":"gather","confidence":0.8,"reason":"indicator mention"}`}
 	p := IntentPlanner{Rules: RulePlanner{}, LLM: mock}
 
-	hi := p.Plan(PlanInput{UserText: "腾讯现在怎么样"})
-	if hi.Domain != DomainStockAnalysis {
-		t.Fatalf("analysis domain=%s", hi.Domain)
+	got := p.Plan(PlanInput{UserText: "腾讯现在怎么样"})
+	if got.Domain != DomainStockAnalysis {
+		t.Fatalf("analysis domain=%s", got.Domain)
 	}
-	if mock.calls != 0 {
-		t.Fatalf("high-confidence analysis must not call LLM, calls=%d", mock.calls)
+	if mock.calls != 1 {
+		t.Fatalf("LLM should classify every turn when available, calls=%d", mock.calls)
 	}
 
-	got := p.Plan(PlanInput{UserText: "MACD"})
-	if mock.calls != 0 {
-		t.Fatalf("ambiguous/clarify must not call classify LLM, calls=%d", mock.calls)
+	mock.calls = 0
+	mock.body = `{"domain":"ambiguous","mode":"clarify","confidence":0.7,"reason":"bare macd"}`
+	got = p.Plan(PlanInput{UserText: "MACD"})
+	if mock.calls != 1 {
+		t.Fatalf("LLM should classify ambiguous turns, calls=%d", mock.calls)
 	}
 	if got.Domain != DomainAmbiguous || got.Mode != ModeClarify {
-		t.Fatalf("MACD should stay clarify, got %s/%s", got.Domain, got.Mode)
+		t.Fatalf("MACD should be clarify, got %s/%s", got.Domain, got.Mode)
+	}
+}
+
+func TestIntentPlannerSkipsLLMOnClarifyChoice(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"chat","mode":"talk","confidence":0.9,"reason":"wrong"}`}
+	p := IntentPlanner{Rules: RulePlanner{}, LLM: mock}
+	got := p.Plan(PlanInput{UserText: "测买卖点", LastDomain: DomainAmbiguous})
+	if mock.calls != 0 {
+		t.Fatalf("clarify choice must not call LLM, calls=%d", mock.calls)
+	}
+	if got.Domain != DomainSignalProbe || got.Mode != ModeExecute {
+		t.Fatalf("choice should map to probe, got %s/%s", got.Domain, got.Mode)
 	}
 }
 
 func TestIntentPlannerRejectsBacktestWithoutVerb(t *testing.T) {
-	mock := &classifyMock{body: `{"domain":"backtest_run","confidence":0.99,"reason":"signals"}`}
+	mock := &classifyMock{body: `{"domain":"backtest_run","mode":"execute","confidence":0.99,"reason":"signals"}`}
 	p := IntentPlanner{Rules: RulePlanner{}, LLM: mock}
 	got := p.Plan(PlanInput{UserText: "这个信号怎么样"})
 	if got.ShouldRunBacktestPlaybook() || got.Domain == DomainBacktestRun {

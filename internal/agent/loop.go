@@ -441,19 +441,6 @@ func (l *Loop) runPreparedTurn(
 		return result
 	}
 
-	if turnPlan.ShouldRunDomainSOP() && l.playbookRouter != nil {
-		if result, handled := l.playbookRouter.TryRunFromPlan(ctx, playbookexec.Input{
-			Session:       session,
-			UserText:      userText,
-			MatchedSkills: matchedSkills,
-			ToolCtx:       toolCtx,
-			StepBase:      session.StepCounter + 1,
-			OnProgress:    l.onProgress,
-		}, string(turnPlan.Domain)); handled {
-			l.evaluateTurn(ctx, session, result)
-			return result
-		}
-	}
 	schemas = playbookexec.FilterLegacyBacktestTools(schemas, userText, session)
 
 	messages = session.LLMMessages()

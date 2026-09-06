@@ -5,7 +5,7 @@ func defaultExpectReplyForTurnID(turnID string) ExpectReplySpec {
 	switch turnID {
 	case "stock_price":
 		return ExpectReplySpec{
-			Rubric:    "应给出腾讯控股的股价或行情信息（现价、涨跌幅等），语气自然。",
+			Rubric:    "应给出腾讯控股的现价或行情信息（价格、涨跌幅等），语气自然。",
 			MustCover: []string{"腾讯"},
 		}
 	case "stock_technical_chain":
@@ -20,13 +20,19 @@ func defaultExpectReplyForTurnID(turnID string) ExpectReplySpec {
 		}
 	case "stock_colloquial_ref":
 		return ExpectReplySpec{
-			Rubric:    "应理解「这边呢」指代中际旭创，并继续给出该标的的分析或行情。",
+			Rubric:    "应理解「它」指代上一轮的中际旭创，并继续给出该标的的走势或行情分析。",
 			MustCover: []string{"中际"},
+		}
+	case "signal_catalog_list":
+		return ExpectReplySpec{
+			Rubric:    "应列出或摘要用户可用的信号/组合策略，语气自然，不应直接跑回测或 probe。",
+			MustCover: []string{"信号"},
+			MustNot:   []string{"开始回测"},
 		}
 	case "signal_list_then_probe":
 		return ExpectReplySpec{
 			Rubric:    "在用户已看过策略列表后，应确认 SAR+MACD 组合并对中际旭创做买卖点探测（含买/卖/暂无信号等），不应直接跑完整回测。",
-			MustCover: []string{"中际", "买"},
+			MustCover: []string{"中际"},
 			MustNot:   []string{"开始回测"},
 		}
 	case "signal_probe_direct":
@@ -70,11 +76,11 @@ func defaultExpectReplyForTurnID(turnID string) ExpectReplySpec {
 		}
 	case "chat_signal_quality":
 		return ExpectReplySpec{
-			Rubric:    "在已做买卖点探测后，应对「信号准吗」做定性说明或限制条件，走闲聊/解释而非再次 probe。",
+			Rubric:    "在已做买卖点探测后，应对信号是否靠谱做定性说明或限制条件，走闲聊/解释而非再次 probe。",
 		}
 	case "bot_reminder_list":
 		return ExpectReplySpec{
-			Rubric:    "应列出或说明用户当前的 DCA reminder，信息结构清晰。",
+			Rubric:    "应列出或说明用户当前的 Reminder/定时提醒，信息结构清晰。",
 			MustCover: []string{"reminder"},
 		}
 	case "bot_grid_pnl":

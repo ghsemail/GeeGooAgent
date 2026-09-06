@@ -14,24 +14,38 @@ const classifyTimeout = 2 * time.Second
 
 const classifyPrompt = `You classify one user chat turn for a finance assistant.
 Reply with ONLY JSON:
-{"domain":"<one>","confidence":0.0,"reason":"<short>"}
+{"domain":"<one>","mode":"<one>","confidence":0.0,"reason":"<short>"}
 
 Allowed domain values:
 chat, stock_analysis, news, knowledge, report_lookup, report_write, bot_manage,
 signal_probe, backtest_run, backtest_history, custom_signal, prompt_admin, dca_grid, ambiguous
 
-Hard rules:
-- backtest_run ONLY if the user explicitly asked to run a backtest (回测 / 跑回测 / 再回测 / backtest).
-- Mentioning MACD, RSI, 信号, or 策略 without an explicit backtest verb is stock_analysis or ambiguous, never backtest_run.
-- signal_probe only for 买卖点 / 测信号 / 有没有买卖.
-- If unsure, use ambiguous.
+Allowed mode values:
+talk, gather, execute, clarify
 
-Rule planner hint: domain=%s reason=%s
+Domain + mode guidance:
+- stock_analysis/gather: analyze a stock, quote, technicals, trends.
+- signal_probe/execute: probe buy/sell points (买卖点 / 测信号 / 有没有买卖), not full PnL backtest.
+- backtest_run/execute: explicit backtest request (回测 / 跑回测 / backtest).
+- dca_grid/gather: list or browse available signal strategies/combinations (有哪些信号/策略/组合).
+- dca_grid/execute: DCA or grid strategy backtest/generation.
+- bot_manage/gather: list/query bots, reminders, SmartTrade, grid PnL.
+- bot_manage/execute: create/update/delete bots.
+- chat/talk: definitions, chitchat, signal quality opinions (准吗/靠谱吗) after prior context.
+- ambiguous/clarify: bare strategy words (MACD/SAR) without clear action, or compound analyze+backtest in one sentence.
+- Follow last turn domain for short follow-ups (它最近走势 / 不聊XX了 / 接着… / 刚才那次…) when the user did not switch topic.
+
+Hard rules:
+- backtest_run ONLY with an explicit backtest verb.
+- signal_probe ONLY for buy/sell point probing, not strategy listing.
+- If unsure, use ambiguous/clarify.
+
+Rule hint (non-binding): domain=%s mode=%s reason=%s
 Last turn domain: %s
 User: %s`
 
-// IntentPlanner wraps a rule planner and optionally asks a small model
-// to classify gray-zone turns. Nil LLM keeps pure rules.
+// IntentPlanner classifies turns with an LLM when available. RulePlanner
+// supplies a non-binding hint and serves as fallback when the LLM is nil or fails.
 type IntentPlanner struct {
 	Rules Planner
 	LLM   llm.Provider
@@ -39,12 +53,22 @@ type IntentPlanner struct {
 
 // Plan implements Planner.
 func (p IntentPlanner) Plan(in PlanInput) TurnPlan {
+	msg := strings.TrimSpace(in.UserText)
+	if in.LastDomain == DomainAmbiguous {
+		if d, ok := mapClarifyChoice(msg); ok {
+			plan := planForDomain(d)
+			plan.Reason = "用户选择了上一轮澄清选项"
+			plan.Confidence = 0.9
+			return plan
+		}
+	}
+
 	rules := p.Rules
 	if rules == nil {
 		rules = RulePlanner{}
 	}
 	base := rules.Plan(in)
-	if p.LLM == nil || !needsLLMAssist(base) {
+	if p.LLM == nil {
 		return base
 	}
 	got, ok := classifyWithLLM(in, p.LLM, base)
@@ -54,18 +78,9 @@ func (p IntentPlanner) Plan(in PlanInput) TurnPlan {
 	return sanitizeLLMPlan(in, base, got)
 }
 
-func needsLLMAssist(base TurnPlan) bool {
-	// Clarify is a user-facing turn. Do not block it on a classify LLM call
-	// (that call used the same auxiliary provider as the memory gate and
-	// could leave the UI on “记忆门控” / 意图分类 for many seconds).
-	if base.Mode == ModeClarify || base.Domain == DomainAmbiguous {
-		return false
-	}
-	return base.Domain == DomainChat && base.Confidence < 0.75
-}
-
 type llmClassifyJSON struct {
 	Domain     string  `json:"domain"`
+	Mode       string  `json:"mode"`
 	Confidence float64 `json:"confidence"`
 	Reason     string  `json:"reason"`
 }
@@ -78,7 +93,7 @@ func classifyWithLLM(in PlanInput, provider llm.Provider, base TurnPlan) (TurnPl
 	ctx, cancel := context.WithTimeout(ctx, classifyTimeout)
 	defer cancel()
 
-	prompt := fmt.Sprintf(classifyPrompt, base.Domain, base.Reason, in.LastDomain, strings.TrimSpace(in.UserText))
+	prompt := fmt.Sprintf(classifyPrompt, base.Domain, base.Mode, base.Reason, in.LastDomain, strings.TrimSpace(in.UserText))
 	resp, err := provider.Chat(ctx, []llm.Message{{
 		Role:    llm.RoleUser,
 		Content: prompt,
@@ -101,6 +116,12 @@ func classifyWithLLM(in PlanInput, provider llm.Provider, base TurnPlan) (TurnPl
 		return TurnPlan{}, false
 	}
 	plan := planForDomain(d)
+	if m := Mode(strings.TrimSpace(parsed.Mode)); validMode(m) {
+		plan.Mode = m
+		if m == ModeClarify || d == DomainAmbiguous {
+			plan = applyAmbiguousClarify(plan)
+		}
+	}
 	if parsed.Reason != "" {
 		plan.Reason = "llm: " + strings.TrimSpace(parsed.Reason)
 	}
@@ -120,10 +141,28 @@ func sanitizeLLMPlan(in PlanInput, base, llmPlan TurnPlan) TurnPlan {
 		out.Confidence = 0.6
 		return out
 	}
-	if llmPlan.Domain == DomainDCAGrid && !hasAny(in.UserText, dcaGridTokens) && base.Domain != DomainDCAGrid {
+	if llmPlan.Domain == DomainDCAGrid && llmPlan.Mode == ModeExecute &&
+		!hasAny(in.UserText, dcaGridTokens) && base.Domain != DomainDCAGrid {
 		return base
 	}
 	return llmPlan
+}
+
+func applyAmbiguousClarify(plan TurnPlan) TurnPlan {
+	spec := planForDomain(DomainAmbiguous)
+	plan.ClarifyQuestion = spec.ClarifyQuestion
+	plan.ClarifyChoices = append([]string(nil), spec.ClarifyChoices...)
+	plan.ToolsAllow = append([]string(nil), spec.ToolsAllow...)
+	return plan
+}
+
+func validMode(m Mode) bool {
+	switch m {
+	case ModeTalk, ModeGather, ModeExecute, ModeClarify:
+		return true
+	default:
+		return false
+	}
 }
 
 func validDomain(d Domain) bool {

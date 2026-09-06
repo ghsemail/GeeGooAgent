@@ -13,41 +13,19 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
-	"github.com/ghsemail/GeeGooAgent/internal/playbookexec"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
-func analysisPlaybookTool(ctx context.Context, req tools.CallRequest, toolCtx tools.Context) tools.Result {
-	switch req.Name {
-	case "search_code":
-		return tools.Result{
-			Status: tools.StatusOK,
-			Data: map[string]any{
-				"items": []any{map[string]any{"code": "00700.HK", "name": "腾讯控股", "market": "HK"}},
-			},
-		}
-	case "get_single_prompt_template":
-		return tools.Result{
-			Status: tools.StatusOK,
-			Data: map[string]any{"selected_prompt_id": "p1", "selected_prompt_name": "股价分析"},
-		}
-	case "get_mcp_analysis":
-		return tools.Result{
-			Status:  tools.StatusOK,
-			Summary: "mock analysis",
-			Data:    map[string]any{"analysis_result": "腾讯技术面偏强。"},
-		}
-	default:
-		return tools.Result{Status: tools.StatusError, Summary: "unexpected " + req.Name}
-	}
-}
-
-func analysisPlaybookRouter() *playbookexec.Router {
-	return &playbookexec.Router{RunTool: analysisPlaybookTool}
-}
-
 func TestTurnPlanDoesNotRunBacktestOnAnalysis(t *testing.T) {
+	registry := tools.NewRegistry()
+	registry.Register(tools.Tool{
+		Name: "run_strategy_backtest",
+		Handle: func(ctx tools.Context, args map[string]any) tools.Result {
+			t.Fatal("analysis turn must not call backtest tool")
+			return tools.Result{}
+		},
+	})
 	provider := &llm.MockProvider{
 		Responses: []*llm.Response{{
 			Content: "腾讯技术面偏强。",
@@ -55,17 +33,7 @@ func TestTurnPlanDoesNotRunBacktestOnAnalysis(t *testing.T) {
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
-	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
-
-	var backtestCalls atomic.Int32
-	loop.SetPlaybookRouter(&playbookexec.Router{
-		RunTool: func(ctx context.Context, req tools.CallRequest, toolCtx tools.Context) tools.Result {
-			if req.Name == "run_strategy_backtest" {
-				backtestCalls.Add(1)
-			}
-			return analysisPlaybookTool(ctx, req, toolCtx)
-		},
-	})
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 
 	var domain string
 	loop.SetProgress(func(event string, data map[string]any) {
@@ -84,9 +52,6 @@ func TestTurnPlanDoesNotRunBacktestOnAnalysis(t *testing.T) {
 	if domain != string(cognition.DomainStockAnalysis) {
 		t.Fatalf("domain=%q", domain)
 	}
-	if backtestCalls.Load() != 0 {
-		t.Fatal("analysis turn must not run backtest playbook")
-	}
 	if !strings.Contains(result.AssistantText, "腾讯") {
 		t.Fatalf("expected analysis reply, got %q", result.AssistantText)
 	}
@@ -102,7 +67,6 @@ func TestTurnPlanFollowsLastDomainOnSymbolSwitch(t *testing.T) {
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
 	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
-	loop.SetPlaybookRouter(analysisPlaybookRouter())
 
 	var domains []string
 	loop.SetProgress(func(event string, data map[string]any) {
@@ -127,37 +91,63 @@ func TestTurnPlanFollowsLastDomainOnSymbolSwitch(t *testing.T) {
 	}
 }
 
-func TestTurnPlanRunsPlaybookOnlyForExplicitBacktest(t *testing.T) {
+func TestTurnPlanExecutesBacktestViaReAct(t *testing.T) {
+	registry := tools.NewRegistry()
+	var backtestCalls atomic.Int32
+	registry.Register(tools.Tool{
+		Name: "run_strategy_backtest",
+		Handle: func(ctx tools.Context, args map[string]any) tools.Result {
+			backtestCalls.Add(1)
+			return tools.Result{Status: tools.StatusOK, Summary: "mock backtest done"}
+		},
+	})
 	provider := &llm.MockProvider{
-		Responses: []*llm.Response{{Content: "unused"}},
+		Responses: []*llm.Response{
+			{ToolCalls: []llm.ToolCall{{ID: "b1", Name: "run_strategy_backtest", Arguments: map[string]any{"code": "1810.HK"}}}},
+			{Content: "小米 SAR+MACD 回测已完成。"},
+		},
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
-	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
-
-	var ran atomic.Int32
-	loop.SetPlaybookRouter(&playbookexec.Router{
-		RunTool: func(ctx context.Context, req tools.CallRequest, toolCtx tools.Context) tools.Result {
-			ran.Add(1)
-			return tools.Result{Status: tools.StatusError, Summary: "stop"}
-		},
-	})
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 
 	session := runtime.NewSession()
-	_ = loop.RunTurn(context.Background(), session, "帮我回测小米 SAR+MACD", tools.Context{}, nil)
-	if ran.Load() == 0 {
-		t.Fatal("expected playbook tools for explicit backtest")
+	result := loop.RunTurn(context.Background(), session, "帮我回测小米 SAR+MACD", tools.Context{}, nil)
+	if result.Failed {
+		t.Fatalf("failed: %s", result.Error)
+	}
+	if backtestCalls.Load() == 0 {
+		t.Fatal("expected main LLM to call run_strategy_backtest via ReAct")
 	}
 }
 
 func TestStockAnalysisEmitsGateBeforeTools(t *testing.T) {
+	registry := tools.NewRegistry()
+	registry.Register(tools.Tool{
+		Name: "search_code",
+		Handle: func(ctx tools.Context, args map[string]any) tools.Result {
+			return tools.Result{
+				Status: tools.StatusOK,
+				Data:   map[string]any{"items": []any{map[string]any{"code": "00700.HK", "name": "腾讯控股"}}},
+			}
+		},
+	})
+	registry.Register(tools.Tool{
+		Name: "get_mcp_analysis",
+		Handle: func(ctx tools.Context, args map[string]any) tools.Result {
+			return tools.Result{Status: tools.StatusOK, Data: map[string]any{"analysis_result": "腾讯现价 380 港元。"}}
+		},
+	})
 	provider := &llm.MockProvider{
-		Responses: []*llm.Response{{Content: "腾讯技术面偏强。"}},
+		Responses: []*llm.Response{
+			{ToolCalls: []llm.ToolCall{{ID: "s1", Name: "search_code", Arguments: map[string]any{"regex": "腾讯"}}}},
+			{ToolCalls: []llm.ToolCall{{ID: "a1", Name: "get_mcp_analysis", Arguments: map[string]any{"code": "00700.HK"}}}},
+			{Content: "腾讯现价约 380 港元，技术面偏强。"},
+		},
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
-	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
-	loop.SetPlaybookRouter(analysisPlaybookRouter())
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 
 	var events []string
 	loop.SetProgress(func(event string, data map[string]any) {
@@ -201,18 +191,23 @@ func TestToolFirstSkipEmitsGateEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	registry := tools.NewRegistry()
+	registry.Register(tools.Tool{
+		Name: "run_strategy_backtest",
+		Handle: func(ctx tools.Context, args map[string]any) tools.Result {
+			return tools.Result{Status: tools.StatusOK, Summary: "mock backtest"}
+		},
+	})
 	provider := &llm.MockProvider{
-		Responses: []*llm.Response{{Content: "unused"}},
+		Responses: []*llm.Response{
+			{ToolCalls: []llm.ToolCall{{ID: "b1", Name: "run_strategy_backtest", Arguments: map[string]any{}}}},
+			{Content: "回测完成。"},
+		},
 	}
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
-	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
+	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 	loop.SetSkillLoader(procedural.NewLoader(dir), 4)
-	loop.SetPlaybookRouter(&playbookexec.Router{
-		RunTool: func(ctx context.Context, req tools.CallRequest, toolCtx tools.Context) tools.Result {
-			return tools.Result{Status: tools.StatusError, Summary: "stop"}
-		},
-	})
 
 	var gateDecision string
 	loop.SetProgress(func(event string, data map[string]any) {

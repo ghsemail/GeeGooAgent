@@ -11,8 +11,8 @@ import (
 
 func TestIndividualTurnPlanEvalCasesCount(t *testing.T) {
 	cases := eval.IndividualTurnPlanEvalCases()
-	if len(cases) != 22 {
-		t.Fatalf("cases=%d want 22", len(cases))
+	if len(cases) != 23 {
+		t.Fatalf("cases=%d want 23", len(cases))
 	}
 	for _, c := range cases {
 		if c.Options.PlanOnly {

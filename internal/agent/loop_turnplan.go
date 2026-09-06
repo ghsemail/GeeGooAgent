@@ -12,11 +12,14 @@ import (
 
 func turnPlanFragment(plan cognition.TurnPlan) ctxfrag.Fragment {
 	var b strings.Builder
-	b.WriteString("Turn plan (follow this routing; do not switch domains unless the user clearly asks):\n")
+	b.WriteString("Turn plan (classify intent, then execute via ReAct tools — no deterministic SOP shortcut):\n")
 	fmt.Fprintf(&b, "- domain: %s\n- act: %s\n- mode: %s\n- reason: %s\n",
 		plan.Domain, plan.Act, plan.Mode, plan.Reason)
 	if len(plan.Skills) > 0 {
 		fmt.Fprintf(&b, "- skills: %s\n", strings.Join(plan.Skills, ", "))
+	}
+	if len(plan.ToolsAllow) > 0 {
+		fmt.Fprintf(&b, "- allowed tools: %s\n", strings.Join(plan.ToolsAllow, ", "))
 	}
 	if plan.Mode == cognition.ModeClarify && plan.ClarifyQuestion != "" {
 		fmt.Fprintf(&b, "- ask via clarify: %s\n", plan.ClarifyQuestion)
@@ -24,7 +27,7 @@ func turnPlanFragment(plan cognition.TurnPlan) ctxfrag.Fragment {
 			fmt.Fprintf(&b, "- choices: %s\n", strings.Join(plan.ClarifyChoices, " / "))
 		}
 	}
-	b.WriteString("- only call tools listed for this domain; do not run backtest unless domain is backtest_run")
+	b.WriteString("- you must choose and call tools from the allow-list to fulfill this turn; do not switch domains unless the user clearly asks")
 	return ctxfrag.StaticFragment{K: ctxfrag.KindSystemRules, Text: b.String(), Prio: 22}
 }
 

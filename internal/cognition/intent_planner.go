@@ -82,7 +82,7 @@ func isStickyDomain(d Domain) bool {
 }
 
 func isFollowUpUtterance(msg string) bool {
-	return hasAny(msg, []string{"换成", "改成", "继续", "再看看", "还是那个", "同样的", "刚才那个标的", "换一个标的"})
+	return hasAny(msg, []string{"换成", "改成", "继续", "再看看", "再帮我", "接着", "还是那个", "同样的", "刚才那个", "刚才那次", "换一个标的", "它最近", "不聊"})
 }
 
 func mapClarifyChoice(msg string) (Domain, bool) {
