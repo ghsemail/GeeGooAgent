@@ -6,21 +6,20 @@ import (
 	"testing"
 )
 
-func TestNormalizeSignalChainFillsMissingSellType(t *testing.T) {
-	buy := []any{
-		map[string]any{"index": "SAR", "type": "signal", "param": map[string]any{}},
-		map[string]any{"index": "MACD", "type": "flag", "param": map[string]any{}},
+func TestNormalizeSignalRulesPairInheritsBuyType(t *testing.T) {
+	buy := []any{map[string]any{"index": "MACD", "type": "flag", "param": map[string]any{}}}
+	sell := []any{map[string]any{"index": "MACD", "param": map[string]any{}}}
+	_, outSell := normalizeSignalRulesPair(buy, sell)
+	if len(outSell) != 1 {
+		t.Fatalf("sell=%v", outSell)
 	}
-	sell := []any{
-		map[string]any{"index": "SAR", "param": map[string]any{}},
-		map[string]any{"index": "MACD", "param": map[string]any{}},
+	row := outSell[0].(map[string]any)
+	if fmt.Sprint(row["type"]) != "flag" {
+		t.Fatalf("type=%v row=%#v", row["type"], row)
 	}
-	_, sell = normalizeSignalRulesPair(buy, sell)
-	sell1 := sell[1].(map[string]any)
-	if fmt.Sprint(sell1["type"]) != "flag" {
-		t.Fatalf("sell[1].type=%v want flag; sell=%v", sell1["type"], sell)
-	}
+}
 
+func TestNormalizeSignalChainFillsMissingSellType(t *testing.T) {
 	sig, err := rowToResolved(map[string]any{
 		"name":      "SAR信号配套MACD直方图趋势",
 		"frequency": "60m",

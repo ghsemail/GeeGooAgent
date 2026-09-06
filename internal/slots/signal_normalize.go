@@ -49,7 +49,7 @@ func signalTypesByIndex(rules []any) map[string]string {
 			continue
 		}
 		idx := strings.ToUpper(strings.TrimSpace(fmt.Sprint(row["index"])))
-		typ := strings.TrimSpace(fmt.Sprint(row["type"]))
+		typ := ruleType(row)
 		if idx != "" && typ != "" {
 			out[idx] = typ
 		}
@@ -83,18 +83,25 @@ func normalizeSignalRule(row map[string]any, fallbackType string) map[string]any
 	} else {
 		out["param"] = map[string]any{}
 	}
-	typ := strings.TrimSpace(fmt.Sprint(row["type"]))
+	typ := ruleType(row)
 	if typ == "" {
 		typ = strings.TrimSpace(fallbackType)
 	}
 	if typ == "" {
-		idx := strings.ToUpper(strings.TrimSpace(fmt.Sprint(out["index"])))
-		if idx == "NOSIGNAL" {
-			typ = "signal"
-		} else {
-			typ = "signal"
-		}
+		typ = "signal"
 	}
 	out["type"] = typ
 	return out
+}
+
+func ruleType(row map[string]any) string {
+	if row == nil {
+		return ""
+	}
+	switch v := row["type"].(type) {
+	case string:
+		return strings.TrimSpace(v)
+	default:
+		return ""
+	}
 }

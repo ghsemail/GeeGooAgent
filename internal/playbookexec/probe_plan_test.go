@@ -2,6 +2,7 @@ package playbookexec
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,5 +52,27 @@ func TestBuildProbePlanHeuristicFastPath(t *testing.T) {
 	}
 	if note == "" {
 		t.Fatal("expected plan note")
+	}
+}
+
+func TestBuildProbePlanBareStockUsesDefaultSignal(t *testing.T) {
+	router := &Router{}
+	plan, note, err := router.buildProbePlan(context.Background(), Input{
+		UserText: "帮我看看中际旭创有没有买卖点",
+	}, 1)
+	if err != nil {
+		t.Fatalf("buildProbePlan: %v note=%q", err, note)
+	}
+	if plan.StockQuery != "中际旭创" {
+		t.Fatalf("stock=%q", plan.StockQuery)
+	}
+	if plan.SignalQuery != defaultProbeCombinationQuery {
+		t.Fatalf("signal=%q want %q", plan.SignalQuery, defaultProbeCombinationQuery)
+	}
+	if plan.SignalKind != "combination" {
+		t.Fatalf("kind=%q", plan.SignalKind)
+	}
+	if !strings.Contains(note, "heuristic") {
+		t.Fatalf("expected heuristic fast path, got %q", note)
 	}
 }

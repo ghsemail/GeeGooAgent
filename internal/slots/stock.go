@@ -15,8 +15,9 @@ var (
 	reHKCode    = regexp.MustCompile(`\b(\d{4,5})(?:\.HK)?\b`)
 	reAShare    = regexp.MustCompile(`(?i)\b(\d{6})(?:\.(?:SZ|SH|BJ))?\b`)
 	reCJKRun    = regexp.MustCompile(`\p{Han}{2,8}`)
-	reIntentPad = regexp.MustCompile(`帮我回测一下|帮我测试一下|帮我回测|回测一下|跑回测|来回测|再回测|测试一下|测一下|看一下|帮我分析一下|分析一下|帮我分析|就用刚才那套|刚才那套|用现成的来回测|不要新建`)
+	reIntentPad = regexp.MustCompile(`帮我回测一下|帮我测试一下|帮我回测|回测一下|跑回测|来回测|再回测|测试一下|测一下|看一下|看看|帮我分析一下|分析一下|帮我分析|就用刚才那套|刚才那套|用现成的来回测|不要新建`)
 	reStockAfterIntent = regexp.MustCompile(`(?:分析|回测|查|看|测)(?:一下|下)?\s*([\p{Han}]{2,8})`)
+	reLookThenStock      = regexp.MustCompile(`看看([\p{Han}]{2,8}?)有没有`)
 )
 
 var tickerStopwords = map[string]struct{}{
@@ -117,6 +118,12 @@ func ExtractStockQuery(msg string) string {
 			} else {
 				return tok
 			}
+		}
+	}
+	if m := reLookThenStock.FindStringSubmatch(msg); len(m) > 1 {
+		cand := trimTrailingStockParticles(strings.TrimSpace(m[1]))
+		if len([]rune(cand)) >= 2 && !isCJKStockStop(cand) && LooksLikeStockQuery(cand) {
+			return cand
 		}
 	}
 	if q := extractStockAfterIntentVerb(msg); q != "" {

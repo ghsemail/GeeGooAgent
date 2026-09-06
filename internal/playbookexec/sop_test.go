@@ -259,6 +259,21 @@ func stringIndex(s, sub string) int {
 	return -1
 }
 
+func TestRunProbeSOPBareStockProbe(t *testing.T) {
+	session := runtime.NewSession()
+	result, ok := probeTestRouter(t, nil, false).TryRunFromPlan(context.Background(), Input{
+		Session:  session,
+		UserText: "帮我看看中际旭创有没有买卖点",
+		StepBase: 1,
+	}, "signal_probe")
+	if !ok || result.Failed {
+		t.Fatalf("ok=%v failed=%v err=%s", ok, result.Failed, result.Error)
+	}
+	if !contains(result.AssistantText, "中际") || !contains(result.AssistantText, "信号探测") {
+		t.Fatalf("reply=%q", result.AssistantText)
+	}
+}
+
 func TestRunSignalCatalogSOP(t *testing.T) {
 	r := &Router{
 		RunTool: func(_ context.Context, req tools.CallRequest, _ tools.Context) tools.Result {
