@@ -55,6 +55,15 @@ func (h *Handler) chatClarify(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "answer required unless skip=true")
 		return
 	}
+	if !req.Skip && answer != "" {
+		if pending, ok := h.clarify.Pending(sessionID); ok && len(pending.Choices) > 0 {
+			if mapped, matched := tools.MatchClarifyAnswer(answer, pending.Choices); matched {
+				if mapped != tools.ClarifyOtherLabel {
+					answer = mapped
+				}
+			}
+		}
+	}
 	ok := !req.Skip
 	if !h.clarify.Answer(sessionID, answer, ok) {
 		writeError(w, http.StatusNotFound, "no pending clarify for session")

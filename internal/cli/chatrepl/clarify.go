@@ -53,8 +53,8 @@ func promptClarifyCLI(r *Repl, question string, choices []string) (string, bool)
 	if line == "" {
 		return "", true
 	}
-	if ans, ok := matchClarifyInput(line, options); ok {
-		if len(choices) > 0 && ans == tools.ClarifyOtherLabel {
+	if ans, ok := tools.MatchClarifyAnswer(line, choices); ok {
+		if ans == tools.ClarifyOtherLabel {
 			r.UI.PrintPrompt()
 			other, err := readClarifyLine(r)
 			if err != nil {
@@ -79,35 +79,4 @@ func readClarifyLine(r *Repl) (string, error) {
 		return "", err
 	}
 	return strings.TrimRight(line, "\r\n"), nil
-}
-
-func matchClarifyInput(line string, options []string) (string, bool) {
-	upper := strings.ToUpper(strings.TrimSpace(line))
-	if len(upper) == 1 && upper[0] >= 'A' && int(upper[0]-'A') < len(options) {
-		return options[int(upper[0]-'A')], true
-	}
-	if n, err := parseClarifyIndex(line, len(options)); err == nil {
-		return options[n], true
-	}
-	for _, opt := range options {
-		if strings.EqualFold(strings.TrimSpace(opt), line) {
-			return opt, true
-		}
-	}
-	return "", false
-}
-
-func parseClarifyIndex(line string, n int) (int, error) {
-	line = strings.TrimSpace(line)
-	if line == "" {
-		return 0, fmt.Errorf("empty")
-	}
-	var idx int
-	if _, err := fmt.Sscanf(line, "%d", &idx); err != nil {
-		return 0, err
-	}
-	if idx >= 1 && idx <= n {
-		return idx - 1, nil
-	}
-	return 0, fmt.Errorf("out of range")
 }
