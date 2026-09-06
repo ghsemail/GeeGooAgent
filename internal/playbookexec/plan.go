@@ -44,7 +44,7 @@ func (r *Router) buildBacktestPlan(ctx context.Context, in Input, step int) (Bac
 			plan.StockQuery, plan.SignalQuery, plan.SignalKind), nil
 	}
 	if r == nil || r.Gateway == nil {
-		if strings.TrimSpace(plan.StockQuery) == "" {
+		if !slots.StockQueryPlausible(plan.StockQuery) {
 			return plan, "", fmt.Errorf("缺少标的，请说明要回测哪只股票")
 		}
 		return plan, "playbookexec plan(heuristic partial)", nil
@@ -69,7 +69,7 @@ func (r *Router) buildBacktestPlan(ctx context.Context, in Input, step int) (Bac
 		return heuristicBacktestPlan(in.UserText), "playbookexec plan(heuristic fallback)", nil
 	}
 	mergeBacktestPlan(&plan, parsed)
-	if strings.TrimSpace(plan.StockQuery) == "" {
+	if !slots.StockQueryPlausible(plan.StockQuery) {
 		return plan, "", fmt.Errorf("缺少标的，请说明要回测哪只股票")
 	}
 	return plan, fmt.Sprintf("playbookexec plan(llm): stock=%q signal=%q kind=%s",
@@ -100,13 +100,13 @@ func heuristicBacktestPlan(message string) BacktestRunPlan {
 		}
 	}
 
-	plan.StockQuery = slots.SanitizeStockQuery(slots.ExtractStockQuery(msg))
+	plan.StockQuery = slots.ExtractStockQuery(msg)
 	applySignalHeuristics(&plan, msg)
 	return plan
 }
 
 func heuristicSlotsReady(plan BacktestRunPlan) bool {
-	return slots.LooksLikeStockQuery(plan.StockQuery) && strings.TrimSpace(plan.SignalQuery) != ""
+	return slots.StockQueryPlausible(plan.StockQuery) && strings.TrimSpace(plan.SignalQuery) != ""
 }
 
 func parseBacktestPlanJSON(raw string) (BacktestRunPlan, error) {

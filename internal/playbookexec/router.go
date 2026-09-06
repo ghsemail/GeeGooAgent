@@ -1,6 +1,6 @@
 // Package playbookexec runs matched playbooks through deterministic tool pipelines.
-// LLM is used only for structured plan extraction and final reply formatting;
-// tool selection follows fixed steps from the playbook SOP.
+// LLM extracts structured JSON plans (stock/signal slots) when heuristics are incomplete;
+// tool execution follows fixed SOP steps from the playbook.
 package playbookexec
 
 import (

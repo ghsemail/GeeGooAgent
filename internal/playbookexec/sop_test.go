@@ -4,15 +4,16 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
-func probeTestRouter(t *testing.T, searchRegex *string) *Router {
+func probeTestRouter(t *testing.T, searchRegex *string, withLLMPlan bool) *Router {
 	t.Helper()
-	return &Router{
+	r := &Router{
 		RunTool: func(_ context.Context, req tools.CallRequest, _ tools.Context) tools.Result {
 			switch req.Name {
 			case "search_code":
@@ -43,11 +44,22 @@ func probeTestRouter(t *testing.T, searchRegex *string) *Router {
 			}
 		},
 	}
+	if withLLMPlan {
+		provider := &llm.MockProvider{
+			Responses: []*llm.Response{{
+				Content: `{"stock_query":"中际旭创","signal_query":"SAR MACD","signal_kind":"combination","months_back":3}`,
+			}},
+		}
+		gw := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
+		gw.SetSleep(func(time.Duration) {})
+		r.Gateway = gw
+	}
+	return r
 }
 
 func TestRunProbeSOP(t *testing.T) {
 	session := runtime.NewSession()
-	result, ok := probeTestRouter(t, nil).TryRunFromPlan(context.Background(), Input{
+	result, ok := probeTestRouter(t, nil, false).TryRunFromPlan(context.Background(), Input{
 		Session:  session,
 		UserText: "测一下中际旭创 SAR+MACD 买卖点",
 		StepBase: 1,
@@ -63,7 +75,7 @@ func TestRunProbeSOP(t *testing.T) {
 func TestRunProbeSOPEvalFollowUpMessage(t *testing.T) {
 	session := runtime.NewSession()
 	var searchRegex string
-	result, ok := probeTestRouter(t, &searchRegex).TryRunFromPlan(context.Background(), Input{
+	result, ok := probeTestRouter(t, &searchRegex, true).TryRunFromPlan(context.Background(), Input{
 		Session:  session,
 		UserText: "就用SAR加MACD组合，帮我测一下中际旭创有没有买卖点",
 		StepBase: 1,

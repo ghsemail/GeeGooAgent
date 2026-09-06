@@ -12,15 +12,6 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
-// ProbeRunPlan is the structured plan for signal probe SOP.
-type ProbeRunPlan struct {
-	StockQuery  string
-	SignalQuery string
-	SignalKind  string
-	MonthsBack  int
-	Frequency   string
-}
-
 func (r *Router) runProbe(ctx context.Context, in Input) runtime.TurnResult {
 	records := []runtime.StepRecord{}
 	step := in.StepBase
@@ -28,6 +19,17 @@ func (r *Router) runProbe(ctx context.Context, in Input) runtime.TurnResult {
 		step = 1
 	}
 	emit := in.OnProgress
+	recordPlan := func(summary string) {
+		records = append(records, runtime.StepRecord{
+			Step: step, Timestamp: time.Now().UTC(), Kind: "plan",
+			Summary: strings.TrimSpace(summary),
+		})
+		if emit != nil {
+			emit("playbook_exec", map[string]any{
+				"playbook": playbookSignalProbe, "phase": "plan", "summary": summary,
+			})
+		}
+	}
 	recordTool := func(name, status, summary string) {
 		records = append(records, runtime.StepRecord{
 			Step: step, Timestamp: time.Now().UTC(), Kind: "tool",
@@ -35,12 +37,12 @@ func (r *Router) runProbe(ctx context.Context, in Input) runtime.TurnResult {
 		})
 	}
 
-	plan := heuristicProbePlan(in.UserText)
-	enrichProbeFromSession(&plan, in.Session)
-	if strings.TrimSpace(plan.StockQuery) == "" {
-		msg := "请说明要测哪只标的的信号"
+	plan, planNote, err := r.buildProbePlan(ctx, in, step)
+	recordPlan(planNote)
+	if err != nil {
+		msg := fmt.Sprintf("信号探测计划解析失败：%v", err)
 		in.Session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: msg})
-		return runtime.TurnResult{AssistantText: msg, Failed: true, Error: msg, StepRecords: records}
+		return runtime.TurnResult{AssistantText: msg, Failed: true, Error: err.Error(), StepRecords: records}
 	}
 
 	toolCtx := in.ToolCtx
@@ -101,7 +103,7 @@ func (r *Router) runProbe(ctx context.Context, in Input) runtime.TurnResult {
 func heuristicProbePlan(message string) ProbeRunPlan {
 	plan := ProbeRunPlan{MonthsBack: 3, Frequency: ""}
 	msg := strings.TrimSpace(message)
-	plan.StockQuery = slots.SanitizeStockQuery(slots.ExtractStockQuery(msg))
+	plan.StockQuery = slots.ExtractStockQuery(msg)
 	upper := strings.ToUpper(msg)
 	switch {
 	case strings.Contains(upper, "SAR") && strings.Contains(upper, "MACD"):
@@ -116,6 +118,7 @@ func heuristicProbePlan(message string) ProbeRunPlan {
 	case strings.Contains(msg, "4H") || strings.Contains(msg, "4h"):
 		plan.Frequency = "60m"
 	}
+	normalizeProbePlan(&plan)
 	return plan
 }
 
@@ -129,8 +132,8 @@ func enrichProbeFromSession(plan *ProbeRunPlan, session *runtime.Session) {
 			plan.SignalKind = "combination"
 		}
 	}
-	if strings.TrimSpace(plan.StockQuery) == "" {
-		if q := lastConfirmedStock(session); q != "" {
+	if !slots.StockQueryPlausible(plan.StockQuery) {
+		if q := lastConfirmedStock(session); q != "" && slots.StockQueryPlausible(q) {
 			plan.StockQuery = q
 		}
 	}
