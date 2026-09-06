@@ -61,14 +61,14 @@ func ClarifyProgressPayload(sessionID, question string, choices []string) map[st
 		"options":         choices,
 		"display_choices": cards,
 	}
-	out := map[string]any{
+	return map[string]any{
 		"session_id":      sessionID,
 		"question":        q,
 		"choices":         choices,
 		"options":         choices,
 		"display_choices": cards,
 		"item_type":       events.ItemClarifyPrompt,
+		"event":           "clarify",
 		"data":            inner,
 	}
-	return out
 }

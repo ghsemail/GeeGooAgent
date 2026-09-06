@@ -116,6 +116,12 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 		if live != nil {
 			live.Emit(event, data)
 		}
+		// Dock Chat's axz reads top-level question/choices. ProgressPayload
+		// wrapping caused the option sheet to never mount; send clarify flat.
+		if event == "clarify" {
+			writeSessionSSE(w, flusher, "clarify", data)
+			return
+		}
 		writeAgentProgressSSE(w, flusher, event, data)
 	}
 

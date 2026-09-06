@@ -68,14 +68,23 @@ h.push(A.P(i,B.q,o,B.e,B.f,B.j))}return A.R(o,A.P(h,B.q,o,B.e,B.f,B.j),B.i,o,o,n
 
 
 def patch_main_dart_js(content: str) -> str:
-    if "ggClarifySheetV1" in content:
-        return content
-    if AXZ_OLD not in content:
-        raise RuntimeError("axz clarify parser pattern not found in main.dart.js")
-    if CP_U_OLD not in content:
-        raise RuntimeError("Cp.u clarify card pattern not found in main.dart.js")
-    patched = content.replace(AXZ_OLD, AXZ_NEW, 1).replace(CP_U_OLD, CP_U_NEW, 1)
-    return patched.replace("A.a5E.prototype={", "A.a5E.prototype={ggClarifySheetV1(){return!0},", 1)
+    if AXZ_OLD in content:
+        content = content.replace(AXZ_OLD, AXZ_NEW, 1)
+    if CP_U_OLD in content:
+        content = content.replace(CP_U_OLD, CP_U_NEW, 1)
+    if "ggClarifySheetV1" not in content and "A.a5E.prototype={" in content:
+        content = content.replace("A.a5E.prototype={", "A.a5E.prototype={ggClarifySheetV1(){return!0},", 1)
+    if '"connected","status","clarify","turn_start"' not in content:
+        content = content.replace(
+            '"connected","status","turn_start"',
+            '"connected","status","clarify","turn_start"',
+            1,
+        )
+    old_case = 's=i.a==="clarify"?17:19'
+    new_case = 's=B.b.C(J.v(i.a))==="clarify"?17:19'
+    if old_case in content:
+        content = content.replace(old_case, new_case, 1)
+    return content
 
 
 def patch_file(path: Path) -> bool:
@@ -90,6 +99,16 @@ def patch_file(path: Path) -> bool:
     print(f"patched: {path}")
     print(f"backup: {backup}")
     return True
+
+
+def patch_index_html(content: str) -> str:
+    if "clarify-overlay.js" in content:
+        return content
+    needle = '<script src="flutter_bootstrap.js" async></script>'
+    insert = '<script src="clarify-overlay.js"></script>\n  ' + needle
+    if needle not in content:
+        raise RuntimeError("flutter_bootstrap script tag not found in index.html")
+    return content.replace(needle, insert, 1)
 
 
 def ssh_run(client, cmd: str, timeout: int = 120) -> str:
@@ -112,14 +131,30 @@ def deploy_remote(host: str, user: str, password: str, web_dir: str) -> int:
     client.connect(host, username=user, password=password, timeout=20)
 
     script_path = Path(__file__).resolve()
+    overlay_src = Path(__file__).with_name("clarify-overlay.js")
     sftp = client.open_sftp()
-    remote_script = "/tmp/patch_trading_op_clarify_sheet.py"
-    sftp.put(str(script_path), remote_script)
+    sftp.put(str(script_path), "/tmp/patch_trading_op_clarify_sheet.py")
+    sftp.put(str(overlay_src), f"{web_dir}/clarify-overlay.js")
     sftp.close()
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     ssh_run(client, f"cp {remote_js} {remote_js}.bak-clarify-{ts}")
-    ssh_run(client, f"python3 {remote_script} --file {remote_js}")
+    ssh_run(client, f"python3 /tmp/patch_trading_op_clarify_sheet.py --file {remote_js}")
+    ssh_run(
+        client,
+        f"python3 - <<'PY'\nfrom pathlib import Path\n"
+        f"p=Path('{web_dir}/index.html')\n"
+        f"t=p.read_text(encoding='utf-8')\n"
+        f"n='<script src=\"flutter_bootstrap.js\" async></script>'\n"
+        f"i='<script src=\"clarify-overlay.js\"></script>\\n  '+n\n"
+        f"if 'clarify-overlay.js' not in t:\n"
+        f"    if n not in t: raise SystemExit('index.html missing bootstrap tag')\n"
+        f"    p.write_text(t.replace(n,i,1), encoding='utf-8')\n"
+        f"    print('index.html patched')\n"
+        f"else:\n"
+        f"    print('index.html already patched')\n"
+        f"PY",
+    )
 
     print("=== sync web -> nginx container ===")
     ssh_run(
@@ -127,7 +162,9 @@ def deploy_remote(host: str, user: str, password: str, web_dir: str) -> int:
         "NGINX=$(docker ps --format '{{.ID}} {{.Ports}}' | awk '/8088->/{print $1; exit}'); "
         f"echo nginx=$NGINX; "
         f"docker cp {web_dir}/. ${{NGINX}}:/usr/share/nginx/html/; "
-        'docker exec $NGINX sh -c \'grep -c ggClarifySheetV1 /usr/share/nginx/html/main.dart.js\'',
+        'docker exec $NGINX sh -c \'grep -c ggClarifySheetV1 /usr/share/nginx/html/main.dart.js; '
+        'grep -c __ggClarifyOverlayV2 /usr/share/nginx/html/clarify-overlay.js; '
+        'grep -c clarify-overlay.js /usr/share/nginx/html/index.html\'',
     )
     client.close()
     return 0
