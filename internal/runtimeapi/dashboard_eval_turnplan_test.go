@@ -34,7 +34,7 @@ func TestEvalRunTurnPlanBuiltin(t *testing.T) {
 
 func TestEvalCaseRunTurnPlanLiveRejectsBatchRun(t *testing.T) {
 	handler := testCockpitHandler(t)
-	req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/eval/cases/turn_plan_stock_price_lookup/run", nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/eval/cases/turn_plan_stock_price/run", nil)
 	req.Header.Set("Authorization", "Bearer test-runtime-key")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -45,7 +45,7 @@ func TestEvalCaseRunTurnPlanLiveRejectsBatchRun(t *testing.T) {
 
 func TestEvalCaseVerifyTurnPlanRequiresSession(t *testing.T) {
 	handler := testCockpitHandler(t)
-	req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/eval/cases/turn_plan_stock_price_lookup/verify", nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/eval/cases/turn_plan_stock_price/verify", nil)
 	req.Header.Set("Authorization", "Bearer test-runtime-key")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)

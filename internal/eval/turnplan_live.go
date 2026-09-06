@@ -24,6 +24,10 @@ type TurnPlanCaseOptions struct {
 	PassKeywords   []string `json:"pass_keywords,omitempty"`
 	MinReplyChars  int      `json:"min_reply_chars,omitempty"`
 	TurnID         string   `json:"turn_id,omitempty"`
+	Dialogue       []EvalDialogueTurn `json:"dialogue,omitempty"`
+	ExpectReply    *ExpectReplySpec   `json:"expect_reply,omitempty"`
+	ExpectRouting  *ExpectRoutingSpec `json:"expect_routing,omitempty"`
+	Judge          *EvalJudgeConfig   `json:"judge,omitempty"`
 }
 
 // TurnPlanEvalCaseDef is one seeded dashboard eval row.
@@ -48,42 +52,37 @@ func ParseTurnPlanCaseOptions(raw []byte) (TurnPlanCaseOptions, error) {
 	return opts, nil
 }
 
-// IndividualTurnPlanEvalCases expands the canonical suite into separate dashboard cases.
+// IndividualTurnPlanEvalCases returns live eval cases (one session each).
 func IndividualTurnPlanEvalCases() []TurnPlanEvalCaseDef {
-	turns := defaultTurnPlanTurns()
-	out := make([]TurnPlanEvalCaseDef, 0, len(turns))
-	for i, turn := range turns {
+	live := defaultTurnPlanLiveCases()
+	out := make([]TurnPlanEvalCaseDef, 0, len(live))
+	for i, c := range live {
 		opts := TurnPlanCaseOptions{
 			Category:       "turn_plan",
 			PlanOnly:       false,
 			SessionCleanup: "before_run",
 			DualModelEval:  false,
-			Message:        turn.Message,
-			SetupMessages:  setupMessagesForTurn(turn),
-			ExpectDomain:   turn.ExpectDomain,
-			ExpectMode:     turn.ExpectMode,
-			ExpectSOP:      turn.ExpectSOP,
-			ForbidTools:    append([]string(nil), turn.ForbidTools...),
-			RequireTools:   append([]string(nil), turn.RequireTools...),
+			Message:        c.Message,
+			SetupMessages:  append([]string(nil), c.SetupMessages...),
+			ExpectDomain:   c.ExpectDomain,
+			ExpectMode:     c.ExpectMode,
+			ExpectSOP:      c.ExpectSOP,
+			ForbidTools:    append([]string(nil), c.ForbidTools...),
+			RequireTools:   append([]string(nil), c.RequireTools...),
 			MinReplyChars:  20,
-			TurnID:         turn.ID,
+			TurnID:         c.ID,
+			ExpectRouting: &ExpectRoutingSpec{
+				Domain: c.ExpectDomain, Mode: c.ExpectMode, SOP: c.ExpectSOP,
+				RequireTools: append([]string(nil), c.RequireTools...),
+				ForbidTools:  append([]string(nil), c.ForbidTools...),
+			},
 		}
-		id := "turn_plan_" + turn.ID
-		title := "TurnPlan · " + turnPlanTitle(turn.ID)
-		desc := fmt.Sprintf("真实 Chat 执行：发送「%s」，校验 turn_plan 路由与工具调用。", turn.Message)
-		steps := []string{
-			"清空 Dock Chat 会话",
-			"按 session 话术发送用户消息（含必要的 setup 轮次）",
-			"校验 turn_plan domain/mode/SOP 与实际工具调用",
-		}
-		if len(opts.SetupMessages) > 0 {
-			steps[1] = "先发送 setup 话术建立上下文，再发送目标用户消息"
-		}
+		opts = opts.Normalize()
 		out = append(out, TurnPlanEvalCaseDef{
-			ID:          id,
-			Title:       title,
-			Description: desc,
-			Steps:       steps,
+			ID:          "turn_plan_" + c.ID,
+			Title:       "TurnPlan · " + c.Title,
+			Description: c.Description,
+			Steps:       liveCaseSteps(c),
 			SortOrder:   50 + i,
 			Options:     opts,
 		})
@@ -91,50 +90,30 @@ func IndividualTurnPlanEvalCases() []TurnPlanEvalCaseDef {
 	return out
 }
 
-func setupMessagesForTurn(turn TurnPlanTurn) []string {
-	switch turn.ID {
-	case "stock_followup_technical":
-		return []string{"帮我查一下腾讯的股价"}
-	case "sticky_symbol_switch":
-		return []string{"帮我分析一下中际旭创"}
-	case "backtest_after_analysis":
-		return []string{"帮我分析一下小米"}
-	default:
-		if turn.LastDomain != "" {
-			return []string{"帮我分析一下中际旭创"}
-		}
-		return nil
+func liveCaseSteps(c TurnPlanLiveCase) []string {
+	return []string{
+		"新 session：运行前清空 Dock Chat",
+		liveDialogueStep(c.SetupMessages, c.Message),
+		"verify：校验路由/工具/回复关键词 + LLM 语义评判",
 	}
 }
 
-func turnPlanTitle(id string) string {
-	titles := map[string]string{
-		"stock_price_lookup":         "查腾讯股价",
-		"stock_followup_technical":   "分析技术面跟进",
-		"stock_colloquial":           "口语换股票",
-		"signal_probe":               "测买卖点",
-		"signal_probe_combo":         "SAR+MACD 测点",
-		"backtest_explicit":          "显式回测",
-		"backtest_colloquial":        "口语回测",
-		"ambiguous_bare_macd":        "模糊 MACD",
-		"compound_analysis_backtest": "分析+回测复合",
-		"chat_definition":            "MACD 释义",
-		"chat_signal_quality":        "信号准吗",
-		"bot_reminder_list":          "Reminder 列表",
-		"bot_grid_pnl":               "网格 Bot 盈亏",
-		"bot_smarttrade_list":        "SmartTrade 列表",
-		"backtest_history":           "回测历史",
-		"report_lookup":              "盘前报告",
-		"knowledge_lookup":           "知识库检索",
-		"news_lookup":                "新闻查询",
-		"dca_grid_backtest":          "DCA 回测",
-		"sticky_symbol_switch":       "换贵州茅台",
-		"backtest_after_analysis":    "分析后回测",
+func liveDialogueStep(setup []string, message string) string {
+	if len(setup) == 0 {
+		return fmt.Sprintf("单轮发送：「%s」", message)
 	}
-	if t, ok := titles[id]; ok {
-		return t
+	parts := append(append([]string(nil), setup...), message)
+	var b strings.Builder
+	b.WriteString("同 session 按序发送：")
+	for i, part := range parts {
+		if i > 0 {
+			b.WriteString(" → ")
+		}
+		b.WriteString("「")
+		b.WriteString(part)
+		b.WriteString("」")
 	}
-	return id
+	return b.String()
 }
 
 // TurnPlanSnapshot is persisted on the chat session after each agent turn.

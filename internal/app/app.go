@@ -546,6 +546,16 @@ func (a *App) buildFallbackProviders() []llm.Provider {
 	return a.buildChatFallbackProviders()
 }
 
+// OpsBackgroundProvider returns the auxiliary/ops LLM provider for eval judge and similar tasks.
+func (a *App) OpsBackgroundProvider() llm.Provider {
+	return a.opsBackgroundProvider()
+}
+
+// OpsBackgroundPolicy returns temperature/max_tokens policy for ops background LLM calls.
+func (a *App) OpsBackgroundPolicy() llm.Policy {
+	return a.opsBackgroundPolicy()
+}
+
 // opsBackgroundProvider returns the ops 主备 provider for non-chat LLM tasks.
 func (a *App) opsBackgroundProvider() llm.Provider {
 	if a != nil && a.SynthesisGateway != nil {

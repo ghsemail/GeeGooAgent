@@ -123,22 +123,32 @@ func (h *Handler) evalCaseVerify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	start := time.Now()
-	result := eval.VerifyTurnPlanLive(chat, opts)
+	result := eval.VerifyTurnPlanLiveFull(r.Context(), chat, opts, h.evalJudge())
 	status := "pass"
 	if !result.Passed {
 		status = "fail"
 	}
+	runID := newEvalRunID(caseID)
+	userID := resolveUserID(r)
+	if db := h.dashboardSQLDB(); db != nil {
+		_ = h.persistEvalVerifyRun(r.Context(), db, userID, runID, caseID, title, sessionID, result, time.Since(start).Milliseconds())
+	}
 
 	writeJSON(w, map[string]any{
-		"ok":          result.Passed,
-		"case_id":     caseID,
-		"title":       title,
-		"status":      status,
-		"plan_only":   false,
-		"session_id":  sessionID,
-		"turn_id":     result.TurnID,
-		"detail":      result.Detail,
-		"duration_ms": time.Since(start).Milliseconds(),
+		"ok":                result.Passed,
+		"case_id":           caseID,
+		"title":             title,
+		"status":            status,
+		"plan_only":         false,
+		"session_id":        sessionID,
+		"run_id":            runID,
+		"turn_id":           result.TurnID,
+		"detail":            result.Detail,
+		"checks":            result.Checks,
+		"actual_reply":      result.ActualReply,
+		"dialogue_snapshot": result.DialogueSnapshot,
+		"summary":           result.Summary,
+		"duration_ms":       time.Since(start).Milliseconds(),
 	})
 }
 
@@ -172,37 +182,6 @@ func (h *Handler) loadTurnPlanCaseOptions(r *http.Request, caseID string) (eval.
 		return eval.TurnPlanCaseOptions{}, "", errEvalCaseNotTurnPlan
 	}
 	return opts, title, nil
-}
-
-func enrichEvalCaseRow(row map[string]any) {
-	opts, _ := row["options"].(map[string]any)
-	if opts == nil {
-		return
-	}
-	category, _ := opts["category"].(string)
-	if category != "turn_plan" {
-		return
-	}
-	planOnly, _ := opts["plan_only"].(bool)
-	if planOnly {
-		row["run_mode"] = "plan_only"
-		return
-	}
-	row["run_mode"] = "turn_plan_live"
-	if msg, ok := opts["message"].(string); ok && strings.TrimSpace(msg) != "" {
-		row["utterance"] = strings.TrimSpace(msg)
-	}
-	if setup, ok := opts["setup_messages"].([]any); ok && len(setup) > 0 {
-		out := make([]string, 0, len(setup))
-		for _, item := range setup {
-			if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
-				out = append(out, strings.TrimSpace(s))
-			}
-		}
-		if len(out) > 0 {
-			row["setup_utterances"] = out
-		}
-	}
 }
 
 func newEvalRunID(caseID string) string {

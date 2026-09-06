@@ -11,8 +11,8 @@ import (
 
 func TestIndividualTurnPlanEvalCasesCount(t *testing.T) {
 	cases := eval.IndividualTurnPlanEvalCases()
-	if len(cases) != 21 {
-		t.Fatalf("cases=%d want 21", len(cases))
+	if len(cases) != 22 {
+		t.Fatalf("cases=%d want 22", len(cases))
 	}
 	for _, c := range cases {
 		if c.Options.PlanOnly {
@@ -29,6 +29,7 @@ func TestPrintTurnPlanEvalSQL(t *testing.T) {
 		t.Skip("sql dump")
 	}
 	var b strings.Builder
+	b.WriteString("DELETE FROM agent_eval_cases WHERE id LIKE 'turn_plan_%';\n")
 	b.WriteString("DELETE FROM agent_eval_cases WHERE id = 'turn_plan_routing';\n")
 	for _, c := range eval.IndividualTurnPlanEvalCases() {
 		stepsJSON, _ := json.Marshal(c.Steps)
