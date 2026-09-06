@@ -43,6 +43,7 @@ var legacyExecutionTimeouts = map[string]time.Duration{
 	"generate_grid_strategy": 3 * time.Minute,
 	"get_mcp_analysis":       3 * time.Minute,
 	"clarify":                10 * time.Minute,
+	"search_code":            8 * time.Second,
 }
 
 var perToolMaxResultChars = map[string]int{

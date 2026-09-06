@@ -189,25 +189,24 @@ func (r *Router) runTool(
 	recordTool func(name, status, summary string),
 ) tools.Result {
 	if toolCtx.Progress != nil {
+		if name == "search_code" {
+			q := fmt.Sprint(args["regex"])
+			msg := "正在搜索标的…"
+			if strings.TrimSpace(q) != "" && q != "<nil>" {
+				msg = fmt.Sprintf("正在搜索标的「%s」…", q)
+			}
+			toolCtx.Progress("status", map[string]any{"phase": "tool", "message": msg})
+		}
 		toolCtx.Progress("tool_start", map[string]any{"name": name, "arguments": args})
 	}
 	res := r.RunTool(ctx, tools.CallRequest{Name: name, Arguments: args}, toolCtx)
-	if toolCtx.Progress != nil && !holdCatalogToolDone(name) {
+	if toolCtx.Progress != nil {
 		toolCtx.Progress("tool_done", map[string]any{
 			"name": name, "status": string(res.Status), "summary": res.Summary, "arguments": args,
 		})
 	}
 	recordTool(name, string(res.Status), res.Summary)
 	return res
-}
-
-func holdCatalogToolDone(name string) bool {
-	switch name {
-	case "search_code", "get_index_signals", "get_signal_combinations":
-		return true
-	default:
-		return false
-	}
 }
 
 func truncate(s string, n int) string {

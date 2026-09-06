@@ -114,7 +114,6 @@ func ResolveStock(
 	query string,
 ) (code, name, market string, err error) {
 	res := runTool(ctx, tools.CallRequest{Name: "search_code", Arguments: map[string]any{"regex": query}}, toolCtx)
-	defer emitCatalogToolDone(toolCtx, "search_code", res, map[string]any{"regex": query})
 	if res.Status != tools.StatusOK {
 		return "", "", "", fmt.Errorf("search_code 失败：%s", res.Summary)
 	}

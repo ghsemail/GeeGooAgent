@@ -33,7 +33,6 @@ func ResolveSignal(
 		return resolveIndexSignal(ctx, toolCtx, runTool, plan)
 	}
 	res := runTool(ctx, tools.CallRequest{Name: "get_signal_combinations", Arguments: map[string]any{}}, toolCtx)
-	defer emitCatalogToolDone(toolCtx, "get_signal_combinations", res, map[string]any{})
 	if res.Status != tools.StatusOK {
 		return ResolvedSignal{}, fmt.Errorf("get_signal_combinations 失败：%s", res.Summary)
 	}
@@ -76,7 +75,6 @@ func resolveIndexSignal(
 	plan SignalPlan,
 ) (ResolvedSignal, error) {
 	res := runTool(ctx, tools.CallRequest{Name: "get_index_signals", Arguments: map[string]any{}}, toolCtx)
-	defer emitCatalogToolDone(toolCtx, "get_index_signals", res, map[string]any{})
 	if res.Status != tools.StatusOK {
 		return ResolvedSignal{}, fmt.Errorf("get_index_signals 失败：%s", res.Summary)
 	}

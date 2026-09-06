@@ -123,8 +123,8 @@ func TestAnalysisClarifyBeforeSearchCodeDone(t *testing.T) {
 	if startAt < 0 || clarifyAt < 0 || doneAt < 0 {
 		t.Fatalf("missing events=%v", events)
 	}
-	if !(startAt < clarifyAt && clarifyAt < doneAt) {
-		t.Fatalf("order start=%d clarify=%d done=%d events=%v", startAt, clarifyAt, doneAt, events)
+	if !(startAt < doneAt && doneAt < clarifyAt) {
+		t.Fatalf("want search_code done before clarify: start=%d done=%d clarify=%d events=%v", startAt, doneAt, clarifyAt, events)
 	}
 }
 

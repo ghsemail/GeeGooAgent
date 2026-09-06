@@ -125,6 +125,8 @@ func applyLiveEvent(state *LiveSessionState, event string, data map[string]any) 
 				state.Status = "gate"
 			case "plan":
 				state.Status = "planning"
+			case "tool":
+				state.Status = "tool"
 			}
 		}
 	case "error":
