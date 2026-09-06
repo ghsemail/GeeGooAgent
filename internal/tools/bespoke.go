@@ -13,6 +13,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/infra"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/search"
+	"github.com/ghsemail/GeeGooAgent/internal/stockpick"
 	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
 )
 
@@ -65,6 +66,7 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 				return errResult(err)
 			}
 			anyItems := make([]any, 0, len(items))
+			rowItems := make([]map[string]any, 0, len(items))
 			for _, it := range items {
 				row := map[string]any{"code": it.Code, "name": it.Name}
 				if it.NameEN != "" {
@@ -82,16 +84,34 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 				if it.LotSize > 0 {
 					row["lot_size"] = it.LotSize
 				}
+				rowItems = append(rowItems, row)
 				anyItems = append(anyItems, row)
 			}
-			summary := fmt.Sprintf("search_code: %d item(s)", len(items))
-			if len(items) > 0 {
-				top := items[0]
-				label := top.Name
-				if label == "" {
-					label = top.NameEN
+			if picked, ok := stockpick.AutoPick(regex, rowItems); ok && len(rowItems) > 1 {
+				anyItems = []any{picked}
+				label := fmt.Sprint(picked["name"])
+				if label == "" || label == "<nil>" {
+					label = fmt.Sprint(picked["code"])
 				}
-				summary = fmt.Sprintf("search_code: %d item(s); top: %s (%s)", len(items), label, top.Code)
+				summary := fmt.Sprintf("search_code: 1 item(s); auto-picked: %s (%s)", label, picked["code"])
+				return Result{
+					Status:  StatusOK,
+					Summary: summary,
+					Data: map[string]any{
+						"items":       anyItems,
+						"auto_picked": true,
+						"query":       regex,
+					},
+				}
+			}
+			summary := fmt.Sprintf("search_code: %d item(s)", len(anyItems))
+			if len(rowItems) > 0 {
+				top := rowItems[0]
+				label := fmt.Sprint(top["name"])
+				if label == "" || label == "<nil>" {
+					label = fmt.Sprint(top["name_en"])
+				}
+				summary = fmt.Sprintf("search_code: %d item(s); top: %s (%s)", len(rowItems), label, top["code"])
 			}
 			return Result{Status: StatusOK, Summary: summary, Data: map[string]any{"items": anyItems}}
 		},

@@ -38,17 +38,6 @@ func TestLooksLikeStockQueryRejectsDaily(t *testing.T) {
 	}
 }
 
-func TestPickStockRowByCode(t *testing.T) {
-	items := []map[string]any{
-		{"code": "00700.HK", "name": "腾讯控股"},
-		{"code": "01698.HK", "name": "腾讯音乐-SW"},
-	}
-	row, ok := pickStockRowByCode(items, "0700.HK")
-	if !ok || row["code"] != "00700.HK" {
-		t.Fatalf("picked=%v ok=%v", row, ok)
-	}
-}
-
 func TestPickStockRowAutoResolvesTencentWithoutClarify(t *testing.T) {
 	items := []map[string]any{
 		{"code": "00700.HK", "name": "腾讯控股"},
@@ -75,28 +64,5 @@ func TestPickStockRowAutoResolvesTencentWithoutClarify(t *testing.T) {
 		if ev == "clarify" {
 			t.Fatalf("unexpected clarify event: %v", events)
 		}
-	}
-}
-
-func TestPickStockRowByPrimaryAliasTencent(t *testing.T) {
-	items := []map[string]any{
-		{"code": "01698.HK", "name": "腾讯音乐-SW"},
-		{"code": "00700.HK", "name": "腾讯控股"},
-		{"code": "TCEHY", "name": "Tencent Holdings ADR"},
-	}
-	row, ok := pickStockRowByPrimaryAlias("腾讯", items)
-	if !ok || row["code"] != "00700.HK" {
-		t.Fatalf("picked=%v ok=%v", row, ok)
-	}
-}
-
-func TestPickStockRowByNameRankTencent(t *testing.T) {
-	items := []map[string]any{
-		{"code": "01698.HK", "name": "腾讯音乐-SW"},
-		{"code": "00700.HK", "name": "腾讯控股"},
-	}
-	row, ok := pickStockRowByNameRank("腾讯", items)
-	if !ok || row["code"] != "00700.HK" {
-		t.Fatalf("picked=%v ok=%v", row, ok)
 	}
 }
