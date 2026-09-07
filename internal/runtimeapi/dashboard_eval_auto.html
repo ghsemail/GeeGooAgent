@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Eval 自动测评</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #171e27;
+      --panel-2: #1e2733;
+      --line: #2a3544;
+      --text: #e7eef7;
+      --muted: #8ea0b5;
+      --accent: #3d9cf0;
+      --ok: #3ecf8e;
+      --fail: #f07178;
+      --warn: #e6c07b;
+      --chip: #243044;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.45 ui-sans-serif, system-ui, sans-serif; }
+    a { color: var(--accent); }
+    button, input, textarea { font: inherit; }
+    .top {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 14px 20px; border-bottom: 1px solid var(--line); background: #121820;
+    }
+    .top h1 { margin: 0; font-size: 18px; font-weight: 650; }
+    .top .sub { color: var(--muted); font-size: 12px; }
+    .layout { display: grid; grid-template-columns: 380px 1fr; min-height: calc(100% - 58px); }
+    .side, .main { padding: 16px; }
+    .side { border-right: 1px solid var(--line); overflow: auto; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+    .card h2 { margin: 0 0 10px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+    label { display: block; color: var(--muted); margin: 8px 0 4px; font-size: 12px; }
+    input[type=text] {
+      width: 100%; background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+      border-radius: 8px; padding: 8px 10px;
+    }
+    .cats { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      border: 1px solid var(--line); background: var(--chip); color: var(--text); border-radius: 999px;
+      padding: 5px 10px; cursor: pointer;
+    }
+    .chip.on { border-color: var(--accent); background: #1a334d; color: #d6ecff; }
+    .cases { max-height: 240px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 6px; background: var(--panel-2); }
+    .case { display: flex; gap: 8px; align-items: flex-start; padding: 6px; border-radius: 6px; }
+    .case:hover { background: #243044; }
+    .case small { display: block; color: var(--muted); }
+    .row { display: flex; gap: 8px; margin-top: 12px; }
+    button {
+      background: var(--accent); color: #061018; border: 0; border-radius: 8px; padding: 8px 12px;
+      font-weight: 650; cursor: pointer;
+    }
+    button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .suite { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .job { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; background: var(--panel-2); cursor: pointer; }
+    .job:hover { border-color: var(--accent); }
+    .badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 12px; }
+    .pass { background: #143d2c; color: var(--ok); }
+    .fail, .error { background: #3d1a1d; color: var(--fail); }
+    .running, .queued { background: #3a3018; color: var(--warn); }
+    .cancelled { background: #2a3340; color: var(--muted); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-size: 12px; }
+    .drawer {
+      position: fixed; right: 0; top: 0; width: min(560px, 100%); height: 100%; background: #121820;
+      border-left: 1px solid var(--line); padding: 16px; overflow: auto; box-shadow: -12px 0 40px #0006;
+    }
+    pre { white-space: pre-wrap; background: var(--panel); padding: 10px; border-radius: 8px; overflow: auto; }
+    .msg { margin: 8px 0; padding: 8px 10px; border-radius: 8px; }
+    .msg.user { background: #243044; }
+    .msg.assistant { background: #1b2833; }
+    .step { font-size: 12px; color: var(--muted); padding: 4px 0; border-bottom: 1px dashed var(--line); }
+    .err { color: var(--fail); }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div>
+      <h1>自动测评</h1>
+      <div class="sub">按分类选用例，后台自动跑 Live Chat + Verify，并可查看 session / loop 记录</div>
+    </div>
+    <button class="ghost" id="refreshBtn">刷新</button>
+  </div>
+  <div class="layout">
+    <aside class="side">
+      <div class="card">
+        <h2>新建自动化测试</h2>
+        <label>名称</label>
+        <input id="title" type="text" placeholder="例如：股票分析冒烟"/>
+        <label>分类</label>
+        <div class="cats" id="cats"></div>
+        <label>用例</label>
+        <div class="cases" id="cases"></div>
+        <div class="row">
+          <button id="saveBtn">保存方案</button>
+          <button id="runBtn">立即运行</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>已保存方案</h2>
+        <div id="suites"></div>
+      </div>
+    </aside>
+    <main class="main">
+      <div class="card">
+        <h2>运行结果</h2>
+        <div id="jobs"></div>
+      </div>
+    </main>
+  </div>
+  <div class="drawer" id="drawer" hidden></div>
+<script>
+const token = new URLSearchParams(location.search).get("token")
+  || localStorage.getItem("geegoo_runtime_key")
+  || "";
+const state = { categories: [], cases: [], selectedCats: new Set(), selectedCases: new Set(), poll: null };
+
+async function api(path, opts = {}) {
+  const headers = Object.assign({ "Authorization": "Bearer " + token }, opts.headers || {});
+  if (opts.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
+  const res = await fetch(path, Object.assign({}, opts, { headers }));
+  const text = await res.text();
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
+  if (!res.ok) throw new Error(data.error?.message || data.error || res.statusText);
+  return data;
+}
+
+function $(id) { return document.getElementById(id); }
+
+function renderCats() {
+  $("cats").innerHTML = state.categories.map(c =>
+    `<button type="button" class="chip ${state.selectedCats.has(c.id) ? "on" : ""}" data-id="${c.id}">${c.title} (${c.count})</button>`
+  ).join("");
+  $("cats").querySelectorAll(".chip").forEach(el => {
+    el.onclick = () => {
+      const id = el.dataset.id;
+      if (state.selectedCats.has(id)) state.selectedCats.delete(id); else state.selectedCats.add(id);
+      const inCat = state.cases.filter(c => state.selectedCats.has(c.category)).map(c => c.id);
+      state.selectedCases = new Set(inCat.length ? inCat : []);
+      renderCats(); renderCases();
+    };
+  });
+}
+
+function renderCases() {
+  const visible = state.selectedCats.size
+    ? state.cases.filter(c => state.selectedCats.has(c.category))
+    : state.cases;
+  $("cases").innerHTML = visible.map(c => `
+    <label class="case">
+      <input type="checkbox" data-id="${c.id}" ${state.selectedCases.has(c.id) ? "checked" : ""}/>
+      <span>${c.title}<small>${c.category} · ${c.message}</small></span>
+    </label>`).join("");
+  $("cases").querySelectorAll("input").forEach(el => {
+    el.onchange = () => {
+      if (el.checked) state.selectedCases.add(el.dataset.id); else state.selectedCases.delete(el.dataset.id);
+    };
+  });
+}
+
+function selection() {
+  return {
+    title: $("title").value.trim() || "自动测评",
+    category_ids: [...state.selectedCats],
+    case_ids: [...state.selectedCases],
+  };
+}
+
+function badge(status) {
+  return `<span class="badge ${status || ""}">${status || "-"}</span>`;
+}
+
+async function loadCatalog() {
+  const data = await api("/v1/dashboard/eval/catalog");
+  state.categories = data.categories || [];
+  state.cases = data.cases || [];
+  renderCats(); renderCases();
+}
+
+async function loadSuites() {
+  const data = await api("/v1/dashboard/eval/suites");
+  $("suites").innerHTML = (data.suites || []).map(s => `
+    <div class="suite">
+      <div><b>${s.title}</b><div class="sub">${(s.case_ids || []).length} 条用例</div></div>
+      <div>
+        <button data-run="${s.id}">运行</button>
+        <button class="ghost" data-del="${s.id}">删</button>
+      </div>
+    </div>`).join("") || '<div class="sub">暂无保存的方案</div>';
+  $("suites").querySelectorAll("[data-run]").forEach(el => el.onclick = () => startJob({ suite_id: el.dataset.run }));
+  $("suites").querySelectorAll("[data-del]").forEach(el => el.onclick = async () => {
+    await api("/v1/dashboard/eval/suites/" + el.dataset.del, { method: "DELETE" });
+    loadSuites();
+  });
+}
+
+async function loadJobs() {
+  const data = await api("/v1/dashboard/eval/jobs");
+  $("jobs").innerHTML = (data.jobs || []).map(j => `
+    <div class="job" data-id="${j.id}">
+      <div style="display:flex;justify-content:space-between;gap:8px">
+        <b>${j.title}</b>${badge(j.status)}
+      </div>
+      <div class="sub">${j.passed || 0} 通过 / ${j.failed || 0} 失败 / ${j.total || 0} 总计 · ${j.created_at || ""}</div>
+    </div>`).join("") || '<div class="sub">还没有运行记录。选择分类后点「立即运行」。</div>';
+  $("jobs").querySelectorAll(".job").forEach(el => el.onclick = () => openJob(el.dataset.id));
+  const running = (data.jobs || []).some(j => j.status === "queued" || j.status === "running");
+  if (running && !state.poll) state.poll = setInterval(loadJobs, 2000);
+  if (!running && state.poll) { clearInterval(state.poll); state.poll = null; }
+}
+
+async function startJob(body) {
+  if (!body.suite_id && !(body.category_ids || []).length && !(body.case_ids || []).length) {
+    alert("请先选择分类或用例");
+    return;
+  }
+  const data = await api("/v1/dashboard/eval/jobs", { method: "POST", body: JSON.stringify(body) });
+  await loadJobs();
+  if (data.job?.id) openJob(data.job.id);
+}
+
+async function openJob(id, keepOpen) {
+  const data = await api("/v1/dashboard/eval/jobs/" + id);
+  const j = data.job || {};
+  const items = data.items || j.items || [];
+  $("drawer").hidden = false;
+  $("drawer").innerHTML = `
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">${j.title || id} ${badge(j.status)}</h2>
+      <button class="ghost" id="closeDrawer">关闭</button>
+    </div>
+    <div class="row">
+      <p class="sub">${j.passed || 0} 通过 / ${j.failed || 0} 失败 / ${j.total || 0} 总计</p>
+      ${(j.status === "queued" || j.status === "running") ? '<button class="ghost" id="cancelJob">取消运行</button>' : ""}
+    </div>
+    <table>
+      <thead><tr><th>用例</th><th>状态</th><th>Session</th><th>详情</th></tr></thead>
+      <tbody>${items.map(it => `
+        <tr>
+          <td>${it.title}<div class="sub">${it.case_id}</div></td>
+          <td>${badge(it.status)}</td>
+          <td>${it.session_id ? `<a href="#" data-item="${it.id}">${it.session_id.slice(0, 8)}…</a>` : "-"}</td>
+          <td class="${it.status === "fail" || it.status === "error" ? "err" : ""}">${it.detail || it.loop_error || ""}</td>
+        </tr>`).join("")}</tbody>
+    </table>
+    <div id="itemDetail"></div>`;
+  $("closeDrawer").onclick = () => { $("drawer").hidden = true; };
+  const cancelBtn = $("cancelJob");
+  if (cancelBtn) cancelBtn.onclick = async () => { await api("/v1/dashboard/eval/jobs/" + id + "/cancel", { method: "POST" }); openJob(id); loadJobs(); };
+  $("drawer").querySelectorAll("[data-item]").forEach(el => el.onclick = (ev) => { ev.preventDefault(); openItem(id, el.dataset.item); });
+  if ((j.status === "queued" || j.status === "running") && !keepOpen) {
+    setTimeout(() => { if (!$("drawer").hidden) openJob(id); }, 1500);
+  }
+}
+
+async function openItem(jobId, itemId) {
+  const data = await api(`/v1/dashboard/eval/jobs/${jobId}/items/${itemId}`);
+  const session = data.session || {};
+  const loop = data.loop || {};
+  const msgs = (session.messages || []).map(m => `<div class="msg ${m.role}"><b>${m.role}</b><div>${escapeHtml(m.content || "")}</div></div>`).join("");
+  const steps = (loop.step_records || []).map(s => {
+    const bad = (s.tool_status || "").toLowerCase().includes("error") || (s.tool_status || "").toLowerCase() === "failed";
+    return `<div class="step ${bad ? "err" : ""}">#${s.step} ${s.kind} ${s.tool_name || ""} ${s.tool_status || ""} — ${escapeHtml(s.summary || "")}</div>`;
+  }).join("") || '<div class="sub">暂无 loop 步骤</div>';
+  const toolErr = (loop.tool_errors || []).map(e => `<div class="err">${e.tool}: ${escapeHtml(e.summary || "")}</div>`).join("");
+  $("itemDetail").innerHTML = `
+    <h2>Session ${session.id || ""}</h2>
+    ${msgs || '<div class="sub">无对话</div>'}
+    <h2>Loop</h2>
+    <pre>${escapeHtml(JSON.stringify(loop.last_turn_plan || {}, null, 2))}</pre>
+    ${toolErr}
+    ${steps}`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+$("saveBtn").onclick = async () => {
+  await api("/v1/dashboard/eval/suites", { method: "POST", body: JSON.stringify(selection()) });
+  loadSuites();
+};
+$("runBtn").onclick = () => startJob(selection());
+$("refreshBtn").onclick = () => { loadCatalog(); loadSuites(); loadJobs(); };
+
+loadCatalog().then(loadSuites).then(loadJobs).catch(err => {
+  $("jobs").innerHTML = `<div class="err">加载失败：${escapeHtml(err.message)}。请确认已登录 runtime API（Bearer token）。</div>`;
+});
+</script>
+</body>
+</html>

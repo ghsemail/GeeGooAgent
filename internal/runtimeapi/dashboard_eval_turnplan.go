@@ -1,6 +1,7 @@
 package runtimeapi
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -159,7 +160,11 @@ func (h *Handler) loadTurnPlanCaseOptions(r *http.Request, caseID string) (eval.
 	db := h.dashboardSQLDB()
 	if db != nil {
 		userID := resolveUserID(r)
-		row := db.QueryRowContext(r.Context(), h.evalSQL(`
+		ctx := context.Background()
+		if r != nil {
+			ctx = r.Context()
+		}
+		row := db.QueryRowContext(ctx, h.evalSQL(`
 			SELECT title, options_json
 			FROM agent_eval_cases
 			WHERE id = ? AND enabled = TRUE AND (user_id = '' OR user_id = ?)`), caseID, userID)
