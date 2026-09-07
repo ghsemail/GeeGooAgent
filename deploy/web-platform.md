@@ -159,7 +159,29 @@ location /op_agent/ {
 }
 ```
 
-## 6. 向量库（外部 Qdrant，可选）
+## 6. Chrome 登录密码自动填充
+
+Flutter Web 默认不给登录框设置 `autocomplete="username"` / `current-password`，Chrome 无法识别。
+
+**部署桥接脚本**（在 `trading_operation/web` 已构建的前提下）：
+
+```bash
+python3 scripts/ops/deploy/patch_trading_op_autofill.py \
+  --host 146.56.225.252 \
+  --web-dir /root/apps/trading_operation/web
+```
+
+脚本会：
+
+1. 上传 `deploy/web/autofill-bridge.js`
+2. 在 `index.html` 注入 `<script src="autofill-bridge.js"></script>`
+3. `docker cp` 同步到 `:8088` Nginx 容器
+
+**注意**：Chrome 在 `http://` 明文页面上仍会限制密码保存/自动填充。生产请配置 HTTPS（见 `nginx-trading-operation.conf` 的 `listen 443 ssl` 示例）。
+
+`trading_operation` 源码侧长期修复：登录页使用 `AutofillGroup` + `autofillHints`，登录成功后调用 `TextInput.finishAutofillContext(shouldSave: true)`。
+
+## 7. 向量库（外部 Qdrant，可选）
 
 ```bash
 # 示例：Qdrant
