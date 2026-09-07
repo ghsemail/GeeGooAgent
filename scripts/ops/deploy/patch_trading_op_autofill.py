@@ -104,7 +104,7 @@ def main() -> int:
         default=os.environ.get("TRADING_OP_SSH_USER")
         or os.environ.get("GEEGOO_SIGNAL_SSH_USER")
         or os.environ.get("GEEGOO_AGENT_SSH_USER")
-        or "ubuntu",
+        or "root",
     )
     parser.add_argument(
         "--password",
