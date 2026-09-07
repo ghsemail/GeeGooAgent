@@ -155,6 +155,62 @@ CREATE INDEX IF NOT EXISTS idx_agent_eval_run_checks_run
 CREATE INDEX IF NOT EXISTS idx_agent_eval_runs_user_started
     ON agent_eval_runs (user_id, started_at DESC);
 
+CREATE TABLE IF NOT EXISTS agent_eval_suites (
+    id                 TEXT PRIMARY KEY,
+    user_id            TEXT NOT NULL DEFAULT '',
+    title              TEXT NOT NULL,
+    description        TEXT NOT NULL DEFAULT '',
+    category_ids_json  TEXT NOT NULL DEFAULT '[]',
+    case_ids_json      TEXT NOT NULL DEFAULT '[]',
+    created_at         TEXT NOT NULL,
+    updated_at         TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_eval_suites_user
+    ON agent_eval_suites (user_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS agent_eval_jobs (
+    id                 TEXT PRIMARY KEY,
+    user_id            TEXT NOT NULL DEFAULT '',
+    suite_id           TEXT NOT NULL DEFAULT '',
+    title              TEXT NOT NULL DEFAULT '',
+    status             TEXT NOT NULL DEFAULT 'queued',
+    category_ids_json  TEXT NOT NULL DEFAULT '[]',
+    case_ids_json      TEXT NOT NULL DEFAULT '[]',
+    total              INTEGER NOT NULL DEFAULT 0,
+    passed             INTEGER NOT NULL DEFAULT 0,
+    failed             INTEGER NOT NULL DEFAULT 0,
+    error_text         TEXT NOT NULL DEFAULT '',
+    started_at         TEXT NOT NULL DEFAULT '',
+    ended_at           TEXT NOT NULL DEFAULT '',
+    created_at         TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_eval_jobs_user
+    ON agent_eval_jobs (user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS agent_eval_job_items (
+    id            TEXT PRIMARY KEY,
+    job_id        TEXT NOT NULL,
+    case_id       TEXT NOT NULL,
+    title         TEXT NOT NULL DEFAULT '',
+    category      TEXT NOT NULL DEFAULT '',
+    status        TEXT NOT NULL DEFAULT 'pending',
+    session_id    TEXT NOT NULL DEFAULT '',
+    run_id        TEXT NOT NULL DEFAULT '',
+    detail        TEXT NOT NULL DEFAULT '',
+    summary_json  TEXT NOT NULL DEFAULT '{}',
+    checks_json   TEXT NOT NULL DEFAULT '[]',
+    loop_error    TEXT NOT NULL DEFAULT '',
+    duration_ms   INTEGER,
+    started_at    TEXT NOT NULL DEFAULT '',
+    ended_at      TEXT NOT NULL DEFAULT '',
+    created_at    TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_eval_job_items_job
+    ON agent_eval_job_items (job_id, case_id);
+
 INSERT OR IGNORE INTO agent_eval_cases (
     id, user_id, title, description, steps_json, supports_random_stock, options_json, sort_order, enabled, created_at, updated_at
 ) VALUES (

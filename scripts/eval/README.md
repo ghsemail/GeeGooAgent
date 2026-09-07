@@ -28,6 +28,15 @@ python scripts/eval/run_turnplan_live_remote.py --list
 python scripts/eval/run_turnplan_live_remote.py --category stock_analysis
 python scripts/eval/run_turnplan_live_remote.py --case turn_plan_stock_price
 
+# Dashboard 自动测评（runtime 本机）
+# 打开 GET /v1/dashboard/eval/auto
+# 或按分类后台跑：
+curl -X POST http://127.0.0.1:3400/v1/dashboard/eval/jobs \
+  -H "Authorization: Bearer $GEEGOO_AGENT_RUNTIME_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"股票分析冒烟","category_ids":["stock_analysis"]}'
+
+
 # 部署后同步 eval 用例到 PG
 python scripts/eval/migrate_turnplan_eval_db.py
 ```
@@ -38,3 +47,4 @@ python scripts/eval/migrate_turnplan_eval_db.py
 - 语义 rubric：`internal/eval/turnplan_expect_reply.go`
 - Verify 逻辑：`internal/eval/turnplan_live.go`
 - HTTP API：`internal/runtimeapi/dashboard_eval_turnplan.go`
+- 自动测评 Job：`internal/runtimeapi/dashboard_eval_auto.go`

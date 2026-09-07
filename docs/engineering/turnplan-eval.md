@@ -70,7 +70,22 @@ POST /v1/chat/stream                           # live 对话
 1. 修改 Go 用例 → 跑 `gen_turnplan_eval_sql.go` + `gen_turnplan_cases_json.go`
 2. commit + push → 部署 agent-runtime
 3. `python scripts/eval/migrate_turnplan_eval_db.py` 同步 PG
-4. `python scripts/eval/run_turnplan_live_remote.py --category stock_analysis` 冒烟
+4. Dashboard「自动测评」页或 `POST /v1/dashboard/eval/jobs` 按分类跑 Live
+5. 也可 `python scripts/eval/run_turnplan_live_remote.py --category stock_analysis` 冒烟
+
+### Dashboard 自动测评
+
+页面：`GET /v1/dashboard/eval/auto`（需 Bearer）。可按分类勾选用例、保存方案、后台自动跑 Live Chat + verify。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/v1/dashboard/eval/catalog` | 分类 + 用例清单 |
+| GET/POST | `/v1/dashboard/eval/suites` | 保存的自动化方案 |
+| GET/POST | `/v1/dashboard/eval/jobs` | 创建并后台执行；列表 |
+| GET | `/v1/dashboard/eval/jobs/{id}` | 任务进度与每条结果 |
+| GET | `/v1/dashboard/eval/jobs/{id}/items/{item_id}` | session 对话 + loop 步骤/报错 |
+
+结果里每条用例带 `session_id`，可继续用 `GET /v1/sessions/{id}/trace` 看 loop。
 
 ## 设计原则（当前版本）
 
