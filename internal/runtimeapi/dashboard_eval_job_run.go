@@ -37,6 +37,9 @@ var evalJobCtl = struct {
 	cancel: map[string]context.CancelFunc{},
 }
 
+// evalJobRunMu serializes live eval jobs so they do not interleave Agent.Run turns.
+var evalJobRunMu sync.Mutex
+
 func rememberEvalJobAuth(jobID string, auth evalJobAuth) {
 	evalJobCtl.mu.Lock()
 	defer evalJobCtl.mu.Unlock()
@@ -85,6 +88,13 @@ func (h *Handler) runEvalJob(jobID string) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	registerEvalJobCancel(jobID, cancel)
+
+	evalJobRunMu.Lock()
+	defer evalJobRunMu.Unlock()
+	if ctx.Err() != nil {
+		h.markEvalJob(db, jobID, "cancelled", "cancelled before start", 0, 0)
+		return
+	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, _ = db.ExecContext(ctx, h.evalSQL(`UPDATE agent_eval_jobs SET status = 'running', started_at = ? WHERE id = ?`), now, jobID)

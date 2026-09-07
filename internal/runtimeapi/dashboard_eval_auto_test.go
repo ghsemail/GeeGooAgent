@@ -186,6 +186,31 @@ func TestEvalJobCreateRunsSelectedCategory(t *testing.T) {
 	}
 }
 
+func TestEvalJobCancelEndpoint(t *testing.T) {
+	handler := testEvalAutoHandler(t)
+	code, body := evalAutoJSON(t, handler, http.MethodPost, "/v1/dashboard/eval/jobs", map[string]any{
+		"title":    "取消冒烟",
+		"case_ids": []string{"turn_plan_chat_definition"},
+	})
+	if code != http.StatusOK {
+		t.Fatalf("create job status=%d body=%v", code, body)
+	}
+	job, _ := body["job"].(map[string]any)
+	id, _ := job["id"].(string)
+	if id == "" {
+		t.Fatalf("missing job id: %v", body)
+	}
+	code, cancelBody := evalAutoJSON(t, handler, http.MethodPost, "/v1/dashboard/eval/jobs/"+id+"/cancel", nil)
+	if code != http.StatusOK {
+		t.Fatalf("cancel status=%d body=%v", code, cancelBody)
+	}
+	got, _ := cancelBody["job"].(map[string]any)
+	status, _ := got["status"].(string)
+	if status == "" {
+		t.Fatalf("cancel missing status: %v", cancelBody)
+	}
+}
+
 func TestEvalAutoPageServesHTML(t *testing.T) {
 	handler := testEvalAutoHandler(t)
 	req := httptest.NewRequest(http.MethodGet, "/v1/dashboard/eval/auto", nil)
@@ -201,5 +226,8 @@ func TestEvalAutoPageServesHTML(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "自动测评") {
 		t.Fatalf("html missing title")
+	}
+	if !strings.Contains(rec.Body.String(), "取消运行") {
+		t.Fatalf("html missing cancel control")
 	}
 }

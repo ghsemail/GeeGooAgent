@@ -757,7 +757,7 @@ func uniqueNonEmpty(in []string) []string {
 
 func containsFold(list []string, want string) bool {
 	for _, s := range list {
-		if s == want {
+		if strings.EqualFold(s, want) {
 			return true
 		}
 	}

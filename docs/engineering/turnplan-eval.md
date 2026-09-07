@@ -87,6 +87,8 @@ POST /v1/chat/stream                           # live 对话
 
 结果里每条用例带 `session_id`，可继续用 `GET /v1/sessions/{id}/trace` 看 loop。
 
+运营后台 Flutter（`trading_operation`）Eval 模块有「自动测评」Tab，走同一套 jobs API，无需打开 HTML 页。
+
 ## 设计原则（当前版本）
 
 - **LLM-first 路由**：`LLMPlanner` 主判，`RulePlanner` 仅 hint/fallback

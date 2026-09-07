@@ -48,3 +48,4 @@ python scripts/eval/migrate_turnplan_eval_db.py
 - Verify 逻辑：`internal/eval/turnplan_live.go`
 - HTTP API：`internal/runtimeapi/dashboard_eval_turnplan.go`
 - 自动测评 Job：`internal/runtimeapi/dashboard_eval_auto.go`
+- 运营后台 Tab：`trading_operation` → Eval → 自动测评
