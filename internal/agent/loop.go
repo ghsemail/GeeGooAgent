@@ -235,14 +235,25 @@ func (l *Loop) SetCognition(b cognition.Bundle) {
 	}
 }
 
+func (l *Loop) EffectivePlanner() cognition.Planner {
+	return l.effectivePlanner()
+}
+
+func (l *Loop) SetPlanner(p cognition.Planner) {
+	if l == nil {
+		return
+	}
+	l.planner = p
+}
+
 func (l *Loop) effectivePlanner() cognition.Planner {
 	if l != nil && l.planner != nil {
 		return l.planner
 	}
 	if l != nil && l.gateProvider != nil {
-		return cognition.IntentPlanner{Rules: cognition.RulePlanner{}, LLM: l.gateProvider}
+		return cognition.IntentPlanner{LLM: l.gateProvider}
 	}
-	return cognition.RulePlanner{}
+	return cognition.IntentPlanner{}
 }
 
 func (l *Loop) effectivePlanPolicy() cognition.PlanPolicy {

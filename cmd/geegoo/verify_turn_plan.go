@@ -29,7 +29,7 @@ func runVerifyTurnPlan(args []string) {
 		}
 	}
 
-	results := eval.RunTurnPlanSuite(suite)
+	results := eval.RunTurnPlanSuite(suite, eval.DefaultTurnPlanPlanner())
 	for _, r := range results {
 		mark := "✓"
 		if !r.Passed {

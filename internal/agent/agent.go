@@ -164,6 +164,13 @@ func (a *Agent) SetExecutionProfileMaxRetries(n int) {
 	}
 }
 
+// SetPlanner wires the TurnPlan classifier (LLM-first IntentPlanner).
+func (a *Agent) SetPlanner(p cognition.Planner) {
+	if a != nil && a.Loop != nil {
+		a.Loop.SetPlanner(p)
+	}
+}
+
 // SetCognition wires Ranker / Evaluator / PlanPolicy into the owned loop.
 func (a *Agent) SetCognition(b cognition.Bundle) {
 	if a != nil && a.Loop != nil {

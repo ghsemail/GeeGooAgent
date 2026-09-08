@@ -6,7 +6,7 @@ TurnPlan 评测验证 Agent 每轮用户输入的 **意图路由**、**ReAct 工
 
 | 模式 | 入口 | 耗时 | 说明 |
 |------|------|------|------|
-| **Plan-only** | `POST /v1/dashboard/eval/run-turn-plan` | 秒级 | 只测 LLM/规则分类，不跑 Chat |
+| **Plan-only** | `POST /v1/dashboard/eval/run-turn-plan` | 秒级 | 只测 LLM IntentPlanner 分类，不跑 Chat |
 | **Live** | Dock Chat → `POST .../cases/{id}/verify` | 分钟级 | 真实 SSE 对话 + 结构化校验 + LLM judge |
 
 Live 用例 **不能** 直接 `POST .../cases/{id}/run`（会 400）；必须先完成 `POST /v1/chat/stream`，再带 `session_id` 调 verify。
@@ -47,7 +47,7 @@ Live verify（`VerifyTurnPlanLiveFull`）依次检查：
 
 股票分析 Live 用例引用通用 execution profile（如 `stock_analysis.price_via_mcp`），多轮场景按 session 工具轨迹校验，不再要求最后一轮重复 `search_code`。
 
-TurnPlan 对 `stock_analysis` 会细化 `act`（`quote_price` / `technical_analysis` / `context_followup` / `symbol_resolve`），由 **LLM IntentPlanner** 在 classify JSON 中输出；RulePlanner 回退时保持 catalog 默认 `analyze`。Loop 按 act 注入 execution profile 契约，并在违反时触发 `execution_retry`（默认每轮最多 1 次）。
+TurnPlan 对 `stock_analysis` 会细化 `act`（`quote_price` / `technical_analysis` / `context_followup` / `symbol_resolve`），由 **LLM IntentPlanner** 在 classify JSON 中输出。Loop 按 act 注入 execution profile 契约，并在违反时触发 `execution_retry`（默认每轮最多 1 次）。LLM 不可用时仅做保守 fallback（沿用 sticky domain 或 chat/talk），不再使用关键词 RulePlanner。
 
 ## 数据与 API
 
@@ -95,6 +95,6 @@ POST /v1/chat/stream                           # live 对话
 
 ## 设计原则（当前版本）
 
-- **LLM-first 路由**：`LLMPlanner` 主判，`RulePlanner` 仅 hint/fallback
+- **LLM-only 路由**：`IntentPlanner` 为唯一生产 Planner；结构化澄清选项与 `sanitizeLLMPlan` 硬规则兜底
 - **无 SOP 短路**：`ShouldRunDomainSOP()` 恒 false，Loop 不 `TryRunFromPlan`
 - **口语化对话**：eval 用户话术完整自然，避免「可以」「这边呢」等半句话

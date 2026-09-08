@@ -7,7 +7,7 @@ import (
 )
 
 func TestDefaultTurnPlanSuitePasses(t *testing.T) {
-	results := eval.RunTurnPlanSuite(eval.DefaultTurnPlanSuite())
+	results := eval.RunTurnPlanSuite(eval.DefaultTurnPlanSuite(), eval.DefaultTurnPlanPlanner())
 	if !eval.AllTurnPlanPass(results) {
 		for _, r := range results {
 			if !r.Passed {
@@ -20,7 +20,7 @@ func TestDefaultTurnPlanSuitePasses(t *testing.T) {
 func TestTurnPlanSuiteRejectsWrongDomain(t *testing.T) {
 	suite := eval.DefaultTurnPlanSuite()
 	suite.Turns[0].ExpectDomain = "backtest_run"
-	results := eval.RunTurnPlanSuite(suite)
+	results := eval.RunTurnPlanSuite(suite, eval.DefaultTurnPlanPlanner())
 	if eval.AllTurnPlanPass(results) {
 		t.Fatal("expected failure with wrong domain")
 	}
