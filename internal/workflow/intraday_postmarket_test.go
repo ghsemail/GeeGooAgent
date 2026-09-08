@@ -1,6 +1,7 @@
 package workflow_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -64,7 +65,7 @@ func TestPostMarketDryRunE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer application.Close()
-	result, err := application.RunSkill("postmarket_stock")
+	result, err := application.RunSkillContext(context.Background(), "postmarket_stock", app.SkillRunOptions{Market: "CN"})
 	if err != nil {
 		t.Fatal(err)
 	}
