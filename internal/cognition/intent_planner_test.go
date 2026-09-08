@@ -148,6 +148,15 @@ func TestIntentPlannerFallbackInheritsStickyDomain(t *testing.T) {
 	}
 }
 
+func TestIntentPlannerStickySessionOverridesChatMisroute(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"chat","mode":"talk","confidence":0.8,"reason":"misroute"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "它最近走势怎么样", LastDomain: DomainStockAnalysis})
+	if got.Domain != DomainStockAnalysis || got.Act != "context_followup" {
+		t.Fatalf("sticky override got %s/%s act=%s", got.Domain, got.Mode, got.Act)
+	}
+}
+
 func containsStr(items []string, want string) bool {
 	for _, s := range items {
 		if s == want {
