@@ -161,6 +161,32 @@ func TestIntentPlannerRejectsBacktestWithoutVerb(t *testing.T) {
 	}
 }
 
+func TestIntentPlannerStockActFromLLM(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"stock_analysis","mode":"gather","act":"quote_price","confidence":0.9,"reason":"price quote"}`}
+	p := IntentPlanner{Rules: RulePlanner{}, LLM: mock}
+	got := p.Plan(PlanInput{UserText: "帮我查一下腾讯控股现在的股价"})
+	if got.Act != "quote_price" {
+		t.Fatalf("act=%s want quote_price", got.Act)
+	}
+
+	mock.body = `{"domain":"stock_analysis","mode":"gather","act":"context_followup","confidence":0.9,"reason":"pronoun follow-up"}`
+	got = p.Plan(PlanInput{UserText: "它最近走势怎么样", LastDomain: DomainStockAnalysis})
+	if got.Act != "context_followup" {
+		t.Fatalf("act=%s want context_followup", got.Act)
+	}
+}
+
+func TestRulePlannerKeepsCatalogActWithoutLLM(t *testing.T) {
+	p := RulePlanner{}
+	got := p.Plan(PlanInput{UserText: "帮我查一下腾讯控股现在的股价"})
+	if got.Domain != DomainStockAnalysis {
+		t.Fatalf("domain=%s", got.Domain)
+	}
+	if got.Act != "analyze" {
+		t.Fatalf("rule fallback act=%s want catalog analyze", got.Act)
+	}
+}
+
 func TestIntentPlannerNilLLMKeepsRules(t *testing.T) {
 	p := IntentPlanner{Rules: RulePlanner{}}
 	got := p.Plan(PlanInput{UserText: "MACD"})

@@ -12,7 +12,7 @@ type RulePlanner struct{}
 
 // Plan implements Planner.
 func (RulePlanner) Plan(in PlanInput) TurnPlan {
-	return enrichStockAnalysisAct(rulePlannerPlan(in), in)
+	return rulePlannerPlan(in)
 }
 
 func rulePlannerPlan(in PlanInput) TurnPlan {

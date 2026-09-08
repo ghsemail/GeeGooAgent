@@ -8,13 +8,14 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
+	"github.com/ghsemail/GeeGooAgent/internal/domaincatalog"
 )
 
 const classifyTimeout = 2 * time.Second
 
 const classifyPrompt = `You classify one user chat turn for a finance assistant.
 Reply with ONLY JSON:
-{"domain":"<one>","mode":"<one>","confidence":0.0,"reason":"<short>"}
+{"domain":"<one>","mode":"<one>","act":"<optional>","confidence":0.0,"reason":"<short>"}
 
 Allowed domain values:
 chat, stock_analysis, news, knowledge, report_lookup, report_write, bot_manage,
@@ -22,6 +23,15 @@ signal_probe, backtest_run, backtest_history, custom_signal, prompt_admin, dca_g
 
 Allowed mode values:
 talk, gather, execute, clarify
+
+When domain is stock_analysis, act MUST be one of:
+analyze, quote_price, technical_analysis, context_followup, symbol_resolve
+- quote_price: user wants current price / quote only
+- technical_analysis: technicals, K-line, indicators, trend analysis
+- context_followup: pronoun or short follow-up continuing the same symbol in session
+- symbol_resolve: user explicitly switches to a different stock symbol
+- analyze: general stock analysis when none of the above fits
+For non-stock_analysis domains, omit act or use empty string.
 
 Domain + mode guidance:
 - stock_analysis/gather: analyze a stock, quote, technicals, trends.
@@ -33,7 +43,7 @@ Domain + mode guidance:
 - bot_manage/execute: create/update/delete bots.
 - chat/talk: definitions, chitchat, signal quality opinions (准吗/靠谱吗) after prior context.
 - ambiguous/clarify: bare strategy words (MACD/SAR) without clear action, or compound analyze+backtest in one sentence.
-- Follow last turn domain for short follow-ups (它最近走势 / 不聊XX了 / 接着… / 刚才那次…) when the user did not switch topic.
+- Use last turn domain + dialogue context for short follow-ups; do not rely on single keywords alone.
 
 Hard rules:
 - backtest_run ONLY with an explicit backtest verb.
@@ -59,7 +69,7 @@ func (p IntentPlanner) Plan(in PlanInput) TurnPlan {
 			plan := planForDomain(d)
 			plan.Reason = "用户选择了上一轮澄清选项"
 			plan.Confidence = 0.9
-			return enrichStockAnalysisAct(plan, in)
+			return plan
 		}
 	}
 
@@ -75,12 +85,13 @@ func (p IntentPlanner) Plan(in PlanInput) TurnPlan {
 	if !ok {
 		return base
 	}
-	return enrichStockAnalysisAct(sanitizeLLMPlan(in, base, got), in)
+	return sanitizeLLMPlan(in, base, got)
 }
 
 type llmClassifyJSON struct {
 	Domain     string  `json:"domain"`
 	Mode       string  `json:"mode"`
+	Act        string  `json:"act"`
 	Confidence float64 `json:"confidence"`
 	Reason     string  `json:"reason"`
 }
@@ -127,6 +138,9 @@ func classifyWithLLM(in PlanInput, provider llm.Provider, base TurnPlan) (TurnPl
 	}
 	if parsed.Confidence > 0 {
 		plan.Confidence = parsed.Confidence
+	}
+	if d == DomainStockAnalysis {
+		plan.Act = domaincatalog.NormalizeStockAct(parsed.Act)
 	}
 	return plan, true
 }
