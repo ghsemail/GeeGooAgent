@@ -47,6 +47,8 @@ Live verify（`VerifyTurnPlanLiveFull`）依次检查：
 
 股票分析 Live 用例引用通用 execution profile（如 `stock_analysis.price_via_mcp`），多轮场景按 session 工具轨迹校验，不再要求最后一轮重复 `search_code`。
 
+TurnPlan 对 `stock_analysis` 会细化 `act`（`quote_price` / `technical_analysis` / `context_followup` / `symbol_resolve`），Loop 按 act 注入 execution profile 契约，并在违反时触发 `execution_retry`（默认每轮最多 1 次）。
+
 ## 数据与 API
 
 - Dashboard 用例表：`agent_eval_cases`（`options_json.category = turn_plan`）

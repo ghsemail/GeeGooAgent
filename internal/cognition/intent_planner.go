@@ -12,6 +12,10 @@ type RulePlanner struct{}
 
 // Plan implements Planner.
 func (RulePlanner) Plan(in PlanInput) TurnPlan {
+	return enrichStockAnalysisAct(rulePlannerPlan(in), in)
+}
+
+func rulePlannerPlan(in PlanInput) TurnPlan {
 	msg := strings.TrimSpace(in.UserText)
 	if in.LastDomain == DomainAmbiguous {
 		if d, ok := mapClarifyChoice(msg); ok {

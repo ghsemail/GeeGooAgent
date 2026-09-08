@@ -46,6 +46,10 @@ type Session struct {
 	LastTurnToolsAllow []string
 	// LastTurnAct is the catalog act from the previous turn plan.
 	LastTurnAct string
+	// PriorSessionTools is the union of tools from prior user turns (loaded from chat).
+	PriorSessionTools []string
+	// LastExecutionProfile is the profile id applied to the current/last turn.
+	LastExecutionProfile string
 }
 
 // PendingPlan is a held mutating-tool batch from one LLM round.

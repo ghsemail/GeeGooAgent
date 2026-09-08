@@ -25,6 +25,7 @@ func RuntimeSessionFromChat(chat *chatsession.ChatSession) *runtime.Session {
 	if step, calls, ok := chat.HeldPlanFromMetadata(); ok {
 		session.PendingPlan = &runtime.PendingPlan{Step: step, ToolCalls: calls}
 	}
+	session.PriorSessionTools = chatsession.SessionToolsFromTrace(chatsession.TurnToolsTraceFromSession(chat))
 	return session
 }
 

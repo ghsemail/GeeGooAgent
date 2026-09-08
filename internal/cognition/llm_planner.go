@@ -59,7 +59,7 @@ func (p IntentPlanner) Plan(in PlanInput) TurnPlan {
 			plan := planForDomain(d)
 			plan.Reason = "用户选择了上一轮澄清选项"
 			plan.Confidence = 0.9
-			return plan
+			return enrichStockAnalysisAct(plan, in)
 		}
 	}
 
@@ -75,7 +75,7 @@ func (p IntentPlanner) Plan(in PlanInput) TurnPlan {
 	if !ok {
 		return base
 	}
-	return sanitizeLLMPlan(in, base, got)
+	return enrichStockAnalysisAct(sanitizeLLMPlan(in, base, got), in)
 }
 
 type llmClassifyJSON struct {

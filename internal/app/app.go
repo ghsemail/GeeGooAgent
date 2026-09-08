@@ -160,6 +160,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	app.Agent.SetToolTimeout(cfg.EffectiveToolTimeout())
 	app.Agent.SetPlanGate(cfg.EffectivePlanGate())
 	app.Agent.SetEvalMaxRetries(cfg.EffectiveEvalMaxRetries())
+	app.Agent.SetExecutionProfileMaxRetries(cfg.EffectiveExecutionProfileMaxRetries())
 	app.Agent.SetDelegateMaxParallel(cfg.EffectiveDelegateMaxParallel())
 	app.Agent.SetEventBus(eventBus)
 	sub := agent.NewSubAgent(agent.SubAgentConfig{
