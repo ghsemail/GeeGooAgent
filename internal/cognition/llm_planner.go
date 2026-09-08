@@ -11,7 +11,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
-const classifyTimeout = 2 * time.Second
+const classifyTimeout = 8 * time.Second
 
 const classifyPrompt = `You classify one user chat turn for a finance assistant.
 Reply with ONLY JSON:

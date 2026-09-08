@@ -548,6 +548,16 @@ func (a *App) buildFallbackProviders() []llm.Provider {
 	return a.buildChatFallbackProviders()
 }
 
+// classifyProvider returns the LLM used for per-turn intent classification.
+// Prefer the live chat gateway (same model as ReAct) so classify stays reliable
+// when the ops/synthesis gateway is slow or returns non-JSON output.
+func (a *App) classifyProvider() llm.Provider {
+	if a != nil && a.Gateway != nil {
+		return llm.ProviderFromGateway(a.Gateway)
+	}
+	return a.opsBackgroundProvider()
+}
+
 // IntentPlanner returns the production LLM-first planner wired on the agent loop.
 func (a *App) IntentPlanner() cognition.Planner {
 	if a != nil && a.Agent != nil && a.Agent.Loop != nil {
@@ -556,14 +566,14 @@ func (a *App) IntentPlanner() cognition.Planner {
 	if a == nil {
 		return cognition.IntentPlanner{}
 	}
-	return cognition.IntentPlanner{LLM: a.opsBackgroundProvider()}
+	return cognition.IntentPlanner{LLM: a.classifyProvider()}
 }
 
 func (a *App) wireIntentPlanner() {
 	if a == nil || a.Agent == nil {
 		return
 	}
-	a.Agent.SetPlanner(a.IntentPlanner())
+	a.Agent.SetPlanner(cognition.IntentPlanner{LLM: a.classifyProvider()})
 }
 
 // OpsBackgroundProvider returns the auxiliary/ops LLM provider for eval judge and similar tasks.
