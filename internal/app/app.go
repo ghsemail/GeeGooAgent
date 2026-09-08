@@ -222,6 +222,20 @@ func (a *App) Close() error {
 	return err
 }
 
+// ensurePostgresConnected lazily connects PostgreSQL when configured but startup failed.
+func (a *App) ensurePostgresConnected() error {
+	if a == nil {
+		return fmt.Errorf("app not initialized")
+	}
+	if a.PG != nil {
+		return nil
+	}
+	if infra.PostgresDSN() == "" {
+		return fmt.Errorf("GEEGOO_PG_DSN not set")
+	}
+	return a.openPostgres()
+}
+
 func (a *App) openPostgres() error {
 	dsn := infra.PostgresDSN()
 	if dsn == "" {

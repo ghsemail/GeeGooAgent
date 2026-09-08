@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -18,7 +19,12 @@ func (a *App) SessionStore() (chatsession.SessionStore, error) {
 	switch infra.SessionStoreBackend() {
 	case "postgres", "pg":
 		if a.PG == nil {
-			return nil, fmt.Errorf("postgres session store requested but GEEGOO_PG_DSN is not connected")
+			if err := a.ensurePostgresConnected(); err != nil {
+				if store, ok := a.sqliteSessionStoreFallback(err); ok {
+					return store, nil
+				}
+				return nil, fmt.Errorf("postgres session store requested but GEEGOO_PG_DSN is not connected")
+			}
 		}
 		return chatsession.NewPostgresSessionStore(a.PG.SQL()), nil
 	case "file":
@@ -41,6 +47,14 @@ func (a *App) SessionStore() (chatsession.SessionStore, error) {
 		return chatsession.NewChatSessionStore(a.State), nil
 	}
 	return nil, fmt.Errorf("no session store configured")
+}
+
+func (a *App) sqliteSessionStoreFallback(pgErr error) (chatsession.SessionStore, bool) {
+	if a == nil || a.DB == nil {
+		return nil, false
+	}
+	slog.Warn("postgres session store unavailable; falling back to sqlite", "error", pgErr)
+	return chatsession.NewSQLiteSessionStore(a.DB), true
 }
 
 // SessionBackendName reports the active session persistence backend.
