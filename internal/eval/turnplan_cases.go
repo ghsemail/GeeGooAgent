@@ -58,6 +58,7 @@ type TurnPlanLiveCase struct {
 	ExpectSOP     bool
 	ForbidTools   []string
 	RequireTools  []string
+	ExecutionProfile string
 }
 
 // TurnPlanSuite is the options_json shape for dashboard eval case category=turn_plan (plan_only bundle).
@@ -94,7 +95,7 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			Description: "独立 session：查询腾讯控股现价。",
 			Message:     "帮我查一下腾讯控股现在的股价",
 			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectSOP: false,
-			RequireTools: []string{"search_code", "get_mcp_analysis"},
+			ExecutionProfile: "stock_analysis.price_via_mcp",
 			ForbidTools:  []string{"run_strategy_backtest"},
 		},
 		{
@@ -103,7 +104,7 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			SetupMessages: []string{"帮我查一下腾讯控股现在的股价"},
 			Message:       "再帮我看看腾讯的技术面和K线图",
 			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectSOP: false,
-			RequireTools: []string{"search_code", "get_mcp_analysis"},
+			ExecutionProfile: "stock_analysis.technical_full",
 			ForbidTools:  []string{"run_strategy_backtest"},
 		},
 		{
@@ -112,7 +113,7 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			SetupMessages: []string{"帮我分析一下中际旭创"},
 			Message:       "不聊中际旭创了，帮我分析一下贵州茅台",
 			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectSOP: false,
-			RequireTools: []string{"search_code"},
+			ExecutionProfile: "stock_analysis.symbol_resolve",
 			ForbidTools:  []string{"run_strategy_backtest"},
 		},
 		{
@@ -121,7 +122,7 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			SetupMessages: []string{"帮我分析一下中际旭创"},
 			Message:       "它最近走势怎么样",
 			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectSOP: false,
-			RequireTools: []string{"search_code"},
+			ExecutionProfile: "stock_analysis.context_followup",
 			ForbidTools:  []string{"run_strategy_backtest"},
 		},
 		{

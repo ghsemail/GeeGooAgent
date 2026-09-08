@@ -54,10 +54,6 @@
       "expect_domain": "stock_analysis",
       "expect_mode": "gather",
       "expect_sop": false,
-      "require_tools": [
-        "search_code",
-        "get_mcp_analysis"
-      ],
       "forbid_tools": [
         "run_strategy_backtest"
       ]
@@ -75,10 +71,6 @@
       "expect_domain": "stock_analysis",
       "expect_mode": "gather",
       "expect_sop": false,
-      "require_tools": [
-        "search_code",
-        "get_mcp_analysis"
-      ],
       "forbid_tools": [
         "run_strategy_backtest"
       ]
@@ -96,9 +88,6 @@
       "expect_domain": "stock_analysis",
       "expect_mode": "gather",
       "expect_sop": false,
-      "require_tools": [
-        "search_code"
-      ],
       "forbid_tools": [
         "run_strategy_backtest"
       ]
@@ -116,9 +105,6 @@
       "expect_domain": "stock_analysis",
       "expect_mode": "gather",
       "expect_sop": false,
-      "require_tools": [
-        "search_code"
-      ],
       "forbid_tools": [
         "run_strategy_backtest"
       ]

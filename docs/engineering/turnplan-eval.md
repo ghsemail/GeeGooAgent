@@ -39,11 +39,13 @@ Plan-only 套件：`DefaultTurnPlanSuite()`，用 `LastDomain` 模拟多轮上�
 
 Live verify（`VerifyTurnPlanLiveFull`）依次检查：
 
-1. **routing** — `last_turn_plan.domain/mode/sop` 与期望一致
-2. **tools** — `require_tools` / `forbid_tools`
+1. **intent** — `last_turn_plan.domain/mode/sop/act` 与期望一致
+2. **execution** — `execution_profile`（`domaincatalog`）或 legacy `require_tools`
 3. **reply_length** — 最短字符数
 4. **must_cover** — 关键词命中
 5. **llm_judge** — 辅助模型按 rubric 打分（默认 ≥ 0.7）
+
+股票分析 Live 用例引用通用 execution profile（如 `stock_analysis.price_via_mcp`），多轮场景按 session 工具轨迹校验，不再要求最后一轮重复 `search_code`。
 
 ## 数据与 API
 

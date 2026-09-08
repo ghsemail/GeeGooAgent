@@ -44,6 +44,8 @@ type Session struct {
 	LastTurnSOP bool
 	// LastTurnToolsAllow is the tool whitelist from the previous turn plan.
 	LastTurnToolsAllow []string
+	// LastTurnAct is the catalog act from the previous turn plan.
+	LastTurnAct string
 }
 
 // PendingPlan is a held mutating-tool batch from one LLM round.

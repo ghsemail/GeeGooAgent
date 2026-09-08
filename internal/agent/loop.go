@@ -391,6 +391,7 @@ func (l *Loop) runPreparedTurn(
 	planMS := time.Since(planStarted).Milliseconds()
 	session.LastTurnDomain = string(turnPlan.Domain)
 	session.LastTurnMode = string(turnPlan.Mode)
+	session.LastTurnAct = turnPlan.Act
 	session.LastTurnSOP = turnPlan.ShouldRunDomainSOP()
 	session.LastTurnToolsAllow = append([]string(nil), turnPlan.ToolsAllow...)
 	l.emit("turn_plan", map[string]any{
