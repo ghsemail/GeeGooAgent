@@ -16,7 +16,7 @@ func TestNormalizeStockAct(t *testing.T) {
 }
 
 func TestExecutionProfileForStockActs(t *testing.T) {
-	if domaincatalog.ExecutionProfileFor(domaincatalog.DomainStockAnalysis, domaincatalog.StockActQuotePrice) != domaincatalog.ProfileStockPriceViaMCP {
+	if domaincatalog.ExecutionProfileFor(domaincatalog.DomainStockAnalysis, domaincatalog.StockActQuotePrice) != domaincatalog.ProfileStockPriceSnapshot {
 		t.Fatal("quote_price profile")
 	}
 	if domaincatalog.ExecutionProfileFor(domaincatalog.DomainChat, domaincatalog.StockActQuotePrice) != "" {

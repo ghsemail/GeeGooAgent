@@ -28,7 +28,7 @@ func ExecutionProfileFor(domain Domain, act string) string {
 	}
 	switch NormalizeStockAct(act) {
 	case StockActQuotePrice:
-		return ProfileStockPriceViaMCP
+		return ProfileStockPriceSnapshot
 	case StockActTechnicalAnalysis:
 		return ProfileStockTechnicalFull
 	case StockActContextFollowup:
@@ -43,6 +43,8 @@ func ExecutionProfileFor(domain Domain, act string) string {
 // ProfileExecutionHint returns a short ReAct hint for the loop prompt.
 func ProfileExecutionHint(profileID string) string {
 	switch profileID {
+	case ProfileStockPriceSnapshot:
+		return "查现价：search_code 后调用 get_current_price 返回现价即可；不要走 get_mcp_analysis。"
 	case ProfileStockPriceViaMCP:
 		return "查股价须 search_code 后走 get_single_prompt_template(tag=price) + get_mcp_analysis；不要仅用 get_current_price 收尾。"
 	case ProfileStockTechnicalFull:

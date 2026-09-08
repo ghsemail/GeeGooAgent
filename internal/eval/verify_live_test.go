@@ -28,14 +28,14 @@ func TestVerifyTurnPlanLiveFullWithJudge(t *testing.T) {
 				"domain": "stock_analysis", "mode": "gather", "sop": true,
 			},
 			"turn_tools_trace": []chatsession.TurnToolsEntry{
-				{Turn: 1, Tools: []string{"search_code", "get_mcp_analysis"}},
+				{Turn: 1, Tools: []string{"search_code", "get_current_price"}},
 			},
 		},
 	}
 	opts := eval.TurnPlanCaseOptions{
 		TurnID: "stock_price", ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectSOP: true,
 		Message: "帮我查一下腾讯的股价",
-		ExecutionProfile: "stock_analysis.price_via_mcp",
+		ExecutionProfile: "stock_analysis.price_snapshot",
 		MinReplyChars: 10,
 	}.Normalize()
 

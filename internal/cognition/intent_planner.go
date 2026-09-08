@@ -12,20 +12,24 @@ func isFollowUpUtterance(msg string) bool {
 	return hasAny(msg, []string{"换成", "改成", "继续", "再看看", "再帮我", "接着", "还是那个", "同样的", "刚才那个", "刚才那次", "换一个标的", "它最近", "不聊"})
 }
 
-func mapClarifyChoice(msg string) (Domain, bool) {
+func mapClarifyChoice(msg string) (Domain, string, bool) {
 	switch {
+	case hasAny(msg, []string{"只要当前价", "查现价", "现价就行"}):
+		return DomainStockAnalysis, "quote_price", true
+	case hasAny(msg, []string{"分析价格走势", "走势分析", "做价格分析"}):
+		return DomainStockAnalysis, "technical_analysis", true
 	case hasAny(msg, []string{"个股/指标分析", "指标分析", "先分析"}):
-		return DomainStockAnalysis, true
+		return DomainStockAnalysis, "technical_analysis", true
 	case msg == "分析":
-		return DomainStockAnalysis, true
+		return DomainStockAnalysis, "technical_analysis", true
 	case hasAny(msg, []string{"测买卖点", "只测点"}):
-		return DomainSignalProbe, true
+		return DomainSignalProbe, "", true
 	case hasAny(msg, []string{"跑回测看收益", "看收益"}):
-		return DomainBacktestRun, true
+		return DomainBacktestRun, "", true
 	case hasAny(msg, []string{"先问答", "先不操作"}):
-		return DomainChat, true
+		return DomainChat, "", true
 	default:
-		return "", false
+		return "", "", false
 	}
 }
 

@@ -467,7 +467,7 @@ func (l *Loop) runPreparedTurn(
 	schemas = cognition.FilterSchemas(schemas, turnPlan)
 	profileID := domaincatalog.ExecutionProfileFor(domaincatalog.Domain(turnPlan.Domain), turnPlan.Act)
 	session.LastExecutionProfile = profileID
-	schemas = filterPriceShortcutSchemas(schemas, profileID)
+	schemas = filterExecutionProfileSchemas(schemas, profileID)
 
 	if result, handled := l.tryPresetClarify(ctx, session, turnPlan, toolCtx, &records, schemas); handled {
 		return result

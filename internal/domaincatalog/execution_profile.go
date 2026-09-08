@@ -30,6 +30,7 @@ type ExecutionProfile struct {
 }
 
 const (
+	ProfileStockPriceSnapshot   = "stock_analysis.price_snapshot"
 	ProfileStockPriceViaMCP     = "stock_analysis.price_via_mcp"
 	ProfileStockTechnicalFull   = "stock_analysis.technical_full"
 	ProfileStockContextFollowup = "stock_analysis.context_followup"
@@ -37,6 +38,13 @@ const (
 )
 
 var executionProfiles = map[string]ExecutionProfile{
+	ProfileStockPriceSnapshot: {
+		ID: ProfileStockPriceSnapshot,
+		Required: []ToolRule{
+			{Tool: "search_code", Scope: ScopeJudgedOrSession},
+			{Tool: "get_current_price", Scope: ScopeJudgedTurn},
+		},
+	},
 	ProfileStockPriceViaMCP: {
 		ID: ProfileStockPriceViaMCP,
 		Required: []ToolRule{

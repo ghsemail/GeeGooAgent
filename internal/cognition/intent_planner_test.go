@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ghsemail/GeeGooAgent/internal/domaincatalog"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
@@ -99,6 +100,35 @@ func TestIntentPlannerStockActFromLLM(t *testing.T) {
 	got = p.Plan(PlanInput{UserText: "它最近走势怎么样", LastDomain: DomainStockAnalysis})
 	if got.Act != "context_followup" {
 		t.Fatalf("act=%s want context_followup", got.Act)
+	}
+}
+
+func TestIntentPlannerStockClarifyChoice(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"chat","mode":"talk","confidence":0.9,"reason":"wrong"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "只要当前价", LastDomain: DomainAmbiguous})
+	if got.Domain != DomainStockAnalysis || got.Act != "quote_price" {
+		t.Fatalf("choice should map to quote_price, got %s/%s act=%s", got.Domain, got.Mode, got.Act)
+	}
+
+	got = p.Plan(PlanInput{UserText: "分析价格走势", LastDomain: DomainAmbiguous})
+	if got.Domain != DomainStockAnalysis || got.Act != "technical_analysis" {
+		t.Fatalf("choice should map to technical_analysis, got %s act=%s", got.Domain, got.Act)
+	}
+}
+
+func TestIntentPlannerStockQuoteClarifyTemplate(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"ambiguous","mode":"clarify","clarify":"stock_quote","confidence":0.6,"reason":"quote vs analysis"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "腾讯股价怎么样"})
+	if got.Mode != ModeClarify {
+		t.Fatalf("mode=%s", got.Mode)
+	}
+	if got.ClarifyQuestion != domaincatalog.StockPriceClarifyQuestion {
+		t.Fatalf("question=%q", got.ClarifyQuestion)
+	}
+	if len(got.ClarifyChoices) != 2 || got.ClarifyChoices[0] != "只要当前价" {
+		t.Fatalf("choices=%v", got.ClarifyChoices)
 	}
 }
 

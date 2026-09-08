@@ -87,17 +87,29 @@ func (l *Loop) tryExecutionProfileRetry(
 	return true
 }
 
-// filterPriceShortcutSchemas removes get_current_price when profile disallows price shortcut.
-func filterPriceShortcutSchemas(schemas []llm.ToolSchema, profileID string) []llm.ToolSchema {
-	if profileID != domaincatalog.ProfileStockPriceViaMCP {
+func filterExecutionProfileSchemas(schemas []llm.ToolSchema, profileID string) []llm.ToolSchema {
+	switch profileID {
+	case domaincatalog.ProfileStockPriceViaMCP, domaincatalog.ProfileStockTechnicalFull:
+		return filterOutToolSchema(schemas, "get_current_price")
+	case domaincatalog.ProfileStockPriceSnapshot:
+		return filterOutToolSchema(schemas, "get_mcp_analysis")
+	default:
 		return schemas
 	}
+}
+
+func filterOutToolSchema(schemas []llm.ToolSchema, name string) []llm.ToolSchema {
 	out := make([]llm.ToolSchema, 0, len(schemas))
 	for _, s := range schemas {
-		if s.Name == "get_current_price" {
+		if s.Name == name {
 			continue
 		}
 		out = append(out, s)
 	}
 	return out
+}
+
+// filterPriceShortcutSchemas is deprecated; use filterExecutionProfileSchemas.
+func filterPriceShortcutSchemas(schemas []llm.ToolSchema, profileID string) []llm.ToolSchema {
+	return filterExecutionProfileSchemas(schemas, profileID)
 }

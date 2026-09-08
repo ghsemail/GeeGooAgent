@@ -48,9 +48,24 @@
       "turn_id": "stock_price",
       "category": "stock_analysis",
       "title": "TurnPlan · 单轮 · 查股价",
-      "description": "独立 session：查询腾讯控股现价。",
+      "description": "独立 session：查询腾讯控股现价（snapshot，非 MCP 分析）。",
       "setup": null,
       "message": "帮我查一下腾讯控股现在的股价",
+      "expect_domain": "stock_analysis",
+      "expect_mode": "gather",
+      "expect_sop": false,
+      "forbid_tools": [
+        "run_strategy_backtest"
+      ]
+    },
+    {
+      "id": "turn_plan_stock_price_trend",
+      "turn_id": "stock_price_trend",
+      "category": "stock_analysis",
+      "title": "TurnPlan · 单轮 · 分析价格走势",
+      "description": "独立 session：分析腾讯最近一个月价格走势（MCP）。",
+      "setup": null,
+      "message": "帮我分析下腾讯最近一个月的价格走势",
       "expect_domain": "stock_analysis",
       "expect_mode": "gather",
       "expect_sop": false,

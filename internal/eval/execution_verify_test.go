@@ -47,9 +47,9 @@ func TestVerifyExecutionProfilesMatchLiveFailures(t *testing.T) {
 		},
 	}
 	res = eval.VerifyExecution(priceChat, eval.ExpectExecutionSpec{
-		Profile: domaincatalog.ProfileStockPriceViaMCP,
+		Profile: domaincatalog.ProfileStockPriceSnapshot,
 	})
-	if res.Passed {
-		t.Fatalf("price shortcut should fail profile check")
+	if !res.Passed {
+		t.Fatalf("price snapshot should pass profile check: %s", res.Detail)
 	}
 }

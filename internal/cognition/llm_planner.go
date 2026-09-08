@@ -15,7 +15,7 @@ const classifyTimeout = 2 * time.Second
 
 const classifyPrompt = `You classify one user chat turn for a finance assistant.
 Reply with ONLY JSON:
-{"domain":"<one>","mode":"<one>","act":"<optional>","confidence":0.0,"reason":"<short>"}
+{"domain":"<one>","mode":"<one>","act":"<optional>","clarify":"<optional>","confidence":0.0,"reason":"<short>"}
 
 Allowed domain values:
 chat, stock_analysis, news, knowledge, report_lookup, report_write, bot_manage,
@@ -26,12 +26,19 @@ talk, gather, execute, clarify
 
 When domain is stock_analysis, act MUST be one of:
 analyze, quote_price, technical_analysis, context_followup, symbol_resolve
-- quote_price: user wants current price / quote only
-- technical_analysis: technicals, K-line, indicators, trend analysis
+- quote_price: user wants a price snapshot / quote only (查询/查一下/现价/多少钱/股价是多少).
+  Example: "帮我查询下腾讯股价" → quote_price
+- technical_analysis: user wants analysis of trend, K-line, technicals, or price movement over a period.
+  Example: "帮我分析下腾讯最近一个月的价格走势" → technical_analysis
 - context_followup: pronoun or short follow-up continuing the same symbol in session
 - symbol_resolve: user explicitly switches to a different stock symbol
 - analyze: general stock analysis when none of the above fits
+If unsure whether the user wants a price snapshot (quote_price) or price/trend analysis (technical_analysis),
+use domain=ambiguous, mode=clarify, clarify=stock_quote (do NOT guess).
 For non-stock_analysis domains, omit act or use empty string.
+
+Optional clarify field (only when domain=ambiguous and mode=clarify):
+- stock_quote: user mentioned a stock price but quote vs analysis is unclear (e.g. "腾讯股价怎么样")
 
 Domain + mode guidance:
 - stock_analysis/gather: analyze a stock, quote, technicals, trends.
@@ -63,8 +70,11 @@ type IntentPlanner struct {
 func (p IntentPlanner) Plan(in PlanInput) TurnPlan {
 	msg := strings.TrimSpace(in.UserText)
 	if in.LastDomain == DomainAmbiguous {
-		if d, ok := mapClarifyChoice(msg); ok {
+		if d, act, ok := mapClarifyChoice(msg); ok {
 			plan := planForDomain(d)
+			if act != "" {
+				plan.Act = act
+			}
 			plan.Reason = "用户选择了上一轮澄清选项"
 			plan.Confidence = 0.9
 			return plan
@@ -85,6 +95,7 @@ type llmClassifyJSON struct {
 	Domain     string  `json:"domain"`
 	Mode       string  `json:"mode"`
 	Act        string  `json:"act"`
+	Clarify    string  `json:"clarify"`
 	Confidence float64 `json:"confidence"`
 	Reason     string  `json:"reason"`
 }
@@ -123,7 +134,7 @@ func classifyWithLLM(in PlanInput, provider llm.Provider) (TurnPlan, bool) {
 	if m := Mode(strings.TrimSpace(parsed.Mode)); validMode(m) {
 		plan.Mode = m
 		if m == ModeClarify || d == DomainAmbiguous {
-			plan = applyAmbiguousClarify(plan)
+			plan = applyClarifyTemplate(plan, strings.TrimSpace(parsed.Clarify))
 		}
 	}
 	if parsed.Reason != "" {
@@ -174,6 +185,18 @@ func plannerFallback(in PlanInput) TurnPlan {
 	p.Reason = "fallback: LLM 不可用"
 	p.Confidence = 0.3
 	return p
+}
+
+func applyClarifyTemplate(plan TurnPlan, template string) TurnPlan {
+	switch template {
+	case "stock_quote":
+		plan.ClarifyQuestion = domaincatalog.StockPriceClarifyQuestion
+		plan.ClarifyChoices = append([]string(nil), domaincatalog.StockPriceClarifyChoices...)
+		plan.ToolsAllow = []string{"clarify"}
+		return plan
+	default:
+		return applyAmbiguousClarify(plan)
+	}
 }
 
 func applyAmbiguousClarify(plan TurnPlan) TurnPlan {

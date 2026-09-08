@@ -93,10 +93,18 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 		// ── 股票分析 ──
 		{
 			ID: "stock_price", Category: TurnPlanCatStockAnalysis, Title: "单轮 · 查股价",
-			Description: "独立 session：查询腾讯控股现价。",
+			Description: "独立 session：查询腾讯控股现价（snapshot，非 MCP 分析）。",
 			Message:     "帮我查一下腾讯控股现在的股价",
 			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectSOP: false,
-			ExecutionProfile: "stock_analysis.price_via_mcp",
+			ExecutionProfile: "stock_analysis.price_snapshot",
+			ForbidTools:  []string{"run_strategy_backtest"},
+		},
+		{
+			ID: "stock_price_trend", Category: TurnPlanCatStockAnalysis, Title: "单轮 · 分析价格走势",
+			Description: "独立 session：分析腾讯最近一个月价格走势（MCP）。",
+			Message:     "帮我分析下腾讯最近一个月的价格走势",
+			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectSOP: false,
+			ExecutionProfile: "stock_analysis.technical_full",
 			ForbidTools:  []string{"run_strategy_backtest"},
 		},
 		{
@@ -278,6 +286,9 @@ func defaultTurnPlanRuleTurns() []TurnPlanTurn {
 	return []TurnPlanTurn{
 		{ID: "stock_price", Message: "帮我查一下腾讯控股现在的股价",
 			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectAct: "quote_price", ExpectSOP: false,
+			RequireTools: []string{"search_code", "get_current_price"}, ForbidTools: []string{"run_strategy_backtest"}},
+		{ID: "stock_price_trend", Message: "帮我分析下腾讯最近一个月的价格走势",
+			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectAct: "technical_analysis", ExpectSOP: false,
 			RequireTools: []string{"search_code", "get_mcp_analysis"}, ForbidTools: []string{"run_strategy_backtest"}},
 		{ID: "stock_technical_chain", Message: "再帮我看看腾讯的技术面和K线图", LastDomain: "stock_analysis",
 			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectAct: "technical_analysis", ExpectSOP: false,

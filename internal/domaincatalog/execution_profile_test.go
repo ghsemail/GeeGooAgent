@@ -6,6 +6,26 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/domaincatalog"
 )
 
+func TestVerifyExecutionProfilePriceSnapshot(t *testing.T) {
+	ok, detail := domaincatalog.VerifyExecutionProfile(
+		domaincatalog.ProfileStockPriceSnapshot,
+		[]string{"search_code", "get_current_price"},
+		[]string{"search_code"},
+	)
+	if !ok {
+		t.Fatalf("expected snapshot pass, got %s", detail)
+	}
+
+	ok, _ = domaincatalog.VerifyExecutionProfile(
+		domaincatalog.ProfileStockPriceSnapshot,
+		[]string{"search_code", "get_mcp_analysis"},
+		[]string{"search_code"},
+	)
+	if ok {
+		t.Fatal("snapshot profile should require get_current_price")
+	}
+}
+
 func TestVerifyExecutionProfilePriceViaMCP(t *testing.T) {
 	ok, detail := domaincatalog.VerifyExecutionProfile(
 		domaincatalog.ProfileStockPriceViaMCP,
@@ -74,5 +94,11 @@ func TestVerifyExecutionProfileSymbolResolve(t *testing.T) {
 	)
 	if ok {
 		t.Fatal("expected fail when search_code only in prior turn")
+	}
+}
+
+func TestExecutionProfileForQuotePrice(t *testing.T) {
+	if domaincatalog.ExecutionProfileFor(domaincatalog.DomainStockAnalysis, domaincatalog.StockActQuotePrice) != domaincatalog.ProfileStockPriceSnapshot {
+		t.Fatal("quote_price should map to price_snapshot")
 	}
 }
