@@ -378,12 +378,36 @@ func ExpectedIndexCount(market string) int {
 	return len(marketIndices[NormalizeMarket(market)])
 }
 
+func shanghaiLocation() *time.Location {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		return time.FixedZone("CST", 8*3600)
+	}
+	return loc
+}
+
+func calendarDateForWorking(w *memory.PreMarketWorking) string {
+	market := ""
+	if w != nil {
+		market = NormalizeMarket(w.Market)
+	}
+	now := time.Now()
+	if market == MarketUS {
+		loc, err := time.LoadLocation("America/New_York")
+		if err != nil {
+			return now.UTC().Format("2006-01-02")
+		}
+		return now.In(loc).Format("2006-01-02")
+	}
+	return now.In(shanghaiLocation()).Format("2006-01-02")
+}
+
 // ReportDateFor returns the workflow report date (YYYY-MM-DD), defaulting to today.
 func ReportDateFor(w *memory.PreMarketWorking) string {
 	if w != nil && strings.TrimSpace(w.ReportDate) != "" {
 		return strings.TrimSpace(w.ReportDate)
 	}
-	return time.Now().Format("2006-01-02")
+	return calendarDateForWorking(w)
 }
 
 // IsBackfillRun is true when an explicit report_date differs from today (manual backfill).
@@ -391,7 +415,7 @@ func IsBackfillRun(w *memory.PreMarketWorking) bool {
 	if w == nil || strings.TrimSpace(w.ReportDate) == "" {
 		return false
 	}
-	return strings.TrimSpace(w.ReportDate) != time.Now().Format("2006-01-02")
+	return strings.TrimSpace(w.ReportDate) != calendarDateForWorking(w)
 }
 
 // SeedReportDate sets report_date for backfill runs.

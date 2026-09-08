@@ -7,7 +7,10 @@ import (
 
 func TestPremarketAlreadyReportedForSessionUS(t *testing.T) {
 	t.Parallel()
-	loc := time.Local
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal(err)
+	}
 	stale := time.Date(2026, 8, 24, 21, 13, 0, 0, loc).UTC().Format(time.RFC3339)
 	reports := []map[string]any{{"created_at": stale}}
 
@@ -21,7 +24,10 @@ func TestPremarketAlreadyReportedForSessionUS(t *testing.T) {
 
 func TestPremarketAlreadyReportedForSessionUSDaytimeBackfill(t *testing.T) {
 	t.Parallel()
-	loc := time.Local
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal(err)
+	}
 	// Manual backfill created early morning on session day must not block 21:10 cron.
 	backfill := time.Date(2026, 8, 26, 1, 24, 46, 0, loc).UTC().Format(time.RFC3339)
 	reports := []map[string]any{{"created_at": backfill}}

@@ -23,7 +23,10 @@ func premarketAlreadyReportedForSession(code, sessionDate string, reports []map[
 	if sessionDate == "" {
 		return true
 	}
-	loc := time.Local
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		loc = time.FixedZone("CST", 8*3600)
+	}
 	session, err := time.ParseInLocation("2006-01-02", sessionDate, loc)
 	if err != nil {
 		return true

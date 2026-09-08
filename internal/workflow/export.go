@@ -77,6 +77,7 @@ var (
 // Post-market workflow API.
 var (
 	PostMarketPhaseASteps                = postmarket.PostMarketPhaseASteps
+	PostMarketPhaseAStepsForMarket        = postmarket.PostMarketPhaseAStepsForMarket
 	PostMarketPerStockSteps              = postmarket.PostMarketPerStockSteps
 	BuildPostMarketReportContent         = postmarket.BuildPostMarketReportContent
 	BuildCreateStockPostmarketReportArgs = postmarket.BuildCreateStockPostmarketReportArgs

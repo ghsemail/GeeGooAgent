@@ -15,8 +15,14 @@ import (
 
 // PostMarketPhaseASteps returns post-market prelude (trading day + bot list).
 func PostMarketPhaseASteps() []step.Step {
+	return PostMarketPhaseAStepsForMarket("")
+}
+
+// PostMarketPhaseAStepsForMarket uses a market-specific trading-day probe
+// (US must not check 00700.HK at 05:00 CST).
+func PostMarketPhaseAStepsForMarket(market string) []step.Step {
 	return []step.Step{
-		{Name: "check_trading_day", Tool: "check_trading_day", Arguments: map[string]any{"code": args.DefaultTradingDayCode}},
+		{Name: "check_trading_day", Tool: "check_trading_day", Arguments: map[string]any{"code": args.TradingDayProbeCode(market)}},
 		{Name: "get_report_bot_codes", Tool: "get_report_bot_codes"},
 		{Name: "phase_a_complete", Tool: "write_execution_log", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			return map[string]any{

@@ -13,6 +13,59 @@ const DefaultTradingDayCode = "00700.HK"
 
 var timeNow = func() time.Time { return time.Now() }
 
+// TradingDayProbeCode returns the symbol used for check_trading_day by market.
+func TradingDayProbeCode(market string) string {
+	switch strings.ToUpper(strings.TrimSpace(market)) {
+	case "CN":
+		return "000001.SZ"
+	case "US":
+		return "AAPL.US"
+	default:
+		return DefaultTradingDayCode
+	}
+}
+
+func shanghaiLocation() *time.Location {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		return time.FixedZone("CST", 8*3600)
+	}
+	return loc
+}
+
+// CalendarDateForMarket is the YYYY-MM-DD used as report/session date.
+// CN/HK use Asia/Shanghai (agent cron TZ). US uses America/New_York so
+// postmarket at 05:00 CST still dates the session that just closed.
+func CalendarDateForMarket(market string, now time.Time) string {
+	switch strings.ToUpper(strings.TrimSpace(market)) {
+	case "US":
+		loc, err := time.LoadLocation("America/New_York")
+		if err != nil {
+			return now.UTC().Format("2006-01-02")
+		}
+		return now.In(loc).Format("2006-01-02")
+	default:
+		return now.In(shanghaiLocation()).Format("2006-01-02")
+	}
+}
+
+func marketFromCode(code string) string {
+	parts := strings.Split(strings.ToUpper(strings.TrimSpace(code)), ".")
+	if len(parts) < 2 {
+		return ""
+	}
+	switch parts[len(parts)-1] {
+	case "HK":
+		return "HK"
+	case "US":
+		return "US"
+	case "SH", "SZ", "SS":
+		return "CN"
+	default:
+		return ""
+	}
+}
+
 // SetTimeNowForTest overrides the clock used by ReportDateFor.
 func SetTimeNowForTest(fn func() time.Time) { timeNow = fn }
 
@@ -61,5 +114,15 @@ func ReportDateFor(w *memory.PreMarketWorking, code string) string {
 	if ws, ok := w.Stocks[code]; ok && strings.TrimSpace(ws.ReportDate) != "" {
 		return ws.ReportDate
 	}
-	return timeNow().Format("2006-01-02")
+	if w != nil && strings.TrimSpace(w.ReportDate) != "" {
+		return strings.TrimSpace(w.ReportDate)
+	}
+	market := ""
+	if w != nil {
+		market = strings.ToUpper(strings.TrimSpace(w.Market))
+	}
+	if market == "" {
+		market = marketFromCode(code)
+	}
+	return CalendarDateForMarket(market, timeNow())
 }
