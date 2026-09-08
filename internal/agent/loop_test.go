@@ -224,6 +224,7 @@ func TestReActLoopSlimRetryAfterMalformedToolCalls(t *testing.T) {
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
 	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
+	withClassifyPlanner(loop, classifyFixture(nil))
 	result := loop.RunTurn(context.Background(), runtime.NewSession(), "腾讯价格", tools.Context{}, schemas)
 	if !strings.Contains(result.AssistantText, "380") {
 		t.Fatalf("got %q", result.AssistantText)

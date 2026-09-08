@@ -13,6 +13,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/httpserver"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
+	"github.com/ghsemail/GeeGooAgent/internal/eval"
 	"github.com/ghsemail/GeeGooAgent/internal/runtimeapi"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
@@ -37,6 +38,7 @@ func testCockpitHandlerWithConfig(t *testing.T, cfg *config.AppConfig) http.Hand
 		Gateway:  gateway,
 		Agent:    agent.New(gateway, runtime.NewExecutor(registry), registry),
 	}
+	application.Agent.SetPlanner(eval.DefaultTurnPlanPlanner())
 	mux := httpserver.NewMux("agent-runtime")
 	runtimeapi.NewHandler(application, "").Register(mux)
 	return auth.SkipPaths(map[string]struct{}{"/health": {}}, auth.BearerAPIKey("test-runtime-key"))(mux)

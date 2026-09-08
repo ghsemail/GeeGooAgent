@@ -1,12 +1,13 @@
 package eval
 
-// TurnPlanTurn is one user utterance and the expected routing decision (plan-only / rule regression).
+// TurnPlanTurn is one user utterance and the expected routing decision (plan-only / LLM classify regression).
 type TurnPlanTurn struct {
 	ID           string   `json:"id"`
 	Message      string   `json:"message"`
 	LastDomain   string   `json:"last_domain,omitempty"`
 	ExpectDomain string   `json:"expect_domain"`
 	ExpectMode   string   `json:"expect_mode"`
+	ExpectAct    string   `json:"expect_act,omitempty"`
 	ExpectSOP    bool     `json:"expect_sop"`
 	ForbidTools  []string `json:"forbid_tools,omitempty"`
 	RequireTools []string `json:"require_tools,omitempty"`
@@ -58,6 +59,7 @@ type TurnPlanLiveCase struct {
 	ExpectSOP     bool
 	ForbidTools   []string
 	RequireTools  []string
+	ExecutionProfile string
 }
 
 // TurnPlanSuite is the options_json shape for dashboard eval case category=turn_plan (plan_only bundle).
@@ -91,10 +93,18 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 		// ── 股票分析 ──
 		{
 			ID: "stock_price", Category: TurnPlanCatStockAnalysis, Title: "单轮 · 查股价",
-			Description: "独立 session：查询腾讯控股现价。",
+			Description: "独立 session：查询腾讯控股现价（snapshot，非 MCP 分析）。",
 			Message:     "帮我查一下腾讯控股现在的股价",
 			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectSOP: false,
-			RequireTools: []string{"search_code", "get_mcp_analysis"},
+			ExecutionProfile: "stock_analysis.price_snapshot",
+			ForbidTools:  []string{"run_strategy_backtest"},
+		},
+		{
+			ID: "stock_price_trend", Category: TurnPlanCatStockAnalysis, Title: "单轮 · 分析价格走势",
+			Description: "独立 session：分析腾讯最近一个月价格走势（MCP）。",
+			Message:     "帮我分析下腾讯最近一个月的价格走势",
+			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectSOP: false,
+			ExecutionProfile: "stock_analysis.technical_full",
 			ForbidTools:  []string{"run_strategy_backtest"},
 		},
 		{
@@ -103,7 +113,7 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			SetupMessages: []string{"帮我查一下腾讯控股现在的股价"},
 			Message:       "再帮我看看腾讯的技术面和K线图",
 			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectSOP: false,
-			RequireTools: []string{"search_code", "get_mcp_analysis"},
+			ExecutionProfile: "stock_analysis.technical_full",
 			ForbidTools:  []string{"run_strategy_backtest"},
 		},
 		{
@@ -112,7 +122,7 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			SetupMessages: []string{"帮我分析一下中际旭创"},
 			Message:       "不聊中际旭创了，帮我分析一下贵州茅台",
 			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectSOP: false,
-			RequireTools: []string{"search_code"},
+			ExecutionProfile: "stock_analysis.symbol_resolve",
 			ForbidTools:  []string{"run_strategy_backtest"},
 		},
 		{
@@ -121,7 +131,7 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			SetupMessages: []string{"帮我分析一下中际旭创"},
 			Message:       "它最近走势怎么样",
 			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectSOP: false,
-			RequireTools: []string{"search_code"},
+			ExecutionProfile: "stock_analysis.context_followup",
 			ForbidTools:  []string{"run_strategy_backtest"},
 		},
 		{
@@ -271,20 +281,23 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 	}
 }
 
-// defaultTurnPlanRuleTurns — plan-only 规则回归：用 LastDomain 模拟多轮上下文，不占 Chat session。
+// defaultTurnPlanRuleTurns — plan-only LLM classify 回归：用 LastDomain 模拟多轮上下文，不占 Chat session。
 func defaultTurnPlanRuleTurns() []TurnPlanTurn {
 	return []TurnPlanTurn{
 		{ID: "stock_price", Message: "帮我查一下腾讯控股现在的股价",
-			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectSOP: false,
+			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectAct: "quote_price", ExpectSOP: false,
+			RequireTools: []string{"search_code", "get_current_price"}, ForbidTools: []string{"run_strategy_backtest"}},
+		{ID: "stock_price_trend", Message: "帮我分析下腾讯最近一个月的价格走势",
+			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectAct: "technical_analysis", ExpectSOP: false,
 			RequireTools: []string{"search_code", "get_mcp_analysis"}, ForbidTools: []string{"run_strategy_backtest"}},
 		{ID: "stock_technical_chain", Message: "再帮我看看腾讯的技术面和K线图", LastDomain: "stock_analysis",
-			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectSOP: false,
+			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectAct: "technical_analysis", ExpectSOP: false,
 			RequireTools: []string{"search_code", "get_mcp_analysis"}, ForbidTools: []string{"run_strategy_backtest"}},
 		{ID: "stock_symbol_switch", Message: "不聊中际旭创了，帮我分析一下贵州茅台", LastDomain: "stock_analysis",
-			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectSOP: false,
+			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectAct: "symbol_resolve", ExpectSOP: false,
 			RequireTools: []string{"search_code"}, ForbidTools: []string{"run_strategy_backtest"}},
 		{ID: "stock_colloquial_ref", Message: "它最近走势怎么样", LastDomain: "stock_analysis",
-			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectSOP: false,
+			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectAct: "context_followup", ExpectSOP: false,
 			RequireTools: []string{"search_code"}, ForbidTools: []string{"run_strategy_backtest"}},
 		{ID: "signal_catalog_list", Message: "帮我看看我有哪些信号策略",
 			ExpectDomain: "dca_grid", ExpectMode: "gather", ExpectSOP: false,

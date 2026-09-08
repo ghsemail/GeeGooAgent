@@ -236,6 +236,7 @@ type AppConfig struct {
 	ChatToolsets     []string          `json:"chat_toolsets,omitempty"`
 	PlanGate         *bool             `json:"plan_gate,omitempty"`
 	EvalMaxRetries   int               `json:"eval_max_retries,omitempty"`
+	ExecutionProfileMaxRetries int     `json:"execution_profile_max_retries,omitempty"`
 	DelegateMaxParallel int            `json:"delegate_max_parallel,omitempty"`
 	MCPMaxParallel      int            `json:"mcp_max_parallel,omitempty"`
 	Hooks            HooksConfig       `json:"hooks,omitempty"`
@@ -522,6 +523,20 @@ func (c *AppConfig) EffectiveEvalMaxRetries() int {
 		return 1
 	}
 	return c.EvalMaxRetries
+}
+
+// EffectiveExecutionProfileMaxRetries caps profile-driven tool retries (default 1, max 2).
+func (c *AppConfig) EffectiveExecutionProfileMaxRetries() int {
+	if c == nil || c.ExecutionProfileMaxRetries == 0 {
+		return 1
+	}
+	if c.ExecutionProfileMaxRetries < 0 {
+		return 0
+	}
+	if c.ExecutionProfileMaxRetries > 2 {
+		return 2
+	}
+	return c.ExecutionProfileMaxRetries
 }
 
 // EffectiveDelegateMaxParallel caps concurrent delegate_task / delegate_tasks workers (default 3, max 8).

@@ -51,6 +51,7 @@ func TestRunTurnExpandsKnowledgeToolOnSkillMatch(t *testing.T) {
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
 	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
+	withClassifyPlanner(loop, classifyFixture(nil))
 	loop.SetSkillLoader(loader, 2)
 	loop.SetSkillToolExpander(func(names []string) []llm.ToolSchema {
 		for _, n := range names {

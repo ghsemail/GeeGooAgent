@@ -42,7 +42,7 @@ func (h *Handler) evalRunTurnPlan(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&req)
 	}
 	suite := eval.DefaultTurnPlanSuite()
-	report := eval.RunTurnPlanReport(suite)
+	report := eval.RunTurnPlanReport(suite, h.App.IntentPlanner())
 	writeJSON(w, map[string]any{
 		"ok":          report.AllPass,
 		"plan_only":   true,
@@ -71,7 +71,7 @@ func (h *Handler) evalCaseRun(w http.ResponseWriter, r *http.Request) {
 			PlanOnly: true,
 			Turns:    []eval.TurnPlanTurn{{ID: opts.TurnID, Message: opts.Message, ExpectDomain: opts.ExpectDomain, ExpectMode: opts.ExpectMode, ExpectSOP: opts.ExpectSOP, ForbidTools: opts.ForbidTools, RequireTools: opts.RequireTools}},
 		}
-		report := eval.RunTurnPlanReport(suite)
+		report := eval.RunTurnPlanReport(suite, h.App.IntentPlanner())
 		writeJSON(w, map[string]any{"ok": report.AllPass, "plan_only": true, "title": title, "results": report.Results})
 		return
 	}

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/domaincatalog"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
@@ -14,7 +15,7 @@ const classifyTimeout = 2 * time.Second
 
 const classifyPrompt = `You classify one user chat turn for a finance assistant.
 Reply with ONLY JSON:
-{"domain":"<one>","mode":"<one>","confidence":0.0,"reason":"<short>"}
+{"domain":"<one>","mode":"<one>","act":"<optional>","clarify":"<optional>","confidence":0.0,"reason":"<short>"}
 
 Allowed domain values:
 chat, stock_analysis, news, knowledge, report_lookup, report_write, bot_manage,
@@ -22,6 +23,22 @@ signal_probe, backtest_run, backtest_history, custom_signal, prompt_admin, dca_g
 
 Allowed mode values:
 talk, gather, execute, clarify
+
+When domain is stock_analysis, act MUST be one of:
+analyze, quote_price, technical_analysis, context_followup, symbol_resolve
+- quote_price: user wants a price snapshot / quote only (查询/查一下/现价/多少钱/股价是多少).
+  Example: "帮我查询下腾讯股价" → quote_price
+- technical_analysis: user wants analysis of trend, K-line, technicals, or price movement over a period.
+  Example: "帮我分析下腾讯最近一个月的价格走势" → technical_analysis
+- context_followup: pronoun or short follow-up continuing the same symbol in session
+- symbol_resolve: user explicitly switches to a different stock symbol
+- analyze: general stock analysis when none of the above fits
+If unsure whether the user wants a price snapshot (quote_price) or price/trend analysis (technical_analysis),
+use domain=ambiguous, mode=clarify, clarify=stock_quote (do NOT guess).
+For non-stock_analysis domains, omit act or use empty string.
+
+Optional clarify field (only when domain=ambiguous and mode=clarify):
+- stock_quote: user mentioned a stock price but quote vs analysis is unclear (e.g. "腾讯股价怎么样")
 
 Domain + mode guidance:
 - stock_analysis/gather: analyze a stock, quote, technicals, trends.
@@ -33,59 +50,57 @@ Domain + mode guidance:
 - bot_manage/execute: create/update/delete bots.
 - chat/talk: definitions, chitchat, signal quality opinions (准吗/靠谱吗) after prior context.
 - ambiguous/clarify: bare strategy words (MACD/SAR) without clear action, or compound analyze+backtest in one sentence.
-- Follow last turn domain for short follow-ups (它最近走势 / 不聊XX了 / 接着… / 刚才那次…) when the user did not switch topic.
+- Use last turn domain + dialogue context for short follow-ups; do not rely on single keywords alone.
 
 Hard rules:
 - backtest_run ONLY with an explicit backtest verb.
 - signal_probe ONLY for buy/sell point probing, not strategy listing.
 - If unsure, use ambiguous/clarify.
 
-Rule hint (non-binding): domain=%s mode=%s reason=%s
 Last turn domain: %s
 User: %s`
 
-// IntentPlanner classifies turns with an LLM when available. RulePlanner
-// supplies a non-binding hint and serves as fallback when the LLM is nil or fails.
+// IntentPlanner is the sole production planner: LLM classify with structured
+// clarify-choice shortcuts and conservative fallback when the LLM is unavailable.
 type IntentPlanner struct {
-	Rules Planner
-	LLM   llm.Provider
+	LLM llm.Provider
 }
 
 // Plan implements Planner.
 func (p IntentPlanner) Plan(in PlanInput) TurnPlan {
 	msg := strings.TrimSpace(in.UserText)
 	if in.LastDomain == DomainAmbiguous {
-		if d, ok := mapClarifyChoice(msg); ok {
+		if d, act, ok := mapClarifyChoice(msg); ok {
 			plan := planForDomain(d)
+			if act != "" {
+				plan.Act = act
+			}
 			plan.Reason = "用户选择了上一轮澄清选项"
 			plan.Confidence = 0.9
 			return plan
 		}
 	}
 
-	rules := p.Rules
-	if rules == nil {
-		rules = RulePlanner{}
-	}
-	base := rules.Plan(in)
 	if p.LLM == nil {
-		return base
+		return plannerFallback(in)
 	}
-	got, ok := classifyWithLLM(in, p.LLM, base)
+	got, ok := classifyWithLLM(in, p.LLM)
 	if !ok {
-		return base
+		return plannerFallback(in)
 	}
-	return sanitizeLLMPlan(in, base, got)
+	return sanitizeLLMPlan(in, got)
 }
 
 type llmClassifyJSON struct {
 	Domain     string  `json:"domain"`
 	Mode       string  `json:"mode"`
+	Act        string  `json:"act"`
+	Clarify    string  `json:"clarify"`
 	Confidence float64 `json:"confidence"`
 	Reason     string  `json:"reason"`
 }
 
-func classifyWithLLM(in PlanInput, provider llm.Provider, base TurnPlan) (TurnPlan, bool) {
+func classifyWithLLM(in PlanInput, provider llm.Provider) (TurnPlan, bool) {
 	ctx := in.Ctx
 	if ctx == nil {
 		ctx = context.Background()
@@ -93,7 +108,7 @@ func classifyWithLLM(in PlanInput, provider llm.Provider, base TurnPlan) (TurnPl
 	ctx, cancel := context.WithTimeout(ctx, classifyTimeout)
 	defer cancel()
 
-	prompt := fmt.Sprintf(classifyPrompt, base.Domain, base.Mode, base.Reason, in.LastDomain, strings.TrimSpace(in.UserText))
+	prompt := fmt.Sprintf(classifyPrompt, in.LastDomain, strings.TrimSpace(in.UserText))
 	resp, err := provider.Chat(ctx, []llm.Message{{
 		Role:    llm.RoleUser,
 		Content: prompt,
@@ -119,7 +134,7 @@ func classifyWithLLM(in PlanInput, provider llm.Provider, base TurnPlan) (TurnPl
 	if m := Mode(strings.TrimSpace(parsed.Mode)); validMode(m) {
 		plan.Mode = m
 		if m == ModeClarify || d == DomainAmbiguous {
-			plan = applyAmbiguousClarify(plan)
+			plan = applyClarifyTemplate(plan, strings.TrimSpace(parsed.Clarify))
 		}
 	}
 	if parsed.Reason != "" {
@@ -128,13 +143,17 @@ func classifyWithLLM(in PlanInput, provider llm.Provider, base TurnPlan) (TurnPl
 	if parsed.Confidence > 0 {
 		plan.Confidence = parsed.Confidence
 	}
+	if d == DomainStockAnalysis {
+		plan.Act = domaincatalog.NormalizeStockAct(parsed.Act)
+	}
 	return plan, true
 }
 
-func sanitizeLLMPlan(in PlanInput, base, llmPlan TurnPlan) TurnPlan {
+func sanitizeLLMPlan(in PlanInput, llmPlan TurnPlan) TurnPlan {
+	fallback := plannerFallback(in)
 	if llmPlan.Domain == DomainBacktestRun && !isBacktestRun(in.UserText) {
-		if base.Domain == DomainAmbiguous {
-			return base
+		if fallback.Domain == DomainAmbiguous {
+			return fallback
 		}
 		out := planForDomain(DomainChat)
 		out.Reason = "拒绝无回测动词的 backtest_run"
@@ -142,10 +161,42 @@ func sanitizeLLMPlan(in PlanInput, base, llmPlan TurnPlan) TurnPlan {
 		return out
 	}
 	if llmPlan.Domain == DomainDCAGrid && llmPlan.Mode == ModeExecute &&
-		!hasAny(in.UserText, dcaGridTokens) && base.Domain != DomainDCAGrid {
-		return base
+		!hasAny(in.UserText, dcaGridTokens) && fallback.Domain != DomainDCAGrid {
+		return fallback
 	}
 	return llmPlan
+}
+
+func plannerFallback(in PlanInput) TurnPlan {
+	msg := strings.TrimSpace(in.UserText)
+	if in.LastDomain == DomainAmbiguous {
+		p := planForDomain(DomainAmbiguous)
+		p.Reason = "fallback: 等待澄清"
+		p.Confidence = 0.4
+		return p
+	}
+	if isStickyDomain(in.LastDomain) && (isFollowUpUtterance(msg) || len([]rune(msg)) <= 24) {
+		p := planForDomain(in.LastDomain)
+		p.Reason = "fallback: 沿用上一轮领域 " + string(in.LastDomain)
+		p.Confidence = 0.5
+		return p
+	}
+	p := planForDomain(DomainChat)
+	p.Reason = "fallback: LLM 不可用"
+	p.Confidence = 0.3
+	return p
+}
+
+func applyClarifyTemplate(plan TurnPlan, template string) TurnPlan {
+	switch template {
+	case "stock_quote":
+		plan.ClarifyQuestion = domaincatalog.StockPriceClarifyQuestion
+		plan.ClarifyChoices = append([]string(nil), domaincatalog.StockPriceClarifyChoices...)
+		plan.ToolsAllow = []string{"clarify"}
+		return plan
+	default:
+		return applyAmbiguousClarify(plan)
+	}
 }
 
 func applyAmbiguousClarify(plan TurnPlan) TurnPlan {

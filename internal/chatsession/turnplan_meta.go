@@ -8,18 +8,26 @@ import (
 const (
 	metaLastTurnPlan       = "last_turn_plan"
 	metaLastTurnToolsCalls = "last_turn_tools_called"
+	metaTurnToolsTrace     = "turn_tools_trace"
 )
 
 // TurnPlanSnapshot is stored on ChatSession.Metadata after each agent turn.
 type TurnPlanSnapshot struct {
 	Domain     string   `json:"domain"`
 	Mode       string   `json:"mode"`
+	Act        string   `json:"act,omitempty"`
 	SOP        bool     `json:"sop"`
 	ToolsAllow []string `json:"tools_allow,omitempty"`
 }
 
+// TurnToolsEntry records tools invoked during one user turn (1-based index).
+type TurnToolsEntry struct {
+	Turn  int      `json:"turn"`
+	Tools []string `json:"tools"`
+}
+
 // SyncLastTurnPlan writes the routing snapshot for eval verification.
-func (c *ChatSession) SyncLastTurnPlan(domain, mode string, sop bool, toolsAllow []string) {
+func (c *ChatSession) SyncLastTurnPlan(domain, mode, act string, sop bool, toolsAllow []string) {
 	if c == nil {
 		return
 	}
@@ -29,6 +37,7 @@ func (c *ChatSession) SyncLastTurnPlan(domain, mode string, sop bool, toolsAllow
 	snap := TurnPlanSnapshot{
 		Domain:     strings.TrimSpace(domain),
 		Mode:       strings.TrimSpace(mode),
+		Act:        strings.TrimSpace(act),
 		SOP:        sop,
 		ToolsAllow: append([]string(nil), toolsAllow...),
 	}
@@ -87,8 +96,92 @@ func (c *ChatSession) SyncLastTurnToolsCalled(names []string) {
 	c.Metadata[metaLastTurnToolsCalls] = out
 }
 
+// AppendTurnToolsTrace appends one user-turn tool record for eval execution checks.
+func (c *ChatSession) AppendTurnToolsTrace(names []string) {
+	if c == nil {
+		return
+	}
+	if c.Metadata == nil {
+		c.Metadata = map[string]any{}
+	}
+	trace := TurnToolsTraceFromSession(c)
+	entry := TurnToolsEntry{
+		Turn:  len(trace) + 1,
+		Tools: append([]string(nil), names...),
+	}
+	trace = append(trace, entry)
+	c.Metadata[metaTurnToolsTrace] = trace
+}
+
+// TurnToolsTraceFromSession returns per-turn tool invocation history.
+func TurnToolsTraceFromSession(c *ChatSession) []TurnToolsEntry {
+	if c == nil || c.Metadata == nil {
+		return nil
+	}
+	raw, ok := c.Metadata[metaTurnToolsTrace]
+	if !ok || raw == nil {
+		return nil
+	}
+	switch v := raw.(type) {
+	case []TurnToolsEntry:
+		return append([]TurnToolsEntry(nil), v...)
+	case []any:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return nil
+		}
+		var out []TurnToolsEntry
+		if err := json.Unmarshal(b, &out); err != nil {
+			return nil
+		}
+		return out
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return nil
+		}
+		var out []TurnToolsEntry
+		if err := json.Unmarshal(b, &out); err != nil {
+			return nil
+		}
+		return out
+	}
+}
+
+// JudgedTurnToolsFromTrace returns tools from the last user turn in the trace.
+func JudgedTurnToolsFromTrace(trace []TurnToolsEntry) []string {
+	if len(trace) == 0 {
+		return nil
+	}
+	return append([]string(nil), trace[len(trace)-1].Tools...)
+}
+
+// SessionToolsFromTrace returns the union of tools across all turns.
+func SessionToolsFromTrace(trace []TurnToolsEntry) []string {
+	seen := map[string]struct{}{}
+	out := []string{}
+	for _, entry := range trace {
+		for _, name := range entry.Tools {
+			name = strings.TrimSpace(name)
+			if name == "" {
+				continue
+			}
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = struct{}{}
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
 // LastTurnToolsCalledFromSession returns tool names recorded for the latest turn.
 func LastTurnToolsCalledFromSession(c *ChatSession) []string {
+	trace := TurnToolsTraceFromSession(c)
+	if len(trace) > 0 {
+		return JudgedTurnToolsFromTrace(trace)
+	}
 	if c == nil || c.Metadata == nil {
 		return nil
 	}

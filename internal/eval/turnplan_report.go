@@ -3,6 +3,8 @@ package eval
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 )
 
 // TurnPlanTurnResult is one turn outcome for dashboard / API responses.
@@ -43,9 +45,9 @@ func SuiteFromOptions(opts map[string]any) (TurnPlanSuite, error) {
 }
 
 // RunTurnPlanReport executes the suite and returns a structured report.
-func RunTurnPlanReport(suite TurnPlanSuite) TurnPlanRunReport {
+func RunTurnPlanReport(suite TurnPlanSuite, planner cognition.Planner) TurnPlanRunReport {
 	start := time.Now()
-	results := RunTurnPlanSuite(suite)
+	results := RunTurnPlanSuite(suite, planner)
 	turnMsg := map[string]string{}
 	for _, turn := range suite.Turns {
 		turnMsg[turn.ID] = turn.Message

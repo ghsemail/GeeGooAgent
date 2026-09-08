@@ -6,18 +6,18 @@ TurnPlan 评测验证 Agent 每轮用户输入的 **意图路由**、**ReAct 工
 
 | 模式 | 入口 | 耗时 | 说明 |
 |------|------|------|------|
-| **Plan-only** | `POST /v1/dashboard/eval/run-turn-plan` | 秒级 | 只测 LLM/规则分类，不跑 Chat |
+| **Plan-only** | `POST /v1/dashboard/eval/run-turn-plan` | 秒级 | 只测 LLM IntentPlanner 分类，不跑 Chat |
 | **Live** | Dock Chat → `POST .../cases/{id}/verify` | 分钟级 | 真实 SSE 对话 + 结构化校验 + LLM judge |
 
 Live 用例 **不能** 直接 `POST .../cases/{id}/run`（会 400）；必须先完成 `POST /v1/chat/stream`，再带 `session_id` 调 verify。
 
-## 用例结构（23 条 Live）
+## 用例结构（24 条 Live）
 
 源码：`internal/eval/turnplan_cases.go` → `IndividualTurnPlanEvalCases()`。
 
 | 分类 ID | 标题 | 条数 | 代表用例 |
 |---------|------|------|----------|
-| `stock_analysis` | 股票分析 | 4 | 查股价、技术面续问、切换标的、代词指代 |
+| `stock_analysis` | 股票分析 | 5 | 查股价、分析价格走势、技术面续问、切换标的、代词指代 |
 | `signal` | 信号 / 策略 | 3 | 列策略、列策略后 probe、直接 probe |
 | `backtest` | 策略回测 | 5 | 显式/口语回测、分析后回测、DCA 回测 |
 | `clarify` | 灰区 / 澄清 | 2 | 模糊 MACD、分析+回测复合句 |
@@ -39,11 +39,15 @@ Plan-only 套件：`DefaultTurnPlanSuite()`，用 `LastDomain` 模拟多轮上�
 
 Live verify（`VerifyTurnPlanLiveFull`）依次检查：
 
-1. **routing** — `last_turn_plan.domain/mode/sop` 与期望一致
-2. **tools** — `require_tools` / `forbid_tools`
+1. **intent** — `last_turn_plan.domain/mode/sop/act` 与期望一致
+2. **execution** — `execution_profile`（`domaincatalog`）或 legacy `require_tools`
 3. **reply_length** — 最短字符数
 4. **must_cover** — 关键词命中
 5. **llm_judge** — 辅助模型按 rubric 打分（默认 ≥ 0.7）
+
+股票分析 Live 用例按意图分流：`price_snapshot`（查现价 → `get_current_price`）与 `technical_full`（分析走势 → MCP）。灰区话术由 classify 输出 `ambiguous/clarify` + `clarify=stock_quote`，用户选择「只要当前价」或「分析价格走势」。
+
+TurnPlan 对 `stock_analysis` 会细化 `act`（`quote_price` / `technical_analysis` / `context_followup` / `symbol_resolve`），由 **LLM IntentPlanner** 在 classify JSON 中输出。Loop 按 act 注入 execution profile 契约，并在违反时触发 `execution_retry`（默认每轮最多 1 次）。LLM 不可用时仅做保守 fallback（沿用 sticky domain 或 chat/talk），不再使用关键词 RulePlanner。
 
 ## 数据与 API
 
@@ -91,6 +95,6 @@ POST /v1/chat/stream                           # live 对话
 
 ## 设计原则（当前版本）
 
-- **LLM-first 路由**：`LLMPlanner` 主判，`RulePlanner` 仅 hint/fallback
+- **LLM-only 路由**：`IntentPlanner` 为唯一生产 Planner；结构化澄清选项与 `sanitizeLLMPlan` 硬规则兜底
 - **无 SOP 短路**：`ShouldRunDomainSOP()` 恒 false，Loop 不 `TryRunFromPlan`
 - **口语化对话**：eval 用户话术完整自然，避免「可以」「这边呢」等半句话

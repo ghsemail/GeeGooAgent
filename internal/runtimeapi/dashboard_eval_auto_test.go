@@ -85,8 +85,8 @@ func TestEvalCatalogListsTurnPlanCategories(t *testing.T) {
 		t.Fatalf("categories=%d want >=8 body=%v", len(cats), body)
 	}
 	cases, _ := body["cases"].([]any)
-	if len(cases) < 23 {
-		t.Fatalf("cases=%d want >=23", len(cases))
+	if len(cases) < 24 {
+		t.Fatalf("cases=%d want >=24", len(cases))
 	}
 	first, _ := cases[0].(map[string]any)
 	if first["id"] == "" || first["category"] == "" || first["message"] == "" {
@@ -109,8 +109,8 @@ func TestEvalSuiteCreateAndList(t *testing.T) {
 		t.Fatalf("missing suite id: %v", body)
 	}
 	caseIDs, _ := suite["case_ids"].([]any)
-	if len(caseIDs) != 4 {
-		t.Fatalf("stock_analysis cases=%d want 4", len(caseIDs))
+	if len(caseIDs) != 5 {
+		t.Fatalf("stock_analysis cases=%d want 5", len(caseIDs))
 	}
 
 	code, body = evalAutoJSON(t, handler, http.MethodGet, "/v1/dashboard/eval/suites", nil)

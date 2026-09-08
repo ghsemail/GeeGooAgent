@@ -4,58 +4,16 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ghsemail/GeeGooAgent/internal/domaincatalog"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
-func TestRulePlannerRoutesAcrossDomains(t *testing.T) {
-	p := RulePlanner{}
-	cases := []struct {
-		msg    string
-		domain Domain
-		mode   Mode
-		forbid []string
-		want   string
-	}{
-		{msg: "腾讯现在怎么样", domain: DomainStockAnalysis, mode: ModeGather, want: "search_code"},
-		{msg: "MACD 是什么", domain: DomainChat, mode: ModeTalk, forbid: []string{"run_strategy_backtest", "get_index_signals"}},
-		{msg: "有没有买卖点", domain: DomainSignalProbe, mode: ModeExecute, want: "probe_bot_signal_series"},
-		{msg: "帮我回测小米 SAR+MACD", domain: DomainBacktestRun, mode: ModeExecute, want: "run_strategy_backtest"},
-		{msg: "我的网格机器人呢", domain: DomainBotManage, mode: ModeGather, want: "list_grid_bots"},
-		{msg: "创建 bot", domain: DomainBotManage, mode: ModeExecute, want: "create_dca_bot"},
-		{msg: "今天盘前写了什么", domain: DomainReportLookup, mode: ModeGather, want: "get_stock_premarket_reports"},
-		{msg: "按知识库讲 4H MACD", domain: DomainKnowledge, mode: ModeGather, want: "search_knowledge"},
-		{msg: "这个信号怎么样", domain: DomainAmbiguous, mode: ModeClarify},
-		{msg: "帮我做 dca 定投回测", domain: DomainDCAGrid, mode: ModeExecute, want: "generate_dca_strategy"},
-		{msg: "帮我看看我有哪些信号策略", domain: DomainDCAGrid, mode: ModeGather, want: "get_signal_combinations"},
-		{msg: "上次回测结果", domain: DomainBacktestHistory, mode: ModeGather, want: "list_strategy_backtest_logs"},
-		{msg: "有什么新闻", domain: DomainNews, mode: ModeGather, want: "fetch_market_news"},
-		{msg: "把分析写成报告", domain: DomainReportWrite, mode: ModeExecute, want: "create_stock_intraday_report"},
-		{msg: "改一下定制信号参数", domain: DomainCustomSignal, mode: ModeGather, want: "get_custom_signal"},
-		{msg: "加一个 EMA 模板", domain: DomainPromptAdmin, mode: ModeExecute, want: "add_single_prompt_template"},
-		{msg: "准吗", domain: DomainChat, mode: ModeTalk, forbid: []string{"run_strategy_backtest"}},
-		{msg: "MACD", domain: DomainAmbiguous, mode: ModeClarify, forbid: []string{"run_strategy_backtest"}},
-		{msg: "中际旭创呢", domain: DomainStockAnalysis, mode: ModeGather, want: "search_code"},
-		{msg: "分析一下中际旭创再回测", domain: DomainAmbiguous, mode: ModeClarify},
-	}
-	for _, tc := range cases {
-		plan := p.Plan(PlanInput{UserText: tc.msg})
-		if plan.Domain != tc.domain || plan.Mode != tc.mode {
-			t.Fatalf("%q: domain=%s mode=%s want %s/%s (%s)",
-				tc.msg, plan.Domain, plan.Mode, tc.domain, tc.mode, plan.Reason)
-		}
-		if tc.want != "" && !containsStr(plan.ToolsAllow, tc.want) {
-			t.Fatalf("%q: tools=%v missing %s", tc.msg, plan.ToolsAllow, tc.want)
-		}
-		for _, bad := range tc.forbid {
-			if containsStr(plan.ToolsAllow, bad) {
-				t.Fatalf("%q: tools should not include %s", tc.msg, bad)
-			}
-		}
-	}
-}
-
 func TestFilterSchemasIntersectsAllowList(t *testing.T) {
-	plan := RulePlanner{}.Plan(PlanInput{UserText: "腾讯现在怎么样"})
+	plan := IntentPlanner{LLM: &ClassifyFixtureProvider{
+		ByMessage: map[string]string{
+			"腾讯现在怎么样": FormatClassifyJSON("stock_analysis", "gather", "analyze", "fixture"),
+		},
+	}}.Plan(PlanInput{UserText: "腾讯现在怎么样"})
 	filtered := FilterSchemas([]llm.ToolSchema{
 		{Name: "search_code"},
 		{Name: "run_strategy_backtest"},
@@ -74,34 +32,6 @@ func TestFilterSchemasIntersectsAllowList(t *testing.T) {
 	}
 }
 
-func TestRulePlannerFollowsLastDomainAndClarifyChoices(t *testing.T) {
-	p := RulePlanner{}
-	cases := []struct {
-		msg      string
-		last     Domain
-		domain   Domain
-		mode     Mode
-	}{
-		{msg: "换成贵州茅台", last: DomainStockAnalysis, domain: DomainStockAnalysis, mode: ModeGather},
-		{msg: "不聊中际旭创了，帮我分析一下贵州茅台", last: DomainStockAnalysis, domain: DomainStockAnalysis, mode: ModeGather},
-		{msg: "它最近走势怎么样", last: DomainStockAnalysis, domain: DomainStockAnalysis, mode: ModeGather},
-		{msg: "MACD", last: DomainStockAnalysis, domain: DomainStockAnalysis, mode: ModeGather},
-		{msg: "个股/指标分析", last: DomainAmbiguous, domain: DomainStockAnalysis, mode: ModeGather},
-		{msg: "测买卖点", last: DomainAmbiguous, domain: DomainSignalProbe, mode: ModeExecute},
-		{msg: "跑回测看收益", last: DomainAmbiguous, domain: DomainBacktestRun, mode: ModeExecute},
-		{msg: "先问答，先不操作", last: DomainAmbiguous, domain: DomainChat, mode: ModeTalk},
-		{msg: "帮我回测小米", last: DomainStockAnalysis, domain: DomainBacktestRun, mode: ModeExecute},
-		{msg: "MACD", last: "", domain: DomainAmbiguous, mode: ModeClarify},
-	}
-	for _, tc := range cases {
-		plan := p.Plan(PlanInput{UserText: tc.msg, LastDomain: tc.last})
-		if plan.Domain != tc.domain || plan.Mode != tc.mode {
-			t.Fatalf("%q last=%s: got %s/%s want %s/%s (%s)",
-				tc.msg, tc.last, plan.Domain, plan.Mode, tc.domain, tc.mode, plan.Reason)
-		}
-	}
-}
-
 type classifyMock struct {
 	calls int
 	body  string
@@ -116,7 +46,7 @@ func (m *classifyMock) Chat(_ context.Context, _ []llm.Message, _ []llm.ToolSche
 
 func TestIntentPlannerPrefersLLMWhenAvailable(t *testing.T) {
 	mock := &classifyMock{body: `{"domain":"stock_analysis","mode":"gather","confidence":0.8,"reason":"indicator mention"}`}
-	p := IntentPlanner{Rules: RulePlanner{}, LLM: mock}
+	p := IntentPlanner{LLM: mock}
 
 	got := p.Plan(PlanInput{UserText: "腾讯现在怎么样"})
 	if got.Domain != DomainStockAnalysis {
@@ -139,7 +69,7 @@ func TestIntentPlannerPrefersLLMWhenAvailable(t *testing.T) {
 
 func TestIntentPlannerSkipsLLMOnClarifyChoice(t *testing.T) {
 	mock := &classifyMock{body: `{"domain":"chat","mode":"talk","confidence":0.9,"reason":"wrong"}`}
-	p := IntentPlanner{Rules: RulePlanner{}, LLM: mock}
+	p := IntentPlanner{LLM: mock}
 	got := p.Plan(PlanInput{UserText: "测买卖点", LastDomain: DomainAmbiguous})
 	if mock.calls != 0 {
 		t.Fatalf("clarify choice must not call LLM, calls=%d", mock.calls)
@@ -151,21 +81,70 @@ func TestIntentPlannerSkipsLLMOnClarifyChoice(t *testing.T) {
 
 func TestIntentPlannerRejectsBacktestWithoutVerb(t *testing.T) {
 	mock := &classifyMock{body: `{"domain":"backtest_run","mode":"execute","confidence":0.99,"reason":"signals"}`}
-	p := IntentPlanner{Rules: RulePlanner{}, LLM: mock}
+	p := IntentPlanner{LLM: mock}
 	got := p.Plan(PlanInput{UserText: "这个信号怎么样"})
 	if got.ShouldRunBacktestPlaybook() || got.Domain == DomainBacktestRun {
 		t.Fatalf("must not accept backtest_run without verb: %+v", got)
 	}
-	if got.Domain != DomainAmbiguous {
-		t.Fatalf("keep clarify on blocked backtest, got %s", got.Domain)
+}
+
+func TestIntentPlannerStockActFromLLM(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"stock_analysis","mode":"gather","act":"quote_price","confidence":0.9,"reason":"price quote"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "帮我查一下腾讯控股现在的股价"})
+	if got.Act != "quote_price" {
+		t.Fatalf("act=%s want quote_price", got.Act)
+	}
+
+	mock.body = `{"domain":"stock_analysis","mode":"gather","act":"context_followup","confidence":0.9,"reason":"pronoun follow-up"}`
+	got = p.Plan(PlanInput{UserText: "它最近走势怎么样", LastDomain: DomainStockAnalysis})
+	if got.Act != "context_followup" {
+		t.Fatalf("act=%s want context_followup", got.Act)
 	}
 }
 
-func TestIntentPlannerNilLLMKeepsRules(t *testing.T) {
-	p := IntentPlanner{Rules: RulePlanner{}}
+func TestIntentPlannerStockClarifyChoice(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"chat","mode":"talk","confidence":0.9,"reason":"wrong"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "只要当前价", LastDomain: DomainAmbiguous})
+	if got.Domain != DomainStockAnalysis || got.Act != "quote_price" {
+		t.Fatalf("choice should map to quote_price, got %s/%s act=%s", got.Domain, got.Mode, got.Act)
+	}
+
+	got = p.Plan(PlanInput{UserText: "分析价格走势", LastDomain: DomainAmbiguous})
+	if got.Domain != DomainStockAnalysis || got.Act != "technical_analysis" {
+		t.Fatalf("choice should map to technical_analysis, got %s act=%s", got.Domain, got.Act)
+	}
+}
+
+func TestIntentPlannerStockQuoteClarifyTemplate(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"ambiguous","mode":"clarify","clarify":"stock_quote","confidence":0.6,"reason":"quote vs analysis"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "腾讯股价怎么样"})
+	if got.Mode != ModeClarify {
+		t.Fatalf("mode=%s", got.Mode)
+	}
+	if got.ClarifyQuestion != domaincatalog.StockPriceClarifyQuestion {
+		t.Fatalf("question=%q", got.ClarifyQuestion)
+	}
+	if len(got.ClarifyChoices) != 2 || got.ClarifyChoices[0] != "只要当前价" {
+		t.Fatalf("choices=%v", got.ClarifyChoices)
+	}
+}
+
+func TestIntentPlannerNilLLMUsesFallback(t *testing.T) {
+	p := IntentPlanner{}
 	got := p.Plan(PlanInput{UserText: "MACD"})
-	if got.Domain != DomainAmbiguous {
-		t.Fatalf("nil LLM should keep rules, got %s", got.Domain)
+	if got.Domain != DomainChat {
+		t.Fatalf("nil LLM should use conservative fallback, got %s", got.Domain)
+	}
+}
+
+func TestIntentPlannerFallbackInheritsStickyDomain(t *testing.T) {
+	p := IntentPlanner{}
+	got := p.Plan(PlanInput{UserText: "它最近走势怎么样", LastDomain: DomainStockAnalysis})
+	if got.Domain != DomainStockAnalysis {
+		t.Fatalf("fallback should inherit sticky domain, got %s", got.Domain)
 	}
 }
 

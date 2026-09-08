@@ -7,7 +7,7 @@ import (
 )
 
 func TestRunTurnPlanReportDefaultSuite(t *testing.T) {
-	report := eval.RunTurnPlanReport(eval.DefaultTurnPlanSuite())
+	report := eval.RunTurnPlanReport(eval.DefaultTurnPlanSuite(), eval.DefaultTurnPlanPlanner())
 	if !report.AllPass {
 		t.Fatalf("expected all pass, got %+v", report)
 	}

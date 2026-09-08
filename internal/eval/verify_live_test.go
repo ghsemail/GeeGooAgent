@@ -27,13 +27,15 @@ func TestVerifyTurnPlanLiveFullWithJudge(t *testing.T) {
 			"last_turn_plan": map[string]any{
 				"domain": "stock_analysis", "mode": "gather", "sop": true,
 			},
-			"last_turn_tools_called": []any{"search_code", "get_mcp_analysis"},
+			"turn_tools_trace": []chatsession.TurnToolsEntry{
+				{Turn: 1, Tools: []string{"search_code", "get_current_price"}},
+			},
 		},
 	}
 	opts := eval.TurnPlanCaseOptions{
 		TurnID: "stock_price", ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectSOP: true,
 		Message: "帮我查一下腾讯的股价",
-		RequireTools: []string{"search_code", "get_mcp_analysis"},
+		ExecutionProfile: "stock_analysis.price_snapshot",
 		MinReplyChars: 10,
 	}.Normalize()
 
@@ -46,11 +48,24 @@ func TestVerifyTurnPlanLiveFullWithJudge(t *testing.T) {
 	if res.ActualReply == "" {
 		t.Fatal("missing actual reply")
 	}
+	foundIntent := false
+	foundExecution := false
 	foundJudge := false
 	for _, c := range res.Checks {
-		if c.Type == "llm_judge" {
+		switch c.Type {
+		case "intent":
+			foundIntent = true
+		case "execution":
+			foundExecution = true
+		case "llm_judge":
 			foundJudge = true
 		}
+	}
+	if !foundIntent {
+		t.Fatal("missing intent check")
+	}
+	if !foundExecution {
+		t.Fatal("missing execution check")
 	}
 	if !foundJudge {
 		t.Fatal("missing llm_judge check")

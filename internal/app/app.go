@@ -160,6 +160,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	app.Agent.SetToolTimeout(cfg.EffectiveToolTimeout())
 	app.Agent.SetPlanGate(cfg.EffectivePlanGate())
 	app.Agent.SetEvalMaxRetries(cfg.EffectiveEvalMaxRetries())
+	app.Agent.SetExecutionProfileMaxRetries(cfg.EffectiveExecutionProfileMaxRetries())
 	app.Agent.SetDelegateMaxParallel(cfg.EffectiveDelegateMaxParallel())
 	app.Agent.SetEventBus(eventBus)
 	sub := agent.NewSubAgent(agent.SubAgentConfig{
@@ -171,6 +172,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	sub.SetEventBus(eventBus)
 	app.wireChatMemory()
 	app.wireCognition()
+	app.wireIntentPlanner()
 	app.wireRecallRanker()
 	tools.RegisterAll(registry, tools.Deps{
 		HTTP: httpBackends, WorkspaceRoot: workspace, ProjectRoot: findProjectRoot(),
@@ -544,6 +546,24 @@ func (a *App) EffectiveSynthesisModel() string {
 
 func (a *App) buildFallbackProviders() []llm.Provider {
 	return a.buildChatFallbackProviders()
+}
+
+// IntentPlanner returns the production LLM-first planner wired on the agent loop.
+func (a *App) IntentPlanner() cognition.Planner {
+	if a != nil && a.Agent != nil && a.Agent.Loop != nil {
+		return a.Agent.Loop.EffectivePlanner()
+	}
+	if a == nil {
+		return cognition.IntentPlanner{}
+	}
+	return cognition.IntentPlanner{LLM: a.opsBackgroundProvider()}
+}
+
+func (a *App) wireIntentPlanner() {
+	if a == nil || a.Agent == nil {
+		return
+	}
+	a.Agent.SetPlanner(a.IntentPlanner())
 }
 
 // OpsBackgroundProvider returns the auxiliary/ops LLM provider for eval judge and similar tasks.

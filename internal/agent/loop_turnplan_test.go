@@ -34,6 +34,7 @@ func TestTurnPlanDoesNotRunBacktestOnAnalysis(t *testing.T) {
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
 	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
+	withClassifyPlanner(loop, classifyFixture(nil))
 
 	var domain string
 	loop.SetProgress(func(event string, data map[string]any) {
@@ -67,6 +68,7 @@ func TestTurnPlanFollowsLastDomainOnSymbolSwitch(t *testing.T) {
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
 	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
+	withClassifyPlanner(loop, classifyFixture(nil))
 
 	var domains []string
 	loop.SetProgress(func(event string, data map[string]any) {
@@ -110,6 +112,7 @@ func TestTurnPlanExecutesBacktestViaReAct(t *testing.T) {
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
 	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
+	withClassifyPlanner(loop, classifyFixture(nil))
 
 	session := runtime.NewSession()
 	result := loop.RunTurn(context.Background(), session, "帮我回测小米 SAR+MACD", tools.Context{}, nil)
@@ -148,6 +151,7 @@ func TestStockAnalysisEmitsGateBeforeTools(t *testing.T) {
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
 	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
+	withClassifyPlanner(loop, classifyFixture(nil))
 
 	var events []string
 	loop.SetProgress(func(event string, data map[string]any) {
@@ -207,6 +211,7 @@ func TestToolFirstSkipEmitsGateEvent(t *testing.T) {
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
 	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
+	withClassifyPlanner(loop, classifyFixture(nil))
 	loop.SetSkillLoader(procedural.NewLoader(dir), 4)
 
 	var gateDecision string
@@ -238,6 +243,7 @@ func TestAmbiguousTurnSkipsGateAndUsesPresetClarify(t *testing.T) {
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
 	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
+	withClassifyPlanner(loop, classifyFixture(nil))
 	loop.SetRetrievalGate(gateMock, nil, 4)
 
 	var statuses []string

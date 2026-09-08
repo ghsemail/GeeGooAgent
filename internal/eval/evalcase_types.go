@@ -16,6 +16,22 @@ type ExpectReplySpec struct {
 	MustNot   []string `json:"must_not,omitempty"`
 }
 
+// ExpectIntentSpec is structured TurnPlan intent expectation (domain/mode/sop/act).
+type ExpectIntentSpec struct {
+	Domain string `json:"domain"`
+	Mode   string `json:"mode"`
+	SOP    bool   `json:"sop"`
+	Act    string `json:"act,omitempty"`
+}
+
+// ExpectExecutionSpec references a catalog execution profile for tool checks.
+type ExpectExecutionSpec struct {
+	Profile     string   `json:"profile"`
+	ForbidTools []string `json:"forbid_tools,omitempty"`
+	// LegacyRequireTools applies judged-turn-only checks when Profile is empty.
+	LegacyRequireTools []string `json:"legacy_require_tools,omitempty"`
+}
+
 // ExpectRoutingSpec is structured routing expectation (mirrors legacy flat fields).
 type ExpectRoutingSpec struct {
 	Domain       string   `json:"domain"`
@@ -101,6 +117,25 @@ func (o TurnPlanCaseOptions) Normalize() TurnPlanCaseOptions {
 			ForbidTools:  append([]string(nil), out.ForbidTools...),
 		}
 	}
+	if out.ExpectIntent == nil && strings.TrimSpace(out.ExpectDomain) != "" {
+		out.ExpectIntent = &ExpectIntentSpec{
+			Domain: out.ExpectDomain,
+			Mode:   out.ExpectMode,
+			SOP:    out.ExpectSOP,
+		}
+	}
+	if out.ExpectExecution == nil && strings.TrimSpace(out.ExecutionProfile) != "" {
+		out.ExpectExecution = &ExpectExecutionSpec{
+			Profile:     out.ExecutionProfile,
+			ForbidTools: append([]string(nil), out.ForbidTools...),
+		}
+	}
+	if out.ExpectExecution == nil && len(out.RequireTools) > 0 {
+		out.ExpectExecution = &ExpectExecutionSpec{
+			LegacyRequireTools: append([]string(nil), out.RequireTools...),
+			ForbidTools:        append([]string(nil), out.ForbidTools...),
+		}
+	}
 	if out.ExpectReply == nil {
 		if spec := defaultExpectReplyForTurnID(out.TurnID); spec.Rubric != "" {
 			out.ExpectReply = &spec
@@ -141,5 +176,26 @@ func (o TurnPlanCaseOptions) routing() ExpectRoutingSpec {
 	return ExpectRoutingSpec{
 		Domain: n.ExpectDomain, Mode: n.ExpectMode, SOP: n.ExpectSOP,
 		RequireTools: n.RequireTools, ForbidTools: n.ForbidTools,
+	}
+}
+
+func (o TurnPlanCaseOptions) intent() ExpectIntentSpec {
+	n := o.Normalize()
+	if n.ExpectIntent != nil {
+		return *n.ExpectIntent
+	}
+	r := n.routing()
+	return ExpectIntentSpec{Domain: r.Domain, Mode: r.Mode, SOP: r.SOP}
+}
+
+func (o TurnPlanCaseOptions) execution() ExpectExecutionSpec {
+	n := o.Normalize()
+	if n.ExpectExecution != nil {
+		return *n.ExpectExecution
+	}
+	r := n.routing()
+	return ExpectExecutionSpec{
+		LegacyRequireTools: append([]string(nil), r.RequireTools...),
+		ForbidTools:        append([]string(nil), r.ForbidTools...),
 	}
 }

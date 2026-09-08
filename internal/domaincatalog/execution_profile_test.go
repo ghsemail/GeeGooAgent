@@ -1,0 +1,104 @@
+package domaincatalog_test
+
+import (
+	"testing"
+
+	"github.com/ghsemail/GeeGooAgent/internal/domaincatalog"
+)
+
+func TestVerifyExecutionProfilePriceSnapshot(t *testing.T) {
+	ok, detail := domaincatalog.VerifyExecutionProfile(
+		domaincatalog.ProfileStockPriceSnapshot,
+		[]string{"search_code", "get_current_price"},
+		[]string{"search_code"},
+	)
+	if !ok {
+		t.Fatalf("expected snapshot pass, got %s", detail)
+	}
+
+	ok, _ = domaincatalog.VerifyExecutionProfile(
+		domaincatalog.ProfileStockPriceSnapshot,
+		[]string{"search_code", "get_mcp_analysis"},
+		[]string{"search_code"},
+	)
+	if ok {
+		t.Fatal("snapshot profile should require get_current_price")
+	}
+}
+
+func TestVerifyExecutionProfilePriceViaMCP(t *testing.T) {
+	ok, detail := domaincatalog.VerifyExecutionProfile(
+		domaincatalog.ProfileStockPriceViaMCP,
+		[]string{"search_code", "get_current_price"},
+		[]string{"search_code", "get_current_price"},
+	)
+	if ok {
+		t.Fatalf("expected price shortcut fail, got %s", detail)
+	}
+
+	ok, _ = domaincatalog.VerifyExecutionProfile(
+		domaincatalog.ProfileStockPriceViaMCP,
+		[]string{"search_code", "get_mcp_analysis"},
+		[]string{"search_code", "get_mcp_analysis"},
+	)
+	if !ok {
+		t.Fatal("expected pass for mcp path")
+	}
+}
+
+func TestVerifyExecutionProfileTechnicalFullAllowsPriorSearchCode(t *testing.T) {
+	ok, detail := domaincatalog.VerifyExecutionProfile(
+		domaincatalog.ProfileStockTechnicalFull,
+		[]string{"get_single_prompt_template", "get_mcp_analysis"},
+		[]string{"search_code", "get_current_price", "get_single_prompt_template", "get_mcp_analysis"},
+	)
+	if !ok {
+		t.Fatalf("expected pass when search_code in session, got %s", detail)
+	}
+}
+
+func TestVerifyExecutionProfileContextFollowup(t *testing.T) {
+	ok, detail := domaincatalog.VerifyExecutionProfile(
+		domaincatalog.ProfileStockContextFollowup,
+		[]string{"get_mcp_analysis", "get_current_price"},
+		[]string{"search_code", "get_mcp_analysis"},
+	)
+	if !ok {
+		t.Fatalf("expected pass, got %s", detail)
+	}
+
+	ok, _ = domaincatalog.VerifyExecutionProfile(
+		domaincatalog.ProfileStockContextFollowup,
+		[]string{"get_mcp_analysis"},
+		[]string{"get_mcp_analysis"},
+	)
+	if ok {
+		t.Fatal("expected fail without session search_code")
+	}
+}
+
+func TestVerifyExecutionProfileSymbolResolve(t *testing.T) {
+	ok, _ := domaincatalog.VerifyExecutionProfile(
+		domaincatalog.ProfileStockSymbolResolve,
+		[]string{"search_code", "get_mcp_analysis"},
+		[]string{"search_code", "get_mcp_analysis"},
+	)
+	if !ok {
+		t.Fatal("expected pass when judged turn searches code")
+	}
+
+	ok, _ = domaincatalog.VerifyExecutionProfile(
+		domaincatalog.ProfileStockSymbolResolve,
+		[]string{"get_mcp_analysis"},
+		[]string{"search_code", "get_mcp_analysis"},
+	)
+	if ok {
+		t.Fatal("expected fail when search_code only in prior turn")
+	}
+}
+
+func TestExecutionProfileForQuotePrice(t *testing.T) {
+	if domaincatalog.ExecutionProfileFor(domaincatalog.DomainStockAnalysis, domaincatalog.StockActQuotePrice) != domaincatalog.ProfileStockPriceSnapshot {
+		t.Fatal("quote_price should map to price_snapshot")
+	}
+}

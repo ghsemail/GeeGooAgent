@@ -28,8 +28,13 @@ func VerifyTurnPlanLiveFull(ctx context.Context, chat *chatsession.ChatSession, 
 		return res
 	}
 
-	routing := verifyRouting(chat, opts.routing())
-	res.Checks = append(res.Checks, routing)
+	intent := verifyIntent(chat, opts.intent())
+	res.Checks = append(res.Checks, intent)
+
+	execution := VerifyExecution(chat, opts.execution())
+	if strings.TrimSpace(opts.execution().Profile) != "" || len(opts.execution().LegacyRequireTools) > 0 || len(opts.execution().ForbidTools) > 0 {
+		res.Checks = append(res.Checks, execution)
+	}
 
 	actualReply := LastAssistantReply(chat)
 	res.ActualReply = actualReply
@@ -49,7 +54,7 @@ func VerifyTurnPlanLiveFull(ctx context.Context, chat *chatsession.ChatSession, 
 		}
 	}
 
-	judgeCheck := runLLMJudge(ctx, opts, judge, actualReply, res.DialogueSnapshot, routing)
+	judgeCheck := runLLMJudge(ctx, opts, judge, actualReply, res.DialogueSnapshot, intent)
 	if judgeCheck != nil {
 		res.Checks = append(res.Checks, *judgeCheck)
 	}
@@ -62,27 +67,6 @@ func VerifyTurnPlanLiveFull(ctx context.Context, chat *chatsession.ChatSession, 
 	res.Detail = summarizeChecks(res.Checks)
 	res.Summary = buildSummary(res.Checks, actualReply)
 	return res
-}
-
-func verifyRouting(chat *chatsession.ChatSession, expect ExpectRoutingSpec) EvalCheckResult {
-	legacy := TurnPlanCaseOptions{
-		ExpectDomain: expect.Domain,
-		ExpectMode:   expect.Mode,
-		ExpectSOP:    expect.SOP,
-		RequireTools: expect.RequireTools,
-		ForbidTools:  expect.ForbidTools,
-	}
-	r := VerifyTurnPlanLive(chat, legacy)
-	return EvalCheckResult{
-		Type:   "routing",
-		Passed: r.Passed,
-		Detail: r.Detail,
-		Expected: map[string]any{
-			"domain": expect.Domain, "mode": expect.Mode, "sop": expect.SOP,
-			"require_tools": expect.RequireTools, "forbid_tools": expect.ForbidTools,
-		},
-		Actual: map[string]any{"detail": r.Detail},
-	}
 }
 
 func verifyReplyLengthCheck(reply string, minChars int) *EvalCheckResult {
@@ -217,14 +201,21 @@ func summarizeChecks(checks []EvalCheckResult) string {
 
 func buildSummary(checks []EvalCheckResult, actualReply string) map[string]any {
 	summary := map[string]any{
-		"routing_pass": false,
-		"reply_pass":   true,
-		"judge_pass":   nil,
-		"judge_score":  nil,
-		"judge_reason": "",
+		"intent_pass":    false,
+		"execution_pass": nil,
+		"routing_pass":   false,
+		"reply_pass":     true,
+		"judge_pass":     nil,
+		"judge_score":    nil,
+		"judge_reason":   "",
 	}
 	for _, c := range checks {
 		switch c.Type {
+		case "intent":
+			summary["intent_pass"] = c.Passed
+			summary["routing_pass"] = c.Passed
+		case "execution":
+			summary["execution_pass"] = c.Passed
 		case "routing":
 			summary["routing_pass"] = c.Passed
 		case "llm_judge":

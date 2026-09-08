@@ -14,9 +14,11 @@ type TurnPlanResult struct {
 	Detail string
 }
 
-// RunTurnPlanSuite exercises RulePlanner against a suite (no LLM, no tools).
-func RunTurnPlanSuite(suite TurnPlanSuite) []TurnPlanResult {
-	planner := cognition.IntentPlanner{Rules: cognition.RulePlanner{}}
+// RunTurnPlanSuite exercises the given Planner against a suite (no tools).
+func RunTurnPlanSuite(suite TurnPlanSuite, planner cognition.Planner) []TurnPlanResult {
+	if planner == nil {
+		planner = DefaultTurnPlanPlanner()
+	}
 	out := make([]TurnPlanResult, 0, len(suite.Turns))
 	for _, turn := range suite.Turns {
 		out = append(out, checkTurnPlan(planner, turn))
@@ -24,7 +26,7 @@ func RunTurnPlanSuite(suite TurnPlanSuite) []TurnPlanResult {
 	return out
 }
 
-func checkTurnPlan(planner cognition.IntentPlanner, turn TurnPlanTurn) TurnPlanResult {
+func checkTurnPlan(planner cognition.Planner, turn TurnPlanTurn) TurnPlanResult {
 	plan := planner.Plan(cognition.PlanInput{
 		UserText:   turn.Message,
 		LastDomain: cognition.Domain(turn.LastDomain),
@@ -37,6 +39,9 @@ func checkTurnPlan(planner cognition.IntentPlanner, turn TurnPlanTurn) TurnPlanR
 	}
 	if string(plan.Mode) != turn.ExpectMode {
 		problems = append(problems, fmt.Sprintf("mode=%s want %s", plan.Mode, turn.ExpectMode))
+	}
+	if turn.ExpectAct != "" && plan.Act != turn.ExpectAct {
+		problems = append(problems, fmt.Sprintf("act=%s want %s", plan.Act, turn.ExpectAct))
 	}
 	if plan.ShouldRunDomainSOP() != turn.ExpectSOP {
 		problems = append(problems, fmt.Sprintf("sop=%v want %v", plan.ShouldRunDomainSOP(), turn.ExpectSOP))
@@ -55,7 +60,11 @@ func checkTurnPlan(planner cognition.IntentPlanner, turn TurnPlanTurn) TurnPlanR
 		res.Passed = false
 		res.Detail = strings.Join(problems, "; ")
 	} else {
-		res.Detail = fmt.Sprintf("%s/%s sop=%v", plan.Domain, plan.Mode, plan.ShouldRunDomainSOP())
+		detail := fmt.Sprintf("%s/%s sop=%v", plan.Domain, plan.Mode, plan.ShouldRunDomainSOP())
+		if plan.Act != "" {
+			detail += " act=" + plan.Act
+		}
+		res.Detail = detail
 	}
 	return res
 }

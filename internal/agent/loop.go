@@ -8,6 +8,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	ctxfrag "github.com/ghsemail/GeeGooAgent/internal/context"
+	"github.com/ghsemail/GeeGooAgent/internal/domaincatalog"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
@@ -40,6 +41,7 @@ type Loop struct {
 	planPolicy     cognition.PlanPolicy
 	planner        cognition.Planner
 	evalMaxRetries int
+	executionProfileMaxRetries int
 	gateProvider   llm.Provider
 	gatePolicy     llm.Policy
 	retrievalTopK  int
@@ -58,6 +60,7 @@ func NewLoop(gateway *llm.Gateway, executor *runtime.Executor) *Loop {
 		planPolicy:    d.PlanPolicy,
 		planner:       d.Planner,
 		mem:           memport.Noop(),
+		executionProfileMaxRetries: 0,
 	}
 }
 
@@ -199,6 +202,20 @@ func (l *Loop) SetEvalMaxRetries(n int) {
 	l.evalMaxRetries = n
 }
 
+// SetExecutionProfileMaxRetries caps execution-profile driven tool retries per turn (default 0, max 2).
+func (l *Loop) SetExecutionProfileMaxRetries(n int) {
+	if l == nil {
+		return
+	}
+	if n < 0 {
+		n = 0
+	}
+	if n > 2 {
+		n = 2
+	}
+	l.executionProfileMaxRetries = n
+}
+
 // SetCognition replaces Ranker / Evaluator / PlanPolicy. Nil fields keep current values.
 func (l *Loop) SetCognition(b cognition.Bundle) {
 	if l == nil {
@@ -218,14 +235,25 @@ func (l *Loop) SetCognition(b cognition.Bundle) {
 	}
 }
 
+func (l *Loop) EffectivePlanner() cognition.Planner {
+	return l.effectivePlanner()
+}
+
+func (l *Loop) SetPlanner(p cognition.Planner) {
+	if l == nil {
+		return
+	}
+	l.planner = p
+}
+
 func (l *Loop) effectivePlanner() cognition.Planner {
 	if l != nil && l.planner != nil {
 		return l.planner
 	}
 	if l != nil && l.gateProvider != nil {
-		return cognition.IntentPlanner{Rules: cognition.RulePlanner{}, LLM: l.gateProvider}
+		return cognition.IntentPlanner{LLM: l.gateProvider}
 	}
-	return cognition.RulePlanner{}
+	return cognition.IntentPlanner{}
 }
 
 func (l *Loop) effectivePlanPolicy() cognition.PlanPolicy {
@@ -391,6 +419,7 @@ func (l *Loop) runPreparedTurn(
 	planMS := time.Since(planStarted).Milliseconds()
 	session.LastTurnDomain = string(turnPlan.Domain)
 	session.LastTurnMode = string(turnPlan.Mode)
+	session.LastTurnAct = turnPlan.Act
 	session.LastTurnSOP = turnPlan.ShouldRunDomainSOP()
 	session.LastTurnToolsAllow = append([]string(nil), turnPlan.ToolsAllow...)
 	l.emit("turn_plan", map[string]any{
@@ -436,6 +465,9 @@ func (l *Loop) runPreparedTurn(
 		schemas = mergeToolSchemas(schemas, extra)
 	}
 	schemas = cognition.FilterSchemas(schemas, turnPlan)
+	profileID := domaincatalog.ExecutionProfileFor(domaincatalog.Domain(turnPlan.Domain), turnPlan.Act)
+	session.LastExecutionProfile = profileID
+	schemas = filterExecutionProfileSchemas(schemas, profileID)
 
 	if result, handled := l.tryPresetClarify(ctx, session, turnPlan, toolCtx, &records, schemas); handled {
 		return result
@@ -447,6 +479,7 @@ func (l *Loop) runPreparedTurn(
 	l.emitStatus("hygiene", "整理会话上下文…")
 	messages = l.applyHygiene(ctx, session, messages)
 	evalRetriesLeft := l.evalMaxRetries
+	executionRetriesLeft := l.executionProfileMaxRetries
 
 	for round := 0; round < l.maxToolRounds; round++ {
 		if err := ctx.Err(); err != nil {
@@ -454,6 +487,9 @@ func (l *Loop) runPreparedTurn(
 		}
 		done, result := l.runRound(ctx, session, &messages, toolCtx, schemas, round, &records)
 		if done {
+			if l.tryExecutionProfileRetry(ctx, session, &messages, turnPlan, records, &executionRetriesLeft) {
+				continue
+			}
 			if l.tryEvalRetry(ctx, session, &messages, result, &evalRetriesLeft) {
 				continue
 			}

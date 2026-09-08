@@ -6,6 +6,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	ctxfrag "github.com/ghsemail/GeeGooAgent/internal/context"
+	"github.com/ghsemail/GeeGooAgent/internal/domaincatalog"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 )
@@ -15,6 +16,12 @@ func turnPlanFragment(plan cognition.TurnPlan) ctxfrag.Fragment {
 	b.WriteString("Turn plan (classify intent, then execute via ReAct tools — no deterministic SOP shortcut):\n")
 	fmt.Fprintf(&b, "- domain: %s\n- act: %s\n- mode: %s\n- reason: %s\n",
 		plan.Domain, plan.Act, plan.Mode, plan.Reason)
+	if profileID := domaincatalog.ExecutionProfileFor(domaincatalog.Domain(plan.Domain), plan.Act); profileID != "" {
+		fmt.Fprintf(&b, "- execution profile: %s\n", profileID)
+		if hint := domaincatalog.ProfileExecutionHint(profileID); hint != "" {
+			fmt.Fprintf(&b, "- execution contract: %s\n", hint)
+		}
+	}
 	if len(plan.Skills) > 0 {
 		fmt.Fprintf(&b, "- skills: %s\n", strings.Join(plan.Skills, ", "))
 	}

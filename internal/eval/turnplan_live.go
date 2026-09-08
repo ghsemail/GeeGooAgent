@@ -21,11 +21,14 @@ type TurnPlanCaseOptions struct {
 	ExpectSOP      bool     `json:"expect_sop"`
 	ForbidTools    []string `json:"forbid_tools,omitempty"`
 	RequireTools   []string `json:"require_tools,omitempty"`
+	ExecutionProfile string `json:"execution_profile,omitempty"`
 	PassKeywords   []string `json:"pass_keywords,omitempty"`
 	MinReplyChars  int      `json:"min_reply_chars,omitempty"`
 	TurnID         string   `json:"turn_id,omitempty"`
 	Dialogue       []EvalDialogueTurn `json:"dialogue,omitempty"`
 	ExpectReply    *ExpectReplySpec   `json:"expect_reply,omitempty"`
+	ExpectIntent   *ExpectIntentSpec  `json:"expect_intent,omitempty"`
+	ExpectExecution *ExpectExecutionSpec `json:"expect_execution,omitempty"`
 	ExpectRouting  *ExpectRoutingSpec `json:"expect_routing,omitempty"`
 	Judge          *EvalJudgeConfig   `json:"judge,omitempty"`
 }
@@ -69,12 +72,16 @@ func IndividualTurnPlanEvalCases() []TurnPlanEvalCaseDef {
 			ExpectSOP:      c.ExpectSOP,
 			ForbidTools:    append([]string(nil), c.ForbidTools...),
 			RequireTools:   append([]string(nil), c.RequireTools...),
+			ExecutionProfile: c.ExecutionProfile,
 			MinReplyChars:  20,
 			TurnID:         c.ID,
+			ExpectIntent: &ExpectIntentSpec{
+				Domain: c.ExpectDomain, Mode: c.ExpectMode, SOP: c.ExpectSOP,
+			},
+			ExpectExecution: buildExpectExecution(c),
 			ExpectRouting: &ExpectRoutingSpec{
 				Domain: c.ExpectDomain, Mode: c.ExpectMode, SOP: c.ExpectSOP,
-				RequireTools: append([]string(nil), c.RequireTools...),
-				ForbidTools:  append([]string(nil), c.ForbidTools...),
+				ForbidTools: append([]string(nil), c.ForbidTools...),
 			},
 		}
 		opts = opts.Normalize()
@@ -124,8 +131,9 @@ type TurnPlanSnapshot struct {
 	ToolsAllow []string `json:"tools_allow,omitempty"`
 }
 
-// VerifyTurnPlanLive checks a completed chat turn against case expectations.
+// VerifyTurnPlanLive checks TurnPlan intent (domain/mode/sop/act) on the last turn.
 func VerifyTurnPlanLive(chat *chatsession.ChatSession, opts TurnPlanCaseOptions) TurnPlanResult {
+	intent := opts.Normalize().intent()
 	turnID := opts.TurnID
 	if turnID == "" {
 		turnID = "live"
@@ -145,26 +153,17 @@ func VerifyTurnPlanLive(chat *chatsession.ChatSession, opts TurnPlanCaseOptions)
 	}
 
 	var problems []string
-	if snap.Domain != opts.ExpectDomain {
-		problems = append(problems, fmt.Sprintf("domain=%s want %s", snap.Domain, opts.ExpectDomain))
+	if snap.Domain != intent.Domain {
+		problems = append(problems, fmt.Sprintf("domain=%s want %s", snap.Domain, intent.Domain))
 	}
-	if snap.Mode != opts.ExpectMode {
-		problems = append(problems, fmt.Sprintf("mode=%s want %s", snap.Mode, opts.ExpectMode))
+	if snap.Mode != intent.Mode {
+		problems = append(problems, fmt.Sprintf("mode=%s want %s", snap.Mode, intent.Mode))
 	}
-	if snap.SOP != opts.ExpectSOP {
-		problems = append(problems, fmt.Sprintf("sop=%v want %v", snap.SOP, opts.ExpectSOP))
+	if snap.SOP != intent.SOP {
+		problems = append(problems, fmt.Sprintf("sop=%v want %v", snap.SOP, intent.SOP))
 	}
-
-	called := chatsession.LastTurnToolsCalledFromSession(chat)
-	for _, tool := range opts.ForbidTools {
-		if containsString(called, tool) {
-			problems = append(problems, fmt.Sprintf("forbid tool %s called", tool))
-		}
-	}
-	for _, tool := range opts.RequireTools {
-		if !containsString(called, tool) {
-			problems = append(problems, fmt.Sprintf("missing tool call %s", tool))
-		}
+	if act := strings.TrimSpace(intent.Act); act != "" && strings.TrimSpace(snap.Act) != act {
+		problems = append(problems, fmt.Sprintf("act=%s want %s", snap.Act, act))
 	}
 
 	if len(problems) > 0 {
@@ -172,8 +171,24 @@ func VerifyTurnPlanLive(chat *chatsession.ChatSession, opts TurnPlanCaseOptions)
 		res.Detail = strings.Join(problems, "; ")
 		return res
 	}
-	res.Detail = fmt.Sprintf("%s/%s sop=%v tools=%s", snap.Domain, snap.Mode, snap.SOP, strings.Join(called, ","))
+	res.Detail = fmt.Sprintf("%s/%s act=%s sop=%v", snap.Domain, snap.Mode, snap.Act, snap.SOP)
 	return res
+}
+
+func buildExpectExecution(c TurnPlanLiveCase) *ExpectExecutionSpec {
+	if strings.TrimSpace(c.ExecutionProfile) != "" {
+		return &ExpectExecutionSpec{
+			Profile:     c.ExecutionProfile,
+			ForbidTools: append([]string(nil), c.ForbidTools...),
+		}
+	}
+	if len(c.RequireTools) == 0 && len(c.ForbidTools) == 0 {
+		return nil
+	}
+	return &ExpectExecutionSpec{
+		LegacyRequireTools: append([]string(nil), c.RequireTools...),
+		ForbidTools:        append([]string(nil), c.ForbidTools...),
+	}
 }
 
 func containsString(list []string, name string) bool {
