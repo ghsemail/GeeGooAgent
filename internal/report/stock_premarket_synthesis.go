@@ -37,12 +37,10 @@ func (s *Synthesizer) SynthesizeStockPreMarket(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	cctx, cancel := context.WithTimeout(ctx, s.timeout)
-	defer cancel()
 
 	prompt := buildStockPreMarketSynthesisPrompt(ws, draft, evidence, marketContext, marketReportSummary, template)
 	var parsed StockPreMarketSynthesisResult
-	_, _, err := s.chatSynthesis(cctx, prompt, func(body string) error {
+	_, _, err := s.chatSynthesis(ctx, prompt, func(body string) error {
 		p, err := parseStockPreMarketSynthesisJSON(body)
 		if err != nil {
 			return fmt.Errorf("parse: %w", err)

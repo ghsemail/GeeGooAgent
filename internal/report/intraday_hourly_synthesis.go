@@ -33,11 +33,9 @@ func (s *Synthesizer) SummarizeIntradayHourly(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	cctx, cancel := context.WithTimeout(ctx, s.timeout)
-	defer cancel()
 
 	prompt := buildIntradayHourlySummaryPrompt(ws, priceRaw, signalRaw, klineRaw)
-	content, _, err := s.chatSynthesis(cctx, prompt, func(body string) error {
+	content, _, err := s.chatSynthesis(ctx, prompt, func(body string) error {
 		_, err := parseIntradayHourlySummaryJSON(body)
 		return err
 	})

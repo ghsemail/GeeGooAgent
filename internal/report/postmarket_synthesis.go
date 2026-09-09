@@ -33,11 +33,9 @@ func (s *Synthesizer) SynthesizePostMarketSummaries(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	cctx, cancel := context.WithTimeout(ctx, s.timeout)
-	defer cancel()
 
 	prompt := buildPostMarketSynthesisPrompt(ws, draft, sessionBias, vsPreMarket, ruleMarket, ruleTrade, ruleExperience)
-	content, _, err := s.chatSynthesis(cctx, prompt, func(body string) error {
+	content, _, err := s.chatSynthesis(ctx, prompt, func(body string) error {
 		_, err := parsePostMarketSynthesisJSON(body)
 		return err
 	})

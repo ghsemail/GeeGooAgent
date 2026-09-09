@@ -32,11 +32,9 @@ func (s *Synthesizer) SynthesizeIntraday(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	cctx, cancel := context.WithTimeout(ctx, s.timeout)
-	defer cancel()
 
 	prompt := buildIntradaySynthesisPrompt(ws, draft, ruleResult, ruleConfidence)
-	content, _, err := s.chatSynthesis(cctx, prompt, func(body string) error {
+	content, _, err := s.chatSynthesis(ctx, prompt, func(body string) error {
 		_, err := parseIntradaySynthesisJSON(body)
 		return err
 	})

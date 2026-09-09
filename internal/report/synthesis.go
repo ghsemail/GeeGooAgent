@@ -69,12 +69,10 @@ func (s *Synthesizer) Synthesize(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	cctx, cancel := context.WithTimeout(ctx, s.timeout)
-	defer cancel()
 
 	prompt := buildSynthesisPrompt(ws, evidence, marketContext)
 	var parsed SynthesisResult
-	_, _, err := s.chatSynthesis(cctx, prompt, func(body string) error {
+	_, _, err := s.chatSynthesis(ctx, prompt, func(body string) error {
 		p, err := parseSynthesisJSON(body)
 		if err != nil {
 			return fmt.Errorf("parse: %w", err)
