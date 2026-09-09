@@ -45,7 +45,8 @@ func userStockDeliveryOK(
 		return false, "supervisor_" + string(result.Supervisor.Verdict)
 	}
 	skipReason := stockdigest.NotifySkipReason(skill, market, result)
-	if skipReason == "non_trading_day" {
+	if skipReason == "non_trading_day" || skipReason == "no_new_reports" {
+		// no_new_reports: today's report already exists (idempotent re-run), not a failure.
 		return true, ""
 	}
 	if skipReason != "" {
@@ -56,6 +57,9 @@ func userStockDeliveryOK(
 			return true, ""
 		}
 		if r := strings.TrimSpace(feishuSkipReason); r != "" {
+			if r == "no_new_reports" {
+				return true, ""
+			}
 			return false, r
 		}
 		return false, "feishu_not_sent"

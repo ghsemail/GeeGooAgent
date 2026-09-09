@@ -42,6 +42,21 @@ func TestUserStockDeliveryOKSkipsPushOnNonTradingDay(t *testing.T) {
 	}
 }
 
+func TestUserStockDeliveryOKAcceptsNoNewReports(t *testing.T) {
+	t.Parallel()
+	result := workflow.RunResult{
+		Status:     "completed",
+		Supervisor: &workflow.SupervisorReport{Verdict: workflow.VerdictPass},
+		Working:    &memory.PreMarketWorking{Stocks: map[string]memory.StockWorkspace{
+			"00700.HK": {Status: "skipped", Code: "00700.HK"},
+		}},
+	}
+	ok, reason := userStockDeliveryOK("premarket_stock", "HK", result, nil, true, false, "no_new_reports")
+	if !ok || reason != "" {
+		t.Fatalf("ok=%v reason=%q", ok, reason)
+	}
+}
+
 func TestSkillDeliveryReasonForSchedulerUsesRunError(t *testing.T) {
 	t.Parallel()
 	ok, reason := SkillDeliveryReasonForScheduler(workflow.RunResult{}, errors.New("report delivery failed for 1 user(s)"))
