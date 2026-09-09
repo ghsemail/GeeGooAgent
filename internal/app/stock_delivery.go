@@ -53,6 +53,9 @@ func userStockDeliveryOK(
 		// no_new_reports: today's report already exists (idempotent re-run), not a failure.
 		return true, ""
 	}
+	if skipReason == "supervisor_recoverable" && stockdigest.HasNewlyReportedStock(result) {
+		skipReason = ""
+	}
 	if skipReason != "" {
 		return false, skipReason
 	}
