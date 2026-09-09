@@ -4,9 +4,10 @@ import "strings"
 
 // EvalDialogueTurn is one scripted user turn in an eval case.
 type EvalDialogueTurn struct {
-	Role  string `json:"role"`
-	Text  string `json:"text"`
-	Judge bool   `json:"judge,omitempty"`
+	Role      string `json:"role"`
+	Text      string `json:"text"`
+	Judge     bool   `json:"judge,omitempty"`
+	OnClarify bool   `json:"on_clarify,omitempty"`
 }
 
 // ExpectReplySpec describes how the assistant should respond on the judged turn.

@@ -167,14 +167,14 @@ func runLLMJudge(ctx context.Context, opts TurnPlanCaseOptions, judge ReplyJudge
 }
 
 func lastUserMessage(dialogue []EvalDialogueTurn, snapshot []DialogueSnapshotTurn) string {
-	for i := len(dialogue) - 1; i >= 0; i-- {
-		if dialogue[i].Role == "user" && strings.TrimSpace(dialogue[i].Text) != "" {
-			return dialogue[i].Text
-		}
-	}
 	for i := len(snapshot) - 1; i >= 0; i-- {
 		if snapshot[i].Role == "user" && strings.TrimSpace(snapshot[i].Text) != "" {
 			return snapshot[i].Text
+		}
+	}
+	for i := len(dialogue) - 1; i >= 0; i-- {
+		if dialogue[i].Role == "user" && strings.TrimSpace(dialogue[i].Text) != "" {
+			return dialogue[i].Text
 		}
 	}
 	return ""

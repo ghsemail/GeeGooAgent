@@ -59,6 +59,7 @@ type TurnPlanLiveCase struct {
 	ExpectSOP     bool
 	ForbidTools   []string
 	RequireTools  []string
+	ClarifyReply  string
 	ExecutionProfile string
 }
 
@@ -167,8 +168,9 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 		},
 		{
 			ID: "backtest_colloquial", Category: TurnPlanCatBacktest, Title: "单轮 · 口语回测",
-			Description: "独立 session：省略策略名但仍应路由到 backtest_run。",
+			Description: "独立 session：省略策略名但仍应路由到 backtest_run；若 Agent clarify 策略则自动补默认选项。",
 			Message: "帮我回测一下中际旭创",
+			ClarifyReply: "用SAR加MACD组合回测",
 			ExpectDomain: "backtest_run", ExpectMode: "execute", ExpectSOP: false,
 			RequireTools: []string{"run_strategy_backtest"},
 		},
