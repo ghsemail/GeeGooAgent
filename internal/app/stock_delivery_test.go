@@ -42,7 +42,20 @@ func TestUserStockDeliveryOKSkipsPushOnNonTradingDay(t *testing.T) {
 	}
 }
 
-func TestUserStockDeliveryOKAcceptsNoNewReports(t *testing.T) {
+func TestUserStockDeliveryOKAcceptsRecoverableWhenReported(t *testing.T) {
+	t.Parallel()
+	result := workflow.RunResult{
+		Status:     "completed",
+		Supervisor: &workflow.SupervisorReport{Verdict: workflow.VerdictRecoverable},
+		Working:    &memory.PreMarketWorking{Stocks: map[string]memory.StockWorkspace{
+			"SPCX.US": {Status: "reported", Code: "SPCX.US"},
+		}},
+	}
+	ok, reason := userStockDeliveryOK("postmarket_stock", "US", result, nil, false, false, "")
+	if !ok || reason != "" {
+		t.Fatalf("ok=%v reason=%q", ok, reason)
+	}
+}
 	t.Parallel()
 	result := workflow.RunResult{
 		Status:     "completed",

@@ -42,7 +42,11 @@ func userStockDeliveryOK(
 		return false, "workflow_not_completed"
 	}
 	if result.Supervisor != nil && result.Supervisor.Verdict != workflow.VerdictPass {
-		return false, "supervisor_" + string(result.Supervisor.Verdict)
+		if result.Supervisor.Verdict == workflow.VerdictRecoverable && stockdigest.HasNewlyReportedStock(result) {
+			// Report already persisted; avoid re-running the whole job and duplicating rows.
+		} else {
+			return false, "supervisor_" + string(result.Supervisor.Verdict)
+		}
 	}
 	skipReason := stockdigest.NotifySkipReason(skill, market, result)
 	if skipReason == "non_trading_day" || skipReason == "no_new_reports" {
