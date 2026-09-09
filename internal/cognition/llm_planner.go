@@ -111,7 +111,7 @@ func classifyWithLLM(in PlanInput, provider llm.Provider) (TurnPlan, bool) {
 	msg := strings.TrimSpace(in.UserText)
 	if plan.Domain == DomainChat && plan.Mode == ModeTalk && len([]rune(msg)) >= 8 {
 		retry, ok2 := classifyOnce(in, provider, true)
-		if ok2 && retry.Domain != DomainChat {
+		if ok2 && retry.Domain != DomainChat && retry.Domain != DomainAmbiguous {
 			return retry, true
 		}
 	}
@@ -176,6 +176,9 @@ func applyStickySessionPlan(in PlanInput, plan TurnPlan) TurnPlan {
 	}
 	msg := strings.TrimSpace(in.UserText)
 	if plan.Domain != DomainChat || plan.Mode != ModeTalk {
+		return plan
+	}
+	if hasAny(msg, []string{"靠谱吗", "准吗", "准确吗", "可靠吗", "有用吗", "怎么样"}) && !hasAny(msg, []string{"走势", "股价", "行情", "K线", "技术面"}) {
 		return plan
 	}
 	if !isFollowUpUtterance(msg) && len([]rune(msg)) > 24 {
