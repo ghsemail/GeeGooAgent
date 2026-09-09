@@ -32,7 +32,7 @@ func (a *App) runStockForMarketUsers(
 		return a.runSkillWithSteps(ctx, skill, phaseA, perStock, baseOpts)
 	}
 	var last workflow.RunResult
-	var lastErr error
+	var deliveryFailures []string
 	for _, user := range users {
 		userToken := strings.TrimSpace(user.MCPToken)
 		if userToken == "" {
@@ -42,7 +42,6 @@ func (a *App) runStockForMarketUsers(
 		userOpts.MCPToken = userToken
 		result, runErr := a.runSkillWithSteps(ctx, skill, phaseA, perStock, userOpts)
 		last = result
-		lastErr = runErr
 		userID := strings.TrimSpace(user.UserID)
 		reportDate := opts.ReportDate
 		if result.Working != nil && strings.TrimSpace(result.Working.ReportDate) != "" {
@@ -68,9 +67,17 @@ func (a *App) runStockForMarketUsers(
 			feishuSkipReason = "notify_disabled"
 		}
 		a.persistReportGenerationLog(ctx, rec, result, feishuSent, feishuSkipReason)
-		if runErr != nil {
-			continue
+
+		ok, reason := userStockDeliveryOK(skill, market, result, runErr, opts.NotifyFeishu, feishuSent, feishuSkipReason)
+		if !ok {
+			if userID == "" {
+				userID = "unknown"
+			}
+			deliveryFailures = append(deliveryFailures, fmt.Sprintf("%s:%s", userID, reason))
 		}
 	}
-	return last, lastErr
+	if len(deliveryFailures) > 0 {
+		return last, fmt.Errorf("report delivery failed for %d user(s): %s", len(deliveryFailures), strings.Join(deliveryFailures, "; "))
+	}
+	return last, nil
 }

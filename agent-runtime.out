@@ -1,0 +1,5 @@
+{"time":"2026-09-08T04:03:52.374453102Z","level":"INFO","msg":"starting agent-runtime","port":3400,"geegoo_bot_mcp":"","insecure_auth":false}
+警告: LLM 未就绪: ops configured model: Post "http://127.0.0.1:3210/queryModel": dial tcp 127.0.0.1:3210: connect: connection refused
+警告: 上下文压缩未启用: ops background provider unavailable
+{"time":"2026-09-08T04:03:52.523080905Z","level":"WARN","msg":"LLM not configured — /v1/chat/completions will return 503"}
+{"time":"2026-09-08T04:03:52.525890025Z","level":"INFO","msg":"agent-runtime listening","addr":":3400"}
