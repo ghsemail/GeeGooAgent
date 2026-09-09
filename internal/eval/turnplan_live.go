@@ -21,6 +21,7 @@ type TurnPlanCaseOptions struct {
 	ExpectSOP      bool     `json:"expect_sop"`
 	ForbidTools    []string `json:"forbid_tools,omitempty"`
 	RequireTools   []string `json:"require_tools,omitempty"`
+	ClarifyReply   string   `json:"clarify_reply,omitempty"`
 	ExecutionProfile string `json:"execution_profile,omitempty"`
 	PassKeywords   []string `json:"pass_keywords,omitempty"`
 	MinReplyChars  int      `json:"min_reply_chars,omitempty"`
@@ -61,20 +62,21 @@ func IndividualTurnPlanEvalCases() []TurnPlanEvalCaseDef {
 	out := make([]TurnPlanEvalCaseDef, 0, len(live))
 	for i, c := range live {
 		opts := TurnPlanCaseOptions{
-			Category:       "turn_plan",
-			PlanOnly:       false,
-			SessionCleanup: "before_run",
-			DualModelEval:  false,
-			Message:        c.Message,
-			SetupMessages:  append([]string(nil), c.SetupMessages...),
-			ExpectDomain:   c.ExpectDomain,
-			ExpectMode:     c.ExpectMode,
-			ExpectSOP:      c.ExpectSOP,
-			ForbidTools:    append([]string(nil), c.ForbidTools...),
-			RequireTools:   append([]string(nil), c.RequireTools...),
+			Category:         "turn_plan",
+			PlanOnly:         false,
+			SessionCleanup:   "before_run",
+			DualModelEval:    false,
+			Message:          c.Message,
+			SetupMessages:    append([]string(nil), c.SetupMessages...),
+			ClarifyReply:     c.ClarifyReply,
+			ExpectDomain:     c.ExpectDomain,
+			ExpectMode:       c.ExpectMode,
+			ExpectSOP:        c.ExpectSOP,
+			ForbidTools:      append([]string(nil), c.ForbidTools...),
+			RequireTools:     append([]string(nil), c.RequireTools...),
 			ExecutionProfile: c.ExecutionProfile,
-			MinReplyChars:  20,
-			TurnID:         c.ID,
+			MinReplyChars:    20,
+			TurnID:           c.ID,
 			ExpectIntent: &ExpectIntentSpec{
 				Domain: c.ExpectDomain, Mode: c.ExpectMode, SOP: c.ExpectSOP,
 			},
@@ -83,6 +85,9 @@ func IndividualTurnPlanEvalCases() []TurnPlanEvalCaseDef {
 				Domain: c.ExpectDomain, Mode: c.ExpectMode, SOP: c.ExpectSOP,
 				ForbidTools: append([]string(nil), c.ForbidTools...),
 			},
+		}
+		if dialogue := dialogueFromLiveCase(c); len(dialogue) > 0 {
+			opts.Dialogue = dialogue
 		}
 		opts = opts.Normalize()
 		out = append(out, TurnPlanEvalCaseDef{
@@ -98,11 +103,39 @@ func IndividualTurnPlanEvalCases() []TurnPlanEvalCaseDef {
 }
 
 func liveCaseSteps(c TurnPlanLiveCase) []string {
-	return []string{
+	steps := []string{
 		"新 session：运行前清空 Dock Chat",
 		liveDialogueStep(c.SetupMessages, c.Message),
-		"verify：校验路由/工具/回复关键词 + LLM 语义评判",
 	}
+	if strings.TrimSpace(c.ClarifyReply) != "" {
+		steps = append(steps, fmt.Sprintf("若 Agent clarify：自动回复「%s」", strings.TrimSpace(c.ClarifyReply)))
+	}
+	steps = append(steps, "verify：校验路由/工具/回复关键词 + LLM 语义评判")
+	return steps
+}
+
+func dialogueFromLiveCase(c TurnPlanLiveCase) []EvalDialogueTurn {
+	clarify := strings.TrimSpace(c.ClarifyReply)
+	if clarify == "" {
+		return nil
+	}
+	out := make([]EvalDialogueTurn, 0, len(c.SetupMessages)+2)
+	for _, text := range c.SetupMessages {
+		text = strings.TrimSpace(text)
+		if text == "" {
+			continue
+		}
+		out = append(out, EvalDialogueTurn{Role: "user", Text: text})
+	}
+	if msg := strings.TrimSpace(c.Message); msg != "" {
+		out = append(out, EvalDialogueTurn{Role: "user", Text: msg})
+	}
+	// Post-turn on_clarify follow-up only for single-turn execute cases; multi-turn and
+	// clarify-intent cases rely on in-turn ClarifyFn (clarify_reply) without extra user turns.
+	if len(c.SetupMessages) == 0 && !strings.EqualFold(c.ExpectMode, "clarify") {
+		out = append(out, EvalDialogueTurn{Role: "user", Text: clarify, OnClarify: true})
+	}
+	return out
 }
 
 func liveDialogueStep(setup []string, message string) string {

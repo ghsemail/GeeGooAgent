@@ -11,7 +11,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
-const classifyTimeout = 2 * time.Second
+const classifyTimeout = 8 * time.Second
 
 const classifyPrompt = `You classify one user chat turn for a finance assistant.
 Reply with ONLY JSON:
@@ -30,9 +30,11 @@ analyze, quote_price, technical_analysis, context_followup, symbol_resolve
   Example: "帮我查询下腾讯股价" → quote_price
 - technical_analysis: user wants analysis of trend, K-line, technicals, or price movement over a period.
   Example: "帮我分析下腾讯最近一个月的价格走势" → technical_analysis
-- context_followup: pronoun or short follow-up continuing the same symbol in session
-- symbol_resolve: user explicitly switches to a different stock symbol
 - analyze: general stock analysis when none of the above fits
+  Example: "帮我分析一下中际旭创" → stock_analysis/gather act=analyze
+- context_followup: pronoun or short follow-up continuing the same symbol in session
+  Example (last turn stock_analysis): "它最近走势怎么样" → stock_analysis/gather act=context_followup
+- symbol_resolve: user explicitly switches to a different stock symbol
 If unsure whether the user wants a price snapshot (quote_price) or price/trend analysis (technical_analysis),
 use domain=ambiguous, mode=clarify, clarify=stock_quote (do NOT guess).
 For non-stock_analysis domains, omit act or use empty string.
@@ -49,6 +51,7 @@ Domain + mode guidance:
 - bot_manage/gather: list/query bots, reminders, SmartTrade, grid PnL.
 - bot_manage/execute: create/update/delete bots.
 - chat/talk: definitions, chitchat, signal quality opinions (准吗/靠谱吗) after prior context.
+  Do NOT use chat/talk when the user names a stock/company or asks for quote, analysis, or trend.
 - ambiguous/clarify: bare strategy words (MACD/SAR) without clear action, or compound analyze+backtest in one sentence.
 - Use last turn domain + dialogue context for short follow-ups; do not rely on single keywords alone.
 
@@ -88,7 +91,7 @@ func (p IntentPlanner) Plan(in PlanInput) TurnPlan {
 	if !ok {
 		return plannerFallback(in)
 	}
-	return sanitizeLLMPlan(in, got)
+	return applyStickySessionPlan(in, sanitizeLLMPlan(in, got))
 }
 
 type llmClassifyJSON struct {
@@ -101,6 +104,21 @@ type llmClassifyJSON struct {
 }
 
 func classifyWithLLM(in PlanInput, provider llm.Provider) (TurnPlan, bool) {
+	plan, ok := classifyOnce(in, provider, false)
+	if !ok {
+		return TurnPlan{}, false
+	}
+	msg := strings.TrimSpace(in.UserText)
+	if plan.Domain == DomainChat && plan.Mode == ModeTalk && len([]rune(msg)) >= 8 {
+		retry, ok2 := classifyOnce(in, provider, true)
+		if ok2 && retry.Domain != DomainChat && retry.Domain != DomainAmbiguous {
+			return retry, true
+		}
+	}
+	return plan, true
+}
+
+func classifyOnce(in PlanInput, provider llm.Provider, retry bool) (TurnPlan, bool) {
 	ctx := in.Ctx
 	if ctx == nil {
 		ctx = context.Background()
@@ -109,6 +127,9 @@ func classifyWithLLM(in PlanInput, provider llm.Provider) (TurnPlan, bool) {
 	defer cancel()
 
 	prompt := fmt.Sprintf(classifyPrompt, in.LastDomain, strings.TrimSpace(in.UserText))
+	if retry {
+		prompt += "\n\nRetry: if the user mentions a stock/company or asks for quote, analysis, trend, or continues prior stock context, do NOT return chat/talk."
+	}
 	resp, err := provider.Chat(ctx, []llm.Message{{
 		Role:    llm.RoleUser,
 		Content: prompt,
@@ -147,6 +168,31 @@ func classifyWithLLM(in PlanInput, provider llm.Provider) (TurnPlan, bool) {
 		plan.Act = domaincatalog.NormalizeStockAct(parsed.Act)
 	}
 	return plan, true
+}
+
+func applyStickySessionPlan(in PlanInput, plan TurnPlan) TurnPlan {
+	if !isStickyDomain(in.LastDomain) {
+		return plan
+	}
+	msg := strings.TrimSpace(in.UserText)
+	if plan.Domain != DomainChat || plan.Mode != ModeTalk {
+		return plan
+	}
+	if hasAny(msg, []string{"靠谱吗", "准吗", "准确吗", "可靠吗", "有用吗", "怎么样"}) && !hasAny(msg, []string{"走势", "股价", "行情", "K线", "技术面"}) {
+		return plan
+	}
+	if !isFollowUpUtterance(msg) && len([]rune(msg)) > 24 {
+		return plan
+	}
+	out := planForDomain(in.LastDomain)
+	if in.LastDomain == DomainStockAnalysis {
+		out.Act = domaincatalog.StockActContextFollowup
+	}
+	out.Reason = "sticky session: short follow-up overrides chat misroute"
+	if plan.Confidence > 0 {
+		out.Confidence = plan.Confidence
+	}
+	return out
 }
 
 func sanitizeLLMPlan(in PlanInput, llmPlan TurnPlan) TurnPlan {

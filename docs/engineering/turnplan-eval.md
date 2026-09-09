@@ -30,6 +30,10 @@ Live 用例 **不能** 直接 `POST .../cases/{id}/run`（会 400）；必须先
 
 - **独立 session**（`session_cleanup: before_run`）
 - **多轮**：前置轮次在 `setup_messages`，最后一轮带 `judge: true`
+- **Clarify 默认回复**（`clarify_reply`）：
+  - **单轮 execute 用例**：未满足 `require_tools` 时自动补发 `on_clarify` 跟进轮次
+  - **clarify 灰区用例 / 多轮用例**：仅用于同轮 `clarify` 工具回调（`ClarifyFn`），不追加额外交互
+  - 当前已配置：`backtest_colloquial`、`signal_probe_direct`、`backtest_explicit`、`dca_grid_backtest`、`ambiguous_bare_macd`、`compound_analysis_backtest`
 - **expect_sop: false**（统一走 plan + ReAct，无确定性 SOP 短路）
 - **expect_reply** + **LLM judge**（`internal/eval/turnplan_expect_reply.go`）
 
