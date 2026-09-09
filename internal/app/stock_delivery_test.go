@@ -55,7 +55,13 @@ func TestUserStockDeliveryOKAcceptsRecoverableWhenReported(t *testing.T) {
 	if !ok || reason != "" {
 		t.Fatalf("ok=%v reason=%q", ok, reason)
 	}
+	ok, reason = userStockDeliveryOK("postmarket_stock", "US", result, nil, true, true, "")
+	if !ok || reason != "" {
+		t.Fatalf("notify ok=%v reason=%q", ok, reason)
+	}
 }
+
+func TestUserStockDeliveryOKAcceptsNoNewReports(t *testing.T) {
 	t.Parallel()
 	result := workflow.RunResult{
 		Status:     "completed",
