@@ -30,6 +30,7 @@ Live 用例 **不能** 直接 `POST .../cases/{id}/run`（会 400）；必须先
 
 - **独立 session**（`session_cleanup: before_run`）
 - **多轮**：前置轮次在 `setup_messages`，最后一轮带 `judge: true`
+- **Clarify 默认回复**：`dialogue` 中 `on_clarify: true` 的轮次在 Agent 未满足 `require_tools` 时自动补发；同时作为 `clarify` 工具回调的默认选项（见 `clarify_reply` / `PickClarifyAnswer`）
 - **expect_sop: false**（统一走 plan + ReAct，无确定性 SOP 短路）
 - **expect_reply** + **LLM judge**（`internal/eval/turnplan_expect_reply.go`）
 

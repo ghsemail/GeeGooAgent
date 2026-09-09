@@ -153,16 +153,18 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 		},
 		{
 			ID: "signal_probe_direct", Category: TurnPlanCatSignal, Title: "单轮 · 直接测买卖点",
-			Description: "独立 session：显式指定标的与 signal_probe 意图。",
+			Description: "独立 session：显式指定标的与 signal_probe 意图；若 Agent clarify 策略则自动补默认选项。",
 			Message: "帮我看看中际旭创有没有买卖点",
+			ClarifyReply: "用SAR加MACD组合测买卖点",
 			ExpectDomain: "signal_probe", ExpectMode: "execute", ExpectSOP: false,
 			RequireTools: []string{"probe_bot_signal_series"},
 		},
 		// ── 策略回测 ──
 		{
 			ID: "backtest_explicit", Category: TurnPlanCatBacktest, Title: "单轮 · 显式回测",
-			Description: "独立 session：指定 SAR+MACD 回测小米。",
+			Description: "独立 session：指定 SAR+MACD 回测小米；若 Agent clarify 周期/参数则自动补默认选项。",
 			Message: "帮我用SAR加MACD回测一下小米",
+			ClarifyReply: "用默认参数，最近3个月日线",
 			ExpectDomain: "backtest_run", ExpectMode: "execute", ExpectSOP: false,
 			RequireTools: []string{"run_strategy_backtest"},
 		},
@@ -193,15 +195,17 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 		// ── 灰区 / 澄清 ──
 		{
 			ID: "ambiguous_bare_macd", Category: TurnPlanCatClarify, Title: "单轮 · 模糊 MACD",
-			Description: "独立 session：无上下文的 MACD 用法问题，应 clarify。",
+			Description: "独立 session：无上下文的 MACD 用法问题，应 clarify；clarify 工具回调默认选「先问答」。",
 			Message: "这个MACD信号平时该怎么用比较好",
+			ClarifyReply: "先问答，先不操作",
 			ExpectDomain: "ambiguous", ExpectMode: "clarify", ExpectSOP: false,
 			ForbidTools: []string{"run_strategy_backtest", "probe_bot_signal_series"},
 		},
 		{
 			ID: "compound_analysis_backtest", Category: TurnPlanCatClarify, Title: "单轮 · 分析+回测复合",
-			Description: "独立 session：一句话含分析与回测，应澄清而非直接执行。",
+			Description: "独立 session：一句话含分析与回测，应澄清而非直接执行；clarify 工具回调默认选「先分析」。",
 			Message: "帮我把中际旭创分析一下，然后再跑个回测看看效果",
+			ClarifyReply: "个股/指标分析",
 			ExpectDomain: "ambiguous", ExpectMode: "clarify", ExpectSOP: false,
 			ForbidTools: []string{"run_strategy_backtest"},
 		},
@@ -275,8 +279,9 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 		},
 		{
 			ID: "dca_grid_backtest", Category: TurnPlanCatBacktest, Title: "单轮 · DCA 定投回测",
-			Description: "独立 session：DCA/网格类回测意图。",
+			Description: "独立 session：DCA/网格类回测意图；若 Agent clarify 标的/参数则自动补默认选项。",
 			Message: "帮我做一个DCA定投策略回测",
+			ClarifyReply: "用默认定投参数回测腾讯控股",
 			ExpectDomain: "dca_grid", ExpectMode: "execute", ExpectSOP: false,
 			RequireTools: []string{"generate_dca_strategy"},
 		},

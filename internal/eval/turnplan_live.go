@@ -130,7 +130,11 @@ func dialogueFromLiveCase(c TurnPlanLiveCase) []EvalDialogueTurn {
 	if msg := strings.TrimSpace(c.Message); msg != "" {
 		out = append(out, EvalDialogueTurn{Role: "user", Text: msg})
 	}
-	out = append(out, EvalDialogueTurn{Role: "user", Text: clarify, OnClarify: true})
+	// Post-turn on_clarify follow-up only for single-turn execute cases; multi-turn and
+	// clarify-intent cases rely on in-turn ClarifyFn (clarify_reply) without extra user turns.
+	if len(c.SetupMessages) == 0 && !strings.EqualFold(c.ExpectMode, "clarify") {
+		out = append(out, EvalDialogueTurn{Role: "user", Text: clarify, OnClarify: true})
+	}
 	return out
 }
 

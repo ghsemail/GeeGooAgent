@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
@@ -64,22 +65,66 @@ func TestPickClarifyAnswerMatchesChoice(t *testing.T) {
 	}
 }
 
-func TestBacktestColloquialCaseIncludesClarifyDialogue(t *testing.T) {
-	var found bool
+func TestAmbiguousCaseSkipsPostTurnClarifyFollowup(t *testing.T) {
+	opts := TurnPlanCaseOptions{
+		ExpectMode: "clarify",
+		ClarifyReply: "先问答，先不操作",
+		Dialogue: []EvalDialogueTurn{
+			{Role: "user", Text: "这个MACD信号平时该怎么用比较好"},
+		},
+	}.Normalize()
+
+	chat := &chatsession.ChatSession{Metadata: map[string]any{}}
+	if NeedsClarifyFollowup(chat, opts) {
+		t.Fatal("clarify-intent cases should not auto-send post-turn follow-up")
+	}
+	if len(ClarifyDefaultTexts(opts)) == 0 {
+		t.Fatal("expected clarify defaults for ClarifyFn")
+	}
+}
+
+func TestPickClarifyAnswerMatchesChineseChoice(t *testing.T) {
+	answer, ok := PickClarifyAnswer("你是想做哪一件？", []string{
+		"个股/指标分析", "测买卖点", "跑回测看收益", "先问答，先不操作",
+	}, []string{"个股/指标分析"})
+	if !ok || answer != "个股/指标分析" {
+		t.Fatalf("answer=%q ok=%v", answer, ok)
+	}
+}
+
+func TestClarifyReplyCoverageByCaseKind(t *testing.T) {
+	expect := map[string]struct {
+		clarifyReply string
+		postFollowup bool
+	}{
+		"turn_plan_backtest_colloquial":    {clarifyReply: "用SAR加MACD组合回测", postFollowup: true},
+		"turn_plan_signal_probe_direct":    {clarifyReply: "用SAR加MACD组合测买卖点", postFollowup: true},
+		"turn_plan_backtest_explicit":      {clarifyReply: "用默认参数，最近3个月日线", postFollowup: true},
+		"turn_plan_dca_grid_backtest":      {clarifyReply: "用默认定投参数回测腾讯控股", postFollowup: true},
+		"turn_plan_ambiguous_bare_macd":    {clarifyReply: "先问答，先不操作", postFollowup: false},
+		"turn_plan_compound_analysis_backtest": {clarifyReply: "个股/指标分析", postFollowup: false},
+	}
+	seen := map[string]bool{}
 	for _, c := range IndividualTurnPlanEvalCases() {
-		if c.ID != "turn_plan_backtest_colloquial" {
+		want, ok := expect[c.ID]
+		if !ok {
 			continue
 		}
-		found = true
-		regular, clarify := DialogueExecutionPlan(c.Options)
-		if len(regular) != 1 || len(clarify) != 1 {
-			t.Fatalf("regular=%d clarify=%d", len(regular), len(clarify))
+		seen[c.ID] = true
+		if strings.TrimSpace(c.Options.ClarifyReply) != want.clarifyReply {
+			t.Fatalf("%s clarify_reply=%q want %q", c.ID, c.Options.ClarifyReply, want.clarifyReply)
 		}
-		if clarify[0].Text != "用SAR加MACD组合回测" {
-			t.Fatalf("clarify=%q", clarify[0].Text)
+		_, clarify := DialogueExecutionPlan(c.Options)
+		if want.postFollowup && len(clarify) != 1 {
+			t.Fatalf("%s postFollowup clarify turns=%d", c.ID, len(clarify))
+		}
+		if !want.postFollowup && len(clarify) != 0 {
+			t.Fatalf("%s should not have on_clarify dialogue turns", c.ID)
 		}
 	}
-	if !found {
-		t.Fatal("missing turn_plan_backtest_colloquial")
+	for id := range expect {
+		if !seen[id] {
+			t.Fatalf("missing case %s", id)
+		}
 	}
 }

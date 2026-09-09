@@ -60,9 +60,14 @@ func NeedsClarifyFollowup(chat *chatsession.ChatSession, opts TurnPlanCaseOption
 	if len(clarify) == 0 {
 		return false
 	}
-	spec := opts.Normalize().execution()
+	normalized := opts.Normalize()
+	if strings.EqualFold(normalized.intent().Mode, "clarify") {
+		// Clarify-intent cases validate the first-turn disambiguation; in-turn ClarifyFn handles tool prompts.
+		return false
+	}
+	spec := normalized.execution()
 	if len(spec.LegacyRequireTools) == 0 {
-		return true
+		return false
 	}
 	trace := chatsession.TurnToolsTraceFromSession(chat)
 	sessionTools := chatsession.SessionToolsFromTrace(trace)
@@ -117,10 +122,16 @@ func clarifyChoiceMatches(def, choice string) bool {
 			}
 		}
 	}
-	if needed == 0 {
-		return false
+	if needed > 0 {
+		return matched == needed
 	}
-	return matched == needed
+	// Chinese intent tokens for ambiguous-domain clarify choices.
+	for _, token := range []string{"分析", "回测", "测点", "买卖", "问答", "现价", "走势", "指标"} {
+		if strings.Contains(def, token) && strings.Contains(choice, token) {
+			return true
+		}
+	}
+	return false
 }
 
 func nonEmptyStrings(in []string) []string {
