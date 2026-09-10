@@ -1,0 +1,4 @@
+{
+  "install": "bash .cursor/install-remote-deploy.sh",
+  "start": "echo remote-deploy skill install hook done"
+}
