@@ -161,7 +161,7 @@
       "turn_id": "signal_probe_direct",
       "category": "signal",
       "title": "TurnPlan · 单轮 · 直接测买卖点",
-      "description": "独立 session：显式指定标的与 signal_probe 意图。",
+      "description": "独立 session：显式指定标的与 signal_probe 意图；若 Agent clarify 策略则自动补默认选项。",
       "setup": null,
       "message": "帮我看看中际旭创有没有买卖点",
       "expect_domain": "signal_probe",
@@ -176,7 +176,7 @@
       "turn_id": "backtest_explicit",
       "category": "backtest",
       "title": "TurnPlan · 单轮 · 显式回测",
-      "description": "独立 session：指定 SAR+MACD 回测小米。",
+      "description": "独立 session：指定 SAR+MACD 回测小米；若 Agent clarify 周期/参数则自动补默认选项。",
       "setup": null,
       "message": "帮我用SAR加MACD回测一下小米",
       "expect_domain": "backtest_run",
@@ -191,7 +191,7 @@
       "turn_id": "backtest_colloquial",
       "category": "backtest",
       "title": "TurnPlan · 单轮 · 口语回测",
-      "description": "独立 session：省略策略名但仍应路由到 backtest_run。",
+      "description": "独立 session：省略策略名但仍应路由到 backtest_run；若 Agent clarify 策略则自动补默认选项。",
       "setup": null,
       "message": "帮我回测一下中际旭创",
       "expect_domain": "backtest_run",
@@ -240,7 +240,7 @@
       "turn_id": "ambiguous_bare_macd",
       "category": "clarify",
       "title": "TurnPlan · 单轮 · 模糊 MACD",
-      "description": "独立 session：无上下文的 MACD 用法问题，应 clarify。",
+      "description": "独立 session：无上下文的 MACD 用法问题，应 clarify；clarify 工具回调默认选「先问答」。",
       "setup": null,
       "message": "这个MACD信号平时该怎么用比较好",
       "expect_domain": "ambiguous",
@@ -256,7 +256,7 @@
       "turn_id": "compound_analysis_backtest",
       "category": "clarify",
       "title": "TurnPlan · 单轮 · 分析+回测复合",
-      "description": "独立 session：一句话含分析与回测，应澄清而非直接执行。",
+      "description": "独立 session：一句话含分析与回测，应澄清而非直接执行；clarify 工具回调默认选「先分析」。",
       "setup": null,
       "message": "帮我把中际旭创分析一下，然后再跑个回测看看效果",
       "expect_domain": "ambiguous",
@@ -264,6 +264,22 @@
       "expect_sop": false,
       "forbid_tools": [
         "run_strategy_backtest"
+      ]
+    },
+    {
+      "id": "turn_plan_stock_quote_ambiguous",
+      "turn_id": "stock_quote_ambiguous",
+      "category": "clarify",
+      "title": "TurnPlan · 单轮 · 股价灰区",
+      "description": "独立 session：口语股价问法应 clarify；clarify 工具回调默认选「只要当前价」。",
+      "setup": null,
+      "message": "腾讯股价怎么样",
+      "expect_domain": "ambiguous",
+      "expect_mode": "clarify",
+      "expect_sop": false,
+      "forbid_tools": [
+        "run_strategy_backtest",
+        "get_mcp_analysis"
       ]
     },
     {
@@ -412,7 +428,7 @@
       "turn_id": "dca_grid_backtest",
       "category": "backtest",
       "title": "TurnPlan · 单轮 · DCA 定投回测",
-      "description": "独立 session：DCA/网格类回测意图。",
+      "description": "独立 session：DCA/网格类回测意图；若 Agent clarify 标的/参数则自动补默认选项。",
       "setup": null,
       "message": "帮我做一个DCA定投策略回测",
       "expect_domain": "dca_grid",

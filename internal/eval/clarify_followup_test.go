@@ -103,6 +103,7 @@ func TestClarifyReplyCoverageByCaseKind(t *testing.T) {
 		"turn_plan_dca_grid_backtest":      {clarifyReply: "用默认定投参数回测腾讯控股", postFollowup: true},
 		"turn_plan_ambiguous_bare_macd":    {clarifyReply: "先问答，先不操作", postFollowup: false},
 		"turn_plan_compound_analysis_backtest": {clarifyReply: "个股/指标分析", postFollowup: false},
+		"turn_plan_stock_quote_ambiguous":  {clarifyReply: "只要当前价", postFollowup: false},
 	}
 	seen := map[string]bool{}
 	for _, c := range IndividualTurnPlanEvalCases() {

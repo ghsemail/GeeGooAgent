@@ -209,6 +209,14 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			ExpectDomain: "ambiguous", ExpectMode: "clarify", ExpectSOP: false,
 			ForbidTools: []string{"run_strategy_backtest"},
 		},
+		{
+			ID: "stock_quote_ambiguous", Category: TurnPlanCatClarify, Title: "单轮 · 股价灰区",
+			Description: "独立 session：口语股价问法应 clarify；clarify 工具回调默认选「只要当前价」。",
+			Message:     "腾讯股价怎么样",
+			ClarifyReply: "只要当前价",
+			ExpectDomain: "ambiguous", ExpectMode: "clarify", ExpectSOP: false,
+			ForbidTools: []string{"run_strategy_backtest", "get_mcp_analysis"},
+		},
 		// ── 闲聊 / QA ──
 		{
 			ID: "chat_definition", Category: TurnPlanCatChat, Title: "单轮 · 指标释义",
@@ -333,6 +341,9 @@ func defaultTurnPlanRuleTurns() []TurnPlanTurn {
 		{ID: "compound_analysis_backtest", Message: "帮我把中际旭创分析一下，然后再跑个回测看看效果",
 			ExpectDomain: "ambiguous", ExpectMode: "clarify", ExpectSOP: false,
 			ForbidTools: []string{"run_strategy_backtest"}},
+		{ID: "stock_quote_ambiguous", Message: "腾讯股价怎么样",
+			ExpectDomain: "ambiguous", ExpectMode: "clarify", ExpectSOP: false,
+			ForbidTools: []string{"run_strategy_backtest", "get_mcp_analysis"}},
 		{ID: "chat_definition", Message: "MACD 指标是什么意思",
 			ExpectDomain: "chat", ExpectMode: "talk", ExpectSOP: false,
 			ForbidTools: []string{"run_strategy_backtest", "get_mcp_analysis"}},

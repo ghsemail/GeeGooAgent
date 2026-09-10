@@ -11,7 +11,7 @@ TurnPlan 评测验证 Agent 每轮用户输入的 **意图路由**、**ReAct 工
 
 Live 用例 **不能** 直接 `POST .../cases/{id}/run`（会 400）；必须先完成 `POST /v1/chat/stream`，再带 `session_id` 调 verify。
 
-## 用例结构（24 条 Live）
+## 用例结构（25 条 Live）
 
 源码：`internal/eval/turnplan_cases.go` → `IndividualTurnPlanEvalCases()`。
 
@@ -20,7 +20,7 @@ Live 用例 **不能** 直接 `POST .../cases/{id}/run`（会 400）；必须先
 | `stock_analysis` | 股票分析 | 5 | 查股价、分析价格走势、技术面续问、切换标的、代词指代 |
 | `signal` | 信号 / 策略 | 3 | 列策略、列策略后 probe、直接 probe |
 | `backtest` | 策略回测 | 5 | 显式/口语回测、分析后回测、DCA 回测 |
-| `clarify` | 灰区 / 澄清 | 2 | 模糊 MACD、分析+回测复合句 |
+| `clarify` | 灰区 / 澄清 | 3 | 模糊 MACD、分析+回测复合句、股价灰区 |
 | `chat` | 闲聊 / QA | 2 | 指标释义、测点后问信号质量 |
 | `bot_manage` | Bot 管理 | 3 | Reminder / Grid / SmartTrade |
 | `history_report` | 历史 / 报告 | 2 | 回测历史、盘前报告 |
@@ -33,7 +33,7 @@ Live 用例 **不能** 直接 `POST .../cases/{id}/run`（会 400）；必须先
 - **Clarify 默认回复**（`clarify_reply`）：
   - **单轮 execute 用例**：未满足 `require_tools` 时自动补发 `on_clarify` 跟进轮次
   - **clarify 灰区用例 / 多轮用例**：仅用于同轮 `clarify` 工具回调（`ClarifyFn`），不追加额外交互
-  - 当前已配置：`backtest_colloquial`、`signal_probe_direct`、`backtest_explicit`、`dca_grid_backtest`、`ambiguous_bare_macd`、`compound_analysis_backtest`
+  - 当前已配置：`backtest_colloquial`、`signal_probe_direct`、`backtest_explicit`、`dca_grid_backtest`、`ambiguous_bare_macd`、`compound_analysis_backtest`、`stock_quote_ambiguous`
 - **expect_sop: false**（统一走 plan + ReAct，无确定性 SOP 短路）
 - **expect_reply** + **LLM judge**（`internal/eval/turnplan_expect_reply.go`）
 
