@@ -76,6 +76,23 @@ func TestUserStockDeliveryOKAcceptsNoNewReports(t *testing.T) {
 	}
 }
 
+func TestSkillDeliveryReasonForSchedulerAcceptsRecoverableMarketReport(t *testing.T) {
+	t.Parallel()
+	result := workflow.RunResult{
+		Status:     "completed",
+		Supervisor: &workflow.SupervisorReport{Verdict: workflow.VerdictRecoverable},
+		Working:    &memory.PreMarketWorking{
+			Skill:          "premarket_market",
+			Market:         "HK",
+			MarketReportID: "6aa20149175d53ab3c058bc8",
+		},
+	}
+	ok, reason := SkillDeliveryReasonForScheduler(result, nil)
+	if !ok || reason != "" {
+		t.Fatalf("ok=%v reason=%q", ok, reason)
+	}
+}
+
 func TestSkillDeliveryReasonForSchedulerUsesRunError(t *testing.T) {
 	t.Parallel()
 	ok, reason := SkillDeliveryReasonForScheduler(workflow.RunResult{}, errors.New("report delivery failed for 1 user(s)"))

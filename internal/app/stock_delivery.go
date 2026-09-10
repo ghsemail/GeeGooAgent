@@ -14,6 +14,9 @@ func SkillDeliveryReasonForScheduler(result workflow.RunResult, runErr error) (b
 		return false, runErr.Error()
 	}
 	if !workflowDeliveryPass(result) {
+		if result.Supervisor != nil && result.Supervisor.Verdict == workflow.VerdictRecoverable && hasRecoverableDeliverySaved(result) {
+			return true, ""
+		}
 		if result.Supervisor != nil && result.Supervisor.Verdict != workflow.VerdictPass {
 			return false, "supervisor_" + string(result.Supervisor.Verdict)
 		}
@@ -79,4 +82,12 @@ func workflowDeliveryPass(result workflow.RunResult) bool {
 		return result.Supervisor.Verdict == workflow.VerdictPass
 	}
 	return result.OK()
+}
+
+func hasRecoverableDeliverySaved(result workflow.RunResult) bool {
+	if stockdigest.HasNewlyReportedStock(result) {
+		return true
+	}
+	w := result.Working
+	return w != nil && strings.TrimSpace(w.MarketReportID) != ""
 }

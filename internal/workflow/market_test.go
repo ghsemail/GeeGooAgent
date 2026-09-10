@@ -57,6 +57,32 @@ func TestSupervisorMarketPreMarketPass(t *testing.T) {
 	}
 }
 
+func TestSupervisorMarketPreMarketPassWithoutNews(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	date := "2026-09-10"
+	market := "HK"
+	eng := workflow.NewEngine(dir, workflow.DefaultMarketPreMarketChecks())
+	w := memory.NewPreMarketWorking("s3b", "premarket_market")
+	w.Phase = "done"
+	w.Market = market
+	w.MarketReportID = "mkt-hk-1"
+	w.MarketContext.IndicesDone = true
+	w.MarketContext.MarketNewsDone = false
+	mdDir := filepath.Join(dir, "reports", date)
+	if err := os.MkdirAll(mdDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mdPath := filepath.Join(mdDir, "market-"+market+"-market_premarket.md")
+	if err := os.WriteFile(mdPath, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	report := eng.Verify(w, date)
+	if report.Verdict != workflow.VerdictPass {
+		t.Fatalf("expected pass without market news, got %s: %s", report.Verdict, report.Summary())
+	}
+}
+
 func TestSupervisorMarketPreMarketRecoverableMissingReportID(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

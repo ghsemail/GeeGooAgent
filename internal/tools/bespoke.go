@@ -256,13 +256,26 @@ func registerPerceptionTools(r *Registry, deps Deps) {
 			}
 			text, source, items, err := fetchMarketNewsResilient(ctx.GoContext(), deps.HTTP.MCP, ctx.MCPToken, deps.ProjectRoot, market, limit)
 			if err != nil {
-				return newsUnavailableResult("fetch_market_news", market, "", err)
+				// GeeGooData/Bot failure: still try web_search before erroring.
+				text, source, items = "", "", nil
 			}
 			if stockNewsNeedsFallback(text) {
-				if supplement, _ := webSearchMarketFallback(ctx.GoContext(), deps.ProjectRoot, deps.Search, market, proceduralPolicy(deps)); supplement != "" {
+				if supplement, fallbackItems := webSearchMarketFallback(ctx.GoContext(), deps.ProjectRoot, deps.Search, market, proceduralPolicy(deps)); supplement != "" {
 					text = mergeStockNewsText(text, supplement)
-					source = source + "+web_search"
+					if source == "" {
+						source = "web_search"
+					} else {
+						source = source + "+web_search"
+					}
+					if len(fallbackItems) > 0 && len(items) == 0 {
+						for _, it := range fallbackItems {
+							items = append(items, it)
+						}
+					}
 				}
+			}
+			if stockNewsNeedsFallback(text) && err != nil {
+				return newsUnavailableResult("fetch_market_news", market, "", err)
 			}
 			return buildMarketNewsResult(market, text, source, items)
 		},
