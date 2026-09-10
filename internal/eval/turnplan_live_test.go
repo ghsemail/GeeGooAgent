@@ -11,12 +11,12 @@ import (
 
 func TestIndividualTurnPlanEvalCasesCount(t *testing.T) {
 	cases := eval.IndividualTurnPlanEvalCases()
-	if len(cases) != 24 {
-		t.Fatalf("cases=%d want 24", len(cases))
+	if len(cases) != 25 {
+		t.Fatalf("cases=%d want 25", len(cases))
 	}
 	live := eval.DefaultTurnPlanLiveCases()
-	if len(live) != 24 {
-		t.Fatalf("live=%d want 24", len(live))
+	if len(live) != 25 {
+		t.Fatalf("live=%d want 25", len(live))
 	}
 	seen := map[string]int{}
 	for _, c := range live {

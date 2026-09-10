@@ -69,6 +69,12 @@ func defaultExpectReplyForTurnID(turnID string) ExpectReplySpec {
 		return ExpectReplySpec{
 			Rubric:    "一句话同时含分析与回测时，应澄清用户想先做哪一步或分步确认，不应未经确认直接全套执行。",
 		}
+	case "stock_quote_ambiguous":
+		return ExpectReplySpec{
+			Rubric:    "对模糊的股价问法应给出澄清选项（只要当前价 / 分析价格走势），不应未经确认直接跑 MCP 分析或回测。",
+			MustCover: []string{"腾讯"},
+			MustNot:   []string{"开始回测"},
+		}
 	case "chat_definition":
 		return ExpectReplySpec{
 			Rubric:    "应用通俗语言解释 MACD 指标含义，不应调用行情或回测工具。",
