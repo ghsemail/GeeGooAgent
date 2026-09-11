@@ -49,6 +49,8 @@ type Context struct {
 	FullCatalogPayload bool
 	// Hooks runs optional audit scripts around tool execution.
 	Hooks *HookRunner
+	// ActiveToolsets points to session-level activated toolsets (discover/activate).
+	ActiveToolsets *[]string
 }
 
 // ProgressFunc is the chat progress callback signature.
@@ -89,12 +91,15 @@ type Tool struct {
 	Parameters  map[string]any
 	Handle      Handler
 	Spec        ToolSpec
-	resolved    resolvedMeta
+	RenderForLLM RenderFunc
+	Lifecycle    *ToolLifecycle
+	resolved     resolvedMeta
 }
 
 // Registry maps tool names to implementations.
 type Registry struct {
-	tools map[string]Tool
+	tools    map[string]Tool
+	platform PlatformConfig
 }
 
 // NewRegistry creates an empty registry.
@@ -114,26 +119,9 @@ func (r *Registry) Get(name string) (Tool, bool) {
 	return t, ok
 }
 
-// Schemas returns LLM tool schemas, optionally filtered.
+// Schemas returns LLM tool schemas, optionally filtered by name list.
 func (r *Registry) Schemas(filter []string) []llm.ToolSchema {
-	names := r.sortedNames(filter)
-	out := make([]llm.ToolSchema, 0, len(names))
-	for _, name := range names {
-		t := r.tools[name]
-		params := t.Parameters
-		if params == nil {
-			params = map[string]any{
-				"type":       "object",
-				"properties": map[string]any{},
-			}
-		}
-		out = append(out, llm.ToolSchema{
-			Name:        t.Name,
-			Description: t.Description,
-			Parameters:  params,
-		})
-	}
-	return out
+	return r.SchemasWithOptions(SchemaOptions{Names: filter})
 }
 
 // ListNames returns registered tool names sorted.
@@ -147,6 +135,14 @@ func (r *Registry) Execute(req CallRequest, ctx Context) Result {
 	if !ok {
 		return Result{Status: StatusError, Summary: "unknown tool: " + req.Name, ExitCode: 1}
 	}
+	if r.PlatformConfig().PolicyV2 && t.resolved.Policy == PolicyForbidden {
+		return Result{
+			Status:   StatusError,
+			Summary:  "tool forbidden by policy: " + req.Name,
+			Data:     map[string]any{"tool": req.Name, "policy": string(PolicyForbidden)},
+			ExitCode: 1,
+		}
+	}
 	if req.Arguments == nil {
 		req.Arguments = map[string]any{}
 	}
@@ -158,20 +154,56 @@ func (r *Registry) Execute(req CallRequest, ctx Context) Result {
 			ExitCode: 1,
 		}
 	}
+	if t.Lifecycle != nil && t.Lifecycle.BeforeCall != nil {
+		if err := t.Lifecycle.BeforeCall(ctx, req.Arguments); err != nil {
+			return Result{
+				Status: StatusError, Summary: err.Error(), ExitCode: 1,
+				Data: map[string]any{"tool": req.Name, "lifecycle": "before_call"},
+			}
+		}
+	}
+	var hookInject string
 	if ctx.Hooks != nil {
-		if err := ctx.Hooks.RunToolBefore(ctx, req.Name, req.Arguments); err != nil {
+		inject, err := ctx.Hooks.RunToolBefore(ctx, req.Name, req.Arguments)
+		if err != nil {
 			return Result{
 				Status: StatusError, Summary: err.Error(), ExitCode: 1,
 				Data: map[string]any{"tool": req.Name, "hook": "tool_before"},
 			}
 		}
+		hookInject = inject
 	}
 	if ctx.EventBus != nil {
 		ctx.EventBus.Emit("ToolCalled", map[string]any{"tool": req.Name, "step": ctx.Step})
 	}
 	result := t.Handle(ctx, req.Arguments)
+	if hookInject != "" {
+		if result.Meta == nil {
+			result.Meta = map[string]any{}
+		}
+		result.Meta["hook_inject"] = hookInject
+	}
 	if ctx.Hooks != nil {
-		_ = ctx.Hooks.RunToolAfter(ctx, req.Name, req.Arguments, result)
+		if inject, err := ctx.Hooks.RunToolAfter(ctx, req.Name, req.Arguments, result); err != nil {
+			if t.Lifecycle != nil && t.Lifecycle.OnError != nil {
+				t.Lifecycle.OnError(ctx, req.Arguments, result)
+			}
+			return Result{
+				Status: StatusError, Summary: err.Error(), ExitCode: 1,
+				Data: map[string]any{"tool": req.Name, "hook": "tool_after"},
+			}
+		} else if inject != "" {
+			if result.Meta == nil {
+				result.Meta = map[string]any{}
+			}
+			result.Meta["hook_inject"] = inject
+		}
+	}
+	if t.Lifecycle != nil && t.Lifecycle.AfterCall != nil {
+		t.Lifecycle.AfterCall(ctx, req.Arguments, result)
+	}
+	if result.Status == StatusError && t.Lifecycle != nil && t.Lifecycle.OnError != nil {
+		t.Lifecycle.OnError(ctx, req.Arguments, result)
 	}
 	if ctx.EventBus != nil {
 		ctx.EventBus.Emit("ToolFinished", map[string]any{
@@ -182,7 +214,7 @@ func (r *Registry) Execute(req CallRequest, ctx Context) Result {
 }
 
 func (r *Registry) sortedNames(filter []string) []string {
-	if len(filter) == 0 {
+	if filter == nil {
 		filter = make([]string, 0, len(r.tools))
 		for name := range r.tools {
 			filter = append(filter, name)

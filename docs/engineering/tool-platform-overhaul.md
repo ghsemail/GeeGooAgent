@@ -1,6 +1,6 @@
 # 工具平台彻底改造方案（Claude Code + Codex 对齐）
 
-> 状态：**规划中**（ToolSpec 元数据层已于 2026-08-31 落地，见 [tool-spec.md](./tool-spec.md)）  
+> 状态：**M1–M5 已落地**（2026-08-31）；默认开启 `policy_v2`、`defer_load_tools`、`tool_fragment_inject`  
 > 目标：将 GeeGooAgent L2 工具层做成「Claude Code 单工具生命周期 + Codex 声明式 policy / fragment 管道」的 Go 版同构实现。
 
 ## 1. 背景与动机
@@ -258,11 +258,11 @@ type ToolDefinition struct {
 
 | 里程碑 | 内容 | 验收 | 对齐度 |
 |--------|------|------|--------|
-| **M1** | ToolSpec 元数据（已完成） | `verify agent-loop` 15/15 | ~70% |
-| **M2** | 阶段 A + B | verify ≥18；inspect policy | ~80% |
-| **M3** | 阶段 C | 默认 schema ≤20 tools | ~85% |
-| **M4** | 阶段 D | fragment 覆盖 tool+hook | ~90% |
-| **M5** | 阶段 E | `doctor --tools` 无 drift | ~95% |
+| **M1** | ToolSpec 元数据（已完成） | `verify agent-loop` 18/18 | ~70% |
+| **M2** | 阶段 A + B（ToolDefinition、Policy v2、SchemaOptions） | verify + inspect policy | ~80% |
+| **M3** | 阶段 C（Core toolset、discover/activate） | 默认 schema ≤20 tools | ~85% |
+| **M4** | 阶段 D（Fragment 管道 + Hook inject） | fragment 覆盖 tool+hook | ~90% |
+| **M5** | 阶段 E（catalog drift、`doctor --tools`） | `geegoo doctor --tools` | ~95% |
 
 推荐时间线：
 

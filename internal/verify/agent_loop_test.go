@@ -15,6 +15,7 @@ func TestVerifyAgentLoopParityOnRegistry(t *testing.T) {
 	reg.Register(tools.Tool{Name: "delegate_tasks"})
 	reg.Register(tools.Tool{Name: "recall"})
 	reg.Register(tools.Tool{Name: "search_code"})
+	tools.RegisterDiscoverTools(reg)
 	cards := verify.VerifyAgentLoopParity(reg)
 	if !verify.AllAgentLoopPass(cards) {
 		for _, c := range cards {

@@ -50,6 +50,9 @@ func VerifyAgentLoopParity(reg ToolLookup) []AgentLoopCard {
 		checkSSEProgressPayload(),
 		checkContextFragmentKinds(),
 		checkToolSpecResolved(reg),
+		checkForbiddenSchemaFilter(reg),
+		checkDeferLoadCoreSchema(reg),
+		checkDiscoverToolsRegistered(reg),
 	}
 	return checks
 }
@@ -254,4 +257,67 @@ func checkToolSpecResolved(reg ToolLookup) AgentLoopCard {
 		Passed: true,
 		Detail: fmt.Sprintf("registered=%d prompt=%d readonly=%d", stats.Registered, stats.PromptTools, stats.ReadOnlyTools),
 	}
+}
+
+func checkForbiddenSchemaFilter(reg ToolLookup) AgentLoopCard {
+	r := tools.NewRegistry()
+	r.SetPlatformConfig(tools.PlatformConfig{PolicyV2: true})
+	r.Register(tools.Tool{
+		Name: "delete_verify_test", Spec: tools.ToolSpec{Policy: tools.PolicyForbidden},
+		Handle: func(ctx tools.Context, args map[string]any) tools.Result { return tools.Result{} },
+	})
+	schemas := r.SchemasWithOptions(tools.SchemaOptions{
+		Names: []string{"delete_verify_test"}, ExcludeForbidden: true,
+	})
+	if len(schemas) != 0 {
+		return AgentLoopCard{Name: "forbidden schema filter", Passed: false, Detail: "forbidden tool visible"}
+	}
+	_ = reg
+	return AgentLoopCard{Name: "forbidden schema filter", Passed: true, Detail: "forbidden hidden from schema"}
+}
+
+func checkDeferLoadCoreSchema(reg ToolLookup) AgentLoopCard {
+	r := tools.NewRegistry()
+	r.SetPlatformConfig(tools.PlatformConfig{DeferLoadTools: true, PolicyV2: false})
+	deferLoad := true
+	r.Register(tools.Tool{
+		Name: "create_verify_defer", Spec: tools.ToolSpec{DeferLoad: deferLoad},
+		Handle: func(ctx tools.Context, args map[string]any) tools.Result { return tools.Result{} },
+	})
+	r.Register(tools.Tool{
+		Name: "search_code",
+		Handle: func(ctx tools.Context, args map[string]any) tools.Result { return tools.Result{} },
+	})
+	tools.RegisterDiscoverTools(r)
+	schemas := r.ChatSchemas([]string{"search_code", "create_verify_defer"}, nil)
+	if len(schemas) > 20 {
+		return AgentLoopCard{Name: "defer load core schema", Passed: false, Detail: fmt.Sprintf("too many schemas: %d", len(schemas))}
+	}
+	hasCore := false
+	for _, s := range schemas {
+		if s.Name == "search_code" {
+			hasCore = true
+		}
+		if s.Name == "create_verify_defer" {
+			return AgentLoopCard{Name: "defer load core schema", Passed: false, Detail: "deferred tool exposed"}
+		}
+	}
+	if !hasCore {
+		return AgentLoopCard{Name: "defer load core schema", Passed: false, Detail: "core tool missing"}
+	}
+	_ = reg
+	return AgentLoopCard{Name: "defer load core schema", Passed: true, Detail: fmt.Sprintf("%d tools in core schema", len(schemas))}
+}
+
+func checkDiscoverToolsRegistered(reg ToolLookup) AgentLoopCard {
+	if reg == nil {
+		return AgentLoopCard{Name: "discover tools meta", Passed: false, Detail: "registry nil"}
+	}
+	if _, ok := reg.Get("discover_tools"); !ok {
+		return AgentLoopCard{Name: "discover tools meta", Passed: false, Detail: "discover_tools missing"}
+	}
+	if _, ok := reg.Get("activate_toolset"); !ok {
+		return AgentLoopCard{Name: "discover tools meta", Passed: false, Detail: "activate_toolset missing"}
+	}
+	return AgentLoopCard{Name: "discover tools meta", Passed: true, Detail: "discover + activate registered"}
 }

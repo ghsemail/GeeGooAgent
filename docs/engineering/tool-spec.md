@@ -90,8 +90,8 @@ go run ./cmd/geegoo verify agent-loop --offline
 geegoo inspect   # Tools 段含 PromptTools / DeferLoad 计数
 ```
 
-## 后续（P2）
+## 后续（可选加深）
 
-- `discover_tools` meta tool + chat 默认隐藏 `DeferLoad`
-- Hook 注入走 `ToolResultFragment`
-- 从 `HTTPSpec` / OpenAPI codegen `Parameters`
+- 从 `HTTPSpec` / OpenAPI codegen `Parameters`（阶段 E 深化）
+- 21 个 bespoke struct 参数化
+- 语义 embedding ToolSearch（阶段 C+）

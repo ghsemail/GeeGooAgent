@@ -68,3 +68,28 @@ func appendEphemeralUserFragments(messages []llm.Message, fragments []ctxfrag.Fr
 	out[len(messages)] = llm.Message{Role: llm.RoleUser, Content: text}
 	return out
 }
+
+func withHookInjectFragments(messages []llm.Message, session *runtime.Session, l *Loop) []llm.Message {
+	if session == nil || l == nil {
+		return messages
+	}
+	inject := strings.TrimSpace(session.PendingHookInject)
+	if inject == "" {
+		return messages
+	}
+	if l.tools == nil || !l.tools.FragmentInjectEnabled() {
+		return appendEphemeralUserFragments(messages, []ctxfrag.Fragment{ctxfrag.HookInjectFragment(inject)}, 4096)
+	}
+	frag := ctxfrag.HookInjectFragment(inject)
+	composed, applied, dropped := ctxfrag.Composer{MaxBytes: 4096}.Compose([]ctxfrag.Fragment{frag})
+	session.PendingHookInject = ""
+	if composed == "" {
+		return messages
+	}
+	l.emit("context_fragment_applied", map[string]any{
+		"source": "hook", "kinds": ctxfrag.KindsToStrings(applied), "dropped": ctxfrag.KindsToStrings(dropped),
+	})
+	return appendEphemeralUserFragments(messages, []ctxfrag.Fragment{ctxfrag.StaticFragment{
+		K: ctxfrag.KindHookInject, Text: composed, Prio: 40,
+	}}, 4096)
+}

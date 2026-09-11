@@ -42,6 +42,29 @@ func TestBuildCatalogGroupsBotTools(t *testing.T) {
 	}
 }
 
+func TestBuildCatalogIncludesParameters(t *testing.T) {
+	r := NewRegistry()
+	RegisterAll(r, Deps{})
+	items := BuildCatalog(r, ChatToolNames)
+	var found *CatalogItem
+	for i := range items {
+		if items[i].Name == "clarify" {
+			found = &items[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("clarify missing from catalog")
+	}
+	if found.Parameters == nil {
+		t.Fatal("expected parameters schema")
+	}
+	props, ok := found.Parameters["properties"].(map[string]any)
+	if !ok || len(props) == 0 {
+		t.Fatalf("parameters properties=%v", found.Parameters["properties"])
+	}
+}
+
 func TestBuildCatalogAnalysisRoutingDocs(t *testing.T) {
 	r := NewRegistry()
 	RegisterAll(r, Deps{})

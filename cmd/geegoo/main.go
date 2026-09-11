@@ -63,12 +63,13 @@ func runDoctor(args []string) {
 	configPath := fs.String("config", config.DefaultPath(), "path to config.json")
 	skipLLM := fs.Bool("skip-llm", false, "skip LLM ping")
 	skipAPI := fs.Bool("skip-api", false, "skip MCP API ping")
+	toolsDrift := fs.Bool("tools", false, "check catalog ↔ registry drift and tool policy")
 	_ = skipLLM
 	_ = skipAPI
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
 	}
-	os.Exit(doctor.Run(*configPath))
+	os.Exit(doctor.RunWithOptions(*configPath, doctor.Options{ToolsDrift: *toolsDrift}))
 }
 
 func printUsage() {
