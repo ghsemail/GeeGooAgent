@@ -28,7 +28,7 @@ func VerifyTurnPlanLiveFull(ctx context.Context, chat *chatsession.ChatSession, 
 		return res
 	}
 
-	intent := verifyIntent(chat, opts.intent())
+	intent := verifyIntent(chat, opts.intent(), opts)
 	res.Checks = append(res.Checks, intent)
 
 	execution := VerifyExecution(chat, opts.execution())

@@ -163,11 +163,12 @@ func (h *Handler) runEvalJobItem(ctx context.Context, db *sql.DB, auth evalJobAu
 	opts = opts.Normalize().SyncLegacyUtterances()
 	clarifyDefaults := eval.ClarifyDefaultTexts(opts)
 	regularTurns, clarifyTurns := eval.DialogueExecutionPlan(opts)
+	splitClarify := eval.UsesSplitClarifyScript(opts)
 
 	sessionID := ""
 	var lastOut evalTurnOutcome
 	for i, turn := range regularTurns {
-		lastOut, err = h.runEvalChatTurn(ctx, auth, sessionID, turn.Text, clarifyDefaults)
+		lastOut, err = h.runEvalChatTurn(ctx, auth, sessionID, turn.Text, clarifyDefaults, !splitClarify)
 		if err != nil {
 			h.finishEvalJobItem(db, item.id, "error", lastOut.sessionID, "", "dialogue["+strconv.Itoa(i)+"]: "+err.Error(), lastOut.errText, start, nil, nil)
 			return "error"
@@ -191,7 +192,7 @@ func (h *Handler) runEvalJobItem(ctx context.Context, db *sql.DB, auth evalJobAu
 	}
 	if len(clarifyTurns) > 0 && eval.NeedsClarifyFollowup(chat, opts) {
 		for i, turn := range clarifyTurns {
-			lastOut, err = h.runEvalChatTurn(ctx, auth, sessionID, turn.Text, clarifyDefaults)
+			lastOut, err = h.runEvalChatTurn(ctx, auth, sessionID, turn.Text, clarifyDefaults, false)
 			if err != nil {
 				h.finishEvalJobItem(db, item.id, "error", lastOut.sessionID, "", "clarify["+strconv.Itoa(i)+"]: "+err.Error(), lastOut.errText, start, nil, nil)
 				return "error"
@@ -226,7 +227,7 @@ func (h *Handler) runEvalJobItem(ctx context.Context, db *sql.DB, auth evalJobAu
 	return status
 }
 
-func (h *Handler) runEvalChatTurn(ctx context.Context, auth evalJobAuth, sessionID, message string, clarifyDefaults []string) (evalTurnOutcome, error) {
+func (h *Handler) runEvalChatTurn(ctx context.Context, auth evalJobAuth, sessionID, message string, clarifyDefaults []string, enableClarifyFn bool) (evalTurnOutcome, error) {
 	out := evalTurnOutcome{sessionID: sessionID}
 	if h == nil || h.App == nil || h.App.Agent == nil || h.App.Gateway == nil {
 		return out, fmt.Errorf("agent runtime not ready")
@@ -268,8 +269,10 @@ func (h *Handler) runEvalChatTurn(ctx context.Context, auth evalJobAuth, session
 	toolCtx.MCPToken = auth.mcpToken
 	toolCtx.Interactive = false
 	toolCtx.Approved = true
-	toolCtx.ClarifyFn = func(_ context.Context, question string, choices []string) (string, bool) {
-		return eval.PickClarifyAnswer(question, choices, clarifyDefaults)
+	if enableClarifyFn {
+		toolCtx.ClarifyFn = func(_ context.Context, question string, choices []string) (string, bool) {
+			return eval.PickClarifyAnswer(question, choices, clarifyDefaults)
+		}
 	}
 	toolSchemas := h.App.Registry.Schemas(h.App.ChatToolNames())
 	var result runtime.TurnResult

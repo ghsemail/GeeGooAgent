@@ -65,14 +65,8 @@ func VerifyExecution(chat *chatsession.ChatSession, spec ExpectExecutionSpec) Ev
 	return check
 }
 
-func verifyIntent(chat *chatsession.ChatSession, expect ExpectIntentSpec) EvalCheckResult {
-	legacy := TurnPlanCaseOptions{
-		ExpectDomain: expect.Domain,
-		ExpectMode:   expect.Mode,
-		ExpectSOP:    expect.SOP,
-		ExpectIntent: &expect,
-	}
-	r := VerifyTurnPlanLive(chat, legacy)
+func verifyIntent(chat *chatsession.ChatSession, expect ExpectIntentSpec, opts TurnPlanCaseOptions) EvalCheckResult {
+	r := verifyTurnPlanIntent(chat, expect, opts)
 	return EvalCheckResult{
 		Type:   "intent",
 		Passed: r.Passed,
@@ -85,4 +79,49 @@ func verifyIntent(chat *chatsession.ChatSession, expect ExpectIntentSpec) EvalCh
 		},
 		Actual: map[string]any{"detail": r.Detail},
 	}
+}
+
+func verifyTurnPlanIntent(chat *chatsession.ChatSession, expect ExpectIntentSpec, opts TurnPlanCaseOptions) TurnPlanResult {
+	if UsesSplitClarifyScript(opts) {
+		snap, ok := chatsession.FirstTurnPlanFromSession(chat)
+		if !ok {
+			return TurnPlanResult{Passed: false, Detail: "missing first turn plan on session"}
+		}
+		return matchTurnPlanSnapshot(snap, expect, opts.TurnID)
+	}
+	legacy := TurnPlanCaseOptions{
+		TurnID:       opts.TurnID,
+		ExpectDomain: expect.Domain,
+		ExpectMode:   expect.Mode,
+		ExpectSOP:    expect.SOP,
+		ExpectIntent: &expect,
+	}
+	return VerifyTurnPlanLive(chat, legacy)
+}
+
+func matchTurnPlanSnapshot(snap chatsession.TurnPlanSnapshot, expect ExpectIntentSpec, turnID string) TurnPlanResult {
+	if turnID == "" {
+		turnID = "live"
+	}
+	res := TurnPlanResult{TurnID: turnID, Passed: true}
+	var problems []string
+	if snap.Domain != expect.Domain {
+		problems = append(problems, fmt.Sprintf("domain=%s want %s", snap.Domain, expect.Domain))
+	}
+	if snap.Mode != expect.Mode {
+		problems = append(problems, fmt.Sprintf("mode=%s want %s", snap.Mode, expect.Mode))
+	}
+	if snap.SOP != expect.SOP {
+		problems = append(problems, fmt.Sprintf("sop=%v want %v", snap.SOP, expect.SOP))
+	}
+	if act := strings.TrimSpace(expect.Act); act != "" && strings.TrimSpace(snap.Act) != act {
+		problems = append(problems, fmt.Sprintf("act=%s want %s", snap.Act, act))
+	}
+	if len(problems) > 0 {
+		res.Passed = false
+		res.Detail = strings.Join(problems, "; ")
+		return res
+	}
+	res.Detail = fmt.Sprintf("%s/%s act=%s sop=%v", snap.Domain, snap.Mode, snap.Act, snap.SOP)
+	return res
 }

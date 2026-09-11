@@ -54,6 +54,16 @@ func ClarifyDefaultTexts(opts TurnPlanCaseOptions) []string {
 	return out
 }
 
+// UsesSplitClarifyScript reports clarify-intent cases with explicit on_clarify dialogue turns.
+func UsesSplitClarifyScript(opts TurnPlanCaseOptions) bool {
+	opts = opts.Normalize()
+	if !strings.EqualFold(opts.intent().Mode, "clarify") {
+		return false
+	}
+	_, clarify := DialogueExecutionPlan(opts)
+	return len(clarify) > 0
+}
+
 // NeedsClarifyFollowup reports whether scripted on-clarify turns should run after the primary dialogue.
 func NeedsClarifyFollowup(chat *chatsession.ChatSession, opts TurnPlanCaseOptions) bool {
 	_, clarify := DialogueExecutionPlan(opts)
@@ -61,9 +71,8 @@ func NeedsClarifyFollowup(chat *chatsession.ChatSession, opts TurnPlanCaseOption
 		return false
 	}
 	normalized := opts.Normalize()
-	if strings.EqualFold(normalized.intent().Mode, "clarify") {
-		// Clarify-intent cases validate the first-turn disambiguation; in-turn ClarifyFn handles tool prompts.
-		return false
+	if UsesSplitClarifyScript(normalized) {
+		return true
 	}
 	spec := normalized.execution()
 	if len(spec.LegacyRequireTools) == 0 {

@@ -9,7 +9,14 @@ const (
 	metaLastTurnPlan       = "last_turn_plan"
 	metaLastTurnToolsCalls = "last_turn_tools_called"
 	metaTurnToolsTrace     = "turn_tools_trace"
+	metaTurnPlanTrace      = "turn_plan_trace"
 )
+
+// TurnPlanTraceEntry records routing snapshot for one user turn (1-based index).
+type TurnPlanTraceEntry struct {
+	Turn   int              `json:"turn"`
+	Plan   TurnPlanSnapshot `json:"plan"`
+}
 
 // TurnPlanSnapshot is stored on ChatSession.Metadata after each agent turn.
 type TurnPlanSnapshot struct {
@@ -43,6 +50,69 @@ func (c *ChatSession) SyncLastTurnPlan(domain, mode, act string, sop bool, tools
 	}
 	raw, _ := json.Marshal(snap)
 	c.Metadata[metaLastTurnPlan] = json.RawMessage(raw)
+	c.AppendTurnPlanTrace(snap)
+}
+
+// AppendTurnPlanTrace appends one user-turn routing snapshot for eval intent checks.
+func (c *ChatSession) AppendTurnPlanTrace(snap TurnPlanSnapshot) {
+	if c == nil {
+		return
+	}
+	if c.Metadata == nil {
+		c.Metadata = map[string]any{}
+	}
+	trace := TurnPlanTraceFromSession(c)
+	entry := TurnPlanTraceEntry{
+		Turn: len(trace) + 1,
+		Plan: snap,
+	}
+	trace = append(trace, entry)
+	c.Metadata[metaTurnPlanTrace] = trace
+}
+
+// TurnPlanTraceFromSession returns per-turn routing history.
+func TurnPlanTraceFromSession(c *ChatSession) []TurnPlanTraceEntry {
+	if c == nil || c.Metadata == nil {
+		return nil
+	}
+	raw, ok := c.Metadata[metaTurnPlanTrace]
+	if !ok || raw == nil {
+		return nil
+	}
+	switch v := raw.(type) {
+	case []TurnPlanTraceEntry:
+		return append([]TurnPlanTraceEntry(nil), v...)
+	case []any:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return nil
+		}
+		var out []TurnPlanTraceEntry
+		if err := json.Unmarshal(b, &out); err != nil {
+			return nil
+		}
+		return out
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return nil
+		}
+		var out []TurnPlanTraceEntry
+		if err := json.Unmarshal(b, &out); err != nil {
+			return nil
+		}
+		return out
+	}
+}
+
+// FirstTurnPlanFromSession returns the routing snapshot from the opening user turn.
+func FirstTurnPlanFromSession(c *ChatSession) (TurnPlanSnapshot, bool) {
+	trace := TurnPlanTraceFromSession(c)
+	if len(trace) == 0 {
+		return TurnPlanSnapshot{}, false
+	}
+	snap := trace[0].Plan
+	return snap, snap.Domain != ""
 }
 
 // LastTurnPlanFromSession reads the persisted routing snapshot.

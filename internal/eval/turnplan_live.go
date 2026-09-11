@@ -105,10 +105,18 @@ func IndividualTurnPlanEvalCases() []TurnPlanEvalCaseDef {
 func liveCaseSteps(c TurnPlanLiveCase) []string {
 	steps := []string{
 		"新 session：运行前清空 Dock Chat",
-		liveDialogueStep(c.SetupMessages, c.Message),
 	}
-	if strings.TrimSpace(c.ClarifyReply) != "" {
-		steps = append(steps, fmt.Sprintf("若 Agent clarify：自动回复「%s」", strings.TrimSpace(c.ClarifyReply)))
+	clarify := strings.TrimSpace(c.ClarifyReply)
+	if clarify != "" && strings.EqualFold(c.ExpectMode, "clarify") {
+		steps = append(steps,
+			fmt.Sprintf("首轮发送：「%s」", strings.TrimSpace(c.Message)),
+			fmt.Sprintf("若 Agent 展示澄清选项，用户选择：「%s」", clarify),
+		)
+	} else {
+		steps = append(steps, liveDialogueStep(c.SetupMessages, c.Message))
+		if clarify != "" {
+			steps = append(steps, fmt.Sprintf("若 Agent clarify：自动回复「%s」", clarify))
+		}
 	}
 	steps = append(steps, "verify：校验路由/工具/回复关键词 + LLM 语义评判")
 	return steps
@@ -130,10 +138,10 @@ func dialogueFromLiveCase(c TurnPlanLiveCase) []EvalDialogueTurn {
 	if msg := strings.TrimSpace(c.Message); msg != "" {
 		out = append(out, EvalDialogueTurn{Role: "user", Text: msg})
 	}
-	// Post-turn on_clarify follow-up only for single-turn execute cases; multi-turn and
-	// clarify-intent cases rely on in-turn ClarifyFn (clarify_reply) without extra user turns.
-	if len(c.SetupMessages) == 0 && !strings.EqualFold(c.ExpectMode, "clarify") {
-		out = append(out, EvalDialogueTurn{Role: "user", Text: clarify, OnClarify: true})
+	// Clarify-intent cases use explicit two-phase scripts (opening turn + on_clarify choice).
+	// Single-turn execute cases keep in-turn ClarifyFn and only add on_clarify when no setup turns.
+	if strings.EqualFold(c.ExpectMode, "clarify") || len(c.SetupMessages) == 0 {
+		out = append(out, EvalDialogueTurn{Role: "user", Text: clarify, OnClarify: true, Judge: true})
 	}
 	return out
 }

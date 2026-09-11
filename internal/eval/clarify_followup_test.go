@@ -65,21 +65,23 @@ func TestPickClarifyAnswerMatchesChoice(t *testing.T) {
 	}
 }
 
-func TestAmbiguousCaseSkipsPostTurnClarifyFollowup(t *testing.T) {
+func TestSplitClarifyScriptRunsPostTurnFollowup(t *testing.T) {
 	opts := TurnPlanCaseOptions{
-		ExpectMode: "clarify",
+		ExpectMode:   "clarify",
+		ExpectDomain: "ambiguous",
 		ClarifyReply: "先问答，先不操作",
 		Dialogue: []EvalDialogueTurn{
 			{Role: "user", Text: "这个MACD信号平时该怎么用比较好"},
+			{Role: "user", Text: "先问答，先不操作", OnClarify: true, Judge: true},
 		},
 	}.Normalize()
 
 	chat := &chatsession.ChatSession{Metadata: map[string]any{}}
-	if NeedsClarifyFollowup(chat, opts) {
-		t.Fatal("clarify-intent cases should not auto-send post-turn follow-up")
+	if !UsesSplitClarifyScript(opts) {
+		t.Fatal("expected split clarify script")
 	}
-	if len(ClarifyDefaultTexts(opts)) == 0 {
-		t.Fatal("expected clarify defaults for ClarifyFn")
+	if !NeedsClarifyFollowup(chat, opts) {
+		t.Fatal("split clarify cases should run on_clarify follow-up turn")
 	}
 }
 
@@ -101,9 +103,9 @@ func TestClarifyReplyCoverageByCaseKind(t *testing.T) {
 		"turn_plan_signal_probe_direct":    {clarifyReply: "用SAR加MACD组合测买卖点", postFollowup: true},
 		"turn_plan_backtest_explicit":      {clarifyReply: "用默认参数，最近3个月日线", postFollowup: true},
 		"turn_plan_dca_grid_backtest":      {clarifyReply: "用默认定投参数回测腾讯控股", postFollowup: true},
-		"turn_plan_ambiguous_bare_macd":    {clarifyReply: "先问答，先不操作", postFollowup: false},
-		"turn_plan_compound_analysis_backtest": {clarifyReply: "个股/指标分析", postFollowup: false},
-		"turn_plan_stock_quote_ambiguous":  {clarifyReply: "只要当前价", postFollowup: false},
+		"turn_plan_ambiguous_bare_macd":          {clarifyReply: "先问答，先不操作", postFollowup: true},
+		"turn_plan_compound_analysis_backtest": {clarifyReply: "个股/指标分析", postFollowup: true},
+		"turn_plan_stock_quote_ambiguous":        {clarifyReply: "只要当前价", postFollowup: true},
 	}
 	seen := map[string]bool{}
 	for _, c := range IndividualTurnPlanEvalCases() {
