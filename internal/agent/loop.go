@@ -373,6 +373,12 @@ func (l *Loop) RunTurn(
 
 	session.AppendMessage(llm.Message{Role: llm.RoleUser, Content: userText})
 	records := []runtime.StepRecord{}
+	session.InitialTurnCaptured = false
+	session.InitialTurnDomain = ""
+	session.InitialTurnMode = ""
+	session.InitialTurnAct = ""
+	session.InitialTurnSOP = false
+	session.InitialTurnToolsAllow = nil
 
 	l.emit("turn_start", map[string]any{"user_text": userText})
 	l.emitBus("TurnStarted", map[string]any{
@@ -417,6 +423,14 @@ func (l *Loop) runPreparedTurn(
 		LastDomain: cognition.Domain(session.LastTurnDomain),
 	})
 	planMS := time.Since(planStarted).Milliseconds()
+	if !session.InitialTurnCaptured {
+		session.InitialTurnDomain = string(turnPlan.Domain)
+		session.InitialTurnMode = string(turnPlan.Mode)
+		session.InitialTurnAct = turnPlan.Act
+		session.InitialTurnSOP = turnPlan.ShouldRunDomainSOP()
+		session.InitialTurnToolsAllow = append([]string(nil), turnPlan.ToolsAllow...)
+		session.InitialTurnCaptured = true
+	}
 	session.LastTurnDomain = string(turnPlan.Domain)
 	session.LastTurnMode = string(turnPlan.Mode)
 	session.LastTurnAct = turnPlan.Act

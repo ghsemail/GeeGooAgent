@@ -106,6 +106,16 @@ func emptyReplyMessage(resp *llm.Response, records []runtime.StepRecord) string 
 	return "模型未返回可读内容。若开启了 thinking，请提高 llm.max_tokens 或执行 /think off 后重试。"
 }
 
+func shouldRetryEmptyVisibleReply(resp *llm.Response) bool {
+	if resp == nil {
+		return false
+	}
+	if readableAssistantText(resp.Content, resp.ReasoningContent) != "" {
+		return false
+	}
+	return strings.TrimSpace(resp.ReasoningContent) != ""
+}
+
 func readableAssistantText(content, reasoning string) string {
 	visible, _ := splitInlineThinking(content)
 	if text := stripProviderNoise(visible); text != "" {

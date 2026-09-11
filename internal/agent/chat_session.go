@@ -38,6 +38,9 @@ func SyncChatFromRuntime(chat *chatsession.ChatSession, rt *runtime.Session, new
 	chat.SyncLineageFromRuntime(rt.ParentID, rt.LineageRoot, rt.CompactionGeneration)
 	chat.SyncLineageChain(rt.LineageChain)
 	chat.SyncLastTurnPlan(rt.LastTurnDomain, rt.LastTurnMode, rt.LastTurnAct, rt.LastTurnSOP, rt.LastTurnToolsAllow)
+	if rt.InitialTurnCaptured {
+		chat.SyncInitialTurnPlan(rt.InitialTurnDomain, rt.InitialTurnMode, rt.InitialTurnAct, rt.InitialTurnSOP, rt.InitialTurnToolsAllow)
+	}
 	turnTools := chatsession.ToolsCalledFromStepRecords(newRecords)
 	chat.SyncLastTurnToolsCalled(turnTools)
 	chat.AppendTurnToolsTrace(turnTools)

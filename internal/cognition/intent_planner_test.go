@@ -148,6 +148,15 @@ func TestIntentPlannerFallbackInheritsStickyDomain(t *testing.T) {
 	}
 }
 
+func TestIntentPlannerSanitizePrefersClarifyForBareIndicator(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"knowledge","mode":"talk","confidence":0.8,"reason":"macd usage"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "这个MACD信号平时该怎么用比较好"})
+	if got.Domain != DomainAmbiguous || got.Mode != ModeClarify {
+		t.Fatalf("bare indicator should sanitize to clarify, got %s/%s", got.Domain, got.Mode)
+	}
+}
+
 func TestIntentPlannerStickySessionOverridesChatMisroute(t *testing.T) {
 	mock := &classifyMock{body: `{"domain":"chat","mode":"talk","confidence":0.8,"reason":"misroute"}`}
 	p := IntentPlanner{LLM: mock}
