@@ -117,6 +117,39 @@ func TestIntentPlannerStockClarifyChoice(t *testing.T) {
 	}
 }
 
+func TestIntentPlannerSignalUsageClarifyTemplate(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"ambiguous","mode":"clarify","clarify":"signal_usage","confidence":0.7,"reason":"bare macd usage"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "这个MACD信号平时该怎么用比较好"})
+	if got.ClarifyQuestion != domaincatalog.SignalUsageClarifyQuestion {
+		t.Fatalf("question=%q", got.ClarifyQuestion)
+	}
+	if len(got.ClarifyChoices) != 2 || got.ClarifyChoices[0] != "SAR信号搭配MACD直方图趋势" {
+		t.Fatalf("choices=%v", got.ClarifyChoices)
+	}
+}
+
+func TestIntentPlannerCompoundStepsClarifyTemplate(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"ambiguous","mode":"clarify","clarify":"compound_steps","confidence":0.7,"reason":"compound"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "帮我把中际旭创分析一下，然后再跑个回测看看效果"})
+	if got.ClarifyQuestion != domaincatalog.CompoundStepClarifyQuestion {
+		t.Fatalf("question=%q", got.ClarifyQuestion)
+	}
+	if len(got.ClarifyChoices) != 2 || got.ClarifyChoices[0] != "先只做分析" {
+		t.Fatalf("choices=%v", got.ClarifyChoices)
+	}
+}
+
+func TestIntentPlannerSignalChoiceMapsToKnowledge(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"chat","mode":"talk","confidence":0.9,"reason":"wrong"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "SAR信号搭配MACD直方图趋势", LastDomain: DomainAmbiguous})
+	if got.Domain != DomainKnowledge {
+		t.Fatalf("choice should map to knowledge, got %s/%s", got.Domain, got.Mode)
+	}
+}
+
 func TestIntentPlannerStockQuoteClarifyTemplate(t *testing.T) {
 	mock := &classifyMock{body: `{"domain":"ambiguous","mode":"clarify","clarify":"stock_quote","confidence":0.6,"reason":"quote vs analysis"}`}
 	p := IntentPlanner{LLM: mock}

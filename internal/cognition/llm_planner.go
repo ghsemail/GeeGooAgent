@@ -41,6 +41,8 @@ For non-stock_analysis domains, omit act or use empty string.
 
 Optional clarify field (only when domain=ambiguous and mode=clarify):
 - stock_quote: user mentioned a stock price but quote vs analysis is unclear (e.g. "腾讯股价怎么样")
+- signal_usage: user asks how to use a MACD/signal without naming the catalog entry (e.g. "这个MACD信号平时该怎么用")
+- compound_steps: one sentence asks for both stock analysis and backtest (e.g. "分析一下再跑回测")
 
 Domain + mode guidance:
 - stock_analysis/gather: analyze a stock, quote, technicals, trends.
@@ -155,7 +157,11 @@ func classifyOnce(in PlanInput, provider llm.Provider, retry bool) (TurnPlan, bo
 	if m := Mode(strings.TrimSpace(parsed.Mode)); validMode(m) {
 		plan.Mode = m
 		if m == ModeClarify || d == DomainAmbiguous {
-			plan = applyClarifyTemplate(plan, strings.TrimSpace(parsed.Clarify))
+			kind := strings.TrimSpace(parsed.Clarify)
+			if kind == "" {
+				kind = inferAmbiguousClarifyKind(strings.TrimSpace(in.UserText))
+			}
+			plan = applyClarifyTemplate(plan, kind)
 		}
 	}
 	if parsed.Reason != "" {
@@ -240,9 +246,38 @@ func applyClarifyTemplate(plan TurnPlan, template string) TurnPlan {
 		plan.ClarifyChoices = append([]string(nil), domaincatalog.StockPriceClarifyChoices...)
 		plan.ToolsAllow = []string{"clarify"}
 		return plan
+	case "signal_usage":
+		plan.ClarifyQuestion = domaincatalog.SignalUsageClarifyQuestion
+		plan.ClarifyChoices = append([]string(nil), domaincatalog.SignalUsageClarifyChoices...)
+		plan.ToolsAllow = []string{"clarify"}
+		return plan
+	case "compound_steps":
+		plan.ClarifyQuestion = domaincatalog.CompoundStepClarifyQuestion
+		plan.ClarifyChoices = append([]string(nil), domaincatalog.CompoundStepClarifyChoices...)
+		plan.ToolsAllow = []string{"clarify"}
+		return plan
 	default:
 		return applyAmbiguousClarify(plan)
 	}
+}
+
+func inferAmbiguousClarifyKind(msg string) string {
+	msg = strings.TrimSpace(msg)
+	if msg == "" {
+		return ""
+	}
+	if hasAny(msg, []string{"股价", "现价", "多少钱", "报价"}) &&
+		hasAny(msg, []string{"怎么样", "如何", "咋样", "怎样"}) {
+		return "stock_quote"
+	}
+	if hasAny(msg, []string{"分析", "看看", "解读"}) && hasAny(msg, []string{"回测", "跑回测"}) {
+		return "compound_steps"
+	}
+	if hasAny(msg, []string{"MACD", "SAR", "RSI", "EMA", "信号"}) &&
+		hasAny(msg, []string{"怎么用", "用法", "比较好", "如何用", "怎么弄", "日常"}) {
+		return "signal_usage"
+	}
+	return ""
 }
 
 func applyAmbiguousClarify(plan TurnPlan) TurnPlan {

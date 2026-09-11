@@ -18,16 +18,22 @@ func mapClarifyChoice(msg string) (Domain, string, bool) {
 		return DomainStockAnalysis, "quote_price", true
 	case hasAny(msg, []string{"分析价格走势", "走势分析", "做价格分析"}):
 		return DomainStockAnalysis, "technical_analysis", true
-	case hasAny(msg, []string{"个股/指标分析", "指标分析", "先分析"}):
+	case hasAny(msg, []string{"个股/指标分析", "指标分析", "先分析", "先只做分析", "先做分析"}):
 		return DomainStockAnalysis, "technical_analysis", true
 	case msg == "分析":
 		return DomainStockAnalysis, "technical_analysis", true
+	case hasAny(msg, []string{"先只做回测", "先做回测"}):
+		return DomainBacktestRun, "", true
 	case hasAny(msg, []string{"测买卖点", "只测点"}):
 		return DomainSignalProbe, "", true
 	case hasAny(msg, []string{"跑回测看收益", "看收益"}):
 		return DomainBacktestRun, "", true
 	case hasAny(msg, []string{"先问答", "先不操作"}):
 		return DomainChat, "", true
+	case hasAny(msg, []string{"SAR信号搭配", "SAR信号配套", "SAR加MACD", "SAR+MACD", "MACD直方图"}):
+		return DomainKnowledge, "", true
+	case hasAny(msg, []string{"MACD金叉死叉", "金叉死叉"}):
+		return DomainKnowledge, "", true
 	default:
 		return "", "", false
 	}

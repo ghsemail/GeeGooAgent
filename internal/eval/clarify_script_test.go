@@ -10,7 +10,7 @@ func TestDialogueFromLiveCaseSplitClarify(t *testing.T) {
 	cases := []TurnPlanLiveCase{
 		{
 			ID: "ambiguous_bare_macd", Message: "这个MACD信号平时该怎么用比较好",
-			ClarifyReply: "先问答，先不操作", ExpectMode: "clarify",
+			ClarifyReply: "SAR信号搭配MACD直方图趋势", ExpectMode: "clarify",
 		},
 		{
 			ID: "backtest_colloquial", Message: "帮我回测一下中际旭创",
@@ -48,7 +48,7 @@ func TestVerifyIntentUsesFirstTurnPlanForSplitClarify(t *testing.T) {
 		TurnID: "ambiguous_bare_macd", ExpectDomain: "ambiguous", ExpectMode: "clarify",
 		Dialogue: []EvalDialogueTurn{
 			{Role: "user", Text: "这个MACD信号平时该怎么用比较好"},
-			{Role: "user", Text: "先问答，先不操作", OnClarify: true, Judge: true},
+			{Role: "user", Text: "SAR信号搭配MACD直方图趋势", OnClarify: true, Judge: true},
 		},
 	}.Normalize()
 

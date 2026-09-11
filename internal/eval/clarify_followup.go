@@ -135,7 +135,7 @@ func clarifyChoiceMatches(def, choice string) bool {
 		return matched == needed
 	}
 	// Chinese intent tokens for ambiguous-domain clarify choices.
-	for _, token := range []string{"分析", "回测", "测点", "买卖", "问答", "现价", "走势", "指标"} {
+	for _, token := range []string{"分析", "回测", "测点", "买卖", "问答", "现价", "走势", "指标", "直方图", "金叉"} {
 		if strings.Contains(def, token) && strings.Contains(choice, token) {
 			return true
 		}

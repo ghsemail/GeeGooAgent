@@ -103,8 +103,8 @@ func TestClarifyReplyCoverageByCaseKind(t *testing.T) {
 		"turn_plan_signal_probe_direct":    {clarifyReply: "用SAR加MACD组合测买卖点", postFollowup: true},
 		"turn_plan_backtest_explicit":      {clarifyReply: "用默认参数，最近3个月日线", postFollowup: true},
 		"turn_plan_dca_grid_backtest":      {clarifyReply: "用默认定投参数回测腾讯控股", postFollowup: true},
-		"turn_plan_ambiguous_bare_macd":          {clarifyReply: "先问答，先不操作", postFollowup: true},
-		"turn_plan_compound_analysis_backtest": {clarifyReply: "个股/指标分析", postFollowup: true},
+		"turn_plan_ambiguous_bare_macd":          {clarifyReply: "SAR信号搭配MACD直方图趋势", postFollowup: true},
+		"turn_plan_compound_analysis_backtest": {clarifyReply: "先只做分析", postFollowup: true},
 		"turn_plan_stock_quote_ambiguous":        {clarifyReply: "只要当前价", postFollowup: true},
 	}
 	seen := map[string]bool{}

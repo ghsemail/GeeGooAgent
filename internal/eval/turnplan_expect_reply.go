@@ -62,13 +62,13 @@ func defaultExpectReplyForTurnID(turnID string) ExpectReplySpec {
 		}
 	case "ambiguous_bare_macd":
 		return ExpectReplySpec{
-			Rubric:  "用户已选择「先问答，先不操作」后，应通俗讲解 MACD 信号的日常用法或注意事项，走知识问答而非测点/回测。",
-			MustCover: []string{"MACD"},
+			Rubric:  "用户已选定具体 MACD 组合信号（如 SAR+MACD）后，应基于该信号/策略说明讲解日常用法、适用场景或注意事项，而非直接测点或回测。",
+			MustCover: []string{"MACD", "SAR"},
 			MustNot:   []string{"回测已完成", "开始回测"},
 		}
 	case "compound_analysis_backtest":
 		return ExpectReplySpec{
-			Rubric:    "用户已选择「个股/指标分析」后，应针对中际旭创给出分析或行情解读，不应未经确认直接跑回测。",
+			Rubric:    "复合意图下用户选择「先只做分析」后，应针对中际旭创给出分析或行情解读，不应未经确认直接跑回测。",
 			MustCover: []string{"中际"},
 			MustNot:   []string{"开始回测"},
 		}
