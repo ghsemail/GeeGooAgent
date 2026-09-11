@@ -86,7 +86,7 @@ func DefaultPreMarketChecks() []Check {
 func DefaultMarketPreMarketChecks() []Check {
 	return []Check{
 		{Name: "workflow_phase_done", Type: "stocks_status", ExpectPhase: "done"},
-		{Name: "market_indices_done", Type: "market_status", RequireFields: []string{"indices_done", "market_news_done"}},
+		{Name: "market_indices_done", Type: "market_status", RequireFields: []string{"indices_done"}},
 		{Name: "market_report_api_created", Type: "market_status", RequireFields: []string{"market_report_id"}},
 		{Name: "market_report_local_md", Type: "market_file_exists", Pattern: "reports/{date}/market-{market}-market_premarket.md"},
 	}

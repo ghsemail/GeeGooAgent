@@ -45,6 +45,11 @@ func NotifySkipReason(skill, market string, result workflow.RunResult) string {
 	return ""
 }
 
+// HasNewlyReportedStock reports whether the run persisted at least one stock report.
+func HasNewlyReportedStock(result workflow.RunResult) bool {
+	return hasNewlyReportedStock(result.Working)
+}
+
 // HasDeliverableContent is true when the digest would contain at least one stock section.
 func HasDeliverableContent(skill string, result workflow.RunResult) bool {
 	w := result.Working

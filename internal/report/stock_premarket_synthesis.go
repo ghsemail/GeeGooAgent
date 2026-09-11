@@ -42,47 +42,51 @@ func (s *Synthesizer) SynthesizeStockPreMarket(
 
 	prompt := buildStockPreMarketSynthesisPrompt(ws, draft, evidence, marketContext, marketReportSummary, template)
 	var parsed StockPreMarketSynthesisResult
-	_, _, err := s.chatSynthesis(cctx, prompt, func(body string) error {
-		p, err := parseStockPreMarketSynthesisJSON(body)
-		if err != nil {
-			return fmt.Errorf("parse: %w", err)
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		_, _, err := s.chatSynthesis(cctx, prompt, func(body string) error {
+			p, err := parseStockPreMarketSynthesisJSON(body)
+			if err != nil {
+				return fmt.Errorf("parse: %w", err)
+			}
+			if strings.TrimSpace(p.Report) == "" {
+				return fmt.Errorf("report empty")
+			}
+			if strings.TrimSpace(p.Reason) == "" {
+				return fmt.Errorf("reason empty")
+			}
+			if len([]rune(p.Reason)) < 80 {
+				return fmt.Errorf("reason too short (%d chars)", len([]rune(p.Reason)))
+			}
+			p.Result = normalizeMarketResult(p.Result)
+			p.Confidence = normalizeMarketConfidence(p.Confidence)
+			p.Suggestion = normalizeStockSuggestion(p.Suggestion)
+			if p.Result == "" {
+				return fmt.Errorf("result invalid")
+			}
+			if p.Confidence == "" {
+				return fmt.Errorf("confidence invalid")
+			}
+			if p.Suggestion == "" {
+				return fmt.Errorf("suggestion invalid")
+			}
+			if strings.TrimSpace(p.Summary) == "" {
+				return fmt.Errorf("summary empty")
+			}
+			if runes := []rune(p.Summary); len(runes) > 220 {
+				p.Summary = string(runes[:217]) + "..."
+			}
+			p.Reason = stockfmt.StripEvidenceRefs(p.Reason)
+			p.Report = stockfmt.PolishStockPremarketMarkdown(p.Report)
+			parsed = p
+			return nil
+		})
+		if err == nil {
+			return parsed, nil
 		}
-		if strings.TrimSpace(p.Report) == "" {
-			return fmt.Errorf("report empty")
-		}
-		if strings.TrimSpace(p.Reason) == "" {
-			return fmt.Errorf("reason empty")
-		}
-		if len([]rune(p.Reason)) < 80 {
-			return fmt.Errorf("reason too short (%d chars)", len([]rune(p.Reason)))
-		}
-		p.Result = normalizeMarketResult(p.Result)
-		p.Confidence = normalizeMarketConfidence(p.Confidence)
-		p.Suggestion = normalizeStockSuggestion(p.Suggestion)
-		if p.Result == "" {
-			return fmt.Errorf("result invalid")
-		}
-		if p.Confidence == "" {
-			return fmt.Errorf("confidence invalid")
-		}
-		if p.Suggestion == "" {
-			return fmt.Errorf("suggestion invalid")
-		}
-		if strings.TrimSpace(p.Summary) == "" {
-			return fmt.Errorf("summary empty")
-		}
-		if runes := []rune(p.Summary); len(runes) > 220 {
-			p.Summary = string(runes[:217]) + "..."
-		}
-		p.Reason = stockfmt.StripEvidenceRefs(p.Reason)
-		p.Report = stockfmt.PolishStockPremarketMarkdown(p.Report)
-		parsed = p
-		return nil
-	})
-	if err != nil {
-		return StockPreMarketSynthesisResult{}, fmt.Errorf("stock premarket synthesis: %w", err)
+		lastErr = err
 	}
-	return parsed, nil
+	return StockPreMarketSynthesisResult{}, fmt.Errorf("stock premarket synthesis: %w", lastErr)
 }
 
 func buildStockPreMarketSynthesisPrompt(

@@ -948,7 +948,7 @@ func (a *App) runPreMarketStockForMarket(ctx context.Context, market string, opt
 }
 
 func (a *App) runPostMarketStockForMarket(ctx context.Context, market string, opts SkillRunOptions) (workflow.RunResult, error) {
-	return a.runStockForMarketUsers(ctx, "postmarket_stock", market, opts, workflow.PostMarketPhaseASteps(), workflow.PostMarketPerStockSteps())
+	return a.runStockForMarketUsers(ctx, "postmarket_stock", market, opts, workflow.PostMarketPhaseAStepsForMarket(market), workflow.PostMarketPerStockSteps())
 }
 
 // ResumePreMarket resumes a workflow from its latest checkpoint. The checkpoint's

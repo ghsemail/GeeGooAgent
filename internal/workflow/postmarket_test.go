@@ -11,6 +11,16 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
 )
 
+func TestPostMarketPhaseAStepsUSUsesUSProbe(t *testing.T) {
+	steps := workflow.PostMarketPhaseAStepsForMarket("US")
+	if len(steps) == 0 || steps[0].Tool != "check_trading_day" {
+		t.Fatal("expected check_trading_day first")
+	}
+	if got := fmt.Sprint(steps[0].Arguments["code"]); got != "AAPL.US" {
+		t.Fatalf("US probe code=%s", got)
+	}
+}
+
 func TestBuildPostMarketReportContentUsesChangePct(t *testing.T) {
 	w := memory.NewPreMarketWorking("s1", "postmarket_stock")
 	w.Stocks["601766.SH"] = memory.StockWorkspace{

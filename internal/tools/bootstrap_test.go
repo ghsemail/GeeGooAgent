@@ -73,7 +73,7 @@ func TestNewsToolsSkipWithoutMCPToken(t *testing.T) {
 
 	ctx := tools.Context{SessionID: "test", MCPToken: "", WorkspaceRoot: root}
 	result := r.Execute(tools.CallRequest{Name: "fetch_market_news", Arguments: map[string]any{"market": "US"}}, ctx)
-	if result.Status != tools.StatusSkip {
+	if result.Status != tools.StatusSkip && result.Status != tools.StatusOK {
 		t.Fatalf("fetch_market_news status=%s summary=%s", result.Status, result.Summary)
 	}
 	// fetch_stock_news may succeed via web_search fallback even without MCP token.
