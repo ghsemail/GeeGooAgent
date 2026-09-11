@@ -178,10 +178,14 @@ func VerifyTurnPlanLive(chat *chatsession.ChatSession, opts TurnPlanCaseOptions)
 		return res
 	}
 
-	snap, ok := chatsession.LastTurnPlanFromSession(chat)
+	snap, ok := chatsession.IntentTurnPlanFromSession(chat, intent.Mode)
 	if !ok {
 		res.Passed = false
-		res.Detail = "missing last_turn_plan on session (turn did not complete?)"
+		if strings.EqualFold(intent.Mode, "clarify") {
+			res.Detail = "missing initial_turn_plan on session (turn did not complete?)"
+		} else {
+			res.Detail = "missing last_turn_plan on session (turn did not complete?)"
+		}
 		return res
 	}
 

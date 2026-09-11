@@ -111,6 +111,16 @@ func (l *Loop) callLLM(
 	if err != nil {
 		return nil, err
 	}
+	if shouldRetryEmptyVisibleReply(resp) {
+		l.emit("llm_empty_retry", map[string]any{"step": step, "finish_reason": resp.FinishReason})
+		retryCtx := llm.WithCallMeta(ctx, llm.CallMeta{
+			Kind: llm.TaskComplex, ToolSchemaCount: len(schemas),
+		})
+		retryResp, retryErr := l.gateway.ChatStream(retryCtx, messages, schemas, sessionID, step, onDelta)
+		if retryErr == nil && retryResp != nil && readableAssistantText(retryResp.Content, retryResp.ReasoningContent) != "" {
+			resp = retryResp
+		}
+	}
 	if !llm.MalformedToolCallResponse(resp) {
 		return resp, nil
 	}

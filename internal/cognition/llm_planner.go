@@ -115,6 +115,12 @@ func classifyWithLLM(in PlanInput, provider llm.Provider) (TurnPlan, bool) {
 			return retry, true
 		}
 	}
+	if PreferAmbiguousClarify(msg) && (plan.Domain != DomainAmbiguous || plan.Mode != ModeClarify) {
+		retry, ok2 := classifyOnce(in, provider, true)
+		if ok2 && retry.Domain == DomainAmbiguous && retry.Mode == ModeClarify {
+			return retry, true
+		}
+	}
 	return plan, true
 }
 
@@ -209,6 +215,15 @@ func sanitizeLLMPlan(in PlanInput, llmPlan TurnPlan) TurnPlan {
 	if llmPlan.Domain == DomainDCAGrid && llmPlan.Mode == ModeExecute &&
 		!hasAny(in.UserText, dcaGridTokens) && fallback.Domain != DomainDCAGrid {
 		return fallback
+	}
+	if PreferAmbiguousClarify(in.UserText) &&
+		(llmPlan.Domain != DomainAmbiguous || llmPlan.Mode != ModeClarify) {
+		out := planForDomain(DomainAmbiguous)
+		out.Mode = ModeClarify
+		out = applyClarifyTemplate(out, ambiguousClarifyTemplate(in.UserText))
+		out.Reason = "sanitize: ambiguous utterance prefers clarify"
+		out.Confidence = 0.75
+		return out
 	}
 	return llmPlan
 }

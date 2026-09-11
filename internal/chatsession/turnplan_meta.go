@@ -7,6 +7,7 @@ import (
 
 const (
 	metaLastTurnPlan       = "last_turn_plan"
+	metaInitialTurnPlan    = "initial_turn_plan"
 	metaLastTurnToolsCalls = "last_turn_tools_called"
 	metaTurnToolsTrace     = "turn_tools_trace"
 )
@@ -26,8 +27,7 @@ type TurnToolsEntry struct {
 	Tools []string `json:"tools"`
 }
 
-// SyncLastTurnPlan writes the routing snapshot for eval verification.
-func (c *ChatSession) SyncLastTurnPlan(domain, mode, act string, sop bool, toolsAllow []string) {
+func writeTurnPlanMeta(c *ChatSession, key string, domain, mode, act string, sop bool, toolsAllow []string) {
 	if c == nil {
 		return
 	}
@@ -42,15 +42,27 @@ func (c *ChatSession) SyncLastTurnPlan(domain, mode, act string, sop bool, tools
 		ToolsAllow: append([]string(nil), toolsAllow...),
 	}
 	raw, _ := json.Marshal(snap)
-	c.Metadata[metaLastTurnPlan] = json.RawMessage(raw)
+	c.Metadata[key] = json.RawMessage(raw)
 }
 
-// LastTurnPlanFromSession reads the persisted routing snapshot.
-func LastTurnPlanFromSession(c *ChatSession) (TurnPlanSnapshot, bool) {
+// SyncLastTurnPlan writes the routing snapshot for eval verification.
+func (c *ChatSession) SyncLastTurnPlan(domain, mode, act string, sop bool, toolsAllow []string) {
+	if c == nil {
+		return
+	}
+	writeTurnPlanMeta(c, metaLastTurnPlan, domain, mode, act, sop, toolsAllow)
+}
+
+// SyncInitialTurnPlan records the first routing decision of a user turn (before in-turn clarify replans).
+func (c *ChatSession) SyncInitialTurnPlan(domain, mode, act string, sop bool, toolsAllow []string) {
+	writeTurnPlanMeta(c, metaInitialTurnPlan, domain, mode, act, sop, toolsAllow)
+}
+
+func turnPlanFromSessionKey(c *ChatSession, key string) (TurnPlanSnapshot, bool) {
 	if c == nil || c.Metadata == nil {
 		return TurnPlanSnapshot{}, false
 	}
-	raw, ok := c.Metadata[metaLastTurnPlan]
+	raw, ok := c.Metadata[key]
 	if !ok || raw == nil {
 		return TurnPlanSnapshot{}, false
 	}
@@ -82,6 +94,27 @@ func LastTurnPlanFromSession(c *ChatSession) (TurnPlanSnapshot, bool) {
 		}
 		return snap, snap.Domain != ""
 	}
+}
+
+// LastTurnPlanFromSession reads the persisted routing snapshot.
+func LastTurnPlanFromSession(c *ChatSession) (TurnPlanSnapshot, bool) {
+	return turnPlanFromSessionKey(c, metaLastTurnPlan)
+}
+
+// InitialTurnPlanFromSession reads the first routing snapshot of the latest user turn.
+func InitialTurnPlanFromSession(c *ChatSession) (TurnPlanSnapshot, bool) {
+	return turnPlanFromSessionKey(c, metaInitialTurnPlan)
+}
+
+// IntentTurnPlanFromSession picks which routing snapshot to use for intent verification.
+// Clarify-intent cases validate the first classification before in-turn clarify replans.
+func IntentTurnPlanFromSession(c *ChatSession, expectMode string) (TurnPlanSnapshot, bool) {
+	if strings.EqualFold(strings.TrimSpace(expectMode), "clarify") {
+		if snap, ok := InitialTurnPlanFromSession(c); ok {
+			return snap, true
+		}
+	}
+	return LastTurnPlanFromSession(c)
 }
 
 // SyncLastTurnToolsCalled stores tool names invoked on the latest completed turn.

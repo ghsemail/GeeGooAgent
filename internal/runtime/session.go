@@ -50,6 +50,13 @@ type Session struct {
 	PriorSessionTools []string
 	// LastExecutionProfile is the profile id applied to the current/last turn.
 	LastExecutionProfile string
+	// InitialTurn* captures the first plan of the outermost user turn (before in-turn clarify replans).
+	InitialTurnDomain     string
+	InitialTurnMode       string
+	InitialTurnAct        string
+	InitialTurnSOP        bool
+	InitialTurnToolsAllow []string
+	InitialTurnCaptured   bool
 }
 
 // PendingPlan is a held mutating-tool batch from one LLM round.
