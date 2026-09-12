@@ -173,6 +173,14 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	app.wireChatMemory()
 	app.wireCognition()
 	app.wireIntentPlanner()
+	sub.SetPlanner(cognition.IntentPlanner{
+		LLMResolver: func() llm.Provider {
+			if app.Agent != nil && app.Agent.Gateway != nil {
+				return llm.ClassifyProviderFromGateway(app.Agent.Gateway)
+			}
+			return app.classifyOpsFallbackProvider()
+		},
+	})
 	app.wireRecallRanker()
 	tools.RegisterAll(registry, tools.Deps{
 		HTTP: httpBackends, WorkspaceRoot: workspace, ProjectRoot: findProjectRoot(),
@@ -552,8 +560,18 @@ func (a *App) buildFallbackProviders() []llm.Provider {
 // Prefer the live chat gateway (same model as ReAct) so classify stays reliable
 // when the ops/synthesis gateway is slow or returns non-JSON output.
 func (a *App) classifyProvider() llm.Provider {
+	if a != nil && a.Agent != nil && a.Agent.Gateway != nil {
+		return llm.ClassifyProviderFromGateway(a.Agent.Gateway)
+	}
 	if a != nil && a.Gateway != nil {
-		return llm.ProviderFromGateway(a.Gateway)
+		return llm.ClassifyProviderFromGateway(a.Gateway)
+	}
+	return a.classifyOpsFallbackProvider()
+}
+
+func (a *App) classifyOpsFallbackProvider() llm.Provider {
+	if a != nil && a.SynthesisGateway != nil {
+		return llm.ClassifyProviderFromGateway(a.SynthesisGateway)
 	}
 	return a.opsBackgroundProvider()
 }
@@ -573,7 +591,14 @@ func (a *App) wireIntentPlanner() {
 	if a == nil || a.Agent == nil {
 		return
 	}
-	a.Agent.SetPlanner(cognition.IntentPlanner{LLM: a.classifyProvider()})
+	a.Agent.SetPlanner(cognition.IntentPlanner{
+		LLMResolver: func() llm.Provider {
+			if a.Agent != nil && a.Agent.Gateway != nil {
+				return llm.ClassifyProviderFromGateway(a.Agent.Gateway)
+			}
+			return a.classifyOpsFallbackProvider()
+		},
+	})
 }
 
 // OpsBackgroundProvider returns the auxiliary/ops LLM provider for eval judge and similar tasks.

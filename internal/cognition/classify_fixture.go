@@ -15,6 +15,34 @@ type ClassifyFixtureProvider struct {
 	Default   string
 }
 
+// DefaultLoopClassifyFixture is the classify stub wired into cognition.Defaults()
+// so agent loop tests do not require a live LLM for TurnPlan.
+func DefaultLoopClassifyFixture() *ClassifyFixtureProvider {
+	return &ClassifyFixtureProvider{
+		ByMessage: map[string]string{
+			"查一下腾讯":              FormatClassifyJSON("stock_analysis", "gather", "analyze", "loop test"),
+			"腾讯多少钱":              FormatClassifyJSON("stock_analysis", "gather", "quote_price", "loop test"),
+			"腾讯价格":               FormatClassifyJSON("stock_analysis", "gather", "quote_price", "loop test"),
+			"腾讯现在股价多少":           FormatClassifyJSON("stock_analysis", "gather", "quote_price", "loop test"),
+			"帮我分析下腾讯早上为啥下跌":      FormatClassifyJSON("stock_analysis", "gather", "technical_analysis", "loop test"),
+			"创建 bot":             FormatClassifyJSON("bot_manage", "execute", "", "loop test"),
+			"创建":                 FormatClassifyJSON("bot_manage", "execute", "", "loop test"),
+			"删除":                 FormatClassifyJSON("bot_manage", "execute", "", "loop test"),
+			"之前查过什么":             FormatClassifyJSON("chat", "talk", "", "loop test"),
+			"帮我回测小米 SAR+MACD":   FormatClassifyJSON("backtest_run", "execute", "", "loop test"),
+		},
+		Default: FormatClassifyJSON("chat", "talk", "", "loop test default"),
+	}
+}
+
+// SubAgentClassifyFixture classifies delegated sub-turns as scoped stock gather work
+// without consuming chat-gateway mock responses in tests.
+func SubAgentClassifyFixture() *ClassifyFixtureProvider {
+	return &ClassifyFixtureProvider{
+		Default: FormatClassifyJSON("stock_analysis", "gather", "analyze", "subagent"),
+	}
+}
+
 func (p *ClassifyFixtureProvider) Model() string { return "classify-fixture" }
 
 func (p *ClassifyFixtureProvider) Chat(_ context.Context, msgs []llm.Message, _ []llm.ToolSchema, _ float64, _ int) (*llm.Response, error) {

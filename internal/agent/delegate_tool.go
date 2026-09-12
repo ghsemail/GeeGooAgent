@@ -50,9 +50,10 @@ func RegisterDelegateTasks(r *tools.Registry, delegate tools.TaskDelegator) {
 	}
 	r.Register(tools.Tool{
 		Name: "delegate_tasks",
-		Description: "并行委托 1–8 个独立子 Agent（共享 delegate_max_parallel，不写入主会话历史）。" +
-			"适合：多标的并行分析/调研（如同时查腾讯与阿里巴巴），每路 task 写清单一标的或子目标；" +
-			"全部完成后由主 Agent 汇总对比。单标的请求请直接调工具，勿 delegate。子 Agent 不能再嵌套 delegate。",
+		Description: "并行委托 1–8 个独立子 Agent（等同 Cursor Task：同轮多次并行子任务，不写入主会话历史）。" +
+			"首选场景：用户在同一句话里提到 2+ 个互不依赖的公司/标的（如「分析腾讯和阿里巴巴股价」）——一次调用 tasks[]，每路一项，平台并行执行。" +
+			"每路 task 须自洽（含公司名/标的与要完成的分析）。返回后主 Agent 必须在最终回复中逐标的写出具体现价/分析要点并做简要对比，禁止只写「已委派」。" +
+			"单标的简单查价/走势请直接 search_code / get_current_price / get_mcp_analysis，勿 delegate。子 Agent 不能再嵌套 delegate。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

@@ -137,8 +137,14 @@ func TestIntentPlannerStockActFromLLM(t *testing.T) {
 	if domaincatalog.ExecutionProfileFor(domaincatalog.DomainStockAnalysis, got.Act) != domaincatalog.ProfileSubagentMultiStock {
 		t.Fatalf("expected subagent execution profile for multi_symbol_delegate")
 	}
-	if len(got.ToolsAllow) != 1 || got.ToolsAllow[0] != "delegate_tasks" {
-		t.Fatalf("multi_symbol_delegate orchestrator ToolsAllow=%v want [delegate_tasks]", got.ToolsAllow)
+	if !containsStr(got.ToolsAllow, "search_code") {
+		t.Fatalf("multi_symbol_delegate must keep stock tools in ToolsAllow, got %v", got.ToolsAllow)
+	}
+	filtered := FilterSchemas([]llm.ToolSchema{
+		{Name: "search_code"}, {Name: "get_current_price"}, {Name: "delegate_tasks"}, {Name: "clarify"},
+	}, got)
+	if len(filtered) < 3 {
+		t.Fatalf("multi_symbol gather must expose stock + delegate via FilterSchemas, got %v", filtered)
 	}
 
 	mock.body = `{"domain":"stock_analysis","mode":"gather","act":"technical_analysis","symbol_count":2,"confidence":0.9,"reason":"two companies"}`
@@ -208,6 +214,15 @@ func TestIntentPlannerSignalChoiceMapsToKnowledge(t *testing.T) {
 	}
 }
 
+func TestIntentPlannerChatDefinitionNotKnowledge(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"chat","mode":"talk","confidence":0.9,"reason":"indicator definition"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "MACD 指标是什么意思"})
+	if got.Domain != DomainChat || got.Mode != ModeTalk {
+		t.Fatalf("definition question should be chat/talk, got %s/%s", got.Domain, got.Mode)
+	}
+}
+
 func TestIntentPlannerStockQuoteClarifyTemplate(t *testing.T) {
 	mock := &classifyMock{body: `{"domain":"ambiguous","mode":"clarify","clarify":"stock_quote","confidence":0.6,"reason":"quote vs analysis"}`}
 	p := IntentPlanner{LLM: mock}
@@ -223,19 +238,19 @@ func TestIntentPlannerStockQuoteClarifyTemplate(t *testing.T) {
 	}
 }
 
-func TestIntentPlannerNilLLMUsesFallback(t *testing.T) {
+func TestIntentPlannerNilLLMClassifyFailed(t *testing.T) {
 	p := IntentPlanner{}
 	got := p.Plan(PlanInput{UserText: "MACD"})
-	if got.Domain != DomainChat {
-		t.Fatalf("nil LLM should use conservative fallback, got %s", got.Domain)
+	if !got.ClassifyFailed() {
+		t.Fatalf("nil LLM should fail-fast, got domain=%s reason=%s", got.Domain, got.Reason)
 	}
 }
 
-func TestIntentPlannerFallbackInheritsStickyDomain(t *testing.T) {
+func TestIntentPlannerNilLLMStickyDomainClassifyFailed(t *testing.T) {
 	p := IntentPlanner{}
 	got := p.Plan(PlanInput{UserText: "它最近走势怎么样", LastDomain: DomainStockAnalysis})
-	if got.Domain != DomainStockAnalysis {
-		t.Fatalf("fallback should inherit sticky domain, got %s", got.Domain)
+	if !got.ClassifyFailed() {
+		t.Fatalf("nil LLM must not silently inherit sticky domain, got %s/%s", got.Domain, got.Reason)
 	}
 }
 
@@ -313,28 +328,22 @@ func containsStr(items []string, want string) bool {
 	return false
 }
 
-func TestIntentPlannerFallbackMultiStockDelegateWhenLLMUnavailable(t *testing.T) {
+func TestIntentPlannerMultiStockClassifyFailedWhenLLMUnavailable(t *testing.T) {
 	p := IntentPlanner{LLM: nil}
 	got := p.Plan(PlanInput{UserText: "请帮我分析下腾讯和阿里巴巴最近的股价"})
-	if got.Domain != DomainStockAnalysis || got.Mode != ModeGather {
-		t.Fatalf("domain/mode=%s/%s want stock_analysis/gather", got.Domain, got.Mode)
-	}
-	if got.Act != domaincatalog.StockActMultiSymbol {
-		t.Fatalf("act=%s want multi_symbol_delegate", got.Act)
-	}
-	if len(got.ToolsAllow) != 1 || got.ToolsAllow[0] != "delegate_tasks" {
-		t.Fatalf("ToolsAllow=%v want [delegate_tasks]", got.ToolsAllow)
+	if !got.ClassifyFailed() {
+		t.Fatalf("nil LLM must fail-fast for multi-stock, got %s/%s act=%s", got.Domain, got.Mode, got.Act)
 	}
 }
 
-func TestIntentPlannerFallbackMultiStockWhenClassifyFails(t *testing.T) {
+func TestIntentPlannerMultiStockClassifyFailedAfterRetries(t *testing.T) {
 	mock := &classifyMock{body: `not json`}
 	p := IntentPlanner{LLM: mock}
 	got := p.Plan(PlanInput{UserText: "请帮我分析下腾讯和阿里巴巴最近的股价"})
-	if got.Act != domaincatalog.StockActMultiSymbol {
-		t.Fatalf("act=%s want multi_symbol_delegate on classify failure", got.Act)
+	if !got.ClassifyFailed() {
+		t.Fatalf("invalid classify json must fail-fast, got act=%s reason=%s", got.Act, got.Reason)
 	}
-	if len(got.ToolsAllow) != 1 || got.ToolsAllow[0] != "delegate_tasks" {
-		t.Fatalf("ToolsAllow=%v want [delegate_tasks]", got.ToolsAllow)
+	if mock.calls != classifyMaxAttempts {
+		t.Fatalf("expected %d classify attempts, got %d", classifyMaxAttempts, mock.calls)
 	}
 }

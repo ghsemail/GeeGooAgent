@@ -45,10 +45,17 @@ type TurnPlan struct {
 	Mode            Mode     `json:"mode"`
 	Confidence      float64  `json:"confidence"`
 	Reason          string   `json:"reason"`
+	ClassifyError   string   `json:"classify_error,omitempty"`
 	Skills          []string `json:"skills,omitempty"`
 	ToolsAllow      []string `json:"tools_allow,omitempty"`
 	ClarifyQuestion string   `json:"clarify_question,omitempty"`
 	ClarifyChoices  []string `json:"clarify_choices,omitempty"`
+}
+
+// ClassifyFailed reports that intent classification failed after retries.
+// The loop must not enter ReAct when this is true.
+func (p TurnPlan) ClassifyFailed() bool {
+	return p.Reason == "classify_failed" && strings.TrimSpace(p.ClassifyError) != ""
 }
 
 // PlanInput is the planner view of the current user turn.
@@ -77,8 +84,8 @@ func (p TurnPlan) ShouldRunDomainSOP() bool {
 
 // FilterSchemas keeps only tools allowed by the plan (plus harness tools).
 // Harness tools (clarify, delegate_*) stay visible on gather/execute turns so
-// the main Agent can choose delegation like Cursor Task / Codex subagents — not
-// via hard-coded domain branches. Pure talk turns omit delegate tools.
+// the main Agent chooses delegation like Cursor Task — TurnPlan never hard-strips
+// stock tools for multi-symbol turns. Pure talk turns omit delegate tools.
 func FilterSchemas(schemas []llm.ToolSchema, plan TurnPlan) []llm.ToolSchema {
 	if len(schemas) == 0 {
 		return schemas

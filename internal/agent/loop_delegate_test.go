@@ -26,6 +26,7 @@ func TestTurnPlanMultiStockUsesDelegateTasks(t *testing.T) {
 		}, llm.GatewayConfig{MaxRetries: 1}),
 		Executor:      runtime.NewExecutor(registry),
 		Registry:      registry,
+		Planner:       cognition.IntentPlanner{LLM: cognition.SubAgentClassifyFixture()},
 		MaxSteps:      5,
 		MaxParallel:   2,
 		ChatToolNames: func() []string { return []string{"search_code", "get_current_price"} },

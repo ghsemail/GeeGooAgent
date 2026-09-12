@@ -79,33 +79,32 @@ func TestFilterExecutionProfileSchemas(t *testing.T) {
 	subagentIn := append([]llm.ToolSchema{}, in...)
 	subagentIn = append(subagentIn, llm.ToolSchema{Name: "delegate_tasks"}, llm.ToolSchema{Name: "clarify"})
 	out = filterExecutionProfileSchemas(subagentIn, domaincatalog.ProfileSubagentMultiStock)
-	if len(out) != 2 {
-		t.Fatalf("subagent profile should expose only delegate_tasks+clarify, got %d tools", len(out))
-	}
-	names := map[string]bool{}
-	for _, s := range out {
-		names[s.Name] = true
-	}
-	if !names["delegate_tasks"] || !names["clarify"] {
-		t.Fatalf("subagent tools=%v", names)
+	if len(out) != len(subagentIn) {
+		t.Fatalf("subagent profile must not hard-filter schemas, got %d want %d", len(out), len(subagentIn))
 	}
 }
 
-func TestApplyTurnToolSchemasMultiSymbolOrchestrator(t *testing.T) {
+func TestApplyTurnToolSchemasMultiSymbolKeepsStockTools(t *testing.T) {
 	in := []llm.ToolSchema{
 		{Name: "search_code"}, {Name: "get_current_price"}, {Name: "get_mcp_analysis"},
 		{Name: "delegate_tasks"}, {Name: "delegate_task"}, {Name: "clarify"},
 		{Name: "fetch_market_news"},
 	}
 	plan := cognition.TurnPlan{
-		Domain: cognition.DomainStockAnalysis,
-		Mode:   cognition.ModeGather,
-		Act:    domaincatalog.StockActMultiSymbol,
-		ToolsAllow: []string{"delegate_tasks"},
+		Domain:     cognition.DomainStockAnalysis,
+		Mode:       cognition.ModeGather,
+		Act:        domaincatalog.StockActMultiSymbol,
+		ToolsAllow: []string{"search_code", "get_current_price", "get_mcp_analysis", "delegate_tasks"},
 	}
 	out := applyTurnToolSchemas(in, plan)
-	if len(out) != 2 {
-		t.Fatalf("orchestrator turn want 2 tools, got %d: %v", len(out), out)
+	names := map[string]bool{}
+	for _, s := range out {
+		names[s.Name] = true
+	}
+	for _, want := range []string{"search_code", "get_current_price", "get_mcp_analysis", "delegate_tasks", "clarify"} {
+		if !names[want] {
+			t.Fatalf("multi-symbol turn should expose %s, got %v", want, names)
+		}
 	}
 }
 

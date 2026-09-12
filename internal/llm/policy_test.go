@@ -24,6 +24,18 @@ func TestConfigPolicyPreservesChatDefaults(t *testing.T) {
 	}
 }
 
+func TestConfigPolicyClassifyUsesLowTemperatureAndTokenCap(t *testing.T) {
+	t.Parallel()
+	p := llm.NewConfigPolicy(llm.ConfigPolicyInput{
+		Temperature: 0.7,
+		MaxTokens:   8192,
+	})
+	d := p.Decide(llm.Request{Kind: llm.TaskClassify})
+	if d.Temperature != 0.1 || d.MaxTokens != 512 {
+		t.Fatalf("classify=%+v", d)
+	}
+}
+
 func TestConfigPolicyCompressUsesDedicatedTemperature(t *testing.T) {
 	t.Parallel()
 	p := llm.NewConfigPolicy(llm.ConfigPolicyInput{
@@ -75,6 +87,28 @@ func (p *captureProvider) Chat(_ context.Context, _ []llm.Message, _ []llm.ToolS
 	p.temperature = temperature
 	p.maxTokens = maxTokens
 	return &llm.Response{Content: "ok"}, nil
+}
+
+func TestClassifyProviderFromGatewayUsesTaskClassify(t *testing.T) {
+	t.Parallel()
+	provider := &captureProvider{}
+	gw := llm.NewGateway(provider, llm.GatewayConfig{
+		MaxRetries: 1, RetryWait: time.Millisecond, Temperature: 0.2, MaxTokens: 4096,
+	})
+	gw.SetPolicy(llm.NewConfigPolicy(llm.ConfigPolicyInput{
+		Temperature: 0.2, MaxTokens: 4096,
+	}))
+	classify := llm.ClassifyProviderFromGateway(gw)
+	if classify == nil {
+		t.Fatal("expected classify provider")
+	}
+	_, err := classify.Chat(context.Background(), nil, nil, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if provider.temperature != 0.1 || provider.maxTokens != 512 {
+		t.Fatalf("classify policy got temp=%v max=%d", provider.temperature, provider.maxTokens)
+	}
 }
 
 func TestGatewayAppliesPolicyFromCallMeta(t *testing.T) {

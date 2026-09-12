@@ -417,6 +417,15 @@ func (l *Loop) runPreparedTurn(
 		LastDomain: cognition.Domain(session.LastTurnDomain),
 	})
 	planMS := time.Since(planStarted).Milliseconds()
+	if turnPlan.ClassifyFailed() {
+		l.emit("turn_plan", map[string]any{
+			"reason":         turnPlan.Reason,
+			"classify_error": turnPlan.ClassifyError,
+			"failed":         true,
+			"plan_ms":        planMS,
+		})
+		return l.failTurn(ctx, session, fmt.Errorf("意图识别失败: %s", turnPlan.ClassifyError), records)
+	}
 	session.LastTurnDomain = string(turnPlan.Domain)
 	session.LastTurnMode = string(turnPlan.Mode)
 	session.LastTurnAct = turnPlan.Act

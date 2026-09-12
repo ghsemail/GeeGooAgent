@@ -37,16 +37,20 @@ func turnPlanFragment(plan cognition.TurnPlan) ctxfrag.Fragment {
 			fmt.Fprintf(&b, "- choices: %s\n", strings.Join(plan.ClarifyChoices, " / "))
 		}
 	}
-	b.WriteString("- you must choose and call tools from the allow-list to fulfill this turn; do not switch domains unless the user clearly asks")
+	b.WriteString("- choose tools from the exposed schema to fulfill this turn; for multi-symbol parallel work, strongly prefer delegate_tasks over serial per-symbol calls")
 	return ctxfrag.StaticFragment{K: ctxfrag.KindSystemRules, Text: b.String(), Prio: 22}
 }
 
 func subagentOrchestratorPlanBlock() string {
-	return `- sub-agent orchestration (Cursor Task-style, this turn ONLY):
-  - Main thread tools: delegate_tasks (+ clarify if needed). Do NOT call search_code, get_mcp_analysis, or get_current_price here.
-  - Call delegate_tasks ONCE with tasks[] — one self-contained task string per distinct symbol/company; all items run in parallel (like multiple Task tool calls in one Cursor turn).
-  - Each task must include the company/symbol name and what to analyze; sub-agents have isolated context and cannot see this chat history.
-  - After delegate_tasks returns, read results[] and write the final comparative answer for the user.
+	return `- multi-symbol orchestration (Cursor Task-style — recommendation, not a hard tool lock):
+  - When the user names 2+ distinct companies/symbols in one turn, prefer delegate_tasks ONCE with tasks[] (one self-contained task per symbol/company). Sub-agents run in parallel with isolated context, like multiple Task calls in one Cursor turn.
+  - Each task string must include the company/symbol and what to analyze; sub-agents cannot see this chat history.
+  - After delegate_tasks returns, read results[] and write the FINAL user-facing answer yourself:
+    (1) one subsection per symbol with concrete price/analysis from results[];
+    (2) a brief side-by-side comparison (涨跌幅、相对强弱、一句话结论);
+    (3) do NOT stop at meta text like "已委派" or "子 Agent 完成" without listing both symbols' data.
+  - Single-symbol or simple quote requests: call search_code / get_current_price / get_mcp_analysis directly — do not delegate.
+  - You still have all stock tools available; use delegate_tasks when parallel isolation improves quality or latency, not because tools were removed.
 `
 }
 

@@ -30,7 +30,7 @@ func defaultExpectReplyForTurnID(turnID string) ExpectReplySpec {
 		}
 	case "subagent_multi_stock_price":
 		return ExpectReplySpec{
-			Rubric:    "应分别给出腾讯与阿里巴巴最近股价或行情信息，并在同一答复中做简要对比或并列总结；不应只分析其中一个标的。",
+			Rubric:    "应分别给出腾讯与阿里巴巴最近股价或行情信息（含具体价格或涨跌幅等数据），并在同一答复中做简要对比或并列总结；不应只分析其中一个标的，也不应只描述委派过程而不给出双标的数据。",
 			MustCover: []string{"腾讯", "阿里"},
 		}
 	case "signal_catalog_list":

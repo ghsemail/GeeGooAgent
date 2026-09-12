@@ -57,7 +57,7 @@ func ProfileExecutionHint(profileID string) string {
 	case ProfileStockSymbolResolve:
 		return "切换标的时必须在本轮重新 search_code 确认新代码。"
 	case ProfileSubagentMultiStock:
-		return "本回合你是编排者（类似 Cursor Task）：必须调用 delegate_tasks 一次，tasks[] 每路一个标的、并行执行；子 Agent 自带独立上下文。主回合禁止 search_code/get_mcp_analysis/get_current_price；等 delegate_tasks 返回后再汇总对比答复。"
+		return "多标的并行（Cursor Task 风格）：优先 delegate_tasks 一次（tasks[] 每标的一项）。返回后必须在最终回复中逐标的给出具体现价/分析，并做简要对比；禁止只描述委派过程而不写数据。"
 	default:
 		return ""
 	}

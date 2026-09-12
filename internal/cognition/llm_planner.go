@@ -11,7 +11,8 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
-const classifyTimeout = 8 * time.Second
+const classifyTimeout = 12 * time.Second
+const classifyMaxAttempts = 3
 const symbolCountTimeout = 4 * time.Second
 
 const symbolCountPrompt = `Count how many distinct stocks/companies the user wants quoted or analyzed in this message.
@@ -42,7 +43,7 @@ analyze, quote_price, technical_analysis, context_followup, symbol_resolve, mult
   Do NOT use quote_price when 2+ companies/symbols are named — use multi_symbol_delegate instead.
 - technical_analysis: user wants analysis of trend, K-line, technicals, or price movement over a period for ONE symbol.
   Example: "帮我分析下腾讯最近一个月的价格走势" → technical_analysis
-- multi_symbol_delegate: user asks to analyze, quote, or compare TWO OR MORE distinct stocks/companies in the same turn (parallel multi-symbol work). Main agent should delegate via delegate_tasks; sub-agents handle per-symbol search/analysis.
+- multi_symbol_delegate: user asks to analyze, quote, or compare TWO OR MORE distinct stocks/companies in the same turn. Label only — main ReAct may delegate via delegate_tasks (preferred) or call stock tools directly; do not treat this as a hard tool restriction.
   Example: "请帮我分析下腾讯和阿里巴巴最近的股价" → multi_symbol_delegate
   Do NOT use for a single symbol even if the wording includes "分析" and "股价".
 - analyze: general stock analysis for ONE symbol when none of the above fits
@@ -70,8 +71,14 @@ Domain + mode guidance:
 - bot_manage/gather: list/query bots, reminders, SmartTrade, grid PnL.
 - bot_manage/execute: create/update/delete bots.
 - chat/talk: definitions, chitchat, signal quality opinions (准吗/靠谱吗) after prior context.
+  Use chat/talk for general concept/indicator definition questions even if a knowledge base exists:
+  e.g. "MACD 指标是什么意思" / "什么是 RSI" / "MACD是什么" → chat/talk (NOT knowledge).
   Do NOT use chat/talk when the user names a stock/company or asks for quote, analysis, or trend.
+- knowledge/gather: ONLY when the user explicitly asks to use/search the knowledge base or internal docs
+  (e.g. "按知识库", "知识库里", "查知识库", "根据文档").
+  Do NOT route "X是什么意思" to knowledge just because X is a trading term.
 - ambiguous/clarify: bare strategy words (MACD/SAR) without clear action, or compound analyze+backtest in one sentence.
+  "这个MACD信号平时该怎么用" → ambiguous/clarify signal_usage (NOT chat/talk, NOT knowledge).
 - Use last turn domain + dialogue context for short follow-ups; do not rely on single keywords alone.
 
 Hard rules:
@@ -85,9 +92,19 @@ Last turn domain: %s
 User: %s`
 
 // IntentPlanner is the sole production planner: LLM classify with structured
-// clarify-choice shortcuts and conservative fallback when the LLM is unavailable.
+// clarify-choice shortcuts and fail-fast when classification is unavailable.
 type IntentPlanner struct {
-	LLM llm.Provider
+	LLM         llm.Provider
+	LLMResolver func() llm.Provider
+}
+
+func (p IntentPlanner) resolveLLM() llm.Provider {
+	if p.LLMResolver != nil {
+		if provider := p.LLMResolver(); provider != nil {
+			return provider
+		}
+	}
+	return p.LLM
 }
 
 // Plan implements Planner.
@@ -105,14 +122,19 @@ func (p IntentPlanner) Plan(in PlanInput) TurnPlan {
 		}
 	}
 
-	if p.LLM == nil {
-		return applyPlanToolPolicies(plannerFallback(in))
+	if plan, ok := deterministicPreLLMPlan(in); ok {
+		return applyPlanToolPolicies(plan)
 	}
-	got, ok := classifyWithLLM(in, p.LLM)
-	if !ok {
-		return applyPlanToolPolicies(plannerFallback(in))
+
+	provider := p.resolveLLM()
+	if provider == nil {
+		return classifyFailedPlan("llm provider not configured")
 	}
-	return applyPlanToolPolicies(applyStickySessionPlan(in, sanitizeLLMPlan(in, got)))
+	plan, errDetail := classifyWithLLM(in, provider)
+	if errDetail != "" {
+		return classifyFailedPlan(errDetail)
+	}
+	return applyPlanToolPolicies(applyStickySessionPlan(in, sanitizeLLMPlan(in, plan)))
 }
 
 type llmClassifyJSON struct {
@@ -125,27 +147,35 @@ type llmClassifyJSON struct {
 	Reason      string  `json:"reason"`
 }
 
-func classifyWithLLM(in PlanInput, provider llm.Provider) (TurnPlan, bool) {
-	plan, ok := classifyOnce(in, provider, false)
-	if !ok {
-		return TurnPlan{}, false
-	}
-	msg := strings.TrimSpace(in.UserText)
-	if plan.Domain == DomainChat && plan.Mode == ModeTalk && len([]rune(msg)) >= 8 {
-		retry, ok2 := classifyOnce(in, provider, true)
-		if ok2 && retry.Domain != DomainChat && retry.Domain != DomainAmbiguous {
-			return retry, true
+func classifyWithLLM(in PlanInput, provider llm.Provider) (TurnPlan, string) {
+	var lastErr string
+	for attempt := 0; attempt < classifyMaxAttempts; attempt++ {
+		plan, errDetail := classifyOnce(in, provider, attempt > 0)
+		if errDetail != "" {
+			lastErr = errDetail
+			continue
 		}
+		msg := strings.TrimSpace(in.UserText)
+		if plan.Domain == DomainChat && plan.Mode == ModeTalk && len([]rune(msg)) >= 8 {
+			retry, errDetail2 := classifyOnce(in, provider, true)
+			if errDetail2 == "" && retry.Domain != DomainChat && retry.Domain != DomainAmbiguous {
+				return retry, ""
+			}
+		}
+		return plan, ""
 	}
-	return plan, true
+	if lastErr == "" {
+		lastErr = "llm: classify failed"
+	}
+	return TurnPlan{}, lastErr
 }
 
-func classifyOnce(in PlanInput, provider llm.Provider, retry bool) (TurnPlan, bool) {
-	ctx := in.Ctx
-	if ctx == nil {
-		ctx = context.Background()
+func classifyOnce(in PlanInput, provider llm.Provider, retry bool) (TurnPlan, string) {
+	base := context.Background()
+	if in.Ctx != nil {
+		base = context.WithoutCancel(in.Ctx)
 	}
-	ctx, cancel := context.WithTimeout(ctx, classifyTimeout)
+	ctx, cancel := context.WithTimeout(base, classifyTimeout)
 	defer cancel()
 
 	prompt := fmt.Sprintf(classifyPrompt, in.LastDomain, strings.TrimSpace(in.UserText))
@@ -155,23 +185,26 @@ func classifyOnce(in PlanInput, provider llm.Provider, retry bool) (TurnPlan, bo
 	resp, err := provider.Chat(ctx, []llm.Message{{
 		Role:    llm.RoleUser,
 		Content: prompt,
-	}}, nil, 0.1, 200)
-	if err != nil || resp == nil {
-		return TurnPlan{}, false
+	}}, nil, 0.1, 512)
+	if err != nil {
+		return TurnPlan{}, fmt.Sprintf("llm: %v", err)
+	}
+	if resp == nil {
+		return TurnPlan{}, "llm: empty response"
 	}
 	text := strings.TrimSpace(resp.Content)
 	start := strings.Index(text, "{")
 	end := strings.LastIndex(text, "}")
 	if start < 0 || end <= start {
-		return TurnPlan{}, false
+		return TurnPlan{}, "llm: invalid json"
 	}
 	var parsed llmClassifyJSON
 	if err := json.Unmarshal([]byte(text[start:end+1]), &parsed); err != nil {
-		return TurnPlan{}, false
+		return TurnPlan{}, fmt.Sprintf("llm: json parse: %v", err)
 	}
 	d := Domain(strings.TrimSpace(parsed.Domain))
 	if !validDomain(d) {
-		return TurnPlan{}, false
+		return TurnPlan{}, fmt.Sprintf("llm: invalid domain %q", parsed.Domain)
 	}
 	plan := planForDomain(d)
 	if m := Mode(strings.TrimSpace(parsed.Mode)); validMode(m) {
@@ -199,7 +232,7 @@ func classifyOnce(in PlanInput, provider llm.Provider, retry bool) (TurnPlan, bo
 			}
 		}
 	}
-	return plan, true
+	return plan, ""
 }
 
 type symbolCountJSON struct {
@@ -211,11 +244,11 @@ func countStockSymbolsWithLLM(in PlanInput, provider llm.Provider) (int, bool) {
 	if provider == nil {
 		return 0, false
 	}
-	ctx := in.Ctx
-	if ctx == nil {
-		ctx = context.Background()
+	base := context.Background()
+	if in.Ctx != nil {
+		base = context.WithoutCancel(in.Ctx)
 	}
-	ctx, cancel := context.WithTimeout(ctx, symbolCountTimeout)
+	ctx, cancel := context.WithTimeout(base, symbolCountTimeout)
 	defer cancel()
 
 	userText := strings.TrimSpace(in.UserText)
@@ -311,10 +344,11 @@ func sanitizeLLMPlan(in PlanInput, llmPlan TurnPlan) TurnPlan {
 		}
 		return out
 	}
-	fallback := plannerFallback(in)
 	if llmPlan.Domain == DomainBacktestRun && !isBacktestRun(in.UserText) {
-		if fallback.Domain == DomainAmbiguous {
-			return fallback
+		if in.LastDomain == DomainAmbiguous {
+			p := planForDomain(DomainAmbiguous)
+			p.Reason = "拒绝无回测动词的 backtest_run"
+			return p
 		}
 		out := planForDomain(DomainChat)
 		out.Reason = "拒绝无回测动词的 backtest_run"
@@ -322,35 +356,17 @@ func sanitizeLLMPlan(in PlanInput, llmPlan TurnPlan) TurnPlan {
 		return out
 	}
 	if llmPlan.Domain == DomainDCAGrid && llmPlan.Mode == ModeExecute &&
-		!hasAny(in.UserText, dcaGridTokens) && fallback.Domain != DomainDCAGrid {
-		return fallback
+		!hasAny(in.UserText, dcaGridTokens) {
+		out := planForDomain(DomainChat)
+		out.Reason = "拒绝无 DCA/网格上下文的 dca_grid execute"
+		out.Confidence = 0.6
+		return out
 	}
 	return llmPlan
 }
 
 func applyPlanToolPolicies(plan TurnPlan) TurnPlan {
-	return applyStockActToolPolicy(applyBacktestRunToolPolicy(applyGatherToolPolicy(plan)))
-}
-
-func applyStockActToolPolicy(plan TurnPlan) TurnPlan {
-	if plan.Domain != DomainStockAnalysis {
-		return plan
-	}
-	if domaincatalog.NormalizeStockAct(plan.Act) != domaincatalog.StockActMultiSymbol {
-		return plan
-	}
-	// Cursor-style orchestrator turn: main agent only delegates (Task-equivalent tools).
-	plan.ToolsAllow = []string{"delegate_tasks"}
-	return plan
-}
-
-func containsToolName(list []string, name string) bool {
-	for _, t := range list {
-		if t == name {
-			return true
-		}
-	}
-	return false
+	return applyBacktestRunToolPolicy(applyGatherToolPolicy(plan))
 }
 
 func applyGatherToolPolicy(plan TurnPlan) TurnPlan {
@@ -386,34 +402,23 @@ func filterTools(in []string, drop ...string) []string {
 	return out
 }
 
-func plannerFallback(in PlanInput) TurnPlan {
+func deterministicPreLLMPlan(in PlanInput) (TurnPlan, bool) {
 	msg := strings.TrimSpace(in.UserText)
 	if isBacktestRun(msg) {
 		p := planForDomain(DomainBacktestRun)
 		p.Mode = ModeExecute
-		p.Reason = "fallback: 显式回测动词"
+		p.Reason = "显式回测动词"
 		p.Confidence = 0.85
-		return p
+		return p, true
 	}
-	if in.LastDomain == DomainAmbiguous {
-		p := planForDomain(DomainAmbiguous)
-		p.Reason = "fallback: 等待澄清"
-		p.Confidence = 0.4
-		return p
+	return TurnPlan{}, false
+}
+
+func classifyFailedPlan(detail string) TurnPlan {
+	return TurnPlan{
+		Reason:        "classify_failed",
+		ClassifyError: strings.TrimSpace(detail),
 	}
-	if isStickyDomain(in.LastDomain) && (isFollowUpUtterance(msg) || len([]rune(msg)) <= 24) {
-		p := planForDomain(in.LastDomain)
-		p.Reason = "fallback: 沿用上一轮领域 " + string(in.LastDomain)
-		p.Confidence = 0.5
-		return p
-	}
-	if stockPlan, ok := fallbackStockPlan(msg); ok {
-		return stockPlan
-	}
-	p := planForDomain(DomainChat)
-	p.Reason = "fallback: LLM 不可用"
-	p.Confidence = 0.3
-	return p
 }
 
 func applyClarifyTemplate(plan TurnPlan, template string) TurnPlan {

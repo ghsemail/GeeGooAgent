@@ -19,7 +19,7 @@ type Bundle struct {
 // Defaults returns Go default strategies (behavior-preserving).
 func Defaults() Bundle {
 	return Bundle{
-		Planner:    IntentPlanner{},
+		Planner:    IntentPlanner{LLM: DefaultLoopClassifyFixture()},
 		Ranker:     IdentityRanker{},
 		Evaluator:  AcceptAllEvaluator{},
 		PlanPolicy: DefaultPlanPolicy{},

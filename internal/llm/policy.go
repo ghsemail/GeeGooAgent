@@ -8,6 +8,7 @@ type TaskKind string
 const (
 	TaskChat      TaskKind = "chat"
 	TaskCompress  TaskKind = "compress"
+	TaskClassify  TaskKind = "classify"
 	TaskSynthesis TaskKind = "synthesis"
 	TaskComplex   TaskKind = "complex"
 )
@@ -83,6 +84,8 @@ func (p ConfigPolicy) Decide(req Request) Decision {
 			MaxTokens:      p.compressMaxTok,
 			PreferCompress: true,
 		}
+	case TaskClassify:
+		return Decision{Temperature: 0.1, MaxTokens: 512}
 	default:
 		return Decision{Temperature: p.chatTemp, MaxTokens: p.chatMaxTokens}
 	}
