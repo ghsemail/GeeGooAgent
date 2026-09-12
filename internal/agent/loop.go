@@ -411,11 +411,13 @@ func (l *Loop) runPreparedTurn(
 
 	l.emitStatus("plan", "正在判断本轮意图…")
 	planStarted := time.Now()
-	turnPlan := l.effectivePlanner().Plan(cognition.PlanInput{
-		Ctx:        ctx,
-		UserText:   userText,
-		LastDomain: cognition.Domain(session.LastTurnDomain),
-	})
+	turnPlan := l.effectivePlanner().Plan(cognition.BuildPlanInput(cognition.PlanSessionView{
+		Ctx:             ctx,
+		Messages:        session.LLMMessages(),
+		UserText:        userText,
+		LastDomain:      cognition.Domain(session.LastTurnDomain),
+		PreviousSummary: session.PreviousSummary,
+	}))
 	planMS := time.Since(planStarted).Milliseconds()
 	if turnPlan.ClassifyFailed() {
 		l.emit("turn_plan", map[string]any{

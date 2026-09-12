@@ -154,7 +154,7 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 		},
 		// ── 信号 / 回测（多轮） ──
 		{
-			ID: "signal_list_then_probe", Category: TurnPlanCatBacktest, Title: "多轮 · 分析腾讯后选策略回测",
+			ID: "signal_list_then_probe", Category: TurnPlanCatBacktest, Title: "多轮 · 分析腾讯后选策略回测", // 历史 id，分类是回测不是 probe
 			Description: "同 session：先分析腾讯价格走势，再问适合策略（含 clarify 选组合信号/SAR+MACD/止盈止损），最后发起回测。",
 			SetupMessages: []string{
 				"帮我分析一下腾讯的价格走势",

@@ -10,6 +10,34 @@ func isFollowUpUtterance(msg string) bool {
 	return hasAny(msg, []string{"换成", "改成", "继续", "再看看", "再帮我", "接着", "还是那个", "同样的", "刚才那个", "刚才那次", "换一个标的", "它最近", "不聊"})
 }
 
+func isActiveTaskDomain(d Domain) bool {
+	return d == DomainSignalProbe || d == DomainBacktestRun
+}
+
+func isQualityOpinion(msg string) bool {
+	return hasAny(msg, []string{"靠谱吗", "准吗", "准确吗", "可靠吗", "有用吗", "怎么样"}) &&
+		!hasAny(msg, []string{"走势", "股价", "行情", "K线", "技术面"})
+}
+
+func isExplicitTaskSwitch(_ TurnPlan, msg string) bool {
+	msg = strings.TrimSpace(msg)
+	if msg == "" {
+		return false
+	}
+	if isBacktestRun(msg) {
+		return true
+	}
+	if hasAny(msg, []string{"新闻", "Reminder", "SmartTrade", "知识库", "盘前", "报告写了"}) {
+		return true
+	}
+	if hasAny(msg, []string{"有哪些", "列出", "看看我有哪些"}) &&
+		hasAny(msg, []string{"策略", "Bot", "提醒", "信号策略", "组合信号"}) {
+		return true
+	}
+	return hasAny(msg, []string{"分析", "走势", "股价", "查一下", "多少钱", "报价", "K线", "技术面"}) &&
+		!isFollowUpUtterance(msg) && len([]rune(msg)) > 8
+}
+
 func mapClarifyChoice(msg string) (Domain, string, bool) {
 	switch {
 	case hasAny(msg, []string{"只要当前价", "查现价", "现价就行"}):

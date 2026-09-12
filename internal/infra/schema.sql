@@ -257,6 +257,14 @@ INSERT OR IGNORE INTO agent_eval_cases (
     12, 1, datetime('now'), datetime('now')
 ),
 (
+    'strategy_signal_swap_followup', '', '单股 · 换信号 · 换标的 · 3轮剧本',
+    '首轮与「单股·单策略」相同（随机策略+标的）；第2句换信号，第3句换标的；澄清由 auto-clarify 自动应答。',
+    '["随机选 1 股 + 1 策略，发送首轮信号测试","发送「换一个信号策略再看看」","发送「换一个标的试试」","澄清选项由 auto-clarify 自动应答"]',
+    1,
+    '{"category":"strategy_signal","task":"signal_probe","scenario":"single","stock_count":2,"strategy_count":2,"random_stock_enabled":true,"min_reply_chars":80,"pass_keywords":["信号"],"session_cleanup":"before_run","swap_followup":true,"dialogue":[{"role":"user","text":"换一个信号策略再看看"},{"role":"user","text":"换一个标的试试","judge":true}]}',
+    13, 1, datetime('now'), datetime('now')
+),
+(
     'strategy_backtest_single', '', '单股 · 单策略 · 回测',
     '随机单股单策略跑 run_strategy_backtest，汇报收益与 log_id。',
     '["随机选股与策略","发送回测请求","校验回复含收益率与 log_id"]',

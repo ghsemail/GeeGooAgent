@@ -112,8 +112,9 @@ GeeGoo Agent (Tool snake_case — 自动化 workflow / chat 编排)
 | --- | --- | --- | --- | --- | --- | --- |
 | `/generateDCAStrategy` | 否 | `generate_dca_strategy` | http | 策略生成 · DCA | strategy |  |
 | `/generateGridStrategy` | 否 | `generate_grid_strategy` | http | 策略生成 · 网格 | strategy |  |
-| `/loopBackStrategy` | 否 | `loopback_strategy` | http | 策略回测 | strategy |  |
+| `/loopBackStrategy` | 否 | `loopback_strategy` | http | DCA/Grid 方案回测 | strategy | 勿用于 catalog 信号 |
 | `/probeBotSignalSeries` | 否 | `probe_bot_signal_series` | http | 策略开发信号测试 | strategy | signal-api :3200 |
+| `/runStrategyBacktest` | 否 | `run_strategy_backtest` | http | catalog 信号策略回测 | strategy | signal-api :3200；默认 months_back=3 / period=3m |
 | `/probeBotSignal` | 否 | `probe_bot_signal` | http | 单 bar 信号探测 | strategy | signal-api :3200 |
 | `/getIndicatorSeries` | 否 | `get_indicator_series` | http | 动态止盈止损序列 | strategy | signal-api :3200 |
 | `/listStrategyBacktestLogs` | 否 | `list_strategy_backtest_logs` | http | 策略回测历史列表 | strategy | signal-api :3200 |

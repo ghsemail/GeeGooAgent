@@ -69,8 +69,9 @@ skip_retrieval_gate: true
 
 ### B · 同标的多策略
 
-- 用户：「腾讯共振 vs 4H 节奏哪个信号多」  
-- 步骤：定 code → 每策略组 rules + **专属** frequency/**months_back** → 循环 probe  
+- 用户：「腾讯共振 vs 4H 节奏哪个信号多」；或本轮 TurnPlan 仍是 `signal_probe`、只是策略槽位变了  
+- 步骤：定 code（**会话已有标的则沿用**，不要重问任务）→ 每策略组 rules + **专属** frequency/**months_back** → 循环 probe  
+- 策略未点名 → **只** `clarify` 选 catalog name（最多 4 个）；**禁止**问「要分析 / 测点 / 回测哪一件」  
 - memory：`list(code)` 按 `strategy_label` 参考历史（optional）  
 - 输出：**strategy | frequency | 买次 | 卖次 | 最近触发**
 
@@ -112,6 +113,7 @@ GeeGooSignal catalog 里 RSI 常见 3 条：**阈值信号**、**金死叉信号
 - 必填 code + frequency + buy_signal；**默认只传 `months_back`，禁止手算 limit**；禁止 dump bars  
 - 禁止 Macd4H **months_back=1** 或无 sell  
 - 禁止情形 C 用 probe 结论「哪套更赚」
+- TurnPlan 已是 probe 时：禁止重问意图；缺策略只 clarify name，标的沿用会话
 
 ## 输出
 

@@ -71,15 +71,16 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 					}
 				}
 				body := buildHTTPBody(args, spec.MergePayload)
+				if spec.Name == "run_strategy_backtest" {
+					catalog.ApplyStrategyBacktestDefaults(body)
+					if _, ok := body["source"]; !ok {
+						body["source"] = "agent"
+					}
+				}
 				if uid := strings.TrimSpace(ctx.UserID); uid != "" {
 					switch spec.Name {
 					case "run_strategy_backtest", "list_strategy_backtest_logs":
 						body["user_id"] = uid
-					}
-					if spec.Name == "run_strategy_backtest" {
-						if _, ok := body["source"]; !ok {
-							body["source"] = "agent"
-						}
 					}
 				}
 				if catalog.NeedsMCPToken(spec.Name) {

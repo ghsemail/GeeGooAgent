@@ -63,6 +63,12 @@ type PlanInput struct {
 	Ctx        context.Context
 	UserText   string
 	LastDomain Domain
+	// SessionSummary is the hygiene/compaction summary from prior turns.
+	SessionSummary string
+	// RecentDialogue is formatted prior user/assistant/tool turns for classify.
+	RecentDialogue string
+	// sessionHistory marks a continuing session (prior turns or summary present).
+	sessionHistory bool
 }
 
 // Planner classifies a user turn before skills are injected or tools run.

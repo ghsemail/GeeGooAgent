@@ -20,8 +20,8 @@ Live 用例 **不能** 直接 `POST .../cases/{id}/run`（会 400）；必须先
 | 分类 ID | 标题 | 条数 | 代表用例 |
 |---------|------|------|----------|
 | `stock_analysis` | 股票分析 | 6 | 查股价、分析价格走势、技术面续问、切换标的、代词指代、多标的并行（sub-agent） |
-| `signal` | 信号 / 策略 | 3 | 列策略、列策略后 probe、直接 probe |
-| `backtest` | 策略回测 | 5 | 显式/口语回测、分析后回测、DCA 回测 |
+| `signal` | 信号 / 策略 | 2 | 列策略、直接 probe |
+| `backtest` | 策略回测 | 6 | 列策略后回测、显式/口语回测、分析后回测、DCA 回测 |
 | `clarify` | 灰区 / 澄清 | 3 | 模糊 MACD、分析+回测复合句、股价灰区 |
 | `chat` | 闲聊 / QA | 2 | 指标释义、测点后问信号质量 |
 | `bot_manage` | Bot 管理 | 3 | Reminder / Grid / SmartTrade |

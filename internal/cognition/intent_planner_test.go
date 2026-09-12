@@ -307,6 +307,45 @@ func TestIntentPlannerBacktestRunOmitsLoopbackTools(t *testing.T) {
 	}
 }
 
+func TestIntentPlannerActiveTaskKeepsPlanWhenClassifierUnsure(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"ambiguous","mode":"clarify","confidence":0.7,"reason":"unsure"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "换一个策略", LastDomain: DomainSignalProbe})
+	if got.Domain != DomainSignalProbe || got.Mode != ModeExecute {
+		t.Fatalf("last task probe + unsure classify got %s/%s want signal_probe/execute (%s)", got.Domain, got.Mode, got.Reason)
+	}
+	if got.ClarifyQuestion != "" {
+		t.Fatalf("must not re-ask intent, clarify=%q", got.ClarifyQuestion)
+	}
+}
+
+func TestIntentPlannerActiveBacktestKeepsPlanWhenClassifierUnsure(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"ambiguous","mode":"clarify","confidence":0.7,"reason":"unsure"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "再用另一套", LastDomain: DomainBacktestRun})
+	if got.Domain != DomainBacktestRun || got.Mode != ModeExecute {
+		t.Fatalf("last task backtest + unsure classify got %s/%s", got.Domain, got.Mode)
+	}
+}
+
+func TestIntentPlannerNoLastTaskStaysAmbiguous(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"ambiguous","mode":"clarify","confidence":0.7,"reason":"unsure"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "换一个策略"})
+	if got.Domain != DomainAmbiguous {
+		t.Fatalf("no last task must stay ambiguous, got %s (%s)", got.Domain, got.Reason)
+	}
+}
+
+func TestIntentPlannerActiveTaskDoesNotBlockExplicitStockAnalysis(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"stock_analysis","mode":"gather","act":"technical_analysis","confidence":0.9,"reason":"trend"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "帮我分析一下它最近的走势", LastDomain: DomainSignalProbe})
+	if got.Domain != DomainStockAnalysis || got.Mode != ModeGather {
+		t.Fatalf("explicit analysis must switch domain, got %s/%s", got.Domain, got.Mode)
+	}
+}
+
 func TestIntentPlannerDCAGridGatherOmitsBacktestTool(t *testing.T) {
 	mock := &classifyMock{body: `{"domain":"dca_grid","mode":"gather","confidence":0.9,"reason":"list strategies"}`}
 	p := IntentPlanner{LLM: mock}

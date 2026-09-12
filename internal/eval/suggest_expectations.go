@@ -131,17 +131,17 @@ func SuggestCaseExpectations(
 	}
 
 	lastDomain := ""
+	priorUser := make([]string, 0, judgeIdx)
 	if planner != nil {
 		for i := 0; i < judgeIdx; i++ {
 			text := strings.TrimSpace(turns[i].Text)
 			if text == "" {
 				continue
 			}
-			plan := planner.Plan(cognition.PlanInput{
-				Ctx:        ctx,
-				UserText:   text,
-				LastDomain: cognition.Domain(lastDomain),
-			})
+			priorUser = append(priorUser, text)
+			plan := planner.Plan(cognition.PlanInputWithUserDialogue(
+				ctx, text, cognition.Domain(lastDomain), priorUser[:len(priorUser)-1],
+			))
 			lastDomain = string(plan.Domain)
 		}
 	}
@@ -149,11 +149,9 @@ func SuggestCaseExpectations(
 	judgeText := strings.TrimSpace(turns[judgeIdx].Text)
 	var plan cognition.TurnPlan
 	if planner != nil {
-		plan = planner.Plan(cognition.PlanInput{
-			Ctx:        ctx,
-			UserText:   judgeText,
-			LastDomain: cognition.Domain(lastDomain),
-		})
+		plan = planner.Plan(cognition.PlanInputWithUserDialogue(
+			ctx, judgeText, cognition.Domain(lastDomain), priorUser,
+		))
 	} else {
 		plan = cognition.TurnPlan{Domain: cognition.DomainBacktestRun, Mode: cognition.ModeExecute, Act: "backtest"}
 	}

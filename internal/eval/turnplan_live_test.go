@@ -47,6 +47,19 @@ func TestIndividualTurnPlanEvalCasesCount(t *testing.T) {
 	}
 }
 
+func TestSignalListThenProbeLivesUnderBacktest(t *testing.T) {
+	live, ok := liveByID(eval.IndividualTurnPlanEvalCases(), "turn_plan_signal_list_then_probe")
+	if !ok {
+		t.Fatal("missing turn_plan_signal_list_then_probe")
+	}
+	if live.Options.TurnPlanGroup != eval.TurnPlanCatBacktest {
+		t.Fatalf("turn_plan_group=%q want %s", live.Options.TurnPlanGroup, eval.TurnPlanCatBacktest)
+	}
+	if live.Options.ExpectDomain != "backtest_run" {
+		t.Fatalf("expect_domain=%q want backtest_run", live.Options.ExpectDomain)
+	}
+}
+
 func liveByID(cases []eval.TurnPlanEvalCaseDef, id string) (eval.TurnPlanEvalCaseDef, bool) {
 	for _, c := range cases {
 		if c.ID == id {

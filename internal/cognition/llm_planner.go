@@ -25,7 +25,7 @@ Rules:
 
 User: %s`
 
-const classifyPrompt = `You classify one user chat turn for a finance assistant.
+const classifyPromptCore = `You classify one user chat turn for a finance assistant.
 Reply with ONLY JSON:
 {"domain":"<one>","mode":"<one>","act":"<optional>","symbol_count":0,"clarify":"<optional>","confidence":0.0,"reason":"<short>"}
 
@@ -79,17 +79,22 @@ Domain + mode guidance:
   Do NOT route "X是什么意思" to knowledge just because X is a trading term.
 - ambiguous/clarify: bare strategy words (MACD/SAR) without clear action, or compound analyze+backtest in one sentence.
   "这个MACD信号平时该怎么用" → ambiguous/clarify signal_usage (NOT chat/talk, NOT knowledge).
-- Use last turn domain + dialogue context for short follow-ups; do not rely on single keywords alone.
+- Read Session summary and Recent session dialogue like a coding assistant: short follow-ups continue the active task.
+- Use last turn domain + session dialogue for follow-ups; do not re-classify the task from scratch.
+- If recent dialogue shows signal_probe/backtest_run/stock_analysis work and this turn only swaps strategy,
+  symbol, or parameters (换策略/换一个/再来一次/再看看), keep the same domain/mode as the active task.
+- If last turn domain is signal_probe or backtest_run and this turn does not clearly switch task
+  (new analysis/quote, list strategies, quality opinion, or an explicit backtest verb from a non-backtest turn),
+  keep that same domain and execute. Missing 测信号/回测 in a follow-up is NOT grounds for ambiguous.
+- When session dialogue shows an active task, do NOT return ambiguous/clarify with a generic intent question;
+  only clarify missing slots (strategy name, symbol) inside execute/gather, or use domain-specific clarify kinds.
 
 Hard rules:
-- backtest_run ONLY with an explicit backtest verb.
+- backtest_run for a NEW task needs an explicit backtest verb; continuing last-turn backtest_run does not.
 - backtest_run/execute: primary tool is run_strategy_backtest; do not route to loopback_strategy or generate_dca_strategy unless user explicitly wants DCA/Grid bot backtest.
 - signal_probe ONLY for buy/sell point probing, not strategy listing.
 - stock_analysis with 2+ distinct symbols/companies to address in one turn → act MUST be multi_symbol_delegate (not technical_analysis or analyze).
-- If unsure, use ambiguous/clarify.
-
-Last turn domain: %s
-User: %s`
+- If unsure, use ambiguous/clarify.`
 
 // IntentPlanner is the sole production planner: LLM classify with structured
 // clarify-choice shortcuts and fail-fast when classification is unavailable.
@@ -178,9 +183,9 @@ func classifyOnce(in PlanInput, provider llm.Provider, retry bool) (TurnPlan, st
 	ctx, cancel := context.WithTimeout(base, classifyTimeout)
 	defer cancel()
 
-	prompt := fmt.Sprintf(classifyPrompt, in.LastDomain, strings.TrimSpace(in.UserText))
+	prompt := buildClassifyPrompt(in)
 	if retry {
-		prompt += "\n\nRetry: if the user mentions a stock/company or asks for quote, analysis, trend, or continues prior stock context, do NOT return chat/talk."
+		prompt += "\n\nRetry: if the user mentions a stock/company or asks for quote, analysis, trend, or continues prior session context, do NOT return chat/talk or generic ambiguous/clarify."
 	}
 	resp, err := provider.Chat(ctx, []llm.Message{{
 		Role:    llm.RoleUser,
@@ -313,20 +318,33 @@ func applyStickySessionPlan(in PlanInput, plan TurnPlan) TurnPlan {
 	if !isStickyDomain(in.LastDomain) {
 		return plan
 	}
+	// Last turn already chose a task. Ambiguous = unsure this utterance, not a new session.
+	if plan.Domain == DomainAmbiguous && plan.Mode == ModeClarify && !isQualityOpinion(msg) {
+		if isActiveTaskDomain(in.LastDomain) {
+			return inheritLastTask(in, plan, "sticky session: keep last task instead of re-asking intent")
+		}
+		if in.HasSessionHistory() && isStickyDomain(in.LastDomain) && !isExplicitTaskSwitch(plan, msg) {
+			return inheritLastTask(in, plan, "session context: continue prior task instead of generic clarify")
+		}
+	}
 	if plan.Domain != DomainChat || plan.Mode != ModeTalk {
 		return plan
 	}
-	if hasAny(msg, []string{"靠谱吗", "准吗", "准确吗", "可靠吗", "有用吗", "怎么样"}) && !hasAny(msg, []string{"走势", "股价", "行情", "K线", "技术面"}) {
+	if isQualityOpinion(msg) {
 		return plan
 	}
 	if !isFollowUpUtterance(msg) && len([]rune(msg)) > 24 {
 		return plan
 	}
+	return inheritLastTask(in, plan, "sticky session: short follow-up overrides chat misroute")
+}
+
+func inheritLastTask(in PlanInput, plan TurnPlan, reason string) TurnPlan {
 	out := planForDomain(in.LastDomain)
 	if in.LastDomain == DomainStockAnalysis {
 		out.Act = domaincatalog.StockActContextFollowup
 	}
-	out.Reason = "sticky session: short follow-up overrides chat misroute"
+	out.Reason = reason
 	if plan.Confidence > 0 {
 		out.Confidence = plan.Confidence
 	}
@@ -345,6 +363,9 @@ func sanitizeLLMPlan(in PlanInput, llmPlan TurnPlan) TurnPlan {
 		return out
 	}
 	if llmPlan.Domain == DomainBacktestRun && !isBacktestRun(in.UserText) {
+		if in.LastDomain == DomainBacktestRun {
+			return llmPlan
+		}
 		if in.LastDomain == DomainAmbiguous {
 			p := planForDomain(DomainAmbiguous)
 			p.Reason = "拒绝无回测动词的 backtest_run"
