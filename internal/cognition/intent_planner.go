@@ -1,7 +1,10 @@
 package cognition
 
 import (
+	"fmt"
 	"strings"
+
+	"github.com/ghsemail/GeeGooAgent/internal/domaincatalog"
 )
 
 func isStickyDomain(d Domain) bool {
@@ -74,6 +77,15 @@ var (
 		"generate_dca", "generate_grid", "loopback",
 	}
 	backtestHistoryTokens = []string{"历史回测", "上次结果", "上次回测", "回测记录", "回测历史"}
+	stockTurnTokens       = []string{
+		"股价", "行情", "走势", "涨", "跌", "分析", "查", "多少", "现价", "报价", "K线", "技术面", "股票", "标的", "多少钱",
+	}
+	// Longer names first to avoid double-counting (e.g. 阿里巴巴 vs 阿里).
+	fallbackStockCompanyMarkers = []string{
+		"阿里巴巴", "中际旭创", "宁德时代", "贵州茅台", "哔哩哔哩", "英伟达", "特斯拉", "亚马逊", "台积电",
+		"腾讯", "百度", "京东", "拼多多", "美团", "小米", "比亚迪", "茅台", "网易", "快手", "B站", "阿里",
+		"苹果", "微软", "谷歌", "Meta",
+	}
 )
 
 func hasAny(msg string, tokens []string) bool {
@@ -87,4 +99,48 @@ func hasAny(msg string, tokens []string) bool {
 		}
 	}
 	return false
+}
+
+func fallbackStockSymbolCount(msg string) int {
+	count := 0
+	for _, name := range fallbackStockCompanyMarkers {
+		if strings.Contains(msg, name) {
+			count++
+		}
+	}
+	return count
+}
+
+func looksLikeStockTurn(msg string) bool {
+	if fallbackStockSymbolCount(msg) > 0 && hasAny(msg, stockTurnTokens) {
+		return true
+	}
+	return hasAny(msg, stockTurnTokens) &&
+		hasAny(msg, []string{".HK", ".US", ".SH", ".SZ", ".hk", ".us"})
+}
+
+// fallbackStockPlan routes stock-shaped turns when the LLM classifier is unavailable.
+func fallbackStockPlan(msg string) (TurnPlan, bool) {
+	if !looksLikeStockTurn(msg) {
+		return TurnPlan{}, false
+	}
+	p := planForDomain(DomainStockAnalysis)
+	p.Mode = ModeGather
+	symbolCount := fallbackStockSymbolCount(msg)
+	switch {
+	case symbolCount >= 2:
+		p.Act = domaincatalog.StockActMultiSymbol
+		p.Reason = fmt.Sprintf("fallback: %d symbols → multi_symbol_delegate", symbolCount)
+	case hasAny(msg, []string{"走势", "K线", "技术面", "趋势", "macd", "rsi", "sar", "均线"}):
+		p.Act = domaincatalog.StockActTechnicalAnalysis
+		p.Reason = "fallback: stock trend/technical query"
+	case hasAny(msg, []string{"股价", "现价", "多少钱", "报价", "查一下", "查询", "多少"}):
+		p.Act = domaincatalog.StockActQuotePrice
+		p.Reason = "fallback: stock price quote"
+	default:
+		p.Act = domaincatalog.StockActAnalyze
+		p.Reason = "fallback: stock analysis"
+	}
+	p.Confidence = 0.55
+	return p, true
 }

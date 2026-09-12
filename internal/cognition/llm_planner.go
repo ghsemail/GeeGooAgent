@@ -407,6 +407,9 @@ func plannerFallback(in PlanInput) TurnPlan {
 		p.Confidence = 0.5
 		return p
 	}
+	if stockPlan, ok := fallbackStockPlan(msg); ok {
+		return stockPlan
+	}
 	p := planForDomain(DomainChat)
 	p.Reason = "fallback: LLM 不可用"
 	p.Confidence = 0.3

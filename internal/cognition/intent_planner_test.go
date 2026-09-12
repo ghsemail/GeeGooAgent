@@ -312,3 +312,29 @@ func containsStr(items []string, want string) bool {
 	}
 	return false
 }
+
+func TestIntentPlannerFallbackMultiStockDelegateWhenLLMUnavailable(t *testing.T) {
+	p := IntentPlanner{LLM: nil}
+	got := p.Plan(PlanInput{UserText: "请帮我分析下腾讯和阿里巴巴最近的股价"})
+	if got.Domain != DomainStockAnalysis || got.Mode != ModeGather {
+		t.Fatalf("domain/mode=%s/%s want stock_analysis/gather", got.Domain, got.Mode)
+	}
+	if got.Act != domaincatalog.StockActMultiSymbol {
+		t.Fatalf("act=%s want multi_symbol_delegate", got.Act)
+	}
+	if len(got.ToolsAllow) != 1 || got.ToolsAllow[0] != "delegate_tasks" {
+		t.Fatalf("ToolsAllow=%v want [delegate_tasks]", got.ToolsAllow)
+	}
+}
+
+func TestIntentPlannerFallbackMultiStockWhenClassifyFails(t *testing.T) {
+	mock := &classifyMock{body: `not json`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "请帮我分析下腾讯和阿里巴巴最近的股价"})
+	if got.Act != domaincatalog.StockActMultiSymbol {
+		t.Fatalf("act=%s want multi_symbol_delegate on classify failure", got.Act)
+	}
+	if len(got.ToolsAllow) != 1 || got.ToolsAllow[0] != "delegate_tasks" {
+		t.Fatalf("ToolsAllow=%v want [delegate_tasks]", got.ToolsAllow)
+	}
+}
