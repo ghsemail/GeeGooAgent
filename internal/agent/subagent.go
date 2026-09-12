@@ -236,8 +236,8 @@ func (s *SubAgent) Run(parent tools.Context, task, background string, maxSteps i
 	loop := NewLoop(s.gateway, s.executor)
 	if s.planner != nil {
 		loop.SetPlanner(s.planner)
-	} else if s.gateway != nil {
-		loop.SetPlanner(cognition.IntentPlanner{LLM: llm.ClassifyProviderFromGateway(s.gateway)})
+	} else {
+		loop.SetPlanner(cognition.SubAgentPlanner{})
 	}
 	loop.SetMaxToolRounds(maxSteps)
 	if s.mem != nil {

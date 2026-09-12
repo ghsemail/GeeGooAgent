@@ -173,14 +173,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	app.wireChatMemory()
 	app.wireCognition()
 	app.wireIntentPlanner()
-	sub.SetPlanner(cognition.IntentPlanner{
-		LLMResolver: func() llm.Provider {
-			if app.Agent != nil && app.Agent.Gateway != nil {
-				return llm.ClassifyProviderFromGateway(app.Agent.Gateway)
-			}
-			return app.classifyOpsFallbackProvider()
-		},
-	})
+	sub.SetPlanner(cognition.SubAgentPlanner{})
 	app.wireRecallRanker()
 	tools.RegisterAll(registry, tools.Deps{
 		HTTP: httpBackends, WorkspaceRoot: workspace, ProjectRoot: findProjectRoot(),
