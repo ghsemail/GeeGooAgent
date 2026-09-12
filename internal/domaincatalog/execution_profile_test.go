@@ -138,3 +138,26 @@ func TestExecutionProfileForMultiSymbolDelegate(t *testing.T) {
 		t.Fatalf("multi_symbol_delegate profile = %q want %s", got, domaincatalog.ProfileSubagentMultiStock)
 	}
 }
+
+func TestExecutionProfileForSignalProbeExecute(t *testing.T) {
+	got := domaincatalog.ExecutionProfileFor(domaincatalog.DomainSignalProbe, "probe")
+	if got != domaincatalog.ProfileSignalProbeExecute {
+		t.Fatalf("signal_probe profile = %q want %s", got, domaincatalog.ProfileSignalProbeExecute)
+	}
+	ok, detail := domaincatalog.VerifyExecutionProfile(
+		domaincatalog.ProfileSignalProbeExecute,
+		[]string{"clarify", "get_signal_combinations"},
+		nil,
+	)
+	if ok {
+		t.Fatalf("clarify-only turn must miss probe: %s", detail)
+	}
+	ok, _ = domaincatalog.VerifyExecutionProfile(
+		domaincatalog.ProfileSignalProbeExecute,
+		[]string{"clarify", "probe_bot_signal_series"},
+		nil,
+	)
+	if !ok {
+		t.Fatal("clarify + probe must satisfy signal_probe profile")
+	}
+}

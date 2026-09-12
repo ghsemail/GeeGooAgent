@@ -24,23 +24,7 @@ func NormalizeStockAct(act string) string {
 
 // ExecutionProfileFor returns the profile id for a domain+act pair, or "" if none.
 func ExecutionProfileFor(domain Domain, act string) string {
-	if domain != DomainStockAnalysis {
-		return ""
-	}
-	switch NormalizeStockAct(act) {
-	case StockActQuotePrice:
-		return ProfileStockPriceSnapshot
-	case StockActTechnicalAnalysis:
-		return ProfileStockTechnicalFull
-	case StockActContextFollowup:
-		return ProfileStockContextFollowup
-	case StockActSymbolResolve:
-		return ProfileStockSymbolResolve
-	case StockActMultiSymbol:
-		return ProfileSubagentMultiStock
-	default:
-		return ""
-	}
+	return ExecutionProfileForDomain(domain, act)
 }
 
 // ProfileExecutionHint returns a short ReAct hint for the loop prompt.
@@ -58,6 +42,8 @@ func ProfileExecutionHint(profileID string) string {
 		return "切换标的时必须在本轮重新 search_code 确认新代码。"
 	case ProfileSubagentMultiStock:
 		return "多标的并行（Cursor Task 风格）：优先 delegate_tasks 一次（tasks[] 每标的一项）。返回后必须在最终回复中逐标的给出具体现价/分析，并做简要对比；禁止只描述委派过程而不写数据。"
+	case ProfileSignalProbeExecute:
+		return "信号测试：clarify 选完策略名后，本轮必须调用 probe_bot_signal_series（沿用会话 code、months_back=3）；禁止只确认选择而不 probe。"
 	default:
 		return ""
 	}

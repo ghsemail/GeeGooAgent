@@ -31,6 +31,9 @@ func turnPlanFragment(plan cognition.TurnPlan) ctxfrag.Fragment {
 	if len(plan.ToolsAllow) > 0 {
 		fmt.Fprintf(&b, "- allowed tools: %s\n", strings.Join(plan.ToolsAllow, ", "))
 	}
+	if plan.Domain == cognition.DomainSignalProbe && plan.Mode == cognition.ModeExecute {
+		b.WriteString(signalProbeExecutePlanBlock())
+	}
 	if plan.Mode == cognition.ModeClarify && plan.ClarifyQuestion != "" {
 		fmt.Fprintf(&b, "- ask via clarify: %s\n", plan.ClarifyQuestion)
 		if len(plan.ClarifyChoices) > 0 {
@@ -39,6 +42,14 @@ func turnPlanFragment(plan cognition.TurnPlan) ctxfrag.Fragment {
 	}
 	b.WriteString("- choose tools from the exposed schema to fulfill this turn; for multi-symbol parallel work, strongly prefer delegate_tasks over serial per-symbol calls")
 	return ctxfrag.StaticFragment{K: ctxfrag.KindSystemRules, Text: b.String(), Prio: 22}
+}
+
+func signalProbeExecutePlanBlock() string {
+	return `- signal probe continuation (same session):
+  - If user is swapping strategy / signal only, keep the same stock code from session; do NOT re-ask analyze vs probe vs backtest.
+  - When strategy is missing, clarify with catalog strategy names only (max 4 choices).
+  - After clarify returns a strategy name, you MUST call probe_bot_signal_series in THIS turn before the final reply (months_back=3 unless user specified otherwise; mirror sell_signal to buy_signal for single-indicator rules).
+`
 }
 
 func subagentOrchestratorPlanBlock() string {
