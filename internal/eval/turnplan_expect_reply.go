@@ -36,9 +36,8 @@ func defaultExpectReplyForTurnID(turnID string) ExpectReplySpec {
 		}
 	case "signal_list_then_probe":
 		return ExpectReplySpec{
-			Rubric:    "在用户已看过策略列表后，应确认 SAR+MACD 组合并对中际旭创做买卖点探测（含买/卖/暂无信号等），不应直接跑完整回测。",
-			MustCover: []string{"中际"},
-			MustNot:   []string{"开始回测"},
+			Rubric:    "在已分析腾讯并讨论适合策略后，应识别回测意图并针对腾讯发起或汇报回测进度/结果，而非只做静态分析或 probe 买卖点。",
+			MustCover: []string{"腾讯", "回测"},
 		}
 	case "signal_probe_direct":
 		return ExpectReplySpec{

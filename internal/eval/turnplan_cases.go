@@ -143,14 +143,18 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			ExpectDomain: "dca_grid", ExpectMode: "gather", ExpectSOP: false,
 			RequireTools: []string{"get_signal_combinations"},
 		},
-		// ── 信号探测 ──
+		// ── 信号 / 回测（多轮） ──
 		{
-			ID: "signal_list_then_probe", Category: TurnPlanCatSignal, Title: "多轮 · 列策略后测买卖点",
-			Description: "同 session：先列出可用信号策略，再指定 SAR+MACD 测中际旭创买卖点。",
-			SetupMessages: []string{"帮我看看我有哪些信号策略"},
-			Message:       "我想用SAR加MACD组合，测一下中际旭创有没有买卖点",
-			ExpectDomain: "signal_probe", ExpectMode: "execute", ExpectSOP: false,
-			RequireTools: []string{"probe_bot_signal_series"},
+			ID: "signal_list_then_probe", Category: TurnPlanCatBacktest, Title: "多轮 · 分析腾讯后选策略回测",
+			Description: "同 session：先分析腾讯价格走势，再问适合策略，最后发起回测。",
+			SetupMessages: []string{
+				"帮我分析一下腾讯的价格走势",
+				"帮我看看哪些策略适合腾讯",
+			},
+			Message:       "帮我用这些策略回测一下",
+			ExpectDomain: "backtest_run", ExpectMode: "execute", ExpectSOP: false,
+			RequireTools: []string{"run_strategy_backtest"},
+			ForbidTools:  []string{"probe_bot_signal_series"},
 		},
 		{
 			ID: "signal_probe_direct", Category: TurnPlanCatSignal, Title: "单轮 · 直接测买卖点",
@@ -320,9 +324,9 @@ func defaultTurnPlanRuleTurns() []TurnPlanTurn {
 		{ID: "signal_catalog_list", Message: "帮我看看我有哪些信号策略",
 			ExpectDomain: "dca_grid", ExpectMode: "gather", ExpectSOP: false,
 			RequireTools: []string{"get_signal_combinations"}},
-		{ID: "signal_list_then_probe", Message: "我想用SAR加MACD组合，测一下中际旭创有没有买卖点", LastDomain: "dca_grid",
-			ExpectDomain: "signal_probe", ExpectMode: "execute", ExpectSOP: false,
-			RequireTools: []string{"probe_bot_signal_series"}},
+		{ID: "signal_list_then_probe", Message: "帮我用这些策略回测一下", LastDomain: "dca_grid",
+			ExpectDomain: "backtest_run", ExpectMode: "execute", ExpectSOP: false,
+			RequireTools: []string{"run_strategy_backtest"}},
 		{ID: "signal_probe_direct", Message: "帮我看看中际旭创有没有买卖点",
 			ExpectDomain: "signal_probe", ExpectMode: "execute", ExpectSOP: false,
 			RequireTools: []string{"probe_bot_signal_series"}},

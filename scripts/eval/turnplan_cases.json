@@ -142,17 +142,21 @@
     {
       "id": "turn_plan_signal_list_then_probe",
       "turn_id": "signal_list_then_probe",
-      "category": "signal",
-      "title": "TurnPlan · 多轮 · 列策略后测买卖点",
-      "description": "同 session：先列出可用信号策略，再指定 SAR+MACD 测中际旭创买卖点。",
+      "category": "backtest",
+      "title": "TurnPlan · 多轮 · 分析腾讯后选策略回测",
+      "description": "同 session：先分析腾讯价格走势，再问适合策略，最后发起回测。",
       "setup": [
-        "帮我看看我有哪些信号策略"
+        "帮我分析一下腾讯的价格走势",
+        "帮我看看哪些策略适合腾讯"
       ],
-      "message": "我想用SAR加MACD组合，测一下中际旭创有没有买卖点",
-      "expect_domain": "signal_probe",
+      "message": "帮我用这些策略回测一下",
+      "expect_domain": "backtest_run",
       "expect_mode": "execute",
       "expect_sop": false,
       "require_tools": [
+        "run_strategy_backtest"
+      ],
+      "forbid_tools": [
         "probe_bot_signal_series"
       ]
     },
