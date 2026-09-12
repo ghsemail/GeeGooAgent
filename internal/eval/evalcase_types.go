@@ -148,7 +148,20 @@ func (o TurnPlanCaseOptions) Normalize() TurnPlanCaseOptions {
 	if out.Judge != nil && out.Judge.MinScore <= 0 {
 		out.Judge.MinScore = 0.7
 	}
+	out.SessionCleanup = ClampSessionCleanup(out.SessionCleanup)
 	return out
+}
+
+// ClampSessionCleanup enforces the eval policy: each run starts a fresh Dock Chat session.
+// Eval run logs (session_id, checks, transcript) are always persisted separately.
+func ClampSessionCleanup(raw string) string {
+	switch strings.TrimSpace(strings.ToLower(raw)) {
+	case "after_run", "never":
+		// Legacy values are upgraded to before_run.
+		return DefaultEvalSessionCleanup
+	default:
+		return DefaultEvalSessionCleanup
+	}
 }
 
 // SyncLegacyUtterances copies Dialogue back into Message / SetupMessages for runners that still read legacy fields.
@@ -157,13 +170,23 @@ func (o TurnPlanCaseOptions) SyncLegacyUtterances() TurnPlanCaseOptions {
 	if len(out.Dialogue) == 0 {
 		return out
 	}
-	last := len(out.Dialogue) - 1
-	out.Message = strings.TrimSpace(out.Dialogue[last].Text)
+	regular := make([]EvalDialogueTurn, 0, len(out.Dialogue))
+	for _, turn := range out.Dialogue {
+		if turn.OnClarify {
+			continue
+		}
+		if text := strings.TrimSpace(turn.Text); text != "" {
+			regular = append(regular, EvalDialogueTurn{Role: turn.Role, Text: text, Judge: turn.Judge})
+		}
+	}
+	if len(regular) == 0 {
+		return out
+	}
+	last := len(regular) - 1
+	out.Message = regular[last].Text
 	setup := make([]string, 0, last)
 	for i := 0; i < last; i++ {
-		if text := strings.TrimSpace(out.Dialogue[i].Text); text != "" {
-			setup = append(setup, text)
-		}
+		setup = append(setup, regular[i].Text)
 	}
 	out.SetupMessages = setup
 	return out

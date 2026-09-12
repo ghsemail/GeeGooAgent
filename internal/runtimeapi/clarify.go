@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ghsemail/GeeGooAgent/internal/eval"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
@@ -17,6 +18,7 @@ type clarifyRequest struct {
 
 func (h *Handler) registerClarifyRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/chat/clarify", h.chatClarify)
+	mux.HandleFunc("POST /v1/chat/clarify/recommend", h.chatClarifyRecommend)
 }
 
 func (h *Handler) chatClarify(w http.ResponseWriter, r *http.Request) {
@@ -79,18 +81,20 @@ func (h *Handler) clarifyFn(fallback context.Context, sessionID string, onPendin
 		if ctx == nil {
 			ctx = fallback
 		}
-		bounded, cancel := context.WithTimeout(ctx, clarifyAutoPickWait)
-		defer cancel()
-		return h.waitClarifyOrAuto(bounded, sessionID, question, choices, onPending)
+		rec := h.recommendClarifyForSession(ctx, sessionID, question, choices, eval.ClarifyRecommendContext{})
+		meta := pendingFromRecommendation(sessionID, question, choices, rec)
+		notify := onPending
+		if notify != nil {
+			notify = func(p PendingClarify) {
+				onPending(p)
+			}
+		}
+		return h.waitClarifyWithAutoPick(ctx, sessionID, question, choices, meta, notify)
 	}
 }
 
 func (h *Handler) waitClarifyOrAuto(ctx context.Context, sessionID, question string, choices []string, onPending func(PendingClarify)) (string, bool) {
-	answer, ok := h.clarify.Wait(ctx, sessionID, question, choices, onPending)
-	if !ok && len(choices) > 0 {
-		if auto, picked := tools.AutoClarifyChoice(question, choices); picked {
-			return auto, true
-		}
-	}
-	return answer, ok
+	rec := h.recommendClarifyForSession(ctx, sessionID, question, choices, eval.ClarifyRecommendContext{})
+	meta := pendingFromRecommendation(sessionID, question, choices, rec)
+	return h.waitClarifyWithAutoPick(ctx, sessionID, question, choices, meta, onPending)
 }

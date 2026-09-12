@@ -66,12 +66,12 @@ var plugins = []Plugin{
 	{
 		Domain: DomainBacktestRun, Skills: []string{"strategy-backtest-run"},
 		Toolsets: []string{"strategy", "custom_signal", "market"},
-		Act: "backtest", Mode: "execute", Reason: "明确要跑 SmartTrade 回测", Conf: 0.92,
+		Act: "backtest", Mode: "execute", Reason: "明确要跑信号策略回测（run_strategy_backtest）", Conf: 0.92,
 	},
 	{
 		Domain: DomainDCAGrid, Skills: []string{"strategy-backtest"},
 		Toolsets: []string{"strategy", "market"},
-		Act: "dca_grid", Mode: "execute", Reason: "DCA/网格方案，不走 SmartTrade 回测", Conf: 0.9,
+		Act: "dca_grid", Mode: "execute", Reason: "DCA/网格方案（generate_* + loopback_strategy）", Conf: 0.9,
 	},
 	{
 		Domain: DomainBacktestHistory, Skills: []string{"strategy-backtest-history"},

@@ -28,6 +28,11 @@ func defaultExpectReplyForTurnID(turnID string) ExpectReplySpec {
 			Rubric:    "应理解「它」指代上一轮的中际旭创，并继续给出该标的信号趋势或技术面解读，而非换标的或跑回测。",
 			MustCover: []string{"中际", "信号"},
 		}
+	case "subagent_multi_stock_price":
+		return ExpectReplySpec{
+			Rubric:    "应分别给出腾讯与阿里巴巴最近股价或行情信息，并在同一答复中做简要对比或并列总结；不应只分析其中一个标的。",
+			MustCover: []string{"腾讯", "阿里"},
+		}
 	case "signal_catalog_list":
 		return ExpectReplySpec{
 			Rubric:    "应列出或摘要用户可用的信号/组合策略，语气自然，不应直接跑回测或 probe。",

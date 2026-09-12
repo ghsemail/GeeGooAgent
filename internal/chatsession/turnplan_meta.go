@@ -218,6 +218,33 @@ func TurnToolsTraceFromSession(c *ChatSession) []TurnToolsEntry {
 	}
 }
 
+// TurnToolsFromTraceAt returns tools recorded for one 1-based user turn.
+func TurnToolsFromTraceAt(trace []TurnToolsEntry, turn int) []string {
+	if turn <= 0 || len(trace) == 0 {
+		return nil
+	}
+	for _, entry := range trace {
+		if entry.Turn == turn {
+			return append([]string(nil), entry.Tools...)
+		}
+	}
+	return nil
+}
+
+// TurnPlanFromTraceAt returns routing snapshot for one 1-based user turn.
+func TurnPlanFromTraceAt(trace []TurnPlanTraceEntry, turn int) (TurnPlanSnapshot, bool) {
+	if turn <= 0 || len(trace) == 0 {
+		return TurnPlanSnapshot{}, false
+	}
+	for _, entry := range trace {
+		if entry.Turn == turn {
+			snap := entry.Plan
+			return snap, snap.Domain != ""
+		}
+	}
+	return TurnPlanSnapshot{}, false
+}
+
 // JudgedTurnToolsFromTrace returns tools from the last user turn in the trace.
 func JudgedTurnToolsFromTrace(trace []TurnToolsEntry) []string {
 	if len(trace) == 0 {

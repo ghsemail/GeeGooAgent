@@ -11,9 +11,12 @@ type clarifyAnswer struct {
 }
 
 type clarifyWaiter struct {
-	question string
-	choices  []string
-	ch       chan clarifyAnswer
+	question          string
+	choices           []string
+	recommendedIndex  int
+	recommendedReason string
+	autoPickSeconds   int
+	ch                chan clarifyAnswer
 }
 
 // ClarifyHub blocks agent clarify tool calls until Answer is submitted.
@@ -28,30 +31,47 @@ func newClarifyHub() *ClarifyHub {
 
 // Pending describes an in-flight clarify prompt.
 type PendingClarify struct {
-	SessionID string
-	Question  string
-	Choices   []string
+	SessionID         string
+	Question          string
+	Choices           []string
+	RecommendedIndex  int
+	RecommendedReason string
+	AutoPickSeconds   int
 }
 
 // Wait blocks until Answer or ctx is cancelled.
 func (h *ClarifyHub) Wait(ctx context.Context, sessionID, question string, choices []string, onPending func(PendingClarify)) (string, bool) {
+	return h.WaitWithRecommend(ctx, sessionID, question, choices, PendingClarify{
+		SessionID: sessionID,
+		Question:  question,
+		Choices:   append([]string(nil), choices...),
+	}, onPending)
+}
+
+// WaitWithRecommend blocks until Answer or ctx is cancelled, exposing recommendation metadata to clients.
+func (h *ClarifyHub) WaitWithRecommend(
+	ctx context.Context,
+	sessionID, question string,
+	choices []string,
+	meta PendingClarify,
+	onPending func(PendingClarify),
+) (string, bool) {
 	if h == nil {
 		return "", false
 	}
 	w := &clarifyWaiter{
-		question: question,
-		choices:  append([]string(nil), choices...),
-		ch:       make(chan clarifyAnswer, 1),
+		question:          question,
+		choices:           append([]string(nil), choices...),
+		recommendedIndex:  meta.RecommendedIndex,
+		recommendedReason: meta.RecommendedReason,
+		autoPickSeconds:   meta.AutoPickSeconds,
+		ch:                make(chan clarifyAnswer, 1),
 	}
 	h.mu.Lock()
 	h.waiters[sessionID] = append(h.waiters[sessionID], w)
 	h.mu.Unlock()
 	if onPending != nil {
-		onPending(PendingClarify{
-			SessionID: sessionID,
-			Question:  question,
-			Choices:   append([]string(nil), choices...),
-		})
+		onPending(pendingClarifyFromWaiter(sessionID, w))
 	}
 	select {
 	case res := <-w.ch:
@@ -117,9 +137,19 @@ func (h *ClarifyHub) Pending(sessionID string) (PendingClarify, bool) {
 		return PendingClarify{}, false
 	}
 	w := queue[0]
+	return pendingClarifyFromWaiter(sessionID, w), true
+}
+
+func pendingClarifyFromWaiter(sessionID string, w *clarifyWaiter) PendingClarify {
+	if w == nil {
+		return PendingClarify{}
+	}
 	return PendingClarify{
-		SessionID: sessionID,
-		Question:  w.question,
-		Choices:   append([]string(nil), w.choices...),
-	}, true
+		SessionID:         sessionID,
+		Question:          w.question,
+		Choices:           append([]string(nil), w.choices...),
+		RecommendedIndex:  w.recommendedIndex,
+		RecommendedReason: w.recommendedReason,
+		AutoPickSeconds:   w.autoPickSeconds,
+	}
 }

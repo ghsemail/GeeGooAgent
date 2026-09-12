@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
+	"github.com/ghsemail/GeeGooAgent/internal/eval"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 )
@@ -41,8 +42,11 @@ type SessionStatusPayload struct {
 
 // PendingClarifyStatus is the in-flight clarify prompt for Web clients.
 type PendingClarifyStatus struct {
-	Question string   `json:"question"`
-	Choices  []string `json:"choices"`
+	Question          string   `json:"question"`
+	Choices           []string `json:"choices"`
+	RecommendedIndex  int      `json:"recommended_index,omitempty"`
+	RecommendedReason string   `json:"recommended_reason,omitempty"`
+	AutoPickSeconds   int      `json:"auto_pick_seconds,omitempty"`
 }
 
 // SessionMessageSummary is a compact message row for remote debugging.
@@ -192,10 +196,22 @@ func (h *Handler) attachPendingClarify(payload *SessionStatusPayload) {
 	if !ok {
 		return
 	}
-	payload.PendingClarify = &PendingClarifyStatus{
+	status := &PendingClarifyStatus{
 		Question: p.Question,
 		Choices:  append([]string(nil), p.Choices...),
 	}
+	if p.RecommendedIndex >= 0 && p.RecommendedIndex < len(p.Choices) {
+		status.RecommendedIndex = p.RecommendedIndex
+	}
+	if strings.TrimSpace(p.RecommendedReason) != "" {
+		status.RecommendedReason = strings.TrimSpace(p.RecommendedReason)
+	}
+	if p.AutoPickSeconds > 0 {
+		status.AutoPickSeconds = p.AutoPickSeconds
+	} else {
+		status.AutoPickSeconds = eval.DefaultClarifyAutoPickSeconds
+	}
+	payload.PendingClarify = status
 	payload.Busy = true
 	switch payload.LiveStatus {
 	case "", "tool", "gate", "thinking", "planning":

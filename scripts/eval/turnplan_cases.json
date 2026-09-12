@@ -40,6 +40,11 @@
       "ID": "knowledge_news",
       "Title": "知识 / 新闻",
       "Order": 8
+    },
+    {
+      "ID": "subagent",
+      "Title": "Sub-Agent 委派",
+      "Order": 9
     }
   ],
   "cases": [
@@ -125,6 +130,22 @@
       ]
     },
     {
+      "id": "turn_plan_subagent_multi_stock_price",
+      "turn_id": "subagent_multi_stock_price",
+      "category": "subagent",
+      "title": "TurnPlan · 单轮 · 多标的并行股价分析",
+      "description": "独立 session：同时分析腾讯与阿里巴巴最近股价；主 Agent 应 delegate_tasks 并行委派，再汇总对比。",
+      "setup": null,
+      "message": "请帮我分析下腾讯和阿里巴巴最近的股价",
+      "expect_domain": "stock_analysis",
+      "expect_mode": "gather",
+      "expect_sop": false,
+      "execution_profile": "subagent.multi_stock_parallel",
+      "forbid_tools": [
+        "run_strategy_backtest"
+      ]
+    },
+    {
       "id": "turn_plan_signal_catalog_list",
       "turn_id": "signal_catalog_list",
       "category": "signal",
@@ -144,7 +165,7 @@
       "turn_id": "signal_list_then_probe",
       "category": "backtest",
       "title": "TurnPlan · 多轮 · 分析腾讯后选策略回测",
-      "description": "同 session：先分析腾讯价格走势，再问适合策略，最后发起回测。",
+      "description": "同 session：先分析腾讯价格走势，再问适合策略（含 clarify 选组合信号/SAR+MACD/止盈止损），最后发起回测。",
       "setup": [
         "帮我分析一下腾讯的价格走势",
         "帮我看看哪些策略适合腾讯"

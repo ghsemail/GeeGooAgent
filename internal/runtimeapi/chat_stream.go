@@ -13,12 +13,12 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
+	"github.com/ghsemail/GeeGooAgent/internal/eval"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/exportmarkdown"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 )
 
 const (
-	clarifyAutoPickWait = 15 * time.Second
 	defaultEventsPollMS = 200
 	minEventsPollMS     = 100
 	maxEventsPollMS     = 2000
@@ -145,11 +145,11 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 		if ctx == nil {
 			ctx = r.Context()
 		}
-		payload := map[string]any{
-			"session_id": chat.ID,
-			"question":   question,
-			"choices":    choices,
-		}
+		rec := h.recommendClarifyForSession(ctx, chat.ID, question, choices, eval.ClarifyRecommendContext{
+			Dialogue: dialogueFromSession(chat),
+		})
+		meta := pendingFromRecommendation(chat.ID, question, choices, rec)
+		payload := pendingClarifyPayload(meta)
 		// Emit while Agent progress is still wired so Dock Chat can open the
 		// option sheet before search_code is marked done.
 		emit("status", map[string]any{"phase": "clarify", "message": question})
@@ -164,10 +164,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 			}
 			h.App.Agent.SetProgress(progressFn)
 		}()
-		// Interactive Dock Chat: wait until the user answers or the SSE client
-		// disconnects. A short auto-pick timeout races the UI and turns a
-		// stock tap into HTTP 404 "no pending clarify".
-		return h.clarify.Wait(ctx, chat.ID, question, choices, nil)
+		return h.waitClarifyWithAutoPick(ctx, chat.ID, question, choices, meta, nil)
 	}
 	if h.App.Config != nil {
 		h.App.Agent.SetPlanGate(h.App.Config.EffectivePlanGate())

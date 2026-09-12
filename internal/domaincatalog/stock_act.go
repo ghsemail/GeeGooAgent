@@ -9,12 +9,13 @@ const (
 	StockActTechnicalAnalysis = "technical_analysis"
 	StockActContextFollowup   = "context_followup"
 	StockActSymbolResolve     = "symbol_resolve"
+	StockActMultiSymbol       = "multi_symbol_delegate"
 )
 
 // NormalizeStockAct returns a canonical stock act or analyze when unknown/empty.
 func NormalizeStockAct(act string) string {
 	switch strings.TrimSpace(act) {
-	case StockActQuotePrice, StockActTechnicalAnalysis, StockActContextFollowup, StockActSymbolResolve:
+	case StockActQuotePrice, StockActTechnicalAnalysis, StockActContextFollowup, StockActSymbolResolve, StockActMultiSymbol:
 		return strings.TrimSpace(act)
 	default:
 		return StockActAnalyze
@@ -35,6 +36,8 @@ func ExecutionProfileFor(domain Domain, act string) string {
 		return ProfileStockContextFollowup
 	case StockActSymbolResolve:
 		return ProfileStockSymbolResolve
+	case StockActMultiSymbol:
+		return ProfileSubagentMultiStock
 	default:
 		return ""
 	}
@@ -53,6 +56,8 @@ func ProfileExecutionHint(profileID string) string {
 		return "续问同一标的时复用已解析 code；需要走势/技术面时优先 get_mcp_analysis。"
 	case ProfileStockSymbolResolve:
 		return "切换标的时必须在本轮重新 search_code 确认新代码。"
+	case ProfileSubagentMultiStock:
+		return "多标的并行分析须 delegate_tasks 拆成独立子 Agent（每个标的一路），主 Agent 汇总对比；不要在主回合直接 search_code/get_mcp_analysis。"
 	default:
 		return ""
 	}

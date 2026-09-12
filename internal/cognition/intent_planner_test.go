@@ -190,6 +190,62 @@ func TestIntentPlannerStickySessionOverridesChatMisroute(t *testing.T) {
 	}
 }
 
+func TestIntentPlannerCompoundStepsNotForcedToBacktest(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"ambiguous","mode":"clarify","clarify":"compound_steps","confidence":0.7,"reason":"compound"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "帮我把中际旭创分析一下，然后再跑个回测看看效果"})
+	if got.Domain != DomainAmbiguous || got.Mode != ModeClarify {
+		t.Fatalf("compound analyze+backtest should stay ambiguous/clarify, got %s/%s", got.Domain, got.Mode)
+	}
+}
+
+func TestIntentPlannerForcesBacktestRunWithVerb(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"chat","mode":"talk","confidence":0.9,"reason":"misroute"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "帮我用这些策略回测一下", LastDomain: DomainDCAGrid})
+	if got.Domain != DomainBacktestRun || got.Mode != ModeExecute {
+		t.Fatalf("backtest verb should force backtest_run/execute, got %s/%s", got.Domain, got.Mode)
+	}
+}
+
+func TestIntentPlannerBacktestVerbOverridesStickyDomain(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"chat","mode":"talk","confidence":0.9,"reason":"misroute"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "接着帮小米跑个回测", LastDomain: DomainStockAnalysis})
+	if got.Domain != DomainBacktestRun || got.Mode != ModeExecute {
+		t.Fatalf("backtest verb must override sticky stock_analysis, got %s/%s", got.Domain, got.Mode)
+	}
+}
+
+func TestIntentPlannerBacktestRunOmitsLoopbackTools(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"backtest_run","mode":"execute","confidence":0.9,"reason":"backtest"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "帮我用这些策略回测一下", LastDomain: DomainDCAGrid})
+	if got.Domain != DomainBacktestRun || got.Mode != ModeExecute {
+		t.Fatalf("domain=%s mode=%s", got.Domain, got.Mode)
+	}
+	if !containsStr(got.ToolsAllow, "run_strategy_backtest") {
+		t.Fatalf("backtest_run must allow run_strategy_backtest: %v", got.ToolsAllow)
+	}
+	for _, forbidden := range []string{"loopback_strategy", "generate_dca_strategy", "generate_grid_strategy"} {
+		if containsStr(got.ToolsAllow, forbidden) {
+			t.Fatalf("backtest_run must not allow %s: %v", forbidden, got.ToolsAllow)
+		}
+	}
+}
+
+func TestIntentPlannerDCAGridGatherOmitsBacktestTool(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"dca_grid","mode":"gather","confidence":0.9,"reason":"list strategies"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "帮我看看哪些策略适合腾讯", LastDomain: DomainStockAnalysis})
+	if got.Domain != DomainDCAGrid || got.Mode != ModeGather {
+		t.Fatalf("domain=%s mode=%s", got.Domain, got.Mode)
+	}
+	if containsStr(got.ToolsAllow, "run_strategy_backtest") {
+		t.Fatalf("gather mode must not expose run_strategy_backtest: %v", got.ToolsAllow)
+	}
+}
+
 func containsStr(items []string, want string) bool {
 	for _, s := range items {
 		if s == want {

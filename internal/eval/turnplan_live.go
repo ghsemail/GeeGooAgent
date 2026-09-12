@@ -8,6 +8,9 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 )
 
+// DefaultEvalSessionCleanup is the default Dock Chat policy for live eval cases.
+const DefaultEvalSessionCleanup = "before_run"
+
 // TurnPlanCaseOptions is one dashboard eval case (live chat execution).
 type TurnPlanCaseOptions struct {
 	Category       string   `json:"category"`
@@ -64,7 +67,7 @@ func IndividualTurnPlanEvalCases() []TurnPlanEvalCaseDef {
 		opts := TurnPlanCaseOptions{
 			Category:         "turn_plan",
 			PlanOnly:         false,
-			SessionCleanup:   "before_run",
+			SessionCleanup:   DefaultEvalSessionCleanup,
 			DualModelEval:    false,
 			Message:          c.Message,
 			SetupMessages:    append([]string(nil), c.SetupMessages...),
@@ -86,8 +89,13 @@ func IndividualTurnPlanEvalCases() []TurnPlanEvalCaseDef {
 				ForbidTools: append([]string(nil), c.ForbidTools...),
 			},
 		}
-		if dialogue := dialogueFromLiveCase(c); len(dialogue) > 0 {
-			opts.Dialogue = dialogue
+		switch {
+		case len(c.Dialogue) > 0:
+			opts.Dialogue = append([]EvalDialogueTurn(nil), c.Dialogue...)
+		default:
+			if dialogue := dialogueFromLiveCase(c); len(dialogue) > 0 {
+				opts.Dialogue = dialogue
+			}
 		}
 		opts = opts.Normalize()
 		out = append(out, TurnPlanEvalCaseDef{
@@ -104,7 +112,7 @@ func IndividualTurnPlanEvalCases() []TurnPlanEvalCaseDef {
 
 func liveCaseSteps(c TurnPlanLiveCase) []string {
 	steps := []string{
-		"新 session：运行前清空 Dock Chat",
+		"每次运行新开 Chat 会话（评估日志与 session_id 仍会保存）",
 	}
 	clarify := strings.TrimSpace(c.ClarifyReply)
 	if clarify != "" && strings.EqualFold(c.ExpectMode, "clarify") {
@@ -113,8 +121,31 @@ func liveCaseSteps(c TurnPlanLiveCase) []string {
 			fmt.Sprintf("若 Agent 展示澄清选项，用户选择：「%s」", clarify),
 		)
 	} else {
-		steps = append(steps, liveDialogueStep(c.SetupMessages, c.Message))
-		if clarify != "" {
+		dialogue := c.Dialogue
+		if len(dialogue) == 0 {
+			dialogue = buildDialogueFromLegacy(c.SetupMessages, c.Message)
+		}
+		regular, clarifyTurns := DialogueExecutionPlan(TurnPlanCaseOptions{Dialogue: dialogue}.Normalize())
+		setup := make([]string, 0, len(regular))
+		var judge string
+		for _, turn := range regular {
+			if turn.Judge {
+				judge = turn.Text
+			} else {
+				setup = append(setup, turn.Text)
+			}
+		}
+		if judge == "" {
+			judge = strings.TrimSpace(c.Message)
+		}
+		steps = append(steps, liveDialogueStep(setup, judge))
+		if len(clarifyTurns) > 0 {
+			parts := make([]string, 0, len(clarifyTurns))
+			for _, turn := range clarifyTurns {
+				parts = append(parts, turn.Text)
+			}
+			steps = append(steps, fmt.Sprintf("若 Agent clarify 缺参：按序自动选 %s", quoteClarifyChain(parts)))
+		} else if clarify != "" {
 			steps = append(steps, fmt.Sprintf("若 Agent clarify：自动回复「%s」", clarify))
 		}
 	}
@@ -144,6 +175,18 @@ func dialogueFromLiveCase(c TurnPlanLiveCase) []EvalDialogueTurn {
 		out = append(out, EvalDialogueTurn{Role: "user", Text: clarify, OnClarify: true, Judge: true})
 	}
 	return out
+}
+
+func quoteClarifyChain(parts []string) string {
+	quoted := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		quoted = append(quoted, "「"+part+"」")
+	}
+	return strings.Join(quoted, " → ")
 }
 
 func liveDialogueStep(setup []string, message string) string {

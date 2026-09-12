@@ -35,6 +35,7 @@ const (
 	ProfileStockTechnicalFull   = "stock_analysis.technical_full"
 	ProfileStockContextFollowup = "stock_analysis.context_followup"
 	ProfileStockSymbolResolve   = "stock_analysis.symbol_resolve"
+	ProfileSubagentMultiStock     = "subagent.multi_stock_parallel"
 )
 
 var executionProfiles = map[string]ExecutionProfile{
@@ -71,6 +72,13 @@ var executionProfiles = map[string]ExecutionProfile{
 		Required: []ToolRule{
 			{Tool: "search_code", Scope: ScopeJudgedTurn},
 		},
+	},
+	ProfileSubagentMultiStock: {
+		ID: ProfileSubagentMultiStock,
+		Required: []ToolRule{
+			{Tool: "delegate_tasks", Scope: ScopeJudgedTurn},
+		},
+		ForbidOnJudgedTurn: []string{"get_mcp_analysis", "get_current_price", "search_code"},
 	},
 }
 

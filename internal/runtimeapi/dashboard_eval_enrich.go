@@ -8,6 +8,13 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/eval"
 )
 
+var evalRuntimeOptionKeys = []string{
+	"session_cleanup",
+	"dual_model_eval",
+	"random_stock_enabled",
+	"stock_market",
+}
+
 func persistEvalCaseOptions(opts map[string]any) map[string]any {
 	if opts == nil {
 		return opts
@@ -16,6 +23,7 @@ func persistEvalCaseOptions(opts map[string]any) map[string]any {
 	if category != "turn_plan" {
 		return opts
 	}
+	runtime := copyEvalRuntimeOptions(opts)
 	raw, err := json.Marshal(opts)
 	if err != nil {
 		return opts
@@ -29,7 +37,33 @@ func persistEvalCaseOptions(opts map[string]any) map[string]any {
 	if err := json.Unmarshal(mustJSON(parsed), &out); err != nil {
 		return opts
 	}
+	mergeEvalRuntimeOptions(out, runtime)
+	if _, ok := out["category"]; ok {
+		out["session_cleanup"] = eval.ClampSessionCleanup(fmt.Sprint(out["session_cleanup"]))
+	}
 	return out
+}
+
+func copyEvalRuntimeOptions(opts map[string]any) map[string]any {
+	out := map[string]any{}
+	for _, key := range evalRuntimeOptionKeys {
+		if v, ok := opts[key]; ok && v != nil {
+			out[key] = v
+		}
+	}
+	return out
+}
+
+func mergeEvalRuntimeOptions(dst, runtime map[string]any) {
+	for key, v := range runtime {
+		if v == nil {
+			continue
+		}
+		if s, ok := v.(string); ok && strings.TrimSpace(s) == "" {
+			continue
+		}
+		dst[key] = v
+	}
 }
 
 func mustJSON(v any) []byte {

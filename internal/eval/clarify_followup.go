@@ -64,6 +64,17 @@ func UsesSplitClarifyScript(opts TurnPlanCaseOptions) bool {
 	return len(clarify) > 0
 }
 
+// HasJudgedRegularTurn reports whether a non-clarify dialogue turn is marked judge.
+func HasJudgedRegularTurn(opts TurnPlanCaseOptions) bool {
+	regular, _ := DialogueExecutionPlan(opts.Normalize())
+	for _, turn := range regular {
+		if turn.Judge {
+			return true
+		}
+	}
+	return false
+}
+
 // NeedsClarifyFollowup reports whether scripted on-clarify turns should run after the primary dialogue.
 func NeedsClarifyFollowup(chat *chatsession.ChatSession, opts TurnPlanCaseOptions) bool {
 	_, clarify := DialogueExecutionPlan(opts)
@@ -71,6 +82,9 @@ func NeedsClarifyFollowup(chat *chatsession.ChatSession, opts TurnPlanCaseOption
 		return false
 	}
 	normalized := opts.Normalize()
+	if HasJudgedRegularTurn(normalized) {
+		return false
+	}
 	if UsesSplitClarifyScript(normalized) {
 		return true
 	}

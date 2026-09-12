@@ -9,9 +9,9 @@ import (
 )
 
 // VerifyExecution checks judged-turn and session tool traces against execution spec.
-func VerifyExecution(chat *chatsession.ChatSession, spec ExpectExecutionSpec) EvalCheckResult {
+func VerifyExecution(chat *chatsession.ChatSession, spec ExpectExecutionSpec, opts TurnPlanCaseOptions) EvalCheckResult {
 	trace := chatsession.TurnToolsTraceFromSession(chat)
-	judged := chatsession.JudgedTurnToolsFromTrace(trace)
+	judged := judgedTurnTools(chat, opts, trace)
 	session := chatsession.SessionToolsFromTrace(trace)
 	if len(judged) == 0 {
 		judged = chatsession.LastTurnToolsCalledFromSession(chat)
@@ -89,6 +89,13 @@ func verifyTurnPlanIntent(chat *chatsession.ChatSession, expect ExpectIntentSpec
 		}
 		return matchTurnPlanSnapshot(snap, expect, opts.TurnID)
 	}
+	if HasJudgeTurn(opts) {
+		turn := JudgedUserTurnIndex(opts, chat)
+		trace := chatsession.TurnPlanTraceFromSession(chat)
+		if snap, ok := chatsession.TurnPlanFromTraceAt(trace, turn); ok {
+			return matchTurnPlanSnapshot(snap, expect, opts.TurnID)
+		}
+	}
 	legacy := TurnPlanCaseOptions{
 		TurnID:       opts.TurnID,
 		ExpectDomain: expect.Domain,
@@ -97,6 +104,15 @@ func verifyTurnPlanIntent(chat *chatsession.ChatSession, expect ExpectIntentSpec
 		ExpectIntent: &expect,
 	}
 	return VerifyTurnPlanLive(chat, legacy)
+}
+
+func judgedTurnTools(chat *chatsession.ChatSession, opts TurnPlanCaseOptions, trace []chatsession.TurnToolsEntry) []string {
+	if HasJudgeTurn(opts) {
+		if tools := chatsession.TurnToolsFromTraceAt(trace, JudgedUserTurnIndex(opts, chat)); len(tools) > 0 {
+			return tools
+		}
+	}
+	return chatsession.JudgedTurnToolsFromTrace(trace)
 }
 
 func matchTurnPlanSnapshot(snap chatsession.TurnPlanSnapshot, expect ExpectIntentSpec, turnID string) TurnPlanResult {

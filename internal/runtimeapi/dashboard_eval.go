@@ -22,6 +22,7 @@ func (h *Handler) registerEvalRoutes(mux *http.ServeMux) {
 	h.registerEvalTurnPlanRoutes(mux)
 	h.registerEvalAutoRoutes(mux)
 	h.registerEvalSuggestRoutes(mux)
+	h.registerEvalAutoClarifyRoutes(mux)
 }
 
 type evalCasePayload struct {

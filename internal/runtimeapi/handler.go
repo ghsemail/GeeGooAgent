@@ -221,12 +221,9 @@ func (h *Handler) streamChat(
 	clarifyNotify := func(p PendingClarify) {
 		mu.Lock()
 		defer mu.Unlock()
-		writeAgentEvent(w, flusher, map[string]any{
-			"event":       "clarify",
-			"session_id":  p.SessionID,
-			"question":    p.Question,
-			"choices":     p.Choices,
-		})
+		payload := pendingClarifyPayload(p)
+		payload["event"] = "clarify"
+		writeAgentEvent(w, flusher, payload)
 	}
 
 	runCtx := llm.WithStreamHandler(r.Context(), func(delta llm.StreamDelta) {

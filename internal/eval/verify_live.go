@@ -31,7 +31,7 @@ func VerifyTurnPlanLiveFull(ctx context.Context, chat *chatsession.ChatSession, 
 	intent := verifyIntent(chat, opts.intent(), opts)
 	res.Checks = append(res.Checks, intent)
 
-	execution := VerifyExecution(chat, opts.execution())
+	execution := VerifyExecution(chat, opts.execution(), opts)
 	if strings.TrimSpace(opts.execution().Profile) != "" || len(opts.execution().LegacyRequireTools) > 0 || len(opts.execution().ForbidTools) > 0 {
 		res.Checks = append(res.Checks, execution)
 	}

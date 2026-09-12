@@ -102,3 +102,39 @@ func TestExecutionProfileForQuotePrice(t *testing.T) {
 		t.Fatal("quote_price should map to price_snapshot")
 	}
 }
+
+func TestVerifyExecutionProfileSubagentMultiStock(t *testing.T) {
+	ok, detail := domaincatalog.VerifyExecutionProfile(
+		domaincatalog.ProfileSubagentMultiStock,
+		[]string{"delegate_tasks"},
+		nil,
+	)
+	if !ok {
+		t.Fatalf("expected delegate_tasks pass, got %s", detail)
+	}
+
+	ok, _ = domaincatalog.VerifyExecutionProfile(
+		domaincatalog.ProfileSubagentMultiStock,
+		[]string{"search_code", "get_mcp_analysis"},
+		nil,
+	)
+	if ok {
+		t.Fatal("main agent should not analyze stocks directly")
+	}
+
+	ok, _ = domaincatalog.VerifyExecutionProfile(
+		domaincatalog.ProfileSubagentMultiStock,
+		[]string{"delegate_tasks", "search_code"},
+		nil,
+	)
+	if ok {
+		t.Fatal("forbid search_code on judged turn when delegating")
+	}
+}
+
+func TestExecutionProfileForMultiSymbolDelegate(t *testing.T) {
+	got := domaincatalog.ExecutionProfileFor(domaincatalog.DomainStockAnalysis, domaincatalog.StockActMultiSymbol)
+	if got != domaincatalog.ProfileSubagentMultiStock {
+		t.Fatalf("multi_symbol_delegate profile = %q want %s", got, domaincatalog.ProfileSubagentMultiStock)
+	}
+}

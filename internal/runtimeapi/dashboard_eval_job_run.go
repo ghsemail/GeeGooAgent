@@ -270,7 +270,13 @@ func (h *Handler) runEvalChatTurn(ctx context.Context, auth evalJobAuth, session
 	toolCtx.Interactive = false
 	toolCtx.Approved = true
 	if enableClarifyFn {
-		toolCtx.ClarifyFn = func(_ context.Context, question string, choices []string) (string, bool) {
+		toolCtx.ClarifyFn = func(ctx context.Context, question string, choices []string) (string, bool) {
+			rec := eval.RecommendClarifyChoice(ctx, question, choices, eval.ClarifyRecommendContext{
+				ClarifyDefaults: clarifyDefaults,
+			}, h.clarifyRecommender())
+			if answer, ok := rec.AnswerChoice(choices); ok {
+				return answer, true
+			}
 			return eval.PickClarifyAnswer(question, choices, clarifyDefaults)
 		}
 	}

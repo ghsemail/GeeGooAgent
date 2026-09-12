@@ -46,10 +46,18 @@ func isBacktestRun(msg string) bool {
 	if hasAny(msg, backtestHistoryTokens) {
 		return false
 	}
+	if isCompoundBacktestRequest(msg) {
+		return false
+	}
 	if isSignalProbe(msg) && !hasAny(msg, []string{"收益", "回撤", "成交笔", "pnl"}) {
 		return false
 	}
 	return hasAny(msg, []string{"回测", "跑回测", "再回测", "backtest", "就用刚才那套", "再跑回测"})
+}
+
+func isCompoundBacktestRequest(msg string) bool {
+	return hasAny(msg, []string{"分析", "看看", "解读", "讲讲"}) &&
+		hasAny(msg, []string{"回测", "跑回测", "再跑回测"})
 }
 
 func isSignalProbe(msg string) bool {

@@ -47,9 +47,9 @@ Optional clarify field (only when domain=ambiguous and mode=clarify):
 Domain + mode guidance:
 - stock_analysis/gather: analyze a stock, quote, technicals, trends.
 - signal_probe/execute: probe buy/sell points (买卖点 / 测信号 / 有没有买卖), not full PnL backtest.
-- backtest_run/execute: explicit backtest request (回测 / 跑回测 / backtest).
+- backtest_run/execute: explicit backtest request (回测 / 跑回测 / backtest). Tool chain uses run_strategy_backtest (catalog signal backtest), NOT loopback_strategy, unless user explicitly asks DCA/网格/定投 loopback.
 - dca_grid/gather: list or browse available signal strategies/combinations (有哪些信号/策略/组合).
-- dca_grid/execute: DCA or grid strategy backtest/generation.
+- dca_grid/execute: DCA or grid strategy plan/generation; loopback_strategy only after generate_* when validating a DCA/Grid bot plan.
 - bot_manage/gather: list/query bots, reminders, SmartTrade, grid PnL.
 - bot_manage/execute: create/update/delete bots.
 - chat/talk: definitions, chitchat, signal quality opinions (准吗/靠谱吗) after prior context.
@@ -59,6 +59,7 @@ Domain + mode guidance:
 
 Hard rules:
 - backtest_run ONLY with an explicit backtest verb.
+- backtest_run/execute: primary tool is run_strategy_backtest; do not route to loopback_strategy or generate_dca_strategy unless user explicitly wants DCA/Grid bot backtest.
 - signal_probe ONLY for buy/sell point probing, not strategy listing.
 - If unsure, use ambiguous/clarify.
 
@@ -82,18 +83,18 @@ func (p IntentPlanner) Plan(in PlanInput) TurnPlan {
 			}
 			plan.Reason = "用户选择了上一轮澄清选项"
 			plan.Confidence = 0.9
-			return plan
+			return applyPlanToolPolicies(plan)
 		}
 	}
 
 	if p.LLM == nil {
-		return plannerFallback(in)
+		return applyPlanToolPolicies(plannerFallback(in))
 	}
 	got, ok := classifyWithLLM(in, p.LLM)
 	if !ok {
-		return plannerFallback(in)
+		return applyPlanToolPolicies(plannerFallback(in))
 	}
-	return applyStickySessionPlan(in, sanitizeLLMPlan(in, got))
+	return applyPlanToolPolicies(applyStickySessionPlan(in, sanitizeLLMPlan(in, got)))
 }
 
 type llmClassifyJSON struct {
@@ -177,10 +178,13 @@ func classifyOnce(in PlanInput, provider llm.Provider, retry bool) (TurnPlan, bo
 }
 
 func applyStickySessionPlan(in PlanInput, plan TurnPlan) TurnPlan {
+	msg := strings.TrimSpace(in.UserText)
+	if isBacktestRun(msg) {
+		return plan
+	}
 	if !isStickyDomain(in.LastDomain) {
 		return plan
 	}
-	msg := strings.TrimSpace(in.UserText)
 	if plan.Domain != DomainChat || plan.Mode != ModeTalk {
 		return plan
 	}
@@ -202,6 +206,16 @@ func applyStickySessionPlan(in PlanInput, plan TurnPlan) TurnPlan {
 }
 
 func sanitizeLLMPlan(in PlanInput, llmPlan TurnPlan) TurnPlan {
+	msg := strings.TrimSpace(in.UserText)
+	if isBacktestRun(msg) {
+		out := planForDomain(DomainBacktestRun)
+		out.Mode = ModeExecute
+		out.Reason = "显式回测动词 → backtest_run"
+		if llmPlan.Confidence > 0 {
+			out.Confidence = llmPlan.Confidence
+		}
+		return out
+	}
 	fallback := plannerFallback(in)
 	if llmPlan.Domain == DomainBacktestRun && !isBacktestRun(in.UserText) {
 		if fallback.Domain == DomainAmbiguous {
@@ -219,8 +233,52 @@ func sanitizeLLMPlan(in PlanInput, llmPlan TurnPlan) TurnPlan {
 	return llmPlan
 }
 
+func applyPlanToolPolicies(plan TurnPlan) TurnPlan {
+	return applyBacktestRunToolPolicy(applyGatherToolPolicy(plan))
+}
+
+func applyGatherToolPolicy(plan TurnPlan) TurnPlan {
+	if plan.Domain == DomainDCAGrid && plan.Mode == ModeGather {
+		plan.ToolsAllow = filterTools(plan.ToolsAllow, "run_strategy_backtest")
+	}
+	return plan
+}
+
+func applyBacktestRunToolPolicy(plan TurnPlan) TurnPlan {
+	if plan.Domain == DomainBacktestRun && plan.Mode == ModeExecute {
+		plan.ToolsAllow = filterTools(plan.ToolsAllow,
+			"loopback_strategy", "generate_dca_strategy", "generate_grid_strategy")
+	}
+	return plan
+}
+
+func filterTools(in []string, drop ...string) []string {
+	if len(in) == 0 || len(drop) == 0 {
+		return in
+	}
+	banned := map[string]struct{}{}
+	for _, name := range drop {
+		banned[name] = struct{}{}
+	}
+	out := make([]string, 0, len(in))
+	for _, name := range in {
+		if _, ok := banned[name]; ok {
+			continue
+		}
+		out = append(out, name)
+	}
+	return out
+}
+
 func plannerFallback(in PlanInput) TurnPlan {
 	msg := strings.TrimSpace(in.UserText)
+	if isBacktestRun(msg) {
+		p := planForDomain(DomainBacktestRun)
+		p.Mode = ModeExecute
+		p.Reason = "fallback: 显式回测动词"
+		p.Confidence = 0.85
+		return p
+	}
 	if in.LastDomain == DomainAmbiguous {
 		p := planForDomain(DomainAmbiguous)
 		p.Reason = "fallback: 等待澄清"

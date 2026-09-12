@@ -94,6 +94,51 @@ func TestPickClarifyAnswerMatchesChineseChoice(t *testing.T) {
 	}
 }
 
+func TestSignalListThenProbeSkipsPostClarifyFollowup(t *testing.T) {
+	var opts TurnPlanCaseOptions
+	for _, c := range IndividualTurnPlanEvalCases() {
+		if c.ID == "turn_plan_signal_list_then_probe" {
+			opts = c.Options.Normalize()
+			break
+		}
+	}
+	if !HasJudgedRegularTurn(opts) {
+		t.Fatal("expected judged regular turn")
+	}
+	chat := &chatsession.ChatSession{Metadata: map[string]any{}}
+	if NeedsClarifyFollowup(chat, opts) {
+		t.Fatal("on_clarify turns should stay ClarifyFn-only when judge is in regular dialogue")
+	}
+	if got := JudgedUserTurnIndex(opts, chat); got != 3 {
+		t.Fatalf("judged turn=%d want 3", got)
+	}
+}
+
+func TestSignalListThenProbeClarifyDefaults(t *testing.T) {
+	var opts TurnPlanCaseOptions
+	for _, c := range IndividualTurnPlanEvalCases() {
+		if c.ID == "turn_plan_signal_list_then_probe" {
+			opts = c.Options.Normalize()
+			break
+		}
+	}
+	defaults := ClarifyDefaultTexts(opts)
+	if len(defaults) != 3 {
+		t.Fatalf("defaults=%v want 3", defaults)
+	}
+	regular, clarify := DialogueExecutionPlan(opts)
+	if len(regular) != 3 || len(clarify) != 3 {
+		t.Fatalf("regular=%d clarify=%d", len(regular), len(clarify))
+	}
+	answer, ok := PickClarifyAnswer("为腾讯选哪个组合信号？", []string{
+		"SAR信号配套MACD直方图趋势（趋势+动量双确认）",
+		"MACD金死叉配套SAR趋势（金死叉更敏感）",
+	}, defaults)
+	if !ok || answer != "SAR信号配套MACD直方图趋势（趋势+动量双确认）" {
+		t.Fatalf("answer=%q ok=%v", answer, ok)
+	}
+}
+
 func TestClarifyReplyCoverageByCaseKind(t *testing.T) {
 	expect := map[string]struct {
 		clarifyReply string

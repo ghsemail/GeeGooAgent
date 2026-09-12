@@ -23,6 +23,7 @@ const (
 	TurnPlanCatBotManage     = "bot_manage"
 	TurnPlanCatHistoryReport = "history_report"
 	TurnPlanCatKnowledgeNews = "knowledge_news"
+	TurnPlanCatSubagent      = "subagent"
 )
 
 // TurnPlanCategory groups live eval cases for dashboard / automation.
@@ -43,24 +44,26 @@ func TurnPlanCategories() []TurnPlanCategory {
 		{ID: TurnPlanCatBotManage, Title: "Bot 管理", Order: 6},
 		{ID: TurnPlanCatHistoryReport, Title: "历史 / 报告", Order: 7},
 		{ID: TurnPlanCatKnowledgeNews, Title: "知识 / 新闻", Order: 8},
+		{ID: TurnPlanCatSubagent, Title: "Sub-Agent 委派", Order: 9},
 	}
 }
 
 // TurnPlanLiveCase is one independent Dock Chat eval session (setup + final utterance).
 type TurnPlanLiveCase struct {
-	ID            string
-	Category      string
-	Title         string
-	Description   string
-	SetupMessages []string
-	Message       string
-	ExpectDomain  string
-	ExpectMode    string
-	ExpectAct     string
-	ExpectSOP     bool
-	ForbidTools   []string
-	RequireTools  []string
-	ClarifyReply  string
+	ID               string
+	Category         string
+	Title            string
+	Description      string
+	SetupMessages    []string
+	Message          string
+	Dialogue         []EvalDialogueTurn
+	ExpectDomain     string
+	ExpectMode       string
+	ExpectAct        string
+	ExpectSOP        bool
+	ForbidTools      []string
+	RequireTools     []string
+	ClarifyReply     string
 	ExecutionProfile string
 }
 
@@ -78,7 +81,7 @@ func DefaultTurnPlanSuite() TurnPlanSuite {
 	return TurnPlanSuite{
 		Category:       "turn_plan",
 		PlanOnly:       true,
-		SessionCleanup: "before_run",
+		SessionCleanup: DefaultEvalSessionCleanup,
 		DualModelEval:  false,
 		Turns:          defaultTurnPlanRuleTurns(),
 	}
@@ -137,6 +140,14 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			ForbidTools:  []string{"run_strategy_backtest"},
 		},
 		{
+			ID: "subagent_multi_stock_price", Category: TurnPlanCatSubagent, Title: "单轮 · 多标的并行股价分析",
+			Description: "独立 session：同时分析腾讯与阿里巴巴最近股价；主 Agent 应 delegate_tasks 并行委派，再汇总对比。",
+			Message: "请帮我分析下腾讯和阿里巴巴最近的股价",
+			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectAct: "multi_symbol_delegate", ExpectSOP: false,
+			ExecutionProfile: "subagent.multi_stock_parallel",
+			ForbidTools: []string{"run_strategy_backtest"},
+		},
+		{
 			ID: "signal_catalog_list", Category: TurnPlanCatSignal, Title: "单轮 · 列信号策略",
 			Description: "独立 session：列举可用信号/组合策略，plan 路由 dca_grid/gather 后由模型调 catalog 工具。",
 			Message: "帮我看看我有哪些信号策略",
@@ -146,12 +157,20 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 		// ── 信号 / 回测（多轮） ──
 		{
 			ID: "signal_list_then_probe", Category: TurnPlanCatBacktest, Title: "多轮 · 分析腾讯后选策略回测",
-			Description: "同 session：先分析腾讯价格走势，再问适合策略，最后发起回测。",
+			Description: "同 session：先分析腾讯价格走势，再问适合策略（含 clarify 选组合信号/SAR+MACD/止盈止损），最后发起回测。",
 			SetupMessages: []string{
 				"帮我分析一下腾讯的价格走势",
 				"帮我看看哪些策略适合腾讯",
 			},
-			Message:       "帮我用这些策略回测一下",
+			Message: "帮我用这些策略回测一下",
+			Dialogue: []EvalDialogueTurn{
+				{Role: "user", Text: "帮我分析一下腾讯的价格走势"},
+				{Role: "user", Text: "帮我看看哪些策略适合腾讯"},
+				{Role: "user", Text: "组合信号（多指标共振，推荐稳健）", OnClarify: true},
+				{Role: "user", Text: "SAR信号配套MACD直方图趋势（趋势+动量双确认）", OnClarify: true},
+				{Role: "user", Text: "动态 BBAND（止损425 / TP459，推荐）", OnClarify: true},
+				{Role: "user", Text: "帮我用这些策略回测一下", Judge: true},
+			},
 			ExpectDomain: "backtest_run", ExpectMode: "execute", ExpectSOP: false,
 			RequireTools: []string{"run_strategy_backtest"},
 			ForbidTools:  []string{"probe_bot_signal_series"},
