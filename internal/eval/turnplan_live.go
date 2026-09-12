@@ -78,7 +78,7 @@ func IndividualTurnPlanEvalCases() []TurnPlanEvalCaseDef {
 			MinReplyChars:    20,
 			TurnID:           c.ID,
 			ExpectIntent: &ExpectIntentSpec{
-				Domain: c.ExpectDomain, Mode: c.ExpectMode, SOP: c.ExpectSOP,
+				Domain: c.ExpectDomain, Mode: c.ExpectMode, SOP: c.ExpectSOP, Act: c.ExpectAct,
 			},
 			ExpectExecution: buildExpectExecution(c),
 			ExpectRouting: &ExpectRoutingSpec{
