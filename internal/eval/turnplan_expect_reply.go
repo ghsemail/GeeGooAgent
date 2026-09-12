@@ -8,9 +8,14 @@ func defaultExpectReplyForTurnID(turnID string) ExpectReplySpec {
 			Rubric:    "应给出腾讯控股的现价或行情信息（价格、涨跌幅等），语气自然。",
 			MustCover: []string{"腾讯"},
 		}
+	case "stock_price_trend":
+		return ExpectReplySpec{
+			Rubric:    "应分析腾讯最近一个月的价格走势（趋势、涨跌、关键价位等），走 MCP 深度分析而非只报现价。",
+			MustCover: []string{"腾讯", "走势"},
+		}
 	case "stock_technical_chain":
 		return ExpectReplySpec{
-			Rubric:    "在已查腾讯股价的基础上，应补充技术面/K 线或价格走势分析，而非只重复报价。",
+			Rubric:    "在已查腾讯股价的基础上，应补充 K 线图或技术面分析，而非只重复报价。",
 			MustCover: []string{"腾讯"},
 		}
 	case "stock_symbol_switch":
@@ -20,8 +25,8 @@ func defaultExpectReplyForTurnID(turnID string) ExpectReplySpec {
 		}
 	case "stock_colloquial_ref":
 		return ExpectReplySpec{
-			Rubric:    "应理解「它」指代上一轮的中际旭创，并继续给出该标的的走势或行情分析。",
-			MustCover: []string{"中际"},
+			Rubric:    "应理解「它」指代上一轮的中际旭创，并继续给出该标的信号趋势或技术面解读，而非换标的或跑回测。",
+			MustCover: []string{"中际", "信号"},
 		}
 	case "signal_catalog_list":
 		return ExpectReplySpec{
