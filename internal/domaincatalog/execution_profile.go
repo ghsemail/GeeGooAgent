@@ -36,7 +36,8 @@ const (
 	ProfileStockContextFollowup = "stock_analysis.context_followup"
 	ProfileStockSymbolResolve   = "stock_analysis.symbol_resolve"
 	ProfileSubagentMultiStock   = "subagent.multi_stock_parallel"
-	ProfileSignalProbeExecute   = "signal_probe.execute"
+	ProfileSignalProbeExecute       = "signal_probe.execute"
+	ProfileSignalProbeSymbolSwitch  = "signal_probe.symbol_switch"
 )
 
 var executionProfiles = map[string]ExecutionProfile{
@@ -84,6 +85,13 @@ var executionProfiles = map[string]ExecutionProfile{
 	ProfileSignalProbeExecute: {
 		ID: ProfileSignalProbeExecute,
 		Required: []ToolRule{
+			{Tool: "probe_bot_signal_series", Scope: ScopeJudgedTurn},
+		},
+	},
+	ProfileSignalProbeSymbolSwitch: {
+		ID: ProfileSignalProbeSymbolSwitch,
+		Required: []ToolRule{
+			{Tool: "search_code", Scope: ScopeJudgedTurn},
 			{Tool: "probe_bot_signal_series", Scope: ScopeJudgedTurn},
 		},
 	},

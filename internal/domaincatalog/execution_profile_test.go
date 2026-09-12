@@ -140,9 +140,13 @@ func TestExecutionProfileForMultiSymbolDelegate(t *testing.T) {
 }
 
 func TestExecutionProfileForSignalProbeExecute(t *testing.T) {
-	got := domaincatalog.ExecutionProfileFor(domaincatalog.DomainSignalProbe, "probe")
+	got := domaincatalog.ProbeExecutionProfile(domaincatalog.DomainSignalProbe, "probe", "换一个策略")
 	if got != domaincatalog.ProfileSignalProbeExecute {
-		t.Fatalf("signal_probe profile = %q want %s", got, domaincatalog.ProfileSignalProbeExecute)
+		t.Fatalf("strategy swap profile = %q want %s", got, domaincatalog.ProfileSignalProbeExecute)
+	}
+	got = domaincatalog.ProbeExecutionProfile(domaincatalog.DomainSignalProbe, "probe", "00700")
+	if got != domaincatalog.ProfileSignalProbeSymbolSwitch {
+		t.Fatalf("symbol switch profile = %q want %s", got, domaincatalog.ProfileSignalProbeSymbolSwitch)
 	}
 	ok, detail := domaincatalog.VerifyExecutionProfile(
 		domaincatalog.ProfileSignalProbeExecute,

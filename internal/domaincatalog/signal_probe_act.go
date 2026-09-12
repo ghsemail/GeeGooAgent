@@ -1,9 +1,22 @@
 package domaincatalog
 
+import "github.com/ghsemail/GeeGooAgent/internal/slots"
+
 // ExecutionProfileForDomain returns the profile id for a domain+act pair, or "" if none.
 func ExecutionProfileForDomain(domain Domain, act string) string {
+	return ProbeExecutionProfile(domain, act, "")
+}
+
+// ProbeExecutionProfile picks signal_probe contracts; userText enables symbol-switch detection.
+func ProbeExecutionProfile(domain Domain, act string, userText string) string {
 	if id := executionProfileForStock(domain, act); id != "" {
 		return id
+	}
+	if domain == DomainSignalProbe {
+		if slots.ShouldResolveNewSymbolForProbe(userText) {
+			return ProfileSignalProbeSymbolSwitch
+		}
+		return ProfileSignalProbeExecute
 	}
 	return executionProfileForSignalProbe(domain, act)
 }

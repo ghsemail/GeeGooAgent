@@ -464,7 +464,7 @@ func (l *Loop) runPreparedTurn(
 	} else {
 		gateFrag = l.runRetrievalGate(ctx, session, userText, &records)
 	}
-	dynFrags := []ctxfrag.Fragment{ctxfrag.ClockFragment(clockNow()), turnPlanFragment(turnPlan)}
+	dynFrags := []ctxfrag.Fragment{ctxfrag.ClockFragment(clockNow()), turnPlanFragment(turnPlan, userText)}
 	if gateFrag != nil && strings.TrimSpace(gateFrag.Render()) != "" {
 		dynFrags = append(dynFrags, gateFrag)
 	}
@@ -477,7 +477,7 @@ func (l *Loop) runPreparedTurn(
 	}
 	planBaseSchemas := schemas
 	schemas = applyTurnToolSchemas(planBaseSchemas, turnPlan)
-	profileID := domaincatalog.ExecutionProfileFor(domaincatalog.Domain(turnPlan.Domain), turnPlan.Act)
+	profileID := domaincatalog.ProbeExecutionProfile(domaincatalog.Domain(turnPlan.Domain), turnPlan.Act, userText)
 	session.LastExecutionProfile = profileID
 
 	if result, handled := l.tryPresetClarify(ctx, session, turnPlan, toolCtx, &records, schemas); handled {

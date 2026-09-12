@@ -60,7 +60,11 @@ func (l *Loop) tryExecutionProfileRetry(
 	if l == nil || session == nil || retriesLeft == nil || *retriesLeft <= 0 {
 		return false
 	}
-	profileID := domaincatalog.ExecutionProfileFor(domaincatalog.Domain(turnPlan.Domain), turnPlan.Act)
+	profileID := domaincatalog.ProbeExecutionProfile(
+		domaincatalog.Domain(turnPlan.Domain),
+		turnPlan.Act,
+		lastUserText(session),
+	)
 	session.LastExecutionProfile = profileID
 	if profileID == "" {
 		return false
@@ -85,6 +89,20 @@ func (l *Loop) tryExecutionProfileRetry(
 	})
 	*messages = session.LLMMessages()
 	return true
+}
+
+func lastUserText(session *runtime.Session) string {
+	if session == nil {
+		return ""
+	}
+	msgs := session.LLMMessages()
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role != llm.RoleUser {
+			continue
+		}
+		return strings.TrimSpace(msgs[i].Content)
+	}
+	return ""
 }
 
 func applyTurnToolSchemas(base []llm.ToolSchema, turnPlan cognition.TurnPlan) []llm.ToolSchema {
