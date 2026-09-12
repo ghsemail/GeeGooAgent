@@ -309,5 +309,5 @@ Executor **只**调 `SandboxManager.execute`，不直接 `tool.run()`。
 
 - [checkpoint.md](./checkpoint.md) — L6 可恢复
 - [env-manager.md](./env-manager.md) — L5 环境
-- [../layers/L2-tools/sandbox-integration.md](../layers/L2-tools/sandbox-integration.md) — Executor 集成
+- [../L2-tools/sandbox-integration.md](../L2-tools/sandbox-integration.md) — Executor 集成
 

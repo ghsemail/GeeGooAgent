@@ -13,7 +13,7 @@
 
 因此，调用方（如 Skills）可先让用户选择标的，再按需调用 GRID 或 DCA 策略生成接口，用返回的最佳参数完成策略创建或推荐。
 
-**公共约定**：认证、标的搜索 **`/searchCode`**、**`signal_id`** 来源（**getIndexSignalForSkill** / **getSignalCombinationForSkill**）等，见 [`common.md`](common.md)。
+**公共约定**：认证、标的搜索 **`/searchCode`**、**`signal_id`** 来源（**getIndexSignalForSkill** / **getSignalCombinationForSkill**）等，见 [`common.md`](../common.md)。
 
 ---
 
@@ -59,7 +59,7 @@ MCP 转发至 AIServer 时使用 `Config/APIConnection.py` 中的 `--aidata_serv
 
 | 字段 | 类型 | 必填 | 默认 | 说明 |
 |------|------|------|------|------|
-| code | string | 是 | - | 股票代码，如 `00700.HK`、`518880.SH`、`AAPL.US`；可先通过 MCP **`/searchCode`** 解析（见 [`common.md`](common.md)） |
+| code | string | 是 | - | 股票代码，如 `00700.HK`、`518880.SH`、`AAPL.US`；可先通过 MCP **`/searchCode`** 解析（见 [`common.md`](../common.md)） |
 | name | string | 是 | - | 股票名称（展示与提示词用） |
 | months_back | number | 否 | 1 | 回测月数，代表使用该策略回测的行情月份时长 |
 | language | string | 否 | cn | 返回语言：`cn`（简体）、`en`（英文）、`hk`（繁体）时 reason 为对应语言单字符串；`all` 或其它时保留多语言对象 `{ cn, en, hk }` |
@@ -170,10 +170,10 @@ curl -X POST "http://localhost:3120/generateGridStrategy" \
 
 | 字段 | 类型 | 必填 | 默认 | 说明 |
 |------|------|------|------|------|
-| code | string | 是 | - | 股票代码，如 `00700.HK`；可先通过 MCP **`/searchCode`** 解析（见 [`common.md`](common.md)） |
+| code | string | 是 | - | 股票代码，如 `00700.HK`；可先通过 MCP **`/searchCode`** 解析（见 [`common.md`](../common.md)） |
 | name | string | 是 | - | 股票名称（展示与提示词用） |
 | months_back | number | 否 | 1 | 回测月数，代表使用该策略回测的行情月份时长 |
-| signal_id | string | 是 | - | 信号 ID，可来源于 **getIndexSignalForSkill** 或 **getSignalCombinationForSkill**（见 [`common.md`](common.md)「信号查询」）返回的某一信号 |
+| signal_id | string | 是 | - | 信号 ID，可来源于 **getIndexSignalForSkill** 或 **getSignalCombinationForSkill**（见 [`common.md`](../common.md)「信号查询」）返回的某一信号 |
 | language | string | 否 | cn | 返回语言：`cn`（简体）、`en`（英文）、`hk`（繁体）时，多语言字段收敛为对应语言字符串；`all` 或其它时保留多语言对象 `{ cn, en, hk }` |
 
 **请求体示例：**

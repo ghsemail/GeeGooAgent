@@ -61,7 +61,7 @@
 
 查询当前用户在**已绑定富途交易环境**（`user.trade` 中的 `bot_host`、`bot_port`、`trade_env`）下，某只标的的**实时账户持仓**。MCP 层将 **`mcp_token`** 解析为 `user_id` 后，转发至 Bot 服务的 **`POST /getPosition`**，与 App/HTTP 直连行为一致。
 
-**SmartTrade `sell_only` 模式**：**成本价**仅能通过账户查询自动写入（**不可**在创建请求中手动填 `price`）；**头寸**默认由本接口与 Bot 使用同一查询自动带出全仓，若用户仅需管理部分持仓，可在创建时传**小于账户持仓**的 **`order_size.base_order_size`**（详见 [`smart-trade.md`](../bot/smart-trade.md)）。调用方可先通过本接口核对账户成本与数量。
+**SmartTrade `sell_only` 模式**：**成本价**仅能通过账户查询自动写入（**不可**在创建请求中手动填 `price`）；**头寸**默认由本接口与 Bot 使用同一查询自动带出全仓，若用户仅需管理部分持仓，可在创建时传**小于账户持仓**的 **`order_size.base_order_size`**（详见 [`smart-trade.md`](./bot/smart-trade.md)）。调用方可先通过本接口核对账户成本与数量。
 
 | 项目 | 说明 |
 |------|------|

@@ -2,12 +2,12 @@
 
 ## 概述
 
-本文档描述通过 MCP（Skills）对 **Smart 交易提醒机器人**（`bot_type: SmartReminder`）的**创建、修改、删除、获取列表与运行日志**接口；与 **SmartTrade 交易机器人**（`SmartTrade`）为不同产品线。分类与命名见 `[common.md](./common.md)`「机器人分类与命名」。调用方不传 `user_id`，改为传入 `mcp_token`，由服务端根据 `mcp_token` 解析出对应用户后再调用 Bot 服务对应逻辑。
+本文档描述通过 MCP（Skills）对 **Smart 交易提醒机器人**（`bot_type: SmartReminder`）的**创建、修改、删除、获取列表与运行日志**接口；与 **SmartTrade 交易机器人**（`SmartTrade`）为不同产品线。分类与命名见 `[common.md](../common.md)`「机器人分类与命名」。调用方不传 `user_id`，改为传入 `mcp_token`，由服务端根据 `mcp_token` 解析出对应用户后再调用 Bot 服务对应逻辑。
 
 - **基础路径**：GeeGooBot mcp-api 根地址（默认示例：`http://127.0.0.1:3120`）
 - **认证方式**：请求头 `Authorization: Bearer <API_KEY>`
 
-**公共约定**：`**mcp_token`**、`**frequency**` 共用枚举、信号与技术分析索引等，见 `[common.md](./common.md)`。
+**公共约定**：`**mcp_token`**、`**frequency**` 共用枚举、信号与技术分析索引等，见 `[common.md](../common.md)`。
 
 **说明**：SmartReminder 仅支持 **sell_only** 模式（持仓提醒），创建时**必须**提供成本价（`price`）和头寸（`qty`），用于止盈/止损及跟踪提醒。
 
@@ -59,7 +59,7 @@ SmartReminder 在持仓过程中按配置持续监测价格，达到止盈或止
 | **botname**          | string  | 是   | `Smart_Reminder.botname`          | 机器人名称，用于展示与唯一性校验（同用户下不可重复）。                                                  |
 | **stock_name**       | string  | 否   | `Smart_Reminder.stock_name`       | 标的名称。                                                                        |
 | **code**             | string  | 否   | `Smart_Reminder.code`             | 标的代码，如 `518880.SH`、`000858.SZ`。                                              |
-| **frequency**        | string  | 否   | `Smart_Reminder.frequency`        | 检查频率，不传时默认为 `60m`；共用枚举见 `[common.md](./common.md)`。          |
+| **frequency**        | string  | 否   | `Smart_Reminder.frequency`        | 检查频率，不传时默认为 `60m`；共用枚举见 `[common.md](../common.md)`。          |
 | **tp**               | object  | 否   | `Smart_Reminder.tp`               | 止盈配置，见下方 **tp 结构说明**。                                                        |
 | **sl**               | object  | 否   | `Smart_Reminder.sl`               | 止损配置，见下方 **sl 结构说明**。                                                        |
 | **attitude**         | object  | 否   | `Smart_Reminder.attitude`         | 态度/分析配置：`analysis_prompt_list`、`analysis_period`、`switch`、`controll_switch`。 |

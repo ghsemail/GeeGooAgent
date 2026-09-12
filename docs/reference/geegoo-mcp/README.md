@@ -1,7 +1,7 @@
 # GeeGoo MCP API 文档
 
 **服务名称**：GeeGooBot mcp-api  
-**实现**：`mcp-api`（共享工具见 `mcp/constants.py`、`mcp/http_client.py`、`mcp/json_utils.py`）  
+**实现**：GeeGooBot `cmd/mcp-api`（Go）；路由 SSOT 见 [GeeGooBot api/implemented-routes.md](https://github.com/ghsemail/GeeGooBot/blob/main/docs/api/implemented-routes.md)  
 **默认端口**：3120  
 **Base URL**：`http://<host>:3120`  
 **认证**：`Authorization: Bearer <sk-...>` + 请求体 `mcp_token`（部分接口不需要 token，见总表）
@@ -14,7 +14,7 @@
 |------|------|
 | **[interface-map.md](./interface-map.md)** | **接口分布总表** — 73 路由 × geegoo Skill × GeeGoo Agent Tool |
 | [architecture.md](./architecture.md) | 三层架构与文档 SSOT 原则 |
-| [../README.md](../README.md) | GeeGooBot 文档根目录 |
+| [GeeGooBot docs](https://github.com/ghsemail/GeeGooBot/blob/main/docs/README.md) | GeeGooBot 文档根目录 |
 
 ## 专题文档（参数与示例）
 

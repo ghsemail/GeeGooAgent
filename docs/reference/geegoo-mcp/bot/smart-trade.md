@@ -2,13 +2,13 @@
 
 ## 概述
 
-本文档描述通过 MCP（Skills）对 **SmartTrade 交易机器人**（`bot_type: SmartTrade`）的**创建、修改、删除、列表与运行日志**接口。分类与命名见 [`common.md`](common.md)「机器人分类与命名」。调用方不传 `user_id`，改为传入 `mcp_token`，由服务端根据 `mcp_token` 解析出对应用户后再调用 Bot 服务对应逻辑（列表与日志在 MCP 进程内直读数据库）。
+本文档描述通过 MCP（Skills）对 **SmartTrade 交易机器人**（`bot_type: SmartTrade`）的**创建、修改、删除、列表与运行日志**接口。分类与命名见 [`common.md`](../common.md)「机器人分类与命名」。调用方不传 `user_id`，改为传入 `mcp_token`，由服务端根据 `mcp_token` 解析出对应用户后再调用 Bot 服务对应逻辑（列表与日志在 MCP 进程内直读数据库）。
 
 - **基础路径**：GeeGooBot mcp-api 根地址（默认示例：`http://127.0.0.1:3120`）
 - **认证方式**：请求头 `Authorization: Bearer <API_KEY>`；缺少或错误的 API Key 时 HTTP **401**（响应体为 `error` 字段说明，非下文 `code` 体系）。
 - **缺少 `mcp_token` 或必填业务 ID**：未传 `mcp_token`，或更新/删除时未传 `bot_id`，HTTP 为 **400**，响应 JSON 中 **`code` 为 401**（`message` 提示缺少的字段）。这与 **无效 `mcp_token`**（找不到用户）时的 **`code` 102**、HTTP **401** 不同，调用方需区分。
 
-**公共约定**：认证与 **`mcp_token`**、**`frequency`** 等共用说明，见 [`common.md`](common.md)。
+**公共约定**：认证与 **`mcp_token`**、**`frequency`** 等共用说明，见 [`common.md`](../common.md)。
 
 ---
 
@@ -26,7 +26,7 @@ SmartTrade 使用 **`trade_mode`** 声明运行模式：**`buy_then_sell`** 表�
 - **sell_only**：
   - **持仓成本价**：**只能**通过 **`/getPosition`** 查询绑定交易账户后**自动写入** Bot（创建时 Bot 使用与 **`/getPosition`** 相同的持仓查询）；**创建时不可手动录入 `price`**，调用方应**不要传 `price`**。
   - **头寸（股数）**：默认不传 **`order_size`** 时，由 **`/getPosition`** 同一套查询**自动带出该标的账户持仓（全仓）**。若需仅对部分持仓做卖出侧管理，可在 **`order_size.base_order_size`** 中填写**小于账户该标的当前持仓**的股数（**不可**大于账户持仓）；**宜为该标的 `lot_size` 的整数倍**。
-  - 若账户侧查询失败（无持仓或连接异常等），创建失败。Skills 可先调用 [`common.md`](common.md) 的 **`/getPosition`** 核对成本与可卖数量。
+  - 若账户侧查询失败（无持仓或连接异常等），创建失败。Skills 可先调用 [`common.md`](../common.md) 的 **`/getPosition`** 核对成本与可卖数量。
 - **buy_then_sell**：`price` 可作为**限价买入价**（也可不传，由策略用市价等逻辑）；`order_size.base_order_size` 为**首笔买入股数**，**宜为 `lot_size` 的整数倍**。若传入头寸且 ≤0，创建失败。
 
 创建成功后，美股标的会进入美国调度器的 SmartTrade 任务，其它市场进入主调度器（与 `botAPIServer` 一致）。
@@ -107,10 +107,10 @@ SmartTrade 在持仓过程中按配置监测价格，触发止盈或止损条件
 | **botname** | string | 是* | 机器人名称，用于展示；建议全局唯一，重复时可能返回业务错误。 |
 | **stock_name** | string | 否 | 标的名称。 |
 | **code** | string | 否 | 标的代码，如 `00700.HK`、`AAPL.US`。 |
-| **frequency** | string | 否 | K 线/检查频率；常用取值见 [`common.md`](common.md) 中的 **frequency** 表。 |
+| **frequency** | string | 否 | K 线/检查频率；常用取值见 [`common.md`](../common.md) 中的 **frequency** 表。 |
 | **trade_mode** | string | 否 | `buy_then_sell`（默认）或 `sell_only`。 |
 | **price** | number / null | 否 | **buy_then_sell**：见上文。**sell_only**：**勿传**；成本价仅由账户自动查询写入，不由用户录入。 |
-| **order_size** | object 或 number | 否 | **buy_then_sell**：为对象时使用 **`base_order_size`** 作为首笔买入股数。**sell_only**：可不传（由账户自动带出全仓）；若传，**`base_order_size`** 表示 Bot 管理的股数，宜为**小于账户该标的持仓**的部分头寸（见上文）。为对象或整数时 Bot 会规范为含 **`base_order_size`** 的对象。**`base_order_size` 宜为该标的 `lot_size` 的整数倍**；`lot_size` 由 **`/searchCode`** 返回（见 [`common.md`](common.md)）。 |
+| **order_size** | object 或 number | 否 | **buy_then_sell**：为对象时使用 **`base_order_size`** 作为首笔买入股数。**sell_only**：可不传（由账户自动带出全仓）；若传，**`base_order_size`** 表示 Bot 管理的股数，宜为**小于账户该标的持仓**的部分头寸（见上文）。为对象或整数时 Bot 会规范为含 **`base_order_size`** 的对象。**`base_order_size` 宜为该标的 `lot_size` 的整数倍**；`lot_size` 由 **`/searchCode`** 返回（见 [`common.md`](../common.md)）。 |
 | **tp** | object | 否 | 止盈配置，字段见上文 **止盈（tp）**。 |
 | **sl** | object | 否 | 止损配置，字段见上文 **止损（sl）**。 |
 | **attitude** | object | 否 | 态度/分析配置。结构与 DCA/GRID 的 `attitude` 一致：`analysis_prompt_list`、`analysis_period`、`switch`、`controll_switch`。 |

@@ -1,6 +1,6 @@
 # GeeGooBot mcp-api API 路由（3120）
 
-> **SSOT**：[GeeGooBot docs/geegoo-mcp/interface-map.md](D:/Geegoo/GeeGooBot/docs/geegoo-mcp/interface-map.md)
+> **SSOT**：[interface-map.md](../../reference/geegoo-mcp/interface-map.md)（GeeGooAgent）· 已实现路由见 [GeeGooBot api/implemented-routes.md](https://github.com/ghsemail/GeeGooBot/blob/main/docs/api/implemented-routes.md)
 
 原 GeeGooBot mcp-api（3120）已合并入 **GeeGooBot mcp-api :3120**。GeeGoo Agent 单一 `GeeGooBotClient` / `MarketClient` 别名。
 
@@ -34,7 +34,7 @@
 
 ## 文档领域（12）
 
-见 [architecture.md](../../../reference/geegoo-mcp/architecture.md)：`common` · `trading` · `reports` · `analyst` · `strategy` · bot×4 · reminder×3
+见 [architecture.md](../../reference/geegoo-mcp/architecture.md)：`common` · `trading` · `reports` · `analyst` · `strategy` · bot×4 · reminder×3
 
 ## 参考
 

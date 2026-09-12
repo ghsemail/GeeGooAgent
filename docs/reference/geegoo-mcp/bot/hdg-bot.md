@@ -2,7 +2,7 @@
 
 ## 概述
 
-本文档描述通过 MCP（Skills）对 **HDG 对冲交易机器人**（`bot_type: HDG`）的**创建、修改、删除、列表与运行日志**接口。分类与命名见 [`common.md`](common.md)「机器人分类与命名」。调用方不传 `user_id`，改为传入 `mcp_token`，由服务端根据 `mcp_token` 解析出对应用户后再调用 Bot 服务对应逻辑（列表与日志在 MCP 进程内直读数据库）。
+本文档描述通过 MCP（Skills）对 **HDG 对冲交易机器人**（`bot_type: HDG`）的**创建、修改、删除、列表与运行日志**接口。分类与命名见 [`common.md`](../common.md)「机器人分类与命名」。调用方不传 `user_id`，改为传入 `mcp_token`，由服务端根据 `mcp_token` 解析出对应用户后再调用 Bot 服务对应逻辑（列表与日志在 MCP 进程内直读数据库）。
 
 HDG 用于在独立标的上对冲已绑定的**主策略交易机器人**；**`binding` 可指向 DCA 信号交易机器人、GRID 网格交易机器人或 SmartTrade 交易机器人**（见 `binding`、`direction`，代码侧对应 **`DCA` / `GRID` / `SmartTrade`**）。主策略信息通过 MCP 获取：**`POST /getAllDCABots`**、**`POST /getAllGRIDBots`**、**`POST /getAllSmartTrades`**，从响应 **`data`** 中取得 **`bot_id`**、`botname`、`code` 等再填入 `binding`。
 
@@ -10,7 +10,7 @@ HDG 用于在独立标的上对冲已绑定的**主策略交易机器人**；**`
 - **认证方式**：请求头 `Authorization: Bearer <API_KEY>`；缺少或错误的 API Key 时 HTTP **401**（响应体为 `error` 字段说明，非下文 `code` 体系）。
 - **缺少 `mcp_token` 或必填业务 ID**：未传 `mcp_token`，或更新/删除时未传 `bot_id`，HTTP 为 **400**，响应 JSON 中 **`code` 为 401**（`message` 提示缺少的字段）。这与 **无效 `mcp_token`**（找不到用户）时的 **`code` 102**、HTTP **401** 不同。
 
-**公共约定**：认证与 **`mcp_token`**、MCP **`/searchCode`** 等共用说明，见 [`common.md`](common.md)。
+**公共约定**：认证与 **`mcp_token`**、MCP **`/searchCode`** 等共用说明，见 [`common.md`](../common.md)。
 
 ---
 

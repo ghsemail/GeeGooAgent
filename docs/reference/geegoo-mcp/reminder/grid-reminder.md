@@ -2,12 +2,12 @@
 
 ## 概述
 
-本文档描述通过 MCP（Skills）对 **GRID 网格提醒机器人**（`bot_type: GRIDReminder`）的**创建、修改、删除、获取列表与运行日志**接口。分类与命名见 [`common.md`](common.md)「机器人分类与命名」。调用方不传 `user_id`，改为传入 `mcp_token`，由服务端根据 `mcp_token` 解析出对应用户后再调用 Bot 服务对应逻辑。
+本文档描述通过 MCP（Skills）对 **GRID 网格提醒机器人**（`bot_type: GRIDReminder`）的**创建、修改、删除、获取列表与运行日志**接口。分类与命名见 [`common.md`](../common.md)「机器人分类与命名」。调用方不传 `user_id`，改为传入 `mcp_token`，由服务端根据 `mcp_token` 解析出对应用户后再调用 Bot 服务对应逻辑。
 
 - **基础路径**：GeeGooBot mcp-api 根地址（默认示例：`http://127.0.0.1:3120`）
 - **认证方式**：请求头 `Authorization: Bearer <API_KEY>`
 
-**公共约定**：**`mcp_token`**、**`frequency`**（共用枚举见 [`common.md`](common.md)，GRID 专用取值见本文）；技术分析 **`prompt_id` / `period`**、**`attitude`** 见 [`agent-analyst.md`](../analyst/agent-analyst.md)。
+**公共约定**：**`mcp_token`**、**`frequency`**（共用枚举见 [`common.md`](../common.md)，GRID 专用取值见本文）；技术分析 **`prompt_id` / `period`**、**`attitude`** 见 [`agent-analyst.md`](../analyst/agent-analyst.md)。
 
 ---
 
@@ -32,7 +32,7 @@
 | **botname** | string | 是 | `Grid_Reminder.botname` | 机器人名称，用于展示与唯一性校验（同用户下不可重复）。 |
 | **stock_name** | string | 否 | `Grid_Reminder.stock_name` | 标的名称。 |
 | **code** | string | 否 | `Grid_Reminder.code` | 标的代码，如 `518880.SH`。 |
-| **frequency** | string | 否 | `Grid_Reminder.frequency` | 检查频率，默认 `5m`。共用枚举见 [`common.md`](common.md)；GRID 调度专用取值见下方 **frequency 取值说明**。 |
+| **frequency** | string | 否 | `Grid_Reminder.frequency` | 检查频率，默认 `5m`。共用枚举见 [`common.md`](../common.md)；GRID 调度专用取值见下方 **frequency 取值说明**。 |
 | **grid** | object | 否 | `Grid_Reminder.grid` | 网格配置，见下方 **grid 结构说明**。 |
 | **attitude** | object | 否 | `Grid_Reminder.attitude` | 态度/分析配置，见下方 **attitude 结构说明**。 |
 | **name** | string | 否 | — | 可选名称字段，部分逻辑会使用。 |

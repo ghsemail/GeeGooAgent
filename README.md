@@ -6,7 +6,8 @@ The project now builds and runs as a single Go binary named `geegoo`. Configurat
 
 ## Documentation
 
-- [docs/README.md](docs/README.md) — documentation index
+- [docs/platform/README.md](docs/platform/README.md) — **multi-repo platform map** (start here for the whole stack)
+- [docs/README.md](docs/README.md) — GeeGooAgent documentation index
 - [docs/architecture/overview.md](docs/architecture/overview.md) — system architecture
 - [docs/architecture/implementation-status.md](docs/architecture/implementation-status.md) — what's implemented
 - [docs/architecture/platform-blueprint/README.md](docs/architecture/platform-blueprint/README.md) — generic agent blueprint

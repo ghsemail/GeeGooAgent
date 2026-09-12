@@ -1,6 +1,7 @@
 # GeeGooAgent 架构文档
 
-> 权威设计文档。**实现状态**以 [implementation-status.md](./implementation-status.md) 与 `internal/` 为准。**待办**仅 [backlog.md](./backlog.md)。
+> 权威设计文档。**实现状态**以 [implementation-status.md](./implementation-status.md) 与 `internal/` 为准。**待办**仅 [backlog.md](./backlog.md)。  
+> **多仓库平台总览**：[../platform/README.md](../platform/README.md)
 
 ## 阅读路径
 
@@ -18,8 +19,11 @@
 | 代码目录 | [repo-layout.md](./repo-layout.md) |
 | GeeGoo API 映射 | [domains/](./domains/) |
 | Fork 新领域 Agent | [platform-blueprint/](./platform-blueprint/) |
+| Eval 机制 | [platform-blueprint/eval-build-guide.md](./platform-blueprint/eval-build-guide.md) |
+| Web 门户分工 | [dashboard-platform.md](./dashboard-platform.md) |
+| 飞书 / Gateway | [gateway/](./gateway/) |
 
-开发过程稿：[../archive/](../archive/)（不含本目录正文）。
+开发过程稿：[../archive/](../archive/)（不含本目录正文）。进行中跨仓设计：[../superpowers/](../superpowers/)。
 
 ---
 
@@ -34,6 +38,11 @@ architecture/
 ├── backlog.md                     # ★ 唯一待办清单
 ├── repo-layout.md                 # 仓库 ↔ internal/ 包
 ├── entrypoints.md                 # CLI / HTTP / scheduler
+├── dashboard-platform.md          # Web 三仓分工（trading_operation + runtime）
+├── data-module-bff-and-ui.md      # 数据模块 BFF / UI
+├── agent-mode-waku-design.md      # Agent Mode Waku 设计
+├── playbook-executor.md           # Playbook 执行器
+├── gateway/                       # 飞书等外部入口
 ├── layers/
 │   ├── L0-infrastructure/
 │   ├── L1-model-gateway/
@@ -46,7 +55,7 @@ architecture/
 │   └── L5-application/
 ├── domains/
 ├── cross-cutting/
-└── platform-blueprint/
+└── platform-blueprint/            # 通用蓝图 + eval-build-guide
 ```
 
 ---

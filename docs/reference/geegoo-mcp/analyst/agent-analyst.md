@@ -9,7 +9,7 @@
 
 **说明**：Prompt 服务地址在 `Config/APIConnection.py` 中配置（`--prompt_server_ip` / `--prompt_server_port`）。AIServer 地址与 API Key 在 `Config/APIConnection.py` 中配置（`--aidata_server_ip` / `--aidata_server_port`、`--aidata_server_api_key`），getMCPAnalysis 由 MCP 转发至 AIServer 并直接返回 LLM 分析结果。
 
-**公共约定**：认证与 **`mcp_token`** 见 [`common.md`](common.md)「认证与用户身份」。下文 **约定与枚举** 给出 **`type`** / **TemplateType** / **`creator`** / **`period`** / **`attitude.analysis_period`**；各接口路径、请求体与示例见后续章节。
+**公共约定**：认证与 **`mcp_token`** 见 [`common.md`](../common.md)「认证与用户身份」。下文 **约定与枚举** 给出 **`type`** / **TemplateType** / **`creator`** / **`period`** / **`attitude.analysis_period`**；各接口路径、请求体与示例见后续章节。
 
 ---
 

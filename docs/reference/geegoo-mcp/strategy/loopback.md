@@ -13,7 +13,7 @@
 
 因此，调用方（如 Skills）可在生成或选定策略参数后，调用本接口执行回测，并将返回的 `data`（如 `finalValue`、`profit`、`profit_rate`）展示给用户或用于后续逻辑。
 
-**公共约定**：认证、**`frequency`**、与 **`signal`** 相关的 Admin 接口索引等，见 [`common.md`](common.md)。
+**公共约定**：认证、**`frequency`**、与 **`signal`** 相关的 Admin 接口索引等，见 [`common.md`](../common.md)。
 
 ---
 
@@ -58,7 +58,7 @@ MCP 转发至 Signal Server 时使用 `Config/APIConnection.py` 中的 `--signal
 |------|------|------|------|------|
 | strategy_type 或 type | string | 是 | - | 策略类型（必填）：`dca` 定投策略，`grid` 网格策略 |
 | code | string | 是 | - | 股票代码（必填），如 `00700.HK`、`518880.SH`、`AAPL.US` |
-| frequency | string | 是 | - | 时间频率（必填），如 `5m`、`60m`、`daily`；常用取值见 [`common.md`](common.md) |
+| frequency | string | 是 | - | 时间频率（必填），如 `5m`、`60m`、`daily`；常用取值见 [`common.md`](../common.md) |
 | fund | number | 是 | - | 初始资金（必填） |
 | months_back | number | 是 | - | 回测月数（必填） |
 | base_order_size | number | 否 | 100 | 基础订单数量（可选） |

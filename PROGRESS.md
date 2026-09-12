@@ -1,6 +1,11 @@
 # GeeGoo Agent 实现进度
 
-> 对照 [docs/engineering/cursor-workflow.md](docs/engineering/cursor-workflow.md)
+> **⚠️ 已废弃**：本文记录 **Python/pytest 时代**（Step 0–15）的历史进度，与当前 **Go** 实现无关。  
+> **请以 [docs/architecture/implementation-status.md](docs/architecture/implementation-status.md) 为唯一实现状态 SSOT**；待办见 [docs/architecture/backlog.md](docs/architecture/backlog.md)。
+
+---
+
+> 历史对照：[docs/engineering/cursor-workflow.md](docs/engineering/cursor-workflow.md)
 
 ## 任务表
 

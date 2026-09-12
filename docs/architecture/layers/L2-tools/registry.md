@@ -32,7 +32,7 @@ type Tool struct {
 }
 ```
 
-详见 [tool-spec.md](../../engineering/tool-spec.md)（M1 已实施）与 [tool-platform-overhaul.md](../../engineering/tool-platform-overhaul.md)（阶段 A～E 彻底改造）。
+详见 [tool-spec.md](../../../engineering/tool-spec.md)（M1 已实施）与 [tool-platform-overhaul.md](../../../engineering/tool-platform-overhaul.md)（阶段 A～E 彻底改造）。
 
 ## 注册流程
 
