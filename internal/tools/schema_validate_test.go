@@ -40,6 +40,25 @@ func TestValidateArgumentsTypes(t *testing.T) {
 	}
 }
 
+func TestCoerceArgumentsIntegerString(t *testing.T) {
+	t.Parallel()
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"months_back": map[string]any{"type": "integer"},
+			"limit":       map[string]any{"type": "integer"},
+		},
+	}
+	args := map[string]any{"months_back": "3", "limit": "120"}
+	tools.CoerceArguments(schema, args)
+	if err := tools.ValidateArguments(schema, args); err != nil {
+		t.Fatalf("coerced args should validate: %v", err)
+	}
+	if args["months_back"] != 3 {
+		t.Fatalf("months_back=%v want int 3", args["months_back"])
+	}
+}
+
 func TestValidateArgumentsEnum(t *testing.T) {
 	t.Parallel()
 	schema := map[string]any{

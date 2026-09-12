@@ -19,3 +19,9 @@ func TestShouldResolveNewSymbolForProbeSymbolSwapPhrase(t *testing.T) {
 		t.Fatal("symbol swap phrase should trigger symbol resolve")
 	}
 }
+
+func TestShouldResolveNewSymbolForProbeClarifyAnswer(t *testing.T) {
+	if !ShouldResolveNewSymbolForProbe("腾讯控股（00700.HK）") {
+		t.Fatal("clarify answer with HK code should trigger symbol resolve")
+	}
+}

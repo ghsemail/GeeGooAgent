@@ -150,6 +150,7 @@ func (r *Registry) Execute(req CallRequest, ctx Context) Result {
 	if req.Arguments == nil {
 		req.Arguments = map[string]any{}
 	}
+	CoerceArguments(t.Parameters, req.Arguments)
 	if err := ValidateArguments(t.Parameters, req.Arguments); err != nil {
 		return Result{
 			Status:  StatusError,

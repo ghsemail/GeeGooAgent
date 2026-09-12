@@ -11,7 +11,10 @@ func ApplyStrategyBacktestDefaults(body map[string]any) {
 	if body == nil {
 		return
 	}
-	months, hasMonths := intish(body["months_back"])
+	months, hasMonths := IntFromAny(body["months_back"])
+	if hasMonths && months > 0 {
+		body["months_back"] = months
+	}
 	period, _ := body["period"].(string)
 	period = strings.TrimSpace(period)
 	if (!hasMonths || months <= 0) && period == "" {
@@ -24,19 +27,3 @@ func ApplyStrategyBacktestDefaults(body map[string]any) {
 	}
 }
 
-func intish(v any) (int, bool) {
-	switch n := v.(type) {
-	case int:
-		return n, true
-	case int32:
-		return int(n), true
-	case int64:
-		return int(n), true
-	case float64:
-		return int(n), true
-	case float32:
-		return int(n), true
-	default:
-		return 0, false
-	}
-}

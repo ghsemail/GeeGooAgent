@@ -25,7 +25,7 @@ func ShouldResolveNewSymbolForProbe(msg string) bool {
 func isSymbolSwapUtterance(msg string) bool {
 	return containsAny(msg, []string{
 		"换一个标的", "换个标的", "换标的", "换一只", "换个股票",
-		"换只股票", "换个标的试试", "换腾讯", "换苹果", "换茅台",
+		"换只股票", "换个标的试试",
 	})
 }
 

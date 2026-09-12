@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
@@ -79,13 +80,9 @@ func (l *Loop) tryExecutionProfileRetry(
 	l.emit("execution_retry", map[string]any{
 		"profile": profileID, "reason": reason, "remaining": *retriesLeft,
 	})
-	hint := domaincatalog.ProfileExecutionHint(profileID)
-	if strings.TrimSpace(hint) == "" {
-		hint = reason
-	}
 	session.AppendMessage(llm.Message{
-		Role:    llm.RoleUser,
-		Content: "[执行契约] " + hint + " 请补调必要工具后再回答。",
+		Role: llm.RoleUser,
+		Content: fmt.Sprintf("[execution_retry] profile=%s; %s", profileID, reason),
 	})
 	*messages = session.LLMMessages()
 	return true

@@ -139,7 +139,7 @@ func (p IntentPlanner) Plan(in PlanInput) TurnPlan {
 	if errDetail != "" {
 		return classifyFailedPlan(errDetail)
 	}
-	return applyPlanToolPolicies(applyStickySessionPlan(in, sanitizeLLMPlan(in, plan)))
+	return applyPlanToolPolicies(applyActiveTaskGuard(in, applyStickySessionPlan(in, sanitizeLLMPlan(in, plan))))
 }
 
 type llmClassifyJSON struct {
@@ -308,6 +308,16 @@ func applyStockSymbolCountAct(plan TurnPlan, symbolCount int) TurnPlan {
 		plan.Reason = fmt.Sprintf("llm: symbol_count=%d → multi_symbol_delegate (%s)", symbolCount, plan.Reason)
 		return plan
 	}
+}
+
+func applyActiveTaskGuard(in PlanInput, plan TurnPlan) TurnPlan {
+	if !isActiveTaskDomain(in.LastDomain) {
+		return plan
+	}
+	if plan.Domain == DomainAmbiguous && plan.Mode == ModeClarify {
+		return inheritLastTask(in, plan, "active task: skip generic intent clarify")
+	}
+	return plan
 }
 
 func applyStickySessionPlan(in PlanInput, plan TurnPlan) TurnPlan {

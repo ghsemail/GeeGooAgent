@@ -139,6 +139,17 @@ func TestExecutionProfileForMultiSymbolDelegate(t *testing.T) {
 	}
 }
 
+func TestProfileExecutionHintFromRequiredTools(t *testing.T) {
+	hint := domaincatalog.ProfileExecutionHint(domaincatalog.ProfileSignalProbeExecute)
+	if hint != "本轮须调用: probe_bot_signal_series" {
+		t.Fatalf("hint=%q", hint)
+	}
+	hint = domaincatalog.ProfileExecutionHint(domaincatalog.ProfileSignalProbeSymbolSwitch)
+	if hint != "本轮须调用: search_code, probe_bot_signal_series" {
+		t.Fatalf("hint=%q", hint)
+	}
+}
+
 func TestExecutionProfileForSignalProbeExecute(t *testing.T) {
 	got := domaincatalog.ProbeExecutionProfile(domaincatalog.DomainSignalProbe, "probe", "换一个策略")
 	if got != domaincatalog.ProfileSignalProbeExecute {

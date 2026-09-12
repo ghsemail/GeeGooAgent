@@ -77,6 +77,9 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 						body["source"] = "agent"
 					}
 				}
+				if spec.Name == "probe_bot_signal_series" || spec.Name == "probe_bot_signal" {
+					catalog.ApplyProbeDefaults(body)
+				}
 				if uid := strings.TrimSpace(ctx.UserID); uid != "" {
 					switch spec.Name {
 					case "run_strategy_backtest", "list_strategy_backtest_logs":

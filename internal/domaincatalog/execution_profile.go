@@ -27,6 +27,8 @@ type ExecutionProfile struct {
 	Required              []ToolRule
 	ForbidOnJudgedTurn    []string
 	DisallowPriceShortcut bool
+	// Note is an optional ReAct hint. When empty, ProfileExecutionHint derives from Required.
+	Note string
 }
 
 const (
@@ -47,6 +49,7 @@ var executionProfiles = map[string]ExecutionProfile{
 			{Tool: "search_code", Scope: ScopeJudgedOrSession},
 			{Tool: "get_current_price", Scope: ScopeJudgedTurn},
 		},
+		Note: "查现价走 get_current_price；勿用 get_mcp_analysis。",
 	},
 	ProfileStockPriceViaMCP: {
 		ID: ProfileStockPriceViaMCP,
@@ -55,6 +58,7 @@ var executionProfiles = map[string]ExecutionProfile{
 			{Tool: "get_mcp_analysis", Scope: ScopeJudgedTurn},
 		},
 		DisallowPriceShortcut: true,
+		Note: "查股价走 get_mcp_analysis；勿仅用 get_current_price。",
 	},
 	ProfileStockTechnicalFull: {
 		ID: ProfileStockTechnicalFull,
@@ -62,12 +66,14 @@ var executionProfiles = map[string]ExecutionProfile{
 			{Tool: "search_code", Scope: ScopeJudgedOrSession},
 			{Tool: "get_mcp_analysis", Scope: ScopeJudgedTurn},
 		},
+		Note: "技术面/K 线走 get_mcp_analysis。",
 	},
 	ProfileStockContextFollowup: {
 		ID: ProfileStockContextFollowup,
 		Required: []ToolRule{
 			{Tool: "search_code", Scope: ScopeSession},
 		},
+		Note: "续问同一标的时复用已解析 code。",
 	},
 	ProfileStockSymbolResolve: {
 		ID: ProfileStockSymbolResolve,
@@ -81,6 +87,7 @@ var executionProfiles = map[string]ExecutionProfile{
 			{Tool: "delegate_tasks", Scope: ScopeJudgedTurn},
 		},
 		ForbidOnJudgedTurn: []string{"get_mcp_analysis", "get_current_price", "search_code", "get_single_prompt_template"},
+		Note: "多标的并行用 delegate_tasks；返回后须在最终回复中逐标的给出数据。",
 	},
 	ProfileSignalProbeExecute: {
 		ID: ProfileSignalProbeExecute,
@@ -184,4 +191,32 @@ func toolNames(set map[string]bool) string {
 		names = append(names, name)
 	}
 	return strings.Join(names, ",")
+}
+
+// ProfileExecutionHint returns a short ReAct hint for the loop prompt.
+func ProfileExecutionHint(profileID string) string {
+	profile, ok := ExecutionProfileByID(profileID)
+	if !ok {
+		return ""
+	}
+	if note := strings.TrimSpace(profile.Note); note != "" {
+		return note
+	}
+	return requiredToolsHint(profile.Required)
+}
+
+func requiredToolsHint(rules []ToolRule) string {
+	if len(rules) == 0 {
+		return ""
+	}
+	tools := make([]string, 0, len(rules))
+	for _, rule := range rules {
+		if name := strings.TrimSpace(rule.Tool); name != "" {
+			tools = append(tools, name)
+		}
+	}
+	if len(tools) == 0 {
+		return ""
+	}
+	return "本轮须调用: " + strings.Join(tools, ", ")
 }

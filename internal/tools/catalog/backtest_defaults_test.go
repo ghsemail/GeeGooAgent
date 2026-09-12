@@ -16,6 +16,14 @@ func TestApplyStrategyBacktestDefaultsEmpty(t *testing.T) {
 	}
 }
 
+func TestApplyStrategyBacktestDefaultsCoercesString(t *testing.T) {
+	body := map[string]any{"months_back": "1", "period": "1m"}
+	ApplyStrategyBacktestDefaults(body)
+	if body["months_back"] != 1 || body["period"] != "1m" {
+		t.Fatalf("got months=%v period=%v", body["months_back"], body["period"])
+	}
+}
+
 func TestApplyStrategyBacktestDefaultsKeepsExplicit(t *testing.T) {
 	body := map[string]any{"months_back": 1, "period": "1m"}
 	ApplyStrategyBacktestDefaults(body)
