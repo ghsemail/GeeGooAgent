@@ -131,7 +131,7 @@ docs/
 | Eval 机制 | ✅ | 通用 [eval-build-guide](../architecture/platform-blueprint/eval-build-guide.md) + 领域 [turnplan-eval](../engineering/turnplan-eval.md) |
 | Web 门户 | ✅ 已定稿 | `dashboard-platform.md`；实现分散在 trading_operation |
 | 跨仓链接 | ⚠️ 持续治理 | 不用 `../../OtherRepo/` 相对路径；用本文 §2 的 GitHub 链接 |
-| 历史稿 | 📦 已归档 | `PROGRESS.md`（Python 时代）→ 见 [implementation-status](../architecture/implementation-status.md) |
+| 历史稿 | 📦 已归档 | [archive/PROGRESS-python-era.md](../archive/PROGRESS-python-era.md)；状态见 [implementation-status](../architecture/implementation-status.md) |
 | Flutter 应用文档 | ⚠️ 偏薄 | trading_operation / trading_app 缺独立 docs；以 Agent 侧 Cockpit 文档为准 |
 
 ---

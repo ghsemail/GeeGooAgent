@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ROOTS = [ROOT / "docs", ROOT / "rules", ROOT / "README.md", ROOT / "PROGRESS.md"]
+ROOTS = [ROOT / "docs", ROOT / "rules", ROOT / "README.md"]
 
 SKIP_DIRS = {".git", "vendor", "node_modules", "tests", ".gomodcache-review"}
 EXTS = {".md"}

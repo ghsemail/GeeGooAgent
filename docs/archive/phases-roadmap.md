@@ -1,5 +1,7 @@
 # 分期路线图
 
+> **已归档**：早期 Phase 划分。现行状态见 [implementation-status.md](../architecture/implementation-status.md)，待办见 [backlog.md](../architecture/backlog.md)。
+
 ## Phase 0 — 平台内核
 
 | 层   | 交付                                                                                |

@@ -1,4 +1,4 @@
-# 实现状态（2026-07）
+# 实现状态（2026-09）
 
 > **单一事实来源**：本文与代码不一致时，以 `internal/` + [layers/L2-tools/tools-status.md](./layers/L2-tools/tools-status.md) 为准。  
 > 未做项 → [backlog.md](./backlog.md)。
@@ -194,6 +194,30 @@ geegoo migrate tenant --assign-user <user_id> --compare-from /path/to/compare/hi
 | GeeGooSignal :3200/3210 | 部分 | 搜码、回测、指标 |
 | Analyze :3230 | 部分 | 策略/分析（可经 MCP 转发） |
 | 富途交易 | 否（盘中才需要） | `get_position` 等 |
+
+---
+
+## Agent Eval（TurnPlan）
+
+| 能力 | 状态 | 说明 |
+|------|------|------|
+| Plan-only 路由回归 | ✅ | `POST /v1/dashboard/eval/run-turn-plan` |
+| Live Chat + Verify | ✅ | intent / execution / reply / LLM judge |
+| 自动化 Job（串行） | ✅ | Catalog · Suite · Job · `internal/runtimeapi/dashboard_eval_auto.go` |
+| 用例代码即源 | ✅ | `internal/eval/` → SQL/JSON 生成器 |
+| 机制文档（领域无关） | ✅ | [platform-blueprint/eval-build-guide.md](./platform-blueprint/eval-build-guide.md) |
+| 本仓库领域套件 | ✅ | [turnplan-eval.md](../engineering/turnplan-eval.md) |
+
+---
+
+## 文档与平台索引
+
+| 文档 | 状态 | 说明 |
+|------|------|------|
+| 多仓库平台总览 | ✅ | [platform/README.md](../platform/README.md) |
+| 架构 SSOT | ✅ | 本目录 `README.md` + 六层 `layers/` |
+| MCP 参考 | ✅ | [reference/geegoo-mcp/interface-map.md](../reference/geegoo-mcp/interface-map.md) |
+| 历史过程稿 | 📦 | [archive/](../archive/)（含 Python 时代 [PROGRESS-python-era.md](../archive/PROGRESS-python-era.md)） |
 
 ---
 

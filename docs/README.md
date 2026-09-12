@@ -56,7 +56,6 @@
 | 目录 | 用途 |
 |------|------|
 | [benchmark/](./benchmark/) | vs Hermes / Grok / Codex |
-| [superpowers/](./superpowers/) | 进行中的跨仓设计稿（带日期） |
 | [archive/](./archive/) | 历史计划与 Superpowers 归档（非架构正文） |
 
 ### 仓库外（运维）
@@ -87,4 +86,5 @@
 
 | 文件 | 说明 |
 |------|------|
-| [../PROGRESS.md](../PROGRESS.md) | **已废弃**（Python/pytest 时代 Step 0–15）。以 [implementation-status.md](./architecture/implementation-status.md) 为准。 |
+| [archive/PROGRESS-python-era.md](./archive/PROGRESS-python-era.md) | **已归档**（Python/pytest 时代 Step 0–15）。根目录 `PROGRESS.md` 仅为跳转。 |
+| [superpowers/](./superpowers/) | 进行中的跨仓设计（与 `archive/superpowers/` 区分） |
