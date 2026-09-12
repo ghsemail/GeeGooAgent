@@ -38,6 +38,22 @@ func TestIndividualTurnPlanEvalCasesCount(t *testing.T) {
 			t.Fatalf("%s missing message", c.ID)
 		}
 	}
+	subagent, ok := liveByID(cases, "turn_plan_subagent_multi_stock_price")
+	if !ok {
+		t.Fatal("missing turn_plan_subagent_multi_stock_price")
+	}
+	if subagent.Options.TurnPlanGroup != "stock_analysis" {
+		t.Fatalf("subagent turn_plan_group=%q want stock_analysis", subagent.Options.TurnPlanGroup)
+	}
+}
+
+func liveByID(cases []eval.TurnPlanEvalCaseDef, id string) (eval.TurnPlanEvalCaseDef, bool) {
+	for _, c := range cases {
+		if c.ID == id {
+			return c, true
+		}
+	}
+	return eval.TurnPlanEvalCaseDef{}, false
 }
 
 func TestPrintTurnPlanEvalSQL(t *testing.T) {

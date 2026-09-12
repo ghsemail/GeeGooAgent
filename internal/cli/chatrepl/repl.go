@@ -366,6 +366,7 @@ func (r *Repl) runTurn(text string) runtime.TurnResult {
 		newRecords = append(newRecords, chatsession.ChatStepRecord{
 			Step: rec.Step, Timestamp: rec.Timestamp, Kind: rec.Kind,
 			ToolName: rec.ToolName, ToolStatus: rec.ToolStatus, Summary: rec.Summary,
+			Extra: rec.Extra,
 		})
 	}
 	agent.SyncChatFromRuntime(r.Chat, r.Session, newRecords)

@@ -29,6 +29,7 @@ type TurnPlanCaseOptions struct {
 	PassKeywords   []string `json:"pass_keywords,omitempty"`
 	MinReplyChars  int      `json:"min_reply_chars,omitempty"`
 	TurnID         string   `json:"turn_id,omitempty"`
+	TurnPlanGroup  string   `json:"turn_plan_group,omitempty"`
 	Dialogue       []EvalDialogueTurn `json:"dialogue,omitempty"`
 	ExpectReply    *ExpectReplySpec   `json:"expect_reply,omitempty"`
 	ExpectIntent   *ExpectIntentSpec  `json:"expect_intent,omitempty"`
@@ -80,6 +81,7 @@ func IndividualTurnPlanEvalCases() []TurnPlanEvalCaseDef {
 			ExecutionProfile: c.ExecutionProfile,
 			MinReplyChars:    20,
 			TurnID:           c.ID,
+			TurnPlanGroup:    c.Category,
 			ExpectIntent: &ExpectIntentSpec{
 				Domain: c.ExpectDomain, Mode: c.ExpectMode, SOP: c.ExpectSOP, Act: c.ExpectAct,
 			},

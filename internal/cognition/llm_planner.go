@@ -12,10 +12,21 @@ import (
 )
 
 const classifyTimeout = 8 * time.Second
+const symbolCountTimeout = 4 * time.Second
+
+const symbolCountPrompt = `Count how many distinct stocks/companies the user wants quoted or analyzed in this message.
+Reply ONLY JSON: {"symbol_count":0,"reason":"short"}
+
+Rules:
+- Each separate company the user wants addressed counts as 1 (e.g. 腾讯 + 阿里巴巴 = 2).
+- Multiple listings of the same company (港股/美股) count as 1 unless user asks to compare listings.
+- If no stock/company is mentioned, symbol_count=0.
+
+User: %s`
 
 const classifyPrompt = `You classify one user chat turn for a finance assistant.
 Reply with ONLY JSON:
-{"domain":"<one>","mode":"<one>","act":"<optional>","clarify":"<optional>","confidence":0.0,"reason":"<short>"}
+{"domain":"<one>","mode":"<one>","act":"<optional>","symbol_count":0,"clarify":"<optional>","confidence":0.0,"reason":"<short>"}
 
 Allowed domain values:
 chat, stock_analysis, news, knowledge, report_lookup, report_write, bot_manage,
@@ -25,16 +36,22 @@ Allowed mode values:
 talk, gather, execute, clarify
 
 When domain is stock_analysis, act MUST be one of:
-analyze, quote_price, technical_analysis, context_followup, symbol_resolve
-- quote_price: user wants a price snapshot / quote only (查询/查一下/现价/多少钱/股价是多少).
+analyze, quote_price, technical_analysis, context_followup, symbol_resolve, multi_symbol_delegate
+- quote_price: user wants a price snapshot / quote only for exactly ONE symbol (查询/查一下/现价/多少钱/股价是多少).
   Example: "帮我查询下腾讯股价" → quote_price
-- technical_analysis: user wants analysis of trend, K-line, technicals, or price movement over a period.
+  Do NOT use quote_price when 2+ companies/symbols are named — use multi_symbol_delegate instead.
+- technical_analysis: user wants analysis of trend, K-line, technicals, or price movement over a period for ONE symbol.
   Example: "帮我分析下腾讯最近一个月的价格走势" → technical_analysis
-- analyze: general stock analysis when none of the above fits
+- multi_symbol_delegate: user asks to analyze, quote, or compare TWO OR MORE distinct stocks/companies in the same turn (parallel multi-symbol work). Main agent should delegate via delegate_tasks; sub-agents handle per-symbol search/analysis.
+  Example: "请帮我分析下腾讯和阿里巴巴最近的股价" → multi_symbol_delegate
+  Do NOT use for a single symbol even if the wording includes "分析" and "股价".
+- analyze: general stock analysis for ONE symbol when none of the above fits
   Example: "帮我分析一下中际旭创" → stock_analysis/gather act=analyze
 - context_followup: pronoun or short follow-up continuing the same symbol in session
   Example (last turn stock_analysis): "它最近走势怎么样" → stock_analysis/gather act=context_followup
 - symbol_resolve: user explicitly switches to a different stock symbol
+When domain is stock_analysis, set symbol_count to the number of distinct stocks/companies the user wants analyzed or quoted in this turn (0 if none named).
+If symbol_count >= 2 and mode is gather, act MUST be multi_symbol_delegate (overrides technical_analysis/analyze).
 If unsure whether the user wants a price snapshot (quote_price) or price/trend analysis (technical_analysis),
 use domain=ambiguous, mode=clarify, clarify=stock_quote (do NOT guess).
 For non-stock_analysis domains, omit act or use empty string.
@@ -61,6 +78,7 @@ Hard rules:
 - backtest_run ONLY with an explicit backtest verb.
 - backtest_run/execute: primary tool is run_strategy_backtest; do not route to loopback_strategy or generate_dca_strategy unless user explicitly wants DCA/Grid bot backtest.
 - signal_probe ONLY for buy/sell point probing, not strategy listing.
+- stock_analysis with 2+ distinct symbols/companies to address in one turn → act MUST be multi_symbol_delegate (not technical_analysis or analyze).
 - If unsure, use ambiguous/clarify.
 
 Last turn domain: %s
@@ -98,12 +116,13 @@ func (p IntentPlanner) Plan(in PlanInput) TurnPlan {
 }
 
 type llmClassifyJSON struct {
-	Domain     string  `json:"domain"`
-	Mode       string  `json:"mode"`
-	Act        string  `json:"act"`
-	Clarify    string  `json:"clarify"`
-	Confidence float64 `json:"confidence"`
-	Reason     string  `json:"reason"`
+	Domain      string  `json:"domain"`
+	Mode        string  `json:"mode"`
+	Act         string  `json:"act"`
+	SymbolCount int     `json:"symbol_count"`
+	Clarify     string  `json:"clarify"`
+	Confidence  float64 `json:"confidence"`
+	Reason      string  `json:"reason"`
 }
 
 func classifyWithLLM(in PlanInput, provider llm.Provider) (TurnPlan, bool) {
@@ -173,8 +192,84 @@ func classifyOnce(in PlanInput, provider llm.Provider, retry bool) (TurnPlan, bo
 	}
 	if d == DomainStockAnalysis {
 		plan.Act = domaincatalog.NormalizeStockAct(parsed.Act)
+		plan = applyStockSymbolCountAct(plan, parsed.SymbolCount)
+		if plan.Mode == ModeGather && parsed.SymbolCount < 2 && shouldRefineSymbolCount(plan.Act, in.UserText) {
+			if count, ok := countStockSymbolsWithLLM(in, provider); ok && count >= 2 {
+				plan = applyStockSymbolCountAct(plan, count)
+			}
+		}
 	}
 	return plan, true
+}
+
+type symbolCountJSON struct {
+	SymbolCount int    `json:"symbol_count"`
+	Reason      string `json:"reason"`
+}
+
+func countStockSymbolsWithLLM(in PlanInput, provider llm.Provider) (int, bool) {
+	if provider == nil {
+		return 0, false
+	}
+	ctx := in.Ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, symbolCountTimeout)
+	defer cancel()
+
+	userText := strings.TrimSpace(in.UserText)
+	if userText == "" {
+		return 0, false
+	}
+	resp, err := provider.Chat(ctx, []llm.Message{{
+		Role:    llm.RoleUser,
+		Content: fmt.Sprintf(symbolCountPrompt, userText),
+	}}, nil, 0.1, 80)
+	if err != nil || resp == nil {
+		return 0, false
+	}
+	text := strings.TrimSpace(resp.Content)
+	start := strings.Index(text, "{")
+	end := strings.LastIndex(text, "}")
+	if start < 0 || end <= start {
+		return 0, false
+	}
+	var parsed symbolCountJSON
+	if err := json.Unmarshal([]byte(text[start:end+1]), &parsed); err != nil {
+		return 0, false
+	}
+	if parsed.SymbolCount < 0 {
+		return 0, false
+	}
+	return parsed.SymbolCount, true
+}
+
+func shouldRefineSymbolCount(act, userText string) bool {
+	switch domaincatalog.NormalizeStockAct(act) {
+	case domaincatalog.StockActQuotePrice, domaincatalog.StockActTechnicalAnalysis:
+		return true
+	case domaincatalog.StockActAnalyze:
+		return len([]rune(strings.TrimSpace(userText))) >= 12
+	default:
+		return false
+	}
+}
+
+// applyStockSymbolCountAct promotes gather turns with 2+ symbols to multi_symbol_delegate
+// using the classifier's symbol_count (LLM-estimated, not keyword rules).
+func applyStockSymbolCountAct(plan TurnPlan, symbolCount int) TurnPlan {
+	if plan.Domain != DomainStockAnalysis || plan.Mode != ModeGather || symbolCount < 2 {
+		return plan
+	}
+	switch domaincatalog.NormalizeStockAct(plan.Act) {
+	case domaincatalog.StockActContextFollowup, domaincatalog.StockActSymbolResolve, domaincatalog.StockActMultiSymbol:
+		return plan
+	default:
+		plan.Act = domaincatalog.StockActMultiSymbol
+		plan.Reason = fmt.Sprintf("llm: symbol_count=%d → multi_symbol_delegate (%s)", symbolCount, plan.Reason)
+		return plan
+	}
 }
 
 func applyStickySessionPlan(in PlanInput, plan TurnPlan) TurnPlan {
@@ -234,7 +329,28 @@ func sanitizeLLMPlan(in PlanInput, llmPlan TurnPlan) TurnPlan {
 }
 
 func applyPlanToolPolicies(plan TurnPlan) TurnPlan {
-	return applyBacktestRunToolPolicy(applyGatherToolPolicy(plan))
+	return applyStockActToolPolicy(applyBacktestRunToolPolicy(applyGatherToolPolicy(plan)))
+}
+
+func applyStockActToolPolicy(plan TurnPlan) TurnPlan {
+	if plan.Domain != DomainStockAnalysis {
+		return plan
+	}
+	if domaincatalog.NormalizeStockAct(plan.Act) != domaincatalog.StockActMultiSymbol {
+		return plan
+	}
+	// Cursor-style orchestrator turn: main agent only delegates (Task-equivalent tools).
+	plan.ToolsAllow = []string{"delegate_tasks"}
+	return plan
+}
+
+func containsToolName(list []string, name string) bool {
+	for _, t := range list {
+		if t == name {
+			return true
+		}
+	}
+	return false
 }
 
 func applyGatherToolPolicy(plan TurnPlan) TurnPlan {

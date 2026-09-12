@@ -81,10 +81,14 @@ func (l *Loop) appendToolResults(
 		if len(summary) > 300 {
 			summary = summary[:300]
 		}
-		*records = append(*records, runtime.StepRecord{
+		rec := runtime.StepRecord{
 			Step: step, Timestamp: time.Now().UTC(), Kind: "tool",
 			ToolName: call.Name, ToolStatus: string(result.Status), Summary: summary,
-		})
+		}
+		if extra := delegateStepExtra(call.Name, result); extra != nil {
+			rec.Extra = extra
+		}
+		*records = append(*records, rec)
 		toolMsg := llm.Message{
 			Role: llm.RoleTool, Content: l.tools.RenderResult(call.Name, result), ToolCallID: call.ID,
 		}
@@ -103,4 +107,30 @@ func planHoldSummary(policy cognition.PlanPolicy, resp *llm.Response, mutating [
 		text = fmt.Sprintf("计划调用写操作：%s", strings.Join(names, ", "))
 	}
 	return planHoldUserMessage(policy, text)
+}
+
+func delegateStepExtra(toolName string, result tools.Result) map[string]any {
+	if toolName != "delegate_task" && toolName != "delegate_tasks" {
+		return nil
+	}
+	if len(result.Data) == 0 {
+		return nil
+	}
+	out := map[string]any{}
+	if v, ok := result.Data["results"]; ok {
+		out["results"] = v
+	}
+	if v, ok := result.Data["ok"]; ok {
+		out["ok"] = v
+	}
+	if v, ok := result.Data["failed"]; ok {
+		out["failed"] = v
+	}
+	if v, ok := result.Data["answer"]; ok {
+		out["answer"] = v
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

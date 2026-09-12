@@ -368,6 +368,7 @@ func stepRecordsFromTurn(records []runtime.StepRecord) []chatsession.ChatStepRec
 			Step: rec.Step, Timestamp: rec.Timestamp, Kind: rec.Kind,
 			ToolName: rec.ToolName, ToolStatus: rec.ToolStatus, Summary: rec.Summary,
 			PromptTokens: rec.PromptTokens, CompletionTokens: rec.CompletionTokens,
+			Extra: rec.Extra,
 		})
 	}
 	return out

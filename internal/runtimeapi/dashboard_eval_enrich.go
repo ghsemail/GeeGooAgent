@@ -87,8 +87,25 @@ func enrichEvalCaseRow(row map[string]any) {
 		return
 	}
 	row["run_mode"] = "turn_plan_live"
+	enrichTurnPlanGroup(row, opts)
 	enrichTurnPlanUtterances(row, opts)
 	enrichTurnPlanDialogue(row, opts)
+}
+
+func enrichTurnPlanGroup(row map[string]any, opts map[string]any) {
+	group, _ := opts["turn_plan_group"].(string)
+	group = strings.TrimSpace(group)
+	if group == "" {
+		return
+	}
+	row["turn_plan_group"] = group
+	for _, cat := range eval.TurnPlanCategories() {
+		if cat.ID == group {
+			row["turn_plan_group_title"] = cat.Title
+			return
+		}
+	}
+	row["turn_plan_group_title"] = group
 }
 
 func enrichGenericEvalCaseRow(row map[string]any, opts map[string]any) {

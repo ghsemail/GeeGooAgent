@@ -75,14 +75,15 @@ func (p TurnPlan) ShouldRunDomainSOP() bool {
 	return false
 }
 
-// FilterSchemas keeps only tools allowed by the plan (plus clarify).
-// If the incoming list is already a subset (tests pass a single tool), the
-// intersection with ToolsAllow is applied; unknown provided tools are dropped.
+// FilterSchemas keeps only tools allowed by the plan (plus harness tools).
+// Harness tools (clarify, delegate_*) stay visible on gather/execute turns so
+// the main Agent can choose delegation like Cursor Task / Codex subagents — not
+// via hard-coded domain branches. Pure talk turns omit delegate tools.
 func FilterSchemas(schemas []llm.ToolSchema, plan TurnPlan) []llm.ToolSchema {
 	if len(schemas) == 0 {
 		return schemas
 	}
-	allow := map[string]struct{}{alwaysAllowClarify: {}}
+	allow := harnessToolsForMode(plan.Mode)
 	for _, name := range plan.ToolsAllow {
 		name = strings.TrimSpace(name)
 		if name != "" {
@@ -99,3 +100,16 @@ func FilterSchemas(schemas []llm.ToolSchema, plan TurnPlan) []llm.ToolSchema {
 }
 
 const alwaysAllowClarify = "clarify"
+
+var harnessDelegateTools = []string{"delegate_task", "delegate_tasks"}
+
+func harnessToolsForMode(mode Mode) map[string]struct{} {
+	allow := map[string]struct{}{alwaysAllowClarify: {}}
+	if mode == ModeTalk {
+		return allow
+	}
+	for _, name := range harnessDelegateTools {
+		allow[name] = struct{}{}
+	}
+	return allow
+}

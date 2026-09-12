@@ -13,6 +13,9 @@ func TestNormalizeStockAct(t *testing.T) {
 	if domaincatalog.NormalizeStockAct("bogus") != domaincatalog.StockActAnalyze {
 		t.Fatal("unknown -> analyze")
 	}
+	if domaincatalog.NormalizeStockAct("multi_symbol_delegate") != domaincatalog.StockActMultiSymbol {
+		t.Fatal("multi_symbol_delegate")
+	}
 }
 
 func TestExecutionProfileForStockActs(t *testing.T) {

@@ -105,7 +105,7 @@ func (s *SubAgent) SetApproval(fn runtime.ApprovalFunc) {
 
 // DelegateTask implements tools.TaskDelegator.
 func (s *SubAgent) DelegateTask(ctx tools.Context, task, background string, maxSteps int) tools.Result {
-	return s.Run(ctx, task, background, maxSteps)
+	return s.Run(ctx, task, background, maxSteps, "0")
 }
 
 // DelegateTasks runs multiple sub-agent tasks with bounded parallelism.
@@ -142,7 +142,7 @@ func (s *SubAgent) DelegateTasks(parent tools.Context, specs []tools.BatchDelega
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			res := s.Run(parent, spec.Task, spec.Background, spec.MaxSteps)
+			res := s.Run(parent, spec.Task, spec.Background, spec.MaxSteps, fmt.Sprintf("%d", i))
 			ch <- item{idx: i, res: res}
 		}(i, spec)
 	}
@@ -174,7 +174,8 @@ func (s *SubAgent) DelegateTasks(parent tools.Context, specs []tools.BatchDelega
 }
 
 // Run executes one delegated task in an ephemeral session.
-func (s *SubAgent) Run(parent tools.Context, task, background string, maxSteps int) tools.Result {
+// taskID correlates subagent_start/event/end SSE for parallel delegate_tasks UI.
+func (s *SubAgent) Run(parent tools.Context, task, background string, maxSteps int, taskID string) tools.Result {
 	if s == nil || s.gateway == nil || s.executor == nil || s.registry == nil {
 		return tools.Result{Status: tools.StatusError, Summary: "delegate_task: sub-agent not configured", ExitCode: 1}
 	}
@@ -207,8 +208,14 @@ func (s *SubAgent) Run(parent tools.Context, task, background string, maxSteps i
 	}
 
 	emit := parent.Progress
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		taskID = "0"
+	}
 	if emit != nil {
-		emit("subagent_start", map[string]any{"task": task, "max_steps": maxSteps})
+		emit("subagent_start", map[string]any{
+			"task_id": taskID, "task": task, "max_steps": maxSteps,
+		})
 	}
 
 	session := runtime.NewSession()
@@ -228,7 +235,9 @@ func (s *SubAgent) Run(parent tools.Context, task, background string, maxSteps i
 	}
 	if emit != nil {
 		loop.SetProgress(func(event string, data map[string]any) {
-			emit("subagent_event", map[string]any{"event": event, "data": data})
+			emit("subagent_event", map[string]any{
+				"task_id": taskID, "event": event, "data": data,
+			})
 		})
 	}
 
@@ -244,9 +253,15 @@ func (s *SubAgent) Run(parent tools.Context, task, background string, maxSteps i
 	schemas := subAgentSchemas(s.registry, s.chatToolNames, []string{"delegate_task", "delegate_tasks"})
 	result := loop.RunTurn(childCtx.GoContext(), session, userText, childCtx, schemas)
 
+	preview := strings.TrimSpace(result.AssistantText)
+	if len([]rune(preview)) > 120 {
+		preview = truncateRunes(preview, 120) + "…"
+	}
 	if emit != nil {
 		emit("subagent_end", map[string]any{
+			"task_id": taskID, "task": task,
 			"failed": result.Failed, "steps": len(result.StepRecords), "error": result.Error,
+			"preview": preview,
 		})
 	}
 	if result.Failed {

@@ -192,11 +192,15 @@ func (e *ToolExec) ExecuteBatch(
 				durationMS = v
 			}
 		}
-		emitProgress(onProgress, "tool_done", map[string]any{
+		donePayload := map[string]any{
 			"step": step, "name": call.Name, "status": string(result.Status),
 			"summary": result.Summary, "arguments": call.Arguments,
 			"duration_ms": durationMS,
-		})
+		}
+		if len(result.Data) > 0 {
+			donePayload["data"] = result.Data
+		}
+		emitProgress(onProgress, "tool_done", donePayload)
 		results[i] = result
 	}
 

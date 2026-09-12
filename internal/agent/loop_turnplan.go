@@ -22,6 +22,9 @@ func turnPlanFragment(plan cognition.TurnPlan) ctxfrag.Fragment {
 			fmt.Fprintf(&b, "- execution contract: %s\n", hint)
 		}
 	}
+	if domaincatalog.NormalizeStockAct(plan.Act) == domaincatalog.StockActMultiSymbol {
+		b.WriteString(subagentOrchestratorPlanBlock())
+	}
 	if len(plan.Skills) > 0 {
 		fmt.Fprintf(&b, "- skills: %s\n", strings.Join(plan.Skills, ", "))
 	}
@@ -36,6 +39,15 @@ func turnPlanFragment(plan cognition.TurnPlan) ctxfrag.Fragment {
 	}
 	b.WriteString("- you must choose and call tools from the allow-list to fulfill this turn; do not switch domains unless the user clearly asks")
 	return ctxfrag.StaticFragment{K: ctxfrag.KindSystemRules, Text: b.String(), Prio: 22}
+}
+
+func subagentOrchestratorPlanBlock() string {
+	return `- sub-agent orchestration (Cursor Task-style, this turn ONLY):
+  - Main thread tools: delegate_tasks (+ clarify if needed). Do NOT call search_code, get_mcp_analysis, or get_current_price here.
+  - Call delegate_tasks ONCE with tasks[] — one self-contained task string per distinct symbol/company; all items run in parallel (like multiple Task tool calls in one Cursor turn).
+  - Each task must include the company/symbol name and what to analyze; sub-agents have isolated context and cannot see this chat history.
+  - After delegate_tasks returns, read results[] and write the final comparative answer for the user.
+`
 }
 
 func (l *Loop) loadPlanSkills(plan cognition.TurnPlan, records *[]runtime.StepRecord) (ctxfrag.Fragment, []string) {

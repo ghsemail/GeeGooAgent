@@ -23,7 +23,6 @@ const (
 	TurnPlanCatBotManage     = "bot_manage"
 	TurnPlanCatHistoryReport = "history_report"
 	TurnPlanCatKnowledgeNews = "knowledge_news"
-	TurnPlanCatSubagent      = "subagent"
 )
 
 // TurnPlanCategory groups live eval cases for dashboard / automation.
@@ -44,7 +43,6 @@ func TurnPlanCategories() []TurnPlanCategory {
 		{ID: TurnPlanCatBotManage, Title: "Bot 管理", Order: 6},
 		{ID: TurnPlanCatHistoryReport, Title: "历史 / 报告", Order: 7},
 		{ID: TurnPlanCatKnowledgeNews, Title: "知识 / 新闻", Order: 8},
-		{ID: TurnPlanCatSubagent, Title: "Sub-Agent 委派", Order: 9},
 	}
 }
 
@@ -140,7 +138,7 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			ForbidTools:  []string{"run_strategy_backtest"},
 		},
 		{
-			ID: "subagent_multi_stock_price", Category: TurnPlanCatSubagent, Title: "单轮 · 多标的并行股价分析",
+			ID: "subagent_multi_stock_price", Category: TurnPlanCatStockAnalysis, Title: "单轮 · 多标的并行股价分析",
 			Description: "独立 session：同时分析腾讯与阿里巴巴最近股价；主 Agent 应 delegate_tasks 并行委派，再汇总对比。",
 			Message: "请帮我分析下腾讯和阿里巴巴最近的股价",
 			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectAct: "multi_symbol_delegate", ExpectSOP: false,
@@ -340,6 +338,9 @@ func defaultTurnPlanRuleTurns() []TurnPlanTurn {
 		{ID: "stock_colloquial_ref", Message: "它最近的信号趋势怎么样", LastDomain: "stock_analysis",
 			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectAct: "context_followup", ExpectSOP: false,
 			RequireTools: []string{"search_code"}, ForbidTools: []string{"run_strategy_backtest"}},
+		{ID: "subagent_multi_stock_price", Message: "请帮我分析下腾讯和阿里巴巴最近的股价",
+			ExpectDomain: "stock_analysis", ExpectMode: "gather", ExpectAct: "multi_symbol_delegate", ExpectSOP: false,
+			RequireTools: []string{"delegate_tasks"}, ForbidTools: []string{"run_strategy_backtest", "search_code", "get_mcp_analysis"}},
 		{ID: "signal_catalog_list", Message: "帮我看看我有哪些信号策略",
 			ExpectDomain: "dca_grid", ExpectMode: "gather", ExpectSOP: false,
 			RequireTools: []string{"get_signal_combinations"}},

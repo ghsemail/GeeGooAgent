@@ -13,13 +13,13 @@ TurnPlan 评测验证 Agent 每轮用户输入的 **意图路由**、**ReAct 工
 
 Live 用例 **不能** 直接 `POST .../cases/{id}/run`（会 400）；必须先完成 `POST /v1/chat/stream`，再带 `session_id` 调 verify。
 
-## 用例结构（25 条 Live）
+## 用例结构（26 条 Live）
 
 源码：`internal/eval/turnplan_cases.go` → `IndividualTurnPlanEvalCases()`。
 
 | 分类 ID | 标题 | 条数 | 代表用例 |
 |---------|------|------|----------|
-| `stock_analysis` | 股票分析 | 5 | 查股价、分析价格走势、技术面续问、切换标的、代词指代 |
+| `stock_analysis` | 股票分析 | 6 | 查股价、分析价格走势、技术面续问、切换标的、代词指代、多标的并行（sub-agent） |
 | `signal` | 信号 / 策略 | 3 | 列策略、列策略后 probe、直接 probe |
 | `backtest` | 策略回测 | 5 | 显式/口语回测、分析后回测、DCA 回测 |
 | `clarify` | 灰区 / 澄清 | 3 | 模糊 MACD、分析+回测复合句、股价灰区 |
@@ -57,7 +57,8 @@ TurnPlan 对 `stock_analysis` 会细化 `act`（`quote_price` / `technical_analy
 
 ## 数据与 API
 
-- Dashboard 用例表：`agent_eval_cases`（`options_json.category = turn_plan`）
+- Dashboard 用例表：`agent_eval_cases`（`options_json.category = turn_plan`；子分组 `turn_plan_group`，如 `stock_analysis`）
+- Flutter Eval / 自动测评二级筛选与 `turn_plan_group` + `EvalTurnPlanGroup` 对齐（见 `trading_operation` `eval_case_taxonomy.dart`）
 - Seed SQL：`internal/infra/schema.sql`（SQLite）、`internal/infra/pgschema/postgres_eval.sql`（Postgres）
 - 重新生成 seed：`go run scripts/gen_turnplan_eval_sql.go`
 - 生成自动化 manifest：`go run scripts/eval/gen_turnplan_cases_json.go`

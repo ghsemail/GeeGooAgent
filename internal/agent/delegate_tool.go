@@ -13,8 +13,9 @@ func RegisterDelegateTask(r *tools.Registry, delegate tools.TaskDelegator) {
 	}
 	r.Register(tools.Tool{
 		Name: "delegate_task",
-		Description: "将复杂子任务委托给独立子 Agent 执行（独立回合预算与上下文，不写入主会话历史）。" +
-			"适合多步调研、并行信息收集等；子 Agent 不能再嵌套 delegate。",
+		Description: "将复杂子任务委托给独立子 Agent（独立 ReAct 回合，不写入主会话历史）。" +
+			"适合：多步调研、需多轮工具的单路子任务。单标的简单查价/分析请直接调业务工具。" +
+			"子 Agent 不能再嵌套 delegate。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -49,8 +50,9 @@ func RegisterDelegateTasks(r *tools.Registry, delegate tools.TaskDelegator) {
 	}
 	r.Register(tools.Tool{
 		Name: "delegate_tasks",
-		Description: "并行委托多个子 Agent 任务（共享 delegate_max_parallel 上限，不写入主会话历史）。" +
-			"适合多标的并行调研；子 Agent 不能再嵌套 delegate。",
+		Description: "并行委托 1–8 个独立子 Agent（共享 delegate_max_parallel，不写入主会话历史）。" +
+			"适合：多标的并行分析/调研（如同时查腾讯与阿里巴巴），每路 task 写清单一标的或子目标；" +
+			"全部完成后由主 Agent 汇总对比。单标的请求请直接调工具，勿 delegate。子 Agent 不能再嵌套 delegate。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

@@ -18,7 +18,27 @@ func TestFilterSchemasIntersectsAllowList(t *testing.T) {
 		{Name: "search_code"},
 		{Name: "run_strategy_backtest"},
 		{Name: "clarify"},
+		{Name: "delegate_tasks"},
 		{Name: "create_dca_bot"},
+	}, plan)
+	names := map[string]bool{}
+	for _, s := range filtered {
+		names[s.Name] = true
+	}
+	if !names["search_code"] || !names["clarify"] || !names["delegate_tasks"] {
+		t.Fatalf("filtered=%v", names)
+	}
+	if names["run_strategy_backtest"] || names["create_dca_bot"] {
+		t.Fatalf("backtest/bot tools leaked: %v", names)
+	}
+}
+
+func TestFilterSchemasOmitsDelegateOnTalk(t *testing.T) {
+	plan := TurnPlan{Domain: DomainChat, Mode: ModeTalk, ToolsAllow: []string{"search_code"}}
+	filtered := FilterSchemas([]llm.ToolSchema{
+		{Name: "search_code"},
+		{Name: "delegate_tasks"},
+		{Name: "clarify"},
 	}, plan)
 	names := map[string]bool{}
 	for _, s := range filtered {
@@ -27,20 +47,27 @@ func TestFilterSchemasIntersectsAllowList(t *testing.T) {
 	if !names["search_code"] || !names["clarify"] {
 		t.Fatalf("filtered=%v", names)
 	}
-	if names["run_strategy_backtest"] || names["create_dca_bot"] {
-		t.Fatalf("backtest/bot tools leaked: %v", names)
+	if names["delegate_tasks"] {
+		t.Fatal("talk mode must not expose delegate_tasks")
 	}
 }
 
 type classifyMock struct {
-	calls int
-	body  string
+	calls  int
+	body   string
+	bodies []string
 }
 
 func (m *classifyMock) Model() string { return "gate-mock" }
 
 func (m *classifyMock) Chat(_ context.Context, _ []llm.Message, _ []llm.ToolSchema, _ float64, _ int) (*llm.Response, error) {
 	m.calls++
+	if m != nil && len(m.bodies) > 0 {
+		idx := m.calls - 1
+		if idx >= 0 && idx < len(m.bodies) {
+			return &llm.Response{Content: m.bodies[idx]}, nil
+		}
+	}
 	return &llm.Response{Content: m.body}, nil
 }
 
@@ -100,6 +127,37 @@ func TestIntentPlannerStockActFromLLM(t *testing.T) {
 	got = p.Plan(PlanInput{UserText: "它最近走势怎么样", LastDomain: DomainStockAnalysis})
 	if got.Act != "context_followup" {
 		t.Fatalf("act=%s want context_followup", got.Act)
+	}
+
+	mock.body = `{"domain":"stock_analysis","mode":"gather","act":"multi_symbol_delegate","confidence":0.9,"reason":"two symbols parallel"}`
+	got = p.Plan(PlanInput{UserText: "请帮我分析下腾讯和阿里巴巴最近的股价"})
+	if got.Act != domaincatalog.StockActMultiSymbol {
+		t.Fatalf("act=%s want multi_symbol_delegate", got.Act)
+	}
+	if domaincatalog.ExecutionProfileFor(domaincatalog.DomainStockAnalysis, got.Act) != domaincatalog.ProfileSubagentMultiStock {
+		t.Fatalf("expected subagent execution profile for multi_symbol_delegate")
+	}
+	if len(got.ToolsAllow) != 1 || got.ToolsAllow[0] != "delegate_tasks" {
+		t.Fatalf("multi_symbol_delegate orchestrator ToolsAllow=%v want [delegate_tasks]", got.ToolsAllow)
+	}
+
+	mock.body = `{"domain":"stock_analysis","mode":"gather","act":"technical_analysis","symbol_count":2,"confidence":0.9,"reason":"two companies"}`
+	got = p.Plan(PlanInput{UserText: "请帮我分析下腾讯和阿里巴巴最近的股价"})
+	if got.Act != domaincatalog.StockActMultiSymbol {
+		t.Fatalf("symbol_count=2 should promote act to multi_symbol_delegate, got %s", got.Act)
+	}
+
+	mock = &classifyMock{bodies: []string{
+		`{"domain":"stock_analysis","mode":"gather","act":"quote_price","symbol_count":0,"confidence":0.9,"reason":"price quote"}`,
+		`{"symbol_count":2,"reason":"腾讯和阿里巴巴"}`,
+	}}
+	p = IntentPlanner{LLM: mock}
+	got = p.Plan(PlanInput{UserText: "请帮我分析下腾讯和阿里巴巴最近的股价"})
+	if got.Act != domaincatalog.StockActMultiSymbol {
+		t.Fatalf("symbol_count refine should promote quote_price to multi_symbol_delegate, got %s", got.Act)
+	}
+	if mock.calls != 2 {
+		t.Fatalf("expected classify + symbol_count calls, got %d", mock.calls)
 	}
 }
 

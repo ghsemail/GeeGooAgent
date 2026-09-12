@@ -109,8 +109,8 @@ func TestEvalSuiteCreateAndList(t *testing.T) {
 		t.Fatalf("missing suite id: %v", body)
 	}
 	caseIDs, _ := suite["case_ids"].([]any)
-	if len(caseIDs) != 5 {
-		t.Fatalf("stock_analysis cases=%d want 5", len(caseIDs))
+	if len(caseIDs) != 6 {
+		t.Fatalf("stock_analysis cases=%d want 6", len(caseIDs))
 	}
 
 	code, body = evalAutoJSON(t, handler, http.MethodGet, "/v1/dashboard/eval/suites", nil)

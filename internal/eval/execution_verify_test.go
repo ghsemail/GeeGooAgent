@@ -54,6 +54,36 @@ func TestVerifyExecutionProfilesMatchLiveFailures(t *testing.T) {
 	}
 }
 
+func TestVerifyExecutionSubagentMultiStockProfile(t *testing.T) {
+	chat := &chatsession.ChatSession{
+		Metadata: map[string]any{
+			"turn_tools_trace": []chatsession.TurnToolsEntry{
+				{Turn: 1, Tools: []string{"delegate_tasks"}},
+			},
+		},
+	}
+	res := eval.VerifyExecution(chat, eval.ExpectExecutionSpec{
+		Profile: domaincatalog.ProfileSubagentMultiStock,
+	}, eval.TurnPlanCaseOptions{})
+	if !res.Passed {
+		t.Fatalf("subagent profile should pass: %s", res.Detail)
+	}
+
+	directChat := &chatsession.ChatSession{
+		Metadata: map[string]any{
+			"turn_tools_trace": []chatsession.TurnToolsEntry{
+				{Turn: 1, Tools: []string{"search_code", "get_mcp_analysis"}},
+			},
+		},
+	}
+	res = eval.VerifyExecution(directChat, eval.ExpectExecutionSpec{
+		Profile: domaincatalog.ProfileSubagentMultiStock,
+	}, eval.TurnPlanCaseOptions{})
+	if res.Passed {
+		t.Fatal("direct main-agent analysis should fail subagent profile")
+	}
+}
+
 func TestVerifyExecutionUsesJudgedTurnIndex(t *testing.T) {
 	chat := &chatsession.ChatSession{
 		Metadata: map[string]any{

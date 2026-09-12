@@ -75,4 +75,55 @@ func TestFilterExecutionProfileSchemas(t *testing.T) {
 			t.Fatal("get_mcp_analysis should be filtered for snapshot profile")
 		}
 	}
+
+	subagentIn := append([]llm.ToolSchema{}, in...)
+	subagentIn = append(subagentIn, llm.ToolSchema{Name: "delegate_tasks"}, llm.ToolSchema{Name: "clarify"})
+	out = filterExecutionProfileSchemas(subagentIn, domaincatalog.ProfileSubagentMultiStock)
+	if len(out) != 2 {
+		t.Fatalf("subagent profile should expose only delegate_tasks+clarify, got %d tools", len(out))
+	}
+	names := map[string]bool{}
+	for _, s := range out {
+		names[s.Name] = true
+	}
+	if !names["delegate_tasks"] || !names["clarify"] {
+		t.Fatalf("subagent tools=%v", names)
+	}
+}
+
+func TestApplyTurnToolSchemasMultiSymbolOrchestrator(t *testing.T) {
+	in := []llm.ToolSchema{
+		{Name: "search_code"}, {Name: "get_current_price"}, {Name: "get_mcp_analysis"},
+		{Name: "delegate_tasks"}, {Name: "delegate_task"}, {Name: "clarify"},
+		{Name: "fetch_market_news"},
+	}
+	plan := cognition.TurnPlan{
+		Domain: cognition.DomainStockAnalysis,
+		Mode:   cognition.ModeGather,
+		Act:    domaincatalog.StockActMultiSymbol,
+		ToolsAllow: []string{"delegate_tasks"},
+	}
+	out := applyTurnToolSchemas(in, plan)
+	if len(out) != 2 {
+		t.Fatalf("orchestrator turn want 2 tools, got %d: %v", len(out), out)
+	}
+}
+
+func TestTryExecutionProfileRetryOnSubagentDirectTools(t *testing.T) {
+	loop := &Loop{executionProfileMaxRetries: 1}
+	session := runtime.NewSession()
+	messages := session.LLMMessages()
+	turnPlan := cognition.TurnPlan{
+		Domain: cognition.DomainStockAnalysis,
+		Act:    domaincatalog.StockActMultiSymbol,
+	}
+	records := []runtime.StepRecord{{Kind: "tool", ToolName: "search_code"}}
+	retries := 1
+
+	if !loop.tryExecutionProfileRetry(context.Background(), session, &messages, turnPlan, records, &retries) {
+		t.Fatal("expected execution profile retry for direct search_code on subagent profile")
+	}
+	if retries != 0 {
+		t.Fatalf("retries=%d", retries)
+	}
 }

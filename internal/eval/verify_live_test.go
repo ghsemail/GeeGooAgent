@@ -72,6 +72,39 @@ func TestVerifyTurnPlanLiveFullWithJudge(t *testing.T) {
 	}
 }
 
+func TestVerifyTurnPlanLiveFullSubagentMultiStock(t *testing.T) {
+	chat := &chatsession.ChatSession{
+		Messages: []llm.Message{
+			{Role: llm.RoleUser, Content: "请帮我分析下腾讯和阿里巴巴最近的股价"},
+			{Role: llm.RoleAssistant, Content: "腾讯控股约 380 港元，阿里巴巴约 85 港元；腾讯近期波动略大于阿里。"},
+		},
+		Metadata: map[string]any{
+			"last_turn_plan": map[string]any{
+				"domain": "stock_analysis", "mode": "gather", "sop": false, "act": "analyze",
+			},
+			"turn_tools_trace": []chatsession.TurnToolsEntry{
+				{Turn: 1, Tools: []string{"delegate_tasks"}},
+			},
+		},
+	}
+	opts := eval.TurnPlanCaseOptions{
+		TurnID:           "subagent_multi_stock_price",
+		ExpectDomain:     "stock_analysis",
+		ExpectMode:       "gather",
+		ExpectSOP:        false,
+		Message:          "请帮我分析下腾讯和阿里巴巴最近的股价",
+		ExecutionProfile: "subagent.multi_stock_parallel",
+		MinReplyChars:    20,
+	}.Normalize()
+
+	res := eval.VerifyTurnPlanLiveFull(context.Background(), chat, opts, stubJudge{
+		out: eval.ReplyJudgeOutput{Pass: true, Score: 0.9, Reason: "双标的对比合理"},
+	})
+	if !res.Passed {
+		t.Fatalf("expected pass, got %s checks=%+v", res.Detail, res.Checks)
+	}
+}
+
 func TestVerifyTurnPlanLiveFullJudgeFail(t *testing.T) {
 	chat := &chatsession.ChatSession{
 		Messages: []llm.Message{

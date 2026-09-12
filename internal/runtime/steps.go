@@ -12,4 +12,5 @@ type StepRecord struct {
 	Summary          string
 	PromptTokens     int
 	CompletionTokens int
+	Extra            map[string]any `json:"extra,omitempty"`
 }

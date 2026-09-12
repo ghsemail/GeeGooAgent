@@ -39,5 +39,12 @@ func ToolRouting() string {
 - **GRID**：generate_grid_strategy → 用户确认 botname/lot_size → create_grid_bot（grid=param，frequency 默认 5m）
 - **DCA**：generate_dca_strategy → 将 signal.buy_signal 写入 signal.buy_signal，tp/sl 按 comparison 选 dynamicParam 或 fixedParam 映射 → create_dca_bot
 - 创建前 list_*_bots 查重名；103=未绑交易账号，105=Bot 配额不足
-- **提醒 Bot**：create_grid_reminder / create_dca_reminder，参数类似但不实盘下单`
+- **提醒 Bot**：create_grid_reminder / create_dca_reminder，参数类似但不实盘下单
+
+### Sub-Agent 委派（delegate_task / delegate_tasks，等同 Cursor Task）
+- **多个互不依赖的子任务**（如同时分析腾讯与阿里巴巴、并行调研多标的）→ **必须**用 **delegate_tasks**：一次调用、tasks[] 每路一项，平台并行执行（等同 Cursor 同轮多次 Task）
+- **单个复杂但可隔离的子任务**（多步调研、长链路信息收集）→ **delegate_task**
+- **单标的、单步或简单查询**（查一只股票的现价/走势）→ 直接调 search_code / get_current_price / get_mcp_analysis，**不要** delegate
+- 当 Turn plan act=multi_symbol_delegate 时：本回合你是编排者，**只能** delegate_tasks（+ clarify）；禁止主线程 search_code / get_mcp_analysis / get_current_price
+- 子 Agent 有独立上下文；task 文案须自洽（含标的与意图）。结果经 tool result 的 results[] 返回；你在主会话汇总对比，勿假设子 Agent 写入主会话历史`
 }

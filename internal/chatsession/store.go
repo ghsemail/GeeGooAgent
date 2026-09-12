@@ -16,14 +16,15 @@ import (
 
 // ChatStepRecord is one plan/tool/reply step in a persisted chat session.
 type ChatStepRecord struct {
-	Step             int       `json:"step"`
-	Timestamp        time.Time `json:"timestamp"`
-	Kind             string    `json:"kind"`
-	ToolName         string    `json:"tool_name,omitempty"`
-	ToolStatus       string    `json:"tool_status,omitempty"`
-	Summary          string    `json:"summary"`
-	PromptTokens     int       `json:"prompt_tokens,omitempty"`
-	CompletionTokens int       `json:"completion_tokens,omitempty"`
+	Step             int            `json:"step"`
+	Timestamp        time.Time      `json:"timestamp"`
+	Kind             string         `json:"kind"`
+	ToolName         string         `json:"tool_name,omitempty"`
+	ToolStatus       string         `json:"tool_status,omitempty"`
+	Summary          string         `json:"summary"`
+	PromptTokens     int            `json:"prompt_tokens,omitempty"`
+	CompletionTokens int            `json:"completion_tokens,omitempty"`
+	Extra            map[string]any `json:"extra,omitempty"`
 }
 
 // ChatSession is a persisted interactive chat session.
@@ -449,6 +450,9 @@ func chatSessionFromMap(data map[string]any) (*ChatSession, error) {
 				Step: intField(rm, "step"), Kind: stringField(rm, "kind"),
 				ToolName: stringField(rm, "tool_name"), ToolStatus: stringField(rm, "tool_status"),
 				Summary: stringField(rm, "summary"),
+			}
+			if extra, ok := rm["extra"].(map[string]any); ok && len(extra) > 0 {
+				rec.Extra = extra
 			}
 			if t, err := time.Parse(time.RFC3339, stringField(rm, "timestamp")); err == nil {
 				rec.Timestamp = t

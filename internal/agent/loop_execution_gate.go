@@ -87,15 +87,42 @@ func (l *Loop) tryExecutionProfileRetry(
 	return true
 }
 
+func applyTurnToolSchemas(base []llm.ToolSchema, turnPlan cognition.TurnPlan) []llm.ToolSchema {
+	out := cognition.FilterSchemas(base, turnPlan)
+	profileID := domaincatalog.ExecutionProfileFor(domaincatalog.Domain(turnPlan.Domain), turnPlan.Act)
+	return filterExecutionProfileSchemas(out, profileID)
+}
+
 func filterExecutionProfileSchemas(schemas []llm.ToolSchema, profileID string) []llm.ToolSchema {
 	switch profileID {
 	case domaincatalog.ProfileStockPriceViaMCP, domaincatalog.ProfileStockTechnicalFull:
 		return filterOutToolSchema(schemas, "get_current_price")
 	case domaincatalog.ProfileStockPriceSnapshot:
 		return filterOutToolSchema(schemas, "get_mcp_analysis")
+	case domaincatalog.ProfileSubagentMultiStock:
+		return keepOnlyToolSchemas(schemas, subagentMainToolNames...)
 	default:
 		return schemas
 	}
+}
+
+var subagentMainToolNames = []string{"delegate_tasks", "clarify"}
+
+func keepOnlyToolSchemas(schemas []llm.ToolSchema, names ...string) []llm.ToolSchema {
+	allow := map[string]struct{}{}
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			allow[name] = struct{}{}
+		}
+	}
+	out := make([]llm.ToolSchema, 0, len(names))
+	for _, s := range schemas {
+		if _, ok := allow[s.Name]; ok {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func filterOutToolSchema(schemas []llm.ToolSchema, name string) []llm.ToolSchema {

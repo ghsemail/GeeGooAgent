@@ -464,10 +464,10 @@ func (l *Loop) runPreparedTurn(
 	if extra := l.expandSkillSchemas(matchedSkills); len(extra) > 0 {
 		schemas = mergeToolSchemas(schemas, extra)
 	}
-	schemas = cognition.FilterSchemas(schemas, turnPlan)
+	planBaseSchemas := schemas
+	schemas = applyTurnToolSchemas(planBaseSchemas, turnPlan)
 	profileID := domaincatalog.ExecutionProfileFor(domaincatalog.Domain(turnPlan.Domain), turnPlan.Act)
 	session.LastExecutionProfile = profileID
-	schemas = filterExecutionProfileSchemas(schemas, profileID)
 
 	if result, handled := l.tryPresetClarify(ctx, session, turnPlan, toolCtx, &records, schemas); handled {
 		return result
@@ -486,8 +486,16 @@ func (l *Loop) runPreparedTurn(
 			return l.failTurn(ctx, session, err, records)
 		}
 		done, result := l.runRound(ctx, session, &messages, toolCtx, schemas, round, &records)
+		if !done {
+			if l.tryExecutionProfileRetry(ctx, session, &messages, turnPlan, records, &executionRetriesLeft) {
+				schemas = applyTurnToolSchemas(planBaseSchemas, turnPlan)
+				continue
+			}
+			continue
+		}
 		if done {
 			if l.tryExecutionProfileRetry(ctx, session, &messages, turnPlan, records, &executionRetriesLeft) {
+				schemas = applyTurnToolSchemas(planBaseSchemas, turnPlan)
 				continue
 			}
 			if l.tryEvalRetry(ctx, session, &messages, result, &evalRetriesLeft) {

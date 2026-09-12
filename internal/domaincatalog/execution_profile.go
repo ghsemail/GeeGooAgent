@@ -78,7 +78,7 @@ var executionProfiles = map[string]ExecutionProfile{
 		Required: []ToolRule{
 			{Tool: "delegate_tasks", Scope: ScopeJudgedTurn},
 		},
-		ForbidOnJudgedTurn: []string{"get_mcp_analysis", "get_current_price", "search_code"},
+		ForbidOnJudgedTurn: []string{"get_mcp_analysis", "get_current_price", "search_code", "get_single_prompt_template"},
 	},
 }
 

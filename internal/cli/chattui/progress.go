@@ -93,6 +93,23 @@ func (s *LiveSlot) ApplyProgress(event string, data map[string]any, cfg config.D
 				s.Blocks[idx].Live = true
 			}
 		}
+	case "subagent_event":
+		inner, _ := data["event"].(string)
+		innerData, _ := data["data"].(map[string]any)
+		if inner == "tool_start" && innerData != nil {
+			name, _ := innerData["name"].(string)
+			if name != "" {
+				s.ensureLiveTools()
+				if idx := s.blockIndex(s.LiveToolsID); idx >= 0 {
+					line := "  ↳ " + name
+					if s.Blocks[idx].Body != "" {
+						s.Blocks[idx].Body += "\n" + line
+					} else {
+						s.Blocks[idx].Body = line
+					}
+				}
+			}
+		}
 	case "subagent_end":
 		s.Status = "running…"
 	case "plan_proposed":
