@@ -2,6 +2,8 @@
 
 TurnPlan 评测验证 Agent 每轮用户输入的 **意图路由**、**ReAct 工具调用** 与 **助手回复质量**。
 
+机制层（给其他 Agent 复制、不含本仓库领域话术）：见 [../architecture/platform-blueprint/eval-build-guide.md](../architecture/platform-blueprint/eval-build-guide.md)。本文只记录本仓库的套件与操作入口。
+
 ## 两种模式
 
 | 模式 | 入口 | 耗时 | 说明 |

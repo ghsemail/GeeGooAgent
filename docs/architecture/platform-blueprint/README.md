@@ -16,6 +16,7 @@
 | Skill 怎么扩展业务？ | [skill-pack.md](./skill-pack.md) |
 | 分几期交付、验收标准？ | [phases.md](./phases.md) |
 | **智能体如何按步实现？** | [agent-build-guide.md](./agent-build-guide.md) |
+| **Eval 机制如何落地？** | [eval-build-guide.md](./eval-build-guide.md) |
 
 ---
 
@@ -60,6 +61,7 @@ L0 Infra        →  持久化 / 事件 / 调度 / 沙箱
 4. [skill-pack.md](./skill-pack.md) — manifest / supervisor_checks 规范
 5. [phases.md](./phases.md) — Phase 0→3 交付物与验收
 6. [agent-build-guide.md](./agent-build-guide.md) — **15 Step 复制即用指令**
+7. [eval-build-guide.md](./eval-build-guide.md) — **Eval 机制**（路由 / 工具 / 回复验收，不含领域话术）
 
 ---
 

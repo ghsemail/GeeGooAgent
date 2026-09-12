@@ -1,6 +1,9 @@
 # TurnPlan Eval
 
-TurnPlan 评测覆盖 **路由（domain/mode）**、**工具调用**、**回复语义（LLM judge）**。完整说明见 [docs/engineering/turnplan-eval.md](../../docs/engineering/turnplan-eval.md)。
+TurnPlan 评测覆盖 **路由（domain/mode）**、**工具调用**、**回复语义（LLM judge）**。
+
+- 通用机制（给其他 Agent 复制）：[docs/architecture/platform-blueprint/eval-build-guide.md](../../docs/architecture/platform-blueprint/eval-build-guide.md)
+- 本仓库套件与操作：[docs/engineering/turnplan-eval.md](../../docs/engineering/turnplan-eval.md)
 
 ## 目录
 

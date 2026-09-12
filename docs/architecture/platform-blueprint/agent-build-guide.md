@@ -332,6 +332,7 @@ GeeGoo 映射示例见 [../overview.md](../overview.md)。
 - [ ] `--dry-run` 与 live 步骤一致
 - [ ] systemd timer 或 cron 文档
 - [ ] 架构 README 链接到 platform-blueprint
+- [ ] 需要评测时按 [eval-build-guide.md](./eval-build-guide.md) 落地 Eval（先机制后领域用例）
 
 ---
 
@@ -345,5 +346,6 @@ GeeGoo 映射示例见 [../overview.md](../overview.md)。
 | Working Apply | `internal/memory/working.go` |
 | App wiring | `internal/app/app.go` |
 | manifest 示例 | `skills/premarket_market/manifest.yaml` |
+| Eval 机制 | `internal/eval/` + [eval-build-guide.md](./eval-build-guide.md) |
 
 实现 GeeGoo 域：叠加 [engineering/requirements.md](../../engineering/requirements.md) 与 [domains/](../domains/)。

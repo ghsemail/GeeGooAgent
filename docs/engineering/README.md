@@ -9,6 +9,8 @@
 | [testing-standards.md](./testing-standards.md) | **测试规范**（每 Step 必交付用例、mock、覆盖率、验收命令） |
 | [cursor-workflow.md](./cursor-workflow.md) | 如何用 Cursor Agent **分步骤、高效率**完成开发 |
 | [agent-runtime-boundaries.md](./agent-runtime-boundaries.md) | **Agent OS 硬边界**（Python 禁止清单、包依赖、验收命令） |
+| [turnplan-eval.md](./turnplan-eval.md) | 本仓库 TurnPlan 评测的领域套件与操作手册 |
+| [../architecture/platform-blueprint/eval-build-guide.md](../architecture/platform-blueprint/eval-build-guide.md) | **通用 Eval 机制**（给其他 Agent 复制；不含领域话术） |
 
 **阅读顺序**：requirements → coding-standards + testing-standards → cursor-workflow → 按 Step 开工。
 

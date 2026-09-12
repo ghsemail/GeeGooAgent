@@ -56,6 +56,7 @@
 │   │   ├── steps.go                # Step 定义（Phase 1 可硬编码）
 │   │   └── loader.go               # 读 manifest.yaml（Phase 3）
 │   ├── runtimeapi/                 # HTTP handler（可选）
+│   ├── eval/                       # Eval 机制（Plan-only + Live Verify；见 eval-build-guide.md）
 │   ├── doctor/
 │   │   ├── doctor.go
 │   │   └── connectivity.go
@@ -93,7 +94,7 @@
 | 层 | 包路径 | 禁止导入 |
 |----|--------|----------|
 | L5 | `cmd/`, `skills/`, `rules/`, `prompts/` | — |
-| L4 | `internal/runtime`, `internal/workflow` | 不 import `clients` 直连 HTTP |
+| L4 | `internal/runtime`, `internal/workflow`, `internal/eval` | 不 import `clients` 直连 HTTP |
 | L3 | `internal/memory`, `internal/chatsession` | 不 import `llm` |
 | L2 | `internal/tools`, `internal/clients` | 不 import `runtime` |
 | L1 | `internal/llm` | 不 import `tools` |
