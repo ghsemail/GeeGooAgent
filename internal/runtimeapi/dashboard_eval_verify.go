@@ -26,9 +26,9 @@ func (h *Handler) persistEvalVerifyRun(ctx context.Context, db *sql.DB, userID, 
 	}
 	_ = h.ensureEvalRunChecksTable(ctx, db)
 
-	status := "pass"
+	status := "passed"
 	if !result.Passed {
-		status = "fail"
+		status = "failed"
 	}
 	summaryJSON, _ := json.Marshal(result.Summary)
 	dialogueJSON, _ := json.Marshal(result.DialogueSnapshot)
@@ -38,26 +38,28 @@ func (h *Handler) persistEvalVerifyRun(ctx context.Context, db *sql.DB, userID, 
 	_, err := db.ExecContext(ctx, h.evalSQL(`
 		INSERT INTO agent_eval_runs (
 			id, user_id, case_id, title, status, dual_model, model_slot_a, model_slot_b,
-			duration_ms, error_text, logs_json, dialogue_snapshot_json, summary_json,
+			session_id, sessions_json, duration_ms, error_text, logs_json, dialogue_snapshot_json, summary_json,
 			started_at, ended_at, created_at
-		) VALUES (?, ?, ?, ?, ?, 0, '', '', ?, ?, '[]', ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, 0, '', '', ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			status = excluded.status,
+			session_id = excluded.session_id,
+			sessions_json = excluded.sessions_json,
 			duration_ms = excluded.duration_ms,
 			error_text = excluded.error_text,
 			dialogue_snapshot_json = excluded.dialogue_snapshot_json,
 			summary_json = excluded.summary_json,
 			ended_at = excluded.ended_at`),
-		runID, userID, caseID, title, status, durationMs, detailIfFail(result),
+		runID, userID, caseID, title, status, sessionID, sessionsJSONForEval(sessionID), durationMs, detailIfFail(result),
 		string(dialogueJSON), string(summaryJSON), started, now, now)
 	if err != nil && !h.usesPostgresEval() {
 		_, err = db.ExecContext(ctx, h.evalSQL(`
 			INSERT OR REPLACE INTO agent_eval_runs (
 				id, user_id, case_id, title, status, dual_model, model_slot_a, model_slot_b,
-				duration_ms, error_text, logs_json, dialogue_snapshot_json, summary_json,
+				session_id, sessions_json, duration_ms, error_text, logs_json, dialogue_snapshot_json, summary_json,
 				started_at, ended_at, created_at
-			) VALUES (?, ?, ?, ?, ?, 0, '', '', ?, ?, '[]', ?, ?, ?, ?, ?)`),
-			runID, userID, caseID, title, status, durationMs, detailIfFail(result),
+			) VALUES (?, ?, ?, ?, ?, 0, '', '', ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`),
+			runID, userID, caseID, title, status, sessionID, sessionsJSONForEval(sessionID), durationMs, detailIfFail(result),
 			string(dialogueJSON), string(summaryJSON), started.Format(time.RFC3339), now.Format(time.RFC3339), now.Format(time.RFC3339))
 	}
 	if err != nil {
@@ -129,7 +131,9 @@ func (h *Handler) ensureEvalRunChecksTable(ctx context.Context, db *sql.DB) erro
 			CREATE INDEX IF NOT EXISTS idx_agent_eval_run_checks_run
 				ON agent_eval_run_checks (run_id, check_type);
 			ALTER TABLE agent_eval_runs ADD COLUMN IF NOT EXISTS dialogue_snapshot_json TEXT NOT NULL DEFAULT '[]';
-			ALTER TABLE agent_eval_runs ADD COLUMN IF NOT EXISTS summary_json TEXT NOT NULL DEFAULT '{}';`)
+			ALTER TABLE agent_eval_runs ADD COLUMN IF NOT EXISTS summary_json TEXT NOT NULL DEFAULT '{}';
+			ALTER TABLE agent_eval_runs ADD COLUMN IF NOT EXISTS session_id TEXT NOT NULL DEFAULT '';
+			ALTER TABLE agent_eval_runs ADD COLUMN IF NOT EXISTS sessions_json TEXT NOT NULL DEFAULT '[]';`)
 		return err
 	}
 	stmts := []string{
@@ -158,6 +162,8 @@ func (h *Handler) ensureEvalRunChecksTable(ctx context.Context, db *sql.DB) erro
 	for _, col := range []string{
 		`ALTER TABLE agent_eval_runs ADD COLUMN dialogue_snapshot_json TEXT NOT NULL DEFAULT '[]'`,
 		`ALTER TABLE agent_eval_runs ADD COLUMN summary_json TEXT NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE agent_eval_runs ADD COLUMN session_id TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE agent_eval_runs ADD COLUMN sessions_json TEXT NOT NULL DEFAULT '[]'`,
 	} {
 		_, _ = db.ExecContext(ctx, col)
 	}

@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS agent_eval_runs (
     logs_json     TEXT NOT NULL DEFAULT '[]',
     dialogue_snapshot_json TEXT NOT NULL DEFAULT '[]',
     summary_json  TEXT NOT NULL DEFAULT '{}',
+    session_id    TEXT NOT NULL DEFAULT '',
+    sessions_json TEXT NOT NULL DEFAULT '[]',
     started_at    TIMESTAMPTZ NOT NULL,
     ended_at      TIMESTAMPTZ,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
