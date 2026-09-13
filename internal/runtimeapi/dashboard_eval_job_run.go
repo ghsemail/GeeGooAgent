@@ -167,8 +167,13 @@ func (h *Handler) runEvalJobItem(ctx context.Context, db *sql.DB, auth evalJobAu
 
 	sessionID := ""
 	var lastOut evalTurnOutcome
+	clarifyHint := eval.ClarifyRecommendContext{
+		ExpectIntent: opts.ExpectIntent,
+		ExpectReply:  opts.ExpectReply,
+	}
 	for i, turn := range regularTurns {
-		lastOut, err = h.runEvalChatTurn(ctx, auth, sessionID, turn.Text, clarifyDefaults, !splitClarify)
+		clarifyHint.Dialogue = append(clarifyHint.Dialogue, turn)
+		lastOut, err = h.runEvalChatTurn(ctx, auth, sessionID, turn.Text, clarifyDefaults, clarifyHint, !splitClarify)
 		if err != nil {
 			h.finishEvalJobItem(db, item.id, "error", lastOut.sessionID, "", "dialogue["+strconv.Itoa(i)+"]: "+err.Error(), lastOut.errText, start, nil, nil)
 			return "error"
@@ -192,7 +197,8 @@ func (h *Handler) runEvalJobItem(ctx context.Context, db *sql.DB, auth evalJobAu
 	}
 	if len(clarifyTurns) > 0 && eval.NeedsClarifyFollowup(chat, opts) {
 		for i, turn := range clarifyTurns {
-			lastOut, err = h.runEvalChatTurn(ctx, auth, sessionID, turn.Text, clarifyDefaults, false)
+			clarifyHint.Dialogue = append(clarifyHint.Dialogue, turn)
+			lastOut, err = h.runEvalChatTurn(ctx, auth, sessionID, turn.Text, clarifyDefaults, clarifyHint, false)
 			if err != nil {
 				h.finishEvalJobItem(db, item.id, "error", lastOut.sessionID, "", "clarify["+strconv.Itoa(i)+"]: "+err.Error(), lastOut.errText, start, nil, nil)
 				return "error"
@@ -227,7 +233,7 @@ func (h *Handler) runEvalJobItem(ctx context.Context, db *sql.DB, auth evalJobAu
 	return status
 }
 
-func (h *Handler) runEvalChatTurn(ctx context.Context, auth evalJobAuth, sessionID, message string, clarifyDefaults []string, enableClarifyFn bool) (evalTurnOutcome, error) {
+func (h *Handler) runEvalChatTurn(ctx context.Context, auth evalJobAuth, sessionID, message string, clarifyDefaults []string, clarifyHint eval.ClarifyRecommendContext, enableClarifyFn bool) (evalTurnOutcome, error) {
 	out := evalTurnOutcome{sessionID: sessionID}
 	if h == nil || h.App == nil || h.App.Agent == nil || h.App.Gateway == nil {
 		return out, fmt.Errorf("agent runtime not ready")
@@ -270,10 +276,10 @@ func (h *Handler) runEvalChatTurn(ctx context.Context, auth evalJobAuth, session
 	toolCtx.Interactive = false
 	toolCtx.Approved = true
 	if enableClarifyFn {
+		hint := clarifyHint
+		hint.ClarifyDefaults = clarifyDefaults
 		toolCtx.ClarifyFn = func(ctx context.Context, question string, choices []string) (string, bool) {
-			rec := eval.RecommendClarifyChoice(ctx, question, choices, eval.ClarifyRecommendContext{
-				ClarifyDefaults: clarifyDefaults,
-			}, h.clarifyRecommender())
+			rec := eval.RecommendClarifyChoice(ctx, question, choices, hint, h.clarifyRecommender())
 			if answer, ok := rec.AnswerChoice(choices); ok {
 				return answer, true
 			}

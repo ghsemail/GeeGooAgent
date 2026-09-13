@@ -30,6 +30,9 @@ func DialogueExecutionPlan(opts TurnPlanCaseOptions) (regular, clarify []EvalDia
 // ClarifyDefaultTexts returns configured default user replies for clarify tool callbacks.
 func ClarifyDefaultTexts(opts TurnPlanCaseOptions) []string {
 	opts = opts.Normalize()
+	if opts.AutoClarifyOnly {
+		return nil
+	}
 	seen := map[string]struct{}{}
 	out := []string{}
 	for _, turn := range opts.Dialogue {

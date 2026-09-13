@@ -36,6 +36,7 @@ type TurnPlanCaseOptions struct {
 	ExpectExecution *ExpectExecutionSpec `json:"expect_execution,omitempty"`
 	ExpectRouting  *ExpectRoutingSpec `json:"expect_routing,omitempty"`
 	Judge          *EvalJudgeConfig   `json:"judge,omitempty"`
+	AutoClarifyOnly bool              `json:"auto_clarify_only,omitempty"`
 }
 
 // TurnPlanEvalCaseDef is one seeded dashboard eval row.
@@ -90,6 +91,7 @@ func IndividualTurnPlanEvalCases() []TurnPlanEvalCaseDef {
 				Domain: c.ExpectDomain, Mode: c.ExpectMode, SOP: c.ExpectSOP,
 				ForbidTools: append([]string(nil), c.ForbidTools...),
 			},
+			AutoClarifyOnly: c.Category == TurnPlanCatBacktest,
 		}
 		switch {
 		case len(c.Dialogue) > 0:
@@ -141,7 +143,9 @@ func liveCaseSteps(c TurnPlanLiveCase) []string {
 			judge = strings.TrimSpace(c.Message)
 		}
 		steps = append(steps, liveDialogueStep(setup, judge))
-		if len(clarifyTurns) > 0 {
+		if c.Category == TurnPlanCatBacktest {
+			steps = append(steps, "若 Agent clarify：由 auto-clarify 根据对话上下文自动应答")
+		} else if len(clarifyTurns) > 0 {
 			parts := make([]string, 0, len(clarifyTurns))
 			for _, turn := range clarifyTurns {
 				parts = append(parts, turn.Text)

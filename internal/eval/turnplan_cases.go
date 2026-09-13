@@ -155,7 +155,7 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 		// ── 信号 / 回测（多轮） ──
 		{
 			ID: "signal_list_then_probe", Category: TurnPlanCatBacktest, Title: "多轮 · 分析腾讯后选策略回测", // 历史 id，分类是回测不是 probe
-			Description: "同 session：先分析腾讯价格走势，再问适合策略（含 clarify 选组合信号/SAR+MACD/止盈止损），最后发起回测。",
+			Description: "同 session：先分析腾讯价格走势，再问适合策略，最后发起回测；澄清由 auto-clarify 自动应答。",
 			SetupMessages: []string{
 				"帮我分析一下腾讯的价格走势",
 				"帮我看看哪些策略适合腾讯",
@@ -164,9 +164,6 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			Dialogue: []EvalDialogueTurn{
 				{Role: "user", Text: "帮我分析一下腾讯的价格走势"},
 				{Role: "user", Text: "帮我看看哪些策略适合腾讯"},
-				{Role: "user", Text: "组合信号（多指标共振，推荐稳健）", OnClarify: true},
-				{Role: "user", Text: "SAR信号配套MACD直方图趋势（趋势+动量双确认）", OnClarify: true},
-				{Role: "user", Text: "动态 BBAND（止损425 / TP459，推荐）", OnClarify: true},
 				{Role: "user", Text: "帮我用这些策略回测一下", Judge: true},
 			},
 			ExpectDomain: "backtest_run", ExpectMode: "execute", ExpectSOP: false,
@@ -184,23 +181,21 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 		// ── 策略回测 ──
 		{
 			ID: "backtest_explicit", Category: TurnPlanCatBacktest, Title: "单轮 · 显式回测",
-			Description: "独立 session：指定 SAR+MACD 回测小米；若 Agent clarify 周期/参数则自动补默认选项。",
+			Description: "独立 session：指定 SAR+MACD 回测小米；若 Agent clarify 由 auto-clarify 自动应答。",
 			Message: "帮我用SAR加MACD回测一下小米",
-			ClarifyReply: "用默认参数，最近3个月日线",
 			ExpectDomain: "backtest_run", ExpectMode: "execute", ExpectSOP: false,
 			RequireTools: []string{"run_strategy_backtest"},
 		},
 		{
 			ID: "backtest_colloquial", Category: TurnPlanCatBacktest, Title: "单轮 · 口语回测",
-			Description: "独立 session：省略策略名但仍应路由到 backtest_run；若 Agent clarify 策略则自动补默认选项。",
+			Description: "独立 session：省略策略名但仍应路由到 backtest_run；若 Agent clarify 由 auto-clarify 自动应答。",
 			Message: "帮我回测一下中际旭创",
-			ClarifyReply: "用SAR加MACD组合回测",
 			ExpectDomain: "backtest_run", ExpectMode: "execute", ExpectSOP: false,
 			RequireTools: []string{"run_strategy_backtest"},
 		},
 		{
 			ID: "analysis_then_backtest", Category: TurnPlanCatBacktest, Title: "多轮 · 分析后回测",
-			Description: "同 session：先分析小米，再在同一语境下发起回测。",
+			Description: "同 session：先分析小米，再在同一语境下发起回测；澄清由 auto-clarify 自动应答。",
 			SetupMessages: []string{"帮我分析一下小米"},
 			Message:       "接着用SAR加MACD帮小米跑个回测",
 			ExpectDomain: "backtest_run", ExpectMode: "execute", ExpectSOP: false,
@@ -208,7 +203,7 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 		},
 		{
 			ID: "strategy_list_then_backtest", Category: TurnPlanCatBacktest, Title: "多轮 · 选策略后回测",
-			Description: "同 session：先问可回测策略，再指定 SAR+MACD 回测中际旭创。",
+			Description: "同 session：先问可回测策略，再指定 SAR+MACD 回测中际旭创；澄清由 auto-clarify 自动应答。",
 			SetupMessages: []string{"帮我看看有哪些可以回测的策略"},
 			Message:       "用SAR加MACD组合回测中际旭创",
 			ExpectDomain: "backtest_run", ExpectMode: "execute", ExpectSOP: false,
@@ -311,9 +306,8 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 		},
 		{
 			ID: "dca_grid_backtest", Category: TurnPlanCatBacktest, Title: "单轮 · DCA 定投回测",
-			Description: "独立 session：DCA/网格类回测意图；若 Agent clarify 标的/参数则自动补默认选项。",
+			Description: "独立 session：DCA/网格类回测意图；若 Agent clarify 由 auto-clarify 自动应答。",
 			Message: "帮我做一个DCA定投策略回测",
-			ClarifyReply: "用默认定投参数回测腾讯控股",
 			ExpectDomain: "dca_grid", ExpectMode: "execute", ExpectSOP: false,
 			RequireTools: []string{"generate_dca_strategy"},
 		},

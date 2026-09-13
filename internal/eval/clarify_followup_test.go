@@ -114,7 +114,7 @@ func TestSignalListThenProbeSkipsPostClarifyFollowup(t *testing.T) {
 	}
 }
 
-func TestSignalListThenProbeClarifyDefaults(t *testing.T) {
+func TestSignalListThenProbeUsesAutoClarifyOnly(t *testing.T) {
 	var opts TurnPlanCaseOptions
 	for _, c := range IndividualTurnPlanEvalCases() {
 		if c.ID == "turn_plan_signal_list_then_probe" {
@@ -122,20 +122,16 @@ func TestSignalListThenProbeClarifyDefaults(t *testing.T) {
 			break
 		}
 	}
+	if !opts.AutoClarifyOnly {
+		t.Fatal("expected auto_clarify_only")
+	}
 	defaults := ClarifyDefaultTexts(opts)
-	if len(defaults) != 3 {
-		t.Fatalf("defaults=%v want 3", defaults)
+	if len(defaults) != 0 {
+		t.Fatalf("defaults=%v want empty for auto-clarify-only", defaults)
 	}
 	regular, clarify := DialogueExecutionPlan(opts)
-	if len(regular) != 3 || len(clarify) != 3 {
+	if len(regular) != 3 || len(clarify) != 0 {
 		t.Fatalf("regular=%d clarify=%d", len(regular), len(clarify))
-	}
-	answer, ok := PickClarifyAnswer("为腾讯选哪个组合信号？", []string{
-		"SAR信号配套MACD直方图趋势（趋势+动量双确认）",
-		"MACD金死叉配套SAR趋势（金死叉更敏感）",
-	}, defaults)
-	if !ok || answer != "SAR信号配套MACD直方图趋势（趋势+动量双确认）" {
-		t.Fatalf("answer=%q ok=%v", answer, ok)
 	}
 }
 
@@ -144,10 +140,7 @@ func TestClarifyReplyCoverageByCaseKind(t *testing.T) {
 		clarifyReply string
 		postFollowup bool
 	}{
-		"turn_plan_backtest_colloquial":    {clarifyReply: "用SAR加MACD组合回测", postFollowup: true},
-		"turn_plan_signal_probe_direct":    {clarifyReply: "用SAR加MACD组合测买卖点", postFollowup: true},
-		"turn_plan_backtest_explicit":      {clarifyReply: "用默认参数，最近3个月日线", postFollowup: true},
-		"turn_plan_dca_grid_backtest":      {clarifyReply: "用默认定投参数回测腾讯控股", postFollowup: true},
+		"turn_plan_signal_probe_direct":          {clarifyReply: "用SAR加MACD组合测买卖点", postFollowup: true},
 		"turn_plan_ambiguous_bare_macd":          {clarifyReply: "SAR信号搭配MACD直方图趋势", postFollowup: true},
 		"turn_plan_compound_analysis_backtest": {clarifyReply: "先只做分析", postFollowup: true},
 		"turn_plan_stock_quote_ambiguous":        {clarifyReply: "只要当前价", postFollowup: true},
