@@ -98,6 +98,11 @@ func normalizeClarifyChoices(raw any) []string {
 			for i, s := range typed {
 				items[i] = s
 			}
+		} else if s, ok := raw.(string); ok {
+			s = strings.TrimSpace(s)
+			if s != "" {
+				items = []any{s}
+			}
 		}
 	}
 	if len(items) == 0 {
