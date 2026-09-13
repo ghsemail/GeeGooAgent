@@ -408,6 +408,18 @@ func (l *Loop) runPreparedTurn(
 	schemas []llm.ToolSchema,
 	records []runtime.StepRecord,
 ) runtime.TurnResult {
+	return l.runPreparedTurnWithPlan(ctx, session, userText, nil, toolCtx, schemas, records)
+}
+
+func (l *Loop) runPreparedTurnWithPlan(
+	ctx context.Context,
+	session *runtime.Session,
+	userText string,
+	presetPlan *cognition.TurnPlan,
+	toolCtx tools.Context,
+	schemas []llm.ToolSchema,
+	records []runtime.StepRecord,
+) runtime.TurnResult {
 	messages := session.LLMMessages()
 
 	policy := l.effectivePlanPolicy()
@@ -427,25 +439,31 @@ func (l *Loop) runPreparedTurn(
 		session.PendingPlan = nil
 	}
 
-	l.emitStatus("plan", "正在判断本轮意图…")
-	planStarted := time.Now()
-	turnPlan := l.effectivePlanner().Plan(cognition.BuildPlanInput(cognition.PlanSessionView{
-		Ctx:             ctx,
-		Messages:        session.LLMMessages(),
-		UserText:        userText,
-		LastDomain:      cognition.Domain(session.LastTurnDomain),
-		RoutingMode:     l.routingMode,
-		PreviousSummary: session.PreviousSummary,
-	}))
-	planMS := time.Since(planStarted).Milliseconds()
-	if turnPlan.ClassifyFailed() {
-		l.emit("turn_plan", map[string]any{
-			"reason":         turnPlan.Reason,
-			"classify_error": turnPlan.ClassifyError,
-			"failed":         true,
-			"plan_ms":        planMS,
-		})
-		return l.failTurn(ctx, session, fmt.Errorf("意图识别失败: %s", turnPlan.ClassifyError), records)
+	var turnPlan cognition.TurnPlan
+	var planMS int64
+	if presetPlan != nil {
+		turnPlan = *presetPlan
+	} else {
+		l.emitStatus("plan", "正在判断本轮意图…")
+		planStarted := time.Now()
+		turnPlan = l.effectivePlanner().Plan(cognition.BuildPlanInput(cognition.PlanSessionView{
+			Ctx:             ctx,
+			Messages:        session.LLMMessages(),
+			UserText:        userText,
+			LastDomain:      cognition.Domain(session.LastTurnDomain),
+			RoutingMode:     l.routingMode,
+			PreviousSummary: session.PreviousSummary,
+		}))
+		planMS = time.Since(planStarted).Milliseconds()
+		if turnPlan.ClassifyFailed() {
+			l.emit("turn_plan", map[string]any{
+				"reason":         turnPlan.Reason,
+				"classify_error": turnPlan.ClassifyError,
+				"failed":         true,
+				"plan_ms":        planMS,
+			})
+			return l.failTurn(ctx, session, fmt.Errorf("意图识别失败: %s", turnPlan.ClassifyError), records)
+		}
 	}
 	session.LastTurnDomain = string(turnPlan.Domain)
 	session.LastTurnMode = string(turnPlan.Mode)
@@ -512,7 +530,7 @@ func (l *Loop) runPreparedTurn(
 		session.LastExecutionProfile = profileID
 	}
 
-	if !agentCtx {
+	if !agentCtx && presetPlan == nil {
 		if result, handled := l.tryPresetClarify(ctx, session, turnPlan, toolCtx, &records, schemas); handled {
 			return result
 		}

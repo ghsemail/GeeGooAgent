@@ -60,9 +60,29 @@ func mapClarifyChoice(msg string) (Domain, string, bool) {
 		return DomainKnowledge, "", true
 	case hasAny(msg, []string{"MACD金叉死叉", "金叉死叉"}):
 		return DomainKnowledge, "", true
+	case hasAny(msg, []string{"组合信号", "多指标共振"}):
+		return DomainDCAGrid, "", true
+	case hasAny(msg, []string{"单指标信号"}):
+		return DomainDCAGrid, "", true
+	case hasAny(msg, []string{"网格策略", "GRID 用", "GRID）"}):
+		return DomainDCAGrid, "", true
+	case hasAny(msg, []string{"先看历史回测", "历史回测结果再决定", "动态止盈", "固定止损"}):
+		return DomainBacktestRun, "", true
 	default:
 		return "", "", false
 	}
+}
+
+func mapClarifyChoiceMatchesDomain(msg string, last Domain) bool {
+	d, _, ok := mapClarifyChoice(msg)
+	if !ok {
+		return false
+	}
+	if last == DomainAmbiguous {
+		return true
+	}
+	return d == last || (last == DomainDCAGrid && d == DomainDCAGrid) ||
+		(last == DomainBacktestRun && d == DomainBacktestRun)
 }
 
 func isBacktestRun(msg string) bool {

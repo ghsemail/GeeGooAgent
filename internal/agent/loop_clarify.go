@@ -55,6 +55,7 @@ func (l *Loop) tryPresetClarify(
 	l.recordInjectionStep(records, "clarify", "answer="+answer)
 	session.AppendMessage(llm.Message{Role: llm.RoleUser, Content: answer})
 	l.emitStatus("received", "已选择："+answer)
-	child := l.runPreparedTurn(ctx, session, answer, toolCtx, schemas, *records)
+	continued := cognition.PlanAfterPresetClarify(turnPlan, answer)
+	child := l.runPreparedTurnWithPlan(ctx, session, answer, &continued, toolCtx, schemas, *records)
 	return child, true
 }

@@ -134,11 +134,22 @@ func (p IntentPlanner) planObservability(in PlanInput) TurnPlan {
 
 func (p IntentPlanner) planLegacy(in PlanInput) TurnPlan {
 	msg := strings.TrimSpace(in.UserText)
-	if in.LastDomain == DomainAmbiguous {
+	if in.LastDomain == DomainAmbiguous || (in.LastDomain != "" && mapClarifyChoiceMatchesDomain(msg, in.LastDomain)) {
 		if d, act, ok := mapClarifyChoice(msg); ok {
-			plan := planForDomain(d)
+			target := d
+			if in.LastDomain != DomainAmbiguous && in.LastDomain != "" {
+				target = in.LastDomain
+			}
+			plan := planForDomain(target)
 			if act != "" {
 				plan.Act = act
+			}
+			if plan.Mode == ModeClarify {
+				if target == DomainDCAGrid {
+					plan.Mode = ModeGather
+				} else {
+					plan.Mode = ModeExecute
+				}
 			}
 			plan.Reason = "用户选择了上一轮澄清选项"
 			plan.Confidence = 0.9
@@ -216,14 +227,12 @@ func classifyOnce(in PlanInput, provider llm.Provider, retry bool) (TurnPlan, st
 	if resp == nil {
 		return TurnPlan{}, "llm: empty response"
 	}
-	text := strings.TrimSpace(resp.Content)
-	start := strings.Index(text, "{")
-	end := strings.LastIndex(text, "}")
-	if start < 0 || end <= start {
+	raw, ok := extractJSONObject(resp.Content)
+	if !ok {
 		return TurnPlan{}, "llm: invalid json"
 	}
 	var parsed llmClassifyJSON
-	if err := json.Unmarshal([]byte(text[start:end+1]), &parsed); err != nil {
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
 		return TurnPlan{}, fmt.Sprintf("llm: json parse: %v", err)
 	}
 	d := Domain(strings.TrimSpace(parsed.Domain))
@@ -286,14 +295,12 @@ func countStockSymbolsWithLLM(in PlanInput, provider llm.Provider) (int, bool) {
 	if err != nil || resp == nil {
 		return 0, false
 	}
-	text := strings.TrimSpace(resp.Content)
-	start := strings.Index(text, "{")
-	end := strings.LastIndex(text, "}")
-	if start < 0 || end <= start {
+	raw, ok := extractJSONObject(resp.Content)
+	if !ok {
 		return 0, false
 	}
 	var parsed symbolCountJSON
-	if err := json.Unmarshal([]byte(text[start:end+1]), &parsed); err != nil {
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
 		return 0, false
 	}
 	if parsed.SymbolCount < 0 {
@@ -539,4 +546,26 @@ func validDomain(d Domain) bool {
 	default:
 		return false
 	}
+}
+
+func extractJSONObject(content string) (string, bool) {
+	text := strings.TrimSpace(content)
+	if text == "" {
+		return "", false
+	}
+	if fence := strings.Index(text, "```"); fence >= 0 {
+		inner := text[fence+3:]
+		if nl := strings.Index(inner, "\n"); nl >= 0 {
+			inner = inner[nl+1:]
+		}
+		if end := strings.Index(inner, "```"); end >= 0 {
+			text = strings.TrimSpace(inner[:end])
+		}
+	}
+	start := strings.Index(text, "{")
+	end := strings.LastIndex(text, "}")
+	if start < 0 || end <= start {
+		return "", false
+	}
+	return text[start : end+1], true
 }
