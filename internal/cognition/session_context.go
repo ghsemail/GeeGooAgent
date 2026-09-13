@@ -23,6 +23,7 @@ type PlanSessionView struct {
 	Messages        []llm.Message
 	UserText        string
 	LastDomain      Domain
+	RoutingMode     string
 	PreviousSummary string
 }
 
@@ -45,6 +46,7 @@ func BuildPlanInput(v PlanSessionView) PlanInput {
 		Ctx:              v.Ctx,
 		UserText:         v.UserText,
 		LastDomain:       v.LastDomain,
+		RoutingMode:      v.RoutingMode,
 		SessionSummary:   strings.TrimSpace(v.PreviousSummary),
 		RecentDialogue:   recent,
 		sessionHistory:   hasHistory,

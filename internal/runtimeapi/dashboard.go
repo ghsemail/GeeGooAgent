@@ -931,6 +931,9 @@ func (h *Handler) dashboardSessionMessages(w http.ResponseWriter, r *http.Reques
 		if msg.Role == llm.RoleSystem {
 			continue
 		}
+		if msg.Role == llm.RoleUser && agent.IsExecutionRetryUserContent(msg.Content) {
+			continue
+		}
 		if visibleOnly {
 			switch msg.Role {
 			case llm.RoleTool:

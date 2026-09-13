@@ -63,6 +63,8 @@ type PlanInput struct {
 	Ctx        context.Context
 	UserText   string
 	LastDomain Domain
+	// RoutingMode controls whether TurnPlan affects routing (legacy) or telemetry only.
+	RoutingMode string
 	// SessionSummary is the hygiene/compaction summary from prior turns.
 	SessionSummary string
 	// RecentDialogue is formatted prior user/assistant/tool turns for classify.

@@ -80,12 +80,19 @@ func (l *Loop) tryExecutionProfileRetry(
 	l.emit("execution_retry", map[string]any{
 		"profile": profileID, "reason": reason, "remaining": *retriesLeft,
 	})
-	session.AppendMessage(llm.Message{
-		Role: llm.RoleUser,
-		Content: fmt.Sprintf("[execution_retry] profile=%s; %s", profileID, reason),
-	})
-	*messages = session.LLMMessages()
+	// Ephemeral hint for the next LLM round only — must not persist to session/UI.
+	hint := fmt.Sprintf("[execution_retry] profile=%s; %s", profileID, reason)
+	base := session.LLMMessages()
+	retryMsgs := make([]llm.Message, len(base)+1)
+	copy(retryMsgs, base)
+	retryMsgs[len(base)] = llm.Message{Role: llm.RoleUser, Content: hint}
+	*messages = retryMsgs
 	return true
+}
+
+// IsExecutionRetryUserContent reports internal loop retry hints that must not appear in chat UI.
+func IsExecutionRetryUserContent(content string) bool {
+	return strings.HasPrefix(strings.TrimSpace(content), "[execution_retry]")
 }
 
 func lastUserText(session *runtime.Session) string {
@@ -102,7 +109,10 @@ func lastUserText(session *runtime.Session) string {
 	return ""
 }
 
-func applyTurnToolSchemas(base []llm.ToolSchema, turnPlan cognition.TurnPlan) []llm.ToolSchema {
+func applyTurnToolSchemas(base []llm.ToolSchema, turnPlan cognition.TurnPlan, routingMode string) []llm.ToolSchema {
+	if cognition.AgentContextRouting(routingMode) {
+		return base
+	}
 	out := cognition.FilterSchemas(base, turnPlan)
 	profileID := domaincatalog.ExecutionProfileFor(domaincatalog.Domain(turnPlan.Domain), turnPlan.Act)
 	return filterExecutionProfileSchemas(out, profileID)

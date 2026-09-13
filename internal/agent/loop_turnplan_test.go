@@ -233,7 +233,7 @@ func TestToolFirstSkipEmitsGateEvent(t *testing.T) {
 	}
 }
 
-func TestAmbiguousTurnSkipsGateAndUsesPresetClarify(t *testing.T) {
+func TestAmbiguousTurnSkipsGateAndUsesPresetClarifyLegacy(t *testing.T) {
 	gateMock := &llm.MockProvider{
 		Responses: []*llm.Response{{Content: `{"retrieve":false,"query":"","reason":"test"}`}},
 	}
@@ -243,6 +243,7 @@ func TestAmbiguousTurnSkipsGateAndUsesPresetClarify(t *testing.T) {
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
 	loop := agent.NewLoop(gateway, runtime.NewExecutor(tools.NewRegistry()))
+	loop.SetRoutingMode(cognition.RoutingModeLegacy)
 	withClassifyPlanner(loop, classifyFixture(nil))
 	loop.SetRetrievalGate(gateMock, nil, 4)
 

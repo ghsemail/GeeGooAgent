@@ -52,6 +52,11 @@ func TestFilterSchemasOmitsDelegateOnTalk(t *testing.T) {
 	}
 }
 
+func legacyIn(in PlanInput) PlanInput {
+	in.RoutingMode = RoutingModeLegacy
+	return in
+}
+
 type classifyMock struct {
 	calls  int
 	body   string
@@ -97,7 +102,7 @@ func TestIntentPlannerPrefersLLMWhenAvailable(t *testing.T) {
 func TestIntentPlannerSkipsLLMOnClarifyChoice(t *testing.T) {
 	mock := &classifyMock{body: `{"domain":"chat","mode":"talk","confidence":0.9,"reason":"wrong"}`}
 	p := IntentPlanner{LLM: mock}
-	got := p.Plan(PlanInput{UserText: "测买卖点", LastDomain: DomainAmbiguous})
+	got := p.Plan(legacyIn(PlanInput{UserText: "测买卖点", LastDomain: DomainAmbiguous}))
 	if mock.calls != 0 {
 		t.Fatalf("clarify choice must not call LLM, calls=%d", mock.calls)
 	}
@@ -109,7 +114,7 @@ func TestIntentPlannerSkipsLLMOnClarifyChoice(t *testing.T) {
 func TestIntentPlannerRejectsBacktestWithoutVerb(t *testing.T) {
 	mock := &classifyMock{body: `{"domain":"backtest_run","mode":"execute","confidence":0.99,"reason":"signals"}`}
 	p := IntentPlanner{LLM: mock}
-	got := p.Plan(PlanInput{UserText: "这个信号怎么样"})
+	got := p.Plan(legacyIn(PlanInput{UserText: "这个信号怎么样"}))
 	if got.ShouldRunBacktestPlaybook() || got.Domain == DomainBacktestRun {
 		t.Fatalf("must not accept backtest_run without verb: %+v", got)
 	}
@@ -170,12 +175,12 @@ func TestIntentPlannerStockActFromLLM(t *testing.T) {
 func TestIntentPlannerStockClarifyChoice(t *testing.T) {
 	mock := &classifyMock{body: `{"domain":"chat","mode":"talk","confidence":0.9,"reason":"wrong"}`}
 	p := IntentPlanner{LLM: mock}
-	got := p.Plan(PlanInput{UserText: "只要当前价", LastDomain: DomainAmbiguous})
+	got := p.Plan(legacyIn(PlanInput{UserText: "只要当前价", LastDomain: DomainAmbiguous}))
 	if got.Domain != DomainStockAnalysis || got.Act != "quote_price" {
 		t.Fatalf("choice should map to quote_price, got %s/%s act=%s", got.Domain, got.Mode, got.Act)
 	}
 
-	got = p.Plan(PlanInput{UserText: "分析价格走势", LastDomain: DomainAmbiguous})
+	got = p.Plan(legacyIn(PlanInput{UserText: "分析价格走势", LastDomain: DomainAmbiguous}))
 	if got.Domain != DomainStockAnalysis || got.Act != "technical_analysis" {
 		t.Fatalf("choice should map to technical_analysis, got %s act=%s", got.Domain, got.Act)
 	}
@@ -208,7 +213,7 @@ func TestIntentPlannerCompoundStepsClarifyTemplate(t *testing.T) {
 func TestIntentPlannerSignalChoiceMapsToKnowledge(t *testing.T) {
 	mock := &classifyMock{body: `{"domain":"chat","mode":"talk","confidence":0.9,"reason":"wrong"}`}
 	p := IntentPlanner{LLM: mock}
-	got := p.Plan(PlanInput{UserText: "SAR信号搭配MACD直方图趋势", LastDomain: DomainAmbiguous})
+	got := p.Plan(legacyIn(PlanInput{UserText: "SAR信号搭配MACD直方图趋势", LastDomain: DomainAmbiguous}))
 	if got.Domain != DomainKnowledge {
 		t.Fatalf("choice should map to knowledge, got %s/%s", got.Domain, got.Mode)
 	}
@@ -257,9 +262,18 @@ func TestIntentPlannerNilLLMStickyDomainClassifyFailed(t *testing.T) {
 func TestIntentPlannerStickySessionOverridesChatMisroute(t *testing.T) {
 	mock := &classifyMock{body: `{"domain":"chat","mode":"talk","confidence":0.8,"reason":"misroute"}`}
 	p := IntentPlanner{LLM: mock}
-	got := p.Plan(PlanInput{UserText: "它最近走势怎么样", LastDomain: DomainStockAnalysis})
+	got := p.Plan(legacyIn(PlanInput{UserText: "它最近走势怎么样", LastDomain: DomainStockAnalysis}))
 	if got.Domain != DomainStockAnalysis || got.Act != "context_followup" {
 		t.Fatalf("sticky override got %s/%s act=%s", got.Domain, got.Mode, got.Act)
+	}
+}
+
+func TestIntentPlannerObservabilityDoesNotApplySticky(t *testing.T) {
+	mock := &classifyMock{body: `{"domain":"chat","mode":"talk","confidence":0.8,"reason":"misroute"}`}
+	p := IntentPlanner{LLM: mock}
+	got := p.Plan(PlanInput{UserText: "它最近走势怎么样", LastDomain: DomainStockAnalysis})
+	if got.Domain != DomainChat || got.Mode != ModeTalk {
+		t.Fatalf("agent_context must not sticky-override classify, got %s/%s", got.Domain, got.Mode)
 	}
 }
 
@@ -275,7 +289,7 @@ func TestIntentPlannerCompoundStepsNotForcedToBacktest(t *testing.T) {
 func TestIntentPlannerForcesBacktestRunWithVerb(t *testing.T) {
 	mock := &classifyMock{body: `{"domain":"chat","mode":"talk","confidence":0.9,"reason":"misroute"}`}
 	p := IntentPlanner{LLM: mock}
-	got := p.Plan(PlanInput{UserText: "帮我用这些策略回测一下", LastDomain: DomainDCAGrid})
+	got := p.Plan(legacyIn(PlanInput{UserText: "帮我用这些策略回测一下", LastDomain: DomainDCAGrid}))
 	if got.Domain != DomainBacktestRun || got.Mode != ModeExecute {
 		t.Fatalf("backtest verb should force backtest_run/execute, got %s/%s", got.Domain, got.Mode)
 	}
@@ -284,7 +298,7 @@ func TestIntentPlannerForcesBacktestRunWithVerb(t *testing.T) {
 func TestIntentPlannerBacktestVerbOverridesStickyDomain(t *testing.T) {
 	mock := &classifyMock{body: `{"domain":"chat","mode":"talk","confidence":0.9,"reason":"misroute"}`}
 	p := IntentPlanner{LLM: mock}
-	got := p.Plan(PlanInput{UserText: "接着帮小米跑个回测", LastDomain: DomainStockAnalysis})
+	got := p.Plan(legacyIn(PlanInput{UserText: "接着帮小米跑个回测", LastDomain: DomainStockAnalysis}))
 	if got.Domain != DomainBacktestRun || got.Mode != ModeExecute {
 		t.Fatalf("backtest verb must override sticky stock_analysis, got %s/%s", got.Domain, got.Mode)
 	}
@@ -310,7 +324,7 @@ func TestIntentPlannerBacktestRunOmitsLoopbackTools(t *testing.T) {
 func TestIntentPlannerActiveTaskKeepsPlanWhenClassifierUnsure(t *testing.T) {
 	mock := &classifyMock{body: `{"domain":"ambiguous","mode":"clarify","confidence":0.7,"reason":"unsure"}`}
 	p := IntentPlanner{LLM: mock}
-	got := p.Plan(PlanInput{UserText: "换一个策略", LastDomain: DomainSignalProbe})
+	got := p.Plan(legacyIn(PlanInput{UserText: "换一个策略", LastDomain: DomainSignalProbe}))
 	if got.Domain != DomainSignalProbe || got.Mode != ModeExecute {
 		t.Fatalf("last task probe + unsure classify got %s/%s want signal_probe/execute (%s)", got.Domain, got.Mode, got.Reason)
 	}
@@ -322,7 +336,7 @@ func TestIntentPlannerActiveTaskKeepsPlanWhenClassifierUnsure(t *testing.T) {
 func TestIntentPlannerActiveBacktestKeepsPlanWhenClassifierUnsure(t *testing.T) {
 	mock := &classifyMock{body: `{"domain":"ambiguous","mode":"clarify","confidence":0.7,"reason":"unsure"}`}
 	p := IntentPlanner{LLM: mock}
-	got := p.Plan(PlanInput{UserText: "再用另一套", LastDomain: DomainBacktestRun})
+	got := p.Plan(legacyIn(PlanInput{UserText: "再用另一套", LastDomain: DomainBacktestRun}))
 	if got.Domain != DomainBacktestRun || got.Mode != ModeExecute {
 		t.Fatalf("last task backtest + unsure classify got %s/%s", got.Domain, got.Mode)
 	}

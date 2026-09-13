@@ -11,15 +11,21 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 )
 
-func turnPlanFragment(plan cognition.TurnPlan, userText string) ctxfrag.Fragment {
+func turnPlanFragment(plan cognition.TurnPlan, userText string, agentContext bool) ctxfrag.Fragment {
 	var b strings.Builder
-	b.WriteString("Turn plan (classify intent, then execute via ReAct tools — no deterministic SOP shortcut):\n")
+	if agentContext {
+		b.WriteString("Turn plan telemetry (observability only — you decide tools via ReAct + skills):\n")
+	} else {
+		b.WriteString("Turn plan (classify intent, then execute via ReAct tools — no deterministic SOP shortcut):\n")
+	}
 	fmt.Fprintf(&b, "- domain: %s\n- act: %s\n- mode: %s\n- reason: %s\n",
 		plan.Domain, plan.Act, plan.Mode, plan.Reason)
-	if profileID := domaincatalog.ProbeExecutionProfile(domaincatalog.Domain(plan.Domain), plan.Act, userText); profileID != "" {
-		fmt.Fprintf(&b, "- execution profile: %s\n", profileID)
-		if hint := domaincatalog.ProfileExecutionHint(profileID); hint != "" {
-			fmt.Fprintf(&b, "- execution contract: %s\n", hint)
+	if !agentContext {
+		if profileID := domaincatalog.ProbeExecutionProfile(domaincatalog.Domain(plan.Domain), plan.Act, userText); profileID != "" {
+			fmt.Fprintf(&b, "- execution profile: %s\n", profileID)
+			if hint := domaincatalog.ProfileExecutionHint(profileID); hint != "" {
+				fmt.Fprintf(&b, "- execution contract: %s\n", hint)
+			}
 		}
 	}
 	if domaincatalog.NormalizeStockAct(plan.Act) == domaincatalog.StockActMultiSymbol {
@@ -28,10 +34,10 @@ func turnPlanFragment(plan cognition.TurnPlan, userText string) ctxfrag.Fragment
 	if len(plan.Skills) > 0 {
 		fmt.Fprintf(&b, "- skills: %s\n", strings.Join(plan.Skills, ", "))
 	}
-	if len(plan.ToolsAllow) > 0 {
+	if !agentContext && len(plan.ToolsAllow) > 0 {
 		fmt.Fprintf(&b, "- allowed tools: %s\n", strings.Join(plan.ToolsAllow, ", "))
 	}
-	if plan.Mode == cognition.ModeClarify && plan.ClarifyQuestion != "" {
+	if !agentContext && plan.Mode == cognition.ModeClarify && plan.ClarifyQuestion != "" {
 		fmt.Fprintf(&b, "- ask via clarify: %s\n", plan.ClarifyQuestion)
 		if len(plan.ClarifyChoices) > 0 {
 			fmt.Fprintf(&b, "- choices: %s\n", strings.Join(plan.ClarifyChoices, " / "))
@@ -39,6 +45,26 @@ func turnPlanFragment(plan cognition.TurnPlan, userText string) ctxfrag.Fragment
 	}
 	b.WriteString("- choose tools from the exposed schema to fulfill this turn; for multi-symbol parallel work, strongly prefer delegate_tasks over serial per-symbol calls")
 	return ctxfrag.StaticFragment{K: ctxfrag.KindSystemRules, Text: b.String(), Prio: 22}
+}
+
+func clarifyHintFragment(plan cognition.TurnPlan) ctxfrag.Fragment {
+	if plan.Mode != cognition.ModeClarify {
+		return ctxfrag.StaticFragment{}
+	}
+	question := strings.TrimSpace(plan.ClarifyQuestion)
+	if question == "" {
+		return ctxfrag.StaticFragment{}
+	}
+	var b strings.Builder
+	b.WriteString("## 分类器建议（仅供参考，由你决定是否 clarify）\n")
+	fmt.Fprintf(&b, "- suggested_question: %s\n", question)
+	if len(plan.ClarifyChoices) > 0 {
+		fmt.Fprintf(&b, "- suggested_choices: %s\n", strings.Join(plan.ClarifyChoices, " / "))
+	}
+	if r := strings.TrimSpace(plan.Reason); r != "" {
+		fmt.Fprintf(&b, "- reason: %s\n", r)
+	}
+	return ctxfrag.StaticFragment{K: ctxfrag.KindSystemRules, Text: b.String(), Prio: 24}
 }
 
 func subagentOrchestratorPlanBlock() string {
@@ -54,17 +80,34 @@ func subagentOrchestratorPlanBlock() string {
 `
 }
 
-func (l *Loop) loadPlanSkills(plan cognition.TurnPlan, records *[]runtime.StepRecord) (ctxfrag.Fragment, []string) {
-	if l == nil || l.skillLoader == nil || len(plan.Skills) == 0 {
+func (l *Loop) loadPlanSkills(plan cognition.TurnPlan, userText string, records *[]runtime.StepRecord) (ctxfrag.Fragment, []string) {
+	if l == nil || l.skillLoader == nil {
 		return nil, nil
 	}
-	matched := make([]procedural.Skill, 0, len(plan.Skills))
+	seen := map[string]struct{}{}
+	matched := make([]procedural.Skill, 0, l.maxSkills+len(plan.Skills))
+	appendSkill := func(sk procedural.Skill) {
+		if sk.Name == "" {
+			return
+		}
+		if _, ok := seen[sk.Name]; ok {
+			return
+		}
+		seen[sk.Name] = struct{}{}
+		matched = append(matched, sk)
+	}
+	for _, sk := range l.skillLoader.Match(userText, l.maxSkills) {
+		appendSkill(sk)
+	}
 	for _, name := range plan.Skills {
 		sk, ok := l.skillLoader.FindByName(name)
 		if !ok {
 			continue
 		}
-		matched = append(matched, sk)
+		appendSkill(sk)
+	}
+	if len(matched) > l.maxSkills && l.maxSkills > 0 {
+		matched = matched[:l.maxSkills]
 	}
 	if len(matched) == 0 {
 		return nil, nil
@@ -78,8 +121,8 @@ func (l *Loop) loadPlanSkills(plan cognition.TurnPlan, records *[]runtime.StepRe
 	l.emit("memory.procedural", map[string]any{
 		"skills": len(matched),
 		"names":  names,
-		"source": "turn_plan",
+		"source": "context_match",
 	})
-	l.recordInjectionStep(records, "context_inject", fmt.Sprintf("plan skills: %s", strings.Join(names, ", ")))
+	l.recordInjectionStep(records, "context_inject", fmt.Sprintf("skills: %s", strings.Join(names, ", ")))
 	return ctxfrag.ProceduralSkillFragment(block), names
 }

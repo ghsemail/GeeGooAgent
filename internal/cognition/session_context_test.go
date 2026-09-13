@@ -52,12 +52,12 @@ func TestBuildClassifyPromptIncludesSessionContext(t *testing.T) {
 func TestIntentPlannerSessionContextKeepsProbeOnStrategySwap(t *testing.T) {
 	mock := &promptCaptureMock{body: `{"domain":"ambiguous","mode":"clarify","confidence":0.7,"reason":"unsure"}`}
 	p := IntentPlanner{LLM: mock}
-	got := p.Plan(PlanInput{
-		UserText:     "换一个策略",
-		LastDomain:   DomainSignalProbe,
+	got := p.Plan(legacyIn(PlanInput{
+		UserText:       "换一个策略",
+		LastDomain:     DomainSignalProbe,
 		RecentDialogue: "user: 帮我看看中际旭创有没有买卖点\nassistant [probe_bot_signal_series]: 已探测。",
 		sessionHistory: true,
-	})
+	}))
 	if got.Domain != DomainSignalProbe || got.Mode != ModeExecute {
 		t.Fatalf("got %s/%s want signal_probe/execute (%s)", got.Domain, got.Mode, got.Reason)
 	}

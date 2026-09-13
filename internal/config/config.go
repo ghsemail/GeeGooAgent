@@ -237,6 +237,8 @@ type AppConfig struct {
 	PlanGate         *bool             `json:"plan_gate,omitempty"`
 	EvalMaxRetries   int               `json:"eval_max_retries,omitempty"`
 	ExecutionProfileMaxRetries int     `json:"execution_profile_max_retries,omitempty"`
+	RoutingMode                string  `json:"routing_mode,omitempty"`
+	ExecutionProfileEnforce    *bool   `json:"execution_profile_enforce,omitempty"`
 	DelegateMaxParallel int            `json:"delegate_max_parallel,omitempty"`
 	MCPMaxParallel      int            `json:"mcp_max_parallel,omitempty"`
 	Hooks            HooksConfig       `json:"hooks,omitempty"`
@@ -525,18 +527,38 @@ func (c *AppConfig) EffectiveEvalMaxRetries() int {
 	return c.EvalMaxRetries
 }
 
-// EffectiveExecutionProfileMaxRetries caps profile-driven tool retries (default 1, max 2).
+// EffectiveRoutingMode returns agent_context (default) or legacy.
+func (c *AppConfig) EffectiveRoutingMode() string {
+	if c == nil || strings.TrimSpace(c.RoutingMode) == "" {
+		return "agent_context"
+	}
+	return strings.TrimSpace(c.RoutingMode)
+}
+
+// EffectiveExecutionProfileEnforce reports whether execution profile retry is on.
+func (c *AppConfig) EffectiveExecutionProfileEnforce() bool {
+	if c != nil && c.ExecutionProfileEnforce != nil {
+		return *c.ExecutionProfileEnforce
+	}
+	return c != nil && c.EffectiveRoutingMode() == "legacy"
+}
+
+// EffectiveExecutionProfileMaxRetries caps profile-driven tool retries (default 0 in agent_context, 1 in legacy).
 func (c *AppConfig) EffectiveExecutionProfileMaxRetries() int {
-	if c == nil || c.ExecutionProfileMaxRetries == 0 {
+	if c != nil && c.ExecutionProfileMaxRetries != 0 {
+		n := c.ExecutionProfileMaxRetries
+		if n < 0 {
+			return 0
+		}
+		if n > 2 {
+			return 2
+		}
+		return n
+	}
+	if c != nil && c.EffectiveExecutionProfileEnforce() {
 		return 1
 	}
-	if c.ExecutionProfileMaxRetries < 0 {
-		return 0
-	}
-	if c.ExecutionProfileMaxRetries > 2 {
-		return 2
-	}
-	return c.ExecutionProfileMaxRetries
+	return 0
 }
 
 // EffectiveDelegateMaxParallel caps concurrent delegate_task / delegate_tasks workers (default 3, max 8).

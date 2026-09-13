@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
@@ -33,8 +34,15 @@ func TestTryExecutionProfileRetryOnMissingMCP(t *testing.T) {
 	if retries != 0 {
 		t.Fatalf("retries=%d", retries)
 	}
-	if len(session.LLMMessages()) < 2 {
-		t.Fatal("expected hint message appended")
+	if len(messages) < 2 {
+		t.Fatal("expected ephemeral retry hint in messages slice")
+	}
+	last := messages[len(messages)-1]
+	if last.Role != llm.RoleUser || !strings.Contains(last.Content, "[execution_retry]") {
+		t.Fatalf("last message=%+v", last)
+	}
+	if len(session.LLMMessages()) != 2 {
+		t.Fatalf("retry hint must not persist to session, got %d messages", len(session.LLMMessages()))
 	}
 	if events[len(events)-1] != "execution_retry" {
 		t.Fatalf("events=%v", events)
@@ -84,6 +92,21 @@ func TestFilterExecutionProfileSchemas(t *testing.T) {
 	}
 }
 
+func TestApplyTurnToolSchemasAgentContextPassthrough(t *testing.T) {
+	in := []llm.ToolSchema{
+		{Name: "search_code"}, {Name: "run_strategy_backtest"}, {Name: "clarify"},
+	}
+	plan := cognition.TurnPlan{
+		Domain:     cognition.DomainChat,
+		Mode:       cognition.ModeTalk,
+		ToolsAllow: []string{"clarify"},
+	}
+	out := applyTurnToolSchemas(in, plan, cognition.RoutingModeAgentContext)
+	if len(out) != len(in) {
+		t.Fatalf("agent_context should not filter schemas, got %d want %d", len(out), len(in))
+	}
+}
+
 func TestApplyTurnToolSchemasMultiSymbolKeepsStockTools(t *testing.T) {
 	in := []llm.ToolSchema{
 		{Name: "search_code"}, {Name: "get_current_price"}, {Name: "get_mcp_analysis"},
@@ -96,7 +119,7 @@ func TestApplyTurnToolSchemasMultiSymbolKeepsStockTools(t *testing.T) {
 		Act:        domaincatalog.StockActMultiSymbol,
 		ToolsAllow: []string{"search_code", "get_current_price", "get_mcp_analysis", "delegate_tasks"},
 	}
-	out := applyTurnToolSchemas(in, plan)
+	out := applyTurnToolSchemas(in, plan, cognition.RoutingModeLegacy)
 	names := map[string]bool{}
 	for _, s := range out {
 		names[s.Name] = true

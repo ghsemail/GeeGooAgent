@@ -16,6 +16,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/playbookexec"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
+	"github.com/ghsemail/GeeGooAgent/internal/sessiontask"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
@@ -46,6 +47,7 @@ type Loop struct {
 	gatePolicy     llm.Policy
 	retrievalTopK  int
 	playbookRouter *playbookexec.Router
+	routingMode    string
 }
 
 // NewLoop creates an agent loop.
@@ -61,7 +63,23 @@ func NewLoop(gateway *llm.Gateway, executor *runtime.Executor) *Loop {
 		planner:       d.Planner,
 		mem:           memport.Noop(),
 		executionProfileMaxRetries: 0,
+		routingMode:                cognition.RoutingModeAgentContext,
 	}
+}
+
+// SetRoutingMode selects agent_context (TurnPlan observability only) or legacy routing.
+func (l *Loop) SetRoutingMode(mode string) {
+	if l == nil {
+		return
+	}
+	l.routingMode = cognition.NormalizeRoutingMode(mode)
+}
+
+func (l *Loop) agentContextRouting() bool {
+	if l == nil {
+		return true
+	}
+	return cognition.AgentContextRouting(l.routingMode)
 }
 
 // ToolExec returns the shared tool dispatcher (also used by workflow).
@@ -416,6 +434,7 @@ func (l *Loop) runPreparedTurn(
 		Messages:        session.LLMMessages(),
 		UserText:        userText,
 		LastDomain:      cognition.Domain(session.LastTurnDomain),
+		RoutingMode:     l.routingMode,
 		PreviousSummary: session.PreviousSummary,
 	}))
 	planMS := time.Since(planStarted).Milliseconds()
@@ -444,7 +463,7 @@ func (l *Loop) runPreparedTurn(
 	})
 	l.emitStatus("plan", fmt.Sprintf("判断：%s/%s（%dms）", turnPlan.Domain, turnPlan.Mode, planMS))
 
-	procFrag, matchedSkills := l.loadPlanSkills(turnPlan, &records)
+	procFrag, matchedSkills := l.loadPlanSkills(turnPlan, userText, &records)
 	var gateFrag ctxfrag.Fragment
 	if ShouldSkipRetrievalGate(matchedSkills, turnPlan, userText) {
 		reason := skipRetrievalReason(matchedSkills, turnPlan, userText)
@@ -464,7 +483,16 @@ func (l *Loop) runPreparedTurn(
 	} else {
 		gateFrag = l.runRetrievalGate(ctx, session, userText, &records)
 	}
-	dynFrags := []ctxfrag.Fragment{ctxfrag.ClockFragment(clockNow()), turnPlanFragment(turnPlan, userText)}
+	agentCtx := l.agentContextRouting()
+	dynFrags := []ctxfrag.Fragment{ctxfrag.ClockFragment(clockNow()), turnPlanFragment(turnPlan, userText, agentCtx)}
+	if taskMD := sessiontask.BuildState(session, session.LastTurnDomain).RenderMarkdown(); taskMD != "" {
+		dynFrags = append(dynFrags, ctxfrag.WorkingStateFragment(taskMD))
+	}
+	if agentCtx {
+		if hint := clarifyHintFragment(turnPlan); strings.TrimSpace(hint.Render()) != "" {
+			dynFrags = append(dynFrags, hint)
+		}
+	}
 	if gateFrag != nil && strings.TrimSpace(gateFrag.Render()) != "" {
 		dynFrags = append(dynFrags, gateFrag)
 	}
@@ -476,12 +504,18 @@ func (l *Loop) runPreparedTurn(
 		schemas = mergeToolSchemas(schemas, extra)
 	}
 	planBaseSchemas := schemas
-	schemas = applyTurnToolSchemas(planBaseSchemas, turnPlan)
-	profileID := domaincatalog.ProbeExecutionProfile(domaincatalog.Domain(turnPlan.Domain), turnPlan.Act, userText)
-	session.LastExecutionProfile = profileID
+	schemas = applyTurnToolSchemas(planBaseSchemas, turnPlan, l.routingMode)
+	if agentCtx {
+		session.LastExecutionProfile = ""
+	} else {
+		profileID := domaincatalog.ProbeExecutionProfile(domaincatalog.Domain(turnPlan.Domain), turnPlan.Act, userText)
+		session.LastExecutionProfile = profileID
+	}
 
-	if result, handled := l.tryPresetClarify(ctx, session, turnPlan, toolCtx, &records, schemas); handled {
-		return result
+	if !agentCtx {
+		if result, handled := l.tryPresetClarify(ctx, session, turnPlan, toolCtx, &records, schemas); handled {
+			return result
+		}
 	}
 
 	schemas = playbookexec.FilterLegacyBacktestTools(schemas, userText, session)
@@ -498,15 +532,15 @@ func (l *Loop) runPreparedTurn(
 		}
 		done, result := l.runRound(ctx, session, &messages, toolCtx, schemas, round, &records)
 		if !done {
-			if l.tryExecutionProfileRetry(ctx, session, &messages, turnPlan, records, &executionRetriesLeft) {
-				schemas = applyTurnToolSchemas(planBaseSchemas, turnPlan)
+			if !agentCtx && l.tryExecutionProfileRetry(ctx, session, &messages, turnPlan, records, &executionRetriesLeft) {
+				schemas = applyTurnToolSchemas(planBaseSchemas, turnPlan, l.routingMode)
 				continue
 			}
 			continue
 		}
 		if done {
-			if l.tryExecutionProfileRetry(ctx, session, &messages, turnPlan, records, &executionRetriesLeft) {
-				schemas = applyTurnToolSchemas(planBaseSchemas, turnPlan)
+			if !agentCtx && l.tryExecutionProfileRetry(ctx, session, &messages, turnPlan, records, &executionRetriesLeft) {
+				schemas = applyTurnToolSchemas(planBaseSchemas, turnPlan, l.routingMode)
 				continue
 			}
 			if l.tryEvalRetry(ctx, session, &messages, result, &evalRetriesLeft) {

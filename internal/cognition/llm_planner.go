@@ -114,6 +114,25 @@ func (p IntentPlanner) resolveLLM() llm.Provider {
 
 // Plan implements Planner.
 func (p IntentPlanner) Plan(in PlanInput) TurnPlan {
+	if AgentContextRouting(in.RoutingMode) {
+		return p.planObservability(in)
+	}
+	return p.planLegacy(in)
+}
+
+func (p IntentPlanner) planObservability(in PlanInput) TurnPlan {
+	provider := p.resolveLLM()
+	if provider == nil {
+		return classifyFailedPlan("llm provider not configured")
+	}
+	plan, errDetail := classifyWithLLM(in, provider)
+	if errDetail != "" {
+		return classifyFailedPlan(errDetail)
+	}
+	return applyPlanToolPolicies(plan)
+}
+
+func (p IntentPlanner) planLegacy(in PlanInput) TurnPlan {
 	msg := strings.TrimSpace(in.UserText)
 	if in.LastDomain == DomainAmbiguous {
 		if d, act, ok := mapClarifyChoice(msg); ok {

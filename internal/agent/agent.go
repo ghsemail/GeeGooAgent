@@ -171,6 +171,13 @@ func (a *Agent) SetPlanner(p cognition.Planner) {
 	}
 }
 
+// SetRoutingMode selects agent_context (TurnPlan observability only) or legacy routing.
+func (a *Agent) SetRoutingMode(mode string) {
+	if a != nil && a.Loop != nil {
+		a.Loop.SetRoutingMode(mode)
+	}
+}
+
 // SetCognition wires Ranker / Evaluator / PlanPolicy into the owned loop.
 func (a *Agent) SetCognition(b cognition.Bundle) {
 	if a != nil && a.Loop != nil {
