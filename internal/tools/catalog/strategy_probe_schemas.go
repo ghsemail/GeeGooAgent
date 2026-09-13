@@ -12,6 +12,20 @@ func signalRuleItemSchema() map[string]any {
 	}
 }
 
+func diagnoseBotSignalSeriesParameters() map[string]any {
+	props := probeBotSignalSeriesParameters()["properties"].(map[string]any)
+	out := map[string]any{}
+	for k, v := range props {
+		out[k] = v
+	}
+	out["side"] = stringProp("诊断侧：buy（默认 buy）/ sell / both；用户问「为什么没买入信号」用 buy")
+	return map[string]any{
+		"type":     "object",
+		"required": []string{"code", "frequency", "buy_signal"},
+		"properties": out,
+	}
+}
+
 func probeBotSignalSeriesParameters() map[string]any {
 	return map[string]any{
 		"type":     "object",

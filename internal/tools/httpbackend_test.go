@@ -22,6 +22,9 @@ func TestHTTPBackendsForTool(t *testing.T) {
 	if b.ForTool("probe_bot_signal_series") != sigC {
 		t.Fatal("probe_bot_signal_series should use signal-api")
 	}
+	if b.ForTool("diagnose_bot_signal_series") != sigC {
+		t.Fatal("diagnose_bot_signal_series should use signal-api")
+	}
 	if b.ForTool("list_strategy_backtest_logs") != sigC {
 		t.Fatal("list_strategy_backtest_logs should use signal-api")
 	}

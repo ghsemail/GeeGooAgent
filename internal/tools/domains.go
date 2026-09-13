@@ -147,6 +147,7 @@ var (
 		"loopback_strategy":              {},
 		"probe_bot_signal":               {},
 		"probe_bot_signal_series":        {},
+		"diagnose_bot_signal_series":     {},
 		"get_indicator_series":           {},
 		"list_strategy_backtest_logs":    {},
 		"get_strategy_backtest_log":      {},

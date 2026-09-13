@@ -77,7 +77,7 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 						body["source"] = "agent"
 					}
 				}
-				if spec.Name == "probe_bot_signal_series" || spec.Name == "probe_bot_signal" {
+				if spec.Name == "probe_bot_signal_series" || spec.Name == "probe_bot_signal" || spec.Name == "diagnose_bot_signal_series" {
 					catalog.ApplyProbeDefaults(body)
 				}
 				if uid := strings.TrimSpace(ctx.UserID); uid != "" {
@@ -217,6 +217,26 @@ func normalizeHTTPResponse(name string, payload any) (map[string]any, string) {
 				return v, fmt.Sprintf("probe_bot_signal_series: %d bars, buy_hits=%d sell_hits=%d",
 					len(bars), countMergedSignals(v["buy_merged"], 1), countMergedSignals(v["sell_merged"], -1))
 			}
+		case "diagnose_bot_signal_series":
+			barCount := 0
+			if rng, ok := v["range"].(map[string]any); ok {
+				if n, ok := catalog.IntFromAny(rng["bar_count"]); ok {
+					barCount = n
+				}
+			}
+			verdict := fmt.Sprint(v["verdict"])
+			summary := strings.TrimSpace(fmt.Sprint(v["summary"]))
+			if summary == "" {
+				summary = verdict
+			}
+			buyHits := 0
+			if hits, ok := v["hits"].(map[string]any); ok {
+				if n, ok := catalog.IntFromAny(hits["buy"]); ok {
+					buyHits = n
+				}
+			}
+			return v, fmt.Sprintf("diagnose_bot_signal_series: %s bars=%d buy_hits=%d · %s",
+				verdict, barCount, buyHits, summary)
 		case "probe_bot_signal":
 			buy := nestedInt(v, "buy_signal", "signal")
 			sell := nestedInt(v, "sell_signal", "signal")

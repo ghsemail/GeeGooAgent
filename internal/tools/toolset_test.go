@@ -30,8 +30,8 @@ func TestDefaultChatIncludesAllToolsetsExceptRecall(t *testing.T) {
 	if _, ok := set["search_knowledge"]; ok {
 		t.Fatal("search_knowledge must stay out of default chat allowlist")
 	}
-	if len(names) != 120 {
-		t.Fatalf("default chat allowlist want 120, got %d", len(names))
+	if len(names) != 121 {
+		t.Fatalf("default chat allowlist want 121, got %d", len(names))
 	}
 }
 
@@ -169,7 +169,7 @@ func TestToolsetCountsMatchDocumentation(t *testing.T) {
 	t.Parallel()
 	want := map[string]int{
 		"market": 9, "analyst_runtime": 6, "prompt_admin": 10, "custom_signal": 7,
-		"strategy": 21, "trading_bot": 15, "hedge_bot": 5, "reminder_manager": 15,
+		"strategy": 22, "trading_bot": 15, "hedge_bot": 5, "reminder_manager": 15,
 		"report_query": 7, "report_write": 8, "report_workflow": 9, "agent_meta": 9,
 		"knowledge": 1,
 	}
@@ -189,8 +189,8 @@ func TestToolsetCountsMatchDocumentation(t *testing.T) {
 			union[name] = struct{}{}
 		}
 	}
-	if len(union) != 122 {
-		t.Fatalf("toolset union want 122, got %d", len(union))
+	if len(union) != 123 {
+		t.Fatalf("toolset union want 123, got %d", len(union))
 	}
 }
 

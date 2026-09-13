@@ -46,7 +46,8 @@ skip_retrieval_gate: true
 | 其他单指标 | catalog 默认（通常 60m 或 daily） |
 
 5. **解读**：优先读 tool **`summary`**（含 `buy_hits`/`sell_hits`）及 compact 后的 `recent_*_times`；禁止 dump 全量 `bars`  
-6. **零信号**：查 `months_back` / `sell_signal` / `frequency`（不是 limit 算错）
+6. **零信号**：查 `months_back` / `sell_signal` / `frequency`（不是 limit 算错）  
+7. **追问「为什么没信号」** → 转 **`strategy-signal-explain`**，调 `diagnose_bot_signal_series`（沿用同一参数），**禁止**再 probe
 
 **registry defaults**：Macd4H — 5/13/9, rhythm 89…；共振 — 12/26/9, zeroAxisRatio 0.002…
 

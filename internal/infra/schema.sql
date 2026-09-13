@@ -257,6 +257,14 @@ INSERT OR IGNORE INTO agent_eval_cases (
     12, 1, datetime('now'), datetime('now')
 ),
 (
+    'strategy_signal_explain_followup', '', '单股 · 零信号解释 · 2轮剧本',
+    '首轮 probe 后追问为何零信号；第2轮应 diagnose 解释规则与指标，不再 probe。',
+    '["随机选 1 股 + 1 策略，发送首轮信号测试","发送「为什么没信号」追问","校验 diagnose 与解释文案"]',
+    1,
+    '{"category":"strategy_signal","task":"signal_probe","scenario":"single","stock_count":1,"strategy_count":1,"random_stock_enabled":true,"min_reply_chars":80,"pass_keywords":["信号","阈值","没","触发","RSI","参数"],"session_cleanup":"before_run","explain_followup":true,"require_tools":["diagnose_bot_signal_series"],"forbid_tools":["run_strategy_backtest"],"dialogue":[{"role":"user","text":"为什么一个信号都没有？帮我从数据和规则上解释一下","judge":true}]}',
+    14, 1, datetime('now'), datetime('now')
+),
+(
     'strategy_signal_swap_followup', '', '单股 · 换信号 · 换标的 · 3轮剧本',
     '首轮与「单股·单策略」相同（随机策略+标的）；第2句换信号，第3句换标的；澄清由 auto-clarify 自动应答。',
     '["随机选 1 股 + 1 策略，发送首轮信号测试","发送「换一个信号策略再看看」","发送「换一个标的试试」","澄清选项由 auto-clarify 自动应答"]',
