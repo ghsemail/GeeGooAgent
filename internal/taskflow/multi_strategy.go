@@ -82,9 +82,9 @@ func splitStrategyQueries(text string) []string {
 	}
 	repl := strings.NewReplacer("对比", " ", "哪个", " ", "信号多", " ", "买卖点", " ", "测一下", " ", "跑一下", " ")
 	clean := repl.Replace(text)
-	parts := strings.FieldsFunc(clean, func(r rune) bool {
-		return r == '、' || r == ',' || r == '，' || r == '/' || r == '|'
-	})
+	repl = strings.NewReplacer("和", " ", "与", " ", " VS ", " ", " vs ", " ", "、", " ", "，", " ", ",", " ", "/", " ", "|", " ")
+	clean = repl.Replace(clean)
+	parts := strings.Fields(clean)
 	seen := map[string]struct{}{}
 	out := []string{}
 	for _, p := range parts {
@@ -251,6 +251,7 @@ func (r *Runner) phaseProbeForeach(ctx context.Context, flow *Flow, toolCtx tool
 			continue
 		}
 		item.Status = StepRunning
+		r.emitCard(flow)
 		var lastErr error
 		for attempt := 0; attempt <= maxStepRetries; attempt++ {
 			item.Attempts = attempt + 1
@@ -261,6 +262,7 @@ func (r *Runner) phaseProbeForeach(ctx context.Context, flow *Flow, toolCtx tool
 				flow.Cursor = i + 1
 				flow.PartialReport = renderPartialReport(flow)
 				flow.touch()
+				r.emitCard(flow)
 				lastErr = nil
 				break
 			}
@@ -271,6 +273,7 @@ func (r *Runner) phaseProbeForeach(ctx context.Context, flow *Flow, toolCtx tool
 			item.Status = StepSkipped
 			flow.PartialReport = renderPartialReport(flow)
 			flow.touch()
+			r.emitCard(flow)
 			if r.OnProgress != nil {
 				r.OnProgress("taskflow_step_skipped", map[string]any{
 					"strategy": item.Label,

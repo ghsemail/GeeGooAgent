@@ -45,6 +45,7 @@ func (r *Runner) RunTurn(
 		if ShouldStartMultiStrategyFlow(userText, session, flow) {
 			flow = newMultiStrategyFlow(userText, session)
 			SaveToSession(session, flow)
+			r.emitCard(flow)
 			r.emit("taskflow_started", map[string]any{
 				"run_id": flow.RunID, "template": flow.Template,
 			})
@@ -75,9 +76,7 @@ func (r *Runner) RunTurn(
 			r.OnProgress(event, data)
 		}
 	}
-	r.emit("taskflow_run", map[string]any{
-		"run_id": flow.RunID, "phase": flow.Phase, "status": flow.Status,
-	})
+	r.emitCard(flow)
 	for flow.Phase != PhaseSummarize && flow.Phase != PhaseDone {
 		if err := ctx.Err(); err != nil {
 			flow.Status = StatusInterrupted
@@ -90,6 +89,7 @@ func (r *Runner) RunTurn(
 			flow.PartialReport = renderPartialReport(flow)
 			flow.touch()
 			SaveToSession(session, flow)
+			r.emitCard(flow)
 			session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: msg + "\n\n" + flow.PartialReport})
 			records = append(records, runtime.StepRecord{
 				Step: step, Timestamp: time.Now().UTC(), Kind: "reply", Summary: truncate(msg, 300),
@@ -113,12 +113,14 @@ func (r *Runner) RunTurn(
 		records = append(records, runtime.StepRecord{
 			Step: step, Timestamp: time.Now().UTC(), Kind: "reply", Summary: truncate(reply, 300),
 		})
+		r.emitCard(flow)
 		r.emit("taskflow_completed", map[string]any{"run_id": flow.RunID})
 		return runtime.TurnResult{AssistantText: reply, StepRecords: records}, true
 	}
 	flow.PartialReport = renderPartialReport(flow)
 	flow.touch()
 	SaveToSession(session, flow)
+	r.emitCard(flow)
 	reply := flow.PartialReport
 	if strings.TrimSpace(reply) == "" {
 		reply = "任务流进行中，请发送「继续」以执行下一步。"
@@ -146,6 +148,13 @@ func (r *Runner) emit(event string, data map[string]any) {
 	if r.OnProgress != nil {
 		r.OnProgress(event, data)
 	}
+}
+
+func (r *Runner) emitCard(flow *Flow) {
+	if flow == nil {
+		return
+	}
+	r.emit("taskflow_card", CardPayload(flow))
 }
 
 func (r *Runner) runTool(

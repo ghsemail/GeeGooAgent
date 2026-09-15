@@ -249,6 +249,14 @@ INSERT OR IGNORE INTO agent_eval_cases (
     11, 1, datetime('now'), datetime('now')
 ),
 (
+    'taskflow_multi_strategy_compare', '', 'TaskFlow · 多策略信号对比',
+    '固定标的，TaskFlow 串行 probe 多策略并输出对比表（非 ReAct）。',
+    '["发送多策略对比请求","校验 taskflow 对比表与买/卖次","校验回复含多策略信号对比"]',
+    0,
+    '{"category":"taskflow","task":"multi_strategy_compare","scenario":"fixed_dialogue","stock_count":1,"strategy_count":2,"random_stock_enabled":false,"min_reply_chars":80,"pass_keywords":["多策略","对比","买","卖"],"session_cleanup":"before_run","message":"帮我在腾讯上对比 Macd4H 和 共振的信号买卖点"}',
+    11, 1, datetime('now'), datetime('now')
+),
+(
     'strategy_signal_multi_stock', '', '多股 · 单策略 · 信号测试',
     '同一策略在 2 只随机股票上分别做信号测试并对比。',
     '["随机选 2 只股票与 1 项策略","发送多标的信号测试请求","校验回复含各股信号对比"]',
