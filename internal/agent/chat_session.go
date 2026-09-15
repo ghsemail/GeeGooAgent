@@ -3,6 +3,7 @@ package agent
 import (
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
+	"github.com/ghsemail/GeeGooAgent/internal/taskflow"
 )
 
 // RuntimeSessionFromChat reconstructs loop state from a persisted chat session.
@@ -25,6 +26,7 @@ func RuntimeSessionFromChat(chat *chatsession.ChatSession) *runtime.Session {
 	if step, calls, ok := chat.HeldPlanFromMetadata(); ok {
 		session.PendingPlan = &runtime.PendingPlan{Step: step, ToolCalls: calls}
 	}
+	taskflow.LoadFromChat(chat, session)
 	session.PriorSessionTools = chatsession.SessionToolsFromTrace(chatsession.TurnToolsTraceFromSession(chat))
 	return session
 }
@@ -46,4 +48,5 @@ func SyncChatFromRuntime(chat *chatsession.ChatSession, rt *runtime.Session, new
 	} else {
 		chat.SyncHeldPlan(0, nil)
 	}
+	taskflow.SyncToChat(chat, rt)
 }
