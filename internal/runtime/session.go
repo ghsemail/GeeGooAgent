@@ -50,6 +50,8 @@ type Session struct {
 	PriorSessionTools []string
 	// LastExecutionProfile is the profile id applied to the current/last turn.
 	LastExecutionProfile string
+	// ActiveFlowJSON holds opaque serial taskflow state (see internal/taskflow).
+	ActiveFlowJSON []byte
 }
 
 // PendingPlan is a held mutating-tool batch from one LLM round.

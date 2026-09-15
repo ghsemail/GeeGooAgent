@@ -392,6 +392,12 @@ func (l *Loop) RunTurn(
 	session.AppendMessage(llm.Message{Role: llm.RoleUser, Content: userText})
 	records := []runtime.StepRecord{}
 
+	if result, handled := l.tryTaskFlow(ctx, session, userText, toolCtx); handled {
+		result.StepRecords = append(records, result.StepRecords...)
+		l.evaluateTurn(ctx, session, result)
+		return result
+	}
+
 	l.emit("turn_start", map[string]any{"user_text": userText})
 	l.emitBus("TurnStarted", map[string]any{
 		"session_id": session.ID, "user_text": userText,
