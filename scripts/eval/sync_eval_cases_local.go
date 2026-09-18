@@ -54,6 +54,9 @@ func main() {
 }
 
 func syncWorkflowCases(db *sql.DB) (int, error) {
+	if _, err := db.Exec(`DELETE FROM agent_eval_cases WHERE id IN ('taskflow_multi_strategy_compare', 'workflow_strategy_dev_cognition')`); err != nil {
+		return 0, err
+	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	cases := eval.IndividualWorkflowEvalCases()
 	for _, c := range cases {

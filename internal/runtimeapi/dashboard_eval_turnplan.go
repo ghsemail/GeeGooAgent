@@ -174,7 +174,7 @@ func (h *Handler) loadTurnPlanCaseOptions(r *http.Request, caseID string) (eval.
 			if err != nil {
 				return eval.TurnPlanCaseOptions{}, "", err
 			}
-			if opts.Category != "turn_plan" && opts.Category != "workflow" {
+			if opts.Category != "turn_plan" && opts.Category != eval.WorkflowCatID {
 				return eval.TurnPlanCaseOptions{}, "", errEvalCaseNotLiveChat
 			}
 			return opts.Normalize().SyncLegacyUtterances(), title, nil

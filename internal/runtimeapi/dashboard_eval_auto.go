@@ -67,7 +67,7 @@ func evalCatalogCases() []evalCatalogCase {
 	for _, c := range live {
 		byTurn[c.ID] = c
 	}
-	out := make([]evalCatalogCase, 0, len(live))
+	out := make([]evalCatalogCase, 0, len(live)+len(eval.IndividualWorkflowEvalCases()))
 	for _, def := range eval.IndividualTurnPlanEvalCases() {
 		src := byTurn[def.Options.TurnID]
 		out = append(out, evalCatalogCase{
@@ -82,6 +82,15 @@ func evalCatalogCases() []evalCatalogCase {
 			ExpectMode:   def.Options.ExpectMode,
 		})
 	}
+	for _, def := range eval.IndividualWorkflowEvalCases() {
+		out = append(out, evalCatalogCase{
+			ID:          def.ID,
+			Category:    def.Options.Category,
+			Title:       def.Title,
+			Description: def.Description,
+			Message:     def.Options.Message,
+		})
+	}
 	return out
 }
 
@@ -90,8 +99,8 @@ func evalCatalogCategoryList(cases []evalCatalogCase) []evalCatalogCategory {
 	for _, c := range cases {
 		counts[c.Category]++
 	}
-	out := make([]evalCatalogCategory, 0, 8)
-	for _, cat := range eval.TurnPlanCategories() {
+	out := make([]evalCatalogCategory, 0, len(eval.EvalAutoCategories()))
+	for _, cat := range eval.EvalAutoCategories() {
 		out = append(out, evalCatalogCategory{
 			ID: cat.ID, Title: cat.Title, Order: cat.Order, Count: counts[cat.ID],
 		})

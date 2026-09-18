@@ -273,6 +273,14 @@ INSERT OR IGNORE INTO agent_eval_cases (
     11, 1, datetime('now'), datetime('now')
 ),
 (
+    'workflow_generate_strategy_cognition_random', '', 'Workflow · 生成策略认知（随机策略）',
+    'generate_strategy_cognition：从策略库随机选一项，LLM 合成认知并写入知识库。',
+    '["随机选取一项 catalog 组合策略","发送生成策略认知请求","校验 workflow 完成认知生成报告","校验回复含策略库/知识库与读回验证"]',
+    0,
+    '{"category":"workflow","task":"generate_strategy_cognition","scenario":"cognition_random","workflow_skill":"generate_strategy_cognition","random_strategy_enabled":true,"random_stock_enabled":false,"min_reply_chars":80,"pass_keywords":["策略认知","知识库","策略库"],"session_cleanup":"before_run","message":"生成策略认知","wait_timeout_sec":900}',
+    13, 1, datetime('now'), datetime('now')
+),
+(
     'strategy_signal_multi_stock', '', '多股 · 单策略 · 信号测试',
     '同一策略在 2 只随机股票上分别做信号测试并对比。',
     '["随机选 2 只股票与 1 项策略","发送多标的信号测试请求","校验回复含各股信号对比"]',

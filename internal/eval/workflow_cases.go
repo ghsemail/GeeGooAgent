@@ -1,5 +1,21 @@
 package eval
 
+const WorkflowCatID = "workflow"
+
+// WorkflowCategories groups workflow live eval cases for dashboard / automation.
+func WorkflowCategories() []TurnPlanCategory {
+	return []TurnPlanCategory{
+		{ID: WorkflowCatID, Title: "Workflow", Order: 9},
+	}
+}
+
+// EvalAutoCategories is the canonical category order for auto eval (TurnPlan + Workflow).
+func EvalAutoCategories() []TurnPlanCategory {
+	out := append([]TurnPlanCategory{}, TurnPlanCategories()...)
+	out = append(out, WorkflowCategories()...)
+	return out
+}
+
 // IndividualWorkflowEvalCases returns live Dock Chat eval cases for chat workflows
 // (multi-step serial execution, not TurnPlan routing regression).
 func IndividualWorkflowEvalCases() []TurnPlanEvalCaseDef {
@@ -15,7 +31,7 @@ func IndividualWorkflowEvalCases() []TurnPlanEvalCaseDef {
 			},
 			SortOrder: 10,
 			Options: TurnPlanCaseOptions{
-				Category:       "workflow",
+				Category:       WorkflowCatID,
 				SessionCleanup: DefaultEvalSessionCleanup,
 				Message:        "生成策略认知 Macd4H",
 				MinReplyChars:  80,
@@ -33,7 +49,7 @@ func IndividualWorkflowEvalCases() []TurnPlanEvalCaseDef {
 			},
 			SortOrder: 12,
 			Options: TurnPlanCaseOptions{
-				Category:       "workflow",
+				Category:       WorkflowCatID,
 				SessionCleanup: DefaultEvalSessionCleanup,
 				Message:        "策略开发 Macd4H",
 				MinReplyChars:  60,
@@ -51,11 +67,32 @@ func IndividualWorkflowEvalCases() []TurnPlanEvalCaseDef {
 			},
 			SortOrder: 11,
 			Options: TurnPlanCaseOptions{
-				Category:       "workflow",
+				Category:       WorkflowCatID,
 				SessionCleanup: DefaultEvalSessionCleanup,
 				Message:        "帮我在腾讯上对比 Macd4H 和 共振的信号买卖点",
 				MinReplyChars:  80,
 				PassKeywords:   []string{"多策略", "对比", "买", "卖"},
+			},
+		},
+		{
+			ID:          "workflow_generate_strategy_cognition_random",
+			Title:       "Workflow · 生成策略认知（随机策略）",
+			Description: "generate_strategy_cognition：从策略库随机选一项，LLM 合成认知并写入知识库。",
+			Steps: []string{
+				"随机选取一项 catalog 组合策略",
+				"发送生成策略认知请求",
+				"校验 workflow 完成认知生成报告",
+				"校验回复含策略库/知识库与读回验证",
+			},
+			SortOrder: 13,
+			Options: TurnPlanCaseOptions{
+				Category:              WorkflowCatID,
+				SessionCleanup:        DefaultEvalSessionCleanup,
+				Message:               "生成策略认知",
+				RandomStrategyEnabled: true,
+				MinReplyChars:         80,
+				PassKeywords:          []string{"策略认知", "知识库", "策略库"},
+				WaitTimeoutSec:        900,
 			},
 		},
 	}

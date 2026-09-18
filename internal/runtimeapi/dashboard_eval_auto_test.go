@@ -81,12 +81,25 @@ func TestEvalCatalogListsTurnPlanCategories(t *testing.T) {
 		t.Fatalf("status=%d body=%v", code, body)
 	}
 	cats, _ := body["categories"].([]any)
-	if len(cats) < 8 {
-		t.Fatalf("categories=%d want >=8 body=%v", len(cats), body)
+	if len(cats) < 9 {
+		t.Fatalf("categories=%d want >=9 body=%v", len(cats), body)
+	}
+	hasWorkflow := false
+	for _, item := range cats {
+		cat, _ := item.(map[string]any)
+		if cat["id"] == "workflow" {
+			hasWorkflow = true
+			if count, _ := cat["count"].(float64); count < 4 {
+				t.Fatalf("workflow count=%v want >=4", cat["count"])
+			}
+		}
+	}
+	if !hasWorkflow {
+		t.Fatalf("missing workflow category: %v", cats)
 	}
 	cases, _ := body["cases"].([]any)
-	if len(cases) < 24 {
-		t.Fatalf("cases=%d want >=24", len(cases))
+	if len(cases) < 30 {
+		t.Fatalf("cases=%d want >=30", len(cases))
 	}
 	first, _ := cases[0].(map[string]any)
 	if first["id"] == "" || first["category"] == "" || first["message"] == "" {

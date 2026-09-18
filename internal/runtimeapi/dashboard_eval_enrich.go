@@ -20,7 +20,7 @@ func persistEvalCaseOptions(opts map[string]any) map[string]any {
 		return opts
 	}
 	category, _ := opts["category"].(string)
-	if category != "turn_plan" {
+	if category != "turn_plan" && category != eval.WorkflowCatID {
 		return opts
 	}
 	runtime := copyEvalRuntimeOptions(opts)
@@ -77,6 +77,14 @@ func enrichEvalCaseRow(row map[string]any) {
 		return
 	}
 	category, _ := opts["category"].(string)
+	if category == eval.WorkflowCatID {
+		row["run_mode"] = "workflow_live"
+		enrichGenericEvalCaseRow(row, opts)
+		if msg, ok := opts["message"].(string); ok && strings.TrimSpace(msg) != "" {
+			row["utterance"] = strings.TrimSpace(msg)
+		}
+		return
+	}
 	if category != "turn_plan" {
 		enrichGenericEvalCaseRow(row, opts)
 		return

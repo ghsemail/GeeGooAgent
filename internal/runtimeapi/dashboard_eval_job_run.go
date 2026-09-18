@@ -160,6 +160,11 @@ func (h *Handler) runEvalJobItem(ctx context.Context, db *sql.DB, auth evalJobAu
 	if title == "" {
 		title = item.title
 	}
+	opts, err = h.resolveEvalCaseOptions(ctx, opts)
+	if err != nil {
+		h.finishEvalJobItem(db, item.id, "error", "", "", err.Error(), "", start, nil, nil)
+		return "error"
+	}
 	opts = opts.Normalize().SyncLegacyUtterances()
 	clarifyDefaults := eval.ClarifyDefaultTexts(opts)
 	regularTurns, clarifyTurns := eval.DialogueExecutionPlan(opts)
@@ -171,9 +176,10 @@ func (h *Handler) runEvalJobItem(ctx context.Context, db *sql.DB, auth evalJobAu
 		ExpectIntent: opts.ExpectIntent,
 		ExpectReply:  opts.ExpectReply,
 	}
+	chatTimeout := evalChatTimeout(opts)
 	for i, turn := range regularTurns {
 		clarifyHint.Dialogue = append(clarifyHint.Dialogue, turn)
-		lastOut, err = h.runEvalChatTurn(ctx, auth, sessionID, turn.Text, clarifyDefaults, clarifyHint, !splitClarify)
+		lastOut, err = h.runEvalChatTurn(ctx, auth, sessionID, turn.Text, clarifyDefaults, clarifyHint, !splitClarify, chatTimeout)
 		if err != nil {
 			h.finishEvalJobItem(db, item.id, "error", lastOut.sessionID, "", "dialogue["+strconv.Itoa(i)+"]: "+err.Error(), lastOut.errText, start, nil, nil)
 			return "error"
@@ -198,7 +204,7 @@ func (h *Handler) runEvalJobItem(ctx context.Context, db *sql.DB, auth evalJobAu
 	if len(clarifyTurns) > 0 && eval.NeedsClarifyFollowup(chat, opts) {
 		for i, turn := range clarifyTurns {
 			clarifyHint.Dialogue = append(clarifyHint.Dialogue, turn)
-			lastOut, err = h.runEvalChatTurn(ctx, auth, sessionID, turn.Text, clarifyDefaults, clarifyHint, false)
+			lastOut, err = h.runEvalChatTurn(ctx, auth, sessionID, turn.Text, clarifyDefaults, clarifyHint, false, chatTimeout)
 			if err != nil {
 				h.finishEvalJobItem(db, item.id, "error", lastOut.sessionID, "", "clarify["+strconv.Itoa(i)+"]: "+err.Error(), lastOut.errText, start, nil, nil)
 				return "error"
@@ -233,7 +239,29 @@ func (h *Handler) runEvalJobItem(ctx context.Context, db *sql.DB, auth evalJobAu
 	return status
 }
 
-func (h *Handler) runEvalChatTurn(ctx context.Context, auth evalJobAuth, sessionID, message string, clarifyDefaults []string, clarifyHint eval.ClarifyRecommendContext, enableClarifyFn bool) (evalTurnOutcome, error) {
+func evalChatTimeout(opts eval.TurnPlanCaseOptions) time.Duration {
+	if opts.WaitTimeoutSec > 0 {
+		return time.Duration(opts.WaitTimeoutSec) * time.Second
+	}
+	return 10 * time.Minute
+}
+
+func (h *Handler) resolveEvalCaseOptions(ctx context.Context, opts eval.TurnPlanCaseOptions) (eval.TurnPlanCaseOptions, error) {
+	if !opts.RandomStrategyEnabled {
+		return opts, nil
+	}
+	if h == nil || h.App == nil || h.App.Config == nil {
+		return opts, fmt.Errorf("agent config not ready for random strategy eval")
+	}
+	name, err := eval.PickRandomStrategyName(ctx, h.App.Config.SignalCatalogURL(), h.App.Config.SignalCatalogAPIKey())
+	if err != nil {
+		return opts, err
+	}
+	opts.Message = fmt.Sprintf("生成策略认知 %s", strings.TrimSpace(name))
+	return opts, nil
+}
+
+func (h *Handler) runEvalChatTurn(ctx context.Context, auth evalJobAuth, sessionID, message string, clarifyDefaults []string, clarifyHint eval.ClarifyRecommendContext, enableClarifyFn bool, chatTimeout time.Duration) (evalTurnOutcome, error) {
 	out := evalTurnOutcome{sessionID: sessionID}
 	if h == nil || h.App == nil || h.App.Agent == nil || h.App.Gateway == nil {
 		return out, fmt.Errorf("agent runtime not ready")
@@ -242,7 +270,10 @@ func (h *Handler) runEvalChatTurn(ctx context.Context, auth evalJobAuth, session
 	if err != nil {
 		return out, err
 	}
-	turnCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	if chatTimeout <= 0 {
+		chatTimeout = 10 * time.Minute
+	}
+	turnCtx, cancel := context.WithTimeout(ctx, chatTimeout)
 	defer cancel()
 
 	h.chatMu.Lock()

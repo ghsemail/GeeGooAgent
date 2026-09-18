@@ -4,8 +4,8 @@ import "testing"
 
 func TestIndividualWorkflowEvalCases(t *testing.T) {
 	cases := IndividualWorkflowEvalCases()
-	if len(cases) < 2 {
-		t.Fatalf("expected at least 2 workflow eval cases, got %d", len(cases))
+	if len(cases) < 4 {
+		t.Fatalf("expected at least 4 workflow eval cases, got %d", len(cases))
 	}
 	for _, c := range cases {
 		if c.Options.Category != "workflow" {

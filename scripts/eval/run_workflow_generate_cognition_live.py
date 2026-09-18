@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""Live smoke: workflow_generate_strategy_cognition.
-
-Runs on geegoo-agent host against localhost :3400.
-"""
+"""Live smoke: workflow_generate_strategy_cognition (fixed Macd4H)."""
 from __future__ import annotations
 
 import json
@@ -15,7 +12,7 @@ CASE_ID = "workflow_generate_strategy_cognition"
 MESSAGE = "生成策略认知 Macd4H"
 PASS_KEYWORDS = ["策略认知", "Macd4H", "知识库", "策略库"]
 MIN_REPLY_CHARS = 80
-CHAT_TIMEOUT = int(os.environ.get("WORKFLOW_STRATEGY_DEV_CHAT_TIMEOUT", "900"))
+CHAT_TIMEOUT = int(os.environ.get("WORKFLOW_COGNITION_CHAT_TIMEOUT", "900"))
 VERIFY_TIMEOUT = 120
 
 

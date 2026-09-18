@@ -43,9 +43,13 @@ curl -X POST http://127.0.0.1:3400/v1/dashboard/eval/jobs \
 # 部署后同步 eval 用例到 PG
 python scripts/eval/migrate_turnplan_eval_db.py
 
-# 本机 SQLite（默认 ~/.geegoo/data/geegoo.db）同步 TurnPlan + strategy_backtest
+# 本机 SQLite（默认 ~/.geegoo/data/geegoo.db）同步 TurnPlan + strategy_backtest + workflow
 go run scripts/eval/sync_eval_cases_local.go
 go run scripts/eval/sync_eval_cases_local.go -db D:/path/to/geegoo.db
+
+# Workflow eval（PG seed + live smoke）
+python scripts/eval/migrate_workflow_eval_db.py
+python scripts/eval/run_workflow_generate_cognition_random_remote.py
 ```
 
 ## 源码位置
