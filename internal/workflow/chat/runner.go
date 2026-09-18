@@ -44,6 +44,8 @@ func (r *Runner) RunTurn(
 	}
 	if !ShouldHandleFlowTurn(userText, flow) {
 		switch {
+		case ShouldStartGenerateStrategyCognitionFlow(userText, flow):
+			flow = newGenerateStrategyCognitionFlow(userText)
 		case ShouldStartStrategyDevFlow(userText, flow):
 			flow = newStrategyDevFlow(userText)
 		case ShouldStartMultiStrategyFlow(userText, session, flow):
@@ -64,8 +66,10 @@ func (r *Runner) RunTurn(
 	}
 
 	switch flow.Template {
+	case SkillGenerateStrategyCognition:
+		return r.runTemplateTurn(ctx, session, flow, toolCtx, stepBase, r.advanceGenerateStrategyCognition, renderGenerateCognitionPartial, renderGenerateCognitionReport)
 	case SkillStrategyDev:
-		return r.runTemplateTurn(ctx, session, flow, toolCtx, stepBase, r.advanceStrategyDev, renderCognitionPartial, renderCognitionReport)
+		return r.runTemplateTurn(ctx, session, flow, toolCtx, stepBase, r.advanceStrategyDev, renderStrategyDevPartial, renderStrategyDevReport)
 	case SkillMultiStrategyCompare:
 		return r.runTemplateTurn(ctx, session, flow, toolCtx, stepBase, r.advanceMultiStrategy, renderPartialReport, renderFinalReport)
 	default:

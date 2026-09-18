@@ -2,9 +2,10 @@ package skills
 
 // Chat-triggered workflow skill names (must match internal/workflow/chat/types.go).
 const (
-	SkillMultiStrategyCompare = "multi_strategy_compare"
-	SkillParamTune            = "param_tune"
-	SkillStrategyDev          = "strategy_dev"
+	SkillMultiStrategyCompare      = "multi_strategy_compare"
+	SkillParamTune                 = "param_tune"
+	SkillStrategyDev               = "strategy_dev"
+	SkillGenerateStrategyCognition = "generate_strategy_cognition"
 )
 
 // ChatTrigger describes chat keyword entry for a workflow skill.
@@ -19,14 +20,25 @@ type ChatTrigger struct {
 func ChatWorkflowCatalog() []map[string]any {
 	return []map[string]any{
 		{
-			"id":           SkillStrategyDev,
-			"name":         "策略开发",
-			"description":  "策略开发主 Workflow。Step 1「策略认知」：读策略库 → LLM 合成 Agent 认知 → 写入并读回知识库。",
-			"status":       "available",
-			"triggers":     []string{"策略认知", "策略开发", "学习策略", "了解策略", "写入知识库"},
-			"phases":       []string{"cognition_pick", "cognition_read_catalog", "cognition_compose", "cognition_save_kb", "cognition_verify_kb", "summarize"},
-			"resume_hints": []string{"继续", "重试失败", "POST /v1/chat/workflow/resume"},
-			"kind":         "workflow",
+			"id":            SkillGenerateStrategyCognition,
+			"name":          "生成策略认知",
+			"description":   "读策略库 → LLM 合成 Agent 策略认知 → 写入并读回 WeKnora 知识库。",
+			"status":        "available",
+			"triggers":      []string{"生成策略认知", "策略认知", "学习策略", "了解策略", "写入知识库"},
+			"phases":        []string{"cognition_pick", "cognition_read_catalog", "cognition_compose", "cognition_save_kb", "cognition_verify_kb", "summarize"},
+			"resume_hints":  []string{"继续", "重试失败", "POST /v1/chat/workflow/resume"},
+			"kind":          "workflow",
+			"trigger_modes": []string{"chat"},
+		},
+		{
+			"id":            SkillStrategyDev,
+			"name":          "策略开发",
+			"description":   "从知识库读取已有策略认知，作为策略开发上下文（后续 Step 扩展回测/调参等）。",
+			"status":        "available",
+			"triggers":      []string{"策略开发"},
+			"phases":        []string{"dev_pick", "dev_read_cognition", "summarize"},
+			"resume_hints":  []string{"继续", "重试失败", "POST /v1/chat/workflow/resume"},
+			"kind":          "workflow",
 			"trigger_modes": []string{"chat"},
 		},
 		{
@@ -58,7 +70,7 @@ func ChatWorkflowCatalog() []map[string]any {
 // IsChatWorkflowSkill reports whether name is a chat+cron workflow (not L5 batch-only).
 func IsChatWorkflowSkill(name string) bool {
 	switch name {
-	case SkillMultiStrategyCompare, SkillParamTune, SkillStrategyDev:
+	case SkillMultiStrategyCompare, SkillParamTune, SkillStrategyDev, SkillGenerateStrategyCognition:
 		return true
 	default:
 		return false

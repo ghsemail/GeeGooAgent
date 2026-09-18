@@ -7,11 +7,16 @@ import (
 const (
 	MetaKeyActiveFlow = "active_flow"
 
-	SkillMultiStrategyCompare = "multi_strategy_compare"
-	SkillParamTune            = "param_tune"
-	SkillStrategyDev          = "strategy_dev"
+	SkillMultiStrategyCompare         = "multi_strategy_compare"
+	SkillParamTune                    = "param_tune"
+	SkillStrategyDev                  = "strategy_dev"
+	SkillGenerateStrategyCognition    = "generate_strategy_cognition"
 
-	StepCognition = "cognition"
+	StepGenerateCognition = "generate_cognition"
+	StepStrategyDevelop   = "develop"
+
+	PhaseDevPick          = "dev_pick"
+	PhaseDevReadCognition = "dev_read_cognition"
 
 	PhaseCognitionPick        = "cognition_pick"
 	PhaseCognitionReadCatalog = "cognition_read_catalog"
@@ -59,7 +64,7 @@ type Flow struct {
 	Strategies    []StrategyItem `json:"strategies,omitempty"`
 	PartialReport string         `json:"partial_report,omitempty"`
 	TriggerText   string         `json:"trigger_text,omitempty"`
-	// strategy_dev · step cognition
+	// strategy workflows (generate cognition / strategy dev)
 	WorkflowStep   string         `json:"workflow_step,omitempty"`
 	StrategyQuery  string         `json:"strategy_query,omitempty"`
 	CatalogType    string         `json:"catalog_type,omitempty"`

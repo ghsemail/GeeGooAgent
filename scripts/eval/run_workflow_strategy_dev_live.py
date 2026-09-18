@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Live smoke: workflow_strategy_dev_cognition (strategy_dev Step1).
+"""Live smoke: workflow_generate_strategy_cognition.
 
 Runs on geegoo-agent host against localhost :3400.
 """
@@ -11,8 +11,8 @@ import sys
 import urllib.error
 import urllib.request
 
-CASE_ID = "workflow_strategy_dev_cognition"
-MESSAGE = "策略认知 Macd4H"
+CASE_ID = "workflow_generate_strategy_cognition"
+MESSAGE = "生成策略认知 Macd4H"
 PASS_KEYWORDS = ["策略认知", "Macd4H", "知识库", "策略库"]
 MIN_REPLY_CHARS = 80
 CHAT_TIMEOUT = int(os.environ.get("WORKFLOW_STRATEGY_DEV_CHAT_TIMEOUT", "900"))

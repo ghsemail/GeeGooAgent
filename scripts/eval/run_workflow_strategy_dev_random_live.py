@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Live smoke: strategy_dev with a random strategy from catalog combinations."""
+"""Live smoke: generate_strategy_cognition with a random strategy from catalog."""
 from __future__ import annotations
 
 import json
@@ -120,8 +120,8 @@ def main() -> int:
     strategy = pick_random_strategy(catalog, cat_key)
     if len(sys.argv) > 1 and sys.argv[1].strip():
         strategy = sys.argv[1].strip()
-    message = f"策略认知 {strategy}"
-    print(f"=== strategy_dev random cognition ===")
+    message = f"生成策略认知 {strategy}"
+    print(f"=== generate_strategy_cognition random ===")
     print(f"picked_strategy: {strategy}")
     print(f"message: {message}")
 
@@ -133,7 +133,7 @@ def main() -> int:
     print(f"session_id={chat.get('session_id')}")
     print(f"reply_len={len(reply)}")
     print("reply_preview:", reply[:600].replace("\n", " "))
-    ok = "策略认知" in reply and ("知识库" in reply or "策略库" in reply)
+    ok = ("策略认知" in reply or "生成策略认知" in reply) and ("知识库" in reply or "策略库" in reply)
     print("SUMMARY:", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 

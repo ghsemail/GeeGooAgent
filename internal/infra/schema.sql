@@ -249,12 +249,20 @@ INSERT OR IGNORE INTO agent_eval_cases (
     11, 1, datetime('now'), datetime('now')
 ),
 (
-    'workflow_strategy_dev_cognition', '', 'Workflow · 策略认知（Macd4H）',
-    'strategy_dev Step1：读策略库 → LLM 合成 Agent 认知 → 写入并读回 WeKnora 知识库。',
-    '["发送策略认知请求（Macd4H）","校验 workflow 完成策略认知报告","校验回复含策略库/知识库与读回验证"]',
+    'workflow_generate_strategy_cognition', '', 'Workflow · 生成策略认知（Macd4H）',
+    'generate_strategy_cognition：读策略库 → LLM 合成 Agent 认知 → 写入并读回 WeKnora 知识库。',
+    '["发送生成策略认知请求（Macd4H）","校验 workflow 完成认知生成报告","校验回复含策略库/知识库与读回验证"]',
     0,
-    '{"category":"workflow","task":"strategy_dev","scenario":"cognition","workflow_skill":"strategy_dev","random_stock_enabled":false,"min_reply_chars":80,"pass_keywords":["策略认知","Macd4H","知识库","策略库"],"session_cleanup":"before_run","message":"策略认知 Macd4H","wait_timeout_sec":900}',
+    '{"category":"workflow","task":"generate_strategy_cognition","scenario":"cognition","workflow_skill":"generate_strategy_cognition","random_stock_enabled":false,"min_reply_chars":80,"pass_keywords":["策略认知","Macd4H","知识库","策略库"],"session_cleanup":"before_run","message":"生成策略认知 Macd4H","wait_timeout_sec":900}',
     10, 1, datetime('now'), datetime('now')
+),
+(
+    'workflow_strategy_dev_read_cognition', '', 'Workflow · 策略开发读认知（Macd4H）',
+    'strategy_dev：从知识库读取 Macd4H 策略认知作为开发上下文。',
+    '["发送策略开发请求（Macd4H）","校验 workflow 已加载知识库策略认知"]',
+    0,
+    '{"category":"workflow","task":"strategy_dev","scenario":"read_cognition","workflow_skill":"strategy_dev","random_stock_enabled":false,"min_reply_chars":60,"pass_keywords":["策略开发","Macd4H","知识库","策略认知"],"session_cleanup":"before_run","message":"策略开发 Macd4H"}',
+    12, 1, datetime('now'), datetime('now')
 ),
 (
     'workflow_multi_strategy_compare', '', 'Workflow · 多策略信号对比',

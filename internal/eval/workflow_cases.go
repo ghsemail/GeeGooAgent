@@ -5,22 +5,39 @@ package eval
 func IndividualWorkflowEvalCases() []TurnPlanEvalCaseDef {
 	return []TurnPlanEvalCaseDef{
 		{
-			ID:          "workflow_strategy_dev_cognition",
-			Title:       "Workflow · 策略认知（Macd4H）",
-			Description: "strategy_dev Step1：读策略库 → LLM 合成 Agent 认知 → 写入并读回 WeKnora 知识库。",
+			ID:          "workflow_generate_strategy_cognition",
+			Title:       "Workflow · 生成策略认知（Macd4H）",
+			Description: "generate_strategy_cognition：读策略库 → LLM 合成 Agent 认知 → 写入并读回 WeKnora 知识库。",
 			Steps: []string{
-				"发送策略认知请求（Macd4H）",
-				"校验 workflow 完成策略认知报告",
+				"发送生成策略认知请求（Macd4H）",
+				"校验 workflow 完成认知生成报告",
 				"校验回复含策略库/知识库与读回验证",
 			},
 			SortOrder: 10,
 			Options: TurnPlanCaseOptions{
 				Category:       "workflow",
 				SessionCleanup: DefaultEvalSessionCleanup,
-				Message:        "策略认知 Macd4H",
+				Message:        "生成策略认知 Macd4H",
 				MinReplyChars:  80,
 				PassKeywords:   []string{"策略认知", "Macd4H", "知识库", "策略库"},
 				WaitTimeoutSec: 900,
+			},
+		},
+		{
+			ID:          "workflow_strategy_dev_read_cognition",
+			Title:       "Workflow · 策略开发读认知（Macd4H）",
+			Description: "strategy_dev：从知识库读取 Macd4H 策略认知作为开发上下文。",
+			Steps: []string{
+				"发送策略开发请求（Macd4H）",
+				"校验 workflow 已加载知识库策略认知",
+			},
+			SortOrder: 12,
+			Options: TurnPlanCaseOptions{
+				Category:       "workflow",
+				SessionCleanup: DefaultEvalSessionCleanup,
+				Message:        "策略开发 Macd4H",
+				MinReplyChars:  60,
+				PassKeywords:   []string{"策略开发", "Macd4H", "知识库", "策略认知"},
 			},
 		},
 		{
