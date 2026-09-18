@@ -169,7 +169,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		stats["latency_avg"] = sum / len(latencies)
 	}
 
-	skillsOut, proceduralMemory := buildProceduralSkillsPayloadLite(h.App)
+	skillsOut, proceduralMemory := buildProceduralSkillsPayload(h.App)
 
 	if h.App != nil && h.App.Episodic != nil {
 		if eps, err := h.App.Episodic.List(r.Context(), userID, 80); err == nil && len(eps) > 0 {
@@ -220,7 +220,7 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		"generated_at": now.Format(time.RFC3339), "provider": provider, "model": model,
 		"small_model": model, "home": home, "current_session": currentSession, "stats": stats,
 		"sessions": sessionsOut, "turns": turns, "chat_log": chatLog, "facts": facts,
-		"episodes": episodes, "skills": skillsOut, "taskflows": taskflowsDashboardPayload(),
+		"episodes": episodes, "skills": skillsOut,
 		"procedural_memory": proceduralMemory,
 		"calendar": calendar, "outbox": []map[string]any{},
 		"soul": soulTextForDashboard(firstNonEmpty(home, config.Home()), userID),
@@ -311,7 +311,7 @@ func (h *Handler) buildDashboardDataOps(r *http.Request) (map[string]any, error)
 		home = h.App.Workspace
 	}
 
-	skillsOut, proceduralMemory := buildProceduralSkillsPayloadLite(h.App)
+	skillsOut, proceduralMemory := buildProceduralSkillsPayload(h.App)
 	toolsPayload := h.buildToolsDashboardPayload()
 
 	return map[string]any{
@@ -319,7 +319,7 @@ func (h *Handler) buildDashboardDataOps(r *http.Request) (map[string]any, error)
 		"small_model": model, "home": home, "current_session": currentSession,
 		"stats": map[string]any{"turns": 0, "tool_calls": 0, "gate_skips": 0, "gate_retrieves": 0},
 		"sessions": sessionsOut, "turns": []map[string]any{}, "chat_log": []map[string]any{},
-		"facts": facts, "episodes": episodes, "skills": skillsOut, "taskflows": taskflowsDashboardPayload(),
+		"facts": facts, "episodes": episodes, "skills": skillsOut,
 		"procedural_memory": proceduralMemory,
 		"calendar": []map[string]any{}, "outbox": []map[string]any{},
 		"soul": soulTextForDashboard(firstNonEmpty(home, config.Home()), userID),
