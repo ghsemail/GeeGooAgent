@@ -69,7 +69,7 @@ signal_id：%s
 		if err != nil {
 			return "", err
 		}
-		if text := strings.TrimSpace(resp.Content); text != "" {
+		if text := strings.TrimSpace(llm.VisibleAssistantContent(resp.Content, resp.ReasoningContent)); text != "" {
 			return text, nil
 		}
 		return "", fmt.Errorf("LLM 返回空内容")
