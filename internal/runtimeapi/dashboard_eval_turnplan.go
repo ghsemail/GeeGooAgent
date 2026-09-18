@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	errEvalCaseNotFound    = fmt.Errorf("case not found")
-	errEvalCaseNotTurnPlan = fmt.Errorf("case is not turn_plan eval")
+	errEvalCaseNotFound   = fmt.Errorf("case not found")
+	errEvalCaseNotLiveChat = fmt.Errorf("case is not live chat eval (turn_plan or workflow)")
 )
 
 func (h *Handler) registerEvalTurnPlanRoutes(mux *http.ServeMux) {
@@ -75,7 +75,7 @@ func (h *Handler) evalCaseRun(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": report.AllPass, "plan_only": true, "title": title, "results": report.Results})
 		return
 	}
-	writeError(w, http.StatusBadRequest, "turn_plan live eval must run through Dock Chat; call POST /v1/dashboard/eval/cases/"+caseID+"/verify after the chat turn completes")
+	writeError(w, http.StatusBadRequest, "live eval must run through Dock Chat; call POST /v1/dashboard/eval/cases/"+caseID+"/verify after the chat turn completes")
 }
 
 func (h *Handler) evalCaseVerify(w http.ResponseWriter, r *http.Request) {
@@ -174,13 +174,18 @@ func (h *Handler) loadTurnPlanCaseOptions(r *http.Request, caseID string) (eval.
 			if err != nil {
 				return eval.TurnPlanCaseOptions{}, "", err
 			}
-			if opts.Category != "turn_plan" {
-				return eval.TurnPlanCaseOptions{}, "", errEvalCaseNotTurnPlan
+			if opts.Category != "turn_plan" && opts.Category != "workflow" {
+				return eval.TurnPlanCaseOptions{}, "", errEvalCaseNotLiveChat
 			}
 			return opts.Normalize().SyncLegacyUtterances(), title, nil
 		}
 	}
 	for _, def := range eval.IndividualTurnPlanEvalCases() {
+		if def.ID == caseID {
+			return def.Options.Normalize().SyncLegacyUtterances(), def.Title, nil
+		}
+	}
+	for _, def := range eval.IndividualWorkflowEvalCases() {
 		if def.ID == caseID {
 			return def.Options.Normalize().SyncLegacyUtterances(), def.Title, nil
 		}

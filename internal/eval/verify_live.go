@@ -28,12 +28,14 @@ func VerifyTurnPlanLiveFull(ctx context.Context, chat *chatsession.ChatSession, 
 		return res
 	}
 
-	intent := verifyIntent(chat, opts.intent(), opts)
-	res.Checks = append(res.Checks, intent)
-
-	execution := VerifyExecution(chat, opts.execution(), opts)
-	if strings.TrimSpace(opts.execution().Profile) != "" || len(opts.execution().LegacyRequireTools) > 0 || len(opts.execution().ForbidTools) > 0 {
-		res.Checks = append(res.Checks, execution)
+	intentCheck := EvalCheckResult{Type: "intent", Passed: true, Detail: "skipped (no expect_domain)"}
+	if strings.TrimSpace(opts.intent().Domain) != "" {
+		intentCheck = verifyIntent(chat, opts.intent(), opts)
+		res.Checks = append(res.Checks, intentCheck)
+	}
+	execSpec := opts.execution()
+	if strings.TrimSpace(execSpec.Profile) != "" || len(execSpec.LegacyRequireTools) > 0 || len(execSpec.ForbidTools) > 0 {
+		res.Checks = append(res.Checks, VerifyExecution(chat, execSpec, opts))
 	}
 
 	actualReply := LastAssistantReply(chat)
@@ -54,7 +56,7 @@ func VerifyTurnPlanLiveFull(ctx context.Context, chat *chatsession.ChatSession, 
 		}
 	}
 
-	judgeCheck := runLLMJudge(ctx, opts, judge, actualReply, res.DialogueSnapshot, intent)
+	judgeCheck := runLLMJudge(ctx, opts, judge, actualReply, res.DialogueSnapshot, intentCheck)
 	if judgeCheck != nil {
 		res.Checks = append(res.Checks, *judgeCheck)
 	}
