@@ -12,7 +12,26 @@ ROOT = Path(__file__).resolve().parent
 DEPLOY = Path(r"C:\Users\ghsemail\.cursor\skills\remote-deploy\deploy.json")
 REMOTE_DIR = "/tmp/geegoo_workflow_eval"
 UPSERT_SQL = """
-DELETE FROM agent_eval_cases WHERE id = 'taskflow_multi_strategy_compare';
+DELETE FROM agent_eval_cases WHERE id IN ('taskflow_multi_strategy_compare', 'workflow_strategy_dev_cognition', 'workflow_multi_strategy_compare');
+INSERT INTO agent_eval_cases (
+    id, user_id, title, description, steps_json, supports_random_stock, options_json, sort_order, enabled
+) VALUES (
+    'workflow_strategy_dev_cognition',
+    '',
+    'Workflow · 策略认知（Macd4H）',
+    'strategy_dev Step1：读策略库 → Web 补充 → 写入并读回 WeKnora 知识库。',
+    '["发送策略认知请求（Macd4H）","校验 workflow 完成策略认知报告","校验回复含策略库/知识库与读回验证"]',
+    FALSE,
+    '{"category":"workflow","task":"strategy_dev","scenario":"cognition","workflow_skill":"strategy_dev","random_stock_enabled":false,"min_reply_chars":80,"pass_keywords":["策略认知","Macd4H","知识库","策略库"],"session_cleanup":"before_run","message":"策略认知 Macd4H","wait_timeout_sec":900}',
+    10,
+    TRUE
+) ON CONFLICT (id) DO UPDATE SET
+    title = EXCLUDED.title,
+    description = EXCLUDED.description,
+    steps_json = EXCLUDED.steps_json,
+    options_json = EXCLUDED.options_json,
+    sort_order = EXCLUDED.sort_order,
+    enabled = EXCLUDED.enabled;
 INSERT INTO agent_eval_cases (
     id, user_id, title, description, steps_json, supports_random_stock, options_json, sort_order, enabled
 ) VALUES (

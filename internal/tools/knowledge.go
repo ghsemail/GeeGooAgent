@@ -72,4 +72,71 @@ func registerKnowledgeTools(r *Registry, deps Deps) {
 			}
 		},
 	})
+	r.Register(Tool{
+		Name:        "save_strategy_knowledge",
+		Description: "将策略认知 Markdown 写入 WeKnora 知识库（策略认知目录）。同名文档会更新。",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"strategy_name": map[string]any{
+					"type":        "string",
+					"description": "策略名称，用于标题与去重",
+				},
+				"content": map[string]any{
+					"type":        "string",
+					"description": "Markdown 正文",
+				},
+				"folder_path": map[string]any{
+					"type":        "string",
+					"description": "可选，默认 策略认知",
+				},
+			},
+			"required": []any{"strategy_name", "content"},
+		},
+		Handle: func(ctx Context, args map[string]any) Result {
+			name := strArg(args, "strategy_name", "")
+			content := strArg(args, "content", "")
+			if name == "" || content == "" {
+				return errResult(fmt.Errorf("strategy_name and content are required"))
+			}
+			if ctx.DryRun {
+				return okDryRun("save_strategy_knowledge", map[string]any{
+					"strategy_name": name,
+					"content_len":   len(content),
+				})
+			}
+			client := deps.WeKnora
+			if client == nil || !client.Configured() {
+				return errResult(fmt.Errorf("weknora is not configured"))
+			}
+			folder := strArg(args, "folder_path", "")
+			if folder == "" {
+				folder = "策略认知"
+			}
+			title := strategyKnowledgeTitle(name)
+			doc, err := client.UpsertManualKnowledge(ctx.GoContext(), folder, title, content)
+			if err != nil {
+				return errResult(err)
+			}
+			return Result{
+				Status: StatusOK,
+				Summary: fmt.Sprintf("save_strategy_knowledge: %s → %s (%s)", title, doc.ID, folder),
+				Data: map[string]any{
+					"knowledge_id":  doc.ID,
+					"title":         title,
+					"folder_path":   folder,
+					"parse_status":  doc.ParseStatus,
+					"strategy_name": name,
+				},
+			}
+		},
+	})
+}
+
+func strategyKnowledgeTitle(strategyName string) string {
+	name := strings.TrimSpace(strategyName)
+	if name == "" {
+		return "策略认知"
+	}
+	return name + " · 策略认知"
 }

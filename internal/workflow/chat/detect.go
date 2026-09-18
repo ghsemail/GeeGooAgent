@@ -27,6 +27,10 @@ var cancelPhrases = []string{
 	"取消任务", "停止任务", "取消 flow", "停止 flow",
 }
 
+var strategyDevPhrases = []string{
+	"策略认知", "策略开发", "学习策略", "了解策略", "整理策略", "写入知识库", "存入知识库",
+}
+
 // IsCancelIntent reports explicit flow cancellation.
 func IsCancelIntent(text string) bool {
 	lower := strings.ToLower(strings.TrimSpace(text))
@@ -91,9 +95,34 @@ func IsMultiStrategyCompareIntent(text string, session *runtime.Session) bool {
 	return false
 }
 
+// IsStrategyDevIntent reports strategy cognition / strategy_dev workflow entry.
+func IsStrategyDevIntent(text string) bool {
+	trim := strings.TrimSpace(text)
+	if trim == "" {
+		return false
+	}
+	for _, p := range strategyDevPhrases {
+		if strings.Contains(trim, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// ShouldStartStrategyDevFlow decides whether to create strategy_dev workflow.
+func ShouldStartStrategyDevFlow(text string, existing *Flow) bool {
+	if existing != nil && existing.Active() {
+		return false
+	}
+	return IsStrategyDevIntent(text)
+}
+
 // ShouldStartMultiStrategyFlow decides whether to create a new flow this turn.
 func ShouldStartMultiStrategyFlow(text string, session *runtime.Session, existing *Flow) bool {
 	if existing != nil && existing.Active() {
+		return false
+	}
+	if IsStrategyDevIntent(text) {
 		return false
 	}
 	return IsMultiStrategyCompareIntent(text, session)

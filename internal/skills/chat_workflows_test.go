@@ -7,8 +7,14 @@ func TestChatWorkflowCatalog(t *testing.T) {
 	if len(items) == 0 {
 		t.Fatal("empty catalog")
 	}
-	if items[0]["id"] != SkillMultiStrategyCompare {
+	if items[0]["id"] != SkillStrategyDev {
 		t.Fatalf("id=%v", items[0]["id"])
+	}
+}
+
+func TestIsChatWorkflowSkillStrategyDev(t *testing.T) {
+	if !IsChatWorkflowSkill(SkillStrategyDev) {
+		t.Fatal("expected strategy_dev")
 	}
 }
 

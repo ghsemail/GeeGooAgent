@@ -46,7 +46,37 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("synced %d turn_plan cases + %d strategy_backtest cases into %s\n", nTurn, nBacktest, path)
+	nWorkflow, err := syncWorkflowCases(sqlDB)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("synced %d turn_plan + %d strategy_backtest + %d workflow cases into %s\n", nTurn, nBacktest, nWorkflow, path)
+}
+
+func syncWorkflowCases(db *sql.DB) (int, error) {
+	now := time.Now().UTC().Format(time.RFC3339)
+	cases := eval.IndividualWorkflowEvalCases()
+	for _, c := range cases {
+		stepsJSON, err := json.Marshal(c.Steps)
+		if err != nil {
+			return 0, err
+		}
+		optsJSON, err := json.Marshal(c.Options)
+		if err != nil {
+			return 0, err
+		}
+		_, err = db.Exec(`
+			INSERT OR REPLACE INTO agent_eval_cases (
+				id, user_id, title, description, steps_json, supports_random_stock,
+				options_json, sort_order, enabled, created_at, updated_at
+			) VALUES (?, '', ?, ?, ?, 0, ?, ?, 1, ?, ?)`,
+			c.ID, c.Title, c.Description, string(stepsJSON), string(optsJSON), c.SortOrder, now, now,
+		)
+		if err != nil {
+			return 0, fmt.Errorf("upsert %s: %w", c.ID, err)
+		}
+	}
+	return len(cases), nil
 }
 
 func syncTurnPlanCases(db *sql.DB) (int, error) {

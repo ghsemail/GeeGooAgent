@@ -9,6 +9,16 @@ const (
 
 	SkillMultiStrategyCompare = "multi_strategy_compare"
 	SkillParamTune            = "param_tune"
+	SkillStrategyDev          = "strategy_dev"
+
+	StepCognition = "cognition"
+
+	PhaseCognitionPick        = "cognition_pick"
+	PhaseCognitionReadCatalog = "cognition_read_catalog"
+	PhaseCognitionWebResearch = "cognition_web_research"
+	PhaseCognitionCompose     = "cognition_compose"
+	PhaseCognitionSaveKB      = "cognition_save_kb"
+	PhaseCognitionVerifyKB    = "cognition_verify_kb"
 
 	PhaseResolveSymbol  = "resolve_symbol"
 	PhasePickStrategies = "pick_strategies"
@@ -28,9 +38,12 @@ const (
 	StepSkipped = "skipped"
 	StepFailed  = "failed"
 
-	defaultMonthsBack = 3
-	maxStrategies     = 4
-	maxStepRetries    = 2
+	defaultMonthsBack       = 3
+	maxStrategies           = 4
+	maxStepRetries          = 2
+	defaultCognitionFolder  = "策略认知"
+	maxWebSearchQueries     = 3
+	cognitionParseWait      = 60 // seconds
 )
 
 // Flow is a persisted serial workflow executed across one or more chat turns.
@@ -47,8 +60,27 @@ type Flow struct {
 	Strategies    []StrategyItem `json:"strategies,omitempty"`
 	PartialReport string         `json:"partial_report,omitempty"`
 	TriggerText   string         `json:"trigger_text,omitempty"`
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
+	// strategy_dev · step cognition
+	WorkflowStep   string         `json:"workflow_step,omitempty"`
+	StrategyQuery  string         `json:"strategy_query,omitempty"`
+	CatalogType    string         `json:"catalog_type,omitempty"`
+	CatalogLabel   string         `json:"catalog_label,omitempty"`
+	CatalogRaw     map[string]any `json:"catalog_raw,omitempty"`
+	WebNotes       []WebNote      `json:"web_notes,omitempty"`
+	KBDraft        string         `json:"kb_draft,omitempty"`
+	KnowledgeID    string         `json:"knowledge_id,omitempty"`
+	KnowledgeTitle string         `json:"knowledge_title,omitempty"`
+	VerifySnippet  string         `json:"verify_snippet,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+}
+
+// WebNote is one web_search result saved into cognition draft.
+type WebNote struct {
+	Query   string `json:"query"`
+	Title   string `json:"title"`
+	Snippet string `json:"snippet"`
+	URL     string `json:"url,omitempty"`
 }
 
 // StrategyItem is one strategy slot inside multi_strategy_compare.

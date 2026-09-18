@@ -21,7 +21,7 @@ type Runner struct {
 	retryFailedOnly bool
 }
 
-// RunTurn attempts to handle the user message via taskflow. handled is true when ReAct should be skipped.
+// RunTurn attempts to handle the user message via workflow. handled is true when ReAct should be skipped.
 func (r *Runner) RunTurn(
 	ctx context.Context,
 	session *runtime.Session,
@@ -42,22 +42,50 @@ func (r *Runner) RunTurn(
 		flow.Status = StatusRunning
 	}
 	if !ShouldHandleFlowTurn(userText, flow) {
-		if ShouldStartMultiStrategyFlow(userText, session, flow) {
+		switch {
+		case ShouldStartStrategyDevFlow(userText, flow):
+			flow = newStrategyDevFlow(userText)
+		case ShouldStartMultiStrategyFlow(userText, session, flow):
 			flow = newMultiStrategyFlow(userText, session)
-			SaveToSession(session, flow)
-			r.emitCard(flow)
-			r.emit("workflow_started", map[string]any{
-				"run_id": flow.RunID, "skill": flow.Template,
-			})
-		} else {
+		default:
 			return runtime.TurnResult{}, false
 		}
+		SaveToSession(session, flow)
+		r.emitCard(flow)
+		r.emit("workflow_started", map[string]any{
+			"run_id": flow.RunID, "skill": flow.Template,
+		})
 	} else if flow == nil {
 		return runtime.TurnResult{}, false
 	}
 	if flow.Status == StatusPausedFailed && IsResumeIntent(userText) {
 		flow.Status = StatusRunning
 	}
+
+	switch flow.Template {
+	case SkillStrategyDev:
+		return r.runTemplateTurn(ctx, session, flow, toolCtx, stepBase, r.advanceStrategyDev, renderCognitionPartial, renderCognitionReport)
+	case SkillMultiStrategyCompare:
+		return r.runTemplateTurn(ctx, session, flow, toolCtx, stepBase, r.advanceMultiStrategy, renderPartialReport, renderFinalReport)
+	default:
+		return runtime.TurnResult{}, false
+	}
+}
+
+type advanceFunc func(ctx context.Context, session *runtime.Session, flow *Flow, toolCtx tools.Context, recordTool func(name, status, summary string)) error
+type reportPartialFunc func(*Flow) string
+type reportFinalFunc func(*Flow) string
+
+func (r *Runner) runTemplateTurn(
+	ctx context.Context,
+	session *runtime.Session,
+	flow *Flow,
+	toolCtx tools.Context,
+	stepBase int,
+	advance advanceFunc,
+	partial reportPartialFunc,
+	final reportFinalFunc,
+) (runtime.TurnResult, bool) {
 	records := []runtime.StepRecord{}
 	step := stepBase
 	if step <= 0 {
@@ -83,10 +111,10 @@ func (r *Runner) RunTurn(
 			SaveToSession(session, flow)
 			return runtime.TurnResult{Failed: true, Error: err.Error(), StepRecords: records}, true
 		}
-		if err := r.advanceMultiStrategy(ctx, session, flow, toolCtx, recordTool); err != nil {
-			msg := fmt.Sprintf("任务流已暂停：%v", err)
+		if err := advance(ctx, session, flow, toolCtx, recordTool); err != nil {
+			msg := fmt.Sprintf("Workflow 已暂停：%v", err)
 			flow.Status = StatusPausedFailed
-			flow.PartialReport = renderPartialReport(flow)
+			flow.PartialReport = partial(flow)
 			flow.touch()
 			SaveToSession(session, flow)
 			r.emitCard(flow)
@@ -103,7 +131,7 @@ func (r *Runner) RunTurn(
 		}
 	}
 	if flow.Phase == PhaseSummarize {
-		reply := renderFinalReport(flow)
+		reply := final(flow)
 		flow.Phase = PhaseDone
 		flow.Status = StatusCompleted
 		flow.PartialReport = reply
@@ -117,13 +145,13 @@ func (r *Runner) RunTurn(
 		r.emit("workflow_completed", map[string]any{"run_id": flow.RunID})
 		return runtime.TurnResult{AssistantText: reply, StepRecords: records}, true
 	}
-	flow.PartialReport = renderPartialReport(flow)
+	flow.PartialReport = partial(flow)
 	flow.touch()
 	SaveToSession(session, flow)
 	r.emitCard(flow)
 	reply := flow.PartialReport
 	if strings.TrimSpace(reply) == "" {
-		reply = "任务流进行中，请发送「继续」以执行下一步。"
+		reply = "Workflow 进行中，请发送「继续」以执行下一步。"
 	}
 	session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: reply})
 	return runtime.TurnResult{AssistantText: reply, StepRecords: records}, true
@@ -134,7 +162,7 @@ func (r *Runner) cancelFlow(session *runtime.Session, flow *Flow, step int) runt
 	flow.Phase = PhaseDone
 	flow.touch()
 	SaveToSession(session, nil)
-	msg := "已取消当前任务流。"
+	msg := "已取消当前 Workflow。"
 	session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: msg})
 	return runtime.TurnResult{
 		AssistantText: msg,

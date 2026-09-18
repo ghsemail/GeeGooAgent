@@ -154,7 +154,8 @@ var (
 		"run_strategy_backtest":          {},
 	}
 	knowledgeTools = map[string]struct{}{
-		"search_knowledge": {},
+		"search_knowledge":        {},
+		"save_strategy_knowledge": {},
 	}
 )
 

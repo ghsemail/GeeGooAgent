@@ -22,7 +22,7 @@ func CardPayload(flow *Flow) map[string]any {
 		})
 	}
 	skill := flow.Template
-	return map[string]any{
+	out := map[string]any{
 		"run_id":         flow.RunID,
 		"skill":          skill,
 		"template":       skill, // legacy clients
@@ -39,6 +39,15 @@ func CardPayload(flow *Flow) map[string]any {
 		"strategies":     strategies,
 		"partial_report": flow.PartialReport,
 	}
+	if skill == SkillStrategyDev {
+		out["workflow_step"] = flow.WorkflowStep
+		out["strategy_query"] = flow.StrategyQuery
+		out["catalog_type"] = flow.CatalogType
+		out["catalog_label"] = flow.CatalogLabel
+		out["knowledge_id"] = flow.KnowledgeID
+		out["web_notes_count"] = len(flow.WebNotes)
+	}
+	return out
 }
 
 func skillDisplayName(id string) string {
@@ -47,6 +56,8 @@ func skillDisplayName(id string) string {
 		return "多策略信号对比"
 	case "param_tune":
 		return "策略参数调优"
+	case "strategy_dev":
+		return "策略开发"
 	default:
 		return id
 	}
