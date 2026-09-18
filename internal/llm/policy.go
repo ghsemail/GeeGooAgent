@@ -86,6 +86,8 @@ func (p ConfigPolicy) Decide(req Request) Decision {
 		}
 	case TaskClassify:
 		return Decision{Temperature: 0.1, MaxTokens: 512}
+	case TaskSynthesis:
+		return Decision{Temperature: 0.35, MaxTokens: p.chatMaxTokens}
 	default:
 		return Decision{Temperature: p.chatTemp, MaxTokens: p.chatMaxTokens}
 	}

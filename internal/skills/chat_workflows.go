@@ -21,10 +21,10 @@ func ChatWorkflowCatalog() []map[string]any {
 		{
 			"id":           SkillStrategyDev,
 			"name":         "策略开发",
-			"description":  "策略开发主 Workflow。Step 1「策略认知」：读策略库 → Web 补充 → 写入并读回知识库。",
+			"description":  "策略开发主 Workflow。Step 1「策略认知」：读策略库 → LLM 合成 Agent 认知 → 写入并读回知识库。",
 			"status":       "available",
 			"triggers":     []string{"策略认知", "策略开发", "学习策略", "了解策略", "写入知识库"},
-			"phases":       []string{"cognition_pick", "cognition_read_catalog", "cognition_web_research", "cognition_compose", "cognition_save_kb", "cognition_verify_kb", "summarize"},
+			"phases":       []string{"cognition_pick", "cognition_read_catalog", "cognition_compose", "cognition_save_kb", "cognition_verify_kb", "summarize"},
 			"resume_hints": []string{"继续", "重试失败", "POST /v1/chat/workflow/resume"},
 			"kind":         "workflow",
 			"trigger_modes": []string{"chat"},

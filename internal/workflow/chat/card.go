@@ -45,7 +45,7 @@ func CardPayload(flow *Flow) map[string]any {
 		out["catalog_type"] = flow.CatalogType
 		out["catalog_label"] = flow.CatalogLabel
 		out["knowledge_id"] = flow.KnowledgeID
-		out["web_notes_count"] = len(flow.WebNotes)
+		out["kb_draft_chars"] = len(flow.KBDraft)
 	}
 	return out
 }

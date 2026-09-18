@@ -36,15 +36,15 @@ func TestResolveStrategyCatalogCombination(t *testing.T) {
 	}
 }
 
-func TestComposeCognitionDoc(t *testing.T) {
+func TestAssembleAgentCognitionDoc(t *testing.T) {
 	flow := &Flow{
 		CatalogLabel: "Macd4H",
 		CatalogType:  catalogTypeCombination,
-		CatalogRaw:   map[string]any{"name": "Macd4H"},
-		WebNotes:     []WebNote{{Query: "q", Title: "t", Snippet: "s"}},
+		CatalogRaw:   map[string]any{"name": "Macd4H", "signal_id": "sig-1", "brief": "4H MACD 节奏"},
 	}
-	doc := composeCognitionDoc(flow)
-	if doc == "" || !containsAll(doc, "Macd4H", "策略库定义", "外部补充") {
+	body := fallbackCognitionBody(flow)
+	doc := assembleAgentCognitionDoc(flow, body)
+	if doc == "" || !containsAll(doc, "Macd4H", "Agent 策略认知", "一句话定位", "策略库原文", "doc_type: strategy_agent_cognition") {
 		t.Fatalf("doc missing sections: %s", doc)
 	}
 }

@@ -15,6 +15,14 @@ func ProviderFromGateway(gw *Gateway) Provider {
 	return &gatewayProvider{gw: gw, kind: TaskCompress}
 }
 
+// SynthesisProviderFromGateway adapts a Gateway for background synthesis (reports, cognition docs).
+func SynthesisProviderFromGateway(gw *Gateway) Provider {
+	if gw == nil {
+		return nil
+	}
+	return &gatewayProvider{gw: gw, kind: TaskSynthesis}
+}
+
 // ClassifyProviderFromGateway adapts a Gateway for per-turn intent classification.
 // Uses TaskClassify policy (low temperature, dedicated token budget) — same gateway
 // as chat so Dock/user model swaps stay in sync.

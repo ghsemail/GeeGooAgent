@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 
+	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	workflowchat "github.com/ghsemail/GeeGooAgent/internal/workflow/chat"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -20,6 +21,7 @@ func (l *Loop) tryChatWorkflow(
 	runner := &workflowchat.Runner{
 		RunTool:    l.ExecuteTool,
 		OnProgress: l.onProgress,
+		ComposeLLM: llm.SynthesisProviderFromGateway(l.gateway),
 	}
 	step := session.StepCounter + 1
 	return runner.RunTurn(ctx, session, userText, toolCtx, step)

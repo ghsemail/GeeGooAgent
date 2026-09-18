@@ -18,6 +18,7 @@ type ToolRunner func(ctx context.Context, req tools.CallRequest, toolCtx tools.C
 type Runner struct {
 	RunTool         ToolRunner
 	OnProgress      runtime.ProgressFunc
+	ComposeLLM      llm.Provider // optional; strategy_dev cognition synthesis
 	retryFailedOnly bool
 }
 

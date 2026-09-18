@@ -7,7 +7,7 @@ func IndividualWorkflowEvalCases() []TurnPlanEvalCaseDef {
 		{
 			ID:          "workflow_strategy_dev_cognition",
 			Title:       "Workflow · 策略认知（Macd4H）",
-			Description: "strategy_dev Step1：读策略库 → Web 补充 → 写入并读回 WeKnora 知识库。",
+			Description: "strategy_dev Step1：读策略库 → LLM 合成 Agent 认知 → 写入并读回 WeKnora 知识库。",
 			Steps: []string{
 				"发送策略认知请求（Macd4H）",
 				"校验 workflow 完成策略认知报告",

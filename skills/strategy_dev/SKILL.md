@@ -1,6 +1,6 @@
 ---
 name: strategy_dev
-description: 策略开发主 Workflow。Step 1 策略认知：读策略库 → Web 搜索补充 → 写入知识库 → 读回验证。
+description: 策略开发主 Workflow。Step 1 策略认知：读策略库 → LLM 合成 Agent 可注入认知 → 写入知识库 → 读回验证。
 kind: workflow
 status: available
 trigger_modes: chat
@@ -16,10 +16,11 @@ Chat 触发的**主 Workflow**，按步骤串行执行策略开发任务。
 |-------|------|
 | `cognition_pick` | 解析用户指定的策略名称 |
 | `cognition_read_catalog` | 从策略库读取完整定义（组合 / 指标 / 定制 / definitions） |
-| `cognition_web_research` | `web_search` 补充公开资料 |
-| `cognition_compose` | 合成 Markdown 认知文档 |
+| `cognition_compose` | LLM 基于策略库 + 模型常识合成 **Agent 策略认知** Markdown（适用场景、参数、买卖规则、使用指引） |
 | `cognition_save_kb` | `save_strategy_knowledge` 写入 WeKnora（`策略认知/`） |
 | `cognition_verify_kb` | `search_knowledge` 读回验证 |
+
+产出文档含 YAML frontmatter（`doc_type: strategy_agent_cognition`），供 Agent 检索注入：了解策略含义、何时使用、有哪些参数。
 
 ## 触发示例
 

@@ -42,8 +42,7 @@ const (
 	maxStrategies           = 4
 	maxStepRetries          = 2
 	defaultCognitionFolder  = "策略认知"
-	maxWebSearchQueries     = 3
-	cognitionParseWait      = 180 // seconds — WeKnora publish + embed is async
+	cognitionParseWait = 180 // seconds — WeKnora publish + embed is async
 )
 
 // Flow is a persisted serial workflow executed across one or more chat turns.

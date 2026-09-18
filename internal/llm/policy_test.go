@@ -19,8 +19,8 @@ func TestConfigPolicyPreservesChatDefaults(t *testing.T) {
 		t.Fatalf("chat decision=%+v", d)
 	}
 	d2 := p.Decide(llm.Request{Kind: llm.TaskSynthesis})
-	if d2.Temperature != 0.3 || d2.MaxTokens != 4096 {
-		t.Fatalf("synthesis should match chat defaults for behavior parity, got %+v", d2)
+	if d2.Temperature != 0.35 || d2.MaxTokens != 4096 {
+		t.Fatalf("synthesis decision=%+v", d2)
 	}
 }
 

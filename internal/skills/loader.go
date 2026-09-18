@@ -33,12 +33,12 @@ func RegisterBuiltins(r *Registry) {
 	})
 	r.Register(Spec{
 		Name:        SkillStrategyDev,
-		Description: "策略开发主 Workflow · Step1 策略认知：读策略库、Web 补充、写入/读回知识库",
+		Description: "策略开发主 Workflow · Step1 策略认知：读策略库、LLM 合成 Agent 认知、写入/读回知识库",
 		Chat: &ChatTrigger{
 			Status:   "available",
 			Triggers: []string{"策略认知", "策略开发", "学习策略", "了解策略", "写入知识库"},
 			Phases: []string{
-				"cognition_pick", "cognition_read_catalog", "cognition_web_research",
+				"cognition_pick", "cognition_read_catalog",
 				"cognition_compose", "cognition_save_kb", "cognition_verify_kb", "summarize",
 			},
 			ResumeHints: []string{"继续", "重试失败", "POST /v1/chat/workflow/resume"},
