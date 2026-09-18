@@ -146,7 +146,9 @@ func (c *Client) UpsertManualKnowledge(ctx context.Context, folderPath, title, c
 		return Document{}, err
 	}
 	if folderPath != "" && doc.ID != "" {
-		_ = c.MoveKnowledgeToFolder(ctx, []string{doc.ID}, folderPath)
+		if err := c.MoveKnowledgeToFolder(ctx, []string{doc.ID}, folderPath); err != nil {
+			return Document{}, fmt.Errorf("move to folder %q: %w", folderPath, err)
+		}
 		doc.FolderPath = folderPath
 	}
 	return doc, nil

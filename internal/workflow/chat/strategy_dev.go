@@ -225,11 +225,13 @@ func (r *Runner) phaseCognitionVerifyKB(
 		query = flow.StrategyQuery
 	}
 	deadline := time.Now().Add(cognitionParseWait * time.Second)
+	attempt := 0
 	for time.Now().Before(deadline) {
-		res := r.runTool(ctx, toolCtx, "search_knowledge", map[string]any{
-			"query":       query + " 策略认知",
-			"folder_path": defaultCognitionFolder,
-		}, recordTool)
+		args := map[string]any{"query": query + " 策略认知"}
+		if attempt < 15 {
+			args["folder_path"] = defaultCognitionFolder
+		}
+		res := r.runTool(ctx, toolCtx, "search_knowledge", args, recordTool)
 		if res.Status == tools.StatusOK {
 			if hits, ok := res.Data["hits"].([]any); ok && len(hits) > 0 {
 				flow.VerifySnippet = firstHitPreview(hits)
@@ -241,6 +243,7 @@ func (r *Runner) phaseCognitionVerifyKB(
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		attempt++
 		time.Sleep(2 * time.Second)
 	}
 	return terminalError("知识库读回验证超时：search_knowledge 未命中，请稍后重试")
