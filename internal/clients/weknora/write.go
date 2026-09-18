@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	ManualStatusPublished = "published"
-	ChannelGeeGooAgent    = "geegoo-agent"
+	ManualStatusPublish = "publish"
+	ChannelGeeGooAgent  = "geegoo-agent"
 )
 
 // CreateManualKnowledge creates a manual Markdown knowledge entry.
@@ -25,7 +25,7 @@ func (c *Client) CreateManualKnowledge(ctx context.Context, title, content strin
 	raw, err := c.postJSON(ctx, "/api/v1/knowledge-bases/"+url.PathEscape(c.kbID)+"/knowledge/manual", map[string]any{
 		"title":   title,
 		"content": content,
-		"status":  ManualStatusPublished,
+		"status":  ManualStatusPublish,
 		"channel": ChannelGeeGooAgent,
 	})
 	if err != nil {
@@ -47,14 +47,16 @@ func (c *Client) UpdateManualKnowledge(ctx context.Context, id, title, content s
 	if id == "" {
 		return Document{}, fmt.Errorf("knowledge id is required")
 	}
-	body := map[string]any{}
+	body := map[string]any{
+		"status": ManualStatusPublish,
+	}
 	if t := strings.TrimSpace(title); t != "" {
 		body["title"] = t
 	}
 	if ctt := strings.TrimSpace(content); ctt != "" {
 		body["content"] = ctt
 	}
-	if len(body) == 0 {
+	if len(body) <= 1 {
 		return Document{}, fmt.Errorf("title or content required")
 	}
 	raw, err := c.putJSON(ctx, "/api/v1/knowledge/manual/"+url.PathEscape(id), body)
