@@ -1,4 +1,4 @@
-package taskflow
+package chat
 
 import (
 	"testing"
@@ -14,7 +14,7 @@ func TestEvalScenarioMultiStrategyCompare(t *testing.T) {
 		t.Fatal("expected taskflow start for multi-strategy compare message")
 	}
 	flow := newMultiStrategyFlow(msg, session)
-	if flow.Template != TemplateMultiStrategyCompare {
+	if flow.Template != SkillMultiStrategyCompare {
 		t.Fatalf("template=%s", flow.Template)
 	}
 	if flow.StockQuery == "" {

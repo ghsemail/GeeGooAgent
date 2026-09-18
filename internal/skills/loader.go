@@ -31,4 +31,27 @@ func RegisterBuiltins(r *Registry) {
 		PhaseA:       workflow.PostMarketPhaseASteps,
 		PerStock:     workflow.PostMarketPerStockSteps,
 	})
+	r.Register(Spec{
+		Name:        SkillMultiStrategyCompare,
+		Description: "固定标的，串行 probe 多个策略并输出买/卖次对比表（Chat 关键词或 Scheduler cron）",
+		Chat: &ChatTrigger{
+			Status:   "available",
+			Triggers: []string{"多策略", "对比", "挨个跑", "依次测", "哪个信号多"},
+			Phases:   []string{"resolve_symbol", "pick_strategies", "probe_foreach", "summarize"},
+			ResumeHints: []string{
+				"继续", "重试失败", "POST /v1/chat/workflow/resume",
+			},
+		},
+	})
+	r.Register(Spec{
+		Name:        SkillParamTune,
+		Description: "策略参数调优（规划中）：串行尝试参数组合改善买卖点可见性",
+		Chat: &ChatTrigger{
+			Status:   "planned",
+			Triggers: []string{"买卖点不明显", "信号太少", "帮我调参"},
+			Phases: []string{
+				"resolve_context", "baseline_probe", "pick_param_variants", "probe_foreach", "summarize",
+			},
+		},
+	})
 }

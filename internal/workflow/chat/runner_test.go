@@ -1,4 +1,4 @@
-package taskflow
+package chat
 
 import (
 	"context"
@@ -76,7 +76,7 @@ func TestMultiStrategyFlowCompletes(t *testing.T) {
 
 func TestResumePausedFlow(t *testing.T) {
 	flow := &Flow{
-		RunID: "flow-test", Template: TemplateMultiStrategyCompare,
+		RunID: "flow-test", Template: SkillMultiStrategyCompare,
 		Status: StatusPausedFailed, Phase: PhaseResolveSymbol,
 		StockQuery: "腾讯",
 	}

@@ -124,6 +124,12 @@ func DefaultJobs() *JobsFile {
 				Enabled: true, Platform: "log"},
 			{Name: "premarket_stock_us", Skill: "premarket_stock", Market: "US", Cron: "10 21 * * 1-5",
 				Enabled: true, Platform: "feishu"},
+			{Name: "multi_strategy_compare_cn", Skill: "multi_strategy_compare", Market: "CN",
+				Cron: "30 9 * * 1-5", Prompt: "帮我在腾讯上对比 Macd4H 和 共振的信号买卖点",
+				Enabled: false, Platform: "log"},
+			{Name: "multi_strategy_compare_hk", Skill: "multi_strategy_compare", Market: "HK",
+				Cron: "30 10 * * 1-5", Prompt: "帮我在腾讯控股上对比 Macd4H 和 共振的信号买卖点",
+				Enabled: false, Platform: "log"},
 		},
 	}
 }

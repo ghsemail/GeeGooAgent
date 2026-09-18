@@ -8,7 +8,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/domaincatalog"
 )
 
-// PlanStepsMarkdown lists Cursor-style plan steps per domain for dashboard reference.
+// PlanStepsMarkdown lists plan steps per domain for dashboard reference.
 func PlanStepsMarkdown() string {
 	cases := []struct {
 		label string
@@ -33,8 +33,8 @@ func PlanStepsMarkdown() string {
 		{"ambiguous / clarify", cognition.TurnPlan{Domain: cognition.DomainAmbiguous, Mode: cognition.ModeClarify}},
 	}
 	var b strings.Builder
-	b.WriteString("## Cursor Plan Steps（按 domain）\n\n")
-	b.WriteString("注入 ReAct 的 `plan steps` 与 SSE `turn_plan.plan_steps` 同源。\n\n")
+	b.WriteString("## Plan Steps（按 domain）\n\n")
+	b.WriteString("由 classify 结果生成，注入 ReAct 的 `plan steps` 与 SSE `turn_plan.plan_steps` 同源。\n\n")
 	for _, c := range cases {
 		steps := cursorPlanSteps(c.plan)
 		if len(steps) == 0 {
@@ -49,13 +49,13 @@ func PlanStepsMarkdown() string {
 	return b.String()
 }
 
-// TurnPlanFragmentTemplateDoc describes the Cursor-style turn plan system fragment shape.
+// TurnPlanFragmentTemplateDoc describes the turn plan system fragment shape.
 func TurnPlanFragmentTemplateDoc() string {
 	return `## Plan Fragment 模板（agent_context）
 
-每轮 classify 后注入 system fragment（软约束，不裁 tool schema）：
+每轮 classify 后注入 system fragment（软约束：推荐步骤与工具，**不裁** tool schema）：
 
-` + "```text\n" + strings.TrimSpace(`Turn plan (Cursor-style — follow this plan in ReAct; prefer listed tools/steps; full schema remains available):
+` + "```text\n" + strings.TrimSpace(`Turn plan (soft guidance — follow numbered steps and preferred tools when they fit; full tool schema stays available):
 - domain: …
 - act: …
 - mode: …

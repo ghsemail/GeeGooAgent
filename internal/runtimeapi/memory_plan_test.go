@@ -22,7 +22,7 @@ func TestMemoryPlanGet(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload["style"] != "cursor" {
+	if payload["style"] != "soft_guidance" {
 		t.Fatalf("style=%v", payload["style"])
 	}
 	sections, ok := payload["sections"].([]any)

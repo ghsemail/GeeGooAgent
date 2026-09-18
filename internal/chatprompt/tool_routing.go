@@ -25,9 +25,13 @@ func ToolRouting() string {
 - 用户要 **网格策略 / 回测网格** 时：search_code → generate_grid_strategy(code, name, months_back) → 若 suitable 为 true，用返回的 param 调 loopback_strategy(type=grid, grid_param=param, frequency=5m, fund/months_back 向用户确认或沿用 generate 的 months_back)。grid generate 通常 40～60s（cn）或略长（en）
 - loopback_strategy 禁止缺 grid_param（grid）或缺 signal/sl_tp（dca）硬调；参数来自 generate_* 或用户明确给出
 
+### 回测 vs 生成（勿混淆）
+- **回测**：唯一 playbook strategy-backtest-run，唯一终态工具 run_strategy_backtest。用户对 catalog/已有信号验证 PnL；话术里出现「策略」**不等于**要生成新方案。
+- **生成策略**：用户明确说 **生成 / 设计 / 出方案 / 做一个 DCA 或网格方案** → generate_dca_strategy / generate_grid_strategy（playbook strategy-backtest §DCA/GRID），可选 loopback_strategy 验证方案；**这不是普通回测**。
+- **禁止**因用户说了「回测」就调 generate_*；**禁止**因用户说了「策略」就把回测路由到 dca_grid。
+
 ### 策略开发 / 信号策略回测（默认路径）
-- 用户说 **回测 / 跑回测 / 看收益 / 回撤 / 成交笔数 / 验证策略**，且**未**明确 DCA/定投/网格 → **必须 run_strategy_backtest**（与 Web「回测运行」一致；返回 log_id + 收益摘要）。组合信号（SAR+MACD 等）回测也走此路径，可先 search_code + 选信号，不必先 probe；**禁止**为此调 loopback_strategy；probe 仅用于「只看买卖点、不要 PnL」
-- **禁止**在上述场景调 generate_dca_strategy 或 generate_grid_strategy；二者仅用于 DCA/Grid Bot 方案生成（路径 B）
+- 用户说 **回测 / 跑回测 / 看收益 / 回撤 / 成交笔数 / 验证策略** → **必须** strategy-backtest-run + run_strategy_backtest（与 Web「回测运行」一致；返回 log_id + 收益摘要）。组合信号（SAR+MACD 等）回测也走此路径，可先 search_code + 选信号，不必先 probe；**禁止**为此调 loopback_strategy 或 generate_*；probe 仅用于「只看买卖点、不要 PnL」
 - 用户要 **只测信号 / 有没有买卖点 / 信号密度**（不要 PnL）→ probe_bot_signal_series；单 bar 用 probe_bot_signal
 - 用户追问 **为什么没信号 / 怎么算的 / 阈值有没有碰到 / 解释零信号原因**（已有 probe 或会话里已知 code+规则）→ **diagnose_bot_signal_series**（沿用同一 code、frequency、buy_signal、months_back）；**禁止**为此再调 probe_bot_signal_series 或 run_strategy_backtest
 - 本轮 TurnPlan domain 已是 signal_probe / backtest_run（含沿用上一轮任务）时：**按该 domain 执行**，缺的是槽位（策略名 / 标的）就 clarify 槽位；**禁止**再问「要分析、测点还是回测」

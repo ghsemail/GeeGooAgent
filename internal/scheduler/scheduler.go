@@ -102,6 +102,7 @@ func (r *Runner) executeAndMaybeRetry(job Job) {
 	}
 	result, err := application.RunSkillContext(context.Background(), job.Skill, app.SkillRunOptions{
 		Market:       job.Market,
+		Prompt:       job.Prompt,
 		NotifyFeishu: strings.EqualFold(strings.TrimSpace(job.Platform), "feishu") && shouldNotifyJob(job),
 	})
 	verdict := "unknown"

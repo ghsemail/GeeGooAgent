@@ -15,7 +15,7 @@ func (h *Handler) registerMemoryPlanRoutes(mux *http.ServeMux) {
 
 func (h *Handler) memoryPlanGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{
-		"style":    "cursor",
+		"style":    "soft_guidance",
 		"sections": buildPlanViewSections(),
 	})
 }

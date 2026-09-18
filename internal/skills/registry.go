@@ -19,6 +19,8 @@ type Spec struct {
 	PerStock func() []workflow.Step
 	// TemplatePath is the relative path to the report template when loaded at runtime (premarket).
 	TemplatePath string
+	// Chat holds keyword/cron-capable workflow metadata when the skill also runs from chat.
+	Chat *ChatTrigger
 }
 
 // Registry maps skill name to Spec.

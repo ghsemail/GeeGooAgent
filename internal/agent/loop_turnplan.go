@@ -14,7 +14,7 @@ import (
 func turnPlanFragment(plan cognition.TurnPlan, userText string, agentContext bool) ctxfrag.Fragment {
 	var b strings.Builder
 	if agentContext {
-		b.WriteString("Turn plan (Cursor-style — follow this plan in ReAct; prefer listed tools/steps; full schema remains available):\n")
+		b.WriteString("Turn plan (soft guidance — follow numbered steps and preferred tools when they fit; full tool schema stays available):\n")
 	} else {
 		b.WriteString("Turn plan (classify intent, then execute via ReAct tools — no deterministic SOP shortcut):\n")
 	}
@@ -135,7 +135,7 @@ func clarifyHintFragment(plan cognition.TurnPlan) ctxfrag.Fragment {
 		return ctxfrag.StaticFragment{}
 	}
 	var b strings.Builder
-	b.WriteString("## 分类器建议（Cursor Plan — 缺槽位时优先 clarify，再执行工具）\n")
+	b.WriteString("## 分类器建议（缺槽位时优先 clarify，再执行工具）\n")
 	fmt.Fprintf(&b, "- suggested_question: %s\n", question)
 	if len(plan.ClarifyChoices) > 0 {
 		fmt.Fprintf(&b, "- suggested_choices: %s\n", strings.Join(plan.ClarifyChoices, " / "))
@@ -147,8 +147,8 @@ func clarifyHintFragment(plan cognition.TurnPlan) ctxfrag.Fragment {
 }
 
 func subagentOrchestratorPlanBlock() string {
-	return `- multi-symbol orchestration (Cursor Task-style — recommendation, not a hard tool lock):
-  - When the user names 2+ distinct companies/symbols in one turn, prefer delegate_tasks ONCE with tasks[] (one self-contained task per symbol/company). Sub-agents run in parallel with isolated context, like multiple Task calls in one Cursor turn.
+	return `- multi-symbol orchestration (parallel sub-agents — recommendation, not a hard tool lock):
+  - When the user names 2+ distinct companies/symbols in one turn, prefer delegate_tasks ONCE with tasks[] (one self-contained task per symbol/company). Sub-agents run in parallel with isolated context; each task is a self-contained mini-turn without this chat history.
   - Each task string must include the company/symbol and what to analyze; sub-agents cannot see this chat history.
   - After delegate_tasks returns, read results[] and write the FINAL user-facing answer yourself:
     (1) one subsection per symbol with concrete price/analysis from results[];

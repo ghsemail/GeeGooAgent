@@ -65,9 +65,9 @@ Optional clarify field (only when domain=ambiguous and mode=clarify):
 Domain + mode guidance:
 - stock_analysis/gather: analyze a stock, quote, technicals, trends.
 - signal_probe/execute: probe buy/sell points (买卖点 / 测信号 / 有没有买卖), not full PnL backtest.
-- backtest_run/execute: explicit backtest request (回测 / 跑回测 / backtest). Tool chain uses run_strategy_backtest (catalog signal backtest), NOT loopback_strategy, unless user explicitly asks DCA/网格/定投 loopback.
+- backtest_run/execute: user wants to 回测 / 跑回测 / 看收益 / 验证策略 (PnL on catalog signals). There is ONE backtest playbook: strategy-backtest-run. Tool chain: run_strategy_backtest only. 回测 means run existing signals against history — it is NOT strategy generation. Route here even if the user also says 策略/定投 in colloquial speech (e.g. "DCA策略回测" still means backtest_run unless they explicitly ask to 生成/设计/出方案).
 - dca_grid/gather: list or browse available signal strategies/combinations (有哪些信号/策略/组合).
-- dca_grid/execute: DCA or grid strategy plan/generation; loopback_strategy only after generate_* when validating a DCA/Grid bot plan.
+- dca_grid/execute: user explicitly asks to 生成 / 设计 / 出方案 / 做一个方案 for a DCA or Grid bot (generate_dca_strategy / generate_grid_strategy); optional loopback_strategy only to validate that generated plan. Do NOT use dca_grid/execute when the user only says 回测.
 - bot_manage/gather: list/query bots, reminders, SmartTrade, grid PnL.
 - bot_manage/execute: create/update/delete bots.
 - chat/talk: definitions, chitchat, signal quality opinions (准吗/靠谱吗) after prior context.
@@ -91,7 +91,9 @@ Domain + mode guidance:
 
 Hard rules:
 - backtest_run for a NEW task needs an explicit backtest verb; continuing last-turn backtest_run does not.
-- backtest_run/execute: primary tool is run_strategy_backtest; do not route to loopback_strategy or generate_dca_strategy unless user explicitly wants DCA/Grid bot backtest.
+- 回测 → backtest_run + strategy-backtest-run playbook + run_strategy_backtest. 回测 ≠ 生成策略; never route 回测 to generate_dca_strategy or generate_grid_strategy.
+- 生成策略 / 出方案 / 设计定投 / 设计网格 → dca_grid/execute + generate_* (not backtest_run).
+- backtest_run/execute: primary tool is run_strategy_backtest; forbid loopback_strategy and generate_* on this path.
 - signal_probe ONLY for buy/sell point probing, not strategy listing.
 - stock_analysis with 2+ distinct symbols/companies to address in one turn → act MUST be multi_symbol_delegate (not technical_analysis or analyze).
 - If unsure, use ambiguous/clarify.`

@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
-	"github.com/ghsemail/GeeGooAgent/internal/taskflow"
+	workflowchat "github.com/ghsemail/GeeGooAgent/internal/workflow/chat"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
-func (l *Loop) tryTaskFlow(
+func (l *Loop) tryChatWorkflow(
 	ctx context.Context,
 	session *runtime.Session,
 	userText string,
@@ -17,7 +17,7 @@ func (l *Loop) tryTaskFlow(
 	if l == nil || session == nil {
 		return runtime.TurnResult{}, false
 	}
-	runner := &taskflow.Runner{
+	runner := &workflowchat.Runner{
 		RunTool:    l.ExecuteTool,
 		OnProgress: l.onProgress,
 	}

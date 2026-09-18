@@ -281,7 +281,7 @@ func legacyToolsForIntent(intent ExpectIntentSpec) (require, forbid []string) {
 		if mode == "gather" {
 			return []string{"get_signal_combinations"}, []string{"run_strategy_backtest", "probe_bot_signal_series"}
 		}
-		return []string{"generate_dca_strategy"}, nil
+		return []string{"generate_dca_strategy", "generate_grid_strategy"}, []string{"run_strategy_backtest"}
 	case "stock_analysis":
 		if intent.Act == "quote_price" {
 			return []string{"search_code", "get_current_price"}, []string{"run_strategy_backtest"}

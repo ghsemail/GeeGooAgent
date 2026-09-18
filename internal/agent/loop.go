@@ -392,7 +392,7 @@ func (l *Loop) RunTurn(
 	session.AppendMessage(llm.Message{Role: llm.RoleUser, Content: userText})
 	records := []runtime.StepRecord{}
 
-	if result, handled := l.tryTaskFlow(ctx, session, userText, toolCtx); handled {
+	if result, handled := l.tryChatWorkflow(ctx, session, userText, toolCtx); handled {
 		result.StepRecords = append(records, result.StepRecords...)
 		l.evaluateTurn(ctx, session, result)
 		return result
@@ -476,14 +476,19 @@ func (l *Loop) runPreparedTurnWithPlan(
 	session.LastTurnAct = turnPlan.Act
 	session.LastTurnSOP = turnPlan.ShouldRunDomainSOP()
 	session.LastTurnToolsAllow = append([]string(nil), turnPlan.ToolsAllow...)
+	profileID := domaincatalog.ProbeExecutionProfile(domaincatalog.Domain(turnPlan.Domain), turnPlan.Act, userText)
 	l.emit("turn_plan", map[string]any{
-		"domain":     string(turnPlan.Domain),
-		"act":        turnPlan.Act,
-		"mode":       string(turnPlan.Mode),
-		"reason":     turnPlan.Reason,
-		"skills":     turnPlan.Skills,
-		"tools":      turnPlan.ToolsAllow,
-		"confidence": turnPlan.Confidence,
+		"domain":              string(turnPlan.Domain),
+		"act":                 turnPlan.Act,
+		"mode":                string(turnPlan.Mode),
+		"reason":              turnPlan.Reason,
+		"skills":              turnPlan.Skills,
+		"tools":               turnPlan.ToolsAllow,
+		"confidence":          turnPlan.Confidence,
+		"execution_profile":   profileID,
+		"plan_steps":          cursorPlanSteps(turnPlan),
+		"routing_mode":        l.routingMode,
+		"plan_style":          "soft_guidance",
 	})
 	l.emitStatus("plan", fmt.Sprintf("判断：%s/%s（%dms）", turnPlan.Domain, turnPlan.Mode, planMS))
 

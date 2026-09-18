@@ -1,4 +1,4 @@
-package taskflow
+package chat
 
 import (
 	"context"
@@ -25,7 +25,7 @@ func newMultiStrategyFlow(userText string, session *runtime.Session) *Flow {
 	}
 	flow := &Flow{
 		RunID:       newRunID(),
-		Template:    TemplateMultiStrategyCompare,
+		Template:    SkillMultiStrategyCompare,
 		Status:      StatusRunning,
 		Phase:       PhaseResolveSymbol,
 		MonthsBack:  defaultMonthsBack,
@@ -275,7 +275,7 @@ func (r *Runner) phaseProbeForeach(ctx context.Context, flow *Flow, toolCtx tool
 			flow.touch()
 			r.emitCard(flow)
 			if r.OnProgress != nil {
-				r.OnProgress("taskflow_step_skipped", map[string]any{
+				r.OnProgress("workflow_step_skipped", map[string]any{
 					"strategy": item.Label,
 					"error":    lastErr.Error(),
 				})
@@ -373,7 +373,7 @@ func renderFinalReport(flow *Flow) string {
 			failed++
 		}
 	}
-	footer := fmt.Sprintf("\n\n> 共 %d 个策略：成功 %d，跳过 %d，失败 %d。由 taskflow 串行执行（probe_bot_signal_series）。",
+	footer := fmt.Sprintf("\n\n> 共 %d 个策略：成功 %d，跳过 %d，失败 %d。由 workflow 串行执行（probe_bot_signal_series）。",
 		len(flow.Strategies), done, skipped, failed)
 	return body + footer
 }

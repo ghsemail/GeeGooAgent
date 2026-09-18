@@ -31,6 +31,12 @@ func BuildWorkflowDetail(projectRoot string, spec Spec, jobs []SchedulerJobView,
 		"phase_b_steps":  serializeWorkflowSteps(resolvePerStockSteps(spec)),
 		"scheduler_jobs": schedulerJobsForSkill(jobs, spec.Name),
 	}
+	if spec.Chat != nil {
+		detail["chat_triggers"] = spec.Chat.Triggers
+		detail["chat_phases"] = spec.Chat.Phases
+		detail["chat_status"] = spec.Chat.Status
+		detail["trigger_modes"] = []string{"chat", "cron"}
+	}
 	root := strings.TrimSpace(projectRoot)
 	if root != "" {
 		readInto(detail, root, filepath.Join(skillDir, "SKILL.md"), "skill_md")
@@ -120,6 +126,8 @@ func resolvePhaseASteps(spec Spec) []workflow.Step {
 		return workflow.MarketPhaseSteps(workflow.MarketCN)
 	case "premarket_stock":
 		return workflow.StockPhaseASteps(workflow.MarketCN)
+	case SkillMultiStrategyCompare, SkillParamTune:
+		return chatPhaseSteps(spec)
 	default:
 		if spec.PhaseA != nil {
 			return spec.PhaseA()
@@ -136,6 +144,17 @@ func resolvePerStockSteps(spec Spec) []workflow.Step {
 		return spec.PerStock()
 	}
 	return nil
+}
+
+func chatPhaseSteps(spec Spec) []workflow.Step {
+	if spec.Chat == nil {
+		return nil
+	}
+	out := make([]workflow.Step, 0, len(spec.Chat.Phases))
+	for _, phase := range spec.Chat.Phases {
+		out = append(out, workflow.Step{Name: phase, Tool: "(chat workflow)"})
+	}
+	return out
 }
 
 func schedulerJobsForSkill(jobs []SchedulerJobView, skill string) []map[string]any {

@@ -38,6 +38,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 	"github.com/ghsemail/GeeGooAgent/internal/userllmstore"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
+	workflowchat "github.com/ghsemail/GeeGooAgent/internal/workflow/chat"
 )
 
 var fallbackSessionCounter uint64
@@ -847,6 +848,7 @@ type SkillRunOptions struct {
 	Market       string
 	ReportDate   string
 	NotifyFeishu bool
+	Prompt       string // chat workflow trigger text (cron)
 }
 
 // RunSkillContext executes a named skill with cancellation propagated to tools
@@ -876,6 +878,25 @@ func (a *App) RunSkillContext(ctx context.Context, skill string, runOpts ...Skil
 		}
 		result, err = a.runPostMarketStockForMarket(ctx, market, opts)
 		a.syncScheduledJobVerdict(skill, market, result, err)
+		return result, err
+	}
+	if skills.IsChatWorkflowSkill(skill) {
+		toolCtx := a.ToolContextWithContext(ctx, newSessionID())
+		if strings.TrimSpace(opts.MCPToken) != "" {
+			toolCtx.MCPToken = strings.TrimSpace(opts.MCPToken)
+		}
+		chatResult, err := workflowchat.RunScheduled(ctx, skill, opts.Prompt, nil, toolCtx, a.Agent.Loop.ExecuteTool)
+		result = workflow.RunResult{
+			SessionID: chatResult.SessionID,
+			Status:    chatResult.Status,
+			LastError: chatResult.LastError,
+		}
+		if chatResult.Verdict == "pass" {
+			result.Supervisor = &workflow.SupervisorReport{Verdict: workflow.VerdictPass}
+		} else if chatResult.Verdict == "fail" {
+			result.Supervisor = &workflow.SupervisorReport{Verdict: workflow.VerdictTerminal}
+		}
+		a.syncScheduledJobVerdict(skill, opts.Market, result, err)
 		return result, err
 	}
 	phaseA, perStock, err := a.resolveSkillSteps(skill, opts.Market)

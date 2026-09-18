@@ -1,4 +1,4 @@
-package taskflow
+package chat
 
 import (
 	"context"
@@ -46,8 +46,8 @@ func (r *Runner) RunTurn(
 			flow = newMultiStrategyFlow(userText, session)
 			SaveToSession(session, flow)
 			r.emitCard(flow)
-			r.emit("taskflow_started", map[string]any{
-				"run_id": flow.RunID, "template": flow.Template,
+			r.emit("workflow_started", map[string]any{
+				"run_id": flow.RunID, "skill": flow.Template,
 			})
 		} else {
 			return runtime.TurnResult{}, false
@@ -114,7 +114,7 @@ func (r *Runner) RunTurn(
 			Step: step, Timestamp: time.Now().UTC(), Kind: "reply", Summary: truncate(reply, 300),
 		})
 		r.emitCard(flow)
-		r.emit("taskflow_completed", map[string]any{"run_id": flow.RunID})
+		r.emit("workflow_completed", map[string]any{"run_id": flow.RunID})
 		return runtime.TurnResult{AssistantText: reply, StepRecords: records}, true
 	}
 	flow.PartialReport = renderPartialReport(flow)
@@ -154,7 +154,7 @@ func (r *Runner) emitCard(flow *Flow) {
 	if flow == nil {
 		return
 	}
-	r.emit("taskflow_card", CardPayload(flow))
+	r.emit("workflow_card", CardPayload(flow))
 }
 
 func (r *Runner) runTool(

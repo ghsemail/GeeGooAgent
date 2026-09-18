@@ -41,7 +41,9 @@ func ClassifyPath(path string) Kind {
 	case strings.Contains(p, "/skills/premarket_market/"), strings.Contains(p, "skills/premarket_market/"),
 		strings.Contains(p, "/skills/premarket_stock/"), strings.Contains(p, "skills/premarket_stock/"),
 		strings.Contains(p, "/skills/intraday_stock/"), strings.Contains(p, "skills/intraday_stock/"),
-		strings.Contains(p, "/skills/postmarket_stock/"), strings.Contains(p, "skills/postmarket_stock/"):
+		strings.Contains(p, "/skills/postmarket_stock/"), strings.Contains(p, "skills/postmarket_stock/"),
+		strings.Contains(p, "/skills/multi_strategy_compare/"), strings.Contains(p, "skills/multi_strategy_compare/"),
+		strings.Contains(p, "/skills/param_tune/"), strings.Contains(p, "skills/param_tune/"):
 		return KindWorkflow
 	case strings.Contains(p, "/.geegoo/") && strings.Contains(p, "/skills/"):
 		return KindUser
@@ -63,7 +65,9 @@ func ClassifyProvenance(path string) Provenance {
 	case strings.Contains(p, "/skills/premarket_market/"), strings.Contains(p, "skills/premarket_market/"),
 		strings.Contains(p, "/skills/premarket_stock/"), strings.Contains(p, "skills/premarket_stock/"),
 		strings.Contains(p, "/skills/intraday_stock/"), strings.Contains(p, "skills/intraday_stock/"),
-		strings.Contains(p, "/skills/postmarket_stock/"), strings.Contains(p, "skills/postmarket_stock/"):
+		strings.Contains(p, "/skills/postmarket_stock/"), strings.Contains(p, "skills/postmarket_stock/"),
+		strings.Contains(p, "/skills/multi_strategy_compare/"), strings.Contains(p, "skills/multi_strategy_compare/"),
+		strings.Contains(p, "/skills/param_tune/"), strings.Contains(p, "skills/param_tune/"):
 		return ProvenanceCore
 	default:
 		return ProvenanceOther

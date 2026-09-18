@@ -18,7 +18,7 @@ func TestRecentSessionUtteranceRouting(t *testing.T) {
 		"今天盘前报告写了什么内容":            FormatClassifyJSON("report_lookup", "gather", "", "fixture"),
 		"按知识库帮我讲讲4小时MACD怎么用":      FormatClassifyJSON("knowledge", "gather", "", "fixture"),
 		"最近有什么财经新闻":               FormatClassifyJSON("news", "gather", "", "fixture"),
-		"帮我做一个DCA定投策略回测":          FormatClassifyJSON("dca_grid", "execute", "", "fixture"),
+		"帮我做一个DCA定投策略回测":          FormatClassifyJSON("backtest_run", "execute", "", "fixture"),
 		"就这个SAR加MACD组合信号，我想先测买卖点": FormatClassifyJSON("signal_probe", "execute", "", "fixture"),
 		"帮我查一下我运行中的 SmartTrade 有哪些": FormatClassifyJSON("bot_manage", "gather", "", "fixture"),
 	}}
@@ -43,7 +43,7 @@ func TestRecentSessionUtteranceRouting(t *testing.T) {
 		{msg: "今天盘前报告写了什么内容", domain: DomainReportLookup, mode: ModeGather},
 		{msg: "按知识库帮我讲讲4小时MACD怎么用", domain: DomainKnowledge, mode: ModeGather},
 		{msg: "最近有什么财经新闻", domain: DomainNews, mode: ModeGather},
-		{msg: "帮我做一个DCA定投策略回测", domain: DomainDCAGrid, mode: ModeExecute},
+		{msg: "帮我做一个DCA定投策略回测", domain: DomainBacktestRun, mode: ModeExecute},
 		{msg: "就这个SAR加MACD组合信号，我想先测买卖点", domain: DomainSignalProbe, mode: ModeExecute},
 		{msg: "帮我查一下我运行中的 SmartTrade 有哪些", domain: DomainBotManage, mode: ModeGather},
 	}

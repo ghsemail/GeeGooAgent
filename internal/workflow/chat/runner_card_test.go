@@ -1,4 +1,4 @@
-package taskflow
+package chat
 
 import (
 	"context"
@@ -23,7 +23,7 @@ func TestRunnerEmitsTaskflowCard(t *testing.T) {
 	}
 	found := false
 	for _, e := range events {
-		if e == "taskflow_card" {
+		if e == "workflow_card" {
 			found = true
 			break
 		}

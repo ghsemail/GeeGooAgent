@@ -7,7 +7,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
-	"github.com/ghsemail/GeeGooAgent/internal/taskflow"
+	workflowchat "github.com/ghsemail/GeeGooAgent/internal/workflow/chat"
 )
 
 type flowResumeRequest struct {
@@ -17,7 +17,8 @@ type flowResumeRequest struct {
 }
 
 func (h *Handler) registerFlowRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /v1/chat/flow/resume", h.chatFlowResume)
+	mux.HandleFunc("POST /v1/chat/workflow/resume", h.chatFlowResume)
+	mux.HandleFunc("POST /v1/chat/flow/resume", h.chatFlowResume) // legacy alias
 }
 
 func (h *Handler) chatFlowResume(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +57,7 @@ func (h *Handler) chatFlowResume(w http.ResponseWriter, r *http.Request) {
 	if !enforceSessionAccess(w, chat, userID) {
 		return
 	}
-	if taskflow.RawFromChat(chat) == nil {
+	if workflowchat.RawFromChat(chat) == nil {
 		writeError(w, http.StatusConflict, "no active flow")
 		return
 	}
@@ -92,6 +93,7 @@ func (h *Handler) chatFlowResume(w http.ResponseWriter, r *http.Request) {
 		"assistant_text": result.AssistantText,
 		"failed":         result.Failed,
 		"error":          result.Error,
-		"active_flow":    taskflow.RawFromChat(chat),
+		"active_workflow": workflowchat.RawFromChat(chat),
+		"active_flow":     workflowchat.RawFromChat(chat), // legacy
 	})
 }

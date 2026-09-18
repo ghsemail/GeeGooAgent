@@ -305,11 +305,12 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			RequireTools: []string{"fetch_market_news"},
 		},
 		{
-			ID: "dca_grid_backtest", Category: TurnPlanCatBacktest, Title: "单轮 · DCA 定投回测",
-			Description: "独立 session：DCA/网格类回测意图；若 Agent clarify 由 auto-clarify 自动应答。",
+			ID: "dca_grid_backtest", Category: TurnPlanCatBacktest, Title: "单轮 · 口语回测（含策略字样）",
+			Description: "独立 session：口语含「DCA/策略」但仍属 catalog 回测，应走 strategy-backtest-run + run_strategy_backtest，而非 generate_*。",
 			Message: "帮我做一个DCA定投策略回测",
-			ExpectDomain: "dca_grid", ExpectMode: "execute", ExpectSOP: false,
-			RequireTools: []string{"generate_dca_strategy"},
+			ExpectDomain: "backtest_run", ExpectMode: "execute", ExpectSOP: false,
+			RequireTools: []string{"run_strategy_backtest"},
+			ForbidTools: []string{"generate_dca_strategy", "generate_grid_strategy"},
 		},
 	}
 }
@@ -393,7 +394,8 @@ func defaultTurnPlanRuleTurns() []TurnPlanTurn {
 			ExpectDomain: "news", ExpectMode: "gather", ExpectSOP: false,
 			RequireTools: []string{"fetch_market_news"}},
 		{ID: "dca_grid_backtest", Message: "帮我做一个DCA定投策略回测",
-			ExpectDomain: "dca_grid", ExpectMode: "execute", ExpectSOP: false,
-			RequireTools: []string{"generate_dca_strategy"}},
+			ExpectDomain: "backtest_run", ExpectMode: "execute", ExpectSOP: false,
+			RequireTools: []string{"run_strategy_backtest"},
+			ForbidTools: []string{"generate_dca_strategy", "generate_grid_strategy"}},
 	}
 }

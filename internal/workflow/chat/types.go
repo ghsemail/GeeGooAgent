@@ -1,4 +1,4 @@
-package taskflow
+package chat
 
 import (
 	"time"
@@ -7,7 +7,8 @@ import (
 const (
 	MetaKeyActiveFlow = "active_flow"
 
-	TemplateMultiStrategyCompare = "multi_strategy_compare"
+	SkillMultiStrategyCompare = "multi_strategy_compare"
+	SkillParamTune            = "param_tune"
 
 	PhaseResolveSymbol  = "resolve_symbol"
 	PhasePickStrategies = "pick_strategies"
@@ -15,24 +16,24 @@ const (
 	PhaseSummarize      = "summarize"
 	PhaseDone           = "done"
 
-	StatusRunning       = "running"
-	StatusPausedFailed  = "paused_failed"
-	StatusCompleted     = "completed"
-	StatusInterrupted   = "interrupted"
-	StatusCancelled     = "cancelled"
+	StatusRunning      = "running"
+	StatusPausedFailed = "paused_failed"
+	StatusCompleted    = "completed"
+	StatusInterrupted  = "interrupted"
+	StatusCancelled    = "cancelled"
 
-	StepPending  = "pending"
-	StepRunning  = "running"
-	StepDone     = "done"
-	StepSkipped  = "skipped"
-	StepFailed   = "failed"
+	StepPending = "pending"
+	StepRunning = "running"
+	StepDone    = "done"
+	StepSkipped = "skipped"
+	StepFailed  = "failed"
 
 	defaultMonthsBack = 3
 	maxStrategies     = 4
 	maxStepRetries    = 2
 )
 
-// Flow is a persisted serial task executed across one or more chat turns.
+// Flow is a persisted serial workflow executed across one or more chat turns.
 type Flow struct {
 	RunID         string         `json:"run_id"`
 	Template      string         `json:"template"`

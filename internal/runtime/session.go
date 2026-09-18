@@ -50,7 +50,7 @@ type Session struct {
 	PriorSessionTools []string
 	// LastExecutionProfile is the profile id applied to the current/last turn.
 	LastExecutionProfile string
-	// ActiveFlowJSON holds opaque serial taskflow state (see internal/taskflow).
+	// ActiveFlowJSON holds opaque chat workflow state (see internal/workflow/chat).
 	ActiveFlowJSON []byte
 }
 

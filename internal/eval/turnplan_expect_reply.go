@@ -133,8 +133,8 @@ func defaultExpectReplyForTurnID(turnID string) ExpectReplySpec {
 		}
 	case "dca_grid_backtest":
 		return ExpectReplySpec{
-			Rubric:    "应识别 DCA/定投回测意图并给出方案、参数确认或回测执行说明。",
-			MustCover: []string{"DCA"},
+			Rubric:    "应识别为普通信号回测（strategy-backtest-run），发起或说明 run_strategy_backtest；不应走 generate_dca_strategy 生成新方案。",
+			MustCover: []string{"回测"},
 		}
 	default:
 		return ExpectReplySpec{}
