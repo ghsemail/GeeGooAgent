@@ -95,6 +95,7 @@ func (c *Client) MoveKnowledgeToFolder(ctx context.Context, ids []string, folder
 		return fmt.Errorf("knowledge ids required")
 	}
 	_, err := c.postJSON(ctx, "/api/v1/knowledge/folder", map[string]any{
+		"kb_id":         c.kbID,
 		"knowledge_ids": clean,
 		"folder_path":   strings.TrimSpace(folderPath),
 	})
