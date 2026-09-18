@@ -63,7 +63,7 @@ func matchCombination(ctx context.Context, query string, toolCtx tools.Context, 
 	if err != nil {
 		return catalogMatch{}, err
 	}
-	label := strings.TrimSpace(fmt.Sprint(row["name"]))
+	label := catalogStringValue(row["name"])
 	return catalogMatch{Type: catalogTypeCombination, Label: label, Raw: row}, nil
 }
 
@@ -77,9 +77,9 @@ func matchIndex(ctx context.Context, query string, toolCtx tools.Context, runToo
 	if err != nil {
 		return catalogMatch{}, err
 	}
-	label := strings.TrimSpace(fmt.Sprint(row["name"]))
+	label := catalogStringValue(row["name"])
 	if label == "" {
-		label = strings.TrimSpace(fmt.Sprint(row["index"]))
+		label = catalogStringValue(row["index"])
 	}
 	return catalogMatch{Type: catalogTypeIndex, Label: label, Raw: row}, nil
 }
@@ -97,7 +97,7 @@ func matchCustomSkill(ctx context.Context, query string, toolCtx tools.Context, 
 	if err != nil {
 		return catalogMatch{}, err
 	}
-	label := strings.TrimSpace(fmt.Sprint(row["name"]))
+	label := catalogStringValue(row["name"])
 	return catalogMatch{Type: catalogTypeCustom, Label: label, Raw: row}, nil
 }
 
@@ -178,7 +178,7 @@ func scoreCatalogRow(row map[string]any, tokens []string, fields ...string) int 
 func catalogRowText(row map[string]any, fields ...string) string {
 	var parts []string
 	for _, f := range fields {
-		if v := strings.TrimSpace(fmt.Sprint(row[f])); v != "" && v != "<nil>" {
+		if v := catalogStringValue(row[f]); v != "" {
 			parts = append(parts, v)
 		}
 	}
@@ -187,8 +187,45 @@ func catalogRowText(row map[string]any, fields ...string) string {
 
 func firstNonEmpty(row map[string]any, keys ...string) string {
 	for _, k := range keys {
-		if v := strings.TrimSpace(fmt.Sprint(row[k])); v != "" && v != "<nil>" {
+		if v := catalogStringValue(row[k]); v != "" {
 			return v
+		}
+	}
+	return ""
+}
+
+// catalogStringValue normalizes catalog fields; i18n name maps prefer cn → en.
+func catalogStringValue(v any) string {
+	if v == nil {
+		return ""
+	}
+	switch t := v.(type) {
+	case string:
+		s := strings.TrimSpace(t)
+		if s == "" || s == "<nil>" {
+			return ""
+		}
+		return s
+	case map[string]any:
+		return localizedCatalogString(t)
+	default:
+		s := strings.TrimSpace(fmt.Sprint(v))
+		if s == "" || s == "<nil>" || strings.HasPrefix(s, "map[") {
+			return ""
+		}
+		return s
+	}
+}
+
+func localizedCatalogString(m map[string]any) string {
+	for _, key := range []string{"cn", "zh_cn", "zh", "hk", "en", "name", "title"} {
+		if s := catalogStringValue(m[key]); s != "" {
+			return s
+		}
+	}
+	for _, v := range m {
+		if s := catalogStringValue(v); s != "" {
+			return s
 		}
 	}
 	return ""

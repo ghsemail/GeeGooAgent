@@ -155,6 +155,7 @@ var (
 	}
 	knowledgeTools = map[string]struct{}{
 		"search_knowledge":        {},
+		"get_knowledge":           {},
 		"save_strategy_knowledge": {},
 	}
 )

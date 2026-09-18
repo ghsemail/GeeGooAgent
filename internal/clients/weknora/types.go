@@ -21,6 +21,7 @@ type Document struct {
 	ID          string
 	FileName    string
 	Title       string
+	Content     string
 	FolderPath  string
 	FileSize    int64
 	ParseStatus string

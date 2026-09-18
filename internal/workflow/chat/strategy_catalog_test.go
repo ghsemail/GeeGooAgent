@@ -8,6 +8,51 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
+func TestCatalogStringValueLocalizedName(t *testing.T) {
+	got := catalogStringValue(map[string]any{
+		"cn": "4小时MACD市场节奏",
+		"en": "4H MACD Market Rhythm",
+		"hk": "4小時MACD市場節奏",
+	})
+	if got != "4小时MACD市场节奏" {
+		t.Fatalf("catalogStringValue=%q", got)
+	}
+}
+
+func TestResolveStrategyCatalogDefinitionLocalized(t *testing.T) {
+	runTool := func(ctx context.Context, req tools.CallRequest, toolCtx tools.Context) tools.Result {
+		switch req.Name {
+		case "get_custom_strategy_definitions":
+			return tools.Result{
+				Status: tools.StatusOK,
+				Data: map[string]any{
+					"items": []any{
+						map[string]any{
+							"strategy_key": "macd4h_rhythm",
+							"name": map[string]any{
+								"cn": "4小时MACD市场节奏",
+								"en": "4H MACD Market Rhythm",
+							},
+						},
+					},
+				},
+			}
+		default:
+			return tools.Result{Status: tools.StatusError, Summary: "unexpected " + req.Name}
+		}
+	}
+	match, err := resolveStrategyCatalog(context.Background(), "4H MACD", tools.Context{}, runTool)
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if match.Type != catalogTypeDefinition {
+		t.Fatalf("type=%s", match.Type)
+	}
+	if match.Label != "4小时MACD市场节奏" {
+		t.Fatalf("label=%q", match.Label)
+	}
+}
+
 func TestResolveStrategyCatalogCombination(t *testing.T) {
 	runTool := func(ctx context.Context, req tools.CallRequest, toolCtx tools.Context) tools.Result {
 		switch req.Name {

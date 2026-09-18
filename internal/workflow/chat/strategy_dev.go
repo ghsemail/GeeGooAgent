@@ -72,8 +72,15 @@ func (r *Runner) phaseDevReadCognition(
 			query, query,
 		))
 	}
-	flow.KBDraft = joinHitContents(hits, 6000)
-	flow.VerifySnippet = firstHitPreview(hits)
+	cognitionHits := filterCognitionHits(hits)
+	if len(cognitionHits) == 0 {
+		return terminalError(fmt.Sprintf(
+			"知识库中尚无「%s」的 Agent 策略认知文档，请先发送：生成策略认知 %s",
+			query, query,
+		))
+	}
+	flow.KBDraft = joinHitContents(cognitionHits, 6000)
+	flow.VerifySnippet = firstCognitionHitPreview(cognitionHits)
 	if title := hitField(hits, "title"); title != "" {
 		flow.KnowledgeTitle = title
 	} else if title := hitField(hits, "filename"); title != "" {

@@ -131,6 +131,48 @@ func registerKnowledgeTools(r *Registry, deps Deps) {
 			}
 		},
 	})
+	r.Register(Tool{
+		Name:        "get_knowledge",
+		Description: "按 knowledge_id 读取 WeKnora 知识库文档正文（用于写入后读回验证）。",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"knowledge_id": map[string]any{
+					"type":        "string",
+					"description": "WeKnora knowledge id",
+				},
+			},
+			"required": []any{"knowledge_id"},
+		},
+		Handle: func(ctx Context, args map[string]any) Result {
+			id := strArg(args, "knowledge_id", "")
+			if id == "" {
+				return errResult(fmt.Errorf("knowledge_id is required"))
+			}
+			if ctx.DryRun {
+				return okDryRun("get_knowledge", map[string]any{"knowledge_id": id})
+			}
+			client := deps.WeKnora
+			if client == nil || !client.Configured() {
+				return errResult(fmt.Errorf("weknora is not configured"))
+			}
+			doc, err := client.GetKnowledge(ctx.GoContext(), id)
+			if err != nil {
+				return errResult(err)
+			}
+			return Result{
+				Status:  StatusOK,
+				Summary: fmt.Sprintf("get_knowledge: %s (%s)", doc.Title, doc.ID),
+				Data: map[string]any{
+					"knowledge_id": doc.ID,
+					"title":        doc.Title,
+					"content":      doc.Content,
+					"folder_path":  doc.FolderPath,
+					"parse_status": doc.ParseStatus,
+				},
+			}
+		},
+	})
 }
 
 func strategyKnowledgeTitle(strategyName string) string {

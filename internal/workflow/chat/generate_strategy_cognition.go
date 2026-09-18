@@ -81,10 +81,7 @@ func (r *Runner) phaseCognitionSaveKB(
 	if content == "" {
 		return terminalError("缺少知识库正文")
 	}
-	name := strings.TrimSpace(flow.CatalogLabel)
-	if name == "" {
-		name = flow.StrategyQuery
-	}
+	name := strategyDisplayLabel(flow)
 	res := r.runTool(ctx, toolCtx, "save_strategy_knowledge", map[string]any{
 		"strategy_name": name,
 		"content":       content,
@@ -106,24 +103,36 @@ func (r *Runner) phaseCognitionVerifyKB(
 	toolCtx tools.Context,
 	recordTool func(name, status, summary string),
 ) error {
-	query := strings.TrimSpace(flow.CatalogLabel)
-	if query == "" {
-		query = flow.StrategyQuery
-	}
+	label := strategyDisplayLabel(flow)
+	knowledgeID := strings.TrimSpace(flow.KnowledgeID)
 	deadline := time.Now().Add(cognitionParseWait * time.Second)
 	attempt := 0
 	for time.Now().Before(deadline) {
-		args := map[string]any{"query": query + " Agent 策略认知"}
+		if knowledgeID != "" {
+			res := r.runTool(ctx, toolCtx, "get_knowledge", map[string]any{"knowledge_id": knowledgeID}, recordTool)
+			if res.Status == tools.StatusOK {
+				content := strings.TrimSpace(fmt.Sprint(res.Data["content"]))
+				if isAgentCognitionContent(content) {
+					flow.VerifySnippet = truncate(content, 240)
+					flow.Phase = PhaseSummarize
+					flow.touch()
+					return nil
+				}
+			}
+		}
+		args := map[string]any{"query": label + " Agent 策略认知"}
 		if attempt < 15 {
 			args["folder_path"] = defaultCognitionFolder
 		}
 		res := r.runTool(ctx, toolCtx, "search_knowledge", args, recordTool)
 		if res.Status == tools.StatusOK {
-			if hits, ok := res.Data["hits"].([]any); ok && len(hits) > 0 {
-				flow.VerifySnippet = firstHitPreview(hits)
-				flow.Phase = PhaseSummarize
-				flow.touch()
-				return nil
+			if hits, ok := res.Data["hits"].([]any); ok {
+				if snippet := firstCognitionHitPreview(hits); snippet != "" {
+					flow.VerifySnippet = snippet
+					flow.Phase = PhaseSummarize
+					flow.touch()
+					return nil
+				}
 			}
 		}
 		if err := ctx.Err(); err != nil {
@@ -132,21 +141,55 @@ func (r *Runner) phaseCognitionVerifyKB(
 		attempt++
 		time.Sleep(2 * time.Second)
 	}
-	return terminalError("知识库读回验证超时：search_knowledge 未命中，请稍后重试")
+	return terminalError("知识库读回验证超时：未读到 Agent 策略认知正文，请稍后重试")
+}
+
+func isAgentCognitionContent(content string) bool {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return false
+	}
+	return strings.Contains(content, "doc_type: strategy_agent_cognition") ||
+		strings.Contains(content, "Agent 策略认知")
+}
+
+func firstCognitionHitPreview(hits []any) string {
+	for _, raw := range hits {
+		content := hitContent(raw)
+		if !isAgentCognitionContent(content) {
+			continue
+		}
+		return truncate(content, 240)
+	}
+	return ""
 }
 
 func firstHitPreview(hits []any) string {
 	for _, raw := range hits {
-		row, ok := raw.(map[string]any)
-		if !ok {
-			continue
-		}
-		content := strings.TrimSpace(fmt.Sprint(row["content"]))
+		content := hitContent(raw)
 		if content != "" {
 			return truncate(content, 240)
 		}
 	}
 	return ""
+}
+
+func hitContent(raw any) string {
+	row, ok := raw.(map[string]any)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(row["content"]))
+}
+
+func filterCognitionHits(hits []any) []any {
+	out := make([]any, 0, len(hits))
+	for _, raw := range hits {
+		if isAgentCognitionContent(hitContent(raw)) {
+			out = append(out, raw)
+		}
+	}
+	return out
 }
 
 func renderGenerateCognitionReport(flow *Flow) string {

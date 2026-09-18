@@ -333,6 +333,7 @@ func documentFromMap(m map[string]any) Document {
 		ID:          strField(m, "id"),
 		FileName:    strField(m, "file_name", "filename", "title"),
 		Title:       strField(m, "title"),
+		Content:     strField(m, "content", "text", "markdown", "body"),
 		FolderPath:  strField(m, "folder_path"),
 		FileSize:    int64(intField(m, "file_size")),
 		ParseStatus: strField(m, "parse_status"),
