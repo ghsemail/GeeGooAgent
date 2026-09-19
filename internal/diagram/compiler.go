@@ -8,12 +8,6 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/skills"
 )
 
-type namedStep struct {
-	Name string
-	Tool string
-	Kind string // prelude | perstock | chat
-}
-
 type workflowIR struct {
 	SchemaVersion int             `json:"schema_version"`
 	DiagramType   string          `json:"diagram_type"`
@@ -101,16 +95,16 @@ func compileSkill(spec skills.Spec) (Document, error) {
 		indexInKind[step.Kind] = row + 1
 		col := row % 6
 		lane := laneID(step.Kind, row/6)
+		label := nodeLabelOf(step)
+		sub := nodeSublabelOf(step)
 		node := workflowNode{
-			ID:    id,
-			Lane:  lane,
-			Col:   col,
-			Type:  nodeType(step),
-			Label: step.Name,
-			Width: nodeWidth(step.Name),
-		}
-		if step.Tool != "" && step.Tool != "(chat workflow)" {
-			node.Sublabel = truncateLabel(step.Tool, 22)
+			ID:       id,
+			Lane:     lane,
+			Col:      col,
+			Type:     nodeType(step),
+			Label:    label,
+			Sublabel: sub,
+			Width:    nodeWidth(label, sub),
 		}
 		ir.Nodes = append(ir.Nodes, node)
 		if prev != "" {
@@ -155,21 +149,23 @@ func compileSkill(spec skills.Spec) (Document, error) {
 }
 
 func collectSteps(spec skills.Spec) []namedStep {
-	detail := skills.BuildWorkflowDetail("", spec, nil, "")
+	root := FindRepoRoot(".")
+	detail := skills.BuildWorkflowDetail(root, spec, nil, "")
+	titles := parsePhaseTitles(fmt.Sprint(detail["skill_md"]))
 	out := make([]namedStep, 0)
-	out = append(out, readDetailSteps(detail["phase_a_steps"], "prelude")...)
-	out = append(out, readDetailSteps(detail["phase_b_steps"], "perstock")...)
+	out = append(out, readDetailSteps(detail["phase_a_steps"], "prelude", titles)...)
+	out = append(out, readDetailSteps(detail["phase_b_steps"], "perstock", titles)...)
 	if len(out) == 0 {
 		if phases, _ := detail["chat_phases"].([]string); len(phases) > 0 {
 			for _, phase := range phases {
-				out = append(out, namedStep{Name: phase, Tool: "(chat workflow)", Kind: "chat"})
+				out = append(out, applyStepDisplay(namedStep{Name: phase, Tool: "(chat workflow)", Kind: "chat"}, titles))
 			}
 		}
 	}
 	return out
 }
 
-func readDetailSteps(raw any, kind string) []namedStep {
+func readDetailSteps(raw any, kind string, titles map[string]string) []namedStep {
 	rows, ok := raw.([]map[string]any)
 	if !ok {
 		return nil
@@ -182,7 +178,12 @@ func readDetailSteps(raw any, kind string) []namedStep {
 		if name == "" {
 			continue
 		}
-		out = append(out, namedStep{Name: name, Tool: strings.TrimSpace(tool), Kind: kind})
+		out = append(out, applyStepDisplay(namedStep{
+			Name:   name,
+			Tool:   strings.TrimSpace(tool),
+			Params: formatArgs(row["arguments"]),
+			Kind:   kind,
+		}, titles))
 	}
 	return out
 }
@@ -251,9 +252,9 @@ func laneLabel(kind string) string {
 	case "perstock":
 		return "Phase B · 逐股"
 	case "chat":
-		return "Chat Workflow"
+		return "Chat 流程"
 	default:
-		return "Phase A · Prelude"
+		return "Phase A · 前置"
 	}
 }
 
@@ -276,13 +277,17 @@ func nodeType(step namedStep) string {
 	}
 }
 
-func nodeWidth(label string) float64 {
-	w := float64(len([]rune(label))*8 + 28)
-	if w < 140 {
-		return 140
+func nodeWidth(label, sublabel string) float64 {
+	n := len([]rune(label))
+	if m := len([]rune(sublabel)); m > n {
+		n = m
 	}
-	if w > 220 {
-		return 220
+	w := float64(n*11 + 36)
+	if w < 156 {
+		return 156
+	}
+	if w > 248 {
+		return 248
 	}
 	return w
 }

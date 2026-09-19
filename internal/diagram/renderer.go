@@ -92,12 +92,12 @@ func renderWorkflowSVG(raw json.RawMessage) (string, error) {
 		laneIndex[lane.ID] = i
 	}
 	const (
-		laneH = 120.0
-		colW  = 170.0
+		laneH = 128.0
+		colW  = 196.0
 		x0    = 36.0
 		y0    = 36.0
-		nw    = 140.0
-		nh    = 56.0
+		defW  = 156.0
+		nh    = 62.0
 	)
 	width := 80 + colW*6
 	height := 80 + laneH*float64(max(1, len(ir.Lanes)))
@@ -108,17 +108,21 @@ func renderWorkflowSVG(raw json.RawMessage) (string, error) {
 		b.WriteString(fmt.Sprintf(`<rect class="lane" x="16" y="%.1f" width="%.1f" height="%.1f" rx="12"/>`, y-10, width-32, laneH-16))
 		b.WriteString(fmt.Sprintf(`<text class="lanelbl" x="28" y="%.1f">%s</text>`, y+8, html.EscapeString(strings.ToUpper(lane.Label))))
 	}
-	pos := map[string][2]float64{}
+	pos := map[string][3]float64{}
 	for _, n := range ir.Nodes {
 		li := laneIndex[n.Lane]
+		nw := defW
+		if n.Width > nw {
+			nw = n.Width
+		}
 		x := x0 + float64(n.Col)*colW
 		y := y0 + float64(li)*laneH + 28
-		pos[n.ID] = [2]float64{x + nw/2, y + nh/2}
+		pos[n.ID] = [3]float64{x + nw/2, y + nh/2, nw}
 		fill, stroke := semanticFill(n.Type)
 		b.WriteString(fmt.Sprintf(`<rect class="node" x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s" stroke="%s"/>`, x, y, nw, nh, fill, stroke))
-		b.WriteString(fmt.Sprintf(`<text class="lbl" x="%.1f" y="%.1f">%s</text>`, x+10, y+24, html.EscapeString(truncate(n.Label, 18))))
+		b.WriteString(fmt.Sprintf(`<text class="lbl" x="%.1f" y="%.1f">%s</text>`, x+10, y+24, html.EscapeString(truncate(n.Label, 14))))
 		if n.Sublabel != "" {
-			b.WriteString(fmt.Sprintf(`<text class="sublbl" x="%.1f" y="%.1f">%s</text>`, x+10, y+42, html.EscapeString(truncate(n.Sublabel, 22))))
+			b.WriteString(fmt.Sprintf(`<text class="sublbl" x="%.1f" y="%.1f">%s</text>`, x+10, y+42, html.EscapeString(truncate(n.Sublabel, 24))))
 		}
 	}
 	for _, e := range ir.Edges {
@@ -132,7 +136,7 @@ func renderWorkflowSVG(raw json.RawMessage) (string, error) {
 			cls = "edge edge-em"
 		}
 		b.WriteString(fmt.Sprintf(`<path class="%s" d="M %.1f %.1f C %.1f %.1f, %.1f %.1f, %.1f %.1f"/>`,
-			cls, a[0]+nw/2-8, a[1], a[0]+60, a[1], c[0]-60, c[1], c[0]-nw/2+8, c[1]))
+			cls, a[0]+a[2]/2-8, a[1], a[0]+60, a[1], c[0]-60, c[1], c[0]-c[2]/2+8, c[1]))
 	}
 	b.WriteString("</svg></div>")
 	b.WriteString(renderCards(ir.Cards))

@@ -5130,7 +5130,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 图版 04">
-      <svg viewBox="0 0 1268 528" role="img" lang="zh-CN" aria-labelledby="archify-diagram-title archify-diagram-description" data-preset="classic" data-quality-profile="standard">
+      <svg viewBox="0 0 1675 528" role="img" lang="zh-CN" aria-labelledby="archify-diagram-title archify-diagram-description" data-preset="classic" data-quality-profile="standard">
         <title id="archify-diagram-title">盘后总结</title>
         <desc id="archify-diagram-description">由 Archify 生成的工作流图。</desc>
         <!-- Definitions -->
@@ -5156,160 +5156,160 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Swimlanes -->
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-0" x="40" y="52" width="1212" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / Phase A · Prelude</text>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-0" x="40" y="52" width="1619" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / Phase A · 前置</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-1" x="40" y="176" width="1212" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-1" x="40" y="176" width="1619" height="104" rx="10" class="c-lane" stroke-width="1"/>
         <text x="54" y="198" class="t-dim" font-size="10" font-weight="600">02 / Phase B · 逐股</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-2" x="40" y="300" width="1212" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-2" x="40" y="300" width="1619" height="104" rx="10" class="c-lane" stroke-width="1"/>
         <text x="54" y="322" class="t-dim" font-size="10" font-weight="600">03 / Phase B · 逐股 · 2</text>
 
         <!-- Phase headers -->
-        <line x1="112" y1="35" x2="644" y2="35" class="a-default" stroke-width="1.1"/>
-        <rect x="112" y="27" width="532" height="16" rx="4" class="c-mask"/>
-        <text x="378" y="39" class="t-muted" font-size="8" font-weight="600" text-anchor="middle">Phase A · Prelude</text>
-        <line x1="744" y1="35" x2="1028" y2="35" class="a-default" stroke-width="1.1"/>
-        <rect x="744" y="27" width="284" height="16" rx="4" class="c-mask"/>
-        <text x="886" y="39" class="t-muted" font-size="8" font-weight="600" text-anchor="middle">Phase B · 逐股</text>
+        <line x1="126" y1="35" x2="770" y2="35" class="a-default" stroke-width="1.1"/>
+        <rect x="126" y="27" width="644" height="16" rx="4" class="c-mask"/>
+        <text x="448" y="39" class="t-muted" font-size="8" font-weight="600" text-anchor="middle">Phase A · 前置</text>
+        <line x1="954" y1="35" x2="1322" y2="35" class="a-default" stroke-width="1.1"/>
+        <rect x="954" y="27" width="368" height="16" rx="4" class="c-mask"/>
+        <text x="1138" y="39" class="t-muted" font-size="8" font-weight="600" text-anchor="middle">Phase B · 逐股</text>
 
         <!-- Workflow groups -->
 
 
         <!-- Edge paths -->
-        <path data-edge-from="bot_log" data-edge-to="read_stock_premarket" data-edge-key="0" data-edge-id="e_bot_log_read_stock_premarket" data-composition-points="668,243;696,243" d="M 668 243 L 696 243" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="check_trading_day" data-edge-to="get_report_bot_codes" data-edge-key="1" data-edge-id="e_check_trading_day_get_report_bot_codes" data-composition-points="240,119;304,119" d="M 240 119 L 304 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="create_stock_postmarket_report" data-edge-to="stock_complete" data-edge-key="2" data-edge-id="e_create_stock_postmarket_report_stock_complete" data-composition-points="158,393;158,409;398,409;398,393" d="M 158 393 L 158 409 L 398 409 L 398 393" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="current_price" data-edge-to="save_local_report" data-edge-key="3" data-edge-id="e_current_price_save_local_report" data-composition-points="982,269;982,285;1162,285;1162,269" d="M 982 269 L 982 285 L 1162 285 L 1162 269" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="get_report_bot_codes" data-edge-to="phase_a_complete" data-edge-key="4" data-edge-id="e_get_report_bot_codes_phase_a_complete" data-composition-points="398,145;398,161;598,161;598,145" d="M 398 145 L 398 161 L 598 161 L 598 145" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="hourly_analysis_bundle" data-edge-to="bot_log" data-edge-key="5" data-edge-id="e_hourly_analysis_bundle_bot_log" data-composition-points="500,243;528,243" d="M 500 243 L 528 243" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="list_today_postmarket_stock" data-edge-to="hourly_analysis_bundle" data-edge-key="6" data-edge-id="e_list_today_postmarket_stock_hourly_analysis_bundle" data-composition-points="158,269;158,285;398,285;398,269" d="M 158 269 L 158 285 L 398 285 L 398 269" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="phase_a_complete" data-edge-to="list_today_postmarket_stock" data-edge-key="7" data-edge-id="e_phase_a_complete_list_today_postmarket_stock" data-composition-points="598,145;598,166;284,166;284,243;268,243" d="M 598 145 L 598 166 L 284 166 L 284 243 L 268 243" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="read_stock_premarket" data-edge-to="current_price" data-edge-key="8" data-edge-id="e_read_stock_premarket_current_price" data-composition-points="884,243;912,243" d="M 884 243 L 912 243" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="save_local_report" data-edge-to="create_stock_postmarket_report" data-edge-key="9" data-edge-id="e_save_local_report_create_stock_postmarket_report" data-composition-points="1162,269;1162,420;158,420;158,393" d="M 1162 269 L 1162 420 L 158 420 L 158 393" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="bot_log" data-edge-to="read_stock_premarket" data-edge-key="0" data-edge-id="e_bot_log_read_stock_premarket" data-composition-points="848,243;876,243" d="M 848 243 L 876 243" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="check_trading_day" data-edge-to="get_report_bot_codes" data-edge-key="1" data-edge-id="e_check_trading_day_get_report_bot_codes" data-composition-points="296,119;324,119" d="M 296 119 L 324 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="create_stock_postmarket_report" data-edge-to="stock_complete" data-edge-key="2" data-edge-id="e_create_stock_postmarket_report_stock_complete" data-composition-points="172,393;172,409;448,409;448,393" d="M 172 393 L 172 409 L 448 409 L 448 393" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="current_price" data-edge-to="save_local_report" data-edge-key="3" data-edge-id="e_current_price_save_local_report" data-composition-points="1276,269;1276,285;1539.5,285;1539.5,269" d="M 1276 269 L 1276 285 L 1539.5 285 L 1539.5 269" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="get_report_bot_codes" data-edge-to="phase_a_complete" data-edge-key="4" data-edge-id="e_get_report_bot_codes_phase_a_complete" data-composition-points="448,145;448,161;724,161;724,145" d="M 448 145 L 448 161 L 724 161 L 724 145" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="hourly_analysis_bundle" data-edge-to="bot_log" data-edge-key="5" data-edge-id="e_hourly_analysis_bundle_bot_log" data-composition-points="572,243;600,243" d="M 572 243 L 600 243" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="list_today_postmarket_stock" data-edge-to="hourly_analysis_bundle" data-edge-key="6" data-edge-id="e_list_today_postmarket_stock_hourly_analysis_bundle" data-composition-points="172,269;172,285;448,285;448,269" d="M 172 269 L 172 285 L 448 285 L 448 269" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="phase_a_complete" data-edge-to="list_today_postmarket_stock" data-edge-key="7" data-edge-id="e_phase_a_complete_list_today_postmarket_stock" data-composition-points="724,145;724,166;172,166;172,217" d="M 724 145 L 724 166 L 172 166 L 172 217" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="read_stock_premarket" data-edge-to="current_price" data-edge-key="8" data-edge-id="e_read_stock_premarket_current_price" data-composition-points="1124,243;1152,243" d="M 1124 243 L 1152 243" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="save_local_report" data-edge-to="create_stock_postmarket_report" data-edge-key="9" data-edge-id="e_save_local_report_create_stock_postmarket_report" data-composition-points="1539.5,269;1539.5,420;172,420;172,393" d="M 1539.5 269 L 1539.5 420 L 172 420 L 172 393" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
 
         <!-- Nodes -->
-        <g id="node-check_trading_day" data-node-id="check_trading_day" data-node-label="check_trading_day" tabindex="0" role="button" aria-label="聚焦check_trading_day，check_trading_day, Phase A · Prelude › Phase A · Prelude" aria-pressed="false" data-node-kind="backend" data-node-sublabel="check_trading_day" data-node-context="Phase A · Prelude › Phase A · Prelude">
-          <title>check_trading_day · check_trading_day · Phase A · Prelude › Phase A · Prelude</title>
-          <rect x="76" y="93" width="164" height="52" rx="6" class="c-mask"/>
-          <rect x="76" y="93" width="164" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(82 99) scale(0.6875)">
+        <g id="node-check_trading_day" data-node-id="check_trading_day" data-node-label="检查交易日" tabindex="0" role="button" aria-label="聚焦检查交易日，check_trading_day · code=00700.HK, Phase A · 前置 › Phase A · 前置" aria-pressed="false" data-node-kind="backend" data-node-sublabel="check_trading_day · code=00700.HK" data-node-context="Phase A · 前置 › Phase A · 前置">
+          <title>检查交易日 · check_trading_day · code=00700.HK · Phase A · 前置 › Phase A · 前置</title>
+          <rect x="48" y="93" width="248" height="52" rx="6" class="c-mask"/>
+          <rect x="48" y="93" width="248" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(54 99) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="158" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">check_trading_day</text>
-          <text data-detail="context" x="158" y="131" class="t-muted" font-size="8" text-anchor="middle">check_trading_day</text>
+          <text data-node-label="" data-detail-anchor="" x="172" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">检查交易日</text>
+          <text data-detail="context" x="172" y="131" class="t-muted" font-size="8" text-anchor="middle">check_trading_day · code=00700.HK</text>
         </g>
 
-        <g id="node-get_report_bot_codes" data-node-id="get_report_bot_codes" data-node-label="get_report_bot_codes" tabindex="0" role="button" aria-label="聚焦get_report_bot_codes，get_report_bot_codes, Phase A · Prelude › Phase A · Prelude" aria-pressed="false" data-node-kind="backend" data-node-sublabel="get_report_bot_codes" data-node-context="Phase A · Prelude › Phase A · Prelude">
-          <title>get_report_bot_codes · get_report_bot_codes · Phase A · Prelude › Phase A · Prelude</title>
-          <rect x="304" y="93" width="188" height="52" rx="6" class="c-mask"/>
-          <rect x="304" y="93" width="188" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(310 99) scale(0.6875)">
+        <g id="node-get_report_bot_codes" data-node-id="get_report_bot_codes" data-node-label="读取订阅标的" tabindex="0" role="button" aria-label="聚焦读取订阅标的，get_report_bot_codes, Phase A · 前置 › Phase A · 前置" aria-pressed="false" data-node-kind="backend" data-node-sublabel="get_report_bot_codes" data-node-context="Phase A · 前置 › Phase A · 前置">
+          <title>读取订阅标的 · get_report_bot_codes · Phase A · 前置 › Phase A · 前置</title>
+          <rect x="324" y="93" width="248" height="52" rx="6" class="c-mask"/>
+          <rect x="324" y="93" width="248" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(330 99) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="398" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">get_report_bot_codes</text>
-          <text data-detail="context" x="398" y="131" class="t-muted" font-size="8" text-anchor="middle">get_report_bot_codes</text>
+          <text data-node-label="" data-detail-anchor="" x="448" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">读取订阅标的</text>
+          <text data-detail="context" x="448" y="131" class="t-muted" font-size="8" text-anchor="middle">get_report_bot_codes</text>
         </g>
 
-        <g id="node-phase_a_complete" data-node-id="phase_a_complete" data-node-label="phase_a_complete" tabindex="0" role="button" aria-label="聚焦phase_a_complete，write_execution_log, Phase A · Prelude › Phase A · Prelude" aria-pressed="false" data-node-kind="backend" data-node-sublabel="write_execution_log" data-node-context="Phase A · Prelude › Phase A · Prelude">
-          <title>phase_a_complete · write_execution_log · Phase A · Prelude › Phase A · Prelude</title>
-          <rect x="520" y="93" width="156" height="52" rx="6" class="c-mask"/>
-          <rect x="520" y="93" width="156" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(526 99) scale(0.6875)">
+        <g id="node-phase_a_complete" data-node-id="phase_a_complete" data-node-label="Phase A 完成" tabindex="0" role="button" aria-label="聚焦Phase A 完成，phase_a_complete · write_execution_…, Phase A · 前置 › Phase A · 前置" aria-pressed="false" data-node-kind="backend" data-node-sublabel="phase_a_complete · write_execution_…" data-node-context="Phase A · 前置 › Phase A · 前置">
+          <title>Phase A 完成 · phase_a_complete · write_execution_… · Phase A · 前置 › Phase A · 前置</title>
+          <rect x="600" y="93" width="248" height="52" rx="6" class="c-mask"/>
+          <rect x="600" y="93" width="248" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(606 99) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="598" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">phase_a_complete</text>
-          <text data-detail="context" x="598" y="131" class="t-muted" font-size="8" text-anchor="middle">write_execution_log</text>
+          <text data-node-label="" data-detail-anchor="" x="724" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Phase A 完成</text>
+          <text data-detail="context" x="724" y="131" class="t-muted" font-size="8" text-anchor="middle">phase_a_complete · write_execution_…</text>
         </g>
 
-        <g id="node-list_today_postmarket_stock" data-node-id="list_today_postmarket_stock" data-node-label="list_today_postmarket_stock" tabindex="0" role="button" aria-label="聚焦list_today_postmarket_stock，list_today_stock_post…, Phase B · 逐股 › Phase A · Prelude" aria-pressed="false" data-node-kind="backend" data-node-sublabel="list_today_stock_post…" data-node-context="Phase B · 逐股 › Phase A · Prelude">
-          <title>list_today_postmarket_stock · list_today_stock_post… · Phase B · 逐股 › Phase A · Prelude</title>
-          <rect x="48" y="217" width="220" height="52" rx="6" class="c-mask"/>
-          <rect x="48" y="217" width="220" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
+        <g id="node-list_today_postmarket_stock" data-node-id="list_today_postmarket_stock" data-node-label="列出今日盘后报告" tabindex="0" role="button" aria-label="聚焦列出今日盘后报告，list_today_postmarket_stock · list_…, Phase B · 逐股 › Phase A · 前置" aria-pressed="false" data-node-kind="backend" data-node-sublabel="list_today_postmarket_stock · list_…" data-node-context="Phase B · 逐股 › Phase A · 前置">
+          <title>列出今日盘后报告 · list_today_postmarket_stock · list_… · Phase B · 逐股 › Phase A · 前置</title>
+          <rect x="48" y="217" width="248" height="52" rx="6" class="c-mask"/>
+          <rect x="48" y="217" width="248" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(54 223) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="158" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">list_today_postmarket_stock</text>
-          <text data-detail="context" x="158" y="255" class="t-muted" font-size="8" text-anchor="middle">list_today_stock_post…</text>
+          <text data-node-label="" data-detail-anchor="" x="172" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">列出今日盘后报告</text>
+          <text data-detail="context" x="172" y="255" class="t-muted" font-size="8" text-anchor="middle">list_today_postmarket_stock · list_…</text>
         </g>
 
-        <g id="node-hourly_analysis_bundle" data-node-id="hourly_analysis_bundle" data-node-label="hourly_analysis_bundle" tabindex="0" role="button" aria-label="聚焦hourly_analysis_bundle，get_hourly_analysis_b…, Phase B · 逐股 › Phase A · Prelude" aria-pressed="false" data-node-kind="backend" data-node-sublabel="get_hourly_analysis_b…" data-node-context="Phase B · 逐股 › Phase A · Prelude">
-          <title>hourly_analysis_bundle · get_hourly_analysis_b… · Phase B · 逐股 › Phase A · Prelude</title>
-          <rect x="296" y="217" width="204" height="52" rx="6" class="c-mask"/>
-          <rect x="296" y="217" width="204" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(302 223) scale(0.6875)">
+        <g id="node-hourly_analysis_bundle" data-node-id="hourly_analysis_bundle" data-node-label="小时级分析包" tabindex="0" role="button" aria-label="聚焦小时级分析包，hourly_analysis_bundle · get_hourly…, Phase B · 逐股 › Phase A · 前置" aria-pressed="false" data-node-kind="backend" data-node-sublabel="hourly_analysis_bundle · get_hourly…" data-node-context="Phase B · 逐股 › Phase A · 前置">
+          <title>小时级分析包 · hourly_analysis_bundle · get_hourly… · Phase B · 逐股 › Phase A · 前置</title>
+          <rect x="324" y="217" width="248" height="52" rx="6" class="c-mask"/>
+          <rect x="324" y="217" width="248" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(330 223) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="398" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">hourly_analysis_bundle</text>
-          <text data-detail="context" x="398" y="255" class="t-muted" font-size="8" text-anchor="middle">get_hourly_analysis_b…</text>
+          <text data-node-label="" data-detail-anchor="" x="448" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">小时级分析包</text>
+          <text data-detail="context" x="448" y="255" class="t-muted" font-size="8" text-anchor="middle">hourly_analysis_bundle · get_hourly…</text>
         </g>
 
-        <g id="node-bot_log" data-node-id="bot_log" data-node-label="bot_log" tabindex="0" role="button" aria-label="聚焦bot_log，get_bot_log_by_type, Phase B · 逐股 › Phase A · Prelude" aria-pressed="false" data-node-kind="backend" data-node-sublabel="get_bot_log_by_type" data-node-context="Phase B · 逐股 › Phase A · Prelude">
-          <title>bot_log · get_bot_log_by_type · Phase B · 逐股 › Phase A · Prelude</title>
-          <rect x="528" y="217" width="140" height="52" rx="6" class="c-mask"/>
-          <rect x="528" y="217" width="140" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(534 223) scale(0.6875)">
+        <g id="node-bot_log" data-node-id="bot_log" data-node-label="机器人日志" tabindex="0" role="button" aria-label="聚焦机器人日志，bot_log · get_bot_log_by_type, Phase B · 逐股 › Phase A · 前置" aria-pressed="false" data-node-kind="backend" data-node-sublabel="bot_log · get_bot_log_by_type" data-node-context="Phase B · 逐股 › Phase A · 前置">
+          <title>机器人日志 · bot_log · get_bot_log_by_type · Phase B · 逐股 › Phase A · 前置</title>
+          <rect x="600" y="217" width="248" height="52" rx="6" class="c-mask"/>
+          <rect x="600" y="217" width="248" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(606 223) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="598" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">bot_log</text>
-          <text data-detail="context" x="598" y="255" class="t-muted" font-size="8" text-anchor="middle">get_bot_log_by_type</text>
+          <text data-node-label="" data-detail-anchor="" x="724" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">机器人日志</text>
+          <text data-detail="context" x="724" y="255" class="t-muted" font-size="8" text-anchor="middle">bot_log · get_bot_log_by_type</text>
         </g>
 
-        <g id="node-read_stock_premarket" data-node-id="read_stock_premarket" data-node-label="read_stock_premarket" tabindex="0" role="button" aria-label="聚焦read_stock_premarket，get_stock_daily_repor…, Phase B · 逐股 › Phase B · 逐股" aria-pressed="false" data-node-kind="backend" data-node-sublabel="get_stock_daily_repor…" data-node-context="Phase B · 逐股 › Phase B · 逐股">
-          <title>read_stock_premarket · get_stock_daily_repor… · Phase B · 逐股 › Phase B · 逐股</title>
-          <rect x="696" y="217" width="188" height="52" rx="6" class="c-mask"/>
-          <rect x="696" y="217" width="188" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(702 223) scale(0.6875)">
+        <g id="node-read_stock_premarket" data-node-id="read_stock_premarket" data-node-label="读取个股盘前" tabindex="0" role="button" aria-label="聚焦读取个股盘前，read_stock_premarket · get_stock_da…, Phase B · 逐股 › Phase B · 逐股" aria-pressed="false" data-node-kind="backend" data-node-sublabel="read_stock_premarket · get_stock_da…" data-node-context="Phase B · 逐股 › Phase B · 逐股">
+          <title>读取个股盘前 · read_stock_premarket · get_stock_da… · Phase B · 逐股 › Phase B · 逐股</title>
+          <rect x="876" y="217" width="248" height="52" rx="6" class="c-mask"/>
+          <rect x="876" y="217" width="248" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(882 223) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="790" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">read_stock_premarket</text>
-          <text data-detail="context" x="790" y="255" class="t-muted" font-size="8" text-anchor="middle">get_stock_daily_repor…</text>
+          <text data-node-label="" data-detail-anchor="" x="1000" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">读取个股盘前</text>
+          <text data-detail="context" x="1000" y="255" class="t-muted" font-size="8" text-anchor="middle">read_stock_premarket · get_stock_da…</text>
         </g>
 
-        <g id="node-current_price" data-node-id="current_price" data-node-label="current_price" tabindex="0" role="button" aria-label="聚焦current_price，get_current_price, Phase B · 逐股 › Phase B · 逐股" aria-pressed="false" data-node-kind="backend" data-node-sublabel="get_current_price" data-node-context="Phase B · 逐股 › Phase B · 逐股">
-          <title>current_price · get_current_price · Phase B · 逐股 › Phase B · 逐股</title>
-          <rect x="912" y="217" width="140" height="52" rx="6" class="c-mask"/>
-          <rect x="912" y="217" width="140" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(918 223) scale(0.6875)">
+        <g id="node-current_price" data-node-id="current_price" data-node-label="现价" tabindex="0" role="button" aria-label="聚焦现价，current_price · get_current_price, Phase B · 逐股 › Phase B · 逐股" aria-pressed="false" data-node-kind="backend" data-node-sublabel="current_price · get_current_price" data-node-context="Phase B · 逐股 › Phase B · 逐股">
+          <title>现价 · current_price · get_current_price · Phase B · 逐股 › Phase B · 逐股</title>
+          <rect x="1152" y="217" width="248" height="52" rx="6" class="c-mask"/>
+          <rect x="1152" y="217" width="248" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(1158 223) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="982" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">current_price</text>
-          <text data-detail="context" x="982" y="255" class="t-muted" font-size="8" text-anchor="middle">get_current_price</text>
+          <text data-node-label="" data-detail-anchor="" x="1276" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">现价</text>
+          <text data-detail="context" x="1276" y="255" class="t-muted" font-size="8" text-anchor="middle">current_price · get_current_price</text>
         </g>
 
-        <g id="node-save_local_report" data-node-id="save_local_report" data-node-label="save_local_report" tabindex="0" role="button" aria-label="聚焦save_local_report，save_local_report, Phase B · 逐股" aria-pressed="false" data-node-kind="database" data-node-sublabel="save_local_report" data-node-context="Phase B · 逐股">
-          <title>save_local_report · save_local_report · Phase B · 逐股</title>
-          <rect x="1080" y="217" width="164" height="52" rx="6" class="c-mask"/>
-          <rect x="1080" y="217" width="164" height="52" rx="6" class="c-database" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1086 223) scale(0.6875)">
+        <g id="node-save_local_report" data-node-id="save_local_report" data-node-label="保存本地报告" tabindex="0" role="button" aria-label="聚焦保存本地报告，save_local_report, Phase B · 逐股" aria-pressed="false" data-node-kind="database" data-node-sublabel="save_local_report" data-node-context="Phase B · 逐股">
+          <title>保存本地报告 · save_local_report · Phase B · 逐股</title>
+          <rect x="1428" y="217" width="223" height="52" rx="6" class="c-mask"/>
+          <rect x="1428" y="217" width="223" height="52" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1434 223) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="1162" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">save_local_report</text>
-          <text data-detail="context" x="1162" y="255" class="t-muted" font-size="8" text-anchor="middle">save_local_report</text>
+          <text data-node-label="" data-detail-anchor="" x="1539.5" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">保存本地报告</text>
+          <text data-detail="context" x="1539.5" y="255" class="t-muted" font-size="8" text-anchor="middle">save_local_report</text>
         </g>
 
-        <g id="node-create_stock_postmarket_report" data-node-id="create_stock_postmarket_report" data-node-label="create_stock_postmarket_report" tabindex="0" role="button" aria-label="聚焦create_stock_postmarket_report，create_stock_postmark…, Phase B · 逐股 · 2 › Phase A · Prelude" aria-pressed="false" data-node-kind="database" data-node-sublabel="create_stock_postmark…" data-node-context="Phase B · 逐股 · 2 › Phase A · Prelude">
-          <title>create_stock_postmarket_report · create_stock_postmark… · Phase B · 逐股 · 2 › Phase A · Prelude</title>
-          <rect x="48" y="341" width="220" height="52" rx="6" class="c-mask"/>
-          <rect x="48" y="341" width="220" height="52" rx="6" class="c-database" stroke-width="1.5"/>
+        <g id="node-create_stock_postmarket_report" data-node-id="create_stock_postmarket_report" data-node-label="写入盘后报告" tabindex="0" role="button" aria-label="聚焦写入盘后报告，create_stock_postmarket_report, Phase B · 逐股 · 2 › Phase A · 前置" aria-pressed="false" data-node-kind="database" data-node-sublabel="create_stock_postmarket_report" data-node-context="Phase B · 逐股 · 2 › Phase A · 前置">
+          <title>写入盘后报告 · create_stock_postmarket_report · Phase B · 逐股 · 2 › Phase A · 前置</title>
+          <rect x="48" y="341" width="248" height="52" rx="6" class="c-mask"/>
+          <rect x="48" y="341" width="248" height="52" rx="6" class="c-database" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(54 347) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="158" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">create_stock_postmarket_report</text>
-          <text data-detail="context" x="158" y="379" class="t-muted" font-size="8" text-anchor="middle">create_stock_postmark…</text>
+          <text data-node-label="" data-detail-anchor="" x="172" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">写入盘后报告</text>
+          <text data-detail="context" x="172" y="379" class="t-muted" font-size="8" text-anchor="middle">create_stock_postmarket_report</text>
         </g>
 
-        <g id="node-stock_complete" data-node-id="stock_complete" data-node-label="stock_complete" tabindex="0" role="button" aria-label="聚焦stock_complete，write_execution_log, Phase B · 逐股 · 2 › Phase A · Prelude" aria-pressed="false" data-node-kind="backend" data-node-sublabel="write_execution_log" data-node-context="Phase B · 逐股 · 2 › Phase A · Prelude">
-          <title>stock_complete · write_execution_log · Phase B · 逐股 · 2 › Phase A · Prelude</title>
-          <rect x="328" y="341" width="140" height="52" rx="6" class="c-mask"/>
-          <rect x="328" y="341" width="140" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(334 347) scale(0.6875)">
+        <g id="node-stock_complete" data-node-id="stock_complete" data-node-label="个股步骤完成" tabindex="0" role="button" aria-label="聚焦个股步骤完成，stock_complete · write_execution_log, Phase B · 逐股 · 2 › Phase A · 前置" aria-pressed="false" data-node-kind="backend" data-node-sublabel="stock_complete · write_execution_log" data-node-context="Phase B · 逐股 · 2 › Phase A · 前置">
+          <title>个股步骤完成 · stock_complete · write_execution_log · Phase B · 逐股 · 2 › Phase A · 前置</title>
+          <rect x="324" y="341" width="248" height="52" rx="6" class="c-mask"/>
+          <rect x="324" y="341" width="248" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(330 347) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="398" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">stock_complete</text>
-          <text data-detail="context" x="398" y="379" class="t-muted" font-size="8" text-anchor="middle">write_execution_log</text>
+          <text data-node-label="" data-detail-anchor="" x="448" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">个股步骤完成</text>
+          <text data-detail="context" x="448" y="379" class="t-muted" font-size="8" text-anchor="middle">stock_complete · write_execution_log</text>
         </g>
 
         <!-- Edge labels -->
