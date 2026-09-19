@@ -72,12 +72,26 @@ func TestBuildWorkflowDetailStrategyArchiveTemplate(t *testing.T) {
 		t.Fatalf("TemplatePath=%q", spec.TemplatePath)
 	}
 	detail := BuildWorkflowDetail(root, spec, nil, filepath.Join(root, "skills", "generate_strategy_archive", "SKILL.md"))
+	skillMD, _ := detail["skill_md"].(string)
+	if strings.Contains(skillMD, "trigger_modes:") || strings.HasPrefix(strings.TrimSpace(skillMD), "---") {
+		t.Fatalf("skill_md should hide YAML front matter: %s", skillMD)
+	}
+	if !strings.Contains(skillMD, "# 生成策略档案") {
+		t.Fatalf("skill_md missing body: %s", skillMD)
+	}
 	raw, _ := detail["template_md"].(string)
 	if !strings.Contains(raw, "doc_type: strategy_agent_archive") || !strings.Contains(raw, "{{strategy_name}}") {
 		t.Fatalf("template_md missing archive output placeholders: %s", raw)
 	}
 	if !strings.Contains(raw, "> 1–2 句") {
 		t.Fatalf("template_md should show writing hints: %s", raw)
+	}
+}
+
+func TestStripYAMLFrontMatter(t *testing.T) {
+	raw := "---\nname: demo\n---\n\n# Hello\n"
+	if got := stripYAMLFrontMatter(raw); got != "# Hello" {
+		t.Fatalf("got %q", got)
 	}
 }
 

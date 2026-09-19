@@ -3,10 +3,13 @@ package skills
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
 )
+
+var yamlFrontMatterRE = regexp.MustCompile(`(?s)^---\r?\n.*?\r?\n---\r?\n`)
 
 // SchedulerJobView is a dashboard-safe scheduler row (avoids importing scheduler package).
 type SchedulerJobView struct {
@@ -77,8 +80,20 @@ func readInto(detail map[string]any, root, rel, key string) {
 
 func readIntoAbs(detail map[string]any, abs, key string) {
 	if raw, err := os.ReadFile(abs); err == nil {
-		detail[key] = string(raw)
+		text := string(raw)
+		if key == "skill_md" {
+			text = stripYAMLFrontMatter(text)
+		}
+		detail[key] = text
 	}
+}
+
+func stripYAMLFrontMatter(s string) string {
+	s = strings.TrimLeft(s, "\uFEFF")
+	if stripped := yamlFrontMatterRE.ReplaceAllString(s, ""); stripped != s {
+		return strings.TrimSpace(stripped)
+	}
+	return s
 }
 
 // AttachWorkflowDetails merges workflow_detail into dashboard skill rows when registered.
