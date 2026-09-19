@@ -62,6 +62,22 @@ func TestBuildWorkflowDetailPostMarket(t *testing.T) {
 	}
 }
 
+func TestBuildWorkflowDetailStrategyArchiveTemplate(t *testing.T) {
+	root := findRepoRoot(t)
+	spec, ok := Default().Get(SkillGenerateStrategyArchive)
+	if !ok {
+		t.Fatal("missing generate_strategy_archive")
+	}
+	if spec.TemplatePath != "skills/generate_strategy_archive/template.md" {
+		t.Fatalf("TemplatePath=%q", spec.TemplatePath)
+	}
+	detail := BuildWorkflowDetail(root, spec, nil, filepath.Join(root, "skills", "generate_strategy_archive", "SKILL.md"))
+	raw, _ := detail["template_md"].(string)
+	if !strings.Contains(raw, "doc_type: strategy_agent_archive") || !strings.Contains(raw, "{{strategy_name}}") {
+		t.Fatalf("template_md missing archive output placeholders: %s", raw)
+	}
+}
+
 func TestBuildWorkflowDetailHidesLegacyCognitionTriggers(t *testing.T) {
 	spec, ok := Default().Get(SkillGenerateStrategyCognition)
 	if !ok {

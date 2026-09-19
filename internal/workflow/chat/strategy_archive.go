@@ -30,6 +30,9 @@ func isStrategyArchiveContent(content string) bool {
 	if content == "" {
 		return false
 	}
+	if strings.Contains(content, "doc_type: strategy_agent_archive") {
+		return true
+	}
 	if strings.Contains(content, "doc_type: strategy_agent_cognition") {
 		return true
 	}

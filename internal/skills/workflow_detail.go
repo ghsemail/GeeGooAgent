@@ -19,7 +19,7 @@ type SchedulerJobView struct {
 }
 
 // BuildWorkflowDetail returns dashboard-friendly workflow settings for one L5 skill.
-// Execution steps come from Go registry; SKILL.md (+ template.md when used at runtime) are the only bundled docs.
+// Execution steps come from Go registry; SKILL.md + template.md (final output template) are the bundled docs.
 func BuildWorkflowDetail(projectRoot string, spec Spec, jobs []SchedulerJobView, skillPath string) map[string]any {
 	skillDir := filepath.Join("skills", spec.Name)
 	detail := map[string]any{
@@ -41,8 +41,15 @@ func BuildWorkflowDetail(projectRoot string, spec Spec, jobs []SchedulerJobView,
 	root := strings.TrimSpace(projectRoot)
 	if root != "" {
 		readInto(detail, root, filepath.Join(skillDir, "SKILL.md"), "skill_md")
-		if spec.TemplatePath != "" {
-			readInto(detail, root, spec.TemplatePath, "template_md")
+		tplRel := strings.TrimSpace(spec.TemplatePath)
+		if tplRel == "" {
+			tplRel = filepath.ToSlash(filepath.Join(skillDir, "template.md"))
+		}
+		readInto(detail, root, tplRel, "template_md")
+		if _, ok := detail["template_md"]; ok {
+			detail["template_path"] = tplRel
+		} else if spec.TemplatePath == "" {
+			detail["template_path"] = ""
 		}
 	}
 	if strings.TrimSpace(skillPath) != "" {
@@ -57,11 +64,9 @@ func enrichFromSkillDir(detail map[string]any, dir string) {
 		return
 	}
 	readIntoAbs(detail, filepath.Join(dir, "SKILL.md"), "skill_md")
-	if tpl, _ := detail["template_path"].(string); strings.TrimSpace(tpl) != "" {
-		readIntoAbs(detail, filepath.Join(dir, "template.md"), "template_md")
-	}
+	readIntoAbs(detail, filepath.Join(dir, "template.md"), "template_md")
 	detail["skill_path"] = filepath.ToSlash(filepath.Join(dir, "SKILL.md"))
-	if tpl, _ := detail["template_path"].(string); strings.TrimSpace(tpl) != "" {
+	if _, ok := detail["template_md"]; ok {
 		detail["template_path"] = filepath.ToSlash(filepath.Join(dir, "template.md"))
 	}
 }

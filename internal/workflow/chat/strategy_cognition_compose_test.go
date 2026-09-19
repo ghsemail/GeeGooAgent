@@ -40,4 +40,24 @@ func TestSynthesizeCognitionBodyUsesLLM(t *testing.T) {
 	if !strings.Contains(doc, "agent_use:") || !strings.Contains(doc, "适用场景") {
 		t.Fatalf("assembled doc missing frontmatter/sections: %s", doc)
 	}
+	if !strings.Contains(doc, "doc_type: strategy_agent_archive") {
+		t.Fatalf("assembled doc should follow template.md: %s", doc)
+	}
+}
+
+func TestArchiveTemplateHeadingsDriveCompose(t *testing.T) {
+	tpl := loadStrategyArchiveTemplate()
+	if tpl == "" {
+		t.Fatal("expected skills/generate_strategy_archive/template.md")
+	}
+	headings := archiveRequiredHeadings(tpl)
+	if len(headings) < 6 {
+		t.Fatalf("headings=%v", headings)
+	}
+	prompt := cognitionComposeSystemPrompt()
+	for _, h := range headings {
+		if !strings.Contains(prompt, "## "+h) {
+			t.Fatalf("system prompt missing heading %q", h)
+		}
+	}
 }

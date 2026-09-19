@@ -16,7 +16,7 @@ trigger_modes: chat
 |-------|------|
 | `cognition_pick` | 解析策略名称 |
 | `cognition_read_catalog` | 读策略库（组合 / 指标 / 定制 / definitions） |
-| `cognition_compose` | LLM 合成 Markdown（适用场景、参数、信号逻辑、Agent 指引） |
+| `cognition_compose` | 按同目录 `template.md` 合成最终档案（适用场景、参数、信号逻辑、Agent 指引） |
 | `cognition_save_kb` | `save_strategy_knowledge` 写入知识库 |
 | `cognition_verify_kb` | `search_knowledge` 读回验证 |
 
@@ -25,6 +25,10 @@ trigger_modes: chat
 - 「帮我生成 Macd4H 的策略档案」
 - 「生成策略档案 SAR+MACD」
 - 「了解一下共振策略，整理到知识库」
+
+## 输出模板
+
+最终写入知识库的正文骨架是同目录 [`template.md`](template.md)。约定：`skills/<workflow>/template.md` = 该 workflow 的最终输出模板。
 
 ## 知识库目录
 

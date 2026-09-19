@@ -34,7 +34,7 @@ type Spec struct {
     Description  string
     PhaseA       func() []workflow.Step
     PerStock     func() []workflow.Step
-    TemplatePath string   // skills/premarket_market/template.md
+    TemplatePath string   // skills/<name>/template.md — 最终输出模板
     ManifestPath string   // skills/premarket_market/manifest.yaml
 }
 ```
@@ -56,7 +56,7 @@ skills/<name>/
 ├── SKILL.md                 # 描述、触发条件（Cursor Skill 同源）
 ├── manifest.yaml            # tools[]、workflow 结构、rules、bundled
 ├── workflow.md              # 步骤业务说明
-├── template.md              # 报告 Markdown 模板
+├── template.md              # 最终输出模板（写入知识库 / 报告的正文骨架）
 └── supervisor_checks.yaml   # 机器可读验收项
 ```
 

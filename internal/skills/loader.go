@@ -20,20 +20,21 @@ func RegisterBuiltins(r *Registry) {
 		TemplatePath: "skills/premarket_stock/template.md",
 	})
 	r.Register(Spec{
-		Name:         "intraday_stock",
-		Description:  "盘中交易决策：持仓 + 盘前对照 + 小时级分析 + 现价，生成 intraday 报告",
-		PhaseA:       workflow.IntradayPhaseASteps,
-		PerStock:     workflow.IntradayPerStockSteps,
+		Name:        "intraday_stock",
+		Description: "盘中交易决策：持仓 + 盘前对照 + 小时级分析 + 现价，生成 intraday 报告",
+		PhaseA:      workflow.IntradayPhaseASteps,
+		PerStock:    workflow.IntradayPerStockSteps,
 	})
 	r.Register(Spec{
-		Name:         "postmarket_stock",
-		Description:  "盘后总结：小时级分析 + Bot 日志 + 盘前对照，生成 postmarket_stock 报告",
-		PhaseA:       workflow.PostMarketPhaseASteps,
-		PerStock:     workflow.PostMarketPerStockSteps,
+		Name:        "postmarket_stock",
+		Description: "盘后总结：小时级分析 + Bot 日志 + 盘前对照，生成 postmarket_stock 报告",
+		PhaseA:      workflow.PostMarketPhaseASteps,
+		PerStock:    workflow.PostMarketPerStockSteps,
 	})
 	r.Register(Spec{
-		Name:        SkillGenerateStrategyCognition,
-		Description: "生成策略档案：读策略库、LLM 合成策略档案、写入/读回知识库",
+		Name:         SkillGenerateStrategyArchive,
+		Description:  "生成策略档案：读策略库、LLM 合成策略档案、写入/读回知识库",
+		TemplatePath: "skills/generate_strategy_archive/template.md",
 		Chat: &ChatTrigger{
 			Status:   "available",
 			Triggers: []string{"生成策略档案", "策略档案", "生成策略认知", "策略认知", "学习策略", "了解策略", "写入知识库"},

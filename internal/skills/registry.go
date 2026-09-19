@@ -2,7 +2,7 @@
 //
 // A Skill is a named, runnable workflow (e.g. premarket_market) with a fixed set
 // of phase A and per-stock phase B steps registered in Go. Bundled docs are
-// skills/<name>/SKILL.md and optional template.md (premarket only, loaded at runtime).
+// skills/<name>/SKILL.md and optional template.md (the workflow's final output template).
 package skills
 
 import (
@@ -17,7 +17,7 @@ type Spec struct {
 	PhaseA func() []workflow.Step
 	// PerStock returns the per-stock phase B steps for the skill.
 	PerStock func() []workflow.Step
-	// TemplatePath is the relative path to the report template when loaded at runtime (premarket).
+	// TemplatePath is the relative path to the workflow's final output template (skills/<name>/template.md).
 	TemplatePath string
 	// Chat holds keyword/cron-capable workflow metadata when the skill also runs from chat.
 	Chat *ChatTrigger

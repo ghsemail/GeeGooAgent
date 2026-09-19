@@ -9,6 +9,9 @@ func TestIsStrategyArchiveContent(t *testing.T) {
 	if !isStrategyArchiveContent("doc_type: strategy_agent_cognition\n## 一句话定位") {
 		t.Fatal("expected strategy archive marker")
 	}
+	if !isStrategyArchiveContent("doc_type: strategy_agent_archive\n## 一句话定位") {
+		t.Fatal("expected strategy_agent_archive marker")
+	}
 	if !isStrategyArchiveContent("# Macd4H · 策略档案\n\n## 一句话定位\n\n摘要") {
 		t.Fatal("expected 策略档案 heading")
 	}

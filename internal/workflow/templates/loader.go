@@ -35,3 +35,8 @@ func LoadStockPremarketTemplate() string {
 func LoadMarketReportTemplate() string {
 	return LoadSkillTemplate("skills/premarket_market/template.md")
 }
+
+// LoadStrategyArchiveTemplate loads skills/generate_strategy_archive/template.md.
+func LoadStrategyArchiveTemplate() string {
+	return LoadSkillTemplate("skills/generate_strategy_archive/template.md")
+}
