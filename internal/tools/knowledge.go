@@ -93,6 +93,10 @@ func registerKnowledgeTools(r *Registry, deps Deps) {
 					"type":        "string",
 					"description": "可选，默认 策略档案",
 				},
+				"title": map[string]any{
+					"type":        "string",
+					"description": "可选，文档标题；默认 strategy_name · 策略档案",
+				},
 			},
 			"required": []any{"strategy_name", "content"},
 		},
@@ -116,7 +120,10 @@ func registerKnowledgeTools(r *Registry, deps Deps) {
 			if folder == "" {
 				folder = StrategyArchiveFolder
 			}
-			title := strategyKnowledgeTitle(name)
+			title := strings.TrimSpace(strArg(args, "title", ""))
+			if title == "" {
+				title = strategyKnowledgeTitle(name)
+			}
 			doc, err := client.UpsertManualKnowledge(ctx.GoContext(), folder, title, content)
 			if err != nil {
 				return errResult(err)

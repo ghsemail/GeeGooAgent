@@ -38,6 +38,7 @@ func main() {
 			SignalAPI:     sigClient,
 			SignalCatalog: catClient,
 		},
+		WeKnora:       optionalWeKnora(),
 		WorkspaceRoot: os.TempDir(),
 	})
 
@@ -45,6 +46,7 @@ func main() {
 		RunTool: func(ctx context.Context, req tools.CallRequest, toolCtx tools.Context) tools.Result {
 			return reg.Execute(req, toolCtx)
 		},
+		ComposeLLM: optionalComposeLLM(),
 	}
 
 	msg := "诊断 SAR 策略 · 腾讯"

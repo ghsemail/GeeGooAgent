@@ -122,8 +122,14 @@ func (r *Runner) advanceSignalDiagnose(
 		return nil
 	case PhaseRunProbe:
 		return r.phaseSignalDiagnoseRunProbe(ctx, flow, toolCtx, recordTool)
+	case PhaseEvaluateAccuracy:
+		return r.phaseSignalDiagnoseEvaluate(ctx, flow)
 	case PhaseBuildDetail:
 		return r.phaseSignalDiagnoseBuildDetail(ctx, flow, toolCtx, recordTool)
+	case PhaseDiagCompose:
+		return r.phaseSignalDiagnoseCompose(ctx, flow, toolCtx, recordTool)
+	case PhaseDiagSaveKB:
+		return r.phaseSignalDiagnoseSaveKB(ctx, flow, toolCtx, recordTool)
 	case PhaseSummarize, PhaseDone:
 		return nil
 	default:
@@ -199,6 +205,28 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 	item.SellHits = flow.ProbeSellHits
 	item.Summary = strings.TrimSpace(res.Summary)
 	item.Status = StepDone
+	flow.ProbeRaw = map[string]any{
+		"bars":        res.Data["bars"],
+		"buy_merged":  res.Data["buy_merged"],
+		"sell_merged": res.Data["sell_merged"],
+	}
+	flow.Phase = PhaseEvaluateAccuracy
+	flow.touch()
+	return nil
+}
+
+func (r *Runner) phaseSignalDiagnoseEvaluate(_ context.Context, flow *Flow) error {
+	bars, _ := flow.ProbeRaw["bars"].([]any)
+	buyMerged, _ := flow.ProbeRaw["buy_merged"].([]any)
+	sellMerged, _ := flow.ProbeRaw["sell_merged"].([]any)
+	if len(bars) == 0 || len(buyMerged) == 0 {
+		flow.SignalEval = slots.SignalEpisodeEval{Method: "until_opposite_signal"}
+	} else {
+		if len(sellMerged) == 0 {
+			sellMerged = make([]any, len(bars))
+		}
+		flow.SignalEval = slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
+	}
 	flow.Phase = PhaseBuildDetail
 	flow.touch()
 	return nil
@@ -245,7 +273,7 @@ func (r *Runner) phaseSignalDiagnoseBuildDetail(
 			flow.ProbeSellHits = intAny(hits["sell"])
 		}
 	}
-	flow.Phase = PhaseSummarize
+	flow.Phase = PhaseDiagCompose
 	flow.touch()
 	return nil
 }
@@ -307,31 +335,25 @@ func renderSignalDiagnosePartial(flow *Flow) string {
 }
 
 func renderSignalDiagnoseReport(flow *Flow) string {
+	if draft := strings.TrimSpace(flow.KBDraft); draft != "" {
+		var b strings.Builder
+		b.WriteString(draft)
+		if flow.KnowledgeID != "" {
+			fmt.Fprintf(&b, "\n\n---\n\n**知识库**：已写入 `%s`（id: `%s`）", flow.KnowledgeTitle, flow.KnowledgeID)
+		}
+		return strings.TrimSpace(b.String())
+	}
 	label := strategyDisplayLabel(flow)
 	title := FormatSignalDiagnoseMessage(label, coalesceStrings(flow.StockName, flow.StockQuery))
 	var b strings.Builder
 	fmt.Fprintf(&b, "## %s · 信号诊断\n\n", title)
-	fmt.Fprintf(&b, "| 步骤 | 结果 |\n| --- | --- |\n")
-	fmt.Fprintf(&b, "| 读取策略 | %s（%s） |\n", label, flow.CatalogType)
-	fmt.Fprintf(&b, "| 标的 | %s %s |\n", flow.StockName, flow.StockCode)
-	freq := "-"
-	if len(flow.Strategies) > 0 && flow.Strategies[0].Frequency != "" {
-		freq = flow.Strategies[0].Frequency
-	}
-	fmt.Fprintf(&b, "| 周期 / 回溯 | %s / %d 月 |\n", freq, flow.MonthsBack)
-	fmt.Fprintf(&b, "| 信号测试 probe | 买 %d 次 / 卖 %d 次", flow.ProbeBuyHits, flow.ProbeSellHits)
-	if flow.ProbeBarCount > 0 {
-		fmt.Fprintf(&b, "（%d 根 K 线）", flow.ProbeBarCount)
-	}
-	fmt.Fprintf(&b, " |\n")
-	if flow.DiagnoseVerdict != "" {
-		fmt.Fprintf(&b, "| 诊断结论 | %s |\n", flow.DiagnoseVerdict)
-	}
-	if flow.DiagnoseSummary != "" {
-		fmt.Fprintf(&b, "\n**摘要**：%s\n", flow.DiagnoseSummary)
+	b.WriteString(renderSignalDiagnoseFacts(flow))
+	appendSignalEvalSection(&b, flow.SignalEval)
+	if j := strings.TrimSpace(flow.EvalJudgment); j != "" {
+		fmt.Fprintf(&b, "\n### Agent 评价\n\n%s\n", j)
 	}
 	appendDiagnoseRuleDetails(&b, flow.DiagnoseRaw)
-	fmt.Fprintf(&b, "\n> 由 workflow 执行：read_strategy → probe_bot_signal_series → diagnose_bot_signal_series。")
+	fmt.Fprintf(&b, "\n> 由 workflow 执行：read_strategy → probe → evaluate_accuracy → diagnose → 写入知识库。")
 	return strings.TrimSpace(b.String())
 }
 
@@ -407,8 +429,14 @@ func signalDiagnosePhaseLabel(phase string) string {
 		return "解析标的"
 	case PhaseRunProbe:
 		return "信号测试 probe"
+	case PhaseEvaluateAccuracy:
+		return "Episode 准确率评价"
 	case PhaseBuildDetail:
 		return "读取诊断明细"
+	case PhaseDiagCompose:
+		return "LLM 评价合成"
+	case PhaseDiagSaveKB:
+		return "写入知识库"
 	case PhaseSummarize:
 		return "汇总"
 	default:

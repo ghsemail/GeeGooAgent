@@ -10,6 +10,8 @@ const (
 
 	// StrategyArchiveFolder holds Agent-generated strategy profile markdown.
 	StrategyArchiveFolder = "策略档案"
+	// SignalDiagnoseFolder holds Agent-generated signal diagnosis reports.
+	SignalDiagnoseFolder = "信号诊断"
 	// LegacyStrategyArchiveFolder is the pre-rename archive folder (read fallback).
 	LegacyStrategyArchiveFolder = "策略认知"
 )
@@ -24,6 +26,8 @@ func ExpandKnowledgeFolderFilter(folder string) []string {
 		return []string{StrategyMaterialsFolder, LegacyStrategyMaterialsFolder}
 	case StrategyArchiveFolder, LegacyStrategyArchiveFolder:
 		return []string{StrategyArchiveFolder, LegacyStrategyArchiveFolder}
+	case SignalDiagnoseFolder:
+		return []string{SignalDiagnoseFolder}
 	default:
 		return []string{folder}
 	}

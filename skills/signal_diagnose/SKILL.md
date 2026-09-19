@@ -1,6 +1,6 @@
 ---
 name: signal_diagnose
-description: 信号诊断 Workflow：读取策略 → probe 信号测试 → diagnose 明细 → 汇总（不回测）。
+description: 信号诊断 Workflow：读取策略 → probe → Episode 评价 → diagnose → LLM 总结 → 写入知识库（不回测）。
 trigger_modes: chat
 ---
 
@@ -19,8 +19,11 @@ trigger_modes: chat
 | `read_strategy` | `resolveStrategyCatalog` 读策略库 rules |
 | `resolve_symbol` | `search_code` → 标准 code |
 | `run_probe` | `probe_bot_signal_series` |
+| `evaluate_accuracy` | 本地 Episode 评价（至下一次反向信号） |
 | `build_detail` | `diagnose_bot_signal_series` |
-| `summarize` | Markdown 诊断报告 |
+| `diag_compose` | LLM 综合判断 |
+| `diag_save_kb` | `save_strategy_knowledge` → 信号诊断目录 |
+| `summarize` | Markdown 诊断报告（含知识库 id） |
 
 ## 与 playbook 区别
 

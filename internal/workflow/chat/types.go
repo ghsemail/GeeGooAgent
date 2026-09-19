@@ -2,6 +2,8 @@ package chat
 
 import (
 	"time"
+
+	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
 func canonicalSkill(name string) string {
@@ -36,10 +38,13 @@ const (
 	PhaseCognitionSaveKB      = "cognition_save_kb"
 	PhaseCognitionVerifyKB    = "cognition_verify_kb"
 
-	PhaseSignalDiagPick = "diag_pick"
-	PhaseReadStrategy   = "read_strategy"
-	PhaseRunProbe       = "run_probe"
-	PhaseBuildDetail    = "build_detail"
+	PhaseSignalDiagPick    = "diag_pick"
+	PhaseReadStrategy      = "read_strategy"
+	PhaseRunProbe          = "run_probe"
+	PhaseEvaluateAccuracy  = "evaluate_accuracy"
+	PhaseBuildDetail       = "build_detail"
+	PhaseDiagCompose       = "diag_compose"
+	PhaseDiagSaveKB        = "diag_save_kb"
 
 	PhaseResolveSymbol  = "resolve_symbol"
 	PhasePickStrategies = "pick_strategies"
@@ -97,6 +102,9 @@ type Flow struct {
 	DiagnoseVerdict     string         `json:"diagnose_verdict,omitempty"`
 	DiagnoseSummary     string         `json:"diagnose_summary,omitempty"`
 	DiagnoseRaw         map[string]any `json:"diagnose_raw,omitempty"`
+	ProbeRaw            map[string]any `json:"probe_raw,omitempty"`
+	SignalEval          slots.SignalEpisodeEval `json:"signal_eval,omitempty"`
+	EvalJudgment        string         `json:"eval_judgment,omitempty"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 }

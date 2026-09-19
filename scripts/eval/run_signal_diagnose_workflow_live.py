@@ -14,12 +14,17 @@ REPO = Path(__file__).resolve().parents[2]
 DEPLOY = Path(r"C:\Users\ghsemail\.cursor\skills\remote-deploy\deploy.json")
 
 
-def load_agent_mcp_token() -> str:
+def _agent_ssh():
     cfg = json.loads(DEPLOY.read_text(encoding="utf-8-sig"))
     s = cfg["targets"]["geegoo-agent"]["ssh"]
     c = paramiko.SSHClient()
     c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     c.connect(s["host"], username=s["user"], password=s.get("password"), timeout=30)
+    return c
+
+
+def load_agent_mcp_token() -> str:
+    c = _agent_ssh()
     _, o, _ = c.exec_command(
         "python3 -c \"import json; print(json.load(open('/home/ubuntu/.geegoo/config.json')).get('mcp_token',''))\"",
         timeout=30,
@@ -27,6 +32,22 @@ def load_agent_mcp_token() -> str:
     token = o.read().decode("utf-8", errors="replace").strip()
     c.close()
     return token
+
+
+def load_agent_config_blob() -> str:
+    c = _agent_ssh()
+    _, o, _ = c.exec_command("cat /home/ubuntu/.geegoo/config.json", timeout=30)
+    blob = o.read().decode("utf-8", errors="replace")
+    c.close()
+    return blob
+
+
+def load_weknora_key() -> str:
+    c = _agent_ssh()
+    _, o, _ = c.exec_command("cat /home/ubuntu/apps/WeKnora/.geegoo-bff-key 2>/dev/null || true", timeout=30)
+    key = o.read().decode("utf-8", errors="replace").strip()
+    c.close()
+    return key
 
 
 def load_signal_key() -> tuple[str, str]:
@@ -51,8 +72,14 @@ def load_signal_key() -> tuple[str, str]:
 def main() -> int:
     key, cat_key = load_signal_key()
     mcp_token = load_agent_mcp_token()
+    cfg_path = REPO / "_agent_config_smoke.json"
+    cfg_path.write_text(load_agent_config_blob(), encoding="utf-8")
     env = os.environ.copy()
     env["MCP_TOKEN"] = mcp_token
+    env["GEEGOO_CONFIG"] = str(cfg_path)
+    env["GEEGOO_WEKNORA_API_URL"] = "http://82.157.97.76:3481"
+    if wk := load_weknora_key():
+        env["GEEGOO_WEKNORA_API_KEY"] = wk
     env["SIGNAL_API_URL"] = "http://146.56.225.252:3200"
     env["SIGNAL_API_KEY"] = key
     env["SIGNAL_CATALOG_URL"] = "http://146.56.225.252:3210"

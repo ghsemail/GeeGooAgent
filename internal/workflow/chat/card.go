@@ -47,6 +47,14 @@ func CardPayload(flow *Flow) map[string]any {
 		out["knowledge_id"] = flow.KnowledgeID
 		out["kb_draft_chars"] = len(flow.KBDraft)
 	}
+	if canonicalSkill(skill) == SkillSignalDiagnose {
+		out["strategy_query"] = flow.StrategyQuery
+		out["catalog_type"] = flow.CatalogType
+		out["catalog_label"] = flow.CatalogLabel
+		out["knowledge_id"] = flow.KnowledgeID
+		out["kb_draft_chars"] = len(flow.KBDraft)
+		out["eval_judgment"] = flow.EvalJudgment
+	}
 	return out
 }
 

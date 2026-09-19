@@ -39,8 +39,23 @@ func signalDiagnoseTestRunner(t *testing.T) *Runner {
 					Status:  tools.StatusOK,
 					Summary: "probe ok",
 					Data: map[string]any{
-						"buy_hits": 15, "sell_hits": 16, "bar_count": 462,
+						"buy_hits": 15, "sell_hits": 16, "bar_count": 5,
+						"bars": []any{
+							map[string]any{"time": "2026-06-01T10:00:00", "close": 100.0},
+							map[string]any{"time": "2026-06-02T10:00:00", "close": 105.0},
+							map[string]any{"time": "2026-06-03T10:00:00", "close": 103.0},
+							map[string]any{"time": "2026-06-04T10:00:00", "close": 98.0},
+							map[string]any{"time": "2026-06-05T10:00:00", "close": 95.0},
+						},
+						"buy_merged":  []any{1, 0, 0, 0, 0},
+						"sell_merged": []any{0, 0, 0, -1, 0},
 					},
+				}
+			case "save_strategy_knowledge":
+				return tools.Result{
+					Status:  tools.StatusOK,
+					Summary: "saved",
+					Data:    map[string]any{"knowledge_id": "kb-test-1", "title": "SAR · 腾讯控股 · 信号诊断"},
 				}
 			case "diagnose_bot_signal_series":
 				return tools.Result{
@@ -105,6 +120,12 @@ func TestSignalDiagnoseFlowCompletes(t *testing.T) {
 	}
 	if !contains(result.AssistantText, "15") || !contains(result.AssistantText, "SAR") {
 		t.Fatalf("missing probe/diagnose details: %q", result.AssistantText)
+	}
+	if !contains(result.AssistantText, "Episode") && !contains(result.AssistantText, "准确率") {
+		t.Fatalf("missing eval section: %q", result.AssistantText)
+	}
+	if !contains(result.AssistantText, "知识库") {
+		t.Fatalf("missing kb footer: %q", result.AssistantText)
 	}
 	if LoadFromSession(session) != nil {
 		t.Fatal("expected flow cleared after completion")
