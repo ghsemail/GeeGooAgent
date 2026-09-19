@@ -107,13 +107,27 @@ type Flow struct {
 	SignalEval          slots.SignalEpisodeEval `json:"signal_eval,omitempty"`
 	UseKeyLevelEpisodeStop bool           `json:"use_key_level_episode_stop,omitempty"`
 	KeyBreakMode           string         `json:"key_break_mode,omitempty"`
-	KeyLevels              KeyLevelSnapshot `json:"key_levels,omitempty"`
+	KeyBreakBuyRef         string         `json:"key_break_buy_ref,omitempty"`
+	KeyBreakSellRef        string         `json:"key_break_sell_ref,omitempty"`
+	KeyLevels              KeyLevelSnapshot   `json:"key_levels,omitempty"`
+	KeyLevelSeries         *KeyLevelBarSeries `json:"key_level_series,omitempty"`
 	EvalJudgment        string         `json:"eval_judgment,omitempty"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
-// KeyLevelSnapshot is a diagnose-time Key Level Engine band (shared across probe window in v1).
+// KeyLevelBarSeries is per-probe-bar Key Level bands (aligned with ProbeRaw bars).
+type KeyLevelBarSeries struct {
+	Align         string    `json:"align,omitempty"`
+	SupportLow    []float64 `json:"support_low,omitempty"`
+	SupportHigh   []float64 `json:"support_high,omitempty"`
+	SupportCenter []float64 `json:"support_center,omitempty"`
+	ResistLow     []float64 `json:"resist_low,omitempty"`
+	ResistHigh    []float64 `json:"resist_high,omitempty"`
+	ResistCenter  []float64 `json:"resist_center,omitempty"`
+}
+
+// KeyLevelSnapshot is a diagnose-time Key Level Engine band (last bar or get_key_levels).
 type KeyLevelSnapshot struct {
 	SupportLow    float64 `json:"support_low,omitempty"`
 	SupportHigh   float64 `json:"support_high,omitempty"`

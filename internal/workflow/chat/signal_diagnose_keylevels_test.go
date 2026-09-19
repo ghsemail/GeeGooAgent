@@ -32,6 +32,9 @@ func TestSignalDiagnoseProbeSkipsGetKeyLevelsWhenEmbedded(t *testing.T) {
 			if v, _ := req.Arguments["include_key_levels"].(bool); !v {
 				t.Fatal("expected include_key_levels=true on probe")
 			}
+			if req.Arguments["key_levels_mode"] != "series" {
+				t.Fatalf("expected key_levels_mode=series got %v", req.Arguments["key_levels_mode"])
+			}
 			res := signalDiagnoseTestRunner(t).RunTool(ctx, req, tc)
 			res.Data["key_levels"] = map[string]any{
 				"support_low": 50.0, "resist_high": 110.0, "summary": "from probe",

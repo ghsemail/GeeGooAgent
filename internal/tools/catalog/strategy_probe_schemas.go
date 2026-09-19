@@ -53,6 +53,14 @@ func probeBotSignalSeriesParameters() map[string]any {
 				"type":        "boolean",
 				"description": "true 时在 probe 响应附带 key_levels（Key Level Engine，与 K 线拉取并行）",
 			},
+			"key_levels_mode": map[string]any{
+				"type":        "string",
+				"description": "snapshot（默认单档）| series（与 bars 等长的六档序列，无未来函数）",
+			},
+			"key_levels_align": map[string]any{
+				"type":        "string",
+				"description": "series 重算对齐：daily（默认）| bar | weekly",
+			},
 		},
 	}
 }

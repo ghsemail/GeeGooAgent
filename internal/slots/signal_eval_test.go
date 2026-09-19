@@ -127,13 +127,16 @@ func TestEvaluateSignalEpisodes_KeyBreakSupportLow(t *testing.T) {
 	}
 	buyMerged := []any{1, 0, 0, 0, 0}
 	sellMerged := []any{0, 0, 0, -1, 0}
-	stop := &KeyLevelEpisodeStop{SupportLow: 98.5, ResistHigh: 200, Mode: "support_low"}
+	stop := &KeyLevelEpisodeStop{
+		SupportLow: 98.5, ResistHigh: 200, Mode: "support_low",
+		BuyBreakRef: "support_low", SellBreakRef: "resist_high",
+	}
 	eval := EvaluateSignalEpisodesWithKeyStop(bars, buyMerged, sellMerged, stop)
 	if eval.BuyEpisodes.CompleteCount != 1 {
 		t.Fatalf("complete=%d want 1 (key break before sell)", eval.BuyEpisodes.CompleteCount)
 	}
 	d := eval.BuyDetails[0]
-	if d.EndIdx != 1 || d.StrictEndReason != pathEndKeyBreakSupportLow {
+	if d.EndIdx != 1 || d.StrictEndReason != pathEndKeyBreakPrefix+"support_low" {
 		t.Fatalf("detail=%+v want key break at t1", d)
 	}
 	if d.HoldingBars != 1 {

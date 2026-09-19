@@ -29,8 +29,8 @@ trigger_modes: chat
 ## 结构截断 Episode（可选）
 
 - **默认规则**：买段 K 线 **low 跌破主支撑 low**；卖段 **high 突破主阻力 high** → Strict 段提前结束（`method` 后缀 `+key_break_support_low`）。
-- **关键价位**：诊断时刻快照，probe 窗口内共用一档（非逐 bar 历史 S/R）。
-- **Chat API**：`workflow_options.signal_diagnose.use_key_level_episode_stop`（bool）、`key_break_mode`（默认 `support_low`）。
+- **关键价位**：probe 传 `key_levels_mode=series`（默认 `key_levels_align=daily`），返回与 bars 等长的六档序列；熔断逐 K 取 as-of 档位（无未来函数）。
+- **Chat API**：`use_key_level_episode_stop`；`key_break_buy_ref` / `key_break_sell_ref`（默认 `support_low` / `resist_high`，可换任意 support_* / resist_*）。
 - **Eval**：`workflow_signal_diagnose_sar_tencent` 默认开启。
 
 ## 与 playbook 区别

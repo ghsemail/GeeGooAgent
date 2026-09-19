@@ -43,9 +43,22 @@ type SignalEpisodeDetail struct {
 
 // KeyLevelEpisodeStop optionally truncates strict episodes before the opposite signal.
 type KeyLevelEpisodeStop struct {
-	SupportLow float64
-	ResistHigh float64
-	Mode       string // support_low (buy: low < support_low; sell: high > resist_high)
+	SupportLow    float64
+	SupportHigh   float64
+	SupportCenter float64
+	ResistLow     float64
+	ResistHigh    float64
+	ResistCenter  float64
+	Mode          string
+	BuyBreakRef  string // support_low | support_high | support_center | resist_low | resist_high | resist_center
+	SellBreakRef string
+
+	SupportLowSeries    []float64
+	SupportHighSeries   []float64
+	SupportCenterSeries []float64
+	ResistLowSeries     []float64
+	ResistHighSeries    []float64
+	ResistCenterSeries  []float64
 }
 
 // SignalEpisodeMetrics summarizes directional accuracy for a cohort of episodes.
@@ -78,8 +91,7 @@ const (
 	pathEndOpposite               = "opposite_signal"
 	pathEndNextSame               = "next_same_signal"
 	pathEndOpenTail               = "open_tail"
-	pathEndKeyBreakSupportLow     = "key_break_support_low"
-	pathEndKeyBreakResistHigh     = "key_break_resist_high"
+	pathEndKeyBreakPrefix = "key_break_"
 )
 
 // EvaluateSignalEpisodes scores triggers with strict (until opposite) and path (fallback) windows.
@@ -98,12 +110,11 @@ func EvaluateSignalEpisodesWithKeyStop(bars []any, buyMerged, sellMerged []any, 
 	buyDetails := collectEpisodes("buy", buyStarts, closes, highs, lows, times, oppositeIndices(sellMerged, -1), buyStarts, true, stop)
 	sellDetails := collectEpisodes("sell", sellStarts, closes, highs, lows, times, oppositeIndices(buyMerged, 1), sellStarts, false, stop)
 	method := signalEvalMethodUntilOpposite
-	if stop != nil && (stop.SupportLow > 0 || stop.ResistHigh > 0) {
-		mode := strings.TrimSpace(stop.Mode)
-		if mode == "" {
-			mode = "support_low"
+	if stop != nil && stop.HasLevels() {
+		method = signalEvalMethodUntilOpposite + "+key_break_" + stop.BuyBreakRef + "_" + stop.SellBreakRef
+		if strings.TrimSpace(stop.Mode) != "" {
+			method += "_mode_" + strings.TrimSpace(stop.Mode)
 		}
-		method = signalEvalMethodUntilOpposite + "+key_break_" + mode
 	}
 	return SignalEpisodeEval{
 		Method:           method,
@@ -278,16 +289,113 @@ func findKeyLevelBreak(start, windowEnd int, lows, highs []float64, buySide bool
 	if windowEnd >= len(lows) {
 		windowEnd = len(lows) - 1
 	}
-	for i := start + 1; i <= windowEnd; i++ {
+	refField := stop.SellBreakRef
+	if buySide {
+		refField = stop.BuyBreakRef
+	}
+	if strings.TrimSpace(refField) == "" {
 		if buySide {
-			if stop.SupportLow > 0 && lows[i] < stop.SupportLow {
-				return i, pathEndKeyBreakSupportLow
-			}
-		} else if stop.ResistHigh > 0 && highs[i] > stop.ResistHigh {
-			return i, pathEndKeyBreakResistHigh
+			refField = "support_low"
+		} else {
+			refField = "resist_high"
+		}
+	}
+	for i := start + 1; i <= windowEnd; i++ {
+		ref := stop.refAt(i, refField)
+		if ref <= 0 {
+			continue
+		}
+		if keyBreakTriggered(buySide, refField, lows[i], highs[i], ref) {
+			return i, pathEndKeyBreakPrefix + refField
 		}
 	}
 	return -1, ""
+}
+
+func (stop *KeyLevelEpisodeStop) HasLevels() bool {
+	if stop == nil {
+		return false
+	}
+	if stop.SupportLow > 0 || stop.ResistHigh > 0 {
+		return true
+	}
+	for _, sl := range [][]float64{
+		stop.SupportLowSeries, stop.SupportHighSeries, stop.SupportCenterSeries,
+		stop.ResistLowSeries, stop.ResistHighSeries, stop.ResistCenterSeries,
+	} {
+		for _, v := range sl {
+			if v > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (stop *KeyLevelEpisodeStop) refAt(barIdx int, field string) float64 {
+	if stop == nil {
+		return 0
+	}
+	field = strings.ToLower(strings.TrimSpace(field))
+	if barIdx >= 0 {
+		switch field {
+		case "support_low":
+			if barIdx < len(stop.SupportLowSeries) && stop.SupportLowSeries[barIdx] > 0 {
+				return stop.SupportLowSeries[barIdx]
+			}
+		case "support_high":
+			if barIdx < len(stop.SupportHighSeries) && stop.SupportHighSeries[barIdx] > 0 {
+				return stop.SupportHighSeries[barIdx]
+			}
+		case "support_center":
+			if barIdx < len(stop.SupportCenterSeries) && stop.SupportCenterSeries[barIdx] > 0 {
+				return stop.SupportCenterSeries[barIdx]
+			}
+		case "resist_low":
+			if barIdx < len(stop.ResistLowSeries) && stop.ResistLowSeries[barIdx] > 0 {
+				return stop.ResistLowSeries[barIdx]
+			}
+		case "resist_high":
+			if barIdx < len(stop.ResistHighSeries) && stop.ResistHighSeries[barIdx] > 0 {
+				return stop.ResistHighSeries[barIdx]
+			}
+		case "resist_center":
+			if barIdx < len(stop.ResistCenterSeries) && stop.ResistCenterSeries[barIdx] > 0 {
+				return stop.ResistCenterSeries[barIdx]
+			}
+		}
+	}
+	switch field {
+	case "support_low":
+		return stop.SupportLow
+	case "support_high":
+		return stop.SupportHigh
+	case "support_center":
+		return stop.SupportCenter
+	case "resist_low":
+		return stop.ResistLow
+	case "resist_high":
+		return stop.ResistHigh
+	case "resist_center":
+		return stop.ResistCenter
+	default:
+		return 0
+	}
+}
+
+func keyBreakTriggered(buySide bool, refField string, low, high, ref float64) bool {
+	refField = strings.ToLower(strings.TrimSpace(refField))
+	switch refField {
+	case "support_low", "support_high", "support_center":
+		return low < ref
+	case "resist_low", "resist_high", "resist_center":
+		return high > ref
+	default:
+		if buySide {
+			return low < ref
+		}
+		return high > ref
+	}
 }
 
 func resolvePathEnd(start int, strictComplete bool, strictEnd int, sameStarts []int, lastBar int) (int, string) {

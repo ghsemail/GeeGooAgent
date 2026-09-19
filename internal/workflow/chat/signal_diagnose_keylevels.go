@@ -9,6 +9,42 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
+func floatSliceField(raw any, key string) []float64 {
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	items, ok := m[key].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]float64, len(items))
+	for i, v := range items {
+		out[i] = slots.FloatAny(v)
+	}
+	return out
+}
+
+func keyLevelBarSeriesFromProbeData(raw any) *KeyLevelBarSeries {
+	m, ok := raw.(map[string]any)
+	if !ok || len(m) == 0 {
+		return nil
+	}
+	series := &KeyLevelBarSeries{
+		Align:         strings.TrimSpace(fmt.Sprint(m["align"])),
+		SupportLow:    floatSliceField(m, "support_low"),
+		SupportHigh:   floatSliceField(m, "support_high"),
+		SupportCenter: floatSliceField(m, "support_center"),
+		ResistLow:     floatSliceField(m, "resist_low"),
+		ResistHigh:    floatSliceField(m, "resist_high"),
+		ResistCenter:  floatSliceField(m, "resist_center"),
+	}
+	if len(series.SupportLow) == 0 && len(series.ResistHigh) == 0 {
+		return nil
+	}
+	return series
+}
+
 func keyLevelSnapshotFromProbeData(raw any) KeyLevelSnapshot {
 	m, ok := raw.(map[string]any)
 	if !ok || len(m) == 0 {
@@ -64,15 +100,33 @@ func floatMap(m map[string]any, key string) float64 {
 	return slots.FloatAny(m[key])
 }
 
-func (kl KeyLevelSnapshot) episodeStop(mode string) *slots.KeyLevelEpisodeStop {
-	if kl.SupportLow <= 0 && kl.ResistHigh <= 0 {
+func (kl KeyLevelSnapshot) episodeStop(mode, buyRef, sellRef string, series *KeyLevelBarSeries) *slots.KeyLevelEpisodeStop {
+	if kl.SupportLow <= 0 && kl.ResistHigh <= 0 && series == nil {
 		return nil
 	}
-	return &slots.KeyLevelEpisodeStop{
-		SupportLow: kl.SupportLow,
-		ResistHigh: kl.ResistHigh,
-		Mode:       normalizeKeyBreakMode(mode),
+	stop := &slots.KeyLevelEpisodeStop{
+		SupportLow:    kl.SupportLow,
+		SupportHigh:   kl.SupportHigh,
+		SupportCenter: kl.SupportCenter,
+		ResistLow:     kl.ResistLow,
+		ResistHigh:    kl.ResistHigh,
+		ResistCenter:  kl.ResistCenter,
+		Mode:          normalizeKeyBreakMode(mode),
+		BuyBreakRef:  normalizeKeyBreakRef(buyRef, defaultBuyBreakRef(mode)),
+		SellBreakRef: normalizeKeyBreakRef(sellRef, defaultSellBreakRef(mode)),
 	}
+	if series != nil {
+		stop.SupportLowSeries = series.SupportLow
+		stop.SupportHighSeries = series.SupportHigh
+		stop.SupportCenterSeries = series.SupportCenter
+		stop.ResistLowSeries = series.ResistLow
+		stop.ResistHighSeries = series.ResistHigh
+		stop.ResistCenterSeries = series.ResistCenter
+	}
+	if !stop.HasLevels() {
+		return nil
+	}
+	return stop
 }
 
 func (r *Runner) phaseSignalDiagnoseFetchKeyLevels(
