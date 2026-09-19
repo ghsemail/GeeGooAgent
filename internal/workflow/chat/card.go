@@ -54,6 +54,15 @@ func CardPayload(flow *Flow) map[string]any {
 		out["knowledge_id"] = flow.KnowledgeID
 		out["kb_draft_chars"] = len(flow.KBDraft)
 		out["eval_judgment"] = flow.EvalJudgment
+		out["probe_buy_hits"] = flow.ProbeBuyHits
+		out["probe_sell_hits"] = flow.ProbeSellHits
+		out["probe_bar_count"] = flow.ProbeBarCount
+		if cp := chartProbePayload(flow); cp != nil {
+			out["chart_probe"] = cp
+		}
+		if flow.SignalEval.Method != "" {
+			out["signal_eval"] = flow.SignalEval
+		}
 	}
 	return out
 }

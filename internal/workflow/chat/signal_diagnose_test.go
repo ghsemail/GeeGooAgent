@@ -121,11 +121,11 @@ func TestSignalDiagnoseFlowCompletes(t *testing.T) {
 	if !contains(result.AssistantText, "15") || !contains(result.AssistantText, "SAR") {
 		t.Fatalf("missing probe/diagnose details: %q", result.AssistantText)
 	}
-	if !contains(result.AssistantText, "Episode") && !contains(result.AssistantText, "准确率") {
+	if !contains(result.AssistantText, "Episode") && !contains(result.AssistantText, "命中率") {
 		t.Fatalf("missing eval section: %q", result.AssistantText)
 	}
-	if !contains(result.AssistantText, "知识库") {
-		t.Fatalf("missing kb footer: %q", result.AssistantText)
+	if !contains(result.AssistantText, "持有K线") {
+		t.Fatalf("missing episode detail: %q", result.AssistantText)
 	}
 	if LoadFromSession(session) != nil {
 		t.Fatal("expected flow cleared after completion")

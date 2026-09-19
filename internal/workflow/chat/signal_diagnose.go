@@ -348,7 +348,10 @@ func renderSignalDiagnoseReport(flow *Flow) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "## %s · 信号诊断\n\n", title)
 	b.WriteString(renderSignalDiagnoseFacts(flow))
+	appendSignalEvalMethodology(&b)
+	appendKlineOverviewSection(&b, flow)
 	appendSignalEvalSection(&b, flow.SignalEval)
+	appendEpisodeDetailSections(&b, flow.SignalEval)
 	if j := strings.TrimSpace(flow.EvalJudgment); j != "" {
 		fmt.Fprintf(&b, "\n### Agent 评价\n\n%s\n", j)
 	}

@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -23,9 +24,18 @@ func (r *Runner) phaseSignalDiagnoseCompose(
 	}
 	flow.EvalJudgment = judgment
 	flow.KBDraft = assembleSignalDiagnoseDoc(flow, judgment)
-	flow.Phase = PhaseDiagSaveKB
+	if skipSignalDiagnoseKB() {
+		flow.Phase = PhaseSummarize
+	} else {
+		flow.Phase = PhaseDiagSaveKB
+	}
 	flow.touch()
 	return nil
+}
+
+func skipSignalDiagnoseKB() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("SIGNAL_DIAGNOSE_SKIP_KB")))
+	return v == "1" || v == "true" || v == "yes"
 }
 
 func (r *Runner) phaseSignalDiagnoseSaveKB(
@@ -154,11 +164,18 @@ func assembleSignalDiagnoseDoc(flow *Flow, judgment string) string {
 	fmt.Fprintf(&b, "## %s · 信号诊断报告\n\n", title)
 	fmt.Fprintf(&b, "_生成时间：%s UTC_\n\n", time.Now().UTC().Format(time.RFC3339))
 	b.WriteString(renderSignalDiagnoseFacts(flow))
+	appendSignalEvalMethodology(&b)
+	appendKlineOverviewSection(&b, flow)
 	appendSignalEvalSection(&b, flow.SignalEval)
+	appendEpisodeDetailSections(&b, flow.SignalEval)
 	fmt.Fprintf(&b, "\n### Agent 评价\n\n%s\n", strings.TrimSpace(judgment))
 	appendDiagnoseRuleDetails(&b, flow.DiagnoseRaw)
-	fmt.Fprintf(&b, "\n> Workflow：read_strategy → probe → evaluate_accuracy → diagnose → LLM 评价 → 写入知识库（%s）。\n",
-		tools.SignalDiagnoseFolder)
+	if skipSignalDiagnoseKB() {
+		fmt.Fprintf(&b, "\n> Workflow：read_strategy → probe → evaluate_accuracy → diagnose → LLM 评价（本次未写入知识库）。\n")
+	} else {
+		fmt.Fprintf(&b, "\n> Workflow：read_strategy → probe → evaluate_accuracy → diagnose → LLM 评价 → 写入知识库（%s）。\n",
+			tools.SignalDiagnoseFolder)
+	}
 	return strings.TrimSpace(b.String())
 }
 
@@ -187,22 +204,76 @@ func renderSignalDiagnoseFacts(flow *Flow) string {
 	return b.String()
 }
 
+func appendSignalEvalMethodology(b *strings.Builder) {
+	fmt.Fprintf(b, "\n### 命中率与有效性怎么算\n\n")
+	fmt.Fprintf(b, "1. **Episode 切分**：一次买信号（同向连续触发合并）→ 持有到**下一次卖信号**出现前一根 K；卖同理 → 下一买前一根。\n")
+	fmt.Fprintf(b, "2. **走势收益**：`收益 = 终点收盘 / 起点收盘 - 1`（起点=信号 bar 收盘，终点=反向信号前一根收盘）。\n")
+	fmt.Fprintf(b, "3. **命中**：买段收益 > 0；卖段收益 < 0（表内「方向收益」为卖段取反，便于统一看正值为有效）。\n")
+	fmt.Fprintf(b, "4. **命中率** = 命中段数 / **闭合段数**（末尾等不到反向信号的段标「未闭合」，不计入分母）。\n")
+	fmt.Fprintf(b, "5. **持续时长**：持有 K 线数 = 终点索引 − 起点索引；用于观察信号后趋势能维持多久。\n")
+}
+
 func appendSignalEvalSection(b *strings.Builder, eval slots.SignalEpisodeEval) {
-	fmt.Fprintf(b, "\n### 信号准确率（Episode · %s）\n\n", eval.Method)
-	fmt.Fprintf(b, "| 方向 | 闭合段 | 未闭合 | 命中率 | 均收益 | 中位收益 |\n| --- | --- | --- | --- | --- | --- |\n")
+	fmt.Fprintf(b, "\n### 汇总（Episode · %s）\n\n", eval.Method)
+	fmt.Fprintf(b, "| 方向 | 闭合段 | 未闭合 | 命中/闭合 | 命中率 | 均方向收益 | 中位方向收益 | 均持有K线 | 中位持有K线 |\n")
+	fmt.Fprintf(b, "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	writeEvalRow(b, "买入", eval.BuyEpisodes)
 	writeEvalRow(b, "卖出", eval.SellEpisodes)
-	fmt.Fprintf(b, "\n> 口径：起点收盘价 → 下一次反向信号前一根收盘价；同向连续触发合并为一段。\n")
 }
 
 func writeEvalRow(b *strings.Builder, label string, m slots.SignalEpisodeMetrics) {
 	hit := "-"
+	ratio := "-"
 	avg := "-"
 	med := "-"
+	avgHold := "-"
+	medHold := "-"
 	if m.CompleteCount > 0 {
-		hit = fmt.Sprintf("%.0f%%", m.HitRate*100)
+		hit = fmt.Sprintf("%d/%d", m.HitCount, m.CompleteCount)
+		ratio = fmt.Sprintf("%.0f%%", m.HitRate*100)
 		avg = slots.FormatPct(m.AvgReturn)
 		med = slots.FormatPct(m.MedianReturn)
+		avgHold = fmt.Sprintf("%.1f", m.AvgHoldingBars)
+		medHold = fmt.Sprintf("%.0f", m.MedianHoldingBars)
 	}
-	fmt.Fprintf(b, "| %s | %d | %d | %s | %s | %s |\n", label, m.CompleteCount, m.IncompleteCount, hit, avg, med)
+	fmt.Fprintf(b, "| %s | %d | %d | %s | %s | %s | %s | %s | %s |\n",
+		label, m.CompleteCount, m.IncompleteCount, hit, ratio, avg, med, avgHold, medHold)
+}
+
+func appendEpisodeDetailSections(b *strings.Builder, eval slots.SignalEpisodeEval) {
+	appendEpisodeDetailTable(b, "买入 Episode 明细", eval.BuyDetails)
+	appendEpisodeDetailTable(b, "卖出 Episode 明细", eval.SellDetails)
+}
+
+func appendEpisodeDetailTable(b *strings.Builder, title string, details []slots.SignalEpisodeDetail) {
+	fmt.Fprintf(b, "\n### %s\n\n", title)
+	if len(details) == 0 {
+		fmt.Fprintf(b, "_无 episode_\n")
+		return
+	}
+	fmt.Fprintf(b, "| # | 信号时间 | 起点价 | 终点时间 | 终点价 | 反向信号 | 持有K线 | 价格涨跌 | 方向收益 | 命中 |\n")
+	fmt.Fprintf(b, "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
+	for i, ep := range details {
+		if !ep.Complete {
+			fmt.Fprintf(b, "| %d | %s | %.2f | — | — | — | — | — | — | 未闭合 |\n",
+				i+1, dashTime(ep.StartTime), ep.StartClose)
+			continue
+		}
+		hit := "否"
+		if ep.Hit {
+			hit = "是"
+		}
+		fmt.Fprintf(b, "| %d | %s | %.2f | %s | %.2f | %s | %d | %s | %s | %s |\n",
+			i+1, dashTime(ep.StartTime), ep.StartClose,
+			dashTime(ep.EndTime), ep.EndClose, dashTime(ep.OppositeTime),
+			ep.HoldingBars, slots.FormatPct(ep.PriceReturn), slots.FormatPct(ep.DirectionReturn), hit)
+	}
+}
+
+func dashTime(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" || s == "<nil>" {
+		return "—"
+	}
+	return s
 }

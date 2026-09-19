@@ -84,6 +84,7 @@ def main() -> int:
     env["SIGNAL_API_KEY"] = key
     env["SIGNAL_CATALOG_URL"] = "http://146.56.225.252:3210"
     env["SIGNAL_CATALOG_KEY"] = cat_key
+    env["SIGNAL_DIAGNOSE_SKIP_KB"] = "1"
     cmd = ["go", "run", "./scripts/eval/signal_diagnose_smoke", "诊断 SAR · 腾讯"]
     proc = subprocess.run(
         cmd, cwd=REPO, env=env, capture_output=True, text=True, timeout=300, encoding="utf-8", errors="replace"

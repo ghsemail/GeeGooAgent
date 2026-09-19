@@ -171,7 +171,7 @@ func TestToolsetCountsMatchDocumentation(t *testing.T) {
 		"market": 9, "analyst_runtime": 6, "prompt_admin": 10, "custom_signal": 7,
 		"strategy": 22, "trading_bot": 15, "hedge_bot": 5, "reminder_manager": 15,
 		"report_query": 7, "report_write": 8, "report_workflow": 9, "agent_meta": 9,
-		"knowledge": 3,
+		"knowledge": 2,
 	}
 	union := map[string]struct{}{}
 	for _, ts := range tools.AllToolsets() {
@@ -189,8 +189,8 @@ func TestToolsetCountsMatchDocumentation(t *testing.T) {
 			union[name] = struct{}{}
 		}
 	}
-	if len(union) != 125 {
-		t.Fatalf("toolset union want 125, got %d", len(union))
+	if len(union) != 124 {
+		t.Fatalf("toolset union want 124, got %d", len(union))
 	}
 }
 

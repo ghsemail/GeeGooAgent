@@ -75,6 +75,25 @@ func IndividualWorkflowEvalCases() []TurnPlanEvalCaseDef {
 			},
 		},
 		{
+			ID:          "workflow_signal_diagnose_sar_tencent",
+			Title:       "Workflow · 信号诊断（SAR · 腾讯）",
+			Description: "signal_diagnose：probe → Episode 命中率评价 → LLM 诊断报告。",
+			Steps: []string{
+				"发送信号诊断请求（SAR · 腾讯）",
+				"校验 workflow 含 Episode 命中率与诊断结论",
+				"校验回复含 SAR / 腾讯 / 命中",
+			},
+			SortOrder: 14,
+			Options: TurnPlanCaseOptions{
+				Category:       WorkflowCatID,
+				SessionCleanup: DefaultEvalSessionCleanup,
+				Message:        "诊断 SAR · 腾讯",
+				MinReplyChars:  120,
+				PassKeywords:   []string{"Episode", "命中", "SAR", "腾讯"},
+				WaitTimeoutSec: 300,
+			},
+		},
+		{
 			ID:          "workflow_generate_strategy_cognition_random",
 			Title:       "Workflow · 生成策略档案（随机策略）",
 			Description: "generate_strategy_archive：从策略库随机选一项，LLM 合成策略档案并写入知识库。",
