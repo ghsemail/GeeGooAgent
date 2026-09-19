@@ -145,8 +145,22 @@ func catalogField(raw map[string]any, keys ...string) string {
 		return ""
 	}
 	for _, k := range keys {
-		if s := catalogStringValue(raw[k]); s != "" {
-			return s
+		v := raw[k]
+		switch t := v.(type) {
+		case []any:
+			parts := make([]string, 0, len(t))
+			for _, item := range t {
+				if s := catalogStringValue(item); s != "" {
+					parts = append(parts, s)
+				}
+			}
+			if len(parts) > 0 {
+				return strings.Join(parts, ", ")
+			}
+		default:
+			if s := catalogStringValue(v); s != "" {
+				return s
+			}
 		}
 	}
 	return ""

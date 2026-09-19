@@ -28,7 +28,7 @@ func TestResolveStrategyCatalogDefinitionLocalized(t *testing.T) {
 				Data: map[string]any{
 					"items": []any{
 						map[string]any{
-							"strategy_key": "macd4h_rhythm",
+							"strategy_key": "macd4h",
 							"name": map[string]any{
 								"cn": "4小时MACD市场节奏",
 								"en": "4H MACD Market Rhythm",

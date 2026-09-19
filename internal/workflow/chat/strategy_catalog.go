@@ -194,41 +194,33 @@ func firstNonEmpty(row map[string]any, keys ...string) string {
 	return ""
 }
 
-// catalogStringValue normalizes catalog fields; i18n name maps prefer cn → en.
+// catalogStringValue turns catalog API fields into a display/match string.
+// Definition strategies often use {cn, en, hk} maps instead of plain strings.
 func catalogStringValue(v any) string {
 	if v == nil {
 		return ""
 	}
 	switch t := v.(type) {
 	case string:
-		s := strings.TrimSpace(t)
-		if s == "" || s == "<nil>" {
-			return ""
-		}
-		return s
+		return strings.TrimSpace(t)
 	case map[string]any:
-		return localizedCatalogString(t)
-	default:
-		s := strings.TrimSpace(fmt.Sprint(v))
-		if s == "" || s == "<nil>" || strings.HasPrefix(s, "map[") {
-			return ""
+		for _, key := range []string{"cn", "zh_cn", "zh", "en", "hk", "zh_hk"} {
+			if s := catalogStringValue(t[key]); s != "" {
+				return s
+			}
 		}
-		return s
-	}
-}
-
-func localizedCatalogString(m map[string]any) string {
-	for _, key := range []string{"cn", "zh_cn", "zh", "hk", "en", "name", "title"} {
-		if s := catalogStringValue(m[key]); s != "" {
-			return s
+	case map[any]any:
+		normalized := make(map[string]any, len(t))
+		for key, val := range t {
+			normalized[strings.TrimSpace(fmt.Sprint(key))] = val
 		}
+		return catalogStringValue(normalized)
 	}
-	for _, v := range m {
-		if s := catalogStringValue(v); s != "" {
-			return s
-		}
+	s := strings.TrimSpace(fmt.Sprint(v))
+	if s == "" || s == "<nil>" || strings.HasPrefix(s, "map[") {
+		return ""
 	}
-	return ""
+	return s
 }
 
 func slotsSignalTokens(query string) []string {
