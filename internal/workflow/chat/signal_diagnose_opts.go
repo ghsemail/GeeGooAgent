@@ -77,11 +77,16 @@ func defaultBuyBreakRef(mode string) string {
 	if normalizeKeyBreakMode(mode) == KeyBreakModeResistHigh {
 		return KeyBreakRefResistHigh
 	}
-	return KeyBreakRefSupportLow
+	// 与 K 线 resist_low（daily）一致：买段 low 跌破该档熔断。
+	return KeyBreakRefResistLow
 }
 
 func defaultSellBreakRef(mode string) string {
-	return KeyBreakRefResistHigh
+	if normalizeKeyBreakMode(mode) == KeyBreakModeResistHigh {
+		return KeyBreakRefResistHigh
+	}
+	// 卖段 high 突破同一结构档（resist_low 下沿）熔断。
+	return KeyBreakRefResistLow
 }
 
 func normalizeKeyBreakRef(ref, fallback string) string {
