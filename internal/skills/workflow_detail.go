@@ -32,7 +32,7 @@ func BuildWorkflowDetail(projectRoot string, spec Spec, jobs []SchedulerJobView,
 		"scheduler_jobs": schedulerJobsForSkill(jobs, spec.Name),
 	}
 	if spec.Chat != nil {
-		detail["chat_triggers"] = spec.Chat.Triggers
+		detail["chat_triggers"] = displayChatTriggers(spec.Chat.Triggers)
 		detail["chat_phases"] = spec.Chat.Phases
 		detail["chat_status"] = spec.Chat.Status
 		detail["trigger_modes"] = []string{"chat", "cron"}
@@ -153,6 +153,21 @@ func chatPhaseSteps(spec Spec) []workflow.Step {
 	out := make([]workflow.Step, 0, len(spec.Chat.Phases))
 	for _, phase := range spec.Chat.Phases {
 		out = append(out, workflow.Step{Name: phase, Tool: "(chat workflow)"})
+	}
+	return out
+}
+
+func displayChatTriggers(in []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(in))
+	for _, raw := range in {
+		t := strings.TrimSpace(raw)
+		t = strings.ReplaceAll(t, "策略认知", "策略档案")
+		if t == "" || seen[t] {
+			continue
+		}
+		seen[t] = true
+		out = append(out, t)
 	}
 	return out
 }

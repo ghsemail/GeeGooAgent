@@ -15,7 +15,7 @@ trigger_modes: chat
 | Phase | 说明 |
 |-------|------|
 | `dev_pick` | 解析策略名称 |
-| `dev_ensure_archive` | 查 `策略档案/`（兼容 `策略认知/`）：**有则读取注入**；**无则 inline 执行生成策略档案**（读策略库 → LLM 合成 → 写入 → 读回） |
+| `dev_ensure_archive` | 确保策略档案存在：有则读取注入，无则自动生成 |
 | `summarize` | 输出已载入/生成的档案摘要 |
 
 ## 触发示例（推荐首句）

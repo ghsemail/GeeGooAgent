@@ -336,7 +336,7 @@ func cardsFor(spec skills.Spec) []workflowCard {
 		Items: []string{spec.Name, strings.TrimSpace(spec.Description)},
 	}}
 	if spec.Chat != nil {
-		items := append([]string{}, spec.Chat.Triggers...)
+		items := displayChatTriggers(spec.Chat.Triggers)
 		if spec.Chat.Status != "" {
 			items = append(items, "status: "+spec.Chat.Status)
 		}

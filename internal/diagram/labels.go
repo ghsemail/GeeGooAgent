@@ -103,13 +103,8 @@ func compactTitle(s string) string {
 }
 
 func applyStepDisplay(step namedStep, titles map[string]string) namedStep {
-	if title := titles[step.Name]; title != "" {
-		step.Title = title
-	}
 	if known, ok := knownStepDisplay[step.Name]; ok {
-		if step.Title == "" {
-			step.Title = known.Title
-		}
+		step.Title = known.Title
 		if step.Tool == "" || step.Tool == "(chat workflow)" {
 			step.Tool = known.Tool
 		}
@@ -117,6 +112,12 @@ func applyStepDisplay(step namedStep, titles map[string]string) namedStep {
 			step.Params = known.Hint
 		}
 	}
+	if step.Title == "" {
+		if title := titles[step.Name]; title != "" {
+			step.Title = title
+		}
+	}
+	step.Title = displayArchiveCopy(step.Title)
 	if strings.HasPrefix(step.Name, "index_") {
 		if step.Title == "" {
 			step.Title = "指数分析"
@@ -193,5 +194,30 @@ func nodeSublabelOf(step namedStep) string {
 	if params := strings.TrimSpace(step.Params); params != "" && params != step.Name && params != step.Tool {
 		parts = append(parts, params)
 	}
-	return truncateLabel(strings.Join(parts, " · "), 36)
+	return truncateLabel(displayArchiveCopy(strings.Join(parts, " · ")), 36)
+}
+
+func displayArchiveCopy(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return s
+	}
+	s = strings.ReplaceAll(s, "策略认知", "策略档案")
+	s = strings.ReplaceAll(s, "（兼容 策略档案/）", "")
+	s = strings.ReplaceAll(s, "(兼容 策略档案/)", "")
+	return strings.Join(strings.Fields(s), " ")
+}
+
+func displayChatTriggers(in []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(in))
+	for _, raw := range in {
+		t := displayArchiveCopy(raw)
+		if t == "" || seen[t] {
+			continue
+		}
+		seen[t] = true
+		out = append(out, t)
+	}
+	return out
 }

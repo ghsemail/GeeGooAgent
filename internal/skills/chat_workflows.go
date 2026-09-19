@@ -24,7 +24,7 @@ func ChatWorkflowCatalog() []map[string]any {
 			"name":          "生成策略档案",
 			"description":   "读策略库 → LLM 合成策略档案 → 写入并读回 WeKnora 知识库。",
 			"status":        "available",
-			"triggers":      []string{"生成策略档案", "策略档案", "生成策略认知", "策略认知", "学习策略", "了解策略", "写入知识库"},
+			"triggers":      []string{"生成策略档案", "策略档案", "学习策略", "了解策略", "写入知识库"},
 			"phases":        []string{"cognition_pick", "cognition_read_catalog", "cognition_compose", "cognition_save_kb", "cognition_verify_kb", "summarize"},
 			"resume_hints":  []string{"继续", "重试失败", "POST /v1/chat/workflow/resume"},
 			"kind":          "workflow",

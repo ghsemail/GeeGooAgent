@@ -3,6 +3,7 @@ package skills
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -58,6 +59,20 @@ func TestBuildWorkflowDetailPostMarket(t *testing.T) {
 	}
 	if len(detail["phase_b_steps"].([]map[string]any)) < 5 {
 		t.Fatal("expected postmarket_stock per-stock steps")
+	}
+}
+
+func TestBuildWorkflowDetailHidesLegacyCognitionTriggers(t *testing.T) {
+	spec, ok := Default().Get(SkillGenerateStrategyCognition)
+	if !ok {
+		t.Fatal("missing generate_strategy_cognition")
+	}
+	detail := BuildWorkflowDetail(findRepoRoot(t), spec, nil, "")
+	raw, _ := detail["chat_triggers"].([]string)
+	for _, tgr := range raw {
+		if strings.Contains(tgr, "认知") {
+			t.Fatalf("legacy trigger visible: %v", raw)
+		}
 	}
 }
 

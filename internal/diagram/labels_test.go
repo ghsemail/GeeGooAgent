@@ -2,6 +2,7 @@ package diagram
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/skills"
@@ -52,6 +53,28 @@ func TestCompileShowsChineseAndParams(t *testing.T) {
 	}
 	if pick.Sublabel == "" || pick.Sublabel == pick.Label {
 		t.Fatalf("sublabel=%q", pick.Sublabel)
+	}
+}
+
+func TestDisplayCopyDropsLegacyCognition(t *testing.T) {
+	got := displayChatTriggers([]string{"生成策略档案", "策略档案", "生成策略认知", "策略认知", "学习策略"})
+	for _, item := range got {
+		if strings.Contains(item, "认知") {
+			t.Fatalf("legacy trigger leaked: %v", got)
+		}
+	}
+	spec, ok := skills.Default().Get("strategy_dev")
+	if !ok {
+		t.Fatal("missing strategy_dev")
+	}
+	doc, err := compileSkill(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, label := range nodeLabels(doc) {
+		if strings.Contains(label, "认知") {
+			t.Fatalf("label still has 认知: %q", label)
+		}
 	}
 }
 
