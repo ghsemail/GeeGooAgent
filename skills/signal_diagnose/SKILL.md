@@ -19,11 +19,19 @@ trigger_modes: chat
 | `read_strategy` | `resolveStrategyCatalog` 读策略库 rules |
 | `resolve_symbol` | `search_code` → 标准 code |
 | `run_probe` | `probe_bot_signal_series` |
-| `evaluate_accuracy` | Episode：Strict（至反向信号）+ Path（至下一同向/样本末，含 peak/maxDD） |
+| `fetch_key_levels` | （可选）`get_key_levels` / Key Level Engine；由 `workflow_options.signal_diagnose.use_key_level_episode_stop` 或运营台开关控制 |
+| `evaluate_accuracy` | Episode：Strict（至反向信号，可选结构截断）+ Path（至下一同向/样本末，含 peak/maxDD） |
 | `build_detail` | `diagnose_bot_signal_series` |
 | `diag_compose` | LLM 综合判断 |
 | `diag_save_kb` | `save_strategy_knowledge` → 信号诊断目录 |
 | `summarize` | Markdown 诊断报告（含知识库 id） |
+
+## 结构截断 Episode（可选）
+
+- **默认规则**：买段 K 线 **low 跌破主支撑 low**；卖段 **high 突破主阻力 high** → Strict 段提前结束（`method` 后缀 `+key_break_support_low`）。
+- **关键价位**：诊断时刻快照，probe 窗口内共用一档（非逐 bar 历史 S/R）。
+- **Chat API**：`workflow_options.signal_diagnose.use_key_level_episode_stop`（bool）、`key_break_mode`（默认 `support_low`）。
+- **Eval**：`workflow_signal_diagnose_sar_tencent` 默认开启。
 
 ## 与 playbook 区别
 

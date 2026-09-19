@@ -72,7 +72,7 @@ INSERT INTO agent_eval_cases (
     'signal_diagnose：probe → Episode 命中率评价 → LLM 诊断报告。',
     '["发送信号诊断请求（SAR · 腾讯）","校验 workflow 含 Episode 命中率与诊断结论","校验回复含 SAR / 腾讯 / 命中"]',
     FALSE,
-    '{"category":"workflow","task":"signal_diagnose","scenario":"fixed_dialogue","workflow_skill":"signal_diagnose","random_stock_enabled":false,"min_reply_chars":120,"pass_keywords":["Episode","命中","SAR","腾讯"],"session_cleanup":"before_run","message":"诊断 SAR · 腾讯","wait_timeout_sec":300}',
+    '{"category":"workflow","task":"signal_diagnose","scenario":"fixed_dialogue","workflow_skill":"signal_diagnose","random_stock_enabled":false,"min_reply_chars":120,"pass_keywords":["Episode","命中","SAR","腾讯"],"session_cleanup":"before_run","message":"诊断 SAR · 腾讯","wait_timeout_sec":300,"workflow_options":{"signal_diagnose":{"use_key_level_episode_stop":true,"key_break_mode":"support_low"}}}',
     14,
     TRUE
 ) ON CONFLICT (id) DO UPDATE SET

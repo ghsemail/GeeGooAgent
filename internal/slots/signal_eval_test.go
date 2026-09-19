@@ -116,3 +116,27 @@ func TestEvaluateSignalEpisodes_PathUntilNextBuy(t *testing.T) {
 		t.Fatalf("max dd=%v", first.MaxDrawdownFromPeak)
 	}
 }
+
+func TestEvaluateSignalEpisodes_KeyBreakSupportLow(t *testing.T) {
+	bars := []any{
+		map[string]any{"time": "t0", "close": 100.0, "high": 101.0, "low": 99.0},
+		map[string]any{"time": "t1", "close": 100.0, "high": 101.0, "low": 98.0},
+		map[string]any{"time": "t2", "close": 102.0, "high": 103.0, "low": 101.0},
+		map[string]any{"time": "t3", "close": 95.0, "high": 96.0, "low": 94.0},
+		map[string]any{"time": "t4", "close": 90.0, "high": 91.0, "low": 89.0},
+	}
+	buyMerged := []any{1, 0, 0, 0, 0}
+	sellMerged := []any{0, 0, 0, -1, 0}
+	stop := &KeyLevelEpisodeStop{SupportLow: 98.5, ResistHigh: 200, Mode: "support_low"}
+	eval := EvaluateSignalEpisodesWithKeyStop(bars, buyMerged, sellMerged, stop)
+	if eval.BuyEpisodes.CompleteCount != 1 {
+		t.Fatalf("complete=%d want 1 (key break before sell)", eval.BuyEpisodes.CompleteCount)
+	}
+	d := eval.BuyDetails[0]
+	if d.EndIdx != 1 || d.StrictEndReason != pathEndKeyBreakSupportLow {
+		t.Fatalf("detail=%+v want key break at t1", d)
+	}
+	if d.HoldingBars != 1 {
+		t.Fatalf("holding=%d want 1", d.HoldingBars)
+	}
+}

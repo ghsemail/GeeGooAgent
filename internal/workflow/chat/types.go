@@ -41,6 +41,7 @@ const (
 	PhaseSignalDiagPick    = "diag_pick"
 	PhaseReadStrategy      = "read_strategy"
 	PhaseRunProbe          = "run_probe"
+	PhaseFetchKeyLevels    = "fetch_key_levels"
 	PhaseEvaluateAccuracy  = "evaluate_accuracy"
 	PhaseBuildDetail       = "build_detail"
 	PhaseDiagCompose       = "diag_compose"
@@ -104,9 +105,23 @@ type Flow struct {
 	DiagnoseRaw         map[string]any `json:"diagnose_raw,omitempty"`
 	ProbeRaw            map[string]any `json:"probe_raw,omitempty"`
 	SignalEval          slots.SignalEpisodeEval `json:"signal_eval,omitempty"`
+	UseKeyLevelEpisodeStop bool           `json:"use_key_level_episode_stop,omitempty"`
+	KeyBreakMode           string         `json:"key_break_mode,omitempty"`
+	KeyLevels              KeyLevelSnapshot `json:"key_levels,omitempty"`
 	EvalJudgment        string         `json:"eval_judgment,omitempty"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
+}
+
+// KeyLevelSnapshot is a diagnose-time Key Level Engine band (shared across probe window in v1).
+type KeyLevelSnapshot struct {
+	SupportLow    float64 `json:"support_low,omitempty"`
+	SupportHigh   float64 `json:"support_high,omitempty"`
+	SupportCenter float64 `json:"support_center,omitempty"`
+	ResistLow     float64 `json:"resist_low,omitempty"`
+	ResistHigh    float64 `json:"resist_high,omitempty"`
+	ResistCenter  float64 `json:"resist_center,omitempty"`
+	Summary       string  `json:"summary,omitempty"`
 }
 
 // WebNote is one web_search result saved into cognition draft.

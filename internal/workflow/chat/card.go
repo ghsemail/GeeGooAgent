@@ -63,6 +63,10 @@ func CardPayload(flow *Flow) map[string]any {
 		if flow.SignalEval.Method != "" {
 			out["signal_eval"] = flow.SignalEval
 		}
+		out["use_key_level_episode_stop"] = flow.UseKeyLevelEpisodeStop
+		if flow.KeyLevels.SupportLow > 0 || flow.KeyLevels.ResistHigh > 0 {
+			out["key_levels"] = flow.KeyLevels
+		}
 	}
 	return out
 }

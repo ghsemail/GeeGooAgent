@@ -57,6 +57,18 @@ func signalDiagnoseTestRunner(t *testing.T) *Runner {
 					Summary: "saved",
 					Data:    map[string]any{"knowledge_id": "kb-test-1", "title": "SAR · 腾讯控股 · 信号诊断"},
 				}
+			case "get_key_levels":
+				return tools.Result{
+					Status: tools.StatusOK,
+					Summary: "mock levels",
+					Data: map[string]any{
+						"judgment": map[string]any{
+							"summary": "mock",
+							"support":    map[string]any{"low": 50.0, "high": 52.0, "center": 51.0},
+							"resistance": map[string]any{"low": 110.0, "high": 112.0, "center": 111.0},
+						},
+					},
+				}
 			case "diagnose_bot_signal_series":
 				return tools.Result{
 					Status:  tools.StatusOK,

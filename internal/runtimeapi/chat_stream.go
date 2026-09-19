@@ -16,6 +16,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/eval"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/exportmarkdown"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
+	workflowchat "github.com/ghsemail/GeeGooAgent/internal/workflow/chat"
 )
 
 const (
@@ -26,11 +27,12 @@ const (
 )
 
 type chatStreamRequest struct {
-	Message         string   `json:"message"`
-	SessionID       string   `json:"session_id"`
-	MCPToken        string   `json:"mcp_token"`
-	ContextProfiles []string `json:"context_profiles,omitempty"`
-	ActiveScopes    []string `json:"active_scopes,omitempty"`
+	Message          string         `json:"message"`
+	SessionID        string         `json:"session_id"`
+	MCPToken         string         `json:"mcp_token"`
+	ContextProfiles  []string       `json:"context_profiles,omitempty"`
+	ActiveScopes     []string       `json:"active_scopes,omitempty"`
+	WorkflowOptions  map[string]any `json:"workflow_options,omitempty"`
 }
 
 type chatTurnEndPayload struct {
@@ -131,6 +133,9 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 
 	chat.SyncChatSystemPrompt()
 	rtSession := agent.RuntimeSessionFromChat(chat)
+	if opts := workflowchat.ParseSignalDiagnoseOptsFromWorkflowOptions(req.WorkflowOptions); opts != nil {
+		rtSession.PendingSignalDiagnoseOpts = opts
+	}
 	mcpToken := resolveChatMCPToken(r, req.MCPToken, h.configMCPToken())
 	toolCtx := h.App.ToolContextWithContext(r.Context(), chat.ID)
 	toolCtx.UserID = resolveUserID(r)

@@ -13,6 +13,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
 	"github.com/ghsemail/GeeGooAgent/internal/eval"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
+	workflowchat "github.com/ghsemail/GeeGooAgent/internal/workflow/chat"
 )
 
 type evalJobAuth struct {
@@ -179,7 +180,7 @@ func (h *Handler) runEvalJobItem(ctx context.Context, db *sql.DB, auth evalJobAu
 	chatTimeout := evalChatTimeout(opts)
 	for i, turn := range regularTurns {
 		clarifyHint.Dialogue = append(clarifyHint.Dialogue, turn)
-		lastOut, err = h.runEvalChatTurn(ctx, auth, sessionID, turn.Text, clarifyDefaults, clarifyHint, !splitClarify, chatTimeout)
+		lastOut, err = h.runEvalChatTurn(ctx, auth, sessionID, turn.Text, clarifyDefaults, clarifyHint, !splitClarify, chatTimeout, opts.WorkflowOptions)
 		if err != nil {
 			h.finishEvalJobItem(db, item.id, "error", lastOut.sessionID, "", "dialogue["+strconv.Itoa(i)+"]: "+err.Error(), lastOut.errText, start, nil, nil)
 			return "error"
@@ -204,7 +205,7 @@ func (h *Handler) runEvalJobItem(ctx context.Context, db *sql.DB, auth evalJobAu
 	if len(clarifyTurns) > 0 && eval.NeedsClarifyFollowup(chat, opts) {
 		for i, turn := range clarifyTurns {
 			clarifyHint.Dialogue = append(clarifyHint.Dialogue, turn)
-			lastOut, err = h.runEvalChatTurn(ctx, auth, sessionID, turn.Text, clarifyDefaults, clarifyHint, false, chatTimeout)
+			lastOut, err = h.runEvalChatTurn(ctx, auth, sessionID, turn.Text, clarifyDefaults, clarifyHint, false, chatTimeout, opts.WorkflowOptions)
 			if err != nil {
 				h.finishEvalJobItem(db, item.id, "error", lastOut.sessionID, "", "clarify["+strconv.Itoa(i)+"]: "+err.Error(), lastOut.errText, start, nil, nil)
 				return "error"
@@ -277,7 +278,7 @@ func (h *Handler) resolveEvalCaseOptions(ctx context.Context, opts eval.TurnPlan
 	return opts, "", nil
 }
 
-func (h *Handler) runEvalChatTurn(ctx context.Context, auth evalJobAuth, sessionID, message string, clarifyDefaults []string, clarifyHint eval.ClarifyRecommendContext, enableClarifyFn bool, chatTimeout time.Duration) (evalTurnOutcome, error) {
+func (h *Handler) runEvalChatTurn(ctx context.Context, auth evalJobAuth, sessionID, message string, clarifyDefaults []string, clarifyHint eval.ClarifyRecommendContext, enableClarifyFn bool, chatTimeout time.Duration, workflowOptions map[string]any) (evalTurnOutcome, error) {
 	out := evalTurnOutcome{sessionID: sessionID}
 	if h == nil || h.App == nil || h.App.Agent == nil || h.App.Gateway == nil {
 		return out, fmt.Errorf("agent runtime not ready")
@@ -317,6 +318,11 @@ func (h *Handler) runEvalChatTurn(ctx context.Context, auth evalJobAuth, session
 
 	chat.SyncChatSystemPrompt()
 	rtSession := agent.RuntimeSessionFromChat(chat)
+	if len(workflowOptions) > 0 {
+		if o := workflowchat.ParseSignalDiagnoseOptsFromWorkflowOptions(workflowOptions); o != nil {
+			rtSession.PendingSignalDiagnoseOpts = o
+		}
+	}
 	toolCtx := h.App.ToolContextWithContext(turnCtx, chat.ID)
 	toolCtx.UserID = auth.userID
 	toolCtx.MCPToken = auth.mcpToken

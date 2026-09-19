@@ -52,6 +52,14 @@ type Session struct {
 	LastExecutionProfile string
 	// ActiveFlowJSON holds opaque chat workflow state (see internal/workflow/chat).
 	ActiveFlowJSON []byte
+	// PendingSignalDiagnoseOpts applies to the next new signal_diagnose flow only (not persisted).
+	PendingSignalDiagnoseOpts *SignalDiagnoseOpts
+}
+
+// SignalDiagnoseOpts configures optional signal_diagnose workflow behavior for one turn.
+type SignalDiagnoseOpts struct {
+	UseKeyLevelEpisodeStop bool   `json:"use_key_level_episode_stop"`
+	KeyBreakMode           string `json:"key_break_mode,omitempty"` // support_low (default), resist_high
 }
 
 // PendingPlan is a held mutating-tool batch from one LLM round.

@@ -208,6 +208,16 @@ func renderSignalDiagnoseFacts(flow *Flow) string {
 		fmt.Fprintf(&b, "（%d 根 K 线）", flow.ProbeBarCount)
 	}
 	fmt.Fprintf(&b, " |\n")
+	if flow.UseKeyLevelEpisodeStop {
+		note := "开启 · 买段跌破支撑 low / 卖段突破阻力 high 提前结束 Strict"
+		if kl := flow.KeyLevels; kl.SupportLow > 0 || kl.ResistHigh > 0 {
+			note = fmt.Sprintf("%s（支撑 %.2f~%.2f · 阻力 %.2f~%.2f）",
+				note, kl.SupportLow, kl.SupportHigh, kl.ResistLow, kl.ResistHigh)
+		}
+		fmt.Fprintf(&b, "| 结构截断 Episode | %s |\n", note)
+	} else {
+		fmt.Fprintf(&b, "| 结构截断 Episode | 关闭（仅至反向信号） |\n")
+	}
 	if flow.DiagnoseVerdict != "" {
 		fmt.Fprintf(&b, "| 诊断结论 | %s |\n", flow.DiagnoseVerdict)
 	}
@@ -224,6 +234,7 @@ func appendSignalEvalMethodology(b *strings.Builder) {
 	fmt.Fprintf(b, "3. **Path 指标**：段内最高价涨幅 `peak_return`、自入场/自高点 `max_drawdown`（用 high/low）。\n")
 	fmt.Fprintf(b, "4. **命中**：买段方向收益 > 0；卖段 < 0（卖段方向收益取反便于阅读）。\n")
 	fmt.Fprintf(b, "5. **仅买无卖**时请看 **Path 汇总**，strict 命中率可能为 N/A。\n")
+	fmt.Fprintf(b, "6. **结构截断（可选）**：开启时 Strict 段在 K 线 **low 跌破主支撑 low**（买）或 **high 突破主阻力 high**（卖）时提前结束；关键价位为诊断时刻快照，全样本共用一档。\n")
 }
 
 func appendSignalEvalSection(b *strings.Builder, eval slots.SignalEpisodeEval) {

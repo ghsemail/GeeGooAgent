@@ -91,6 +91,12 @@ func IndividualWorkflowEvalCases() []TurnPlanEvalCaseDef {
 				MinReplyChars:  120,
 				PassKeywords:   []string{"Episode", "命中", "SAR", "腾讯"},
 				WaitTimeoutSec: 300,
+				WorkflowOptions: map[string]any{
+					"signal_diagnose": map[string]any{
+						"use_key_level_episode_stop": true,
+						"key_break_mode":             "support_low",
+					},
+				},
 			},
 		},
 		{

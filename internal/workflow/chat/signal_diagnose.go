@@ -122,6 +122,8 @@ func (r *Runner) advanceSignalDiagnose(
 		return nil
 	case PhaseRunProbe:
 		return r.phaseSignalDiagnoseRunProbe(ctx, flow, toolCtx, recordTool)
+	case PhaseFetchKeyLevels:
+		return r.phaseSignalDiagnoseFetchKeyLevels(ctx, flow, toolCtx, recordTool)
 	case PhaseEvaluateAccuracy:
 		return r.phaseSignalDiagnoseEvaluate(ctx, flow)
 	case PhaseBuildDetail:
@@ -210,7 +212,11 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 		"buy_merged":  res.Data["buy_merged"],
 		"sell_merged": res.Data["sell_merged"],
 	}
-	flow.Phase = PhaseEvaluateAccuracy
+	if flow.UseKeyLevelEpisodeStop {
+		flow.Phase = PhaseFetchKeyLevels
+	} else {
+		flow.Phase = PhaseEvaluateAccuracy
+	}
 	flow.touch()
 	return nil
 }
@@ -225,7 +231,11 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(_ context.Context, flow *Flow) erro
 		if len(sellMerged) == 0 {
 			sellMerged = make([]any, len(bars))
 		}
-		flow.SignalEval = slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
+		var stop *slots.KeyLevelEpisodeStop
+		if flow.UseKeyLevelEpisodeStop {
+			stop = flow.KeyLevels.episodeStop(flow.KeyBreakMode)
+		}
+		flow.SignalEval = slots.EvaluateSignalEpisodesWithKeyStop(bars, buyMerged, sellMerged, stop)
 	}
 	flow.Phase = PhaseBuildDetail
 	flow.touch()
@@ -432,6 +442,8 @@ func signalDiagnosePhaseLabel(phase string) string {
 		return "解析标的"
 	case PhaseRunProbe:
 		return "信号测试 probe"
+	case PhaseFetchKeyLevels:
+		return "关键价位（结构引擎）"
 	case PhaseEvaluateAccuracy:
 		return "Episode 准确率评价"
 	case PhaseBuildDetail:

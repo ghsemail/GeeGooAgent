@@ -38,6 +38,14 @@ type SignalEpisodeDetail struct {
 	PeakTime             string  `json:"peak_time,omitempty"`
 	MaxDrawdownFromEntry float64 `json:"max_drawdown_from_entry,omitempty"`
 	MaxDrawdownFromPeak  float64 `json:"max_drawdown_from_peak,omitempty"`
+	StrictEndReason      string  `json:"strict_end_reason,omitempty"`
+}
+
+// KeyLevelEpisodeStop optionally truncates strict episodes before the opposite signal.
+type KeyLevelEpisodeStop struct {
+	SupportLow float64
+	ResistHigh float64
+	Mode       string // support_low (buy: low < support_low; sell: high > resist_high)
 }
 
 // SignalEpisodeMetrics summarizes directional accuracy for a cohort of episodes.
@@ -70,20 +78,35 @@ const (
 	pathEndOpposite               = "opposite_signal"
 	pathEndNextSame               = "next_same_signal"
 	pathEndOpenTail               = "open_tail"
+	pathEndKeyBreakSupportLow     = "key_break_support_low"
+	pathEndKeyBreakResistHigh     = "key_break_resist_high"
 )
 
 // EvaluateSignalEpisodes scores triggers with strict (until opposite) and path (fallback) windows.
 func EvaluateSignalEpisodes(bars []any, buyMerged, sellMerged []any) SignalEpisodeEval {
+	return EvaluateSignalEpisodesWithKeyStop(bars, buyMerged, sellMerged, nil)
+}
+
+// EvaluateSignalEpisodesWithKeyStop adds optional structure-based strict truncation.
+func EvaluateSignalEpisodesWithKeyStop(bars []any, buyMerged, sellMerged []any, stop *KeyLevelEpisodeStop) SignalEpisodeEval {
 	closes := barCloses(bars)
 	highs := barHighs(bars, closes)
 	lows := barLows(bars, closes)
 	times := barTimes(bars)
 	buyStarts := episodeStarts(buyMerged, 1)
 	sellStarts := episodeStarts(sellMerged, -1)
-	buyDetails := collectEpisodes("buy", buyStarts, closes, highs, lows, times, oppositeIndices(sellMerged, -1), buyStarts, true)
-	sellDetails := collectEpisodes("sell", sellStarts, closes, highs, lows, times, oppositeIndices(buyMerged, 1), sellStarts, false)
+	buyDetails := collectEpisodes("buy", buyStarts, closes, highs, lows, times, oppositeIndices(sellMerged, -1), buyStarts, true, stop)
+	sellDetails := collectEpisodes("sell", sellStarts, closes, highs, lows, times, oppositeIndices(buyMerged, 1), sellStarts, false, stop)
+	method := signalEvalMethodUntilOpposite
+	if stop != nil && (stop.SupportLow > 0 || stop.ResistHigh > 0) {
+		mode := strings.TrimSpace(stop.Mode)
+		if mode == "" {
+			mode = "support_low"
+		}
+		method = signalEvalMethodUntilOpposite + "+key_break_" + mode
+	}
 	return SignalEpisodeEval{
-		Method:           signalEvalMethodUntilOpposite,
+		Method:           method,
 		BuyDetails:       buyDetails,
 		SellDetails:      sellDetails,
 		BuyEpisodes:      metricsFromStrictEpisodes(buyDetails),
@@ -100,7 +123,7 @@ func barCloses(bars []any) []float64 {
 		if !ok {
 			continue
 		}
-		out[i] = floatAny(row["close"])
+		out[i] = FloatAny(row["close"])
 	}
 	return out
 }
@@ -113,7 +136,7 @@ func barHighs(bars []any, closes []float64) []float64 {
 			out[i] = closes[i]
 			continue
 		}
-		h := floatAny(row["high"])
+		h := FloatAny(row["high"])
 		if h <= 0 {
 			h = closes[i]
 		}
@@ -130,7 +153,7 @@ func barLows(bars []any, closes []float64) []float64 {
 			out[i] = closes[i]
 			continue
 		}
-		l := floatAny(row["low"])
+		l := FloatAny(row["low"])
 		if l <= 0 {
 			l = closes[i]
 		}
@@ -182,6 +205,7 @@ func collectEpisodes(
 	times []string,
 	opposites, sameStarts []int,
 	buySide bool,
+	stop *KeyLevelEpisodeStop,
 ) []SignalEpisodeDetail {
 	if len(closes) == 0 {
 		return nil
@@ -208,13 +232,24 @@ func collectEpisodes(
 			end = opp - 1
 			break
 		}
+		oppositeEnd := end
+		windowEnd := lastBar
+		if oppIdx > start {
+			windowEnd = oppIdx - 1
+		}
+		if keyIdx, keyReason := findKeyLevelBreak(start, windowEnd, lows, highs, buySide, stop); keyIdx >= 0 {
+			if end < start || keyIdx < end {
+				end = keyIdx
+				ep.StrictEndReason = keyReason
+			}
+		}
 		if end >= start {
 			ep.Complete = true
 			ep.EndIdx = end
 			ep.EndTime = times[end]
 			ep.EndClose = closes[end]
 			ep.HoldingBars = end - start
-			if oppIdx >= 0 && oppIdx < len(times) {
+			if oppIdx >= 0 && oppIdx < len(times) && (ep.StrictEndReason == "" || end < oppositeEnd) {
 				ep.OppositeIdx = oppIdx
 				ep.OppositeTime = times[oppIdx]
 			}
@@ -234,6 +269,25 @@ func collectEpisodes(
 		out = append(out, ep)
 	}
 	return out
+}
+
+func findKeyLevelBreak(start, windowEnd int, lows, highs []float64, buySide bool, stop *KeyLevelEpisodeStop) (int, string) {
+	if stop == nil || start < 0 || windowEnd <= start {
+		return -1, ""
+	}
+	if windowEnd >= len(lows) {
+		windowEnd = len(lows) - 1
+	}
+	for i := start + 1; i <= windowEnd; i++ {
+		if buySide {
+			if stop.SupportLow > 0 && lows[i] < stop.SupportLow {
+				return i, pathEndKeyBreakSupportLow
+			}
+		} else if stop.ResistHigh > 0 && highs[i] > stop.ResistHigh {
+			return i, pathEndKeyBreakResistHigh
+		}
+	}
+	return -1, ""
 }
 
 func resolvePathEnd(start int, strictComplete bool, strictEnd int, sameStarts []int, lastBar int) (int, string) {
@@ -444,7 +498,8 @@ func mergedSignalValue(raw any) int {
 	}
 }
 
-func floatAny(v any) float64 {
+// FloatAny parses numeric JSON/tool values.
+func FloatAny(v any) float64 {
 	switch t := v.(type) {
 	case float64:
 		return t
