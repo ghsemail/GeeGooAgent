@@ -22,9 +22,9 @@ func TestKnowledgeOverviewWithMockWeKnora(t *testing.T) {
 		case "/api/v1/models/chat-1":
 			_, _ = w.Write([]byte(`{"data":{"name":"MiniMax-M3"}}`))
 		case "/api/v1/knowledge-bases/kb-test/knowledge":
-			_, _ = w.Write([]byte(`{"total":1,"data":[{"id":"d1","file_name":"4 Hour MACD Forex Strategy.pdf","folder_path":"策略","file_size":650428,"parse_status":"completed","updated_at":"2026-08-21T00:00:00Z"}]}`))
+			_, _ = w.Write([]byte(`{"total":1,"data":[{"id":"d1","file_name":"4 Hour MACD Forex Strategy.pdf","folder_path":"策略资料","file_size":650428,"parse_status":"completed","updated_at":"2026-08-21T00:00:00Z"}]}`))
 		case "/api/v1/knowledge-bases/kb-test/knowledge/folders":
-			_, _ = w.Write([]byte(`{"data":{"root_document_count":0,"total_document_count":1,"folders":[{"path":"策略","name":"策略","document_count":1,"total_count":1,"children":[]}]}}`))
+			_, _ = w.Write([]byte(`{"data":{"root_document_count":0,"total_document_count":1,"folders":[{"path":"策略资料","name":"策略资料","document_count":1,"total_count":1,"children":[]}]}}`))
 		default:
 			http.NotFound(w, r)
 		}

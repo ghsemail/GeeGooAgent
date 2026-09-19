@@ -28,7 +28,9 @@ var cancelPhrases = []string{
 }
 
 var generateStrategyCognitionPhrases = []string{
-	"生成策略认知", "策略认知", "学习策略", "了解策略", "整理策略", "写入知识库", "存入知识库",
+	"生成策略档案", "策略档案",
+	"生成策略认知", "策略认知",
+	"学习策略", "了解策略", "整理策略", "写入知识库", "存入知识库",
 }
 
 var strategyDevPhrases = []string{

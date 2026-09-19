@@ -4,10 +4,14 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/ghsemail/GeeGooAgent/internal/clients/weknora"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
+	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
+
+var legacyKnowledgeFolderMigrate sync.Once
 
 func (h *Handler) registerKnowledgeRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/knowledge/overview", h.knowledgeOverview)
@@ -33,6 +37,7 @@ func (h *Handler) knowledgeTree(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, out)
 		return
 	}
+	migrateLegacyKnowledgeFolders(client)
 	tree, err := client.Folders(r.Context())
 	if err != nil {
 		out["error"] = err.Error()
@@ -40,7 +45,7 @@ func (h *Handler) knowledgeTree(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out["ok"] = true
-	out["tree"] = tree
+	out["tree"] = tools.DecorateKnowledgeTree(tree)
 	writeJSON(w, out)
 }
 
@@ -63,10 +68,7 @@ func (h *Handler) knowledgeDocuments(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, out)
 		return
 	}
-	docs, err := client.ListDocuments(r.Context(), weknora.ListDocumentsOpts{
-		FolderPath:   q.Get("folder_path"),
-		FilterFolder: filterFolder,
-	})
+	docs, err := listKnowledgeDocuments(r.Context(), client, q.Get("folder_path"), filterFolder)
 	if err != nil {
 		out["error"] = err.Error()
 		writeJSON(w, out)
@@ -75,13 +77,14 @@ func (h *Handler) knowledgeDocuments(w http.ResponseWriter, r *http.Request) {
 	rows := make([]map[string]any, 0, len(docs))
 	for _, d := range docs {
 		rows = append(rows, map[string]any{
-			"id":           d.ID,
-			"file_name":    d.FileName,
-			"title":        d.Title,
-			"folder_path":  d.FolderPath,
-			"file_size":    d.FileSize,
-			"parse_status": d.ParseStatus,
-			"updated_at":   d.UpdatedAt,
+			"id":                 d.ID,
+			"file_name":          d.FileName,
+			"title":              d.Title,
+			"folder_path":        d.FolderPath,
+			"folder_display":     tools.KnowledgeFolderDisplayName(d.FolderPath),
+			"file_size":          d.FileSize,
+			"parse_status":       d.ParseStatus,
+			"updated_at":         d.UpdatedAt,
 		})
 	}
 	out["ok"] = true
@@ -101,6 +104,7 @@ func (h *Handler) collectKnowledgeOverview(ctx context.Context) map[string]any {
 		out["error"] = "weknora is not configured"
 		return out
 	}
+	migrateLegacyKnowledgeFolders(client)
 	if err := client.Health(ctx); err != nil {
 		out["error"] = err.Error()
 		return out
@@ -145,6 +149,48 @@ func (h *Handler) collectKnowledgeOverview(ctx context.Context) map[string]any {
 	out["parsing_count"] = parsing
 	out["failed_count"] = failed
 	return out
+}
+
+func migrateLegacyKnowledgeFolders(client *weknora.Client) {
+	legacyKnowledgeFolderMigrate.Do(func() {
+		ctx := context.Background()
+		_, _ = tools.MigrateLegacyKnowledgeFolders(ctx, client)
+	})
+}
+
+func listKnowledgeDocuments(ctx context.Context, client *weknora.Client, folder string, filterFolder bool) ([]weknora.Document, error) {
+	if !filterFolder {
+		return client.ListDocuments(ctx, weknora.ListDocumentsOpts{})
+	}
+	folders := tools.ExpandKnowledgeFolderFilter(folder)
+	if len(folders) <= 1 {
+		return client.ListDocuments(ctx, weknora.ListDocumentsOpts{
+			FolderPath:   folders[0],
+			FilterFolder: true,
+		})
+	}
+	seen := map[string]struct{}{}
+	out := make([]weknora.Document, 0, 32)
+	for _, fp := range folders {
+		if fp == "" {
+			continue
+		}
+		batch, err := client.ListDocuments(ctx, weknora.ListDocumentsOpts{
+			FolderPath:   fp,
+			FilterFolder: true,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, d := range batch {
+			if _, ok := seen[d.ID]; ok {
+				continue
+			}
+			seen[d.ID] = struct{}{}
+			out = append(out, d)
+		}
+	}
+	return out, nil
 }
 
 func (h *Handler) weknoraClient() *weknora.Client {

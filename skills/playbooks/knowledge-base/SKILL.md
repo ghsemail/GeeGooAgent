@@ -13,7 +13,9 @@ description: 知识库、策略文档、查库、WeKnora、文档里怎么写、
 
 ## 标准流程
 
-1. **先检索** — 调用 `search_knowledge`，`query` 用用户原问句的关键短语；若提到目录（如「策略」）再传 `folder_path`
+1. **先检索** — 调用 `search_knowledge`，`query` 用用户原问句的关键短语；若限定目录再传 `folder_path`：
+   - **策略资料** — 上传的参考 PDF / 外部策略文档（兼容旧目录名 `策略`）
+   - **策略档案** — Agent 生成的策略档案 Markdown（兼容旧目录名 `策略认知`）
 2. **只根据命中片段回答** — 引用 `filename` / `folder`；不要扩写成未检索到的内容
 3. **未命中** — 如实说知识库没有相关片段，并建议到 WeKnora 网页核对文档；不要改用 `get_current_price` / `get_mcp_analysis` 凑答案
 

@@ -46,7 +46,6 @@ const (
 	defaultMonthsBack       = 3
 	maxStrategies           = 4
 	maxStepRetries          = 2
-	defaultCognitionFolder  = "策略认知"
 	cognitionParseWait = 180 // seconds — WeKnora publish + embed is async
 )
 

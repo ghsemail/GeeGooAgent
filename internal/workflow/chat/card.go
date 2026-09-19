@@ -59,7 +59,7 @@ func skillDisplayName(id string) string {
 	case "strategy_dev":
 		return "策略开发"
 	case "generate_strategy_cognition":
-		return "生成策略认知"
+		return "生成策略档案"
 	default:
 		return id
 	}

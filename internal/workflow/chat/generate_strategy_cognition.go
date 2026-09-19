@@ -36,7 +36,7 @@ func (r *Runner) advanceGenerateStrategyCognition(
 	switch flow.Phase {
 	case PhaseCognitionPick:
 		if strings.TrimSpace(flow.StrategyQuery) == "" {
-			return terminalError("请说明要生成认知的策略名称，例如：生成策略认知 Macd4H")
+			return terminalError("请说明要生成档案的策略名称，例如：帮我生成 Macd4H 的策略档案")
 		}
 		flow.Phase = PhaseCognitionReadCatalog
 		flow.touch()
@@ -88,7 +88,7 @@ func (r *Runner) phaseCognitionSaveKB(
 	res := r.runTool(ctx, toolCtx, "save_strategy_knowledge", map[string]any{
 		"strategy_name": name,
 		"content":       content,
-		"folder_path":   defaultCognitionFolder,
+		"folder_path":   tools.StrategyArchiveFolder,
 	}, recordTool)
 	if res.Status != tools.StatusOK {
 		return fmt.Errorf("save_strategy_knowledge 失败：%s", res.Summary)
@@ -111,25 +111,16 @@ func (r *Runner) phaseCognitionVerifyKB(
 		query = flow.StrategyQuery
 	}
 	deadline := time.Now().Add(cognitionParseWait * time.Second)
-	attempt := 0
 	for time.Now().Before(deadline) {
-		args := map[string]any{"query": query + " Agent 策略认知"}
-		if attempt < 15 {
-			args["folder_path"] = defaultCognitionFolder
-		}
-		res := r.runTool(ctx, toolCtx, "search_knowledge", args, recordTool)
-		if res.Status == tools.StatusOK {
-			if hits, ok := res.Data["hits"].([]any); ok && len(hits) > 0 {
-				flow.VerifySnippet = cognitionVerifySnippet(hits, flow)
-				flow.Phase = PhaseSummarize
-				flow.touch()
-				return nil
-			}
+		if hits := r.searchStrategyArchiveHits(ctx, query, toolCtx, recordTool); len(hits) > 0 {
+			flow.VerifySnippet = cognitionVerifySnippet(hits, flow)
+			flow.Phase = PhaseSummarize
+			flow.touch()
+			return nil
 		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		attempt++
 		time.Sleep(2 * time.Second)
 	}
 	return terminalError("知识库读回验证超时：search_knowledge 未命中，请稍后重试")
@@ -143,7 +134,7 @@ func cognitionVerifySnippet(hits []any, flow *Flow) string {
 			continue
 		}
 		content := hitFieldString(row, "content")
-		if content == "" || !isAgentCognitionContent(content) {
+		if content == "" || !isStrategyArchiveContent(content) {
 			continue
 		}
 		if title != "" {
@@ -158,17 +149,6 @@ func cognitionVerifySnippet(hits []any, flow *Flow) string {
 		return preview
 	}
 	return firstHitPreview(hits)
-}
-
-func isAgentCognitionContent(content string) bool {
-	content = strings.TrimSpace(content)
-	if content == "" {
-		return false
-	}
-	if strings.Contains(content, "doc_type: strategy_agent_cognition") {
-		return true
-	}
-	return strings.Contains(content, "Agent 策略认知") && strings.Contains(content, "一句话定位")
 }
 
 func cognitionDraftPreview(draft string) string {
@@ -207,23 +187,23 @@ func firstHitPreview(hits []any) string {
 func renderGenerateCognitionReport(flow *Flow) string {
 	label := strategyDisplayLabel(flow)
 	var b strings.Builder
-	fmt.Fprintf(&b, "## 生成策略认知完成 · %s\n\n", label)
+	fmt.Fprintf(&b, "## 策略档案已生成 · %s\n\n", label)
 	fmt.Fprintf(&b, "| 步骤 | 结果 |\n| --- | --- |\n")
 	fmt.Fprintf(&b, "| 策略库 | %s（%s） |\n", label, flow.CatalogType)
-	fmt.Fprintf(&b, "| 认知合成 | LLM 基于策略库 |\n")
+	fmt.Fprintf(&b, "| 档案合成 | LLM 基于策略库 |\n")
 	if flow.KnowledgeID != "" {
-		fmt.Fprintf(&b, "| 知识库 | [%s](kb:%s) · %s |\n", flow.KnowledgeTitle, flow.KnowledgeID, defaultCognitionFolder)
+		fmt.Fprintf(&b, "| 知识库 | [%s](kb:%s) · %s |\n", flow.KnowledgeTitle, flow.KnowledgeID, tools.StrategyArchiveFolder)
 	}
 	if flow.VerifySnippet != "" {
 		fmt.Fprintf(&b, "\n**读回验证片段**：\n\n> %s\n", flow.VerifySnippet)
 	}
-	fmt.Fprintf(&b, "\n> 策略认知已写入知识库；策略开发 workflow 将从此处读取。")
+	fmt.Fprintf(&b, "\n> 策略档案已写入知识库；策略开发 workflow 将从此处读取。")
 	return strings.TrimSpace(b.String())
 }
 
 func renderGenerateCognitionPartial(flow *Flow) string {
 	label := strategyDisplayLabel(flow)
-	return fmt.Sprintf("## 生成策略认知（进行中）\n\n- 策略：%s\n- 阶段：%s",
+	return fmt.Sprintf("## 生成策略档案（进行中）\n\n- 策略：%s\n- 阶段：%s",
 		label, flow.Phase)
 }
 

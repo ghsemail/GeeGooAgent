@@ -33,10 +33,10 @@ func RegisterBuiltins(r *Registry) {
 	})
 	r.Register(Spec{
 		Name:        SkillGenerateStrategyCognition,
-		Description: "生成策略认知：读策略库、LLM 合成 Agent 认知、写入/读回知识库",
+		Description: "生成策略档案：读策略库、LLM 合成策略档案、写入/读回知识库",
 		Chat: &ChatTrigger{
 			Status:   "available",
-			Triggers: []string{"生成策略认知", "策略认知", "学习策略", "了解策略", "写入知识库"},
+			Triggers: []string{"生成策略档案", "策略档案", "生成策略认知", "策略认知", "学习策略", "了解策略", "写入知识库"},
 			Phases: []string{
 				"cognition_pick", "cognition_read_catalog",
 				"cognition_compose", "cognition_save_kb", "cognition_verify_kb", "summarize",
@@ -46,7 +46,7 @@ func RegisterBuiltins(r *Registry) {
 	})
 	r.Register(Spec{
 		Name:        SkillStrategyDev,
-		Description: "策略开发：从知识库读取策略认知，作为后续开发上下文",
+		Description: "策略开发：从知识库读取策略档案，作为后续开发上下文",
 		Chat: &ChatTrigger{
 			Status:      "available",
 			Triggers:    []string{"策略开发"},

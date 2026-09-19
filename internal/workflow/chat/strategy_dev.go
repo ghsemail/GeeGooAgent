@@ -58,18 +58,11 @@ func (r *Runner) phaseDevReadCognition(
 	recordTool func(name, status, summary string),
 ) error {
 	query := strings.TrimSpace(flow.StrategyQuery)
-	res := r.runTool(ctx, toolCtx, "search_knowledge", map[string]any{
-		"query":       query + " Agent 策略认知",
-		"folder_path": defaultCognitionFolder,
-	}, recordTool)
-	if res.Status != tools.StatusOK {
-		return fmt.Errorf("search_knowledge 失败：%s", res.Summary)
-	}
-	hits, _ := res.Data["hits"].([]any)
+	hits := r.searchStrategyArchiveHits(ctx, query, toolCtx, recordTool)
 	if len(hits) == 0 {
 		return terminalError(fmt.Sprintf(
-			"知识库中尚无「%s」的策略认知，请先发送：生成策略认知 %s",
-			query, query,
+			"知识库中尚无「%s」的策略档案，请先发送：%s",
+			query, FormatGenerateStrategyArchiveMessage(query),
 		))
 	}
 	flow.KBDraft = joinHitContents(hits, 6000)
@@ -123,14 +116,14 @@ func hitField(hits []any, key string) string {
 func renderStrategyDevReport(flow *Flow) string {
 	label := strategyDisplayLabel(flow)
 	var b strings.Builder
-	fmt.Fprintf(&b, "## 策略开发 · 已加载策略认知 · %s\n\n", label)
+	fmt.Fprintf(&b, "## 策略开发 · 已加载策略档案 · %s\n\n", label)
 	fmt.Fprintf(&b, "| 步骤 | 结果 |\n| --- | --- |\n")
-	fmt.Fprintf(&b, "| 知识库 | %s · %s |\n", flow.KnowledgeTitle, defaultCognitionFolder)
-	fmt.Fprintf(&b, "| 载入方式 | search_knowledge 读取 Agent 策略认知 |\n")
+	fmt.Fprintf(&b, "| 知识库 | %s · %s |\n", flow.KnowledgeTitle, tools.StrategyArchiveFolder)
+	fmt.Fprintf(&b, "| 载入方式 | search_knowledge 读取策略档案 |\n")
 	if flow.VerifySnippet != "" {
-		fmt.Fprintf(&b, "\n**认知摘要**：\n\n> %s\n", flow.VerifySnippet)
+		fmt.Fprintf(&b, "\n**档案摘要**：\n\n> %s\n", flow.VerifySnippet)
 	}
-	fmt.Fprintf(&b, "\n> 策略认知已从知识库载入；后续 Step（回测/调参/实现）将在此 workflow 扩展。")
+	fmt.Fprintf(&b, "\n> 策略档案已从知识库载入；后续 Step（回测/调参/实现）将在此 workflow 扩展。")
 	return strings.TrimSpace(b.String())
 }
 

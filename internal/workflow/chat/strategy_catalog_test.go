@@ -89,7 +89,7 @@ func TestAssembleAgentCognitionDoc(t *testing.T) {
 	}
 	body := fallbackCognitionBody(flow)
 	doc := assembleAgentCognitionDoc(flow, body)
-	if doc == "" || !containsAll(doc, "Macd4H", "Agent 策略认知", "一句话定位", "策略库原文", "doc_type: strategy_agent_cognition") {
+	if doc == "" || !containsAll(doc, "Macd4H", "策略档案", "一句话定位", "策略库原文", "doc_type: strategy_agent_cognition") {
 		t.Fatalf("doc missing sections: %s", doc)
 	}
 }

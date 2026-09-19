@@ -35,9 +35,17 @@ func ResolveGenerateCognitionMessage(opts TurnPlanCaseOptions, pickedName string
 		if msg != "" {
 			return msg
 		}
-		return "生成策略认知"
+		return formatGenerateStrategyArchiveMessage("")
 	}
-	return "生成策略认知 " + name
+	return formatGenerateStrategyArchiveMessage(name)
+}
+
+func formatGenerateStrategyArchiveMessage(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "帮我生成策略档案"
+	}
+	return fmt.Sprintf("帮我生成 %s 的策略档案", name)
 }
 
 // PickRandomStrategyEntry picks one strategy from enabled catalog types (combination, definition, custom).

@@ -1,8 +1,11 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"strings"
+
+	"github.com/ghsemail/GeeGooAgent/internal/clients/weknora"
 )
 
 func registerKnowledgeTools(r *Registry, deps Deps) {
@@ -18,7 +21,7 @@ func registerKnowledgeTools(r *Registry, deps Deps) {
 				},
 				"folder_path": map[string]any{
 					"type":        "string",
-					"description": "可选，限定目录，如 策略",
+					"description": "可选，限定目录：策略资料（参考文档）、策略档案（Agent 档案）；兼容旧名 策略 / 策略认知",
 				},
 			},
 			"required": []any{"query"},
@@ -35,7 +38,7 @@ func registerKnowledgeTools(r *Registry, deps Deps) {
 			if client == nil || !client.Configured() {
 				return errResult(fmt.Errorf("weknora is not configured"))
 			}
-			hits, err := client.Search(ctx.GoContext(), query, strArg(args, "folder_path", ""), 8)
+			hits, err := searchKnowledgeMerged(ctx.GoContext(), client, query, strArg(args, "folder_path", ""), 8)
 			if err != nil {
 				return errResult(err)
 			}
@@ -74,7 +77,7 @@ func registerKnowledgeTools(r *Registry, deps Deps) {
 	})
 	r.Register(Tool{
 		Name:        "save_strategy_knowledge",
-		Description: "将策略认知 Markdown 写入 WeKnora 知识库（策略认知目录）。同名文档会更新。",
+		Description: "将策略档案 Markdown 写入 WeKnora 知识库（策略档案目录）。同名文档会更新。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -88,7 +91,7 @@ func registerKnowledgeTools(r *Registry, deps Deps) {
 				},
 				"folder_path": map[string]any{
 					"type":        "string",
-					"description": "可选，默认 策略认知",
+					"description": "可选，默认 策略档案",
 				},
 			},
 			"required": []any{"strategy_name", "content"},
@@ -109,9 +112,9 @@ func registerKnowledgeTools(r *Registry, deps Deps) {
 			if client == nil || !client.Configured() {
 				return errResult(fmt.Errorf("weknora is not configured"))
 			}
-			folder := strArg(args, "folder_path", "")
+			folder := NormalizeKnowledgeFolderForWrite(strArg(args, "folder_path", ""))
 			if folder == "" {
-				folder = "策略认知"
+				folder = StrategyArchiveFolder
 			}
 			title := strategyKnowledgeTitle(name)
 			doc, err := client.UpsertManualKnowledge(ctx.GoContext(), folder, title, content)
@@ -131,54 +134,39 @@ func registerKnowledgeTools(r *Registry, deps Deps) {
 			}
 		},
 	})
-	r.Register(Tool{
-		Name:        "get_knowledge",
-		Description: "按 knowledge_id 读取 WeKnora 知识库文档正文（用于写入后读回验证）。",
-		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"knowledge_id": map[string]any{
-					"type":        "string",
-					"description": "WeKnora knowledge id",
-				},
-			},
-			"required": []any{"knowledge_id"},
-		},
-		Handle: func(ctx Context, args map[string]any) Result {
-			id := strArg(args, "knowledge_id", "")
-			if id == "" {
-				return errResult(fmt.Errorf("knowledge_id is required"))
-			}
-			if ctx.DryRun {
-				return okDryRun("get_knowledge", map[string]any{"knowledge_id": id})
-			}
-			client := deps.WeKnora
-			if client == nil || !client.Configured() {
-				return errResult(fmt.Errorf("weknora is not configured"))
-			}
-			doc, err := client.GetKnowledge(ctx.GoContext(), id)
-			if err != nil {
-				return errResult(err)
-			}
-			return Result{
-				Status:  StatusOK,
-				Summary: fmt.Sprintf("get_knowledge: %s (%s)", doc.Title, doc.ID),
-				Data: map[string]any{
-					"knowledge_id": doc.ID,
-					"title":        doc.Title,
-					"content":      doc.Content,
-					"folder_path":  doc.FolderPath,
-					"parse_status": doc.ParseStatus,
-				},
-			}
-		},
-	})
 }
 
 func strategyKnowledgeTitle(strategyName string) string {
 	name := strings.TrimSpace(strategyName)
 	if name == "" {
-		return "策略认知"
+		return StrategyArchiveFolder
 	}
-	return name + " · 策略认知"
+	return name + " · " + StrategyArchiveFolder
+}
+
+func searchKnowledgeMerged(ctx context.Context, client *weknora.Client, query, folder string, limit int) ([]weknora.SearchHit, error) {
+	if client == nil {
+		return nil, fmt.Errorf("weknora client is nil")
+	}
+	folders := ExpandKnowledgeFolderFilter(folder)
+	seen := make(map[string]struct{})
+	out := make([]weknora.SearchHit, 0, limit)
+	for _, fp := range folders {
+		hits, err := client.Search(ctx, query, fp, limit)
+		if err != nil {
+			return nil, err
+		}
+		for _, hit := range hits {
+			key := hit.Filename + "\x00" + hit.Title + "\x00" + shorten(hit.Content, 120)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			out = append(out, hit)
+			if len(out) >= limit {
+				return out, nil
+			}
+		}
+	}
+	return out, nil
 }

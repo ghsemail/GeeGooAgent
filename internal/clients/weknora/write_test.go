@@ -14,7 +14,7 @@ func TestCreateManualKnowledge(t *testing.T) {
 			return
 		}
 		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/knowledge-bases/kb-1/knowledge/manual" {
-			_, _ = w.Write([]byte(`{"success":true,"data":{"id":"kid-1","title":"Macd4H · 策略认知","parse_status":"processing"}}`))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"id":"kid-1","title":"Macd4H · 策略档案","parse_status":"processing"}}`))
 			return
 		}
 		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/knowledge/folder" {
@@ -26,7 +26,7 @@ func TestCreateManualKnowledge(t *testing.T) {
 	defer srv.Close()
 
 	c := New(srv.URL, "sk-test", "kb-1", srv.Client())
-	doc, err := c.UpsertManualKnowledge(context.Background(), "策略认知", "Macd4H · 策略认知", "# hello")
+	doc, err := c.UpsertManualKnowledge(context.Background(), "策略档案", "Macd4H · 策略档案", "# hello")
 	if err != nil {
 		t.Fatalf("UpsertManualKnowledge: %v", err)
 	}

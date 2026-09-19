@@ -10,7 +10,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
-const cognitionComposeSystemPrompt = `你是 GeeGoo 量化平台的策略认知文档写手。你会收到一份策略库 JSON（权威、可执行定义）。
+const cognitionComposeSystemPrompt = `你是 GeeGoo 量化平台的策略档案文档写手。你会收到一份策略库 JSON（权威、可执行定义）。
 请结合你对技术指标与量化策略的一般知识，写一份供 Agent 注入上下文使用的 Markdown 正文。
 
 硬性要求：
@@ -38,7 +38,7 @@ func (r *Runner) phaseCognitionCompose(
 ) error {
 	body, err := r.synthesizeCognitionBody(ctx, flow)
 	if err != nil {
-		return fmt.Errorf("策略认知合成失败：%w", err)
+		return fmt.Errorf("策略档案合成失败：%w", err)
 	}
 	flow.KBDraft = assembleAgentCognitionDoc(flow, body)
 	flow.Phase = PhaseCognitionSaveKB
@@ -48,7 +48,7 @@ func (r *Runner) phaseCognitionCompose(
 
 func (r *Runner) synthesizeCognitionBody(ctx context.Context, flow *Flow) (string, error) {
 	label := cognitionLabel(flow)
-	user := fmt.Sprintf(`请为以下策略撰写 Agent 策略认知正文。
+	user := fmt.Sprintf(`请为以下策略撰写策略档案正文。
 
 策略名称：%s
 策略库类型：%s
@@ -93,7 +93,7 @@ func assembleAgentCognitionDoc(flow *Flow, synthesizedBody string) string {
 	fmt.Fprintf(&b, "source: geegoo_catalog + llm\n")
 	fmt.Fprintf(&b, "agent_use: inject when user asks about this strategy, before probe/backtest\n")
 	fmt.Fprintf(&b, "---\n\n")
-	fmt.Fprintf(&b, "# %s · Agent 策略认知\n\n", label)
+	fmt.Fprintf(&b, "# %s · 策略档案\n\n", label)
 	fmt.Fprintf(&b, "> 供 Agent 注入上下文；**执行信号以策略库为准**。\n\n")
 	b.WriteString(strings.TrimSpace(synthesizedBody))
 	fmt.Fprintf(&b, "\n\n---\n\n## 附录 · 策略库原文\n\n")

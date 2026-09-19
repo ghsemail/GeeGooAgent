@@ -225,7 +225,7 @@ func catalogStringValue(v any) string {
 
 func slotsSignalTokens(query string) []string {
 	parts := strings.Fields(strings.ToUpper(strings.NewReplacer(
-		"策略认知", " ", "策略开发", " ", "学习", " ", "了解", " ", "知识库", " ",
+		"策略档案", " ", "策略认知", " ", "策略开发", " ", "学习", " ", "了解", " ", "知识库", " ",
 	).Replace(query)))
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {

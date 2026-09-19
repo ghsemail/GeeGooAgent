@@ -27,9 +27,9 @@ func TestClientListSearchAndFolders(t *testing.T) {
 		case r.URL.Path == "/api/v1/models/emb-1":
 			_, _ = w.Write([]byte(`{"data":{"id":"emb-1","name":"kinfra-text-embedding-4b","type":"embedding"}}`))
 		case r.URL.Path == "/api/v1/knowledge-bases/kb-1/knowledge/folders":
-			_, _ = w.Write([]byte(`{"success":true,"data":{"root_document_count":0,"total_document_count":1,"folders":[{"path":"策略","name":"策略","document_count":1,"total_count":1,"children":[]}]}}`))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"root_document_count":0,"total_document_count":1,"folders":[{"path":"策略资料","name":"策略资料","document_count":1,"total_count":1,"children":[]}]}}`))
 		case r.URL.Path == "/api/v1/knowledge-bases/kb-1/knowledge":
-			_, _ = w.Write([]byte(`{"success":true,"total":1,"data":[{"id":"doc-1","file_name":"4 Hour MACD Forex Strategy.pdf","folder_path":"策略","file_size":650428,"parse_status":"completed","updated_at":"2026-08-21T00:00:00Z"}]}`))
+			_, _ = w.Write([]byte(`{"success":true,"total":1,"data":[{"id":"doc-1","file_name":"4 Hour MACD Forex Strategy.pdf","folder_path":"策略资料","file_size":650428,"parse_status":"completed","updated_at":"2026-08-21T00:00:00Z"}]}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/knowledge-search":
 			sawSearch = true
 			body, _ := io.ReadAll(r.Body)
@@ -38,7 +38,7 @@ func TestClientListSearchAndFolders(t *testing.T) {
 			if payload["query"] != "MACD" {
 				t.Errorf("query=%v", payload["query"])
 			}
-			_, _ = w.Write([]byte(`{"success":true,"data":[{"content":"Use 4 hour MACD","knowledge_filename":"4 Hour MACD Forex Strategy.pdf","knowledge_title":"MACD","folder_path":"策略"}]}`))
+			_, _ = w.Write([]byte(`{"success":true,"data":[{"content":"Use 4 hour MACD","knowledge_filename":"4 Hour MACD Forex Strategy.pdf","knowledge_title":"MACD","folder_path":"策略资料"}]}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -59,7 +59,7 @@ func TestClientListSearchAndFolders(t *testing.T) {
 		t.Fatalf("model=%+v err=%v", model, err)
 	}
 	tree, err := c.Folders(ctx)
-	if err != nil || len(tree.Folders) != 1 || tree.Folders[0].Path != "策略" {
+	if err != nil || len(tree.Folders) != 1 || tree.Folders[0].Path != "策略资料" {
 		t.Fatalf("tree=%+v err=%v", tree, err)
 	}
 	docs, err := c.ListDocuments(ctx, ListDocumentsOpts{})

@@ -102,6 +102,35 @@ func (c *Client) MoveKnowledgeToFolder(ctx context.Context, ids []string, folder
 	return err
 }
 
+func legacyKnowledgeSearchFolders(folderPath string) []string {
+	folderPath = strings.TrimSpace(folderPath)
+	switch folderPath {
+	case "策略档案":
+		return []string{"策略档案", "策略认知"}
+	case "策略资料":
+		return []string{"策略资料", "策略"}
+	default:
+		if folderPath == "" {
+			return nil
+		}
+		return []string{folderPath}
+	}
+}
+
+// FindKnowledgeByTitleInFolders finds a document under any folder with exact title.
+func (c *Client) FindKnowledgeByTitleInFolders(ctx context.Context, folderPaths []string, title string) (*Document, error) {
+	for _, folderPath := range folderPaths {
+		doc, err := c.FindKnowledgeByTitle(ctx, folderPath, title)
+		if err != nil {
+			return nil, err
+		}
+		if doc != nil {
+			return doc, nil
+		}
+	}
+	return nil, nil
+}
+
 // FindKnowledgeByTitle finds a document under folderPath with exact title.
 func (c *Client) FindKnowledgeByTitle(ctx context.Context, folderPath, title string) (*Document, error) {
 	title = strings.TrimSpace(title)
@@ -133,7 +162,7 @@ func (c *Client) UpsertManualKnowledge(ctx context.Context, folderPath, title, c
 	if title == "" || content == "" {
 		return Document{}, fmt.Errorf("title and content are required")
 	}
-	existing, err := c.FindKnowledgeByTitle(ctx, folderPath, title)
+	existing, err := c.FindKnowledgeByTitleInFolders(ctx, legacyKnowledgeSearchFolders(folderPath), title)
 	if err != nil {
 		return Document{}, err
 	}

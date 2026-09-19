@@ -5,11 +5,11 @@ INSERT INTO agent_eval_cases (
 ) VALUES (
     'workflow_generate_strategy_cognition',
     '',
-    'Workflow · 生成策略认知（Macd4H）',
-    'generate_strategy_cognition：读策略库 → LLM 合成 Agent 认知 → 写入并读回 WeKnora 知识库。',
-    '["发送生成策略认知请求（Macd4H）","校验 workflow 完成认知生成报告","校验回复含策略库/知识库与读回验证"]',
+    'Workflow · 生成策略档案（Macd4H）',
+    'generate_strategy_cognition：读策略库 → LLM 合成策略档案 → 写入并读回 WeKnora 知识库。',
+    '["发送生成策略档案请求（Macd4H）","校验 workflow 完成档案生成报告","校验回复含策略库/知识库与读回验证"]',
     FALSE,
-    '{"category":"workflow","task":"generate_strategy_cognition","scenario":"cognition","workflow_skill":"generate_strategy_cognition","random_stock_enabled":false,"min_reply_chars":80,"pass_keywords":["策略认知","知识库","策略库"],"session_cleanup":"before_run","message":"生成策略认知 Macd4H","wait_timeout_sec":900}',
+    '{"category":"workflow","task":"generate_strategy_cognition","scenario":"cognition","workflow_skill":"generate_strategy_cognition","random_stock_enabled":false,"min_reply_chars":80,"pass_keywords":["策略档案","知识库","策略库"],"session_cleanup":"before_run","message":"帮我生成 Macd4H 的策略档案","wait_timeout_sec":900}',
     10,
     TRUE
 ) ON CONFLICT (id) DO UPDATE SET
@@ -26,11 +26,11 @@ INSERT INTO agent_eval_cases (
 ) VALUES (
     'workflow_strategy_dev_read_cognition',
     '',
-    'Workflow · 策略开发读认知（Macd4H）',
-    'strategy_dev：从知识库读取 Macd4H 策略认知作为开发上下文。',
-    '["发送策略开发请求（Macd4H）","校验 workflow 已加载知识库策略认知"]',
+    'Workflow · 策略开发读档案（Macd4H）',
+    'strategy_dev：从知识库读取 Macd4H 策略档案作为开发上下文。',
+    '["发送策略开发请求（Macd4H）","校验 workflow 已加载知识库策略档案"]',
     FALSE,
-    '{"category":"workflow","task":"strategy_dev","scenario":"read_cognition","workflow_skill":"strategy_dev","random_stock_enabled":false,"min_reply_chars":60,"pass_keywords":["策略开发","Macd4H","知识库","策略认知"],"session_cleanup":"before_run","message":"策略开发 Macd4H"}',
+    '{"category":"workflow","task":"strategy_dev","scenario":"read_cognition","workflow_skill":"strategy_dev","random_stock_enabled":false,"min_reply_chars":60,"pass_keywords":["策略开发","Macd4H","知识库","策略档案"],"session_cleanup":"before_run","message":"策略开发 Macd4H"}',
     12,
     TRUE
 ) ON CONFLICT (id) DO UPDATE SET
@@ -68,11 +68,11 @@ INSERT INTO agent_eval_cases (
 ) VALUES (
     'workflow_generate_strategy_cognition_random',
     '',
-    'Workflow · 生成策略认知（随机策略）',
-    'generate_strategy_cognition：从策略库随机选一项，LLM 合成认知并写入知识库。',
-    '["随机选取一项 catalog 组合策略","发送生成策略认知请求","校验 workflow 完成认知生成报告","校验回复含策略库/知识库与读回验证"]',
+    'Workflow · 生成策略档案（随机策略）',
+    'generate_strategy_cognition：从策略库随机选一项，LLM 合成策略档案并写入知识库。',
+    '["随机选取一项 catalog 组合策略","发送生成策略档案请求","校验 workflow 完成档案生成报告","校验回复含策略库/知识库与读回验证"]',
     FALSE,
-    '{"category":"workflow","task":"generate_strategy_cognition","scenario":"cognition_random","workflow_skill":"generate_strategy_cognition","random_strategy_enabled":true,"random_stock_enabled":false,"min_reply_chars":80,"pass_keywords":["策略认知","知识库","策略库"],"session_cleanup":"before_run","message":"生成策略认知","wait_timeout_sec":900}',
+    '{"category":"workflow","task":"generate_strategy_cognition","scenario":"cognition_random","workflow_skill":"generate_strategy_cognition","random_strategy_enabled":true,"random_stock_enabled":false,"min_reply_chars":80,"pass_keywords":["策略档案","知识库","策略库"],"session_cleanup":"before_run","message":"帮我生成策略档案","wait_timeout_sec":900}',
     13,
     TRUE
 ) ON CONFLICT (id) DO UPDATE SET

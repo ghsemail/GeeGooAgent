@@ -7,6 +7,12 @@ import (
 )
 
 func TestIsGenerateStrategyCognitionIntent(t *testing.T) {
+	if !IsGenerateStrategyCognitionIntent("帮我生成 Macd4H 的策略档案") {
+		t.Fatal("expected 帮我生成...策略档案 intent")
+	}
+	if !IsGenerateStrategyCognitionIntent("生成策略档案 Macd4H") {
+		t.Fatal("expected 生成策略档案 intent")
+	}
 	if !IsGenerateStrategyCognitionIntent("生成策略认知 Macd4H") {
 		t.Fatal("expected generate cognition intent")
 	}
@@ -54,7 +60,11 @@ func TestShouldStartStrategyDevFlow(t *testing.T) {
 }
 
 func TestExtractStrategyQuery(t *testing.T) {
-	got := extractStrategyQuery("生成策略认知 Macd4H")
+	got := extractStrategyQuery("帮我生成 Macd4H 的策略档案")
+	if got == "" || got == "帮我生成 Macd4H 的策略档案" {
+		t.Fatalf("extractStrategyQuery new format = %q", got)
+	}
+	got = extractStrategyQuery("生成策略认知 Macd4H")
 	if got == "" || got == "生成策略认知 Macd4H" {
 		t.Fatalf("unexpected query: %q", got)
 	}
