@@ -3,6 +3,8 @@ package diagram
 import (
 	"context"
 	"encoding/json"
+
+	"github.com/ghsemail/GeeGooAgent/internal/skills"
 )
 
 const (
@@ -67,5 +69,12 @@ func viewPath(id string) string {
 }
 
 func workflowID(skill string) string {
-	return "workflow." + skill
+	return "workflow." + skills.CanonicalName(skill)
+}
+
+func canonicalDiagramID(id string) string {
+	if id == "workflow.generate_strategy_cognition" {
+		return workflowID(skills.SkillGenerateStrategyArchive)
+	}
+	return id
 }

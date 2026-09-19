@@ -1020,7 +1020,7 @@ func buildProceduralSkillsPayloadLite(app *app.App) ([]map[string]any, map[strin
 		for _, sk := range skills.Default().List() {
 			skillRel := "skills/" + sk.Name + "/SKILL.md"
 			out = append(out, map[string]any{
-				"name": sk.Name, "description": sk.Description,
+				"name": sk.Name, "title": skills.DisplayName(sk), "description": sk.Description,
 				"body": sk.Description, "body_preview": sk.Description,
 				"path": skillRel, "rel": skillRel,
 				"kind": string(procedural.KindWorkflow), "kind_label": procedural.KindLabel(procedural.KindWorkflow),
@@ -1064,7 +1064,7 @@ func buildProceduralSkillsPayload(app *app.App) ([]map[string]any, map[string]an
 		for _, sk := range skills.Default().List() {
 			skillRel := "skills/" + sk.Name + "/SKILL.md"
 			out = append(out, map[string]any{
-				"name": sk.Name, "description": sk.Description,
+				"name": sk.Name, "title": skills.DisplayName(sk), "description": sk.Description,
 				"body": sk.Description, "body_preview": sk.Description,
 				"path": skillRel, "rel": skillRel,
 				"kind": string(procedural.KindWorkflow), "kind_label": procedural.KindLabel(procedural.KindWorkflow),

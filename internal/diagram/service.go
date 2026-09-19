@@ -87,7 +87,7 @@ func LookupSkill(name string) (Info, bool) {
 
 // Get compiles (or loads an override) the IR for id.
 func (s *Default) Get(id string) (Document, error) {
-	id = strings.TrimSpace(id)
+	id = canonicalDiagramID(strings.TrimSpace(id))
 	if id == "" {
 		return Document{}, fmt.Errorf("diagram: empty id")
 	}
@@ -127,6 +127,7 @@ func loadOverride(root, id string) (Document, bool) {
 
 // Render returns the cached artifact, or live-renders if the cache is missing.
 func (s *Default) Render(ctx context.Context, id string) (Artifact, error) {
+	id = canonicalDiagramID(id)
 	if art, ok := loadArtifact(s.root(), id); ok {
 		return art, nil
 	}

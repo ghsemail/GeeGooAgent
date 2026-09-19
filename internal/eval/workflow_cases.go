@@ -23,7 +23,7 @@ func IndividualWorkflowEvalCases() []TurnPlanEvalCaseDef {
 		{
 			ID:          "workflow_generate_strategy_cognition",
 			Title:       "Workflow · 生成策略档案（Macd4H）",
-			Description: "generate_strategy_cognition：读策略库 → LLM 合成策略档案 → 写入并读回 WeKnora 知识库。",
+			Description: "generate_strategy_archive：读策略库 → LLM 合成策略档案 → 写入并读回 WeKnora 知识库。",
 			Steps: []string{
 				"发送生成策略档案请求（Macd4H）",
 				"校验 workflow 完成档案生成报告",
@@ -77,7 +77,7 @@ func IndividualWorkflowEvalCases() []TurnPlanEvalCaseDef {
 		{
 			ID:          "workflow_generate_strategy_cognition_random",
 			Title:       "Workflow · 生成策略档案（随机策略）",
-			Description: "generate_strategy_cognition：从策略库随机选一项，LLM 合成策略档案并写入知识库。",
+			Description: "generate_strategy_archive：从策略库随机选一项，LLM 合成策略档案并写入知识库。",
 			Steps: []string{
 				"随机选取一项 catalog 组合策略",
 				"发送生成策略档案请求",

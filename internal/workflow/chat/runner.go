@@ -65,8 +65,8 @@ func (r *Runner) RunTurn(
 		flow.Status = StatusRunning
 	}
 
-	switch flow.Template {
-	case SkillGenerateStrategyCognition:
+	switch canonicalSkill(flow.Template) {
+	case SkillGenerateStrategyArchive:
 		return r.runTemplateTurn(ctx, session, flow, toolCtx, stepBase, r.advanceGenerateStrategyCognition, renderGenerateCognitionPartial, renderGenerateCognitionReport)
 	case SkillStrategyDev:
 		return r.runTemplateTurn(ctx, session, flow, toolCtx, stepBase, r.advanceStrategyDev, renderStrategyDevPartial, renderStrategyDevReport)

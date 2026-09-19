@@ -4,13 +4,22 @@ import (
 	"time"
 )
 
+func canonicalSkill(name string) string {
+	if name == legacyGenerateStrategyCognition {
+		return SkillGenerateStrategyArchive
+	}
+	return name
+}
+
 const (
 	MetaKeyActiveFlow = "active_flow"
 
 	SkillMultiStrategyCompare         = "multi_strategy_compare"
 	SkillParamTune                    = "param_tune"
 	SkillStrategyDev                  = "strategy_dev"
-	SkillGenerateStrategyCognition    = "generate_strategy_cognition"
+	SkillGenerateStrategyArchive      = "generate_strategy_archive"
+	SkillGenerateStrategyCognition    = SkillGenerateStrategyArchive
+	legacyGenerateStrategyCognition   = "generate_strategy_cognition"
 
 	StepGenerateCognition = "generate_cognition"
 	StepStrategyDevelop   = "develop"

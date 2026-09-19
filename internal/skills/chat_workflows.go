@@ -1,11 +1,15 @@
 package skills
 
+import "strings"
+
 // Chat-triggered workflow skill names (must match internal/workflow/chat/types.go).
 const (
-	SkillMultiStrategyCompare      = "multi_strategy_compare"
-	SkillParamTune                 = "param_tune"
-	SkillStrategyDev               = "strategy_dev"
-	SkillGenerateStrategyCognition = "generate_strategy_cognition"
+	SkillMultiStrategyCompare       = "multi_strategy_compare"
+	SkillParamTune                  = "param_tune"
+	SkillStrategyDev                = "strategy_dev"
+	SkillGenerateStrategyArchive    = "generate_strategy_archive"
+	SkillGenerateStrategyCognition  = SkillGenerateStrategyArchive // legacy alias
+	legacyGenerateStrategyCognition = "generate_strategy_cognition"
 )
 
 // ChatTrigger describes chat keyword entry for a workflow skill.
@@ -20,7 +24,7 @@ type ChatTrigger struct {
 func ChatWorkflowCatalog() []map[string]any {
 	return []map[string]any{
 		{
-			"id":            SkillGenerateStrategyCognition,
+			"id":            SkillGenerateStrategyArchive,
 			"name":          "生成策略档案",
 			"description":   "读策略库 → LLM 合成策略档案 → 写入并读回 WeKnora 知识库。",
 			"status":        "available",
@@ -67,10 +71,42 @@ func ChatWorkflowCatalog() []map[string]any {
 	}
 }
 
+// CanonicalName maps retired skill ids onto the current name.
+func CanonicalName(name string) string {
+	if name == legacyGenerateStrategyCognition {
+		return SkillGenerateStrategyArchive
+	}
+	return name
+}
+
+// DisplayName is the Chinese workflow title shown in Agent Mode.
+func DisplayName(spec Spec) string {
+	for _, row := range ChatWorkflowCatalog() {
+		if row["id"] == spec.Name {
+			if n, _ := row["name"].(string); strings.TrimSpace(n) != "" {
+				return n
+			}
+		}
+	}
+	desc := strings.TrimSpace(spec.Description)
+	if strings.HasPrefix(desc, "【") {
+		if end := strings.Index(desc, "】"); end > 0 {
+			return desc[len("【"):end]
+		}
+	}
+	if i := strings.Index(desc, "："); i > 0 && i < 24 {
+		return desc[:i]
+	}
+	if spec.Name != "" {
+		return spec.Name
+	}
+	return "Workflow"
+}
+
 // IsChatWorkflowSkill reports whether name is a chat+cron workflow (not L5 batch-only).
 func IsChatWorkflowSkill(name string) bool {
-	switch name {
-	case SkillMultiStrategyCompare, SkillParamTune, SkillStrategyDev, SkillGenerateStrategyCognition:
+	switch CanonicalName(name) {
+	case SkillMultiStrategyCompare, SkillParamTune, SkillStrategyDev, SkillGenerateStrategyArchive:
 		return true
 	default:
 		return false

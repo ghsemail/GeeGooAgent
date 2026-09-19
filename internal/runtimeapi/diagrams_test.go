@@ -47,12 +47,19 @@ func TestDiagramsCatalogAndView(t *testing.T) {
 		t.Fatalf("get status=%d body=%s", rec.Code, rec.Body.String())
 	}
 
+	req = httptest.NewRequest(http.MethodGet, "/v1/diagrams/workflow.generate_strategy_archive", nil)
+	req.Header.Set("Authorization", "Bearer test-runtime-key")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("generate_strategy_archive status=%d body=%s", rec.Code, rec.Body.String())
+	}
 	req = httptest.NewRequest(http.MethodGet, "/v1/diagrams/workflow.generate_strategy_cognition", nil)
 	req.Header.Set("Authorization", "Bearer test-runtime-key")
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("generate_strategy_cognition status=%d body=%s", rec.Code, rec.Body.String())
+		t.Fatalf("legacy cognition id status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
 

@@ -1,12 +1,12 @@
 ---
-name: generate_strategy_cognition
+name: generate_strategy_archive
 description: 生成策略档案 Workflow。读策略库 → LLM 合成 Agent 可注入档案 → 写入知识库 → 读回验证。
 kind: workflow
 status: available
 trigger_modes: chat
 ---
 
-# 生成策略档案（generate_strategy_cognition）
+# 生成策略档案（generate_strategy_archive）
 
 从 GeeGoo 策略库读取定义，由 LLM 结合模型常识合成 **策略档案** 文档，写入 WeKnora `策略档案/` 目录。
 

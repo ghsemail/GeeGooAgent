@@ -27,5 +27,5 @@ trigger_modes: chat
 
 ## 与「生成策略档案」的关系
 
-- 单独说「帮我生成 Macd4H 的策略档案」→ `generate_strategy_cognition` workflow
+- 单独说「帮我生成 Macd4H 的策略档案」→ `generate_strategy_archive` workflow
 - 「读取 Macd4H 策略」→ 本 workflow；**不要求**用户事先手动生成档案

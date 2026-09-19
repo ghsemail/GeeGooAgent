@@ -47,7 +47,7 @@ func (r *Registry) Register(s Spec) {
 
 // Get returns a skill by name and whether it was found.
 func (r *Registry) Get(name string) (Spec, bool) {
-	s, ok := r.skills[name]
+	s, ok := r.skills[CanonicalName(name)]
 	return s, ok
 }
 

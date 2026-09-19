@@ -24,6 +24,7 @@ func BuildWorkflowDetail(projectRoot string, spec Spec, jobs []SchedulerJobView,
 	skillDir := filepath.Join("skills", spec.Name)
 	detail := map[string]any{
 		"name":           spec.Name,
+		"title":          DisplayName(spec),
 		"description":    spec.Description,
 		"skill_path":     filepath.ToSlash(filepath.Join(skillDir, "SKILL.md")),
 		"template_path":  spec.TemplatePath,
@@ -86,13 +87,18 @@ func AttachWorkflowDetails(items []map[string]any, projectRoot string, jobs []Sc
 	}
 	for i, item := range items {
 		name, _ := item["name"].(string)
-		name = strings.TrimSpace(name)
+		name = CanonicalName(strings.TrimSpace(name))
 		spec, ok := byName[name]
 		if !ok {
 			continue
 		}
 		skillPath, _ := item["path"].(string)
-		item["workflow_detail"] = BuildWorkflowDetail(projectRoot, spec, jobs, skillPath)
+		detail := BuildWorkflowDetail(projectRoot, spec, jobs, skillPath)
+		item["workflow_detail"] = detail
+		if title, _ := detail["title"].(string); strings.TrimSpace(title) != "" {
+			item["title"] = title
+		}
+		item["name"] = spec.Name
 		items[i] = item
 	}
 }
