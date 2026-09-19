@@ -3,12 +3,24 @@ package chat
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
+
+var readStrategyDevMessagePattern = regexp.MustCompile(`(?i)^读取\s*(.+?)\s*策略$`)
+
+// FormatReadStrategyDevMessage is the canonical Dock utterance for strategy_dev workflow.
+func FormatReadStrategyDevMessage(strategyName string) string {
+	name := strings.TrimSpace(strategyName)
+	if name == "" {
+		return "读取策略"
+	}
+	return fmt.Sprintf("读取 %s 策略", name)
+}
 
 func newStrategyDevFlow(userText string) *Flow {
 	now := time.Now().UTC()
@@ -36,7 +48,7 @@ func (r *Runner) advanceStrategyDev(
 	switch flow.Phase {
 	case PhaseDevPick:
 		if strings.TrimSpace(flow.StrategyQuery) == "" {
-			return terminalError("请说明要开发的策略名称，例如：策略开发 Macd4H")
+			return terminalError("请说明要读取的策略名称，例如：读取 Macd4H 策略")
 		}
 		flow.Phase = PhaseDevEnsureArchive
 		flow.touch()
@@ -160,7 +172,7 @@ func hitField(hits []any, key string) string {
 func renderStrategyDevReport(flow *Flow) string {
 	label := strategyDisplayLabel(flow)
 	var b strings.Builder
-	fmt.Fprintf(&b, "## 策略开发 · 已加载策略档案 · %s\n\n", label)
+	fmt.Fprintf(&b, "## %s · 策略开发\n\n", FormatReadStrategyDevMessage(label))
 	fmt.Fprintf(&b, "| 步骤 | 结果 |\n| --- | --- |\n")
 	if flow.DevArchiveGenerated {
 		fmt.Fprintf(&b, "| 策略档案 | 知识库无记录 → 已自动生成并写入 %s |\n", tools.StrategyArchiveFolder)
@@ -185,6 +197,6 @@ func renderStrategyDevPartial(flow *Flow) string {
 	case PhaseDevEnsureArchive, PhaseDevReadCognition:
 		phaseLabel = "检查/加载策略档案"
 	}
-	return fmt.Sprintf("## 策略开发（进行中）\n\n- 策略：%s\n- 阶段：%s",
-		label, phaseLabel)
+	return fmt.Sprintf("## %s\n\n- 阶段：%s",
+		FormatReadStrategyDevMessage(label), phaseLabel)
 }

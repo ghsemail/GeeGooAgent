@@ -49,7 +49,7 @@ func RegisterBuiltins(r *Registry) {
 		Description: "策略开发：确保策略档案存在（无则自动生成），注入后续开发上下文",
 		Chat: &ChatTrigger{
 			Status:      "available",
-			Triggers:    []string{"策略开发"},
+			Triggers:    []string{"读取", "策略开发"},
 			Phases:      []string{"dev_pick", "dev_ensure_archive", "summarize"},
 			ResumeHints: []string{"继续", "重试失败", "POST /v1/chat/workflow/resume"},
 		},

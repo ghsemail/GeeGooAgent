@@ -18,12 +18,14 @@ trigger_modes: chat
 | `dev_ensure_archive` | 查 `策略档案/`（兼容 `策略认知/`）：**有则读取注入**；**无则 inline 执行生成策略档案**（读策略库 → LLM 合成 → 写入 → 读回） |
 | `summarize` | 输出已载入/生成的档案摘要 |
 
-## 触发示例
+## 触发示例（推荐首句）
 
-- 「策略开发 Macd4H」
-- 「策略开发：基于 SAR+MACD 组合继续」
+- 「**读取 Macd4H 策略**」
+- 「读取 SAR+MACD 策略」
+
+兼容旧说法：「策略开发 Macd4H」
 
 ## 与「生成策略档案」的关系
 
 - 单独说「帮我生成 Macd4H 的策略档案」→ `generate_strategy_cognition` workflow
-- 「策略开发 Macd4H」→ 本 workflow；**不要求**用户事先手动生成档案
+- 「读取 Macd4H 策略」→ 本 workflow；**不要求**用户事先手动生成档案

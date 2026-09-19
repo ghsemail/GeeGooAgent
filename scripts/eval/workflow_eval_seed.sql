@@ -26,11 +26,11 @@ INSERT INTO agent_eval_cases (
 ) VALUES (
     'workflow_strategy_dev_read_cognition',
     '',
-    'Workflow · 策略开发读档案（Macd4H）',
-    'strategy_dev：从知识库读取 Macd4H 策略档案作为开发上下文。',
-    '["发送策略开发请求（Macd4H）","校验 workflow 已加载知识库策略档案"]',
+    'Workflow · 读取策略（Macd4H）',
+    'strategy_dev：读取 Macd4H 策略档案（无则自动生成），注入开发上下文。',
+    '["发送读取策略请求（Macd4H）","校验 workflow 已加载或生成策略档案"]',
     FALSE,
-    '{"category":"workflow","task":"strategy_dev","scenario":"read_cognition","workflow_skill":"strategy_dev","random_stock_enabled":false,"min_reply_chars":60,"pass_keywords":["策略开发","Macd4H","知识库","策略档案"],"session_cleanup":"before_run","message":"策略开发 Macd4H"}',
+    '{"category":"workflow","task":"strategy_dev","scenario":"read_cognition","workflow_skill":"strategy_dev","random_stock_enabled":false,"min_reply_chars":60,"pass_keywords":["读取","Macd4H","知识库","策略档案"],"session_cleanup":"before_run","message":"读取 Macd4H 策略"}',
     12,
     TRUE
 ) ON CONFLICT (id) DO UPDATE SET

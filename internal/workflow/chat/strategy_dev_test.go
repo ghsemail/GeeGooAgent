@@ -22,11 +22,17 @@ func TestIsGenerateStrategyCognitionIntent(t *testing.T) {
 	if IsGenerateStrategyCognitionIntent("策略开发 Macd4H") {
 		t.Fatal("strategy dev should not match generate")
 	}
+	if IsGenerateStrategyCognitionIntent("读取 Macd4H 策略") {
+		t.Fatal("read-strategy dev should not match generate")
+	}
 }
 
 func TestIsStrategyDevIntent(t *testing.T) {
 	if !IsStrategyDevIntent("策略开发 Macd4H") {
 		t.Fatal("expected strategy dev intent")
+	}
+	if !IsStrategyDevIntent("读取 Macd4H 策略") {
+		t.Fatal("expected read-strategy dev intent")
 	}
 	if IsStrategyDevIntent("策略认知 Macd4H") {
 		t.Fatal("策略认知 should route to generate workflow")
@@ -71,6 +77,16 @@ func TestExtractStrategyQuery(t *testing.T) {
 	got = extractStrategyQuery("策略开发 共振")
 	if got == "" {
 		t.Fatal("expected query")
+	}
+	got = extractStrategyQuery("读取 Macd4H 策略")
+	if got != "Macd4H" {
+		t.Fatalf("read-strategy query = %q", got)
+	}
+}
+
+func TestFormatReadStrategyDevMessage(t *testing.T) {
+	if got := FormatReadStrategyDevMessage("Macd4H"); got != "读取 Macd4H 策略" {
+		t.Fatalf("message = %q", got)
 	}
 }
 

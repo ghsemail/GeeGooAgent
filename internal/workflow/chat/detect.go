@@ -37,6 +37,17 @@ var strategyDevPhrases = []string{
 	"策略开发",
 }
 
+func isReadStrategyDevIntent(text string) bool {
+	trim := strings.TrimSpace(text)
+	if trim == "" {
+		return false
+	}
+	if readStrategyDevMessagePattern.MatchString(trim) {
+		return true
+	}
+	return strings.Contains(trim, "读取") && strings.Contains(trim, "策略")
+}
+
 // IsCancelIntent reports explicit flow cancellation.
 func IsCancelIntent(text string) bool {
 	lower := strings.ToLower(strings.TrimSpace(text))
@@ -126,7 +137,7 @@ func IsStrategyDevIntent(text string) bool {
 			return true
 		}
 	}
-	return false
+	return isReadStrategyDevIntent(trim)
 }
 
 // ShouldStartGenerateStrategyCognitionFlow decides whether to create generate workflow.
