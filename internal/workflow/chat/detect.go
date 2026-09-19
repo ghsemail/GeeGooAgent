@@ -182,10 +182,20 @@ func ShouldStartStrategyDevFlow(text string, existing *Flow) bool {
 
 // ShouldStartSignalDiagnoseFlow decides whether to create signal_diagnose workflow.
 func ShouldStartSignalDiagnoseFlow(text string, existing *Flow) bool {
-	if existing != nil && existing.Active() {
+	if !IsSignalDiagnoseIntent(text) {
 		return false
 	}
-	return IsSignalDiagnoseIntent(text)
+	if existing == nil || !existing.Active() {
+		return true
+	}
+	switch existing.Status {
+	case StatusPausedFailed, StatusInterrupted:
+		return true
+	}
+	if existing.Template != SkillSignalDiagnose {
+		return true
+	}
+	return false
 }
 
 // ShouldStartMultiStrategyFlow decides whether to create a new flow this turn.

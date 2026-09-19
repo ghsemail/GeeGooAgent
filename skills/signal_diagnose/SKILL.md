@@ -19,7 +19,7 @@ trigger_modes: chat
 | `read_strategy` | `resolveStrategyCatalog` 读策略库 rules |
 | `resolve_symbol` | `search_code` → 标准 code |
 | `run_probe` | `probe_bot_signal_series` |
-| `evaluate_accuracy` | 本地 Episode 评价（至下一次反向信号） |
+| `evaluate_accuracy` | Episode：Strict（至反向信号）+ Path（至下一同向/样本末，含 peak/maxDD） |
 | `build_detail` | `diagnose_bot_signal_series` |
 | `diag_compose` | LLM 综合判断 |
 | `diag_save_kb` | `save_strategy_knowledge` → 信号诊断目录 |

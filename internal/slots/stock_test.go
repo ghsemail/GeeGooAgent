@@ -33,6 +33,15 @@ func TestExtractExplicitStockReferenceFindsSwitch(t *testing.T) {
 	}
 }
 
+func TestStockResolveQueryDockLabel(t *testing.T) {
+	if got := StockResolveQuery("五粮液 (000858.SZ)"); got != "000858.SZ" {
+		t.Fatalf("got %q want 000858.SZ", got)
+	}
+	if got := StockResolveQuery("腾讯控股 (00700.HK)"); got != "00700.HK" && got != "00700" {
+		t.Fatalf("got %q want 00700(.HK)", got)
+	}
+}
+
 func TestIsLikelyStockUtterance(t *testing.T) {
 	if !IsLikelyStockUtterance("中际旭创呢") {
 		t.Fatal("colloquial stock name should match")

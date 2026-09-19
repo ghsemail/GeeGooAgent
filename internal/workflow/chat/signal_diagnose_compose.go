@@ -98,7 +98,7 @@ func (r *Runner) synthesizeSignalDiagnoseJudgment(ctx context.Context, flow *Flo
 probe：买 %d 次 / 卖 %d 次（%d 根 K 线）
 diagnose：%s — %s
 
-Episode 评价（至下一次反向信号，同向连续触发合并；未闭合段不计入主命中率）：
+Episode 评价（strict=至反向信号；path=无反向则至下一同向或样本末，含 peak/maxDD）：
 %s
 
 要求：
@@ -138,9 +138,14 @@ func fallbackSignalDiagnoseJudgment(flow *Flow) string {
 	sell := flow.SignalEval.SellEpisodes
 	var b strings.Builder
 	fmt.Fprintf(&b, "基于 %d 个月 probe 与 Episode 评价（至反向信号）：", flow.MonthsBack)
+	pathBuy := flow.SignalEval.BuyPathEpisodes
+	pathSell := flow.SignalEval.SellPathEpisodes
 	if buy.CompleteCount+sell.CompleteCount == 0 {
-		b.WriteString("可闭合样本不足，建议延长回溯或换周期后再评。")
-		return strings.TrimSpace(b.String())
+		if pathBuy.CompleteCount+pathSell.CompleteCount == 0 {
+			b.WriteString("可评价样本不足，建议延长回溯或换周期后再评。")
+			return strings.TrimSpace(b.String())
+		}
+		fmt.Fprintf(&b, " strict 无闭合段（常见：仅买不卖）。")
 	}
 	if buy.CompleteCount > 0 {
 		fmt.Fprintf(&b, " 买入 %d 段闭合 episode 命中率 %.0f%%（均收益 %s）。",
@@ -151,7 +156,15 @@ func fallbackSignalDiagnoseJudgment(flow *Flow) string {
 			sell.CompleteCount, sell.HitRate*100, slots.FormatPct(sell.AvgReturn))
 	}
 	if buy.IncompleteCount+sell.IncompleteCount > 0 {
-		fmt.Fprintf(&b, " 另有 %d 段未闭合。", buy.IncompleteCount+sell.IncompleteCount)
+		fmt.Fprintf(&b, " strict 另有 %d 段未闭合。", buy.IncompleteCount+sell.IncompleteCount)
+	}
+	if pathBuy.CompleteCount > 0 {
+		fmt.Fprintf(&b, " Path 买入 %d 段命中率 %.0f%%（均 peak %s，均 maxDD %s）。",
+			pathBuy.CompleteCount, pathBuy.HitRate*100, slots.FormatPct(pathBuy.AvgPeakReturn), slots.FormatPct(pathBuy.AvgMaxDrawdown))
+	}
+	if pathSell.CompleteCount > 0 {
+		fmt.Fprintf(&b, " Path 卖出 %d 段命中率 %.0f%%。",
+			pathSell.CompleteCount, pathSell.HitRate*100)
 	}
 	b.WriteString(" 未配置 LLM 时为规则摘要，完整判断请配置 ComposeLLM。")
 	return strings.TrimSpace(b.String())
@@ -206,19 +219,24 @@ func renderSignalDiagnoseFacts(flow *Flow) string {
 
 func appendSignalEvalMethodology(b *strings.Builder) {
 	fmt.Fprintf(b, "\n### 命中率与有效性怎么算\n\n")
-	fmt.Fprintf(b, "1. **Episode 切分**：一次买信号（同向连续触发合并）→ 持有到**下一次卖信号**出现前一根 K；卖同理 → 下一买前一根。\n")
-	fmt.Fprintf(b, "2. **走势收益**：`收益 = 终点收盘 / 起点收盘 - 1`（起点=信号 bar 收盘，终点=反向信号前一根收盘）。\n")
-	fmt.Fprintf(b, "3. **命中**：买段收益 > 0；卖段收益 < 0（表内「方向收益」为卖段取反，便于统一看正值为有效）。\n")
-	fmt.Fprintf(b, "4. **命中率** = 命中段数 / **闭合段数**（末尾等不到反向信号的段标「未闭合」，不计入分母）。\n")
-	fmt.Fprintf(b, "5. **持续时长**：持有 K 线数 = 终点索引 − 起点索引；用于观察信号后趋势能维持多久。\n")
+	fmt.Fprintf(b, "1. **Strict（闭环）**：买段 → 下一**卖**前一根 K；卖段 → 下一**买**前一根。仅闭合段计入 strict 命中率。\n")
+	fmt.Fprintf(b, "2. **Path（诊断）**：若无反向信号，则截到**下一同向买/卖**前一根；最后一段截到样本末（`open_tail`）。\n")
+	fmt.Fprintf(b, "3. **Path 指标**：段内最高价涨幅 `peak_return`、自入场/自高点 `max_drawdown`（用 high/low）。\n")
+	fmt.Fprintf(b, "4. **命中**：买段方向收益 > 0；卖段 < 0（卖段方向收益取反便于阅读）。\n")
+	fmt.Fprintf(b, "5. **仅买无卖**时请看 **Path 汇总**，strict 命中率可能为 N/A。\n")
 }
 
 func appendSignalEvalSection(b *strings.Builder, eval slots.SignalEpisodeEval) {
-	fmt.Fprintf(b, "\n### 汇总（Episode · %s）\n\n", eval.Method)
+	fmt.Fprintf(b, "\n### 汇总 · Strict（%s · 至反向信号）\n\n", eval.Method)
 	fmt.Fprintf(b, "| 方向 | 闭合段 | 未闭合 | 命中/闭合 | 命中率 | 均方向收益 | 中位方向收益 | 均持有K线 | 中位持有K线 |\n")
 	fmt.Fprintf(b, "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	writeEvalRow(b, "买入", eval.BuyEpisodes)
 	writeEvalRow(b, "卖出", eval.SellEpisodes)
+	fmt.Fprintf(b, "\n### 汇总 · Path（诊断：至下一同向或样本末）\n\n")
+	fmt.Fprintf(b, "| 方向 | 段数 | 命中/段 | 命中率 | 均方向收益 | 均 peak | 均 maxDD(自高点) | 均持有K线 |\n")
+	fmt.Fprintf(b, "| --- | --- | --- | --- | --- | --- | --- | --- |\n")
+	writePathEvalRow(b, "买入", eval.BuyPathEpisodes)
+	writePathEvalRow(b, "卖出", eval.SellPathEpisodes)
 }
 
 func writeEvalRow(b *strings.Builder, label string, m slots.SignalEpisodeMetrics) {
@@ -245,28 +263,56 @@ func appendEpisodeDetailSections(b *strings.Builder, eval slots.SignalEpisodeEva
 	appendEpisodeDetailTable(b, "卖出 Episode 明细", eval.SellDetails)
 }
 
+func writePathEvalRow(b *strings.Builder, label string, m slots.SignalEpisodeMetrics) {
+	hit := "-"
+	ratio := "-"
+	avg := "-"
+	peak := "-"
+	dd := "-"
+	avgHold := "-"
+	if m.CompleteCount > 0 {
+		hit = fmt.Sprintf("%d/%d", m.HitCount, m.CompleteCount)
+		ratio = fmt.Sprintf("%.0f%%", m.HitRate*100)
+		avg = slots.FormatPct(m.AvgReturn)
+		peak = slots.FormatPct(m.AvgPeakReturn)
+		dd = slots.FormatPct(m.AvgMaxDrawdown)
+		avgHold = fmt.Sprintf("%.1f", m.AvgHoldingBars)
+	}
+	fmt.Fprintf(b, "| %s | %d | %s | %s | %s | %s | %s | %s |\n",
+		label, m.CompleteCount, hit, ratio, avg, peak, dd, avgHold)
+}
+
 func appendEpisodeDetailTable(b *strings.Builder, title string, details []slots.SignalEpisodeDetail) {
 	fmt.Fprintf(b, "\n### %s\n\n", title)
 	if len(details) == 0 {
 		fmt.Fprintf(b, "_无 episode_\n")
 		return
 	}
-	fmt.Fprintf(b, "| # | 信号时间 | 起点价 | 终点时间 | 终点价 | 反向信号 | 持有K线 | 价格涨跌 | 方向收益 | 命中 |\n")
-	fmt.Fprintf(b, "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
+	fmt.Fprintf(b, "| # | 信号时间 | 起点价 | Strict | Path 终点 | peak | maxDD | Path 方向收益 | Path 命中 |\n")
+	fmt.Fprintf(b, "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	for i, ep := range details {
-		if !ep.Complete {
-			fmt.Fprintf(b, "| %d | %s | %.2f | — | — | — | — | — | — | 未闭合 |\n",
-				i+1, dashTime(ep.StartTime), ep.StartClose)
-			continue
+		strict := "未闭合"
+		if ep.Complete {
+			strict = fmt.Sprintf("%s · %s", dashTime(ep.EndTime), slots.FormatPct(ep.DirectionReturn))
 		}
-		hit := "否"
-		if ep.Hit {
-			hit = "是"
+		pathEnd := "—"
+		pathRet := "—"
+		pathHit := "—"
+		peak := "—"
+		dd := "—"
+		if ep.PathEvaluable {
+			pathEnd = fmt.Sprintf("%s (%s) · %s", dashTime(ep.PathEndTime), ep.PathEndReason, slots.FormatPct(ep.PathDirectionReturn))
+			pathRet = slots.FormatPct(ep.PathDirectionReturn)
+			if ep.PathHit {
+				pathHit = "是"
+			} else {
+				pathHit = "否"
+			}
+			peak = slots.FormatPct(ep.PeakReturn)
+			dd = slots.FormatPct(ep.MaxDrawdownFromPeak)
 		}
-		fmt.Fprintf(b, "| %d | %s | %.2f | %s | %.2f | %s | %d | %s | %s | %s |\n",
-			i+1, dashTime(ep.StartTime), ep.StartClose,
-			dashTime(ep.EndTime), ep.EndClose, dashTime(ep.OppositeTime),
-			ep.HoldingBars, slots.FormatPct(ep.PriceReturn), slots.FormatPct(ep.DirectionReturn), hit)
+		fmt.Fprintf(b, "| %d | %s | %.2f | %s | %s | %s | %s | %s | %s |\n",
+			i+1, dashTime(ep.StartTime), ep.StartClose, strict, pathEnd, peak, dd, pathRet, pathHit)
 	}
 }
 

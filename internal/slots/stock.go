@@ -13,7 +13,9 @@ import (
 var (
 	reUSTicker  = regexp.MustCompile(`\b([A-Z]{1,5})(?:\.US)?\b`)
 	reHKCode    = regexp.MustCompile(`\b(\d{4,5})(?:\.HK)?\b`)
-	reAShare    = regexp.MustCompile(`(?i)\b(\d{6})(?:\.(?:SZ|SH|BJ))?\b`)
+	reAShare      = regexp.MustCompile(`(?i)\b(\d{6})(?:\.(?:SZ|SH|BJ))?\b`)
+	reDottedAShare  = regexp.MustCompile(`(?i)\b(\d{6}\.(?:SZ|SH|BJ))\b`)
+	reDockParenCode = regexp.MustCompile(`\(([^)]+)\)`)
 	reCJKRun    = regexp.MustCompile(`\p{Han}{2,8}`)
 	reIntentPad = regexp.MustCompile(`帮我回测一下|帮我测试一下|帮我回测|回测一下|跑回测|来回测|再回测|测试一下|测一下|看一下|看看|帮我分析一下|分析一下|帮我分析|就用刚才那套|刚才那套|用现成的来回测|不要新建`)
 	reStockAfterIntent = regexp.MustCompile(`(?:分析|回测|查|看|测)(?:一下|下)?\s*([\p{Han}]{2,8})`)
@@ -247,6 +249,37 @@ func AutoPickStockItem(query string, items []map[string]any) (map[string]any, bo
 	return stockpick.AutoPick(query, items)
 }
 
+// StockResolveQuery normalizes dock labels like「五粮液 (000858.SZ)」for search_code.
+func StockResolveQuery(query string) string {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return ""
+	}
+	if m := reDockParenCode.FindStringSubmatch(query); len(m) > 1 {
+		inner := strings.TrimSpace(m[1])
+		if inner != "" {
+			if dm := reDottedAShare.FindStringSubmatch(inner); len(dm) > 1 {
+				return strings.ToUpper(dm[1])
+			}
+			if ref := ExtractExplicitStockReference(inner); ref != "" {
+				return ref
+			}
+		}
+	}
+	if m := reDottedAShare.FindStringSubmatch(query); len(m) > 1 {
+		return strings.ToUpper(m[1])
+	}
+	if ref := ExtractExplicitStockReference(query); ref != "" {
+		return ref
+	}
+	if i := strings.Index(query, "("); i > 0 {
+		if name := strings.TrimSpace(query[:i]); name != "" {
+			return name
+		}
+	}
+	return query
+}
+
 // ResolveStock runs search_code and clarifies only when auto-pick cannot disambiguate.
 func ResolveStock(
 	ctx context.Context,
@@ -254,6 +287,7 @@ func ResolveStock(
 	runTool func(context.Context, tools.CallRequest, tools.Context) tools.Result,
 	query string,
 ) (code, name, market string, err error) {
+	query = StockResolveQuery(query)
 	res := runTool(ctx, tools.CallRequest{Name: "search_code", Arguments: map[string]any{"regex": query}}, toolCtx)
 	if res.Status != tools.StatusOK {
 		return "", "", "", fmt.Errorf("search_code 失败：%s", res.Summary)

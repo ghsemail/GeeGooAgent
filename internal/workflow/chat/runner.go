@@ -42,14 +42,19 @@ func (r *Runner) RunTurn(
 	if flow != nil && flow.Status == StatusInterrupted {
 		flow.Status = StatusRunning
 	}
-	if !ShouldHandleFlowTurn(userText, flow) {
+	if ShouldStartSignalDiagnoseFlow(userText, flow) {
+		flow = newSignalDiagnoseFlow(userText)
+		SaveToSession(session, flow)
+		r.emitCard(flow)
+		r.emit("workflow_started", map[string]any{
+			"run_id": flow.RunID, "skill": flow.Template,
+		})
+	} else if !ShouldHandleFlowTurn(userText, flow) {
 		switch {
 		case ShouldStartGenerateStrategyCognitionFlow(userText, flow):
 			flow = newGenerateStrategyCognitionFlow(userText)
 		case ShouldStartStrategyDevFlow(userText, flow):
 			flow = newStrategyDevFlow(userText)
-		case ShouldStartSignalDiagnoseFlow(userText, flow):
-			flow = newSignalDiagnoseFlow(userText)
 		case ShouldStartMultiStrategyFlow(userText, session, flow):
 			flow = newMultiStrategyFlow(userText, session)
 		default:

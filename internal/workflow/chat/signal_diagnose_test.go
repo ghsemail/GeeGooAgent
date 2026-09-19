@@ -84,8 +84,32 @@ func TestIsSignalDiagnoseIntent(t *testing.T) {
 	if !IsSignalDiagnoseIntent("诊断 SAR 策略 · 腾讯") {
 		t.Fatal("expected signal diagnose intent")
 	}
+	if !IsSignalDiagnoseIntent("诊断 SAR信号配套MACD直方图趋势 · 五粮液 (000858.SZ)") {
+		t.Fatal("expected wuliangye diagnose intent")
+	}
 	if IsSignalDiagnoseIntent("读取 Macd4H 策略") {
 		t.Fatal("strategy dev should not match signal diagnose")
+	}
+}
+
+func TestParseSignalDiagnoseMessageWuliangye(t *testing.T) {
+	strategy, stock := parseSignalDiagnoseMessage("诊断 SAR信号配套MACD直方图趋势 · 五粮液 (000858.SZ)")
+	if strategy != "SAR信号配套MACD直方图趋势" {
+		t.Fatalf("strategy=%q", strategy)
+	}
+	if stock != "五粮液 (000858.SZ)" {
+		t.Fatalf("stock=%q", stock)
+	}
+}
+
+func TestShouldStartSignalDiagnoseFlowAfterPause(t *testing.T) {
+	paused := &Flow{Template: SkillSignalDiagnose, Status: StatusPausedFailed, Phase: PhaseResolveSymbol}
+	if !ShouldStartSignalDiagnoseFlow("诊断 SAR · 000858.SZ", paused) {
+		t.Fatal("expected restart after paused_failed")
+	}
+	running := &Flow{Template: SkillSignalDiagnose, Status: StatusRunning, Phase: PhaseRunProbe}
+	if ShouldStartSignalDiagnoseFlow("诊断 SAR · 000858.SZ", running) {
+		t.Fatal("should not restart mid-run")
 	}
 }
 

@@ -6,7 +6,8 @@ import (
 	"strings"
 )
 
-// SignalEpisodeDetail is one buy/sell holding period until the next opposite signal.
+// SignalEpisodeDetail is one buy/sell holding period until the next opposite signal,
+// plus a diagnostic path window (next same-side signal or tail) with peak/drawdown.
 type SignalEpisodeDetail struct {
 	Side              string  `json:"side"`
 	StartIdx          int     `json:"start_idx"`
@@ -22,45 +23,73 @@ type SignalEpisodeDetail struct {
 	Hit               bool    `json:"hit"`
 	HoldingBars       int     `json:"holding_bars"`
 	Complete          bool    `json:"complete"`
+
+	PathEndIdx           int     `json:"path_end_idx,omitempty"`
+	PathEndTime          string  `json:"path_end_time,omitempty"`
+	PathEndClose         float64 `json:"path_end_close,omitempty"`
+	PathEndReason        string  `json:"path_end_reason,omitempty"`
+	PathHoldingBars      int     `json:"path_holding_bars,omitempty"`
+	PathPriceReturn      float64 `json:"path_price_return,omitempty"`
+	PathDirectionReturn  float64 `json:"path_direction_return,omitempty"`
+	PathHit              bool    `json:"path_hit,omitempty"`
+	PathEvaluable        bool    `json:"path_evaluable,omitempty"`
+	PeakHigh             float64 `json:"peak_high,omitempty"`
+	PeakReturn           float64 `json:"peak_return,omitempty"`
+	PeakTime             string  `json:"peak_time,omitempty"`
+	MaxDrawdownFromEntry float64 `json:"max_drawdown_from_entry,omitempty"`
+	MaxDrawdownFromPeak  float64 `json:"max_drawdown_from_peak,omitempty"`
 }
 
-// SignalEpisodeMetrics summarizes directional accuracy until the next opposite signal.
+// SignalEpisodeMetrics summarizes directional accuracy for a cohort of episodes.
 type SignalEpisodeMetrics struct {
-	CompleteCount   int     `json:"complete_count"`
-	IncompleteCount int     `json:"incomplete_count"`
-	HitCount        int     `json:"hit_count"`
-	HitRate         float64 `json:"hit_rate"`
-	AvgReturn       float64 `json:"avg_return"`
-	MedianReturn    float64 `json:"median_return"`
-	AvgHoldingBars  float64 `json:"avg_holding_bars"`
+	CompleteCount     int     `json:"complete_count"`
+	IncompleteCount   int     `json:"incomplete_count"`
+	HitCount          int     `json:"hit_count"`
+	HitRate           float64 `json:"hit_rate"`
+	AvgReturn         float64 `json:"avg_return"`
+	MedianReturn      float64 `json:"median_return"`
+	AvgHoldingBars    float64 `json:"avg_holding_bars"`
 	MedianHoldingBars float64 `json:"median_holding_bars"`
+	AvgPeakReturn     float64 `json:"avg_peak_return,omitempty"`
+	AvgMaxDrawdown    float64 `json:"avg_max_drawdown,omitempty"`
 }
 
 // SignalEpisodeEval is the result of episode-based signal evaluation.
 type SignalEpisodeEval struct {
-	Method       string                `json:"method"`
-	BuyEpisodes  SignalEpisodeMetrics  `json:"buy_episodes"`
-	SellEpisodes SignalEpisodeMetrics  `json:"sell_episodes"`
-	BuyDetails   []SignalEpisodeDetail `json:"buy_details"`
-	SellDetails  []SignalEpisodeDetail `json:"sell_details"`
+	Method           string               `json:"method"`
+	BuyEpisodes      SignalEpisodeMetrics `json:"buy_episodes"`
+	SellEpisodes     SignalEpisodeMetrics `json:"sell_episodes"`
+	BuyPathEpisodes  SignalEpisodeMetrics `json:"buy_path_episodes"`
+	SellPathEpisodes SignalEpisodeMetrics `json:"sell_path_episodes"`
+	BuyDetails       []SignalEpisodeDetail `json:"buy_details"`
+	SellDetails      []SignalEpisodeDetail `json:"sell_details"`
 }
 
-const signalEvalMethodUntilOpposite = "until_opposite_signal"
+const (
+	signalEvalMethodUntilOpposite = "until_opposite_signal"
+	pathEndOpposite               = "opposite_signal"
+	pathEndNextSame               = "next_same_signal"
+	pathEndOpenTail               = "open_tail"
+)
 
-// EvaluateSignalEpisodes scores buy/sell triggers using close-to-close return until the next opposite signal.
+// EvaluateSignalEpisodes scores triggers with strict (until opposite) and path (fallback) windows.
 func EvaluateSignalEpisodes(bars []any, buyMerged, sellMerged []any) SignalEpisodeEval {
 	closes := barCloses(bars)
+	highs := barHighs(bars, closes)
+	lows := barLows(bars, closes)
 	times := barTimes(bars)
 	buyStarts := episodeStarts(buyMerged, 1)
 	sellStarts := episodeStarts(sellMerged, -1)
-	buyDetails := collectEpisodes("buy", buyStarts, closes, times, oppositeIndices(sellMerged, -1), true)
-	sellDetails := collectEpisodes("sell", sellStarts, closes, times, oppositeIndices(buyMerged, 1), false)
+	buyDetails := collectEpisodes("buy", buyStarts, closes, highs, lows, times, oppositeIndices(sellMerged, -1), buyStarts, true)
+	sellDetails := collectEpisodes("sell", sellStarts, closes, highs, lows, times, oppositeIndices(buyMerged, 1), sellStarts, false)
 	return SignalEpisodeEval{
-		Method:       signalEvalMethodUntilOpposite,
-		BuyDetails:   buyDetails,
-		SellDetails:  sellDetails,
-		BuyEpisodes:  metricsFromEpisodes(buyDetails),
-		SellEpisodes: metricsFromEpisodes(sellDetails),
+		Method:           signalEvalMethodUntilOpposite,
+		BuyDetails:       buyDetails,
+		SellDetails:      sellDetails,
+		BuyEpisodes:      metricsFromStrictEpisodes(buyDetails),
+		SellEpisodes:     metricsFromStrictEpisodes(sellDetails),
+		BuyPathEpisodes:  metricsFromPathEpisodes(buyDetails),
+		SellPathEpisodes: metricsFromPathEpisodes(sellDetails),
 	}
 }
 
@@ -72,6 +101,40 @@ func barCloses(bars []any) []float64 {
 			continue
 		}
 		out[i] = floatAny(row["close"])
+	}
+	return out
+}
+
+func barHighs(bars []any, closes []float64) []float64 {
+	out := make([]float64, len(bars))
+	for i, raw := range bars {
+		row, ok := raw.(map[string]any)
+		if !ok {
+			out[i] = closes[i]
+			continue
+		}
+		h := floatAny(row["high"])
+		if h <= 0 {
+			h = closes[i]
+		}
+		out[i] = h
+	}
+	return out
+}
+
+func barLows(bars []any, closes []float64) []float64 {
+	out := make([]float64, len(bars))
+	for i, raw := range bars {
+		row, ok := raw.(map[string]any)
+		if !ok {
+			out[i] = closes[i]
+			continue
+		}
+		l := floatAny(row["low"])
+		if l <= 0 {
+			l = closes[i]
+		}
+		out[i] = l
 	}
 	return out
 }
@@ -112,10 +175,18 @@ func oppositeIndices(merged []any, target int) []int {
 	return out
 }
 
-func collectEpisodes(side string, starts []int, closes []float64, times []string, opposites []int, buySide bool) []SignalEpisodeDetail {
+func collectEpisodes(
+	side string,
+	starts []int,
+	closes, highs, lows []float64,
+	times []string,
+	opposites, sameStarts []int,
+	buySide bool,
+) []SignalEpisodeDetail {
 	if len(closes) == 0 {
 		return nil
 	}
+	lastBar := len(closes) - 1
 	out := make([]SignalEpisodeDetail, 0, len(starts))
 	for _, start := range starts {
 		if start < 0 || start >= len(closes) || closes[start] <= 0 {
@@ -137,34 +208,136 @@ func collectEpisodes(side string, starts []int, closes []float64, times []string
 			end = opp - 1
 			break
 		}
-		if end < start {
-			ep.Complete = false
-			out = append(out, ep)
-			continue
+		if end >= start {
+			ep.Complete = true
+			ep.EndIdx = end
+			ep.EndTime = times[end]
+			ep.EndClose = closes[end]
+			ep.HoldingBars = end - start
+			if oppIdx >= 0 && oppIdx < len(times) {
+				ep.OppositeIdx = oppIdx
+				ep.OppositeTime = times[oppIdx]
+			}
+			ep.PriceReturn = closes[end]/closes[start] - 1
+			if buySide {
+				ep.DirectionReturn = ep.PriceReturn
+				ep.Hit = ep.PriceReturn > 0
+			} else {
+				ep.DirectionReturn = -ep.PriceReturn
+				ep.Hit = ep.PriceReturn < 0
+			}
 		}
-		ep.Complete = true
-		ep.EndIdx = end
-		ep.EndTime = times[end]
-		ep.EndClose = closes[end]
-		ep.HoldingBars = end - start
-		if oppIdx >= 0 && oppIdx < len(times) {
-			ep.OppositeIdx = oppIdx
-			ep.OppositeTime = times[oppIdx]
-		}
-		ep.PriceReturn = closes[end]/closes[start] - 1
-		if buySide {
-			ep.DirectionReturn = ep.PriceReturn
-			ep.Hit = ep.PriceReturn > 0
-		} else {
-			ep.DirectionReturn = -ep.PriceReturn
-			ep.Hit = ep.PriceReturn < 0
+		pathEnd, pathReason := resolvePathEnd(start, ep.Complete, end, sameStarts, lastBar)
+		if pathEnd >= start {
+			fillPathMetrics(&ep, start, pathEnd, pathReason, closes, highs, lows, times, buySide)
 		}
 		out = append(out, ep)
 	}
 	return out
 }
 
-func metricsFromEpisodes(details []SignalEpisodeDetail) SignalEpisodeMetrics {
+func resolvePathEnd(start int, strictComplete bool, strictEnd int, sameStarts []int, lastBar int) (int, string) {
+	if strictComplete && strictEnd >= start {
+		return strictEnd, pathEndOpposite
+	}
+	for _, s := range sameStarts {
+		if s > start {
+			if s-1 >= start {
+				return s - 1, pathEndNextSame
+			}
+			break
+		}
+	}
+	if lastBar >= start {
+		return lastBar, pathEndOpenTail
+	}
+	return -1, pathEndOpenTail
+}
+
+func fillPathMetrics(
+	ep *SignalEpisodeDetail,
+	start, end int,
+	reason string,
+	closes, highs, lows []float64,
+	times []string,
+	buySide bool,
+) {
+	entry := closes[start]
+	ep.PathEndIdx = end
+	ep.PathEndTime = times[end]
+	ep.PathEndClose = closes[end]
+	ep.PathEndReason = reason
+	ep.PathHoldingBars = end - start
+	ep.PathEvaluable = true
+	ep.PathPriceReturn = closes[end]/entry - 1
+	if buySide {
+		ep.PathDirectionReturn = ep.PathPriceReturn
+		ep.PathHit = ep.PathPriceReturn > 0
+	} else {
+		ep.PathDirectionReturn = -ep.PathPriceReturn
+		ep.PathHit = ep.PathPriceReturn < 0
+	}
+
+	peakExtreme := entry
+	peakIdx := start
+	runningExtreme := entry
+	maxDDEntry := 0.0
+	maxDDPeak := 0.0
+	for i := start; i <= end; i++ {
+		h := highs[i]
+		l := lows[i]
+		if buySide {
+			if h > peakExtreme {
+				peakExtreme = h
+				peakIdx = i
+			}
+			if h > runningExtreme {
+				runningExtreme = h
+			}
+			if entry > 0 {
+				if dd := (entry - l) / entry; dd > maxDDEntry {
+					maxDDEntry = dd
+				}
+			}
+			if runningExtreme > 0 {
+				if dd := (runningExtreme - l) / runningExtreme; dd > maxDDPeak {
+					maxDDPeak = dd
+				}
+			}
+		} else {
+			if l > 0 && l < peakExtreme {
+				peakExtreme = l
+				peakIdx = i
+			}
+			if l > 0 && l < runningExtreme {
+				runningExtreme = l
+			}
+			if entry > 0 {
+				if dd := (h - entry) / entry; dd > maxDDEntry {
+					maxDDEntry = dd
+				}
+			}
+			if runningExtreme > 0 {
+				if dd := (h - runningExtreme) / runningExtreme; dd > maxDDPeak {
+					maxDDPeak = dd
+				}
+			}
+		}
+	}
+	ep.PeakHigh = peakExtreme
+	ep.PeakTime = times[peakIdx]
+	if entry > 0 {
+		if buySide {
+			ep.PeakReturn = peakExtreme/entry - 1
+		} else if peakExtreme > 0 {
+			ep.PeakReturn = (entry - peakExtreme) / entry
+		}
+	}
+	ep.MaxDrawdownFromEntry = maxDDEntry
+	ep.MaxDrawdownFromPeak = maxDDPeak
+}
+
+func metricsFromStrictEpisodes(details []SignalEpisodeDetail) SignalEpisodeMetrics {
 	m := SignalEpisodeMetrics{}
 	returns := make([]float64, 0)
 	holds := make([]float64, 0)
@@ -192,6 +365,43 @@ func metricsFromEpisodes(details []SignalEpisodeDetail) SignalEpisodeMetrics {
 	m.MedianReturn = median(append([]float64(nil), returns...))
 	m.AvgHoldingBars = sumFloats(holds) / float64(len(holds))
 	m.MedianHoldingBars = median(append([]float64(nil), holds...))
+	return m
+}
+
+func metricsFromPathEpisodes(details []SignalEpisodeDetail) SignalEpisodeMetrics {
+	m := SignalEpisodeMetrics{}
+	returns := make([]float64, 0)
+	holds := make([]float64, 0)
+	peaks := make([]float64, 0)
+	drawdowns := make([]float64, 0)
+	for _, ep := range details {
+		if !ep.PathEvaluable {
+			continue
+		}
+		returns = append(returns, ep.PathDirectionReturn)
+		holds = append(holds, float64(ep.PathHoldingBars))
+		peaks = append(peaks, ep.PeakReturn)
+		drawdowns = append(drawdowns, ep.MaxDrawdownFromPeak)
+		if ep.PathHit {
+			m.HitCount++
+		}
+	}
+	if len(returns) == 0 {
+		return m
+	}
+	m.CompleteCount = len(returns)
+	m.IncompleteCount = 0
+	m.HitRate = float64(m.HitCount) / float64(len(returns))
+	sum := 0.0
+	for _, r := range returns {
+		sum += r
+	}
+	m.AvgReturn = sum / float64(len(returns))
+	m.MedianReturn = median(append([]float64(nil), returns...))
+	m.AvgHoldingBars = sumFloats(holds) / float64(len(holds))
+	m.MedianHoldingBars = median(append([]float64(nil), holds...))
+	m.AvgPeakReturn = sumFloats(peaks) / float64(len(peaks))
+	m.AvgMaxDrawdown = sumFloats(drawdowns) / float64(len(drawdowns))
 	return m
 }
 
@@ -255,15 +465,17 @@ func floatAny(v any) float64 {
 func FormatEvalMetricsJSON(eval SignalEpisodeEval) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "method=%s\n", eval.Method)
-	writeSideMetrics(&b, "buy", eval.BuyEpisodes)
-	writeSideMetrics(&b, "sell", eval.SellEpisodes)
+	writeSideMetrics(&b, "buy_strict", eval.BuyEpisodes)
+	writeSideMetrics(&b, "sell_strict", eval.SellEpisodes)
+	writeSideMetrics(&b, "buy_path", eval.BuyPathEpisodes)
+	writeSideMetrics(&b, "sell_path", eval.SellPathEpisodes)
 	return strings.TrimSpace(b.String())
 }
 
 func writeSideMetrics(b *strings.Builder, side string, m SignalEpisodeMetrics) {
-	fmt.Fprintf(b, "%s_complete=%d %s_incomplete=%d %s_hit_rate=%.1f%% %s_avg_return=%.2f%% %s_median_return=%.2f%% %s_avg_hold_bars=%.1f %s_median_hold_bars=%.0f\n",
+	fmt.Fprintf(b, "%s_complete=%d %s_incomplete=%d %s_hit_rate=%.1f%% %s_avg_return=%.2f%% %s_median_return=%.2f%% %s_avg_hold_bars=%.1f %s_median_hold_bars=%.0f %s_avg_peak=%.2f%% %s_avg_max_dd=%.2f%%\n",
 		side, m.CompleteCount, side, m.IncompleteCount, side, m.HitRate*100, side, m.AvgReturn*100, side, m.MedianReturn*100,
-		side, m.AvgHoldingBars, side, m.MedianHoldingBars)
+		side, m.AvgHoldingBars, side, m.MedianHoldingBars, side, m.AvgPeakReturn*100, side, m.AvgMaxDrawdown*100)
 }
 
 // FormatPct formats a fractional return for display.

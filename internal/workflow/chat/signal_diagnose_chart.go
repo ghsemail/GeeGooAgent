@@ -46,19 +46,35 @@ func episodeOverlayPayload(eval slots.SignalEpisodeEval) []map[string]any {
 }
 
 func episodeOverlayRow(side string, idx int, ep slots.SignalEpisodeDetail) map[string]any {
+	endIdx, endTime, endClose, hit, complete := ep.EndIdx, ep.EndTime, ep.EndClose, ep.Hit, ep.Complete
+	if !complete && ep.PathEvaluable {
+		endIdx = ep.PathEndIdx
+		endTime = ep.PathEndTime
+		endClose = ep.PathEndClose
+		hit = ep.PathHit
+	}
 	row := map[string]any{
-		"side":        side,
-		"index":       idx,
-		"start_idx":   ep.StartIdx,
-		"end_idx":     ep.EndIdx,
-		"start_time":  ep.StartTime,
-		"end_time":    ep.EndTime,
-		"start_close": ep.StartClose,
-		"end_close":   ep.EndClose,
-		"hit":         ep.Hit,
-		"complete":    ep.Complete,
-		"holding_bars": ep.HoldingBars,
-		"direction_return": ep.DirectionReturn,
+		"side":             side,
+		"index":            idx,
+		"start_idx":        ep.StartIdx,
+		"end_idx":          endIdx,
+		"start_time":       ep.StartTime,
+		"end_time":         endTime,
+		"start_close":      ep.StartClose,
+		"end_close":        endClose,
+		"hit":              hit,
+		"complete":         complete || ep.PathEvaluable,
+		"holding_bars":     ep.PathHoldingBars,
+		"direction_return": ep.PathDirectionReturn,
+		"path_end_reason":  ep.PathEndReason,
+		"peak_return":      ep.PeakReturn,
+		"max_drawdown_from_peak": ep.MaxDrawdownFromPeak,
+		"path_evaluable":   ep.PathEvaluable,
+	}
+	if ep.Complete {
+		row["strict_complete"] = true
+		row["direction_return"] = ep.DirectionReturn
+		row["holding_bars"] = ep.HoldingBars
 	}
 	if ep.OppositeTime != "" {
 		row["opposite_time"] = ep.OppositeTime
@@ -176,11 +192,12 @@ func signalMarkerStrip(bars []any, probeRaw map[string]any, eval slots.SignalEpi
 
 func paintEpisodes(line []rune, details []slots.SignalEpisodeDetail, barCount, width int, fill rune, _ bool) {
 	for _, ep := range details {
-		if !ep.Complete || ep.EndIdx < ep.StartIdx {
+		end, ok := episodeSpanEnd(ep)
+		if !ok || end < ep.StartIdx {
 			continue
 		}
 		c0 := idxToCol(ep.StartIdx, barCount, width)
-		c1 := idxToCol(ep.EndIdx, barCount, width)
+		c1 := idxToCol(end, barCount, width)
 		for c := c0; c <= c1 && c < len(line); c++ {
 			if line[c] == ' ' {
 				line[c] = fill
@@ -257,21 +274,38 @@ func episodeMermaidTimeline(eval slots.SignalEpisodeEval) string {
 	return strings.TrimSpace(b.String())
 }
 
+func episodeSpanEnd(ep slots.SignalEpisodeDetail) (int, bool) {
+	if ep.Complete && ep.EndIdx >= ep.StartIdx {
+		return ep.EndIdx, true
+	}
+	if ep.PathEvaluable && ep.PathEndIdx >= ep.StartIdx {
+		return ep.PathEndIdx, true
+	}
+	return -1, false
+}
+
 func appendMermaidEpisodes(b *strings.Builder, section string, details []slots.SignalEpisodeDetail) {
 	if len(details) == 0 {
 		return
 	}
 	fmt.Fprintf(b, "    section %s\n", section)
 	for i, ep := range details {
-		if !ep.Complete {
+		_, ok := episodeSpanEnd(ep)
+		if !ok {
 			fmt.Fprintf(b, "    E%d 未闭合 :crit, %s, 1h\n", i+1, mermaidTime(ep.StartTime))
 			continue
 		}
+		endTime := ep.EndTime
+		hit := ep.Hit
+		if !ep.Complete && ep.PathEvaluable {
+			endTime = ep.PathEndTime
+			hit = ep.PathHit
+		}
 		status := "done"
-		if !ep.Hit {
+		if !hit {
 			status = "crit"
 		}
-		fmt.Fprintf(b, "    E%d %s :%s, %s, %s\n", i+1, mermaidEpLabel(ep), status, mermaidTime(ep.StartTime), mermaidTime(ep.EndTime))
+		fmt.Fprintf(b, "    E%d %s :%s, %s, %s\n", i+1, mermaidEpLabel(ep), status, mermaidTime(ep.StartTime), mermaidTime(endTime))
 	}
 }
 
