@@ -39,6 +39,8 @@ type SignalEpisodeDetail struct {
 	MaxDrawdownFromEntry float64 `json:"max_drawdown_from_entry,omitempty"`
 	MaxDrawdownFromPeak  float64 `json:"max_drawdown_from_peak,omitempty"`
 	StrictEndReason      string  `json:"strict_end_reason,omitempty"`
+	KeyBreakRefPrice     float64 `json:"key_break_ref_price,omitempty"`
+	KeyBreakBarIdx       int     `json:"key_break_bar_idx,omitempty"`
 }
 
 // KeyLevelEpisodeStop optionally truncates strict episodes before the opposite signal.
@@ -252,6 +254,11 @@ func collectEpisodes(
 			if end < start || keyIdx < end {
 				end = keyIdx
 				ep.StrictEndReason = keyReason
+				ep.KeyBreakBarIdx = keyIdx
+				if stop != nil && strings.HasPrefix(keyReason, pathEndKeyBreakPrefix) {
+					field := strings.TrimPrefix(keyReason, pathEndKeyBreakPrefix)
+					ep.KeyBreakRefPrice = stop.refAt(keyIdx, field)
+				}
 			}
 		}
 		if end >= start {

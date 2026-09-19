@@ -21,8 +21,18 @@ func chartProbePayload(flow *Flow) map[string]any {
 		"buy_merged":  flow.ProbeRaw["buy_merged"],
 		"sell_merged": flow.ProbeRaw["sell_merged"],
 	}
+	if kl := keyLevelSnapshotToMap(flow.KeyLevels); kl != nil {
+		out["key_levels"] = kl
+	}
+	if ser := keyLevelBarSeriesToMap(flow.KeyLevelSeries); ser != nil {
+		out["key_levels_series"] = ser
+	}
+	if flow.UseKeyLevelEpisodeStop {
+		out["key_break_buy_ref"] = normalizeKeyBreakRef(flow.KeyBreakBuyRef, defaultBuyBreakRef(flow.KeyBreakMode))
+		out["key_break_sell_ref"] = normalizeKeyBreakRef(flow.KeyBreakSellRef, defaultSellBreakRef(flow.KeyBreakMode))
+	}
 	if len(flow.SignalEval.BuyDetails) > 0 || len(flow.SignalEval.SellDetails) > 0 {
-		out["episodes"] = episodeOverlayPayload(flow.SignalEval)
+		out["episodes"] = episodeOverlayPayload(flow, flow.SignalEval)
 	}
 	return out
 }
@@ -34,13 +44,13 @@ func probeFrequency(flow *Flow) string {
 	return "60m"
 }
 
-func episodeOverlayPayload(eval slots.SignalEpisodeEval) []map[string]any {
+func episodeOverlayPayload(flow *Flow, eval slots.SignalEpisodeEval) []map[string]any {
 	out := make([]map[string]any, 0, len(eval.BuyDetails)+len(eval.SellDetails))
 	for i, ep := range eval.BuyDetails {
-		out = append(out, episodeOverlayRow("buy", i+1, ep))
+		out = append(out, episodeOverlayRowWithFlow(flow, "buy", i+1, ep))
 	}
 	for i, ep := range eval.SellDetails {
-		out = append(out, episodeOverlayRow("sell", i+1, ep))
+		out = append(out, episodeOverlayRowWithFlow(flow, "sell", i+1, ep))
 	}
 	return out
 }
@@ -76,9 +86,24 @@ func episodeOverlayRow(side string, idx int, ep slots.SignalEpisodeDetail) map[s
 		row["direction_return"] = ep.DirectionReturn
 		row["holding_bars"] = ep.HoldingBars
 	}
+	if ep.StrictEndReason != "" {
+		row["strict_end_reason"] = ep.StrictEndReason
+	}
 	if ep.OppositeTime != "" {
 		row["opposite_time"] = ep.OppositeTime
 	}
+	return row
+}
+
+func episodeOverlayRowWithFlow(flow *Flow, side string, idx int, ep slots.SignalEpisodeDetail) map[string]any {
+	row := episodeOverlayRow(side, idx, ep)
+	if flow == nil || ep.StrictEndReason == "" {
+		return row
+	}
+	if p := keyBreakRefPrice(flow, ep.EndIdx, ep.StrictEndReason); p > 0 {
+		row["key_break_ref_price"] = p
+	}
+	row["key_break_bar_idx"] = ep.EndIdx
 	return row
 }
 
