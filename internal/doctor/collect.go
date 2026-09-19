@@ -15,6 +15,7 @@ func CollectFromConfig(cfg *config.AppConfig, opts Options) ([]CheckResult, bool
 		results = append(results, row)
 	}
 	results = append(results, checkSecrets(cfg)...)
+	results = append(results, diagramChecks()...)
 	if !opts.SkipConnectivity {
 		results = append(results, checkConnectivity(cfg)...)
 		results = append(results, checkToolProbes(cfg)...)

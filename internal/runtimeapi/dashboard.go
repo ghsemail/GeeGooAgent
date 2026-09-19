@@ -15,14 +15,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/agent"
+	"github.com/ghsemail/GeeGooAgent/internal/app"
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
-	"github.com/ghsemail/GeeGooAgent/internal/app"
-	"github.com/ghsemail/GeeGooAgent/internal/agent"
+	"github.com/ghsemail/GeeGooAgent/internal/diagram"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	factmem "github.com/ghsemail/GeeGooAgent/internal/memory/facts"
-	"github.com/ghsemail/GeeGooAgent/internal/memory/scoped"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
+	"github.com/ghsemail/GeeGooAgent/internal/memory/scoped"
 	"github.com/ghsemail/GeeGooAgent/internal/scheduler"
 	"github.com/ghsemail/GeeGooAgent/internal/skills"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -31,9 +32,9 @@ import (
 const (
 	// Ops dashboard must stay bounded: loading every session body + full DB samples OOM/stack-overflowed runtime.
 	dashboardMaxListedSessions = 50
-	dashboardMaxSessionDetail    = 20
-	dashboardMaxChatLogEntries   = 100
-	dashboardMaxTurns            = 30
+	dashboardMaxSessionDetail  = 20
+	dashboardMaxChatLogEntries = 100
+	dashboardMaxTurns          = 30
 )
 
 func (h *Handler) registerDashboardRoutes(mux *http.ServeMux) {
@@ -196,8 +197,8 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 			for _, f := range rows {
 				facts = append(facts, map[string]any{
 					"id": f.ID, "subject": f.Subject, "content": f.Content,
-					"scope": scoped.FactScope(f.Subject),
-					"raw": factmem.Format(f.Subject, f.Content),
+					"scope":  scoped.FactScope(f.Subject),
+					"raw":    factmem.Format(f.Subject, f.Content),
 					"source": f.Source, "user_id": f.UserID,
 					"created_at": f.CreatedAt.Format(time.RFC3339),
 				})
@@ -222,9 +223,9 @@ func (h *Handler) buildDashboardData(r *http.Request) (map[string]any, error) {
 		"sessions": sessionsOut, "turns": turns, "chat_log": chatLog, "facts": facts,
 		"episodes": episodes, "skills": skillsOut,
 		"procedural_memory": proceduralMemory,
-		"calendar": calendar, "outbox": []map[string]any{},
-		"soul": soulTextForDashboard(firstNonEmpty(home, config.Home()), userID),
-		"context_profiles": h.buildContextProfilesSummary(userID),
+		"calendar":          calendar, "outbox": []map[string]any{},
+		"soul":              soulTextForDashboard(firstNonEmpty(home, config.Home()), userID),
+		"context_profiles":  h.buildContextProfilesSummary(userID),
 		"consolidate_every": 4, "chat_pending": 0, "tools": toolsPayload,
 		"db": h.buildDBMetaSummary(), "doctor_ok": doctorOK, "doctor_checks": doctorChecks,
 		"eval_report": nil, "eval_history": []map[string]any{},
@@ -283,8 +284,8 @@ func (h *Handler) buildDashboardDataOps(r *http.Request) (map[string]any, error)
 			for _, f := range rows {
 				facts = append(facts, map[string]any{
 					"id": f.ID, "subject": f.Subject, "content": f.Content,
-					"scope": scoped.FactScope(f.Subject),
-					"raw": factmem.Format(f.Subject, f.Content),
+					"scope":  scoped.FactScope(f.Subject),
+					"raw":    factmem.Format(f.Subject, f.Content),
 					"source": f.Source, "user_id": f.UserID,
 					"created_at": f.CreatedAt.Format(time.RFC3339),
 				})
@@ -300,7 +301,7 @@ func (h *Handler) buildDashboardDataOps(r *http.Request) (map[string]any, error)
 					"title": truncateRunes(ep.Summary, 60), "summary": ep.Summary,
 					"happened_at": ep.HappenedAt.Format(time.RFC3339),
 					"updated_at":  ep.HappenedAt.Format(time.RFC3339),
-					"source": "episodic",
+					"source":      "episodic",
 				})
 			}
 		}
@@ -317,20 +318,20 @@ func (h *Handler) buildDashboardDataOps(r *http.Request) (map[string]any, error)
 	return map[string]any{
 		"generated_at": now.Format(time.RFC3339), "provider": provider, "model": model,
 		"small_model": model, "home": home, "current_session": currentSession,
-		"stats": map[string]any{"turns": 0, "tool_calls": 0, "gate_skips": 0, "gate_retrieves": 0},
+		"stats":    map[string]any{"turns": 0, "tool_calls": 0, "gate_skips": 0, "gate_retrieves": 0},
 		"sessions": sessionsOut, "turns": []map[string]any{}, "chat_log": []map[string]any{},
 		"facts": facts, "episodes": episodes, "skills": skillsOut,
 		"procedural_memory": proceduralMemory,
-		"calendar": []map[string]any{}, "outbox": []map[string]any{},
-		"soul": soulTextForDashboard(firstNonEmpty(home, config.Home()), userID),
-		"context_profiles": h.opsContextProfilesSummary(),
+		"calendar":          []map[string]any{}, "outbox": []map[string]any{},
+		"soul":              soulTextForDashboard(firstNonEmpty(home, config.Home()), userID),
+		"context_profiles":  h.opsContextProfilesSummary(),
 		"consolidate_every": 4, "chat_pending": 0,
-		"tools": toolsPayload,
-		"db": map[string]any{"path": "postgresql", "tables": []map[string]any{}, "all_tables": []string{}, "fts": []string{}},
+		"tools":     toolsPayload,
+		"db":        map[string]any{"path": "postgresql", "tables": []map[string]any{}, "all_tables": []string{}, "fts": []string{}},
 		"doctor_ok": true, "doctor_checks": []map[string]any{},
 		"eval_report": nil, "eval_history": []map[string]any{},
 		"trace_tail": []map[string]any{}, "trace_file": "",
-		"usage": map[string]any{"total_cost": 0, "calls": 0, "total_in": 0, "total_out": 0},
+		"usage":    map[string]any{"total_cost": 0, "calls": 0, "total_in": 0, "total_out": 0},
 		"settings": h.buildDashboardSettingsLite(provider, model), "wake_scans": []map[string]any{},
 		"data_fleet": map[string]any{"ok": true},
 	}, nil
@@ -1033,10 +1034,10 @@ func buildProceduralSkillsPayloadLite(app *app.App) ([]map[string]any, map[strin
 func (h *Handler) buildDashboardSettingsLite(provider, model string) map[string]any {
 	return map[string]any{
 		"provider": provider, "model": model, "small_model": model,
-		"pinned":     []map[string]any{{"provider": provider, "model": model, "default": true}},
-		"catalog":    []map[string]any{},
-		"providers":  []map[string]any{},
-		"toolsets":   tools.BuildToolsetSummaries(),
+		"pinned":        []map[string]any{{"provider": provider, "model": model, "default": true}},
+		"catalog":       []map[string]any{},
+		"providers":     []map[string]any{},
+		"toolsets":      tools.BuildToolsetSummaries(),
 		"chat_toolsets": []string{}, "active_chat_toolsets": tools.DefaultChatToolsetIDs(),
 	}
 }
@@ -1076,6 +1077,7 @@ func buildProceduralSkillsPayload(app *app.App) ([]map[string]any, map[string]an
 		projectRoot = app.ProjectRoot()
 	}
 	skills.AttachWorkflowDetails(out, projectRoot, loadSchedulerJobViews(app))
+	diagram.Attach(out)
 	return out, cfg.Map()
 }
 

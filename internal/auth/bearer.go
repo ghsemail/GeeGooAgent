@@ -25,15 +25,25 @@ func BearerAPIKey(expectedKey string) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			auth := r.Header.Get("Authorization")
-			const prefix = "Bearer "
-			if !strings.HasPrefix(auth, prefix) || strings.TrimSpace(auth[len(prefix):]) != expectedKey {
+			if requestAPIKey(r) != expectedKey {
 				writeUnauthorized(w)
 				return
 			}
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func requestAPIKey(r *http.Request) string {
+	auth := r.Header.Get("Authorization")
+	const prefix = "Bearer "
+	if strings.HasPrefix(auth, prefix) {
+		return strings.TrimSpace(auth[len(prefix):])
+	}
+	if t := strings.TrimSpace(r.URL.Query().Get("token")); t != "" {
+		return t
+	}
+	return ""
 }
 
 // SkipPaths exempts exact paths from Bearer auth.
