@@ -76,6 +76,9 @@ func TestBuildWorkflowDetailStrategyArchiveTemplate(t *testing.T) {
 	if !strings.Contains(raw, "doc_type: strategy_agent_archive") || !strings.Contains(raw, "{{strategy_name}}") {
 		t.Fatalf("template_md missing archive output placeholders: %s", raw)
 	}
+	if !strings.Contains(raw, "> 1–2 句") {
+		t.Fatalf("template_md should show writing hints: %s", raw)
+	}
 }
 
 func TestBuildWorkflowDetailHidesLegacyCognitionTriggers(t *testing.T) {

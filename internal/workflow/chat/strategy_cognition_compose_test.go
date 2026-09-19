@@ -60,4 +60,25 @@ func TestArchiveTemplateHeadingsDriveCompose(t *testing.T) {
 			t.Fatalf("system prompt missing heading %q", h)
 		}
 	}
+	if !strings.Contains(prompt, "要求：") || !strings.Contains(prompt, "不要复述 JSON") {
+		t.Fatalf("system prompt should include template writing hints: %s", prompt)
+	}
+}
+
+func TestAssembleArchiveDocStripsTemplateHints(t *testing.T) {
+	flow := &Flow{
+		CatalogLabel: "Macd4H",
+		CatalogType:  catalogTypeCombination,
+		CatalogRaw:   map[string]any{"name": "Macd4H", "signal_id": "sig-1", "brief": "4H MACD 节奏"},
+	}
+	doc := assembleAgentCognitionDoc(flow, fallbackCognitionBody(flow))
+	if strings.Contains(doc, "{{") || strings.Contains(doc, "不要复述 JSON") || strings.Contains(doc, "禁止新增") {
+		t.Fatalf("output leaked template guidance: %s", doc)
+	}
+	if !strings.Contains(doc, "> 供 Agent 注入上下文") {
+		t.Fatalf("output should keep document tagline: %s", doc)
+	}
+	if !strings.Contains(doc, "4H MACD 节奏") {
+		t.Fatalf("output missing filled section: %s", doc)
+	}
 }

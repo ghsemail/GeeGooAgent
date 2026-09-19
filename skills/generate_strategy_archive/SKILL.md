@@ -28,7 +28,7 @@ trigger_modes: chat
 
 ## 输出模板
 
-最终写入知识库的正文骨架是同目录 [`template.md`](template.md)。约定：`skills/<workflow>/template.md` = 该 workflow 的最终输出模板。
+最终写入知识库的正文骨架是同目录 [`template.md`](template.md)。各节「>」是写作要求：合成时交给 LLM，落库时剥离，不会写进档案正文。
 
 ## 知识库目录
 
