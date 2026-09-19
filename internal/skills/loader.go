@@ -56,6 +56,16 @@ func RegisterBuiltins(r *Registry) {
 		},
 	})
 	r.Register(Spec{
+		Name:        SkillSignalDiagnose,
+		Description: "读取策略 → 信号测试 probe → 诊断明细 → 汇总报告",
+		Chat: &ChatTrigger{
+			Status:      "available",
+			Triggers:    []string{"信号诊断", "诊断"},
+			Phases:      []string{"diag_pick", "read_strategy", "resolve_symbol", "run_probe", "build_detail", "summarize"},
+			ResumeHints: []string{"继续", "重试失败", "POST /v1/chat/workflow/resume"},
+		},
+	})
+	r.Register(Spec{
 		Name:        SkillMultiStrategyCompare,
 		Description: "固定标的，串行 probe 多个策略并输出买/卖次对比表（Chat 关键词或 Scheduler cron）",
 		Chat: &ChatTrigger{

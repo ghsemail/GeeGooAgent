@@ -48,6 +48,8 @@ func (r *Runner) RunTurn(
 			flow = newGenerateStrategyCognitionFlow(userText)
 		case ShouldStartStrategyDevFlow(userText, flow):
 			flow = newStrategyDevFlow(userText)
+		case ShouldStartSignalDiagnoseFlow(userText, flow):
+			flow = newSignalDiagnoseFlow(userText)
 		case ShouldStartMultiStrategyFlow(userText, session, flow):
 			flow = newMultiStrategyFlow(userText, session)
 		default:
@@ -70,6 +72,8 @@ func (r *Runner) RunTurn(
 		return r.runTemplateTurn(ctx, session, flow, toolCtx, stepBase, r.advanceGenerateStrategyCognition, renderGenerateCognitionPartial, renderGenerateCognitionReport)
 	case SkillStrategyDev:
 		return r.runTemplateTurn(ctx, session, flow, toolCtx, stepBase, r.advanceStrategyDev, renderStrategyDevPartial, renderStrategyDevReport)
+	case SkillSignalDiagnose:
+		return r.runTemplateTurn(ctx, session, flow, toolCtx, stepBase, r.advanceSignalDiagnose, renderSignalDiagnosePartial, renderSignalDiagnoseReport)
 	case SkillMultiStrategyCompare:
 		return r.runTemplateTurn(ctx, session, flow, toolCtx, stepBase, r.advanceMultiStrategy, renderPartialReport, renderFinalReport)
 	default:

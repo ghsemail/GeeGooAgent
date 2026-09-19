@@ -58,6 +58,8 @@ func skillDisplayName(id string) string {
 		return "策略参数调优"
 	case "strategy_dev":
 		return "策略开发"
+	case SkillSignalDiagnose:
+		return "信号诊断"
 	case SkillGenerateStrategyArchive, legacyGenerateStrategyCognition:
 		return "生成策略档案"
 	default:

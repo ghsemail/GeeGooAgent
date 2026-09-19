@@ -17,6 +17,7 @@ const (
 	SkillMultiStrategyCompare         = "multi_strategy_compare"
 	SkillParamTune                    = "param_tune"
 	SkillStrategyDev                  = "strategy_dev"
+	SkillSignalDiagnose               = "signal_diagnose"
 	SkillGenerateStrategyArchive      = "generate_strategy_archive"
 	SkillGenerateStrategyCognition    = SkillGenerateStrategyArchive
 	legacyGenerateStrategyCognition   = "generate_strategy_cognition"
@@ -34,6 +35,11 @@ const (
 	PhaseCognitionCompose     = "cognition_compose"
 	PhaseCognitionSaveKB      = "cognition_save_kb"
 	PhaseCognitionVerifyKB    = "cognition_verify_kb"
+
+	PhaseSignalDiagPick = "diag_pick"
+	PhaseReadStrategy   = "read_strategy"
+	PhaseRunProbe       = "run_probe"
+	PhaseBuildDetail    = "build_detail"
 
 	PhaseResolveSymbol  = "resolve_symbol"
 	PhasePickStrategies = "pick_strategies"
@@ -85,6 +91,12 @@ type Flow struct {
 	KnowledgeTitle string         `json:"knowledge_title,omitempty"`
 	VerifySnippet       string         `json:"verify_snippet,omitempty"`
 	DevArchiveGenerated bool           `json:"dev_archive_generated,omitempty"`
+	ProbeBuyHits        int            `json:"probe_buy_hits,omitempty"`
+	ProbeSellHits       int            `json:"probe_sell_hits,omitempty"`
+	ProbeBarCount       int            `json:"probe_bar_count,omitempty"`
+	DiagnoseVerdict     string         `json:"diagnose_verdict,omitempty"`
+	DiagnoseSummary     string         `json:"diagnose_summary,omitempty"`
+	DiagnoseRaw         map[string]any `json:"diagnose_raw,omitempty"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 }

@@ -134,18 +134,17 @@ func pickIndexSignal(ctx context.Context, toolCtx tools.Context, items []map[str
 func indexRowToRules(row map[string]any) (buy, sell []any, frequency, label string, err error) {
 	if rawBuy, ok := row["buy_signal"].([]any); ok && len(rawBuy) > 0 {
 		buy = rawBuy
+	} else if rule, ok := row["index"].(map[string]any); ok && len(rule) > 0 {
+		buy = []any{rule}
 	} else {
 		idx := strings.TrimSpace(fmt.Sprint(row["index"]))
-		if idx == "" {
+		if idx == "" || strings.HasPrefix(idx, "map[") {
 			return nil, nil, "", "", fmt.Errorf("单指标信号缺少 index")
 		}
 		buy = []any{map[string]any{"index": idx, "type": "signal", "param": row["param"]}}
 	}
 	sell = buy
-	frequency = strings.TrimSpace(fmt.Sprint(row["frequency"]))
-	if frequency == "" {
-		frequency = "60m"
-	}
+	frequency = pickIndexFrequency(row["frequency"])
 	label = strings.TrimSpace(fmt.Sprint(row["name"]))
 	buy, sell = normalizeSignalRulesPair(buy, sell)
 	return buy, sell, frequency, label, nil
@@ -257,6 +256,43 @@ func signalTokens(query string) []string {
 		out = append(out, p)
 	}
 	return out
+}
+
+func pickIndexFrequency(raw any) string {
+	switch v := raw.(type) {
+	case []any:
+		for _, pref := range []string{"60m", "15m", "5m", "daily"} {
+			for _, item := range v {
+				if strings.EqualFold(strings.TrimSpace(fmt.Sprint(item)), pref) {
+					return pref
+				}
+			}
+		}
+		if len(v) > 0 {
+			return strings.TrimSpace(fmt.Sprint(v[0]))
+		}
+	case []string:
+		for _, pref := range []string{"60m", "15m", "5m", "daily"} {
+			for _, item := range v {
+				if strings.EqualFold(strings.TrimSpace(item), pref) {
+					return pref
+				}
+			}
+		}
+		if len(v) > 0 {
+			return strings.TrimSpace(v[0])
+		}
+	}
+	text := strings.TrimSpace(fmt.Sprint(raw))
+	for _, pref := range []string{"60m", "15m", "5m", "daily"} {
+		if strings.Contains(text, pref) {
+			return pref
+		}
+	}
+	if text == "" || strings.HasPrefix(text, "[") {
+		return "60m"
+	}
+	return text
 }
 
 // ApplySignalHeuristics fills signal_query/kind from user text when missing.

@@ -7,6 +7,7 @@ const (
 	SkillMultiStrategyCompare       = "multi_strategy_compare"
 	SkillParamTune                  = "param_tune"
 	SkillStrategyDev                = "strategy_dev"
+	SkillSignalDiagnose             = "signal_diagnose"
 	SkillGenerateStrategyArchive    = "generate_strategy_archive"
 	SkillGenerateStrategyCognition  = SkillGenerateStrategyArchive // legacy alias
 	legacyGenerateStrategyCognition = "generate_strategy_cognition"
@@ -41,6 +42,17 @@ func ChatWorkflowCatalog() []map[string]any {
 			"status":        "available",
 			"triggers":      []string{"读取", "策略开发"},
 			"phases":        []string{"dev_pick", "dev_ensure_archive", "summarize"},
+			"resume_hints":  []string{"继续", "重试失败", "POST /v1/chat/workflow/resume"},
+			"kind":          "workflow",
+			"trigger_modes": []string{"chat"},
+		},
+		{
+			"id":            SkillSignalDiagnose,
+			"name":          "信号诊断",
+			"description":   "读取策略库 → 信号测试 probe → 诊断明细 → 汇总报告（不回测）。",
+			"status":        "available",
+			"triggers":      []string{"信号诊断", "诊断"},
+			"phases":        []string{"diag_pick", "read_strategy", "resolve_symbol", "run_probe", "build_detail", "summarize"},
 			"resume_hints":  []string{"继续", "重试失败", "POST /v1/chat/workflow/resume"},
 			"kind":          "workflow",
 			"trigger_modes": []string{"chat"},

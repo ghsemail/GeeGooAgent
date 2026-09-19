@@ -37,6 +37,10 @@ var strategyDevPhrases = []string{
 	"策略开发",
 }
 
+var signalDiagnosePhrases = []string{
+	"信号诊断",
+}
+
 func isReadStrategyDevIntent(text string) bool {
 	trim := strings.TrimSpace(text)
 	if trim == "" {
@@ -126,6 +130,23 @@ func IsGenerateStrategyCognitionIntent(text string) bool {
 	return false
 }
 
+// IsSignalDiagnoseIntent reports signal_diagnose workflow entry.
+func IsSignalDiagnoseIntent(text string) bool {
+	trim := strings.TrimSpace(text)
+	if trim == "" {
+		return false
+	}
+	if signalDiagnoseMessagePattern.MatchString(trim) {
+		return true
+	}
+	for _, p := range signalDiagnosePhrases {
+		if strings.Contains(trim, p) {
+			return true
+		}
+	}
+	return strings.Contains(trim, "诊断") && (strings.Contains(trim, "策略") || strings.Contains(trim, "信号"))
+}
+
 // IsStrategyDevIntent reports strategy_dev workflow entry (read cognition from KB).
 func IsStrategyDevIntent(text string) bool {
 	trim := strings.TrimSpace(text)
@@ -153,7 +174,18 @@ func ShouldStartStrategyDevFlow(text string, existing *Flow) bool {
 	if existing != nil && existing.Active() {
 		return false
 	}
+	if IsSignalDiagnoseIntent(text) {
+		return false
+	}
 	return IsStrategyDevIntent(text)
+}
+
+// ShouldStartSignalDiagnoseFlow decides whether to create signal_diagnose workflow.
+func ShouldStartSignalDiagnoseFlow(text string, existing *Flow) bool {
+	if existing != nil && existing.Active() {
+		return false
+	}
+	return IsSignalDiagnoseIntent(text)
 }
 
 // ShouldStartMultiStrategyFlow decides whether to create a new flow this turn.
@@ -161,7 +193,7 @@ func ShouldStartMultiStrategyFlow(text string, session *runtime.Session, existin
 	if existing != nil && existing.Active() {
 		return false
 	}
-	if IsGenerateStrategyCognitionIntent(text) || IsStrategyDevIntent(text) {
+	if IsGenerateStrategyCognitionIntent(text) || IsStrategyDevIntent(text) || IsSignalDiagnoseIntent(text) {
 		return false
 	}
 	return IsMultiStrategyCompareIntent(text, session)
