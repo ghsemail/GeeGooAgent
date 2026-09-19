@@ -9,6 +9,29 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
+func keyLevelSnapshotFromProbeData(raw any) KeyLevelSnapshot {
+	m, ok := raw.(map[string]any)
+	if !ok || len(m) == 0 {
+		return KeyLevelSnapshot{}
+	}
+	if _, hasJudgment := m["judgment"]; hasJudgment {
+		return keyLevelSnapshotFromToolData(m)
+	}
+	return KeyLevelSnapshot{
+		SupportLow:    floatMap(m, "support_low"),
+		SupportHigh:   floatMap(m, "support_high"),
+		SupportCenter: floatMap(m, "support_center"),
+		ResistLow:     floatMap(m, "resist_low"),
+		ResistHigh:    floatMap(m, "resist_high"),
+		ResistCenter:  floatMap(m, "resist_center"),
+		Summary:       strings.TrimSpace(fmt.Sprint(m["summary"])),
+	}
+}
+
+func keyLevelSnapshotUsableForEpisodeStop(kl KeyLevelSnapshot) bool {
+	return kl.SupportLow > 0 || kl.ResistHigh > 0
+}
+
 func keyLevelSnapshotFromToolData(data map[string]any) KeyLevelSnapshot {
 	if len(data) == 0 {
 		return KeyLevelSnapshot{}
@@ -59,6 +82,11 @@ func (r *Runner) phaseSignalDiagnoseFetchKeyLevels(
 	recordTool func(name, status, summary string),
 ) error {
 	if flow.StockCode == "" {
+		flow.Phase = PhaseEvaluateAccuracy
+		flow.touch()
+		return nil
+	}
+	if keyLevelSnapshotUsableForEpisodeStop(flow.KeyLevels) {
 		flow.Phase = PhaseEvaluateAccuracy
 		flow.touch()
 		return nil

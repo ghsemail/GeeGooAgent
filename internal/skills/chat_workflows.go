@@ -49,7 +49,7 @@ func ChatWorkflowCatalog() []map[string]any {
 		{
 			"id":            SkillSignalDiagnose,
 			"name":          "信号诊断",
-			"description":   "读取策略库 → probe → Episode 评价 → diagnose → LLM 总结 → 写入知识库（不回测）。",
+			"description":   "读取策略库 → probe（可内嵌 key_levels）→ Episode 评价 → diagnose → LLM 总结 → 写入知识库（不回测）。",
 			"status":        "available",
 			"triggers":      []string{"信号诊断", "诊断"},
 			"phases":        []string{"diag_pick", "read_strategy", "resolve_symbol", "run_probe", "evaluate_accuracy", "build_detail", "diag_compose", "diag_save_kb", "summarize"},

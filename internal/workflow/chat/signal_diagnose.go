@@ -177,13 +177,17 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 		months = defaultMonthsBack
 	}
 	frequency := pickProbeFrequency(sig.Frequency, flow.CatalogRaw)
-	res := r.runTool(ctx, toolCtx, "probe_bot_signal_series", map[string]any{
+	probeArgs := map[string]any{
 		"code":        flow.StockCode,
 		"frequency":   frequency,
 		"buy_signal":  sig.Buy,
 		"sell_signal": sig.Sell,
 		"months_back": months,
-	}, recordTool)
+	}
+	if flow.UseKeyLevelEpisodeStop {
+		probeArgs["include_key_levels"] = true
+	}
+	res := r.runTool(ctx, toolCtx, "probe_bot_signal_series", probeArgs, recordTool)
 	if res.Status != tools.StatusOK {
 		return fmt.Errorf("probe 失败：%s", res.Summary)
 	}
@@ -213,7 +217,14 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 		"sell_merged": res.Data["sell_merged"],
 	}
 	if flow.UseKeyLevelEpisodeStop {
-		flow.Phase = PhaseFetchKeyLevels
+		if klRaw := res.Data["key_levels"]; klRaw != nil {
+			flow.KeyLevels = keyLevelSnapshotFromProbeData(klRaw)
+		}
+		if keyLevelSnapshotUsableForEpisodeStop(flow.KeyLevels) {
+			flow.Phase = PhaseEvaluateAccuracy
+		} else {
+			flow.Phase = PhaseFetchKeyLevels
+		}
 	} else {
 		flow.Phase = PhaseEvaluateAccuracy
 	}

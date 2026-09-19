@@ -11,6 +11,12 @@ import urllib.request
 CASE_ID = "workflow_signal_diagnose_sar_tencent"
 MESSAGE = "诊断 SAR · 腾讯"
 PASS_KEYWORDS = ["Episode", "命中", "SAR", "腾讯"]
+WORKFLOW_OPTIONS = {
+    "signal_diagnose": {
+        "use_key_level_episode_stop": True,
+        "key_break_mode": "resist_high",
+    },
+}
 MIN_REPLY_CHARS = 120
 CHAT_TIMEOUT = int(os.environ.get("WORKFLOW_EVAL_CHAT_TIMEOUT", "300"))
 VERIFY_TIMEOUT = 120
@@ -53,7 +59,7 @@ def chat_turn(runtime_key: str, mcp_token: str, message: str, session_id: str = 
         "Authorization": f"Bearer {runtime_key}",
         "X-Approve-Writes": "true",
     }
-    body = {"message": message, "mcp_token": mcp_token}
+    body = {"message": message, "mcp_token": mcp_token, "workflow_options": WORKFLOW_OPTIONS}
     if session_id:
         body["session_id"] = session_id
     status, raw = post_json("http://127.0.0.1:3400/v1/chat/stream", body, headers, CHAT_TIMEOUT)
@@ -65,6 +71,8 @@ def chat_turn(runtime_key: str, mcp_token: str, message: str, session_id: str = 
     event = ""
     chart_probe = False
     signal_eval = False
+    eval_method = ""
+    key_break_hits = 0
     for line in raw.splitlines():
         if line.startswith("event:"):
             event = line[6:].strip()
@@ -80,8 +88,17 @@ def chat_turn(runtime_key: str, mcp_token: str, message: str, session_id: str = 
                     data = json.loads(payload)
                     if data.get("chart_probe"):
                         chart_probe = True
-                    if data.get("signal_eval"):
+                    se = data.get("signal_eval")
+                    if se:
                         signal_eval = True
+                        if isinstance(se, dict):
+                            eval_method = str(se.get("method") or "")
+                            for side in ("buy_details", "sell_details"):
+                                for ep in se.get(side) or []:
+                                    if not isinstance(ep, dict):
+                                        continue
+                                    if str(ep.get("strict_end_reason") or "").startswith("key_break"):
+                                        key_break_hits += 1
                 except json.JSONDecodeError:
                     pass
             elif event == "turn_end":
@@ -97,6 +114,8 @@ def chat_turn(runtime_key: str, mcp_token: str, message: str, session_id: str = 
         "error": turn_end.get("error", ""),
         "chart_probe": chart_probe,
         "signal_eval": signal_eval,
+        "eval_method": eval_method,
+        "key_break_hits": key_break_hits,
     }
 
 
@@ -139,7 +158,10 @@ def main() -> int:
     reply = chat.get("reply") or ""
     print(f"session_id={session_id}")
     print(f"reply_len={len(reply)}")
-    print(f"chart_probe={chat.get('chart_probe')} signal_eval={chat.get('signal_eval')}")
+    print(
+        f"chart_probe={chat.get('chart_probe')} signal_eval={chat.get('signal_eval')} "
+        f"eval_method={chat.get('eval_method')} key_break_hits={chat.get('key_break_hits')}"
+    )
     print("reply_preview:", reply[:500].replace("\n", " "))
 
     kw_ok, kw_detail = keyword_pass(reply)
@@ -152,8 +174,13 @@ def main() -> int:
         return 0
     if verify.get("http") not in (200, None):
         print("verify skipped/failed:", verify.get("http"), verify.get("raw") or verify.get("detail"))
+    method = str(chat.get("eval_method") or "")
+    if "key_break_resist_high" not in method:
+        print("FAIL: eval method missing key_break_resist_high:", method or "(empty)")
+        print("SUMMARY: FAIL")
+        return 1
     if kw_ok and chat.get("signal_eval"):
-        print("SUMMARY: PASS (keyword + signal_eval fallback)")
+        print("SUMMARY: PASS (keyword + resist_high key_break)")
         return 0
     if kw_ok:
         print("SUMMARY: PASS (keyword fallback)")

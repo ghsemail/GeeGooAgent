@@ -77,7 +77,7 @@ func IndividualWorkflowEvalCases() []TurnPlanEvalCaseDef {
 		{
 			ID:          "workflow_signal_diagnose_sar_tencent",
 			Title:       "Workflow · 信号诊断（SAR · 腾讯）",
-			Description: "signal_diagnose：probe → Episode 命中率评价 → LLM 诊断报告。",
+			Description: "signal_diagnose：probe（含 key_levels）→ Episode 命中率评价 → LLM 诊断报告。",
 			Steps: []string{
 				"发送信号诊断请求（SAR · 腾讯）",
 				"校验 workflow 含 Episode 命中率与诊断结论",
@@ -94,7 +94,7 @@ func IndividualWorkflowEvalCases() []TurnPlanEvalCaseDef {
 				WorkflowOptions: map[string]any{
 					"signal_diagnose": map[string]any{
 						"use_key_level_episode_stop": true,
-						"key_break_mode":             "support_low",
+						"key_break_mode":             "resist_high",
 					},
 				},
 			},
