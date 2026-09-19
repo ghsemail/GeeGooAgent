@@ -59,11 +59,14 @@ func ListStrategyCatalog(ctx context.Context, catalogURL, apiKey, mcpToken strin
 	if base == "" {
 		return nil, fmt.Errorf("signal catalog url not configured")
 	}
-	want := normalizeStrategyCatalogTypes(types)
+	want := normalizeStrategyCatalogTypes(types, mcpToken)
 	out := make([]StrategyCatalogEntry, 0, 64)
 	for _, typ := range want {
 		rows, err := fetchStrategyCatalogRows(ctx, base, apiKey, mcpToken, typ)
 		if err != nil {
+			if typ == StrategyCatalogCustom {
+				continue
+			}
 			return nil, err
 		}
 		for _, row := range rows {
@@ -77,9 +80,13 @@ func ListStrategyCatalog(ctx context.Context, catalogURL, apiKey, mcpToken strin
 	return out, nil
 }
 
-func normalizeStrategyCatalogTypes(types []string) []string {
+func normalizeStrategyCatalogTypes(types []string, mcpToken string) []string {
 	if len(types) == 0 {
-		return []string{StrategyCatalogCombination, StrategyCatalogDefinition, StrategyCatalogCustom}
+		out := []string{StrategyCatalogCombination, StrategyCatalogDefinition}
+		if strings.TrimSpace(mcpToken) != "" {
+			out = append(out, StrategyCatalogCustom)
+		}
+		return out
 	}
 	seen := map[string]struct{}{}
 	out := make([]string, 0, len(types))
@@ -87,6 +94,9 @@ func normalizeStrategyCatalogTypes(types []string) []string {
 		typ := strings.ToLower(strings.TrimSpace(raw))
 		switch typ {
 		case StrategyCatalogCombination, StrategyCatalogDefinition, StrategyCatalogCustom:
+			if typ == StrategyCatalogCustom && strings.TrimSpace(mcpToken) == "" {
+				continue
+			}
 			if _, ok := seen[typ]; ok {
 				continue
 			}

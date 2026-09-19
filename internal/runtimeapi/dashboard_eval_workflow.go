@@ -40,7 +40,7 @@ func (h *Handler) evalStrategyCatalog(w http.ResponseWriter, r *http.Request) {
 }
 
 type evalCasePrepareRequest struct {
-	RandomStrategyEnabled bool   `json:"random_strategy_enabled"`
+	RandomStrategyEnabled *bool  `json:"random_strategy_enabled"`
 	StrategyName          string `json:"strategy_name"`
 	StrategyCatalogType   string `json:"strategy_catalog_type"`
 }
@@ -64,8 +64,8 @@ func (h *Handler) evalCasePrepare(w http.ResponseWriter, r *http.Request) {
 	if r.Body != nil {
 		_ = json.NewDecoder(r.Body).Decode(&req)
 	}
-	if req.RandomStrategyEnabled {
-		opts.RandomStrategyEnabled = true
+	if req.RandomStrategyEnabled != nil {
+		opts.RandomStrategyEnabled = *req.RandomStrategyEnabled
 	}
 	if name := strings.TrimSpace(req.StrategyName); name != "" {
 		opts.StrategyName = name
