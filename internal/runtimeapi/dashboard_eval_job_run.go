@@ -160,7 +160,7 @@ func (h *Handler) runEvalJobItem(ctx context.Context, db *sql.DB, auth evalJobAu
 	if title == "" {
 		title = item.title
 	}
-	opts, err = h.resolveEvalCaseOptions(ctx, opts)
+	opts, _, err = h.resolveEvalCaseOptions(ctx, opts, auth.mcpToken)
 	if err != nil {
 		h.finishEvalJobItem(db, item.id, "error", "", "", err.Error(), "", start, nil, nil)
 		return "error"
@@ -246,19 +246,35 @@ func evalChatTimeout(opts eval.TurnPlanCaseOptions) time.Duration {
 	return 10 * time.Minute
 }
 
-func (h *Handler) resolveEvalCaseOptions(ctx context.Context, opts eval.TurnPlanCaseOptions) (eval.TurnPlanCaseOptions, error) {
-	if !opts.RandomStrategyEnabled {
-		return opts, nil
-	}
+func (h *Handler) resolveEvalCaseOptions(ctx context.Context, opts eval.TurnPlanCaseOptions, mcpToken string) (eval.TurnPlanCaseOptions, string, error) {
 	if h == nil || h.App == nil || h.App.Config == nil {
-		return opts, fmt.Errorf("agent config not ready for random strategy eval")
+		return opts, "", fmt.Errorf("agent config not ready for strategy eval")
 	}
-	name, err := eval.PickRandomStrategyName(ctx, h.App.Config.SignalCatalogURL(), h.App.Config.SignalCatalogAPIKey())
-	if err != nil {
-		return opts, err
+	if opts.RandomStrategyEnabled {
+		types := []string{}
+		if typ := strings.TrimSpace(opts.StrategyCatalogType); typ != "" {
+			types = []string{typ}
+		}
+		entry, err := eval.PickRandomStrategyEntry(
+			ctx,
+			h.App.Config.SignalCatalogURL(),
+			h.App.Config.SignalCatalogAPIKey(),
+			mcpToken,
+			types,
+		)
+		if err != nil {
+			return opts, "", err
+		}
+		opts.StrategyName = entry.Name
+		opts.StrategyCatalogType = entry.Type
+		opts.Message = eval.ResolveGenerateCognitionMessage(opts, entry.Name)
+		return opts, entry.Name, nil
 	}
-	opts.Message = fmt.Sprintf("生成策略认知 %s", strings.TrimSpace(name))
-	return opts, nil
+	if name := strings.TrimSpace(opts.StrategyName); name != "" {
+		opts.Message = eval.ResolveGenerateCognitionMessage(opts, name)
+		return opts, name, nil
+	}
+	return opts, "", nil
 }
 
 func (h *Handler) runEvalChatTurn(ctx context.Context, auth evalJobAuth, sessionID, message string, clarifyDefaults []string, clarifyHint eval.ClarifyRecommendContext, enableClarifyFn bool, chatTimeout time.Duration) (evalTurnOutcome, error) {

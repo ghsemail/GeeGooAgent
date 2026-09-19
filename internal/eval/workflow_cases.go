@@ -35,7 +35,7 @@ func IndividualWorkflowEvalCases() []TurnPlanEvalCaseDef {
 				SessionCleanup: DefaultEvalSessionCleanup,
 				Message:        "生成策略认知 Macd4H",
 				MinReplyChars:  80,
-				PassKeywords:   []string{"策略认知", "Macd4H", "知识库", "策略库"},
+				PassKeywords:   []string{"策略认知", "知识库", "策略库"},
 				WaitTimeoutSec: 900,
 			},
 		},

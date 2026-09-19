@@ -29,7 +29,9 @@ type TurnPlanCaseOptions struct {
 	PassKeywords   []string `json:"pass_keywords,omitempty"`
 	MinReplyChars  int      `json:"min_reply_chars,omitempty"`
 	WaitTimeoutSec          int  `json:"wait_timeout_sec,omitempty"`
-	RandomStrategyEnabled   bool `json:"random_strategy_enabled,omitempty"`
+	RandomStrategyEnabled   bool   `json:"random_strategy_enabled,omitempty"`
+	StrategyName            string `json:"strategy_name,omitempty"`
+	StrategyCatalogType     string `json:"strategy_catalog_type,omitempty"`
 	TurnID         string   `json:"turn_id,omitempty"`
 	TurnPlanGroup  string   `json:"turn_plan_group,omitempty"`
 	Dialogue       []EvalDialogueTurn `json:"dialogue,omitempty"`

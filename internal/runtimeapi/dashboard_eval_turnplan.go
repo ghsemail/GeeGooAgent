@@ -30,6 +30,7 @@ type evalRunTurnPlanRequest struct {
 
 type evalCaseVerifyRequest struct {
 	SessionID string `json:"session_id"`
+	RunID     string `json:"run_id"`
 }
 
 func (h *Handler) evalRunTurnPlan(w http.ResponseWriter, r *http.Request) {
@@ -129,7 +130,10 @@ func (h *Handler) evalCaseVerify(w http.ResponseWriter, r *http.Request) {
 	if !result.Passed {
 		status = "fail"
 	}
-	runID := newEvalRunID(caseID)
+	runID := strings.TrimSpace(req.RunID)
+	if runID == "" {
+		runID = newEvalRunID(caseID)
+	}
 	userID := resolveUserID(r)
 	if db := h.dashboardSQLDB(); db != nil {
 		_ = h.persistEvalVerifyRun(r.Context(), db, userID, runID, caseID, title, sessionID, result, time.Since(start).Milliseconds())

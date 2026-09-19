@@ -21,6 +21,7 @@ func (h *Handler) registerEvalRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/dashboard/eval/runs/all", h.evalRunsClearAll)
 	mux.HandleFunc("DELETE /v1/dashboard/eval/runs/{id}", h.evalRunDelete)
 	h.registerEvalTurnPlanRoutes(mux)
+	h.registerEvalWorkflowRoutes(mux)
 	h.registerEvalAutoRoutes(mux)
 	h.registerEvalSuggestRoutes(mux)
 	h.registerEvalAutoClarifyRoutes(mux)

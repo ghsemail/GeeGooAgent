@@ -9,7 +9,7 @@ INSERT INTO agent_eval_cases (
     'generate_strategy_cognition：读策略库 → LLM 合成 Agent 认知 → 写入并读回 WeKnora 知识库。',
     '["发送生成策略认知请求（Macd4H）","校验 workflow 完成认知生成报告","校验回复含策略库/知识库与读回验证"]',
     FALSE,
-    '{"category":"workflow","task":"generate_strategy_cognition","scenario":"cognition","workflow_skill":"generate_strategy_cognition","random_stock_enabled":false,"min_reply_chars":80,"pass_keywords":["策略认知","Macd4H","知识库","策略库"],"session_cleanup":"before_run","message":"生成策略认知 Macd4H","wait_timeout_sec":900}',
+    '{"category":"workflow","task":"generate_strategy_cognition","scenario":"cognition","workflow_skill":"generate_strategy_cognition","random_stock_enabled":false,"min_reply_chars":80,"pass_keywords":["策略认知","知识库","策略库"],"session_cleanup":"before_run","message":"生成策略认知 Macd4H","wait_timeout_sec":900}',
     10,
     TRUE
 ) ON CONFLICT (id) DO UPDATE SET
