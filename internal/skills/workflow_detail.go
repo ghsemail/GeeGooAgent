@@ -9,7 +9,10 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
 )
 
-var yamlFrontMatterRE = regexp.MustCompile(`(?s)^---\r?\n.*?\r?\n---\r?\n`)
+var (
+	yamlFrontMatterRE = regexp.MustCompile(`(?s)^---\r?\n.*?\r?\n---\r?\n`)
+	htmlCommentRE     = regexp.MustCompile(`(?s)<!--.*?-->`)
+)
 
 // SchedulerJobView is a dashboard-safe scheduler row (avoids importing scheduler package).
 type SchedulerJobView struct {
@@ -81,11 +84,17 @@ func readInto(detail map[string]any, root, rel, key string) {
 func readIntoAbs(detail map[string]any, abs, key string) {
 	if raw, err := os.ReadFile(abs); err == nil {
 		text := string(raw)
-		if key == "skill_md" {
-			text = stripYAMLFrontMatter(text)
+		if key == "skill_md" || key == "template_md" {
+			text = previewMarkdown(text)
 		}
 		detail[key] = text
 	}
+}
+
+func previewMarkdown(s string) string {
+	s = strings.TrimLeft(s, "\uFEFF")
+	s = strings.TrimSpace(htmlCommentRE.ReplaceAllString(s, ""))
+	return stripYAMLFrontMatter(s)
 }
 
 func stripYAMLFrontMatter(s string) string {

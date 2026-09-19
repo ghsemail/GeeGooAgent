@@ -80,17 +80,24 @@ func TestBuildWorkflowDetailStrategyArchiveTemplate(t *testing.T) {
 		t.Fatalf("skill_md missing body: %s", skillMD)
 	}
 	raw, _ := detail["template_md"].(string)
-	if !strings.Contains(raw, "doc_type: strategy_agent_archive") || !strings.Contains(raw, "{{strategy_name}}") {
-		t.Fatalf("template_md missing archive output placeholders: %s", raw)
+	if strings.Contains(raw, "doc_type:") || strings.Contains(raw, "agent_use:") || strings.Contains(raw, "<!--") {
+		t.Fatalf("template_md should hide front matter and comments: %s", raw)
 	}
-	if !strings.Contains(raw, "> 1–2 句") {
-		t.Fatalf("template_md should show writing hints: %s", raw)
+	if !strings.Contains(raw, "{{strategy_name}}") || !strings.Contains(raw, "> 1–2 句") {
+		t.Fatalf("template_md missing outline: %s", raw)
 	}
 }
 
 func TestStripYAMLFrontMatter(t *testing.T) {
 	raw := "---\nname: demo\n---\n\n# Hello\n"
 	if got := stripYAMLFrontMatter(raw); got != "# Hello" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestPreviewMarkdownStripsCommentThenFrontMatter(t *testing.T) {
+	raw := "<!-- note -->\n\n---\ndoc_type: x\n---\n\n# Title\n"
+	if got := previewMarkdown(raw); got != "# Title" {
 		t.Fatalf("got %q", got)
 	}
 }
