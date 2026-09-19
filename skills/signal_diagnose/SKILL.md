@@ -28,9 +28,9 @@ trigger_modes: chat
 
 ## 结构截断 Episode（可选）
 
-- **默认规则（交易员结构）**：买段 **low 跌破 support_low**；卖段 **high 突破 resist_high** → Strict 提前结束（`method` 含 `+key_break_support_low_resist_high`）。K 线展示可仍只画 `resist_low` 参考线，与熔断档位解耦。
+- **默认规则（交易员结构）**：买段 **low 跌破 support_high**；卖段 **high 突破 resist_low** → Strict 提前结束。K 线买/卖段分别阶梯展示 `support_high` / `resist_low`（与熔断档位一致）。
 - **关键价位**：probe 传 `key_levels_mode=series`（默认 `key_levels_align=daily`），六档与 bars 等长；熔断逐 K as-of（无未来函数）。不建议为减误杀改用 `bar`（更易提前退场）。
-- **Chat API**：`use_key_level_episode_stop`；`key_break_buy_ref` / `key_break_sell_ref`（默认 `support_low` / `resist_high`；`key_break_mode=resist_high` 时买段用 `resist_high`）。
+- **Chat API**：`use_key_level_episode_stop`；`key_break_buy_ref` / `key_break_sell_ref`（默认 `support_high` / `resist_low`；`key_break_mode=resist_high` 时买段仍可用 `resist_high`）。
 - **Eval**：`workflow_signal_diagnose_sar_tencent` 默认开启。
 
 ## 与 playbook 区别

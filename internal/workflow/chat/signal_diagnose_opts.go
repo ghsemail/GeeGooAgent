@@ -28,6 +28,18 @@ func ApplyPendingSignalDiagnoseOpts(session *runtime.Session, flow *Flow) {
 	flow.KeyBreakMode = normalizeKeyBreakMode(o.KeyBreakMode)
 	flow.KeyBreakBuyRef = normalizeKeyBreakRef(o.KeyBreakBuyRef, defaultBuyBreakRef(o.KeyBreakMode))
 	flow.KeyBreakSellRef = normalizeKeyBreakRef(o.KeyBreakSellRef, defaultSellBreakRef(o.KeyBreakMode))
+	if len(o.BuySignal) > 0 {
+		flow.ProbeBuyOverride = o.BuySignal
+	}
+	if len(o.SellSignal) > 0 {
+		flow.ProbeSellOverride = o.SellSignal
+	}
+	if strings.TrimSpace(o.Frequency) != "" {
+		flow.ProbeFrequencyOverride = strings.TrimSpace(o.Frequency)
+	}
+	if o.MonthsBack > 0 {
+		flow.MonthsBack = o.MonthsBack
+	}
 	session.PendingSignalDiagnoseOpts = nil
 }
 
@@ -53,6 +65,20 @@ func ParseSignalDiagnoseOptsFromWorkflowOptions(raw map[string]any) *runtime.Sig
 	if s, ok := block["key_break_sell_ref"].(string); ok {
 		out.KeyBreakSellRef = normalizeKeyBreakRef(s, "")
 	}
+	if raw, ok := block["buy_signal"].([]any); ok && len(raw) > 0 {
+		out.BuySignal = raw
+	}
+	if raw, ok := block["sell_signal"].([]any); ok && len(raw) > 0 {
+		out.SellSignal = raw
+	}
+	if s, ok := block["frequency"].(string); ok {
+		out.Frequency = strings.TrimSpace(s)
+	}
+	if v, ok := block["months_back"].(float64); ok && v > 0 {
+		out.MonthsBack = int(v)
+	} else if v, ok := block["months_back"].(int); ok && v > 0 {
+		out.MonthsBack = v
+	}
 	return out
 }
 
@@ -77,13 +103,13 @@ func defaultBuyBreakRef(mode string) string {
 	if normalizeKeyBreakMode(mode) == KeyBreakModeResistHigh {
 		return KeyBreakRefResistHigh
 	}
-	// 买段：low 跌破支撑下沿（daily as-of）→ Strict 提前结束。
-	return KeyBreakRefSupportLow
+	// 买段：low 跌破支撑上沿（daily as-of）→ Strict 提前结束。
+	return KeyBreakRefSupportHigh
 }
 
 func defaultSellBreakRef(mode string) string {
-	// 卖段：high 突破阻力上沿（daily as-of）→ Strict 提前结束。
-	return KeyBreakRefResistHigh
+	// 卖段：high 突破阻力下沿（daily as-of）→ Strict 提前结束。
+	return KeyBreakRefResistLow
 }
 
 func normalizeKeyBreakRef(ref, fallback string) string {

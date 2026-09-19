@@ -234,7 +234,7 @@ func appendSignalEvalMethodology(b *strings.Builder) {
 	fmt.Fprintf(b, "3. **Path 指标**：段内最高价涨幅 `peak_return`、自入场/自高点 `max_drawdown`（用 high/low）。\n")
 	fmt.Fprintf(b, "4. **命中**：买段方向收益 > 0；卖段 < 0（卖段方向收益取反便于阅读）。\n")
 	fmt.Fprintf(b, "5. **仅买无卖**时请看 **Path 汇总**，strict 命中率可能为 N/A。\n")
-	fmt.Fprintf(b, "6. **结构截断（可选）**：买/卖 Strict 段按配置的参考线（默认买 `support_low`、卖 `resist_high`）逐 K 与 **as-of 该 bar 的 Key Level 序列**比较提前结束（probe `key_levels_series`，默认按日对齐重算，无未来函数）。\n")
+	fmt.Fprintf(b, "6. **结构截断（可选）**：买/卖 Strict 段按配置的参考线（默认买 `support_high`、卖 `resist_low`）逐 K 与 **as-of 该 bar 的 Key Level 序列**比较提前结束（probe `key_levels_series`，默认按日对齐重算，无未来函数）。\n")
 }
 
 func appendSignalEvalSection(b *strings.Builder, eval slots.SignalEpisodeEval) {

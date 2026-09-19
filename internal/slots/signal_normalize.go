@@ -22,6 +22,20 @@ func NormalizeSignalChain(rules []any) []any {
 	return out
 }
 
+// MergeProbeRuleOverrides applies strategy-dev panel buy/sell chains onto a catalog-resolved signal.
+func MergeProbeRuleOverrides(base ResolvedSignal, buyOverride, sellOverride []any) ResolvedSignal {
+	out := base
+	if len(buyOverride) > 0 {
+		out.Buy = NormalizeSignalChain(buyOverride)
+	}
+	if len(sellOverride) > 0 {
+		_, out.Sell = normalizeSignalRulesPair(out.Buy, sellOverride)
+	} else if len(buyOverride) > 0 && len(out.Sell) == 0 {
+		_, out.Sell = normalizeSignalRulesPair(out.Buy, nil)
+	}
+	return out
+}
+
 func normalizeSignalRulesPair(buy, sell []any) ([]any, []any) {
 	buy = NormalizeSignalChain(buy)
 	typeByIndex := signalTypesByIndex(buy)

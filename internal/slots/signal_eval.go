@@ -302,9 +302,9 @@ func findKeyLevelBreak(start, windowEnd int, lows, highs []float64, buySide bool
 	}
 	if strings.TrimSpace(refField) == "" {
 		if buySide {
-			refField = "support_low"
+			refField = "support_high"
 		} else {
-			refField = "resist_high"
+			refField = "resist_low"
 		}
 	}
 	for i := start + 1; i <= windowEnd; i++ {

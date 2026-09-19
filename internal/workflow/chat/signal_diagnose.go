@@ -172,11 +172,15 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 	if err != nil {
 		return err
 	}
+	sig = slots.MergeProbeRuleOverrides(sig, flow.ProbeBuyOverride, flow.ProbeSellOverride)
 	months := flow.MonthsBack
 	if months <= 0 {
 		months = defaultMonthsBack
 	}
 	frequency := pickProbeFrequency(sig.Frequency, flow.CatalogRaw)
+	if f := strings.TrimSpace(flow.ProbeFrequencyOverride); f != "" {
+		frequency = f
+	}
 	probeArgs := map[string]any{
 		"code":        flow.StockCode,
 		"frequency":   frequency,
@@ -285,6 +289,7 @@ func (r *Runner) phaseSignalDiagnoseBuildDetail(
 	if err != nil {
 		return err
 	}
+	sig = slots.MergeProbeRuleOverrides(sig, flow.ProbeBuyOverride, flow.ProbeSellOverride)
 	months := flow.MonthsBack
 	if months <= 0 {
 		months = defaultMonthsBack
@@ -294,6 +299,9 @@ func (r *Runner) phaseSignalDiagnoseBuildDetail(
 		frequency = flow.Strategies[0].Frequency
 	}
 	frequency = pickProbeFrequency(frequency, flow.CatalogRaw)
+	if f := strings.TrimSpace(flow.ProbeFrequencyOverride); f != "" {
+		frequency = f
+	}
 	res := r.runTool(ctx, toolCtx, "diagnose_bot_signal_series", map[string]any{
 		"code":        flow.StockCode,
 		"frequency":   frequency,

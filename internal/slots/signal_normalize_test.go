@@ -55,6 +55,21 @@ func TestNormalizeSignalChainNosignal(t *testing.T) {
 	}
 }
 
+func TestMergeProbeRuleOverridesSellOnly(t *testing.T) {
+	base := ResolvedSignal{
+		Buy:  []any{map[string]any{"index": "MACD", "type": "flag"}},
+		Sell: []any{map[string]any{"index": "nosignal", "type": "signal"}},
+	}
+	sellOverride := []any{map[string]any{"index": "SAR", "type": "signal", "param": map[string]any{}}}
+	out := MergeProbeRuleOverrides(base, nil, sellOverride)
+	if len(out.Sell) != 1 {
+		t.Fatalf("sell=%v", out.Sell)
+	}
+	if fmt.Sprint(out.Sell[0].(map[string]any)["index"]) != "SAR" {
+		t.Fatalf("sell index=%v", out.Sell[0])
+	}
+}
+
 func TestNormalizeSignalChainValidationShape(t *testing.T) {
 	sig, err := rowToResolved(map[string]any{
 		"name": "test",

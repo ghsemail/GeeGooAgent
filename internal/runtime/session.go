@@ -62,6 +62,11 @@ type SignalDiagnoseOpts struct {
 	KeyBreakMode           string `json:"key_break_mode,omitempty"` // legacy; prefer key_break_buy_ref / key_break_sell_ref
 	KeyBreakBuyRef         string `json:"key_break_buy_ref,omitempty"`
 	KeyBreakSellRef        string `json:"key_break_sell_ref,omitempty"`
+	// Optional probe overrides from strategy-dev panel (buy/sell configured separately).
+	BuySignal   []any  `json:"buy_signal,omitempty"`
+	SellSignal  []any  `json:"sell_signal,omitempty"`
+	Frequency   string `json:"frequency,omitempty"`
+	MonthsBack  int    `json:"months_back,omitempty"`
 }
 
 // PendingPlan is a held mutating-tool batch from one LLM round.

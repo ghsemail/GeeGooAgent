@@ -109,6 +109,9 @@ type Flow struct {
 	KeyBreakMode           string         `json:"key_break_mode,omitempty"`
 	KeyBreakBuyRef         string         `json:"key_break_buy_ref,omitempty"`
 	KeyBreakSellRef        string         `json:"key_break_sell_ref,omitempty"`
+	ProbeBuyOverride       []any          `json:"probe_buy_override,omitempty"`
+	ProbeSellOverride      []any          `json:"probe_sell_override,omitempty"`
+	ProbeFrequencyOverride string         `json:"probe_frequency_override,omitempty"`
 	KeyLevels              KeyLevelSnapshot   `json:"key_levels,omitempty"`
 	KeyLevelSeries         *KeyLevelBarSeries `json:"key_level_series,omitempty"`
 	EvalJudgment        string         `json:"eval_judgment,omitempty"`
