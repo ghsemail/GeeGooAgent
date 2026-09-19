@@ -203,9 +203,7 @@ func summarizeChecks(checks []EvalCheckResult) string {
 
 func buildSummary(checks []EvalCheckResult, actualReply string) map[string]any {
 	summary := map[string]any{
-		"intent_pass":    false,
 		"execution_pass": nil,
-		"routing_pass":   false,
 		"reply_pass":     true,
 		"judge_pass":     nil,
 		"judge_score":    nil,
