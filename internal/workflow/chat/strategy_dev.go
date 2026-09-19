@@ -38,11 +38,11 @@ func (r *Runner) advanceStrategyDev(
 		if strings.TrimSpace(flow.StrategyQuery) == "" {
 			return terminalError("请说明要开发的策略名称，例如：策略开发 Macd4H")
 		}
-		flow.Phase = PhaseDevReadCognition
+		flow.Phase = PhaseDevEnsureArchive
 		flow.touch()
 		return nil
-	case PhaseDevReadCognition:
-		return r.phaseDevReadCognition(ctx, flow, toolCtx, recordTool)
+	case PhaseDevEnsureArchive, PhaseDevReadCognition:
+		return r.phaseDevEnsureArchive(ctx, flow, toolCtx, recordTool)
 	case PhaseSummarize, PhaseDone:
 		return nil
 	default:
@@ -51,20 +51,34 @@ func (r *Runner) advanceStrategyDev(
 	}
 }
 
-func (r *Runner) phaseDevReadCognition(
+// phaseDevEnsureArchive loads strategy archive from KB; generates one if missing.
+func (r *Runner) phaseDevEnsureArchive(
 	ctx context.Context,
 	flow *Flow,
 	toolCtx tools.Context,
 	recordTool func(name, status, summary string),
 ) error {
 	query := strings.TrimSpace(flow.StrategyQuery)
-	hits := r.searchStrategyArchiveHits(ctx, query, toolCtx, recordTool)
-	if len(hits) == 0 {
-		return terminalError(fmt.Sprintf(
-			"知识库中尚无「%s」的策略档案，请先发送：%s",
-			query, FormatGenerateStrategyArchiveMessage(query),
-		))
+	if hits := r.searchStrategyArchiveHits(ctx, query, toolCtx, recordTool); len(hits) > 0 {
+		r.loadArchiveFromHits(flow, hits, query)
+		flow.DevArchiveGenerated = false
+		flow.Phase = PhaseSummarize
+		flow.touch()
+		return nil
 	}
+	if err := r.ensureStrategyArchiveGenerated(ctx, flow, toolCtx, recordTool); err != nil {
+		return err
+	}
+	flow.DevArchiveGenerated = true
+	if flow.CatalogLabel == "" {
+		flow.CatalogLabel = query
+	}
+	flow.Phase = PhaseSummarize
+	flow.touch()
+	return nil
+}
+
+func (r *Runner) loadArchiveFromHits(flow *Flow, hits []any, query string) {
 	flow.KBDraft = joinHitContents(hits, 6000)
 	flow.VerifySnippet = firstHitPreview(hits)
 	if title := hitField(hits, "title"); title != "" {
@@ -73,8 +87,38 @@ func (r *Runner) phaseDevReadCognition(
 		flow.KnowledgeTitle = title
 	}
 	flow.CatalogLabel = query
-	flow.Phase = PhaseSummarize
-	flow.touch()
+}
+
+// ensureStrategyArchiveGenerated runs generate_strategy_cognition pipeline inline.
+func (r *Runner) ensureStrategyArchiveGenerated(
+	ctx context.Context,
+	flow *Flow,
+	toolCtx tools.Context,
+	recordTool func(name, status, summary string),
+) error {
+	query := strings.TrimSpace(flow.StrategyQuery)
+	match, err := resolveStrategyCatalog(ctx, query, toolCtx, r.runToolCall(recordTool))
+	if err != nil {
+		return fmt.Errorf("策略库未找到「%s」，无法自动生成策略档案：%w", query, err)
+	}
+	flow.CatalogType = match.Type
+	flow.CatalogLabel = match.Label
+	flow.CatalogRaw = match.Raw
+	if query == "" {
+		flow.StrategyQuery = match.Label
+	}
+	if err := r.phaseCognitionCompose(ctx, flow, toolCtx, recordTool); err != nil {
+		return err
+	}
+	if err := r.phaseCognitionSaveKB(ctx, flow, toolCtx, recordTool); err != nil {
+		return err
+	}
+	if err := r.phaseCognitionVerifyKB(ctx, flow, toolCtx, recordTool); err != nil {
+		return err
+	}
+	if strings.TrimSpace(flow.KBDraft) == "" {
+		return terminalError("策略档案生成完成但缺少正文")
+	}
 	return nil
 }
 
@@ -118,17 +162,29 @@ func renderStrategyDevReport(flow *Flow) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "## 策略开发 · 已加载策略档案 · %s\n\n", label)
 	fmt.Fprintf(&b, "| 步骤 | 结果 |\n| --- | --- |\n")
-	fmt.Fprintf(&b, "| 知识库 | %s · %s |\n", flow.KnowledgeTitle, tools.StrategyArchiveFolder)
-	fmt.Fprintf(&b, "| 载入方式 | search_knowledge 读取策略档案 |\n")
+	if flow.DevArchiveGenerated {
+		fmt.Fprintf(&b, "| 策略档案 | 知识库无记录 → 已自动生成并写入 %s |\n", tools.StrategyArchiveFolder)
+	} else {
+		fmt.Fprintf(&b, "| 策略档案 | 知识库已有记录 → 直接读取 %s |\n", tools.StrategyArchiveFolder)
+	}
+	if flow.KnowledgeTitle != "" {
+		fmt.Fprintf(&b, "| 文档 | %s |\n", flow.KnowledgeTitle)
+	}
+	fmt.Fprintf(&b, "| 载入方式 | search_knowledge / 策略档案 workflow |\n")
 	if flow.VerifySnippet != "" {
 		fmt.Fprintf(&b, "\n**档案摘要**：\n\n> %s\n", flow.VerifySnippet)
 	}
-	fmt.Fprintf(&b, "\n> 策略档案已从知识库载入；后续 Step（回测/调参/实现）将在此 workflow 扩展。")
+	fmt.Fprintf(&b, "\n> 策略档案已注入开发上下文；后续 Step（回测/调参/实现）将在此 workflow 扩展。")
 	return strings.TrimSpace(b.String())
 }
 
 func renderStrategyDevPartial(flow *Flow) string {
 	label := strategyDisplayLabel(flow)
+	phaseLabel := flow.Phase
+	switch flow.Phase {
+	case PhaseDevEnsureArchive, PhaseDevReadCognition:
+		phaseLabel = "检查/加载策略档案"
+	}
 	return fmt.Sprintf("## 策略开发（进行中）\n\n- 策略：%s\n- 阶段：%s",
-		label, flow.Phase)
+		label, phaseLabel)
 }

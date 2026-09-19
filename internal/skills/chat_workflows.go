@@ -33,10 +33,10 @@ func ChatWorkflowCatalog() []map[string]any {
 		{
 			"id":            SkillStrategyDev,
 			"name":          "策略开发",
-			"description":   "从知识库读取已有策略档案，作为策略开发上下文（后续 Step 扩展回测/调参等）。",
+			"description":   "确保策略档案存在（无则自动生成），读取并注入策略开发上下文（后续 Step 扩展回测/调参等）。",
 			"status":        "available",
 			"triggers":      []string{"策略开发"},
-			"phases":        []string{"dev_pick", "dev_read_cognition", "summarize"},
+			"phases":        []string{"dev_pick", "dev_ensure_archive", "summarize"},
 			"resume_hints":  []string{"继续", "重试失败", "POST /v1/chat/workflow/resume"},
 			"kind":          "workflow",
 			"trigger_modes": []string{"chat"},

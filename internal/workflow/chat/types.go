@@ -16,7 +16,8 @@ const (
 	StepStrategyDevelop   = "develop"
 
 	PhaseDevPick          = "dev_pick"
-	PhaseDevReadCognition = "dev_read_cognition"
+	PhaseDevEnsureArchive = "dev_ensure_archive"
+	PhaseDevReadCognition = "dev_read_cognition" // legacy persisted phase → dev_ensure_archive
 
 	PhaseCognitionPick        = "cognition_pick"
 	PhaseCognitionReadCatalog = "cognition_read_catalog"
@@ -73,8 +74,9 @@ type Flow struct {
 	KBDraft        string         `json:"kb_draft,omitempty"`
 	KnowledgeID    string         `json:"knowledge_id,omitempty"`
 	KnowledgeTitle string         `json:"knowledge_title,omitempty"`
-	VerifySnippet  string         `json:"verify_snippet,omitempty"`
-	CreatedAt      time.Time      `json:"created_at"`
+	VerifySnippet       string         `json:"verify_snippet,omitempty"`
+	DevArchiveGenerated bool           `json:"dev_archive_generated,omitempty"`
+	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 }
 

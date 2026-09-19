@@ -42,10 +42,10 @@ func IndividualWorkflowEvalCases() []TurnPlanEvalCaseDef {
 		{
 			ID:          "workflow_strategy_dev_read_cognition",
 			Title:       "Workflow · 策略开发读认知（Macd4H）",
-			Description: "strategy_dev：从知识库读取 Macd4H 策略档案作为开发上下文。",
+			Description: "strategy_dev：确保 Macd4H 策略档案存在（无则自动生成），注入开发上下文。",
 			Steps: []string{
 				"发送策略开发请求（Macd4H）",
-				"校验 workflow 已加载知识库策略档案",
+				"校验 workflow 已加载或生成策略档案",
 			},
 			SortOrder: 12,
 			Options: TurnPlanCaseOptions{
