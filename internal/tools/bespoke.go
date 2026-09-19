@@ -426,17 +426,21 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 				return errResult(err)
 			}
 			d := resp.Data
-			data := map[string]any{
+			wire := map[string]any{
 				"code":          resp.Code,
 				"current_price": d.CurrentPrice,
 				"judgment":      d.Judgment,
 				"refs":          d.Refs,
 			}
 			if d.Candidates != nil {
-				data["candidates"] = d.Candidates
+				wire["candidates"] = d.Candidates
 			}
 			if d.Legacy != nil {
-				data["legacy"] = d.Legacy
+				wire["legacy"] = d.Legacy
+			}
+			data, err := jsonMapFromAny(wire)
+			if err != nil {
+				return errResult(err)
 			}
 			summary := d.Judgment.Summary
 			return Result{
@@ -977,6 +981,19 @@ func isAShare(code string) bool {
 
 func okDryRun(name string, data map[string]any) Result {
 	return Result{Status: StatusDryRun, Summary: "dry-run: skipped " + name, Data: data}
+}
+
+// jsonMapFromAny round-trips through JSON so nested structs become map[string]any for working.Apply.
+func jsonMapFromAny(v any) (map[string]any, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	var out map[string]any
+	if err := json.Unmarshal(b, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func errResult(err error) Result {
