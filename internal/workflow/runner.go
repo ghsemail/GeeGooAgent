@@ -10,6 +10,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/keylevelctx"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/synthctx"
 )
 
@@ -31,7 +32,8 @@ type Runner struct {
 	toolExec    *agent.ToolExec
 	working     *memory.WorkingStore
 	checkpts    CheckpointSaver
-	synthesizer SynthesizerProvider
+	synthesizer      SynthesizerProvider
+	keyLevelFetcher  keylevelctx.Fetcher
 }
 
 // CheckpointSaver persists checkpoints.
@@ -47,6 +49,9 @@ func NewRunner(executor *runtime.Executor, working *memory.WorkingStore, checkpt
 // SetSynthesizer wires an LLM report synthesizer. Optional; when nil the
 // rule-based report content path is used.
 func (r *Runner) SetSynthesizer(s SynthesizerProvider) { r.synthesizer = s }
+
+// SetKeyLevelFetcher wires GeeGooSignal Key Level Engine for premarket S/R fields.
+func (r *Runner) SetKeyLevelFetcher(f keylevelctx.Fetcher) { r.keyLevelFetcher = f }
 
 // SetToolExec wires the shared agent tool dispatcher (timeout + EventBus parity).
 func (r *Runner) SetToolExec(te *agent.ToolExec) { r.toolExec = te }
@@ -73,9 +78,14 @@ func (r *Runner) RunFrom(
 	completedStep int,
 ) RunResult {
 	_ = completedStep // idempotency via CompletedStepKeys now
+	goCtx := ctx.GoContext()
 	if r.synthesizer != nil {
-		ctx.Ctx = synthctx.ContextWithSynthesizer(ctx.GoContext(), r.synthesizer)
+		goCtx = synthctx.ContextWithSynthesizer(goCtx, r.synthesizer)
 	}
+	if r.keyLevelFetcher != nil {
+		goCtx = keylevelctx.ContextWithFetcher(goCtx, r.keyLevelFetcher)
+	}
+	ctx.Ctx = goCtx
 	stepCounter := 0
 	for index, step := range phaseA {
 		stepCounter = index + 1
@@ -353,6 +363,9 @@ func optionalStep(step Step) bool {
 		return true
 	}
 	if step.Name == "weekly_analysis" || (step.Tool == "get_mcp_analysis" && strings.Contains(step.Name, "weekly")) {
+		return true
+	}
+	if step.Name == "key_levels" || step.Tool == "get_key_levels" {
 		return true
 	}
 	// Bot logs may be missing when MCP token scope or bot ownership differs.

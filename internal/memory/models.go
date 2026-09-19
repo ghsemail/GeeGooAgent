@@ -75,6 +75,15 @@ type StockWorkspace struct {
 	HourlyKlineAnalysis        string  `json:"hourly_kline_analysis,omitempty"`
 	CurrentPrice               float64 `json:"current_price,omitempty"`
 	PriceSource                string  `json:"price_source,omitempty"`
+	KeyLevelsEngineOK          bool    `json:"key_levels_engine_ok,omitempty"`
+	KeyLevelSupportCenter      float64 `json:"key_level_support_center,omitempty"`
+	KeyLevelResistanceCenter   float64 `json:"key_level_resistance_center,omitempty"`
+	KeyLevelSupportZone        string  `json:"key_level_support_zone,omitempty"`
+	KeyLevelResistZone         string  `json:"key_level_resist_zone,omitempty"`
+	KeyLevelSupportSources     string  `json:"key_level_support_sources,omitempty"`
+	KeyLevelResistSources      string  `json:"key_level_resist_sources,omitempty"`
+	KeyLevelSupportState       string  `json:"key_level_support_state,omitempty"`
+	KeyLevelResistState        string  `json:"key_level_resist_state,omitempty"`
 	IntradayResult             string  `json:"intraday_result,omitempty"`
 	IntradayConfidence         string  `json:"intraday_confidence,omitempty"`
 	IntradayReason             string  `json:"intraday_reason,omitempty"`

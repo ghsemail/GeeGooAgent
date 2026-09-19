@@ -19,7 +19,7 @@ var BespokeNames = map[string]bool{
 	"get_hourly_analysis_bundle": true,
 	"get_single_prompt_template": true,
 	"get_stock_daily_reports": true, "list_today_reports": true, "list_today_stock_postmarket_reports": true, "get_capital_flow": true,
-	"get_capital_distribution": true, "get_bot_yesterday_attitude": true,
+	"get_capital_distribution": true, "get_bot_yesterday_attitude": true, "get_key_levels": true,
 	"recall_yesterday_summary": true, "read_working_state": true, "create_stock_premarket_report": true,
 	"create_market_premarket_report": true, "get_market_premarket_report": true,
 	"save_local_report": true, "write_execution_log": true, "recall": true,

@@ -40,6 +40,9 @@ func PerStockSteps() []step.Step {
 				"name": ws.StockName, "code": w.CurrentStock, "prompt_id": prompts.IndexPromptID, "period": "weekly", "language": "cn",
 			}
 		}},
+		{Name: "key_levels", Tool: "get_key_levels", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
+			return buildKeyLevelsToolArgs(w, w.CurrentStock)
+		}},
 		{Name: "bot_attitude", Tool: "get_bot_yesterday_attitude", ArgFunc: func(w *memory.PreMarketWorking) map[string]any {
 			ws := w.Stocks[w.CurrentStock]
 			return map[string]any{"bot_id": ws.BotID, "code": w.CurrentStock, "language": "cn"}
@@ -93,10 +96,10 @@ func BuildReportContent(ctx context.Context, w *memory.PreMarketWorking, code st
 	return bundle.Report, nil
 }
 
-func buildReportContent(w *memory.PreMarketWorking, code string, v *verdict.Verdict, reason, suggestion string) string {
+func buildReportContent(ctx context.Context, w *memory.PreMarketWorking, code string, v *verdict.Verdict, reason, suggestion string) string {
 	ws := w.Stocks[code]
 	evidence := collectReportEvidence(w, code)
-	view := buildReportView(ws, evidence, extractKeyLevels(ws), "")
+	view := buildReportView(ws, evidence, extractKeyLevels(ctx, ws), "")
 	if v != nil {
 		view.Result = v.Result
 		view.Confidence = v.Confidence
@@ -107,10 +110,11 @@ func buildReportContent(w *memory.PreMarketWorking, code string, v *verdict.Verd
 	if strings.TrimSpace(suggestion) != "" {
 		view.Suggestion = suggestion
 	}
-	return buildStockReportDraft(w, code, view)
+	levels := extractKeyLevels(ctx, ws)
+	return buildStockReportDraft(w, code, view, levels)
 }
 
-func buildStockReportDraft(w *memory.PreMarketWorking, code string, view reportView) string {
+func buildStockReportDraft(w *memory.PreMarketWorking, code string, view reportView, levels stockfmt.KeyLevels) string {
 	ws := w.Stocks[code]
 	lines := []string{
 		"## 市场背景",
@@ -129,6 +133,10 @@ func buildStockReportDraft(w *memory.PreMarketWorking, code string, view reportV
 		"",
 		weeklyAnalysisSection(ws),
 		"",
+		"## 关键价位（结构引擎）",
+		"",
+		keyLevelEngineSection(ws, levels),
+		"",
 		"## Bot 盘前态度",
 		"",
 		botAttitudeSection(ws),
@@ -139,7 +147,7 @@ func buildStockReportDraft(w *memory.PreMarketWorking, code string, view reportV
 		"",
 		"### 今日重点关注",
 	}
-	for _, item := range keyWatchPoints(ws, view, extractKeyLevels(ws)) {
+	for _, item := range keyWatchPoints(ws, view, levels) {
 		lines = append(lines, "- "+item)
 	}
 	lines = append(lines, "", "### 风险提示")
@@ -164,9 +172,9 @@ func buildStockReportDraft(w *memory.PreMarketWorking, code string, view reportV
 func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, code string) (StockReportBundle, error) {
 	ws := w.Stocks[code]
 	evidence := collectReportEvidence(w, code)
-	levels := extractKeyLevels(ws)
+	levels := extractKeyLevels(ctx, ws)
 	view := buildReportView(ws, evidence, levels, w.MarketReportResult)
-	draft := buildStockReportDraft(w, code, view)
+	draft := buildStockReportDraft(w, code, view, levels)
 
 	synth := StockPreMarketSynthesizerFrom(ctx)
 	if synth == nil {
@@ -187,6 +195,7 @@ func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, co
 	}
 	body = stockfmt.ReplaceMarkdownSection(body, "## 个股新闻", stockNewsSection(ws))
 	body = stockfmt.ReplaceMarkdownSection(body, "## 资金流向与分布", capitalSection(ws))
+	body = stockfmt.ReplaceMarkdownSection(body, "## 关键价位（结构引擎）", keyLevelEngineSection(ws, levels))
 
 	reason := strings.TrimSpace(res.Reason)
 	summary := strings.TrimSpace(res.Summary)
@@ -439,8 +448,8 @@ func confidenceFor(ws memory.StockWorkspace, evidence []memory.EvidenceRef) stri
 	return "review_required"
 }
 
-func reasonFor(ws memory.StockWorkspace, evidence []memory.EvidenceRef) string {
-	return buildSubstantiveReason(ws, extractKeyLevels(ws), "")
+func reasonFor(ctx context.Context, ws memory.StockWorkspace, evidence []memory.EvidenceRef) string {
+	return buildSubstantiveReason(ws, extractKeyLevels(ctx, ws), "")
 }
 
 func suggestionFor(result string) string {

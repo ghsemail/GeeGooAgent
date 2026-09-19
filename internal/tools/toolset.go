@@ -63,7 +63,7 @@ func expandToolsetAlias(id string) []string {
 // builtinToolsets is the canonical catalog. Order is display order.
 var builtinToolsets = []Toolset{
 	newToolset("market", "行情与资金", "交易日、搜码、行情、持仓、新闻检索", true, marketTools),
-	newToolset("analyst_runtime", "运行时分析", "读 Prompt 列表（同库）、MCP 分析、资金面", true, analystRuntimeTools),
+	newToolset("analyst_runtime", "运行时分析", "读 Prompt 列表（同库）、MCP 分析、资金面、Key Level Engine", true, analystRuntimeTools),
 	newToolset("prompt_admin", "模板运营", "写 single_prompt_template / 竞品·ETF 模板（:3210/:3120）", true, promptAdminTools),
 	newToolset("custom_signal", "定制策略", "定制策略定义与 CRUD（Monday · :3210）", true, customSignalTools),
 	newToolset("strategy", "策略与回测", "信号列表、网格/DCA 生成与回测", true, strategyTools),

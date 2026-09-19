@@ -143,8 +143,50 @@ if codes:
     c,d = post("http://146.56.225.252:3200/getDashboardSignal", {"code": code, "frequency": "1d", "type": "stock", "signal_index_list": [], "language": "cn"}, SIG)
     show("getDashboardSignal", c, d)
     c,d = post("http://146.56.225.252:3200/getSupportingPrice", {"code": code}, SIG)
-    ok = c == 200 and isinstance(d, dict) and "data" in d
-    print(f"[{'OK' if ok else 'FAIL'}] getSupportingPrice http={c} stock={d.get('code') if isinstance(d,dict) else d}")
+    data = d.get("data") if isinstance(d, dict) else None
+
+    def _supporting_price_ok(http_code, payload, block):
+        if http_code != 200 or not isinstance(payload, dict) or not isinstance(block, dict):
+            return False
+        j = block.get("judgment")
+        if isinstance(j, dict):
+            for side in ("support", "resistance"):
+                band = j.get(side)
+                if isinstance(band, dict) and band.get("center"):
+                    return True
+        cands = block.get("candidates")
+        if isinstance(cands, dict) and (cands.get("support") or cands.get("resistance")):
+            return True
+        leg = block.get("legacy")
+        if isinstance(leg, dict) and leg.get("QFLSupport") and leg.get("QFLResistance"):
+            return True
+        return False
+
+    def _supporting_price_zone_counts(block):
+        if not isinstance(block, dict):
+            return 0, 0
+        sup, res = 0, 0
+        j = block.get("judgment")
+        if isinstance(j, dict):
+            if isinstance(j.get("support"), dict):
+                sup = max(sup, 1)
+            if isinstance(j.get("resistance"), dict):
+                res = max(res, 1)
+        cands = block.get("candidates")
+        if isinstance(cands, dict):
+            sup = max(sup, len(cands.get("support") or []))
+            res = max(res, len(cands.get("resistance") or []))
+        return sup, res
+
+    ok = _supporting_price_ok(c, d, data)
+    sup, res = _supporting_price_zone_counts(data)
+    regime = ""
+    if isinstance(data, dict) and isinstance(data.get("judgment"), dict):
+        regime = data["judgment"].get("regime") or ""
+    print(
+        f"[{'OK' if ok else 'FAIL'}] getSupportingPrice http={c} stock={d.get('code') if isinstance(d,dict) else d} "
+        f"primary+cand={sup}/{res} regime={regime or '-'}"
+    )
 
 # --- analyze-api ---
 c,d = post("http://146.56.225.252:3230/getSingleAnalysisHistory", {"user_id": USER, "type": "single"}, ANA)

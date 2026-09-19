@@ -47,6 +47,7 @@ var fallbackSessionCounter uint64
 type App struct {
 	Config           *config.AppConfig
 	MCP              *mcp.Client
+	SignalAPI        *mcp.Client
 	WeKnora          *weknora.Client
 	Registry         *tools.Registry
 	Gateway          *llm.Gateway
@@ -141,7 +142,8 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	wf := workflow.NewRunner(executor, working, cpAdapter)
 
 	app := &App{
-		Config: cfg, MCP: httpBackends.MCP, WeKnora: weknora.NewFromResolved(cfg.ResolvedWeKnora()), Registry: registry,
+		Config: cfg, MCP: httpBackends.MCP, SignalAPI: httpBackends.SignalAPI,
+		WeKnora: weknora.NewFromResolved(cfg.ResolvedWeKnora()), Registry: registry,
 		Executor: executor, Workflow: wf, Working: working, State: state, Checkpoints: checkpoints, EventBus: eventBus, Workspace: workspace,
 		UserLLM: userllmstore.NewBackend(cfg, workspace),
 	}
@@ -190,6 +192,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	app.Agent.SetSubAgent(sub)
 	app.Workflow.SetToolExec(app.Agent.ToolExec())
 	app.wireSynthesizer()
+	app.wireKeyLevelFetcher()
 
 	return app, nil
 }

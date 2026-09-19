@@ -384,6 +384,69 @@ func registerAnalysisTools(r *Registry, deps Deps) {
 		},
 	})
 	r.Register(Tool{
+		Name:        "get_key_levels",
+		Description: "查询 GeeGooSignal Key Level Engine。返回 current_price、judgment（主支撑/阻力带与 regime/summary）、refs（bars/atr/pivot/evidence/capital_hint）、可选 candidates 与 legacy（网格）。LLM 核验时读 judgment + refs.evidence。",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"code": map[string]any{"type": "string", "description": "股票代码，如 00700.HK"},
+			},
+			"required": []any{"code"},
+		},
+		Handle: func(ctx Context, args map[string]any) Result {
+			code := strArg(args, "code", "")
+			if code == "" {
+				return Result{Status: StatusError, ExitCode: 1, Summary: "get_key_levels 需要 code（先 search_code）"}
+			}
+			if ctx.DryRun {
+				return okDryRun("get_key_levels", map[string]any{
+					"code": code, "current_price": 0.0,
+					"judgment": map[string]any{"regime": "unknown", "summary": "(dry run)"},
+				})
+			}
+			opts := map[string]any{}
+			if v, ok := args["include_60m"].(bool); ok {
+				opts["include_60m"] = v
+			} else {
+				opts["include_60m"] = true
+			}
+			if v, ok := args["include_legacy"].(bool); ok {
+				opts["include_legacy"] = v
+			} else {
+				opts["include_legacy"] = true
+			}
+			if v, ok := args["include_extra"].(bool); ok && v {
+				opts["include_extra"] = true
+			}
+			if capRaw, ok := args["capital_evidence"].(map[string]any); ok && len(capRaw) > 0 {
+				opts["capital_evidence"] = capRaw
+			}
+			resp, err := deps.HTTP.SignalAPI.GetSupportingPrice(ctx.GoContext(), code, opts)
+			if err != nil {
+				return errResult(err)
+			}
+			d := resp.Data
+			data := map[string]any{
+				"code":          resp.Code,
+				"current_price": d.CurrentPrice,
+				"judgment":      d.Judgment,
+				"refs":          d.Refs,
+			}
+			if d.Candidates != nil {
+				data["candidates"] = d.Candidates
+			}
+			if d.Legacy != nil {
+				data["legacy"] = d.Legacy
+			}
+			summary := d.Judgment.Summary
+			return Result{
+				Status:  StatusOK,
+				Summary: summary,
+				Data:    data,
+			}
+		},
+	})
+	r.Register(Tool{
 		Name: "get_capital_flow", Description: "查询主力资金流向（经 GeeGooBot 路由 GeeGooData，DAY 空时自动试 WEEK 并重试）。",
 		Parameters: map[string]any{
 			"type": "object", "required": []string{"code"},

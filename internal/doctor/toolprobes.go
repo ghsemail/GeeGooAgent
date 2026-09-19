@@ -27,6 +27,7 @@ func checkToolProbes(cfg *config.AppConfig) []CheckResult {
 
 	var results []CheckResult
 	results = append(results, probeSearchCode(ctx, cfg))
+	results = append(results, probeGetSupportingPrice(ctx, cfg))
 	results = append(results, probeCapitalFlow(ctx, client, token))
 	results = append(results, probeCapitalDistribution(ctx, client, token))
 	results = append(results, probeMCPCodeQuery(ctx, client, token, "get_position", "/getPosition"))
@@ -58,6 +59,31 @@ func probeSearchCode(ctx context.Context, cfg *config.AppConfig) CheckResult {
 		return CheckResult{Name: name, OK: true, Warn: true, Detail: "API OK but 0 matches for 00700"}
 	}
 	return CheckResult{Name: name, OK: true, Detail: fmt.Sprintf("%d match(es) for 00700", len(items))}
+}
+
+func probeGetSupportingPrice(ctx context.Context, cfg *config.AppConfig) CheckResult {
+	name := "tool probe: get_key_levels (getSupportingPrice)"
+	client := mcp.NewClient(cfg.SignalAPIURL(), cfg.SignalAPIKey(), mcp.Options{
+		Timeout:      25 * time.Second,
+		AllowedHosts: cfg.ResolvedAllowedHosts(),
+	})
+	resp, err := client.GetSupportingPrice(ctx, probeCodeHK, map[string]any{"include_legacy": true})
+	if err != nil {
+		return CheckResult{Name: name, OK: false, Detail: err.Error()}
+	}
+	j := resp.Data.Judgment
+	hasSupport := j.Support != nil && j.Support.Center > 0
+	hasResist := j.Resistance != nil && j.Resistance.Center > 0
+	if !hasSupport && !hasResist {
+		return CheckResult{
+			Name: name, OK: true, Warn: true,
+			Detail: probeCodeHK + ": API OK but judgment has no primary bands",
+		}
+	}
+	return CheckResult{
+		Name: name, OK: true,
+		Detail: fmt.Sprintf("%s regime=%s support=%v resistance=%v", probeCodeHK, j.Regime, hasSupport, hasResist),
+	}
 }
 
 func probeCapitalFlow(ctx context.Context, client *mcp.Client, token string) CheckResult {

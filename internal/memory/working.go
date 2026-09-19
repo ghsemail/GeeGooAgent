@@ -170,6 +170,17 @@ func (s *WorkingStore) Apply(w *PreMarketWorking, toolName string, result tools.
 			updated.Stocks[code] = ws
 			addEvidence(updated, toolName, "stock."+code+".news", text, data, observedAt)
 		}
+	case "get_key_levels":
+		code, _ := data["code"].(string)
+		if ws, ok := updated.Stocks[code]; ok {
+			success := result.Status == tools.StatusOK
+			applyKeyLevelsTool(&ws, data, success)
+			updated.Stocks[code] = ws
+			if success {
+				summary := formatKeyLevelEvidenceSummary(ws)
+				addEvidence(updated, toolName, "stock."+code+".key_levels", summary, data, observedAt)
+			}
+		}
 	case "get_capital_flow":
 		code, _ := data["code"].(string)
 		if ws, ok := updated.Stocks[code]; ok {
@@ -569,6 +580,11 @@ func encodeWorking(w *PreMarketWorking) map[string]any {
 			"hourly_price_analysis": v.HourlyPriceAnalysis, "hourly_signal_analysis": v.HourlySignalAnalysis,
 			"hourly_kline_analysis": v.HourlyKlineAnalysis,
 			"current_price": v.CurrentPrice, "price_source": v.PriceSource,
+			"key_levels_engine_ok": v.KeyLevelsEngineOK,
+			"key_level_support_center": v.KeyLevelSupportCenter, "key_level_resistance_center": v.KeyLevelResistanceCenter,
+			"key_level_support_zone": v.KeyLevelSupportZone, "key_level_resist_zone": v.KeyLevelResistZone,
+			"key_level_support_sources": v.KeyLevelSupportSources, "key_level_resist_sources": v.KeyLevelResistSources,
+			"key_level_support_state": v.KeyLevelSupportState, "key_level_resist_state": v.KeyLevelResistState,
 			"intraday_result": v.IntradayResult, "intraday_confidence": v.IntradayConfidence,
 			"bot_log_summary": v.BotLogSummary, "change_pct": v.ChangePct,
 			"session_bias": v.SessionBias, "vs_stock_premarket": v.VsPreMarket,
@@ -716,6 +732,15 @@ func decodeWorking(data map[string]any) (*PreMarketWorking, error) {
 					IntradayConfidence: str(m, "intraday_confidence"), BotLogSummary: str(m, "bot_log_summary"),
 					SessionBias: str(m, "session_bias"), VsPreMarket: str(m, "vs_stock_premarket"),
 					CurrentPrice: floatField(m, "current_price"), ChangePct: floatField(m, "change_pct"),
+					KeyLevelsEngineOK:        boolField(m, "key_levels_engine_ok"),
+					KeyLevelSupportCenter:    floatField(m, "key_level_support_center"),
+					KeyLevelResistanceCenter: floatField(m, "key_level_resistance_center"),
+					KeyLevelSupportZone:      str(m, "key_level_support_zone"),
+					KeyLevelResistZone:       str(m, "key_level_resist_zone"),
+					KeyLevelSupportSources:   str(m, "key_level_support_sources"),
+					KeyLevelResistSources:    str(m, "key_level_resist_sources"),
+					KeyLevelSupportState:     str(m, "key_level_support_state"),
+					KeyLevelResistState:      str(m, "key_level_resist_state"),
 				}
 			}
 		}

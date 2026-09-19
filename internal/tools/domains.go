@@ -85,6 +85,7 @@ var (
 		"get_hourly_analysis_bundle":          {},
 		"get_capital_flow":                    {},
 		"get_capital_distribution":            {},
+		"get_key_levels":                      {},
 	}
 	promptAdminTools = map[string]struct{}{
 		"add_single_prompt_template":        {},

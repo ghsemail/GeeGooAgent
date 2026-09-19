@@ -1,17 +1,29 @@
 package premarket
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/stockfmt"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/keylevelctx"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/textutil"
 )
 
-func extractKeyLevels(ws memory.StockWorkspace) stockfmt.KeyLevels {
-	levels := stockfmt.ExtractWeeklyKeyLevels(ws.WeeklyAnalysisRef, ws.Code)
-	return levels
+func extractKeyLevels(ctx context.Context, ws memory.StockWorkspace) stockfmt.KeyLevels {
+	text := stockfmt.ExtractWeeklyKeyLevels(ws.WeeklyAnalysisRef, ws.Code)
+	current := ws.CurrentPrice
+	if cached := keyLevelsFromWorkspace(ws); cached.Provenance.EngineUsed {
+		return stockfmt.MergeKeyLevels(cached, text, current)
+	}
+	if fetcher := keylevelctx.From(ctx); fetcher != nil {
+		engine, err := fetcher.FetchKeyLevels(ctx, ws.Code)
+		if err == nil && (engine.Valid || len(engine.Provenance.SupportSrc) > 0) {
+			return stockfmt.MergeKeyLevels(engine, text, current)
+		}
+	}
+	return stockfmt.ApplyPriceSanity(text, current)
 }
 
 func buildSubstantiveReason(ws memory.StockWorkspace, levels stockfmt.KeyLevels, marketResult string) string {
@@ -21,8 +33,8 @@ func buildSubstantiveReason(ws memory.StockWorkspace, levels stockfmt.KeyLevels,
 	}
 	parts := []string{fmt.Sprintf("Bot 昨日态度为 %s", stockfmt.LocalizeAttitude(attitude))}
 
-	if levels.Valid {
-		parts = append(parts, fmt.Sprintf("周线关键支撑约 %.2f、阻力约 %.2f", *levels.Support, *levels.Resistance))
+	if line := stockfmt.FormatKeyLevelLine(levels); line != "" {
+		parts = append(parts, line)
 	} else if excerpt := weeklyConclusionExcerpt(ws.WeeklyAnalysisRef); excerpt != "" {
 		parts = append(parts, excerpt)
 	}
@@ -132,7 +144,10 @@ func localizeMarketResult(result string) string {
 
 func keyLevelWatchPoint(levels stockfmt.KeyLevels) string {
 	if !levels.Valid {
-		return "关注周线关键支撑/阻力是否被放量突破或跌破。"
+		return "关注关键支撑/阻力是否被放量突破或跌破。"
+	}
+	if levels.Provenance.SupportZone != "" && levels.Provenance.ResistZone != "" {
+		return fmt.Sprintf("关注支撑带 %s 与阻力带 %s 是否被放量突破或跌破。", levels.Provenance.SupportZone, levels.Provenance.ResistZone)
 	}
 	return fmt.Sprintf("关注支撑位 %.2f 与阻力位 %.2f 是否被放量突破或跌破。", *levels.Support, *levels.Resistance)
 }

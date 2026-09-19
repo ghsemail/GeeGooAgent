@@ -13,6 +13,7 @@ type KeyLevels struct {
 	Resistance *float64
 	Valid      bool
 	Warnings   []string
+	Provenance KeyLevelProvenance
 }
 
 var (
@@ -214,6 +215,11 @@ func parsePriceSegment(segment string, useHigh bool) (*float64, []float64) {
 
 func roundPrice(v float64) float64 {
 	return math.Round(v*100) / 100
+}
+
+// RoundPrice rounds to 2 decimal places for display and API fields.
+func RoundPrice(v float64) float64 {
+	return roundPrice(v)
 }
 
 func isCodeArtifact(value float64, code string) bool {
