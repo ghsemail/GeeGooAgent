@@ -4,11 +4,11 @@ import "testing"
 
 func TestEvaluateSignalEpisodes_BuyUntilSell(t *testing.T) {
 	bars := []any{
-		map[string]any{"time": "t0", "close": 100.0},
-		map[string]any{"time": "t1", "close": 110.0},
-		map[string]any{"time": "t2", "close": 105.0},
-		map[string]any{"time": "t3", "close": 95.0},
-		map[string]any{"time": "t4", "close": 90.0},
+		map[string]any{"time": "t0", "close": 100.0, "high": 101.0, "low": 99.0},
+		map[string]any{"time": "t1", "close": 110.0, "high": 112.0, "low": 108.0},
+		map[string]any{"time": "t2", "close": 105.0, "high": 111.0, "low": 104.0},
+		map[string]any{"time": "t3", "close": 95.0, "high": 96.0, "low": 94.0},
+		map[string]any{"time": "t4", "close": 90.0, "high": 91.0, "low": 89.0},
 	}
 	buyMerged := []any{1, 0, 0, 0, 0}
 	sellMerged := []any{0, 0, 0, -1, 0}
@@ -21,6 +21,9 @@ func TestEvaluateSignalEpisodes_BuyUntilSell(t *testing.T) {
 	}
 	if eval.BuyDetails[0].HoldingBars != 2 {
 		t.Fatalf("holding=%d want 2 (t0->t2)", eval.BuyDetails[0].HoldingBars)
+	}
+	if eval.BuyDetails[0].SwingLow != 99.0 || eval.BuyDetails[0].SwingHigh != 112.0 {
+		t.Fatalf("strict swing=%v-%v want 99-112", eval.BuyDetails[0].SwingLow, eval.BuyDetails[0].SwingHigh)
 	}
 }
 

@@ -34,6 +34,10 @@ type SignalEpisodeDetail struct {
 	PathHit              bool    `json:"path_hit,omitempty"`
 	PathEvaluable        bool    `json:"path_evaluable,omitempty"`
 	PeakHigh             float64 `json:"peak_high,omitempty"`
+	SwingLow             float64 `json:"swing_low,omitempty"`
+	SwingHigh            float64 `json:"swing_high,omitempty"`
+	PathSwingLow         float64 `json:"path_swing_low,omitempty"`
+	PathSwingHigh        float64 `json:"path_swing_high,omitempty"`
 	PeakReturn           float64 `json:"peak_return,omitempty"`
 	PeakTime             string  `json:"peak_time,omitempty"`
 	MaxDrawdownFromEntry float64 `json:"max_drawdown_from_entry,omitempty"`
@@ -267,6 +271,9 @@ func collectEpisodes(
 			ep.EndTime = times[end]
 			ep.EndClose = closes[end]
 			ep.HoldingBars = end - start
+			sl, sh := swingLowHigh(start, end, highs, lows)
+			ep.SwingLow = sl
+			ep.SwingHigh = sh
 			if oppIdx >= 0 && oppIdx < len(times) && (ep.StrictEndReason == "" || end < oppositeEnd) {
 				ep.OppositeIdx = oppIdx
 				ep.OppositeTime = times[oppIdx]
@@ -504,6 +511,29 @@ func fillPathMetrics(
 	}
 	ep.MaxDrawdownFromEntry = maxDDEntry
 	ep.MaxDrawdownFromPeak = maxDDPeak
+	sl, sh := swingLowHigh(start, end, highs, lows)
+	ep.PathSwingLow = sl
+	ep.PathSwingHigh = sh
+}
+
+func swingLowHigh(start, end int, highs, lows []float64) (low, high float64) {
+	if start < 0 || start >= len(lows) || end < start {
+		return 0, 0
+	}
+	if end >= len(lows) {
+		end = len(lows) - 1
+	}
+	low = lows[start]
+	high = highs[start]
+	for i := start; i <= end; i++ {
+		if lows[i] < low {
+			low = lows[i]
+		}
+		if highs[i] > high {
+			high = highs[i]
+		}
+	}
+	return low, high
 }
 
 func metricsFromStrictEpisodes(details []SignalEpisodeDetail) SignalEpisodeMetrics {
