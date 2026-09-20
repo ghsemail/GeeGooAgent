@@ -9,12 +9,20 @@ import urllib.error
 import urllib.request
 
 CASE_ID = "workflow_signal_diagnose_sar_tencent"
-MESSAGE = "诊断 SAR · 腾讯"
+MESSAGE = (
+    "信号诊断：帮我用 SAR 信号作为买入信号，用 SAR 信号作为卖出信号，"
+    "开启阻力支撑熔断，测试一下腾讯控股（00700.HK）。"
+)
 PASS_KEYWORDS = ["Episode", "命中", "SAR", "腾讯"]
 WORKFLOW_OPTIONS = {
     "signal_diagnose": {
         "use_key_level_episode_stop": True,
         "key_break_mode": "resist_high",
+        "panel_strategy_label": "买:SAR · 卖:SAR",
+        "frequency": "60m",
+        "months_back": 3,
+        "buy_signal": [{"index": "SAR", "type": "signal"}],
+        "sell_signal": [{"index": "SAR", "type": "signal"}],
     },
 }
 MIN_REPLY_CHARS = 120
@@ -71,6 +79,7 @@ def chat_turn(runtime_key: str, mcp_token: str, message: str, session_id: str = 
     event = ""
     chart_probe = False
     signal_eval = False
+    clarify_events = 0
     eval_method = ""
     key_break_hits = 0
     for line in raw.splitlines():
@@ -101,6 +110,8 @@ def chat_turn(runtime_key: str, mcp_token: str, message: str, session_id: str = 
                                         key_break_hits += 1
                 except json.JSONDecodeError:
                     pass
+            elif event == "clarify":
+                clarify_events += 1
             elif event == "turn_end":
                 try:
                     turn_end = json.loads(payload)
@@ -116,6 +127,7 @@ def chat_turn(runtime_key: str, mcp_token: str, message: str, session_id: str = 
         "signal_eval": signal_eval,
         "eval_method": eval_method,
         "key_break_hits": key_break_hits,
+        "clarify_events": clarify_events,
     }
 
 
@@ -160,8 +172,13 @@ def main() -> int:
     print(f"reply_len={len(reply)}")
     print(
         f"chart_probe={chat.get('chart_probe')} signal_eval={chat.get('signal_eval')} "
-        f"eval_method={chat.get('eval_method')} key_break_hits={chat.get('key_break_hits')}"
+        f"eval_method={chat.get('eval_method')} key_break_hits={chat.get('key_break_hits')} "
+        f"clarify_events={chat.get('clarify_events')}"
     )
+    if int(chat.get("clarify_events") or 0) > 0:
+        print("FAIL: unexpected clarify SSE during signal_diagnose workflow")
+        print("SUMMARY: FAIL")
+        return 1
     print("reply_preview:", reply[:500].replace("\n", " "))
 
     kw_ok, kw_detail = keyword_pass(reply)

@@ -79,15 +79,16 @@ func IndividualWorkflowEvalCases() []TurnPlanEvalCaseDef {
 			Title:       "Workflow · 信号诊断（SAR · 腾讯）",
 			Description: "signal_diagnose：probe（含 key_levels）→ Episode 命中率评价 → LLM 诊断报告。",
 			Steps: []string{
-				"发送信号诊断请求（SAR · 腾讯）",
+				"发送策略开发面板同款组合式信号诊断请求（买卖 SAR · 腾讯 · 含 workflow_options）",
 				"校验 workflow 含 Episode 命中率与诊断结论",
 				"校验回复含 SAR / 腾讯 / 命中",
+				"校验不应触发用户 clarify（标的与信号已在 message/options 中）",
 			},
 			SortOrder: 14,
 			Options: TurnPlanCaseOptions{
 				Category:       WorkflowCatID,
 				SessionCleanup: DefaultEvalSessionCleanup,
-				Message:        "诊断 SAR · 腾讯",
+				Message:        "信号诊断：帮我用 SAR 信号作为买入信号，用 SAR 信号作为卖出信号，开启阻力支撑熔断，测试一下腾讯控股（00700.HK）。",
 				MinReplyChars:  120,
 				PassKeywords:   []string{"Episode", "命中", "SAR", "腾讯"},
 				WaitTimeoutSec: 300,
@@ -95,6 +96,15 @@ func IndividualWorkflowEvalCases() []TurnPlanEvalCaseDef {
 					"signal_diagnose": map[string]any{
 						"use_key_level_episode_stop": true,
 						"key_break_mode":             "resist_high",
+						"panel_strategy_label":       "买:SAR · 卖:SAR",
+						"frequency":                  "60m",
+						"months_back":                3,
+						"buy_signal": []any{
+							map[string]any{"index": "SAR", "type": "signal"},
+						},
+						"sell_signal": []any{
+							map[string]any{"index": "SAR", "type": "signal"},
+						},
 					},
 				},
 			},

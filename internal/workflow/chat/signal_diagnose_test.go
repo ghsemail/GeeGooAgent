@@ -137,6 +137,60 @@ func TestShouldStartSignalDiagnoseFlowAfterPause(t *testing.T) {
 	}
 }
 
+func TestEvalWorkflowSignalDiagnoseComposedPanelNoClarify(t *testing.T) {
+	if !IsSignalDiagnoseIntent("信号诊断：帮我用 SAR 信号作为买入信号，用 SAR 信号作为卖出信号，开启阻力支撑熔断，测试一下腾讯控股（00700.HK）。") {
+		t.Fatal("composed panel message should start signal_diagnose")
+	}
+	runner := signalDiagnoseTestRunner(t)
+	clarifyCalls := 0
+	var toolsCalled []string
+	base := runner.RunTool
+	runner.RunTool = func(ctx context.Context, req tools.CallRequest, tc tools.Context) tools.Result {
+		toolsCalled = append(toolsCalled, req.Name)
+		if req.Name == "clarify" {
+			clarifyCalls++
+		}
+		return base(ctx, req, tc)
+	}
+	msg := "信号诊断：帮我用 SAR 信号作为买入信号，用 SAR 信号作为卖出信号，开启阻力支撑熔断，测试一下腾讯控股（00700.HK）。"
+	session := runtime.NewSession()
+	session.PendingSignalDiagnoseOpts = &runtime.SignalDiagnoseOpts{
+		UseKeyLevelEpisodeStop: true,
+		KeyBreakMode:           KeyBreakModeResistHigh,
+		PanelStrategyLabel:     "买:SAR · 卖:SAR",
+		Frequency:              "60m",
+		MonthsBack:             3,
+		BuySignal: []any{
+			map[string]any{"index": "SAR", "type": "signal"},
+		},
+		SellSignal: []any{
+			map[string]any{"index": "SAR", "type": "signal"},
+		},
+	}
+	toolCtx := tools.Context{
+		ClarifyFn: func(context.Context, string, []string) (string, bool) {
+			clarifyCalls++
+			t.Fatal("ClarifyFn must not run for panel-style signal_diagnose eval")
+			return "", false
+		},
+	}
+	result, handled := runner.RunTurn(context.Background(), session, msg, toolCtx, 1)
+	if !handled || result.Failed {
+		t.Fatalf("handled=%v failed=%v err=%s", handled, result.Failed, result.Error)
+	}
+	if clarifyCalls > 0 {
+		t.Fatalf("clarify invoked %d times", clarifyCalls)
+	}
+	for _, name := range toolsCalled {
+		if name == "clarify" {
+			t.Fatalf("clarify tool called during workflow")
+		}
+	}
+	if !contains(result.AssistantText, "Episode") && !contains(result.AssistantText, "命中率") {
+		t.Fatalf("missing eval report: %q", result.AssistantText)
+	}
+}
+
 func TestSignalDiagnoseFlowCompletes(t *testing.T) {
 	runner := signalDiagnoseTestRunner(t)
 	runner.RunTool = func(ctx context.Context, req tools.CallRequest, tc tools.Context) tools.Result {

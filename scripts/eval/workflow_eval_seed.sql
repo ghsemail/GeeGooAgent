@@ -70,9 +70,9 @@ INSERT INTO agent_eval_cases (
     '',
     'Workflow · 信号诊断（SAR · 腾讯）',
     'signal_diagnose：probe（含 key_levels）→ Episode 命中率评价 → LLM 诊断报告。',
-    '["发送信号诊断请求（SAR · 腾讯）","校验 workflow 含 Episode 命中率与诊断结论","校验回复含 SAR / 腾讯 / 命中"]',
+    '["发送策略开发面板同款组合式信号诊断请求","校验 workflow 含 Episode 命中率与诊断结论","校验回复含 SAR / 腾讯 / 命中","校验不应触发用户 clarify"]',
     FALSE,
-    '{"category":"workflow","task":"signal_diagnose","scenario":"fixed_dialogue","workflow_skill":"signal_diagnose","random_stock_enabled":false,"min_reply_chars":120,"pass_keywords":["Episode","命中","SAR","腾讯"],"session_cleanup":"before_run","message":"诊断 SAR · 腾讯","wait_timeout_sec":300,"workflow_options":{"signal_diagnose":{"use_key_level_episode_stop":true,"key_break_mode":"resist_high"}}}',
+    '{"category":"workflow","task":"signal_diagnose","scenario":"fixed_dialogue","workflow_skill":"signal_diagnose","random_stock_enabled":false,"min_reply_chars":120,"pass_keywords":["Episode","命中","SAR","腾讯"],"session_cleanup":"before_run","message":"信号诊断：帮我用 SAR 信号作为买入信号，用 SAR 信号作为卖出信号，开启阻力支撑熔断，测试一下腾讯控股（00700.HK）。","wait_timeout_sec":300,"workflow_options":{"signal_diagnose":{"use_key_level_episode_stop":true,"key_break_mode":"resist_high","panel_strategy_label":"买:SAR · 卖:SAR","frequency":"60m","months_back":3,"buy_signal":[{"index":"SAR","type":"signal"}],"sell_signal":[{"index":"SAR","type":"signal"}]}}}',
     14,
     TRUE
 ) ON CONFLICT (id) DO UPDATE SET
