@@ -203,7 +203,7 @@ func renderSignalDiagnoseFacts(flow *Flow) string {
 		freq = flow.Strategies[0].Frequency
 	}
 	fmt.Fprintf(&b, "| 周期 / 回溯 | %s / %d 月 |\n", freq, flow.MonthsBack)
-	fmt.Fprintf(&b, "| 信号测试 probe | 买 %d 次 / 卖 %d 次", flow.ProbeBuyHits, flow.ProbeSellHits)
+	fmt.Fprintf(&b, "| 信号测试 probe | 买入 %d 次 / 卖出 %d 次", flow.ProbeBuyHits, flow.ProbeSellHits)
 	if flow.ProbeBarCount > 0 {
 		fmt.Fprintf(&b, "（%d 根 K 线）", flow.ProbeBarCount)
 	}

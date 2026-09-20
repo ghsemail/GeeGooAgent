@@ -67,6 +67,8 @@ type SignalDiagnoseOpts struct {
 	SellSignal  []any  `json:"sell_signal,omitempty"`
 	Frequency   string `json:"frequency,omitempty"`
 	MonthsBack  int    `json:"months_back,omitempty"`
+	// PanelStrategyLabel is the strategy-dev UI title (may differ from chat utterance).
+	PanelStrategyLabel string `json:"panel_strategy_label,omitempty"`
 }
 
 // PendingPlan is a held mutating-tool batch from one LLM round.

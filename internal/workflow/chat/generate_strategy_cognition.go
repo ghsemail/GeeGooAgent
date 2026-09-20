@@ -211,6 +211,9 @@ func strategyDisplayLabel(flow *Flow) string {
 	if flow == nil {
 		return ""
 	}
+	if label := strings.TrimSpace(flow.ProbePanelLabel); label != "" {
+		return label
+	}
 	if label := strings.TrimSpace(flow.CatalogLabel); label != "" {
 		return label
 	}

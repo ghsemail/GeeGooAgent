@@ -146,6 +146,13 @@ func (r *Runner) phaseSignalDiagnoseReadStrategy(
 	toolCtx tools.Context,
 	recordTool func(name, status, summary string),
 ) error {
+	if flowHasProbePanelOverrides(flow) {
+		flow.CatalogType = "panel"
+		flow.CatalogLabel = probePanelDisplayLabel(flow)
+		flow.Phase = PhaseResolveSymbol
+		flow.touch()
+		return nil
+	}
 	runTool := r.runToolCall(recordTool)
 	match, err := matchIndex(ctx, flow.StrategyQuery, toolCtx, runTool)
 	if err != nil {
@@ -335,6 +342,9 @@ func (r *Runner) resolveDiagnoseSignal(
 	toolCtx tools.Context,
 	recordTool func(name, status, summary string),
 ) (slots.ResolvedSignal, error) {
+	if flowHasProbePanelOverrides(flow) {
+		return resolvedSignalFromProbeOverrides(flow), nil
+	}
 	kind := "combination"
 	switch flow.CatalogType {
 	case catalogTypeIndex, catalogTypeDefinition:
@@ -379,8 +389,9 @@ func renderSignalDiagnosePartial(flow *Flow) string {
 	if flow.StockCode != "" {
 		fmt.Fprintf(&b, "- 标的：%s %s\n", flow.StockName, flow.StockCode)
 	}
+	appendProbePanelConfigLines(&b, flow)
 	if flow.ProbeBuyHits > 0 || flow.ProbeSellHits > 0 || flow.Phase == PhaseBuildDetail || flow.Phase == PhaseSummarize {
-		fmt.Fprintf(&b, "- 信号测试：买 %d / 卖 %d\n", flow.ProbeBuyHits, flow.ProbeSellHits)
+		fmt.Fprintf(&b, "- 信号测试（probe）：买入 %d 次 / 卖出 %d 次\n", flow.ProbeBuyHits, flow.ProbeSellHits)
 	}
 	return strings.TrimSpace(b.String())
 }

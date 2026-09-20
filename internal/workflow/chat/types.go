@@ -112,6 +112,7 @@ type Flow struct {
 	ProbeBuyOverride       []any          `json:"probe_buy_override,omitempty"`
 	ProbeSellOverride      []any          `json:"probe_sell_override,omitempty"`
 	ProbeFrequencyOverride string         `json:"probe_frequency_override,omitempty"`
+	ProbePanelLabel        string         `json:"probe_panel_label,omitempty"`
 	KeyLevels              KeyLevelSnapshot   `json:"key_levels,omitempty"`
 	KeyLevelSeries         *KeyLevelBarSeries `json:"key_level_series,omitempty"`
 	EvalJudgment        string         `json:"eval_judgment,omitempty"`

@@ -40,6 +40,9 @@ func ApplyPendingSignalDiagnoseOpts(session *runtime.Session, flow *Flow) {
 	if o.MonthsBack > 0 {
 		flow.MonthsBack = o.MonthsBack
 	}
+	if strings.TrimSpace(o.PanelStrategyLabel) != "" {
+		flow.ProbePanelLabel = strings.TrimSpace(o.PanelStrategyLabel)
+	}
 	session.PendingSignalDiagnoseOpts = nil
 }
 
@@ -76,8 +79,11 @@ func ParseSignalDiagnoseOptsFromWorkflowOptions(raw map[string]any) *runtime.Sig
 	}
 	if v, ok := block["months_back"].(float64); ok && v > 0 {
 		out.MonthsBack = int(v)
-	} else if v, ok := block["months_back"].(int); ok && v > 0 {
+	} else 	if v, ok := block["months_back"].(int); ok && v > 0 {
 		out.MonthsBack = v
+	}
+	if s, ok := block["panel_strategy_label"].(string); ok {
+		out.PanelStrategyLabel = strings.TrimSpace(s)
 	}
 	return out
 }
