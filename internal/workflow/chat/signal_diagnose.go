@@ -109,8 +109,16 @@ func parseComposedDiagnoseStrategySummary(text string) string {
 }
 
 func extractComposedSideSignal(text, side string) string {
-	// 用 xxx 作为买入信号 / 作为卖出信号
-	re := regexp.MustCompile(`(?i)用\s*(.+?)\s*作为\s*` + side + `\s*信号`)
+	var re *regexp.Regexp
+	switch side {
+	case "买入":
+		re = regexp.MustCompile(`(?i)用\s*(.+?)\s*作为\s*买入\s*信号`)
+	case "卖出":
+		// 避免从首个「用」非贪婪匹配一直延伸到「作为卖出信号」
+		re = regexp.MustCompile(`(?i)(?:，|^)用\s*(.+?)\s*作为\s*卖出\s*信号`)
+	default:
+		return ""
+	}
 	if m := re.FindStringSubmatch(text); len(m) > 1 {
 		return strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(m[1]), "信号"))
 	}
