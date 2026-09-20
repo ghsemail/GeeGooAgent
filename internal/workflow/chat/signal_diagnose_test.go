@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
@@ -101,6 +102,17 @@ func TestIsSignalDiagnoseIntent(t *testing.T) {
 	}
 	if IsSignalDiagnoseIntent("读取 Macd4H 策略") {
 		t.Fatal("strategy dev should not match signal diagnose")
+	}
+}
+
+func TestParseSignalDiagnoseMessageComposedPanelStyle(t *testing.T) {
+	text := "信号诊断：帮我用 SAR 信号作为买入信号，用 4小时MACD市场节奏 信号作为卖出信号，关闭阻力支撑熔断，测试一下腾讯控股（00700.HK）。"
+	strategy, stock := parseSignalDiagnoseMessage(text)
+	if strategy != "买:SAR · 卖:4小时MACD市场节奏" {
+		t.Fatalf("strategy=%q", strategy)
+	}
+	if !strings.Contains(stock, "00700.HK") {
+		t.Fatalf("stock=%q", stock)
 	}
 }
 

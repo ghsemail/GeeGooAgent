@@ -14,6 +14,8 @@ import (
 
 var signalDiagnoseMessagePattern = regexp.MustCompile(`(?i)^(?:信号诊断|诊断)\s*(.+?)(?:\s*[·\.]\s*(.+))?$`)
 
+var composedDiagnoseStockPattern = regexp.MustCompile(`(?i)测试一下\s*(.+)\s*[。.]\s*$`)
+
 // FormatSignalDiagnoseMessage is the canonical Dock utterance for signal_diagnose workflow.
 func FormatSignalDiagnoseMessage(strategyName, stockName string) string {
 	strategy := strings.TrimSpace(strategyName)
@@ -47,6 +49,15 @@ func newSignalDiagnoseFlow(userText string) *Flow {
 
 func parseSignalDiagnoseMessage(text string) (strategy, stock string) {
 	text = strings.TrimSpace(text)
+	if strings.Contains(text, "作为买入信号") || strings.Contains(text, "作为卖出信号") {
+		strategy = parseComposedDiagnoseStrategySummary(text)
+		stock = parseComposedDiagnoseStockQuery(text)
+		if stock == "" {
+			stock = slots.ExtractExplicitStockReference(text)
+		}
+		strategy = strings.TrimSpace(strings.TrimSuffix(strategy, "策略"))
+		return strings.TrimSpace(strategy), strings.TrimSpace(stock)
+	}
 	if m := signalDiagnoseMessagePattern.FindStringSubmatch(text); len(m) > 1 {
 		strategy = strings.TrimSpace(m[1])
 		if len(m) > 2 {
@@ -59,8 +70,66 @@ func parseSignalDiagnoseMessage(text string) (strategy, stock string) {
 	if stock == "" {
 		stock = slots.ExtractExplicitStockReference(text)
 	}
+	if stock == "" {
+		stock = parseComposedDiagnoseStockQuery(text)
+	}
+	if strategy == "" {
+		strategy = parseComposedDiagnoseStrategySummary(text)
+	}
 	strategy = strings.TrimSpace(strings.TrimSuffix(strategy, "策略"))
 	return strings.TrimSpace(strategy), strings.TrimSpace(stock)
+}
+
+func parseComposedDiagnoseStockQuery(text string) string {
+	text = strings.TrimSpace(text)
+	if m := composedDiagnoseStockPattern.FindStringSubmatch(text); len(m) > 1 {
+		return strings.TrimSpace(m[1])
+	}
+	if idx := strings.Index(text, "测试一下"); idx >= 0 {
+		tail := strings.TrimSpace(text[idx+len("测试一下"):])
+		tail = strings.TrimRight(tail, "。.")
+		return strings.TrimSpace(tail)
+	}
+	return ""
+}
+
+func parseComposedDiagnoseStrategySummary(text string) string {
+	buy := extractComposedSideSignal(text, "买入")
+	sell := extractComposedSideSignal(text, "卖出")
+	switch {
+	case buy != "" && sell != "" && buy != sell:
+		return fmt.Sprintf("买:%s · 卖:%s", buy, sell)
+	case buy != "":
+		return buy
+	case sell != "":
+		return sell
+	default:
+		return ""
+	}
+}
+
+func extractComposedSideSignal(text, side string) string {
+	// 用 xxx 作为买入信号 / 作为卖出信号
+	re := regexp.MustCompile(`(?i)用\s*(.+?)\s*作为\s*` + side + `\s*信号`)
+	if m := re.FindStringSubmatch(text); len(m) > 1 {
+		return strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(m[1]), "信号"))
+	}
+	return ""
+}
+
+// finalizeSignalDiagnoseFromPanel aligns parsed flow fields with strategy-dev panel overrides.
+func finalizeSignalDiagnoseFromPanel(flow *Flow) {
+	if flow == nil {
+		return
+	}
+	if label := strings.TrimSpace(flow.ProbePanelLabel); label != "" {
+		flow.StrategyQuery = label
+	}
+	if strings.TrimSpace(flow.StockQuery) == "" {
+		if s := parseComposedDiagnoseStockQuery(flow.TriggerText); s != "" {
+			flow.StockQuery = s
+		}
+	}
 }
 
 func extractSignalDiagnoseStrategy(text string) string {

@@ -45,6 +45,7 @@ func (r *Runner) RunTurn(
 	if ShouldStartSignalDiagnoseFlow(userText, flow) {
 		flow = newSignalDiagnoseFlow(userText)
 		ApplyPendingSignalDiagnoseOpts(session, flow)
+		finalizeSignalDiagnoseFromPanel(flow)
 		SaveToSession(session, flow)
 		r.emitCard(flow)
 		r.emit("workflow_started", map[string]any{
