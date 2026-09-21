@@ -80,7 +80,7 @@ def main() -> int:
         f"cd {REMOTE_DIR} && {env}nohup python3 run_turnplan_live.py {' '.join(argv)} "
         f"> {REMOTE_LOG} 2>&1 & echo $!"
     )
-    _, out, _ = ssh_exec(client, start_cmd, timeout=30)
+    _, out, _ = ssh_exec(client, start_cmd, timeout=120)
     pid = out.strip().splitlines()[-1] if out.strip() else ""
     print(f"Started on {agent['host']} pid={pid}", flush=True)
 

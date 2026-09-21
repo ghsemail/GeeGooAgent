@@ -100,10 +100,13 @@ func executionSpecForClarifyBranch(chat *chatsession.ChatSession, opts TurnPlanC
 		}
 	case "compound_analysis_backtest":
 		out.Profile = ""
-		if choiceIndicatesAnalysisOnly(choice) {
+		switch {
+		case choiceIndicatesAnalysisOnly(choice):
 			out.Profile = "stock_analysis.symbol_resolve"
-			out.ForbidTools = append([]string(nil), "run_strategy_backtest")
-		} else if strings.Contains(choice, "回测") {
+			out.ForbidTools = []string{"run_strategy_backtest"}
+		case strings.Contains(choice, "回测"):
+			out.ForbidTools = nil
+		default:
 			out.ForbidTools = append([]string(nil), spec.ForbidTools...)
 		}
 	}
