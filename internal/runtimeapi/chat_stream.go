@@ -57,6 +57,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.App.RefreshOpsEmbedding(false)
+	h.App.RefreshOpsDecision(false)
 	store, err := h.App.SessionStore()
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, err.Error())

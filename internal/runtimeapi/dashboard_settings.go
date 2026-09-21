@@ -258,7 +258,8 @@ func (h *Handler) buildSettingsInfo(userID, gateway string) (map[string]any, err
 		for _, m := range models {
 			catalog = append(catalog, map[string]any{
 				"model_id": m.ModelID, "name": m.Name, "display_name": m.DisplayName,
-				"label": llm.CatalogModelLabel(m), "type": m.Type, "provider": m.Provider,
+				"label": llm.CatalogModelLabel(m), "type": m.Type, "kind": m.Kind,
+				"provider": m.Provider,
 				"configured": m.Type == "configured",
 			})
 		}
@@ -282,12 +283,19 @@ func (h *Handler) buildSettingsInfo(userID, gateway string) (map[string]any, err
 	embedding := config.ResolvedEmbedding{}
 	embeddingSource := "unset"
 	embeddingCatalogID := ""
+	decision := config.ResolvedDecision{}
+	decisionSource := "unset"
+	decisionCatalogID := ""
 	if h.App != nil {
 		h.App.RefreshOpsEmbedding(true)
+		h.App.RefreshOpsDecision(true)
 		embeddingSource = h.App.EmbeddingSource()
 		embeddingCatalogID = h.App.EmbeddingCatalogID()
+		decisionSource = h.App.DecisionSource()
+		decisionCatalogID = h.App.DecisionCatalogID()
 		if h.App.Config != nil {
 			embedding = h.App.Config.ResolvedEmbedding()
+			decision = h.App.Config.ResolvedDecision()
 		}
 	}
 
@@ -359,6 +367,12 @@ func (h *Handler) buildSettingsInfo(userID, gateway string) (map[string]any, err
 		"embedding_configured": embedding.Configured,
 		"embedding_source": embeddingSource,
 		"embedding_catalog_id": embeddingCatalogID,
+		"decision_provider": decision.Provider,
+		"decision_model": decision.Model,
+		"decision_base_url": decision.BaseURL,
+		"decision_configured": decision.Configured,
+		"decision_source": decisionSource,
+		"decision_catalog_id": decisionCatalogID,
 		"pinned": pinned, "providers": providers, "catalog": catalog,
 		"chat_toolsets": chatConfigured, "active_chat_toolsets": chatActive,
 		"chat_toolsets_default": chatUsingDefaults, "chat_tool_count": chatToolCount,

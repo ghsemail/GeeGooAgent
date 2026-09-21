@@ -48,6 +48,9 @@ func CatalogModelLabel(m admin.ConfiguredModel) string {
 	if strings.EqualFold(strings.TrimSpace(m.Kind), "embedding") {
 		return name + " [Embedding]"
 	}
+	if k := strings.ToLower(strings.TrimSpace(m.Kind)); k == "decision" || k == "jev" || k == "systemone" {
+		return name + " [Jev]"
+	}
 	return name
 }
 

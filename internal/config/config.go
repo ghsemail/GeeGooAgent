@@ -229,6 +229,7 @@ type AppConfig struct {
 	ToolTimeoutSec   int               `json:"tool_timeout_sec"`
 	LLM              LLMConfig         `json:"llm"`
 	Embedding        EmbeddingConfig   `json:"embedding,omitempty"`
+	Decision         DecisionConfig    `json:"decision,omitempty"`
 	Search           SearchConfig      `json:"search"`
 	Sandbox          SandboxConfig     `json:"sandbox"`
 	Compression      CompressionConfig `json:"compression"`

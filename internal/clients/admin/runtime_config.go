@@ -19,6 +19,8 @@ type ModelRuntimeConfigView struct {
 	FallbackModels    []ConfiguredModel `json:"fallback_models"`
 	EmbeddingModelID  string            `json:"embedding_model_id"`
 	EmbeddingModel    *ConfiguredModel  `json:"embedding_model"`
+	DecisionModelID   string            `json:"decision_model_id"`
+	DecisionModel     *ConfiguredModel  `json:"decision_model"`
 	UpdatedAt         string            `json:"updated_at"`
 }
 

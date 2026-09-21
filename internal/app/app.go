@@ -86,6 +86,10 @@ type App struct {
 	embeddingRefreshedAt time.Time
 	embeddingSource      string
 	embeddingCatalogID   string
+	decisionMu           sync.Mutex
+	decisionRefreshedAt  time.Time
+	decisionSource       string
+	decisionCatalogID    string
 	localEmbedding       *config.EmbeddingConfig
 	// UserLLM loads per-user gateway model prefs from GeeGooBot DB (service-api or Mongo).
 	UserLLM *userllmstore.Backend
@@ -302,6 +306,7 @@ func (a *App) RebuildGateway() error {
 		a.Agent.SetGateway(a.Gateway)
 	}
 	a.RefreshOpsEmbedding(true)
+	a.RefreshOpsDecision(true)
 	a.wireChatMemory()
 	a.wireSynthesizer()
 	return nil
