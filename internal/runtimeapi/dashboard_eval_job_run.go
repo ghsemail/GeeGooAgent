@@ -332,7 +332,7 @@ func (h *Handler) runEvalChatTurn(ctx context.Context, auth evalJobAuth, session
 		hint := clarifyHint
 		hint.ClarifyDefaults = clarifyDefaults
 		toolCtx.ClarifyFn = func(ctx context.Context, question string, choices []string) (string, bool) {
-			rec := eval.RecommendClarifyChoice(ctx, question, choices, hint, h.clarifyRecommender())
+			rec := eval.RecommendClarifyChoice(ctx, question, choices, hint, h.clarifyRecommenders())
 			if answer, ok := rec.AnswerChoice(choices); ok {
 				return answer, true
 			}

@@ -6,18 +6,21 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ghsemail/GeeGooAgent/internal/clarifycontext"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
-const DefaultClarifyAutoPickSeconds = 20
+const DefaultClarifyAutoPickSeconds = 10
 
 // ClarifyRecommendContext supplies optional dialogue / script hints for auto-answer.
 type ClarifyRecommendContext struct {
-	Dialogue       []EvalDialogueTurn
+	Dialogue        []EvalDialogueTurn
 	ClarifyDefaults []string
-	ExpectIntent   *ExpectIntentSpec
-	ExpectReply    *ExpectReplySpec
+	ExpectIntent    *ExpectIntentSpec
+	ExpectReply     *ExpectReplySpec
+	// Bundle is structured session summary + slots for JEV (built from ChatSession when available).
+	Bundle *clarifycontext.Bundle
 }
 
 // ClarifyRecommendation is the suggested clarify choice for UI and timeout auto-pick.
@@ -117,6 +120,26 @@ func formatClarifyRecommendPrompt(question string, choices []string, hint Clarif
 	if reply := hint.ExpectReply; reply != nil {
 		if rubric := strings.TrimSpace(reply.Rubric); rubric != "" {
 			fmt.Fprintf(&b, "\n## 验收标准\n%s\n", rubric)
+		}
+	}
+	if hint.Bundle != nil {
+		if s := strings.TrimSpace(hint.Bundle.SessionSummary); s != "" {
+			fmt.Fprintf(&b, "\n## 会话摘要\n%s\n", s)
+		}
+		if s := strings.TrimSpace(hint.Bundle.WorkingState); s != "" {
+			fmt.Fprintf(&b, "\n## 任务态\n%s\n", s)
+		}
+		if len(hint.Bundle.Dialogue) > 0 {
+			b.WriteString("\n## 近期对话摘要\n")
+			for _, line := range hint.Bundle.Dialogue {
+				fmt.Fprintf(&b, "- %s: %s\n", line.Role, line.Summary)
+			}
+		}
+		if len(hint.Bundle.RecentSteps) > 0 {
+			b.WriteString("\n## 近期工具\n")
+			for _, line := range hint.Bundle.RecentSteps {
+				fmt.Fprintf(&b, "- %s\n", line)
+			}
 		}
 	}
 	return b.String()

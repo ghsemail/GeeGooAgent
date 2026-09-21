@@ -9,7 +9,7 @@ func TestPendingClarifyPayloadIncludesRecommendation(t *testing.T) {
 		Choices:           []string{"A", "B"},
 		RecommendedIndex:  1,
 		RecommendedReason: "与上下文一致",
-		AutoPickSeconds:   20,
+		AutoPickSeconds:   10,
 	})
 	if payload["recommended_index"] != 1 {
 		t.Fatalf("recommended_index=%v", payload["recommended_index"])
@@ -17,7 +17,7 @@ func TestPendingClarifyPayloadIncludesRecommendation(t *testing.T) {
 	if payload["recommended_choice"] != "B" {
 		t.Fatalf("recommended_choice=%v", payload["recommended_choice"])
 	}
-	if payload["auto_pick_seconds"] != 20 {
+	if payload["auto_pick_seconds"] != 10 {
 		t.Fatalf("auto_pick_seconds=%v", payload["auto_pick_seconds"])
 	}
 }

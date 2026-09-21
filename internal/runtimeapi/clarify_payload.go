@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
+	"github.com/ghsemail/GeeGooAgent/internal/clarifycontext"
 	"github.com/ghsemail/GeeGooAgent/internal/eval"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -38,14 +39,18 @@ func (h *Handler) recommendClarifyForSession(
 	choices []string,
 	hint eval.ClarifyRecommendContext,
 ) eval.ClarifyRecommendation {
-	if len(hint.Dialogue) == 0 && sessionID != "" && h.App != nil {
+	if sessionID != "" && h.App != nil {
 		if store, err := h.App.SessionStore(); err == nil && store != nil {
 			if chat, err := store.Load(sessionID); err == nil && chat != nil {
-				hint.Dialogue = dialogueFromSession(chat)
+				if len(hint.Dialogue) == 0 {
+					hint.Dialogue = dialogueFromSession(chat)
+				}
+				bundle := clarifycontext.BuildFromChat(chat, question, choices, "chat_stream")
+				hint.Bundle = &bundle
 			}
 		}
 	}
-	rec := eval.RecommendClarifyChoice(ctx, question, choices, hint, h.clarifyRecommender())
+	rec := eval.RecommendClarifyChoice(ctx, question, choices, hint, h.clarifyRecommenders())
 	if rec.AutoPickSeconds <= 0 {
 		rec.AutoPickSeconds = eval.DefaultClarifyAutoPickSeconds
 	}
@@ -57,18 +62,24 @@ func (h *Handler) recommendClarifyForSession(
 	return rec
 }
 
-func (h *Handler) clarifyRecommender() eval.ClarifyRecommender {
+func (h *Handler) clarifyRecommenders() eval.ClarifyRecommender {
 	if h == nil || h.App == nil {
 		return nil
 	}
-	provider := h.App.OpsBackgroundProvider()
-	if provider == nil {
+	var chain eval.ClarifyRecommenderChain
+	if provider := h.App.DecisionClarifyProvider(); provider != nil {
+		chain = append(chain, eval.NewJEVClarifyRecommender(provider, 2500*time.Millisecond))
+	}
+	if provider := h.App.OpsBackgroundProvider(); provider != nil {
+		chain = append(chain, &eval.LLMClarifyRecommender{
+			Provider: provider,
+			Policy:   h.App.OpsBackgroundPolicy(),
+		})
+	}
+	if len(chain) == 0 {
 		return nil
 	}
-	return &eval.LLMClarifyRecommender{
-		Provider: provider,
-		Policy:   h.App.OpsBackgroundPolicy(),
-	}
+	return chain
 }
 
 func dialogueFromSession(chat *chatsession.ChatSession) []eval.EvalDialogueTurn {

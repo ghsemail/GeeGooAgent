@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ghsemail/GeeGooAgent/internal/clarifycontext"
 	"github.com/ghsemail/GeeGooAgent/internal/eval"
 )
 
@@ -45,16 +46,20 @@ func (h *Handler) evalAutoClarify(w http.ResponseWriter, r *http.Request) {
 		ExpectIntent:    req.ExpectIntent,
 		ExpectReply:     req.ExpectReply,
 	}
-	if len(hint.Dialogue) == 0 && req.SessionID != "" {
+	if req.SessionID != "" {
 		if store, err := h.App.SessionStore(); err == nil && store != nil {
 			if chat, err := store.Load(req.SessionID); err == nil && chat != nil {
-				hint.Dialogue = dialogueFromSession(chat)
+				if len(hint.Dialogue) == 0 {
+					hint.Dialogue = dialogueFromSession(chat)
+				}
+				bundle := clarifycontext.BuildFromChat(chat, question, choices, "eval_auto_clarify")
+				hint.Bundle = &bundle
 			}
 		}
 	}
 	var recommender eval.ClarifyRecommender
 	if req.UseLLM {
-		recommender = h.clarifyRecommender()
+		recommender = h.clarifyRecommenders()
 	}
 	rec := eval.RecommendClarifyChoice(r.Context(), question, choices, hint, recommender)
 	answer, ok := rec.AnswerChoice(choices)

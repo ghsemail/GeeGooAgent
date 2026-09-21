@@ -609,6 +609,31 @@ func (a *App) OpsBackgroundProvider() llm.Provider {
 	return a.opsBackgroundProvider()
 }
 
+// DecisionClarifyProvider returns the Jev decision model for clarify recommendations.
+func (a *App) DecisionClarifyProvider() llm.Provider {
+	if a == nil || a.Config == nil {
+		return nil
+	}
+	a.RefreshOpsDecision(false)
+	dec := a.Config.ResolvedDecision()
+	if !dec.Configured {
+		return nil
+	}
+	provider, err := llm.BuildProviderFromLLMFields(
+		dec.Provider,
+		dec.TokenKey,
+		dec.Model,
+		nil,
+		"",
+		dec.BaseURL,
+		nil,
+	)
+	if err != nil {
+		return nil
+	}
+	return provider
+}
+
 // OpsBackgroundPolicy returns temperature/max_tokens policy for ops background LLM calls.
 func (a *App) OpsBackgroundPolicy() llm.Policy {
 	return a.opsBackgroundPolicy()
