@@ -211,9 +211,10 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 		},
 		// ── 灰区 / 澄清 ──
 		{
-			ID: "ambiguous_bare_macd", Category: TurnPlanCatClarify, Title: "两轮 · 模糊 MACD 信号",
-			Description: "独立 session：首轮应澄清信号库里的具体 MACD 组合；选定后按该信号策略说明讲解用法。",
-			Message: "这个MACD信号平时该怎么用比较好",
+			ID: "ambiguous_bare_macd", Category: TurnPlanCatClarify, Title: "多轮 · 腾讯价后 MACD 策略灰区",
+			Description: "同 session：先问腾讯近期价格，再问适合的 MACD 信号策略；第二句应澄清具体策略组合，选项由 JEV/自动选择后继续。",
+			SetupMessages: []string{"腾讯股票最近的价格如何"},
+			Message:       "有没有适合腾讯股价的MACD信号策略",
 			ClarifyReply: "SAR信号搭配MACD直方图趋势",
 			ExpectDomain: "ambiguous", ExpectMode: "clarify", ExpectSOP: false,
 			ForbidTools: []string{"run_strategy_backtest", "probe_bot_signal_series"},
@@ -355,7 +356,7 @@ func defaultTurnPlanRuleTurns() []TurnPlanTurn {
 		{ID: "strategy_list_then_backtest", Message: "用SAR加MACD组合回测中际旭创", LastDomain: "dca_grid",
 			ExpectDomain: "backtest_run", ExpectMode: "execute", ExpectSOP: false,
 			RequireTools: []string{"run_strategy_backtest"}},
-		{ID: "ambiguous_bare_macd", Message: "这个MACD信号平时该怎么用比较好",
+		{ID: "ambiguous_bare_macd", Message: "有没有适合腾讯股价的MACD信号策略", LastDomain: "stock_analysis",
 			ExpectDomain: "ambiguous", ExpectMode: "clarify", ExpectSOP: false,
 			ForbidTools: []string{"run_strategy_backtest", "probe_bot_signal_series"}},
 		{ID: "compound_analysis_backtest", Message: "帮我把中际旭创分析一下，然后再跑个回测看看效果",

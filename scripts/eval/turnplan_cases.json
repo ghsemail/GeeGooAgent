@@ -258,10 +258,12 @@
       "id": "turn_plan_ambiguous_bare_macd",
       "turn_id": "ambiguous_bare_macd",
       "category": "clarify",
-      "title": "TurnPlan · 两轮 · 模糊 MACD 信号",
-      "description": "独立 session：首轮应澄清信号库里的具体 MACD 组合；选定后按该信号策略说明讲解用法。",
-      "setup": null,
-      "message": "这个MACD信号平时该怎么用比较好",
+      "title": "TurnPlan · 多轮 · 腾讯价后 MACD 策略灰区",
+      "description": "同 session：先问腾讯近期价格，再问适合的 MACD 信号策略；第二句应澄清具体策略组合，选项由 JEV/自动选择后继续。",
+      "setup": [
+        "腾讯股票最近的价格如何"
+      ],
+      "message": "有没有适合腾讯股价的MACD信号策略",
       "expect_domain": "ambiguous",
       "expect_mode": "clarify",
       "expect_sop": false,

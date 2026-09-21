@@ -74,10 +74,14 @@ func choiceIndicatesAnalysisOnly(choice string) bool {
 		(strings.Contains(choice, "分析") && !strings.Contains(choice, "回测"))
 }
 
-// UsesFirstTurnIntentVerify reports ambiguous/clarify cases where routing is checked on turn 1.
+// UsesFirstTurnIntentVerify reports single-turn ambiguous/clarify cases (routing checked on turn 1).
 func UsesFirstTurnIntentVerify(opts TurnPlanCaseOptions) bool {
 	intent := opts.Normalize().intent()
-	return strings.EqualFold(intent.Domain, "ambiguous") && strings.EqualFold(intent.Mode, "clarify")
+	if !strings.EqualFold(intent.Domain, "ambiguous") || !strings.EqualFold(intent.Mode, "clarify") {
+		return false
+	}
+	regular, _ := DialogueExecutionPlan(opts.Normalize())
+	return len(regular) <= 1
 }
 
 func executionSpecForClarifyBranch(chat *chatsession.ChatSession, opts TurnPlanCaseOptions, spec ExpectExecutionSpec) ExpectExecutionSpec {

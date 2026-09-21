@@ -125,8 +125,12 @@ func liveCaseSteps(c TurnPlanLiveCase) []string {
 	}
 	clarify := strings.TrimSpace(c.ClarifyReply)
 	if clarify != "" && strings.EqualFold(c.ExpectMode, "clarify") {
+		if len(c.SetupMessages) > 0 {
+			steps = append(steps, liveDialogueStep(c.SetupMessages, strings.TrimSpace(c.Message)))
+		} else {
+			steps = append(steps, fmt.Sprintf("首轮发送：「%s」", strings.TrimSpace(c.Message)))
+		}
 		steps = append(steps,
-			fmt.Sprintf("首轮发送：「%s」", strings.TrimSpace(c.Message)),
 			fmt.Sprintf("若 Agent 展示澄清选项：JEV 推荐 / %ds 自动选择（clarify_reply 仅作偏好提示，非第二轮剧本）", DefaultClarifyAutoPickSeconds),
 		)
 	} else {
@@ -178,7 +182,11 @@ func dialogueFromLiveCase(c TurnPlanLiveCase) []EvalDialogueTurn {
 		out = append(out, EvalDialogueTurn{Role: "user", Text: text})
 	}
 	if msg := strings.TrimSpace(c.Message); msg != "" {
-		out = append(out, EvalDialogueTurn{Role: "user", Text: msg})
+		turn := EvalDialogueTurn{Role: "user", Text: msg}
+		if strings.EqualFold(c.ExpectMode, "clarify") && len(c.SetupMessages) > 0 {
+			turn.Judge = true
+		}
+		out = append(out, turn)
 	}
 	// Ambiguous clarify-intent: opening user turn only; choice via preset ClarifyFn + JEV/auto-pick.
 	// Execute-mode cases with clarify_reply keep on_clarify defaults for in-turn tool clarify.
