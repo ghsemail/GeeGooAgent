@@ -224,17 +224,15 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			Message: "帮我把中际旭创分析一下，然后再跑个回测看看效果",
 			ClarifyReply: "先只做分析",
 			ExpectDomain: "ambiguous", ExpectMode: "clarify", ExpectSOP: false,
-			ExecutionProfile: "stock_analysis.symbol_resolve",
 			ForbidTools: []string{"run_strategy_backtest"},
 		},
 		{
 			ID: "stock_quote_ambiguous", Category: TurnPlanCatClarify, Title: "两轮 · 股价灰区",
-			Description: "独立 session：口语股价问法应澄清「现价 vs 走势分析」；用户选择「只要当前价」后应报腾讯现价。",
+			Description: "独立 session：口语股价问法应澄清「现价 vs 走势分析」；选项由 JEV/自动选择，验收按所选分支（现价 vs 分析）一致执行。",
 			Message:     "腾讯股价怎么样",
 			ClarifyReply: "只要当前价",
 			ExpectDomain: "ambiguous", ExpectMode: "clarify", ExpectSOP: false,
-			ExecutionProfile: "stock_analysis.price_snapshot",
-			ForbidTools: []string{"run_strategy_backtest", "get_mcp_analysis"},
+			ForbidTools: []string{"run_strategy_backtest"},
 		},
 		// ── 闲聊 / QA ──
 		{

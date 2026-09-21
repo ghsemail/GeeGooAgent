@@ -65,23 +65,25 @@ func TestPickClarifyAnswerMatchesChoice(t *testing.T) {
 	}
 }
 
-func TestSplitClarifyScriptRunsPostTurnFollowup(t *testing.T) {
+func TestAmbiguousClarifyUsesJEVNotPostTurnFollowup(t *testing.T) {
 	opts := TurnPlanCaseOptions{
 		ExpectMode:   "clarify",
 		ExpectDomain: "ambiguous",
 		ClarifyReply: "先问答，先不操作",
 		Dialogue: []EvalDialogueTurn{
-			{Role: "user", Text: "这个MACD信号平时该怎么用比较好"},
-			{Role: "user", Text: "先问答，先不操作", OnClarify: true, Judge: true},
+			{Role: "user", Text: "这个MACD信号平时该怎么用比较好", Judge: true},
 		},
 	}.Normalize()
 
 	chat := &chatsession.ChatSession{Metadata: map[string]any{}}
-	if !UsesSplitClarifyScript(opts) {
-		t.Fatal("expected split clarify script")
+	if UsesSplitClarifyScript(opts) {
+		t.Fatal("ambiguous clarify should not use split on_clarify script")
 	}
-	if !NeedsClarifyFollowup(chat, opts) {
-		t.Fatal("split clarify cases should run on_clarify follow-up turn")
+	if NeedsClarifyFollowup(chat, opts) {
+		t.Fatal("expected no post-turn on_clarify follow-up")
+	}
+	if len(ClarifyDefaultTexts(opts)) != 0 {
+		t.Fatal("clarify-intent should not script-first ClarifyDefaults")
 	}
 }
 
@@ -141,9 +143,9 @@ func TestClarifyReplyCoverageByCaseKind(t *testing.T) {
 		postFollowup bool
 	}{
 		"turn_plan_signal_probe_direct":          {clarifyReply: "用SAR加MACD组合测买卖点", postFollowup: true},
-		"turn_plan_ambiguous_bare_macd":          {clarifyReply: "SAR信号搭配MACD直方图趋势", postFollowup: true},
-		"turn_plan_compound_analysis_backtest": {clarifyReply: "先只做分析", postFollowup: true},
-		"turn_plan_stock_quote_ambiguous":        {clarifyReply: "只要当前价", postFollowup: true},
+		"turn_plan_ambiguous_bare_macd":          {clarifyReply: "SAR信号搭配MACD直方图趋势", postFollowup: false},
+		"turn_plan_compound_analysis_backtest": {clarifyReply: "先只做分析", postFollowup: false},
+		"turn_plan_stock_quote_ambiguous":        {clarifyReply: "只要当前价", postFollowup: false},
 	}
 	seen := map[string]bool{}
 	for _, c := range IndividualTurnPlanEvalCases() {

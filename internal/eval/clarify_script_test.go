@@ -18,14 +18,11 @@ func TestDialogueFromLiveCaseSplitClarify(t *testing.T) {
 		},
 	}
 	dialogue := dialogueFromLiveCase(cases[0])
-	if len(dialogue) != 2 {
-		t.Fatalf("clarify dialogue=%d want 2", len(dialogue))
+	if len(dialogue) != 1 {
+		t.Fatalf("clarify-intent dialogue=%d want 1 (JEV auto-pick)", len(dialogue))
 	}
 	if dialogue[0].OnClarify || dialogue[0].Judge {
 		t.Fatalf("opening turn should not be on_clarify/judge: %+v", dialogue[0])
-	}
-	if !dialogue[1].OnClarify || !dialogue[1].Judge {
-		t.Fatalf("follow-up turn should be on_clarify+judge: %+v", dialogue[1])
 	}
 
 	executeDialogue := dialogueFromLiveCase(cases[1])
@@ -34,7 +31,7 @@ func TestDialogueFromLiveCaseSplitClarify(t *testing.T) {
 	}
 }
 
-func TestVerifyIntentUsesFirstTurnPlanForSplitClarify(t *testing.T) {
+func TestVerifyIntentUsesFirstTurnPlanForAmbiguousClarify(t *testing.T) {
 	chat := &chatsession.ChatSession{
 		Metadata: map[string]any{
 			"turn_plan_trace": []chatsession.TurnPlanTraceEntry{
@@ -47,8 +44,7 @@ func TestVerifyIntentUsesFirstTurnPlanForSplitClarify(t *testing.T) {
 	opts := TurnPlanCaseOptions{
 		TurnID: "ambiguous_bare_macd", ExpectDomain: "ambiguous", ExpectMode: "clarify",
 		Dialogue: []EvalDialogueTurn{
-			{Role: "user", Text: "这个MACD信号平时该怎么用比较好"},
-			{Role: "user", Text: "SAR信号搭配MACD直方图趋势", OnClarify: true, Judge: true},
+			{Role: "user", Text: "这个MACD信号平时该怎么用比较好", Judge: true},
 		},
 	}.Normalize()
 

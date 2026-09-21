@@ -3,6 +3,7 @@ package eval
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/clarifycontext"
@@ -10,7 +11,8 @@ import (
 )
 
 const jevClarifySystemPrompt = `你是 GeeGoo 澄清决策器（System-1）。用户必须从给定 options 中选一项以继续当前任务。
-输入是 JSON，含 session_summary、dialogue、last_turn、slots 等上下文以及 question/options。
+输入是 JSON，含 session_summary、dialogue、last_turn、slots、eval_preference（若有）等上下文以及 question/options。
+eval_preference 仅作软偏好，仍必须从 options 中选一项。
 只输出 JSON：{"index":0,"reason":"一句中文","confidence":0.0}
 - index 必须是 0 到 N-1 的整数（对应 options 里的 index）
 - reason 给用户看，简短说明为何选这项
@@ -40,6 +42,9 @@ func (j *JEVClarifyRecommender) Recommend(
 		return ClarifyRecommendation{}, fmt.Errorf("jev recommender unavailable")
 	}
 	bundle := hint.bundleForDecision(question, choices)
+	if pref := strings.TrimSpace(hint.ClarifyPreference); pref != "" {
+		bundle.EvalPreference = pref
+	}
 	userJSON, err := bundle.DecisionJSON()
 	if err != nil {
 		return ClarifyRecommendation{}, err

@@ -38,6 +38,8 @@ type Bundle struct {
 	WorkingState   string            `json:"working_state,omitempty"`
 	RecentSteps    []string          `json:"recent_tool_summaries,omitempty"`
 	Slots          map[string]string `json:"slots,omitempty"`
+	// EvalPreference is an optional eval-case hint (clarify_reply), not a forced user utterance.
+	EvalPreference string `json:"eval_preference,omitempty"`
 }
 
 // Option is one clarify choice with stable id.
@@ -240,6 +242,9 @@ func (b Bundle) DecisionJSON() (string, error) {
 	}
 	if len(b.Slots) > 0 {
 		payload["slots"] = b.Slots
+	}
+	if b.EvalPreference != "" {
+		payload["eval_preference"] = b.EvalPreference
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {

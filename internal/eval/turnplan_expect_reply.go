@@ -71,19 +71,19 @@ func defaultExpectReplyForTurnID(turnID string) ExpectReplySpec {
 		}
 	case "ambiguous_bare_macd":
 		return ExpectReplySpec{
-			Rubric:  "用户已选定具体 MACD 组合信号（如 SAR+MACD）后，应基于该信号/策略说明讲解日常用法、适用场景或注意事项，而非直接测点或回测。",
+			Rubric:  "澄清选定具体 MACD/信号组合后，应基于该选项说明日常用法、适用场景或注意事项，而非未经选择直接测点或回测。",
 			MustCover: []string{"MACD", "SAR"},
 			MustNot:   []string{"回测已完成", "开始回测"},
 		}
 	case "compound_analysis_backtest":
 		return ExpectReplySpec{
-			Rubric:    "复合意图下用户选择「先只做分析」后，应针对中际旭创给出分析或行情解读，不应未经确认直接跑回测。",
+			Rubric:    "澄清后应延续用户所选分支：选「先只做分析」则针对中际旭创做分析解读且不跑回测；若选回测相关选项则允许回测，但不要同时擅自跑满两条路径。",
 			MustCover: []string{"中际"},
 			MustNot:   []string{"开始回测"},
 		}
 	case "stock_quote_ambiguous":
 		return ExpectReplySpec{
-			Rubric:    "用户已选择「只要当前价」后，应给出腾讯控股的现价或简要行情（价格、涨跌幅等），而非展开 MCP 深度分析或回测。",
+			Rubric:    "澄清选项确定后：若选现价/报价类，应给出腾讯控股现价或简要行情（价格、涨跌幅），不要展开 MCP 深度分析；若选分析/走势类，可给分析但不要跑回测。",
 			MustCover: []string{"腾讯"},
 			MustNot:   []string{"开始回测"},
 		}

@@ -19,6 +19,8 @@ type ClarifyRecommendContext struct {
 	ClarifyDefaults []string
 	ExpectIntent    *ExpectIntentSpec
 	ExpectReply     *ExpectReplySpec
+	// ClarifyPreference is eval-case clarify_reply (soft hint for JEV, not script-first pick).
+	ClarifyPreference string
 	// Bundle is structured session summary + slots for JEV (built from ChatSession when available).
 	Bundle *clarifycontext.Bundle
 }

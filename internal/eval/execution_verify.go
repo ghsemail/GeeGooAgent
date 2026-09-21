@@ -10,6 +10,10 @@ import (
 
 // VerifyExecution checks judged-turn and session tool traces against execution spec.
 func VerifyExecution(chat *chatsession.ChatSession, spec ExpectExecutionSpec, opts TurnPlanCaseOptions) EvalCheckResult {
+	opts = opts.Normalize()
+	if UsesFirstTurnIntentVerify(opts) {
+		spec = executionSpecForClarifyBranch(chat, opts, spec)
+	}
 	trace := chatsession.TurnToolsTraceFromSession(chat)
 	judged := judgedTurnTools(chat, opts, trace)
 	session := chatsession.SessionToolsFromTrace(trace)
@@ -82,7 +86,7 @@ func verifyIntent(chat *chatsession.ChatSession, expect ExpectIntentSpec, opts T
 }
 
 func verifyTurnPlanIntent(chat *chatsession.ChatSession, expect ExpectIntentSpec, opts TurnPlanCaseOptions) TurnPlanResult {
-	if UsesSplitClarifyScript(opts) {
+	if UsesFirstTurnIntentVerify(opts) || UsesSplitClarifyScript(opts) {
 		snap, ok := chatsession.FirstTurnPlanFromSession(chat)
 		if !ok {
 			return TurnPlanResult{Passed: false, Detail: "missing first turn plan on session"}

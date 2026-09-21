@@ -33,6 +33,9 @@ func ClarifyDefaultTexts(opts TurnPlanCaseOptions) []string {
 	if opts.AutoClarifyOnly {
 		return nil
 	}
+	if UsesFirstTurnIntentVerify(opts) {
+		return nil
+	}
 	seen := map[string]struct{}{}
 	out := []string{}
 	for _, turn := range opts.Dialogue {

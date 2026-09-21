@@ -177,6 +177,9 @@ func (h *Handler) runEvalJobItem(ctx context.Context, db *sql.DB, auth evalJobAu
 		ExpectIntent: opts.ExpectIntent,
 		ExpectReply:  opts.ExpectReply,
 	}
+	if pref := strings.TrimSpace(opts.ClarifyReply); pref != "" && eval.UsesFirstTurnIntentVerify(opts) {
+		clarifyHint.ClarifyPreference = pref
+	}
 	chatTimeout := evalChatTimeout(opts)
 	for i, turn := range regularTurns {
 		clarifyHint.Dialogue = append(clarifyHint.Dialogue, turn)
