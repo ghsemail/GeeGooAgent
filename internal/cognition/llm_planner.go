@@ -125,11 +125,11 @@ func (p IntentPlanner) Plan(in PlanInput) TurnPlan {
 func (p IntentPlanner) planObservability(in PlanInput) TurnPlan {
 	provider := p.resolveLLM()
 	if provider == nil {
-		return classifyFailedPlan("llm provider not configured")
+		return ObservabilityClassifyDegraded("llm provider not configured")
 	}
 	plan, errDetail := classifyWithLLM(in, provider)
 	if errDetail != "" {
-		return classifyFailedPlan(errDetail)
+		return ObservabilityClassifyDegraded(errDetail)
 	}
 	return applyPlanToolPolicies(plan)
 }
@@ -477,6 +477,17 @@ func classifyFailedPlan(detail string) TurnPlan {
 	return TurnPlan{
 		Reason:        "classify_failed",
 		ClassifyError: strings.TrimSpace(detail),
+	}
+}
+
+// ObservabilityClassifyDegraded keeps ReAct running when classify JSON fails (Codex/Cursor-style).
+func ObservabilityClassifyDegraded(detail string) TurnPlan {
+	detail = strings.TrimSpace(detail)
+	return TurnPlan{
+		Domain:        DomainChat,
+		Mode:          ModeTalk,
+		Reason:        "classify_degraded: ReAct agent routes this turn (telemetry: " + detail + ")",
+		ClassifyError: detail,
 	}
 }
 

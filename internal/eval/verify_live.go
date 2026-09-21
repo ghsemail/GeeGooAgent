@@ -29,8 +29,15 @@ func VerifyTurnPlanLiveFull(ctx context.Context, chat *chatsession.ChatSession, 
 	}
 
 	intentCheck := EvalCheckResult{Type: "intent", Passed: true, Detail: "skipped (no expect_domain)"}
-	if strings.TrimSpace(opts.intent().Domain) != "" {
+	if strings.TrimSpace(opts.intent().Domain) != "" && !skipLiveTurnPlanIntentVerify(opts) {
 		intentCheck = verifyIntent(chat, opts.intent(), opts)
+		res.Checks = append(res.Checks, intentCheck)
+	} else if skipLiveTurnPlanIntentVerify(opts) {
+		intentCheck = EvalCheckResult{
+			Type: "intent", Passed: true,
+			Detail: "skipped (runtime agent_routes; no IntentPlanner telemetry)",
+			Expected: map[string]any{"expect_domain": opts.intent().Domain},
+		}
 		res.Checks = append(res.Checks, intentCheck)
 	}
 	execSpec := opts.execution()

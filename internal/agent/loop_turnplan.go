@@ -11,6 +11,16 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 )
 
+func agentRoutingFragment(userText string) ctxfrag.Fragment {
+	var b strings.Builder
+	b.WriteString("## Agent routing (ReAct)\n")
+	b.WriteString("- Read session context and pick tools; no separate intent classifier runs in this turn.\n")
+	b.WriteString("- If the user intent is ambiguous (e.g. quote vs analysis, which signal/strategy, analyze vs backtest), call the clarify tool with a clear question and up to 4 choices before irreversible tools.\n")
+	b.WriteString("- After clarify returns user_response, continue in the same turn with that choice.\n")
+	b.WriteString(subagentOrchestratorPlanBlock())
+	return ctxfrag.StaticFragment{K: ctxfrag.KindSystemRules, Text: b.String(), Prio: 22}
+}
+
 func turnPlanFragment(plan cognition.TurnPlan, userText string, agentContext bool) ctxfrag.Fragment {
 	var b strings.Builder
 	if agentContext {
@@ -20,6 +30,9 @@ func turnPlanFragment(plan cognition.TurnPlan, userText string, agentContext boo
 	}
 	fmt.Fprintf(&b, "- domain: %s\n- act: %s\n- mode: %s\n- reason: %s\n",
 		plan.Domain, plan.Act, plan.Mode, plan.Reason)
+	if err := strings.TrimSpace(plan.ClassifyError); err != "" && agentContext {
+		b.WriteString("- note: intent classify was unavailable; if the user request is ambiguous, call the clarify tool (question + choices) before irreversible tools\n")
+	}
 
 	profileID := domaincatalog.ProbeExecutionProfile(domaincatalog.Domain(plan.Domain), plan.Act, userText)
 	if profileID != "" {

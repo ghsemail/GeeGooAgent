@@ -245,7 +245,7 @@ func TestIntentPlannerStockQuoteClarifyTemplate(t *testing.T) {
 
 func TestIntentPlannerNilLLMClassifyFailed(t *testing.T) {
 	p := IntentPlanner{}
-	got := p.Plan(PlanInput{UserText: "MACD"})
+	got := p.Plan(legacyIn(PlanInput{UserText: "MACD"}))
 	if !got.ClassifyFailed() {
 		t.Fatalf("nil LLM should fail-fast, got domain=%s reason=%s", got.Domain, got.Reason)
 	}
@@ -253,9 +253,23 @@ func TestIntentPlannerNilLLMClassifyFailed(t *testing.T) {
 
 func TestIntentPlannerNilLLMStickyDomainClassifyFailed(t *testing.T) {
 	p := IntentPlanner{}
-	got := p.Plan(PlanInput{UserText: "它最近走势怎么样", LastDomain: DomainStockAnalysis})
+	got := p.Plan(legacyIn(PlanInput{UserText: "它最近走势怎么样", LastDomain: DomainStockAnalysis}))
 	if !got.ClassifyFailed() {
 		t.Fatalf("nil LLM must not silently inherit sticky domain, got %s/%s", got.Domain, got.Reason)
+	}
+}
+
+func TestIntentPlannerAgentContextDegradedNotClassifyFailed(t *testing.T) {
+	p := IntentPlanner{}
+	got := p.Plan(PlanInput{UserText: "有没有适合腾讯股价的MACD信号策略", RoutingMode: RoutingModeAgentContext})
+	if got.ClassifyFailed() {
+		t.Fatalf("agent_context should degrade, not fail-fast: %s", got.Reason)
+	}
+	if got.Domain != DomainChat || got.Mode != ModeTalk {
+		t.Fatalf("degraded plan=%s/%s", got.Domain, got.Mode)
+	}
+	if got.ClassifyError == "" {
+		t.Fatal("expected classify_error telemetry on degraded plan")
 	}
 }
 
@@ -383,7 +397,7 @@ func containsStr(items []string, want string) bool {
 
 func TestIntentPlannerMultiStockClassifyFailedWhenLLMUnavailable(t *testing.T) {
 	p := IntentPlanner{LLM: nil}
-	got := p.Plan(PlanInput{UserText: "请帮我分析下腾讯和阿里巴巴最近的股价"})
+	got := p.Plan(legacyIn(PlanInput{UserText: "请帮我分析下腾讯和阿里巴巴最近的股价"}))
 	if !got.ClassifyFailed() {
 		t.Fatalf("nil LLM must fail-fast for multi-stock, got %s/%s act=%s", got.Domain, got.Mode, got.Act)
 	}
@@ -392,7 +406,7 @@ func TestIntentPlannerMultiStockClassifyFailedWhenLLMUnavailable(t *testing.T) {
 func TestIntentPlannerMultiStockClassifyFailedAfterRetries(t *testing.T) {
 	mock := &classifyMock{body: `not json`}
 	p := IntentPlanner{LLM: mock}
-	got := p.Plan(PlanInput{UserText: "请帮我分析下腾讯和阿里巴巴最近的股价"})
+	got := p.Plan(legacyIn(PlanInput{UserText: "请帮我分析下腾讯和阿里巴巴最近的股价"}))
 	if !got.ClassifyFailed() {
 		t.Fatalf("invalid classify json must fail-fast, got act=%s reason=%s", got.Act, got.Reason)
 	}

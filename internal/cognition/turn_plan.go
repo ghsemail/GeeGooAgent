@@ -52,8 +52,12 @@ type TurnPlan struct {
 	ClarifyChoices  []string `json:"clarify_choices,omitempty"`
 }
 
-// ClassifyFailed reports that intent classification failed after retries.
-// The loop must not enter ReAct when this is true.
+// AgentRoutedTurnPlan is the placeholder when runtime skips IntentPlanner (Codex/Cursor-style).
+func AgentRoutedTurnPlan() TurnPlan {
+	return TurnPlan{Reason: "agent_routes"}
+}
+
+// ClassifyFailed reports that intent classification failed after retries (legacy routing).
 func (p TurnPlan) ClassifyFailed() bool {
 	return p.Reason == "classify_failed" && strings.TrimSpace(p.ClassifyError) != ""
 }

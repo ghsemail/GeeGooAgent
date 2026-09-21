@@ -17,7 +17,8 @@ const (
 // waitCtx is the per-invocation context (tool timeout / client disconnect).
 type ClarifyFunc func(waitCtx context.Context, question string, choices []string) (answer string, ok bool)
 
-func registerClarifyTool(r *Registry) {
+// RegisterClarifyTool adds the Hermes clarify tool to a registry.
+func RegisterClarifyTool(r *Registry) {
 	r.Register(Tool{
 		Name: "clarify",
 		Description: "向用户提问以澄清意图、获取反馈或在继续前做选择。支持两种模式：" +

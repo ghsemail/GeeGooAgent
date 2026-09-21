@@ -8,7 +8,6 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	ctxfrag "github.com/ghsemail/GeeGooAgent/internal/context"
-	"github.com/ghsemail/GeeGooAgent/internal/domaincatalog"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
@@ -76,10 +75,7 @@ func (l *Loop) SetRoutingMode(mode string) {
 }
 
 func (l *Loop) agentContextRouting() bool {
-	if l == nil {
-		return true
-	}
-	return cognition.AgentContextRouting(l.routingMode)
+	return true
 }
 
 // ToolExec returns the shared tool dispatcher (also used by workflow).
@@ -446,51 +442,24 @@ func (l *Loop) runPreparedTurnWithPlan(
 	}
 
 	var turnPlan cognition.TurnPlan
-	var planMS int64
 	if presetPlan != nil {
 		turnPlan = *presetPlan
 	} else {
-		l.emitStatus("plan", "正在判断本轮意图…")
-		planStarted := time.Now()
-		turnPlan = l.effectivePlanner().Plan(cognition.BuildPlanInput(cognition.PlanSessionView{
-			Ctx:             ctx,
-			Messages:        session.LLMMessages(),
-			UserText:        userText,
-			LastDomain:      cognition.Domain(session.LastTurnDomain),
-			RoutingMode:     l.routingMode,
-			PreviousSummary: session.PreviousSummary,
-		}))
-		planMS = time.Since(planStarted).Milliseconds()
-		if turnPlan.ClassifyFailed() {
-			l.emit("turn_plan", map[string]any{
-				"reason":         turnPlan.Reason,
-				"classify_error": turnPlan.ClassifyError,
-				"failed":         true,
-				"plan_ms":        planMS,
-			})
-			return l.failTurn(ctx, session, fmt.Errorf("意图识别失败: %s", turnPlan.ClassifyError), records)
-		}
+		turnPlan = cognition.AgentRoutedTurnPlan()
 	}
-	session.LastTurnDomain = string(turnPlan.Domain)
-	session.LastTurnMode = string(turnPlan.Mode)
-	session.LastTurnAct = turnPlan.Act
-	session.LastTurnSOP = turnPlan.ShouldRunDomainSOP()
-	session.LastTurnToolsAllow = append([]string(nil), turnPlan.ToolsAllow...)
-	profileID := domaincatalog.ProbeExecutionProfile(domaincatalog.Domain(turnPlan.Domain), turnPlan.Act, userText)
+	if turnPlan.Domain != "" {
+		session.LastTurnDomain = string(turnPlan.Domain)
+		session.LastTurnMode = string(turnPlan.Mode)
+		session.LastTurnAct = turnPlan.Act
+		session.LastTurnSOP = turnPlan.ShouldRunDomainSOP()
+		session.LastTurnToolsAllow = append([]string(nil), turnPlan.ToolsAllow...)
+	}
+	session.LastExecutionProfile = ""
 	l.emit("turn_plan", map[string]any{
-		"domain":              string(turnPlan.Domain),
-		"act":                 turnPlan.Act,
-		"mode":                string(turnPlan.Mode),
-		"reason":              turnPlan.Reason,
-		"skills":              turnPlan.Skills,
-		"tools":               turnPlan.ToolsAllow,
-		"confidence":          turnPlan.Confidence,
-		"execution_profile":   profileID,
-		"plan_steps":          cursorPlanSteps(turnPlan),
-		"routing_mode":        l.routingMode,
-		"plan_style":          "soft_guidance",
+		"plan_style":   "agent_routes",
+		"reason":       turnPlan.Reason,
+		"preset_plan":  presetPlan != nil,
 	})
-	l.emitStatus("plan", fmt.Sprintf("判断：%s/%s（%dms）", turnPlan.Domain, turnPlan.Mode, planMS))
 
 	procFrag, matchedSkills := l.loadPlanSkills(turnPlan, userText, &records)
 	var gateFrag ctxfrag.Fragment
@@ -512,15 +481,14 @@ func (l *Loop) runPreparedTurnWithPlan(
 	} else {
 		gateFrag = l.runRetrievalGate(ctx, session, userText, &records)
 	}
-	agentCtx := l.agentContextRouting()
-	dynFrags := []ctxfrag.Fragment{ctxfrag.ClockFragment(clockNow()), turnPlanFragment(turnPlan, userText, agentCtx)}
+	dynFrags := []ctxfrag.Fragment{ctxfrag.ClockFragment(clockNow()), agentRoutingFragment(userText)}
+	if presetPlan != nil {
+		if frag := turnPlanFragment(turnPlan, userText, true); strings.TrimSpace(frag.Render()) != "" {
+			dynFrags = append(dynFrags, frag)
+		}
+	}
 	if taskMD := sessiontask.BuildState(session, session.LastTurnDomain).RenderMarkdown(); taskMD != "" {
 		dynFrags = append(dynFrags, ctxfrag.WorkingStateFragment(taskMD))
-	}
-	if agentCtx {
-		if hint := clarifyHintFragment(turnPlan); strings.TrimSpace(hint.Render()) != "" {
-			dynFrags = append(dynFrags, hint)
-		}
 	}
 	if gateFrag != nil && strings.TrimSpace(gateFrag.Render()) != "" {
 		dynFrags = append(dynFrags, gateFrag)
@@ -532,28 +500,12 @@ func (l *Loop) runPreparedTurnWithPlan(
 	if extra := l.expandSkillSchemas(matchedSkills); len(extra) > 0 {
 		schemas = mergeToolSchemas(schemas, extra)
 	}
-	planBaseSchemas := schemas
-	schemas = applyTurnToolSchemas(planBaseSchemas, turnPlan, l.routingMode)
-	if agentCtx {
-		session.LastExecutionProfile = ""
-	} else {
-		profileID := domaincatalog.ProbeExecutionProfile(domaincatalog.Domain(turnPlan.Domain), turnPlan.Act, userText)
-		session.LastExecutionProfile = profileID
-	}
-
-	if !agentCtx && presetPlan == nil {
-		if result, handled := l.tryPresetClarify(ctx, session, turnPlan, toolCtx, &records, schemas); handled {
-			return result
-		}
-	}
-
 	schemas = playbookexec.FilterLegacyBacktestTools(schemas, userText, session)
 
 	messages = session.LLMMessages()
 	l.emitStatus("hygiene", "整理会话上下文…")
 	messages = l.applyHygiene(ctx, session, messages)
 	evalRetriesLeft := l.evalMaxRetries
-	executionRetriesLeft := l.executionProfileMaxRetries
 
 	for round := 0; round < l.maxToolRounds; round++ {
 		if err := ctx.Err(); err != nil {
@@ -561,28 +513,18 @@ func (l *Loop) runPreparedTurnWithPlan(
 		}
 		done, result := l.runRound(ctx, session, &messages, toolCtx, schemas, round, &records)
 		if !done {
-			if !agentCtx && l.tryExecutionProfileRetry(ctx, session, &messages, turnPlan, records, &executionRetriesLeft) {
-				schemas = applyTurnToolSchemas(planBaseSchemas, turnPlan, l.routingMode)
-				continue
-			}
 			continue
 		}
-		if done {
-			if !agentCtx && l.tryExecutionProfileRetry(ctx, session, &messages, turnPlan, records, &executionRetriesLeft) {
-				schemas = applyTurnToolSchemas(planBaseSchemas, turnPlan, l.routingMode)
-				continue
-			}
-			if l.tryEvalRetry(ctx, session, &messages, result, &evalRetriesLeft) {
-				continue
-			}
-			if !result.Failed {
-				l.emitBus("TurnCompleted", map[string]any{
-					"session_id": session.ID, "steps": len(result.StepRecords),
-				})
-			}
-			result.StepRecords = records
-			return result
+		if l.tryEvalRetry(ctx, session, &messages, result, &evalRetriesLeft) {
+			continue
 		}
+		if !result.Failed {
+			l.emitBus("TurnCompleted", map[string]any{
+				"session_id": session.ID, "steps": len(result.StepRecords),
+			})
+		}
+		result.StepRecords = records
+		return result
 	}
 
 	msg := l.finishBudgetExhausted(ctx, session, messages, records)

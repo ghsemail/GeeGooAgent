@@ -97,7 +97,11 @@ func verifyTurnPlanIntent(chat *chatsession.ChatSession, expect ExpectIntentSpec
 		turn := JudgedUserTurnIndex(opts, chat)
 		trace := chatsession.TurnPlanTraceFromSession(chat)
 		if snap, ok := chatsession.TurnPlanFromTraceAt(trace, turn); ok {
-			return matchTurnPlanSnapshot(snap, expect, opts.TurnID)
+			res := matchTurnPlanSnapshot(snap, expect, opts.TurnID)
+			if !res.Passed {
+				res = maybeAcceptAgentClarifyIntent(chat, opts, expect, turn, res)
+			}
+			return res
 		}
 	}
 	legacy := TurnPlanCaseOptions{
@@ -117,6 +121,29 @@ func judgedTurnTools(chat *chatsession.ChatSession, opts TurnPlanCaseOptions, tr
 		}
 	}
 	return chatsession.JudgedTurnToolsFromTrace(trace)
+}
+
+func maybeAcceptAgentClarifyIntent(
+	chat *chatsession.ChatSession,
+	opts TurnPlanCaseOptions,
+	expect ExpectIntentSpec,
+	judgedTurn int,
+	res TurnPlanResult,
+) TurnPlanResult {
+	if res.Passed || !strings.EqualFold(expect.Mode, "clarify") {
+		return res
+	}
+	trace := chatsession.TurnToolsTraceFromSession(chat)
+	tools := chatsession.TurnToolsFromTraceAt(trace, judgedTurn)
+	if len(tools) == 0 {
+		tools = chatsession.JudgedTurnToolsFromTrace(trace)
+	}
+	if !containsString(tools, "clarify") {
+		return res
+	}
+	res.Passed = true
+	res.Detail = "agent-context: judged turn invoked clarify tool (TurnPlan telemetry may differ)"
+	return res
 }
 
 func matchTurnPlanSnapshot(snap chatsession.TurnPlanSnapshot, expect ExpectIntentSpec, turnID string) TurnPlanResult {

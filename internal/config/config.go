@@ -528,12 +528,9 @@ func (c *AppConfig) EffectiveEvalMaxRetries() int {
 	return c.EvalMaxRetries
 }
 
-// EffectiveRoutingMode returns agent_context (default) or legacy.
+// EffectiveRoutingMode is always agent_context (IntentPlanner removed from runtime loop).
 func (c *AppConfig) EffectiveRoutingMode() string {
-	if c == nil || strings.TrimSpace(c.RoutingMode) == "" {
-		return "agent_context"
-	}
-	return strings.TrimSpace(c.RoutingMode)
+	return "agent_context"
 }
 
 // EffectiveExecutionProfileEnforce reports whether execution profile retry is on.
