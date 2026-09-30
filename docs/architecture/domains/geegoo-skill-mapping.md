@@ -13,7 +13,7 @@
 | 策略回测 | loopBackStrategy | loopback_strategy | ⚠️ 简化 |
 | DCA/GRID/Smart/HDG Bot | create/update/delete/getAll + log | create/update/delete/list_* + get_*_log | ✅ |
 | DCA/GRID/Smart Reminder | 同上 | idem *_reminder | ✅ |
-| common / trading | searchCode, getPosition, getCurrentPrice, getReportBotCodes | search_code, get_position, get_current_price, get_report_bot_codes | ✅ / ⚠️ 富途 |
+| common / trading | searchCode, getPosition, getCurrentPrice, getReportBotCodes | search_code, get_position, get_current_price, get_report_bot_codes | ✅ 查价等；**get_position / get_ticker / get_broker**：Bot Noop |
 | AgentAnalyst 竞品/ETF | Competitor/Etf PromptTemplate CRUD | create/edit/delete_*_prompt_template | ⚠️ |
 
 ## 端口
@@ -23,6 +23,8 @@
 | **3120** | GeeGooBot mcp-api（默认全部 HTTP Tool） |
 | **3200** | signal-api（search_code, loopback_strategy） |
 | **3210** | catalog-api（指标、组合信号） |
+| **3230** | analyze-api（策略生成、MCP 分析 LLM） |
+| **3240** | decision-api（决策辅助） |
 
 ## 交互规范
 

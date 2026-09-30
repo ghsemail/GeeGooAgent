@@ -60,7 +60,7 @@
 | 0 | 平台内核 | ✅ | 见上表 |
 | 1 | 盘前 `premarket_market` | ✅ | `workflow/premarket.go` + `skills/premarket_market/` |
 | 2 | 盘后 `postmarket_stock` | ✅ | `workflow/postmarket.go` + `skills/postmarket_stock/` |
-| 3 | 盘中 `intraday` | ✅ | `workflow/intraday.go` + `skills/intraday_stock/`；富途三接口已接通 |
+| 3 | 盘中 `intraday` | ✅ | `workflow/intraday.go` + `skills/intraday_stock/`；逐笔/经纪/持仓 Tool 已注册，**GeeGooBot 侧 `/getTicker` 等仍为 Noop**（见 tools-status） |
 | 4 | 按需分析（chat） | ⚠️ | `market` toolset + ReAct；无独立 Skill 包 |
 | 5 | 策略 | ✅ | Grid/DCA/MCP 分析 LLM；loopback 原生 Go 回测 |
 | 6 | Bot / Reminder 管理 | ⚠️ | CRUD ✅ + schema/prompt；GeeGooBot 无 scheduler |
@@ -107,7 +107,7 @@
 | Tool | 现象 | 根因 |
 |------|------|------|
 | `fetch_market_news` / `fetch_stock_news` | 极少 skip | Go RSS/东财回退已实现 |
-| `get_ticker` / `get_broker` / `get_position` | — | **已接通** futu_bridge（2026-07-15） |
+| `get_ticker` / `get_broker` / `get_position` | 空或占位 | Agent 经 mcp-api 调用；**GeeGooBot 当前为 Noop handler**（未接 futu_bridge / OpenD）；以 [GeeGooBot implemented-routes](https://github.com/ghsemail/GeeGooBot/blob/main/docs/api/implemented-routes.md) 为准 |
 | `get_mcp_analysis` | — | 经 mcp-api→analyze-api LLM |
 | `generate_grid_strategy` / `generate_dca_strategy` | LLM 较慢（grid 40–60s；DCA cn 2–2.5min） | analyze-api JSON 批量翻译（原 5 段逐条翻译已废弃） |
 | `get_capital_*` | A 股/HK/US | Bot :3120 路由 GeeGooData 分节点；空数据 skip |
@@ -136,7 +136,7 @@
 | Evidence | ✅ | 报告 evidence_refs |
 | Compaction | ✅ | Hermes 四阶段 |
 | Episodic（跨日摘要） | ✅ | `recall_yesterday_summary` 读本地 reports + MCP 回退 |
-| Semantic（向量） | ❌ | 见 [backlog.md](./backlog.md) |
+| Semantic（向量） | ❌ | 可选 `GEEGOO_VECTOR_ENABLE` 与 SQL 草案存在，**未作为 SSOT 完成项**；见 [backlog.md](./backlog.md) |
 
 ---
 
@@ -152,6 +152,17 @@
 | Secrets / Config | ✅ | `internal/config/` |
 | Logging / Tracing | ⚠️ | 文件日志有；分布式 tracing 轻量 |
 | Timer 抽象 | ❌ | 规划接口，未单独实现 |
+
+---
+
+## Web / Cockpit（Runtime HTTP）
+
+| 能力 | 状态 | 说明 |
+|------|------|------|
+| Cockpit 读 API（overview / sessions / tools / doctor / memory status） | ✅ | `internal/runtimeapi/cockpit.go`；契约 [dashboard-platform.md](./dashboard-platform.md) §3.2 |
+| Chat SSE / Plan / Clarify | ✅ | §3.1；`chat_stream.go` |
+| Dashboard Eval / Compare / Data 扩展 | ✅ | `dashboard_*.go`、`data.go` |
+| Flutter Web UI（`trading_operation`） | ⚠️ | 独立仓库；消费上述 API，不在本仓库验收 |
 
 ---
 
@@ -191,8 +202,7 @@ geegoo migrate tenant --assign-user <user_id> --compare-from /path/to/compare/hi
 | PostgreSQL / Redis | 否 | Agent 状态在 SQLite |
 | 向量库 / Embedding | 否 | Semantic 未做 |
 | GeeGooBot :3120 | 是 | 报告、Bot、资金等 |
-| GeeGooSignal :3200/3210 | 部分 | 搜码、回测、指标 |
-| Analyze :3230 | 部分 | 策略/分析（可经 MCP 转发） |
+| GeeGooSignal :3200/3210/3230/3240 | 部分 | signal / catalog / analyze / decision；见 [tools-status](./layers/L2-tools/tools-status.md) |
 | 富途交易 | 否（盘中才需要） | `get_position` 等 |
 
 ---

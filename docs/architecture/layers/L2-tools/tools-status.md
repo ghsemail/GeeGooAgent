@@ -50,9 +50,9 @@
 | `search_code` | ✅ | bespoke | signal-api `/searchCode` → Mongo `stock_db` | 3200 | 不需 `mcp_token`；需 Bearer `signal_api_key` |
 | `web_search` | ✅ | bespoke | DuckDuckGo 本地 | — | 股票库无结果时用 |
 | `get_current_price` | ✅ | bespoke | mcp-api `/getCurrentPrice` → GeeGooData 行情 | 3120→3300 | **现价快照**；日常查价首选 |
-| `get_ticker` | ✅ | HTTP | mcp-api `/getTicker` → `futu_bridge` → 本机 OpenD | 3120 | **盘中逐笔**；非 TradingData；空 payload 重试 1 次 |
-| `get_broker` | ✅ | HTTP | mcp-api `/getBroker` → `futu_bridge` → OpenD | 3120 | 同上 |
-| `get_position` | ✅ | HTTP | mcp-api `/getPosition` → `futu_bridge` → OpenD | 3120 | 同上；真实空仓仍 skip |
+| `get_ticker` | ⚠️ | HTTP | mcp-api `/getTicker` | 3120 | Agent 已注册；**GeeGooBot 侧当前 Noop**（未接 futu_bridge / OpenD）；见 [implemented-routes](https://github.com/ghsemail/GeeGooBot/blob/main/docs/api/implemented-routes.md) |
+| `get_broker` | ⚠️ | HTTP | mcp-api `/getBroker` | 3120 | 同上 |
+| `get_position` | ⚠️ | HTTP | mcp-api `/getPosition` | 3120 | 同上 |
 | `fetch_market_news` | ✅ | bespoke | **主路径** Bot `/getMarketNews` → GeeGooData `/v1/news/market`；失败时本地 finance-news / `web_search` | 3120→3300 | 见 [geegoodata-news.md](../../domains/geegoodata-news.md) |
 | `fetch_stock_news` | ✅ | bespoke | **主路径** Bot `/getStockNews` → GeeGooData `/v1/news/stock`；失败时本地 / `web_search` | 3120→3300 | 双源仍无 → StatusError |
 | `get_report_bot_codes` | ✅ | bespoke | mcp-api `/getReportBotCodes` | 3120 | 盘前待写报告标的 |
@@ -64,10 +64,10 @@
 | 维度 | `get_current_price` | `get_ticker` |
 |------|---------------------|--------------|
 | 用途 | 最新价/涨跌幅等**快照** | 盘中**逐笔成交**（time & sales） |
-| 调用链 | Agent → Bot `:3120` `/getCurrentPrice` → GeeGooData `:3300` | Agent → Bot `:3120` `/getTicker` → Python `futu_bridge` → **Futu OpenD** `:11111` |
+| 调用链 | Agent → Bot `:3120` `/getCurrentPrice` → GeeGooData `:3300` | Agent → Bot `:3120` `/getTicker`（**目标**：futu_bridge → OpenD；**现网 Bot 为 Noop**） |
 | 是否走 TradingData | 否（GeeGooData） | **否**（TradingData 无逐笔 API，不可替代） |
-| 是否需 OpenD | 否 | **是**（Bot 机本机 `127.0.0.1:11111`） |
-| 非交易时段 | 通常仍有快照 | 可能为空或仅历史最后几条；doctor 空结果 → `[WARN]` |
+| 是否需 OpenD | 否 | 接通后需 Bot 机本机 OpenD |
+| 非交易时段 | 通常仍有快照 | Bot 未接通前恒为空/skip |
 
 `search_code` 为第三条独立链路：Agent → Signal `:3200` `/searchCode` → Mongo `stock_db`（与 Futu / TradingData 无关）。
 
@@ -217,7 +217,7 @@ manifest 路径：`skills/<skill>/manifest.yaml`。Skill 文档 → [L5 skills](
 GeeGooAgent Tools
 ├─ market [toolset]
 │  ├─ search_code, web_search, check_trading_day, get_current_price     ✅
-│  ├─ get_ticker, get_broker, get_position                              ✅ futu_bridge + 空 payload 重试
+│  ├─ get_ticker, get_broker, get_position                              ⚠️ Bot Noop（未接 OpenD）
 │  ├─ get_capital_flow, get_capital_distribution                        ✅ Bot→GeeGooData 分节点
 │  ├─ get_bot_yesterday_attitude                                        💬 需 bot_id
 │  ├─ get_index_signals, get_signal_combinations                        ✅ :3210

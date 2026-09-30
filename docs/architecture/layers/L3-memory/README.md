@@ -15,7 +15,7 @@ Agent 的记忆系统：会话历史、工作进度、证据链、上下文压�
 | **WorkingMemory** | 单次 workflow，结构化 | `memory/working.go` | ✅ |
 | **Evidence** | 可审计工具结果 | `memory/evidence.go` | ✅ SQLite |
 | **Episodic** | 跨会话摘要（Dashboard episodes） | `chat_sessions.summary` + Gate FTS | ✅ |
-| **Semantic** | 向量相似检索 | `memory/semantic` pgvector | ✅ kinfra 2560-dim |
+| **Semantic** | 向量相似检索 | `memory/semantic`（可选 pgvector） | ❌ 产品 SSOT 见 [implementation-status.md](../../implementation-status.md) §记忆层；规划见 [semantic-memory.md](./semantic-memory.md) |
 
 ## 模块索引
 

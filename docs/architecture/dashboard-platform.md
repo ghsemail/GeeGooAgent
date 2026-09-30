@@ -20,7 +20,7 @@ trading_operation
 GeeGooAgent agent-runtime :3400
               │
               ▼
-GeeGooBot mcp-api :3120  ·  GeeGooData :3300  ·  GeeGooSignal :3210
+GeeGooBot mcp-api :3120  ·  GeeGooData :3300  ·  GeeGooSignal :3200/3210/3230/3240
 ```
 
 **原则**
@@ -95,7 +95,7 @@ GeeGooBot mcp-api :3120  ·  GeeGooData :3300  ·  GeeGooSignal :3210
 |------|------|------|
 | **SQLite**（`GEEGOO_DB`） | 现网 / MVP | `chatsession` SSOT、FTS |
 | **PostgreSQL** | Phase 2 | 多用户 sessions、runs、approvals、metrics |
-| **pgvector / Qdrant** | Phase 3 | `memport` 语义记忆 |
+| **pgvector / Qdrant** | 规划中 | `memport` 语义记忆；**未作为默认生产路径**，见 [implementation-status.md](./implementation-status.md) §记忆层 |
 | **文件** `~/.geegoo/` | 始终 | traces、execution-log、checkpoints |
 
 环境变量：
@@ -147,15 +147,17 @@ const String agent_api_key = '<GEEGOO_BOT_AGENT_API_KEY>';
 
 ## 6. 演进路线
 
-| Phase | 前端 | 后端 | 状态 |
-|-------|------|------|------|
-| **1** | Chat + Cockpit 骨架 | Cockpit 读 API | ✅ |
-| **2** | FAB 浮标、Plan/Clarify、CORS | PG schema、`GEEGOO_CORS_ORIGINS`、stream clarify | ✅ |
-| **3** | Memory chunks 列表 | PostgreSQL Session SSOT、`geegoo migrate --to postgres`、pgvector | ✅ |
-| **4** | BFF 接入、Memory 向量检索 | GeeGooBot `/op_agent` BFF、OpenAI embedding、summary 自动入库 | ✅ |
-| **5** | Loop 架构图实时动画、Live Events | `sessionEventsStream` SSE、节点高亮 | ✅ |
-| **6** | Nginx 同源、BFF MCP 校验 | `agent_bff_use_proxy`、Mongo MCP 验证 | ✅ |
-| **7** | 运营登录态 → MCP Token | `AgentSessionContext`、Chat/Plan/Clarify 透传 | ✅ |
+> **实现进度 SSOT**：[implementation-status.md](./implementation-status.md)（已落地能力）与 [backlog.md](./backlog.md)（待办）。本节只描述**产品阶段意图**与 HTTP 契约，不在此维护 ✅/❌ 勾选，避免与记忆层 / 向量库状态冲突。
+
+| Phase | 前端（`trading_operation`） | 后端（GeeGooAgent `:3400`） | 说明 |
+|-------|----------------------------|-----------------------------|------|
+| **1** | Chat + Cockpit 骨架 | Cockpit 读 API（§3.2） | 契约已定；路由见 `internal/runtimeapi/cockpit.go` |
+| **2** | FAB 浮标、Plan/Clarify、CORS | PG schema、`GEEGOO_CORS_ORIGINS`、stream clarify | 可选 PG Session；见 migrate 命令 |
+| **3** | Memory chunks 列表 | PostgreSQL Session SSOT、`geegoo migrate --to postgres` | **Semantic 向量（pgvector）未作为 SSOT 完成项** → implementation-status §记忆层 |
+| **4** | BFF 接入、Memory 向量检索 | GeeGooBot BFF、embedding、summary 入库 | 依赖 Phase 3 向量后端选型 |
+| **5** | Loop 架构图实时动画、Live Events | `sessionEventsStream` SSE | |
+| **6** | Nginx 同源、BFF MCP 校验 | `agent_bff_use_proxy`、Mongo MCP 验证 | |
+| **7** | 运营登录态 → MCP Token | Chat/Plan/Clarify 透传 `X-MCP-Token` | §5.4 |
 
 部署与联调见 [GeeGooBot deployment](https://github.com/ghsemail/GeeGooBot/blob/main/docs/deployment.md)、`scripts/ops/verify/verify_agent_bff.py`。
 

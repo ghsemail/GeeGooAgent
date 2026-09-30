@@ -80,15 +80,18 @@ GeeGooAgent 与 Hermes 一样，**平台差异在入口点，不在 Agent 核心
 
 ## HTTP Runtime（`cmd/agent-runtime`）
 
+探活由 `internal/httpserver` 挂载：`GET /health`、`GET /ready`（不经 Bearer）。
+
 | 路由 | 说明 |
 |------|------|
-| `GET /health` | 探活 |
-| `GET /ready` | 就绪 |
 | `POST /v1/chat/completions` | OpenAI 兼容；Bearer + `X-MCP-Token` |
+| `GET /v1/models` | 模型列表 |
 
-处理链：`internal/runtimeapi/handler.go` → `Agent.Run`。
+**Chat / Cockpit / Dashboard / Eval / Data** 等完整路由表与鉴权约定 → **[dashboard-platform.md](./dashboard-platform.md) §3**（Cockpit 读 API、SSE Chat、Eval、Compare 等）。实现注册见 `internal/runtimeapi/handler.go`（`Register` 挂载 `cockpit`、`chat_stream`、`dashboard_*` 等）。
 
-适用场景：远程调用 Agent、与外部编排系统集成；**不**替代 GeeGooBot `mcp-api`（3120 是 Tool 后端，不是 Agent 入口）。
+处理链：`internal/runtimeapi/handler.go` → `Agent.Run`（Chat 类入口）或各 Cockpit/Dashboard handler。
+
+适用场景：远程调用 Agent、运营 Cockpit、Eval 自动化；**不**替代 GeeGooBot `mcp-api`（3120 是 Tool 后端，不是 Agent 入口）。
 
 ---
 

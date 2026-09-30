@@ -10,8 +10,7 @@ Agent Runtime 控制面改造（Cognition / Model Policy / Memory port / Advisor
 
 | 项 | 说明 | 依赖 |
 |----|------|------|
-| **Web / Flutter Dashboard** | 纯 `runtimeapi` 客户端：会话列表、任务、doctor、配置；无 agent 逻辑 | [dashboard-platform.md](./dashboard-platform.md) |
-| **向量库 / Semantic Memory 后端** | 挂在 `memport.Port` 下；Session SSOT 仍为 SQLite | 业务需求明确后选型（Chroma / sqlite-vss 等） |
+| **向量库 / Semantic Memory 后端** | 挂在 `memport.Port` 下；Session SSOT 仍为 SQLite / 可选 PG | 业务需求明确后选型（Chroma / sqlite-vss / pgvector 等）；契约见 [dashboard-platform.md](./dashboard-platform.md) §4 |
 | **IDE 扩展** | 同 runtimeapi 消费方；优先级可高于 Flutter | Dashboard 契约或独立 API 设计 |
 | **Cost Manager** | 会话级 token / 费用账单 | Model Policy + session 元数据 |
 | **多租户** | ⚠️ Phase 1–3 已落地 | 会话/设置/Compare/completions 按 `X-User-Id`；BFF `GEEGOO_AGENT_VALIDATE_MCP_TOKEN`；迁移 `geegoo migrate tenant`；配额/Cost 仍待做 |
