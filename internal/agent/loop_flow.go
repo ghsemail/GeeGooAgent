@@ -23,6 +23,10 @@ func (l *Loop) tryChatWorkflow(
 		OnProgress: l.onProgress,
 		ComposeLLM: llm.SynthesisProviderFromGateway(l.gateway),
 	}
+	if l.strategyDevJev != nil {
+		cfg := l.strategyDevJev()
+		runner.JevConfig = &cfg
+	}
 	step := session.StepCounter + 1
 	return runner.RunTurn(ctx, session, userText, toolCtx, step)
 }

@@ -137,6 +137,9 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	if opts := workflowchat.ParseSignalDiagnoseOptsFromWorkflowOptions(req.WorkflowOptions); opts != nil {
 		rtSession.PendingSignalDiagnoseOpts = opts
 	}
+	if opts := workflowchat.ParseStrategyDevOptsFromWorkflowOptions(req.WorkflowOptions); opts != nil {
+		rtSession.PendingStrategyDevOpts = opts
+	}
 	mcpToken := resolveChatMCPToken(r, req.MCPToken, h.configMCPToken())
 	toolCtx := h.App.ToolContextWithContext(r.Context(), chat.ID)
 	toolCtx.UserID = resolveUserID(r)

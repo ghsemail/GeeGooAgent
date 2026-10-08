@@ -54,6 +54,15 @@ type Session struct {
 	ActiveFlowJSON []byte
 	// PendingSignalDiagnoseOpts applies to the next new signal_diagnose flow only (not persisted).
 	PendingSignalDiagnoseOpts *SignalDiagnoseOpts
+	// PendingStrategyDevOpts applies to the next strategy_dev_pipeline flow only (not persisted).
+	PendingStrategyDevOpts *StrategyDevOpts
+}
+
+// StrategyDevOpts configures strategy_dev_pipeline for one chat turn.
+type StrategyDevOpts struct {
+	Code       string `json:"code,omitempty"`
+	Frequency  string `json:"frequency,omitempty"`
+	MonthsBack int    `json:"months_back,omitempty"`
 }
 
 // SignalDiagnoseOpts configures optional signal_diagnose workflow behavior for one turn.

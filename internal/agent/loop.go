@@ -17,6 +17,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/sessiontask"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
 const (
@@ -47,6 +48,7 @@ type Loop struct {
 	retrievalTopK  int
 	playbookRouter *playbookexec.Router
 	routingMode    string
+	strategyDevJev func() strategydev.JevConfig
 }
 
 // NewLoop creates an agent loop.
@@ -174,6 +176,14 @@ func (l *Loop) SetRetrievalGate(provider llm.Provider, policy llm.Policy, topK i
 // SetProgress wires live step output (geegoo chat verbose UI).
 func (l *Loop) SetProgress(fn runtime.ProgressFunc) {
 	l.onProgress = fn
+}
+
+// SetStrategyDevJevConfig wires catalog-backed Jev credentials for strategy_dev_pipeline.
+func (l *Loop) SetStrategyDevJevConfig(fn func() strategydev.JevConfig) {
+	if l == nil {
+		return
+	}
+	l.strategyDevJev = fn
 }
 
 // SetApproval wires interactive confirmation for mutating tools.

@@ -153,12 +153,55 @@ func IsStrategyDevIntent(text string) bool {
 	if trim == "" {
 		return false
 	}
+	if isReadStrategyDevIntent(trim) {
+		return true
+	}
 	for _, p := range strategyDevPhrases {
 		if strings.Contains(trim, p) {
 			return true
 		}
 	}
-	return isReadStrategyDevIntent(trim)
+	return false
+}
+
+// IsStrategyDevPipelineIntent reports six-step orchestration (symbol + frequency).
+func IsStrategyDevPipelineIntent(text string, opts *runtime.StrategyDevOpts) bool {
+	trim := strings.TrimSpace(text)
+	if trim == "" {
+		return false
+	}
+	if isReadStrategyDevIntent(trim) {
+		return false
+	}
+	hasPhrase := false
+	for _, p := range strategyDevPhrases {
+		if strings.Contains(trim, p) {
+			hasPhrase = true
+			break
+		}
+	}
+	if !hasPhrase && (opts == nil || strings.TrimSpace(opts.Code) == "") {
+		return false
+	}
+	code, freq, _ := parseStrategyDevPipelineInput(trim, opts)
+	return code != "" && freq != ""
+}
+
+// IsStrategyDevArchiveIntent reports legacy strategy_dev (read strategy archive by name).
+func IsStrategyDevArchiveIntent(text string) bool {
+	if isReadStrategyDevIntent(text) {
+		return true
+	}
+	trim := strings.TrimSpace(text)
+	if trim == "" {
+		return false
+	}
+	for _, p := range strategyDevPhrases {
+		if strings.Contains(trim, p) {
+			return !IsStrategyDevPipelineIntent(trim, nil)
+		}
+	}
+	return false
 }
 
 // ShouldStartGenerateStrategyCognitionFlow decides whether to create generate workflow.
@@ -169,15 +212,31 @@ func ShouldStartGenerateStrategyCognitionFlow(text string, existing *Flow) bool 
 	return IsGenerateStrategyCognitionIntent(text)
 }
 
-// ShouldStartStrategyDevFlow decides whether to create strategy_dev workflow.
-func ShouldStartStrategyDevFlow(text string, existing *Flow) bool {
+// ShouldStartStrategyDevPipelineFlow decides whether to create six-step strategy_dev_pipeline.
+func ShouldStartStrategyDevPipelineFlow(text string, opts *runtime.StrategyDevOpts, existing *Flow) bool {
 	if existing != nil && existing.Active() {
 		return false
 	}
 	if IsSignalDiagnoseIntent(text) {
 		return false
 	}
-	return IsStrategyDevIntent(text)
+	return IsStrategyDevPipelineIntent(text, opts)
+}
+
+// ShouldStartStrategyDevArchiveFlow decides whether to create legacy strategy_dev (read archive).
+func ShouldStartStrategyDevArchiveFlow(text string, existing *Flow) bool {
+	if existing != nil && existing.Active() {
+		return false
+	}
+	if IsSignalDiagnoseIntent(text) {
+		return false
+	}
+	return IsStrategyDevArchiveIntent(text)
+}
+
+// ShouldStartStrategyDevFlow is kept for tests; prefer archive vs pipeline helpers.
+func ShouldStartStrategyDevFlow(text string, existing *Flow) bool {
+	return ShouldStartStrategyDevArchiveFlow(text, existing)
 }
 
 // ShouldStartSignalDiagnoseFlow decides whether to create signal_diagnose workflow.
@@ -203,7 +262,8 @@ func ShouldStartMultiStrategyFlow(text string, session *runtime.Session, existin
 	if existing != nil && existing.Active() {
 		return false
 	}
-	if IsGenerateStrategyCognitionIntent(text) || IsStrategyDevIntent(text) || IsSignalDiagnoseIntent(text) {
+	if IsGenerateStrategyCognitionIntent(text) || IsStrategyDevIntent(text) ||
+		IsStrategyDevPipelineIntent(text, nil) || IsSignalDiagnoseIntent(text) {
 		return false
 	}
 	return IsMultiStrategyCompareIntent(text, session)

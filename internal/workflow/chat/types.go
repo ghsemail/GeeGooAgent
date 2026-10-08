@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
 func canonicalSkill(name string) string {
@@ -19,6 +20,7 @@ const (
 	SkillMultiStrategyCompare         = "multi_strategy_compare"
 	SkillParamTune                    = "param_tune"
 	SkillStrategyDev                  = "strategy_dev"
+	SkillStrategyDevPipeline          = "strategy_dev_pipeline"
 	SkillSignalDiagnose               = "signal_diagnose"
 	SkillGenerateStrategyArchive      = "generate_strategy_archive"
 	SkillGenerateStrategyCognition    = SkillGenerateStrategyArchive
@@ -116,6 +118,7 @@ type Flow struct {
 	KeyLevels              KeyLevelSnapshot   `json:"key_levels,omitempty"`
 	KeyLevelSeries         *KeyLevelBarSeries `json:"key_level_series,omitempty"`
 	EvalJudgment        string         `json:"eval_judgment,omitempty"`
+	StrategyDevPipelineResult *strategydev.Result `json:"strategy_dev_pipeline_result,omitempty"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
 // ToolRunner executes one tool call.
@@ -19,6 +20,7 @@ type Runner struct {
 	RunTool         ToolRunner
 	OnProgress      runtime.ProgressFunc
 	ComposeLLM      llm.Provider // optional; strategy_dev cognition synthesis
+	JevConfig       *strategydev.JevConfig
 	retryFailedOnly bool
 }
 
@@ -52,10 +54,19 @@ func (r *Runner) RunTurn(
 			"run_id": flow.RunID, "skill": flow.Template,
 		})
 	} else if !ShouldHandleFlowTurn(userText, flow) {
+		var devOpts *runtime.StrategyDevOpts
+		if session != nil && session.PendingStrategyDevOpts != nil {
+			devOpts = session.PendingStrategyDevOpts
+		}
 		switch {
 		case ShouldStartGenerateStrategyCognitionFlow(userText, flow):
 			flow = newGenerateStrategyCognitionFlow(userText)
-		case ShouldStartStrategyDevFlow(userText, flow):
+		case ShouldStartStrategyDevPipelineFlow(userText, devOpts, flow):
+			flow = newStrategyDevPipelineFlow(userText, devOpts)
+			if session != nil {
+				session.PendingStrategyDevOpts = nil
+			}
+		case ShouldStartStrategyDevArchiveFlow(userText, flow):
 			flow = newStrategyDevFlow(userText)
 		case ShouldStartMultiStrategyFlow(userText, session, flow):
 			flow = newMultiStrategyFlow(userText, session)
@@ -79,6 +90,8 @@ func (r *Runner) RunTurn(
 		return r.runTemplateTurn(ctx, session, flow, toolCtx, stepBase, r.advanceGenerateStrategyCognition, renderGenerateCognitionPartial, renderGenerateCognitionReport)
 	case SkillStrategyDev:
 		return r.runTemplateTurn(ctx, session, flow, toolCtx, stepBase, r.advanceStrategyDev, renderStrategyDevPartial, renderStrategyDevReport)
+	case SkillStrategyDevPipeline:
+		return r.runTemplateTurn(ctx, session, flow, toolCtx, stepBase, r.advanceStrategyDevPipeline, renderStrategyDevPipelinePartial, renderStrategyDevPipelineReport)
 	case SkillSignalDiagnose:
 		return r.runTemplateTurn(ctx, session, flow, toolCtx, stepBase, r.advanceSignalDiagnose, renderSignalDiagnosePartial, renderSignalDiagnoseReport)
 	case SkillMultiStrategyCompare:

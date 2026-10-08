@@ -39,7 +39,7 @@ func CardPayload(flow *Flow) map[string]any {
 		"strategies":     strategies,
 		"partial_report": flow.PartialReport,
 	}
-	if canonicalSkill(skill) == SkillGenerateStrategyArchive || skill == SkillStrategyDev {
+	if canonicalSkill(skill) == SkillGenerateStrategyArchive || skill == SkillStrategyDev || skill == SkillStrategyDevPipeline {
 		out["workflow_step"] = flow.WorkflowStep
 		out["strategy_query"] = flow.StrategyQuery
 		out["catalog_type"] = flow.CatalogType
@@ -84,6 +84,8 @@ func skillDisplayName(id string) string {
 		return "策略参数调优"
 	case "strategy_dev":
 		return "策略开发"
+	case SkillStrategyDevPipeline:
+		return "策略开发编排"
 	case SkillSignalDiagnose:
 		return "信号诊断"
 	case SkillGenerateStrategyArchive, legacyGenerateStrategyCognition:

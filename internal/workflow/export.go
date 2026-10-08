@@ -8,6 +8,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/postmarket"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/premarket"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/step"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/synthctx"
 )
 
@@ -81,6 +82,17 @@ var (
 	BuildPostMarketReportContent         = postmarket.BuildPostMarketReportContent
 	BuildCreateStockPostmarketReportArgs = postmarket.BuildCreateStockPostmarketReportArgs
 	PostMarketSynthesizerFrom            = postmarket.PostMarketSynthesizerFrom
+)
+
+// Strategy development orchestration (six-step workflow).
+var (
+	StrategyDevRun = strategydev.Run
+)
+
+type (
+	StrategyDevInput  = strategydev.Input
+	StrategyDevResult = strategydev.Result
+	StrategyDevDeps   = strategydev.Deps
 )
 
 // Decision helpers shared across phases.
