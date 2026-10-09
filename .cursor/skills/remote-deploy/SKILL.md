@@ -17,4 +17,12 @@ bash .cursor/install-remote-deploy.sh
 
 凭证：在 Cursor Cloud 环境变量中设置 `GEEGOO_SSH_PASSWORD`（或 `GEEGOO_SSH_PASSWORD_118_195_135_97` 等按 host）。
 
+**5 台 SSH 轮换**（COS 版 `deploy.json` 通常不含明文密码）：
+
+```bash
+python scripts/ops/deploy/rotate_ssh_passwords.py --verify
+GEEGOO_SSH_NEW_PASSWORD='...' python scripts/ops/deploy/rotate_ssh_passwords.py --apply
+python scripts/ops/deploy/rotate_ssh_passwords.py --sync-deploy-json
+```
+
 详细文档见安装后的 `~/.cursor/skills/remote-deploy/SKILL.md`。
