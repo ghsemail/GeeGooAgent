@@ -1,4 +1,4 @@
 {
-  "install": "bash .cursor/install-remote-deploy.sh",
+  "install": "bash .cursor/install-remote-deploy.sh && bash .cursor/install-flutter.sh",
   "start": "echo remote-deploy skill install hook done"
 }
