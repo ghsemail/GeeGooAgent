@@ -64,13 +64,20 @@ out = {
     "mcp_token": token,
 }
 if verify and token:
-    key = os.environ.get("GEEGOO_BOT_APP_API_KEY") or ""
+    key = (
+        os.environ.get("GEEGOO_BOT_SERVICE_API_KEY")
+        or os.environ.get("GEEGOO_BOT_MCP_API_KEY")
+        or os.environ.get("GEEGOO_BOT_APP_API_KEY")
+        or ""
+    )
     cmd = [
         "curl", "-sS", "-m", "20", "-X", "POST",
         "http://127.0.0.1:3120/checkTradingDay",
         "-H", "Content-Type: application/json",
         "-d", json.dumps({"mcp_token": token, "code": "00700.HK"}),
     ]
+    if key:
+        cmd.extend(["-H", f"Authorization: Bearer {key}"])
     p = subprocess.run(cmd, capture_output=True, text=True)
     try:
         out["mcp_verify"] = json.loads(p.stdout or "{}")
