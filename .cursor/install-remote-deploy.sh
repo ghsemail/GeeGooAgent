@@ -17,6 +17,30 @@ python3 - <<'PY'
 import json, os, re
 from pathlib import Path
 
+IP_TO_TARGETS = {
+    "118.195.135.97": ("geegoo-bot", "geegoo-tradingbot"),
+    "146.56.225.252": ("geegoo-signal", "geegoo-tradingsignal", "trading-operation"),
+    "47.80.14.120": ("geegoo-data", "geegoo-tradingdata"),
+    "82.157.97.76": ("geegoo-data-cn", "geegoo-agent"),
+    "43.134.94.87": ("geegoo-tradingserver",),
+}
+
+def is_ip_key(key: str) -> bool:
+    return bool(re.fullmatch(r"\d{1,3}(\.\d{1,3}){3}", key or ""))
+
+
+def strip_ip_keys(ssh: dict[str, str]) -> dict[str, str]:
+    out = dict(ssh)
+    for ip, targets in IP_TO_TARGETS.items():
+        pwd = out.pop(ip, None)
+        if pwd:
+            for t in targets:
+                out.setdefault(t, pwd)
+    for key in list(out):
+        if is_ip_key(key):
+            out.pop(key, None)
+    return out
+
 p = Path.home() / ".cursor/credentials/remote-deploy.json"
 existing = {}
 if p.is_file():
@@ -34,12 +58,13 @@ for k, v in os.environ.items():
     if not k.startswith("GEEGOO_SSH_PASSWORD_") or not v.strip():
         continue
     suffix = k[len("GEEGOO_SSH_PASSWORD_") :].strip()
-    # Target name: GEEGOO_BOT -> geegoo-bot (matches deploy.json / resolve_ssh_cfg)
+    if re.fullmatch(r"[\d_]+", suffix):
+        # Ignore legacy IP-style env vars; use GEEGOO_SSH_PASSWORD_<TARGET> only.
+        continue
     target_key = suffix.lower().replace("_", "-")
     ssh[target_key] = v.strip()
-    # Legacy: IP-style suffix 118_195_135_97 -> 118.195.135.97
-    if re.fullmatch(r"[\d_]+", suffix):
-        ssh[suffix.replace("_", ".")] = v.strip()
+
+ssh = strip_ip_keys(ssh)
 
 sid = os.environ.get("TENCENT_COS_SECRET_ID", "").strip()
 skey = os.environ.get("TENCENT_COS_SECRET_KEY", "").strip()
@@ -52,7 +77,7 @@ if ssh or cos:
         json.dumps({"ssh": ssh, "cos": cos}, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    print("wrote", p, f"(ssh keys={len(ssh)})")
+    print("wrote", p, f"(ssh keys={list(ssh.keys())})")
 elif not p.is_file():
     print("WARN: set GEEGOO_SSH_PASSWORD_<TARGET> in Cursor Cloud env secrets")
 PY
