@@ -54,12 +54,22 @@ cos = dict(existing.get("cos") or {}) if isinstance(existing.get("cos"), dict) e
 if os.environ.get("GEEGOO_SSH_PASSWORD", "").strip():
     ssh["default"] = os.environ["GEEGOO_SSH_PASSWORD"].strip()
 
+IP_SUFFIX_TO_TARGETS = {
+    "118_195_135_97": IP_TO_TARGETS["118.195.135.97"],
+    "146_56_225_252": IP_TO_TARGETS["146.56.225.252"],
+    "47_80_14_120": IP_TO_TARGETS["47.80.14.120"],
+    "82_157_97_76": IP_TO_TARGETS["82.157.97.76"],
+    "43_134_94_87": IP_TO_TARGETS["43.134.94.87"],
+}
+
 for k, v in os.environ.items():
     if not k.startswith("GEEGOO_SSH_PASSWORD_") or not v.strip():
         continue
     suffix = k[len("GEEGOO_SSH_PASSWORD_") :].strip()
     if re.fullmatch(r"[\d_]+", suffix):
-        # Ignore legacy IP-style env vars; use GEEGOO_SSH_PASSWORD_<TARGET> only.
+        # Legacy IP env: fold into target keys only (never persist IP keys).
+        for t in IP_SUFFIX_TO_TARGETS.get(suffix, ()):
+            ssh.setdefault(t, v.strip())
         continue
     target_key = suffix.lower().replace("_", "-")
     ssh[target_key] = v.strip()
