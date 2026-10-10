@@ -66,6 +66,19 @@ if p.is_file():
 ssh = dict(existing.get("ssh") or {}) if isinstance(existing.get("ssh"), dict) else {}
 cos = dict(existing.get("cos") or {}) if isinstance(existing.get("cos"), dict) else {}
 
+# Cloud Secrets：按运维「服务器名」一条对应一台物理机（见下表）
+SERVER_SECRET_ALIASES: dict[str, tuple[str, ...]] = {
+    "GEEGOO_BOT": ("geegoo-bot", "geegoo-tradingbot"),  # 118 GeeGooBot
+    "GEEGOO_SIGNAL": (
+        "geegoo-signal",
+        "geegoo-tradingsignal",
+        "trading-operation",
+    ),  # 146 GeeGooSignal + Monday
+    "TRADING_SERVER": ("geegoo-tradingserver",),  # 43
+    "TRADING_DATA_OVERSEAS": ("geegoo-data", "geegoo-tradingdata"),  # 47 海外
+    "GEEGOO_AGENT_DATA_CN": ("geegoo-data-cn", "geegoo-agent"),  # 82 国内
+}
+
 if os.environ.get("GEEGOO_SSH_PASSWORD", "").strip():
     ssh["default"] = os.environ["GEEGOO_SSH_PASSWORD"].strip()
 
@@ -73,17 +86,23 @@ for k, v in os.environ.items():
     if not k.startswith("GEEGOO_SSH_PASSWORD_") or not v.strip():
         continue
     suffix = k[len("GEEGOO_SSH_PASSWORD_") :].strip()
+    pwd = v.strip()
     if re.fullmatch(r"[\d_]+", suffix):
         # Legacy IP env → all deploy.json targets on that host (no IP keys in vault).
         ip = suffix.replace("_", ".")
         for t in host_to_targets.get(ip, ()):
-            ssh.setdefault(t, v.strip())
+            ssh.setdefault(t, pwd)
+        continue
+    if suffix in SERVER_SECRET_ALIASES:
+        for t in SERVER_SECRET_ALIASES[suffix]:
+            ssh[t] = pwd
         continue
     # GEEGOO_SSH_PASSWORD_GEEGOO_TRADINGBOT → target geegoo-tradingbot
     target_key = suffix.lower().replace("_", "-")
-    if target_key not in targets and target_key != "default":
-        print(f"WARN: unknown deploy target in env: {target_key}")
-    ssh[target_key] = v.strip()
+    if target_key not in targets:
+        print(f"WARN: unknown secret suffix (not deploy target nor server alias): {suffix}")
+    else:
+        ssh[target_key] = pwd
 
 ssh = strip_ip_keys(ssh)
 ssh = fanout_same_host(ssh)
