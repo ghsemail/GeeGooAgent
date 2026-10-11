@@ -10,6 +10,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
 func (r *Runner) phaseSignalDiagnoseCompose(
@@ -218,6 +219,18 @@ func renderSignalDiagnoseFacts(flow *Flow) string {
 	} else {
 		fmt.Fprintf(&b, "| 结构截断 Episode | 关闭（仅至反向信号） |\n")
 	}
+	if flow.UsePriceAnalysisEpisodeFilter {
+		note := "开启"
+		if pf := flow.PriceFilter; pf != nil {
+			note = strategydev.FormatPriceFilterNote(*pf)
+			if st := flow.PriceEpisodeFilterStats; st != nil && (st.StrippedBuy > 0 || st.StrippedSell > 0) {
+				note += fmt.Sprintf(" · 剔除触发 买 %d / 卖 %d", st.StrippedBuy, st.StrippedSell)
+			}
+		}
+		fmt.Fprintf(&b, "| 价格分析 Episode 过滤 | %s |\n", note)
+	} else {
+		fmt.Fprintf(&b, "| 价格分析 Episode 过滤 | 关闭 |\n")
+	}
 	if flow.DiagnoseVerdict != "" {
 		fmt.Fprintf(&b, "| 诊断结论 | %s |\n", flow.DiagnoseVerdict)
 	}
@@ -235,6 +248,7 @@ func appendSignalEvalMethodology(b *strings.Builder) {
 	fmt.Fprintf(b, "4. **命中**：买段方向收益 > 0；卖段 < 0（卖段方向收益取反便于阅读）。\n")
 	fmt.Fprintf(b, "5. **仅买无卖**时请看 **Path 汇总**，strict 命中率可能为 N/A。\n")
 	fmt.Fprintf(b, "6. **结构截断（可选）**：买/卖 Strict 段按配置的参考线（默认买 `support_high`、卖 `resist_low`）逐 K 与 **as-of 该 bar 的 Key Level 序列**比较提前结束（probe `key_levels_series`，默认按日对齐重算，无未来函数）。\n")
+	fmt.Fprintf(b, "7. **价格分析过滤（可选，默认开）**：Episode 评价前按纯价格结构（含 RVOL/BOS/CHOCH 附注）剔除不允许方向的买/卖触发，与结构截断并列、互不替代。\n")
 }
 
 func appendSignalEvalSection(b *strings.Builder, eval slots.SignalEpisodeEval) {

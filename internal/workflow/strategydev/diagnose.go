@@ -15,9 +15,10 @@ func runDiagnose(
 	months int,
 	buy, sell *Candidate,
 	regime string,
-) (DiagnoseSummary, map[string]any, error) {
+	usePriceFilter bool,
+) (DiagnoseSummary, *PriceFilterResult, *EpisodeTriggerFilterStats, map[string]any, error) {
 	if buy == nil || sell == nil || isNoSignalRules(buy.Buy) {
-		return DiagnoseSummary{}, nil, fmt.Errorf("买入策略无效")
+		return DiagnoseSummary{}, nil, nil, nil, fmt.Errorf("买入策略无效")
 	}
 	if isNoSignalRules(sell.Sell) && len(sell.Buy) > 0 {
 		sell.Sell = sell.Buy
@@ -31,7 +32,7 @@ func runDiagnose(
 		"side":        "both",
 	})
 	if res.Status != tools.StatusOK {
-		return DiagnoseSummary{}, nil, fmt.Errorf("diagnose 失败：%s", res.Summary)
+		return DiagnoseSummary{}, nil, nil, nil, fmt.Errorf("diagnose 失败：%s", res.Summary)
 	}
 	bars, _ := res.Data["bars"].([]any)
 	buyMerged, _ := res.Data["buy_merged"].([]any)
@@ -48,11 +49,33 @@ func runDiagnose(
 			sellMerged, _ = probe.Data["sell_merged"].([]any)
 		}
 	}
-	buyHits := hitCount(res.Data, "buy_hits", buyMerged, 1)
-	sellHits := hitCount(res.Data, "sell_hits", sellMerged, -1)
+	summary, pf, pstats := finishDiagnoseFromMerged(bars, freq, buyMerged, sellMerged, regime, res.Data, usePriceFilter)
+	return summary, pf, pstats, res.Data, nil
+}
+
+func finishDiagnoseFromMerged(
+	bars []any,
+	freq string,
+	buyMerged, sellMerged []any,
+	regime string,
+	rawData map[string]any,
+	usePriceFilter bool,
+) (DiagnoseSummary, *PriceFilterResult, *EpisodeTriggerFilterStats) {
+	var pf *PriceFilterResult
+	var pstats *EpisodeTriggerFilterStats
+	if usePriceFilter && len(bars) > 0 {
+		var stats EpisodeTriggerFilterStats
+		var pfVal PriceFilterResult
+		buyMerged, sellMerged, pfVal, stats = ApplyPriceAnalysisEpisodeFilter(bars, freq, buyMerged, sellMerged)
+		pf = &pfVal
+		pstats = &stats
+	}
+	buyHits := hitCount(nil, "buy_hits", buyMerged, 1)
+	sellHits := hitCount(nil, "sell_hits", sellMerged, -1)
+	_ = rawData
 	eval := slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
 	summary := summarizeEval(eval, regime, buyHits, sellHits)
-	return summary, res.Data, nil
+	return summary, pf, pstats
 }
 
 func coalesceSellSignal(sell Candidate) []any {

@@ -63,11 +63,14 @@ type StrategyDevOpts struct {
 	Code       string `json:"code,omitempty"`
 	Frequency  string `json:"frequency,omitempty"`
 	MonthsBack int    `json:"months_back,omitempty"`
+	UsePriceAnalysisEpisodeFilter *bool `json:"use_price_analysis_episode_filter,omitempty"`
 }
 
 // SignalDiagnoseOpts configures optional signal_diagnose workflow behavior for one turn.
 type SignalDiagnoseOpts struct {
 	UseKeyLevelEpisodeStop bool   `json:"use_key_level_episode_stop"`
+	// UsePriceAnalysisEpisodeFilter nil = default on in chat flow.
+	UsePriceAnalysisEpisodeFilter *bool `json:"use_price_analysis_episode_filter,omitempty"`
 	KeyBreakMode           string `json:"key_break_mode,omitempty"` // legacy; prefer key_break_buy_ref / key_break_sell_ref
 	KeyBreakBuyRef         string `json:"key_break_buy_ref,omitempty"`
 	KeyBreakSellRef        string `json:"key_break_sell_ref,omitempty"`

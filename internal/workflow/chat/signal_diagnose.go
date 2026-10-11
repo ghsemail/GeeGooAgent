@@ -10,6 +10,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
 var signalDiagnoseMessagePattern = regexp.MustCompile(`(?i)^(?:信号诊断|诊断)\s*(.+?)(?:\s*[·\.]\s*(.+))?$`)
@@ -41,6 +42,7 @@ func newSignalDiagnoseFlow(userText string) *Flow {
 		StrategyQuery: strategy,
 		StockQuery:    stock,
 		MonthsBack:    defaultMonthsBack,
+		UsePriceAnalysisEpisodeFilter: true,
 		TriggerText:   strings.TrimSpace(userText),
 		CreatedAt:     now,
 		UpdatedAt:     now,
@@ -343,6 +345,19 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(_ context.Context, flow *Flow) erro
 	} else {
 		if len(sellMerged) == 0 {
 			sellMerged = make([]any, len(bars))
+		}
+		freq := "60m"
+		if len(flow.Strategies) > 0 && strings.TrimSpace(flow.Strategies[0].Frequency) != "" {
+			freq = flow.Strategies[0].Frequency
+		}
+		if flow.UsePriceAnalysisEpisodeFilter {
+			var pfVal strategydev.PriceFilterResult
+			var stats strategydev.EpisodeTriggerFilterStats
+			buyMerged, sellMerged, pfVal, stats = strategydev.ApplyPriceAnalysisEpisodeFilter(bars, freq, buyMerged, sellMerged)
+			cp := pfVal
+			flow.PriceFilter = &cp
+			st := stats
+			flow.PriceEpisodeFilterStats = &st
 		}
 		var stop *slots.KeyLevelEpisodeStop
 		if flow.UseKeyLevelEpisodeStop {

@@ -22,6 +22,9 @@ func ApplyPendingStrategyDevOpts(session *runtime.Session, flow *Flow) {
 	if o.MonthsBack > 0 {
 		flow.MonthsBack = o.MonthsBack
 	}
+	if o.UsePriceAnalysisEpisodeFilter != nil {
+		flow.UsePriceAnalysisEpisodeFilter = *o.UsePriceAnalysisEpisodeFilter
+	}
 	session.PendingStrategyDevOpts = nil
 }
 
@@ -46,7 +49,10 @@ func ParseStrategyDevOptsFromWorkflowOptions(raw map[string]any) *runtime.Strate
 	} else if v, ok := block["months_back"].(int); ok && v > 0 {
 		out.MonthsBack = v
 	}
-	if out.Code == "" && out.Frequency == "" && out.MonthsBack == 0 {
+	if v, ok := block["use_price_analysis_episode_filter"].(bool); ok {
+		out.UsePriceAnalysisEpisodeFilter = &v
+	}
+	if out.Code == "" && out.Frequency == "" && out.MonthsBack == 0 && out.UsePriceAnalysisEpisodeFilter == nil {
 		return nil
 	}
 	return out

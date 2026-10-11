@@ -33,6 +33,7 @@ func newStrategyDevPipelineFlow(userText string, opts *runtime.StrategyDevOpts) 
 		StockCode:    code,
 		ProbeFrequencyOverride: freq,
 		MonthsBack:   months,
+		UsePriceAnalysisEpisodeFilter: true,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -89,8 +90,14 @@ func (r *Runner) advanceStrategyDevPipeline(
 	runTool := func(c context.Context, name string, args map[string]any) tools.Result {
 		return r.runTool(c, toolCtx, name, args, recordTool)
 	}
+	var usePriceFilter *bool
+	if !flow.UsePriceAnalysisEpisodeFilter {
+		v := false
+		usePriceFilter = &v
+	}
 	res, err := strategydev.Run(ctx, strategydev.Input{
 		Code: code, Frequency: freq, MonthsBack: flow.MonthsBack,
+		UsePriceAnalysisEpisodeFilter: usePriceFilter,
 	}, strategydev.Deps{Run: runTool, Jev: jev})
 	if err != nil {
 		return err
@@ -128,6 +135,13 @@ func renderStrategyDevPipelineReport(flow *Flow) string {
 	}
 	if r.BuyFallbackNote != "" {
 		fmt.Fprintf(&b, "| 平空买入 | %s |\n", r.BuyFallbackNote)
+	}
+	if r.PriceFilter != nil {
+		line := strategydev.FormatPriceFilterNote(*r.PriceFilter)
+		if st := r.PriceEpisodeFilterStats; st != nil && (st.StrippedBuy > 0 || st.StrippedSell > 0) {
+			line += fmt.Sprintf(" · 剔除触发 买 %d / 卖 %d", st.StrippedBuy, st.StrippedSell)
+		}
+		fmt.Fprintf(&b, "| 5 诊断（价格过滤） | %s |\n", line)
 	}
 	fmt.Fprintf(&b, "| 5 诊断 | 买 %d / 卖 %d · 完成 %d 段 · 命中率 %.0f%% · 平均方向收益 %.2f%% · 累计 %.2f%% |\n",
 		r.Diagnose.BuyHits, r.Diagnose.SellHits, r.Diagnose.CompleteSegs,

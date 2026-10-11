@@ -9,6 +9,8 @@ type Input struct {
 	Frequency   string
 	MonthsBack  int // analysis window, capped at 6 months
 	MonthsBackH int // optional longer window hint for step 6 (Jev only)
+	// UsePriceAnalysisEpisodeFilter nil = default on (mask disallowed buy/sell triggers before episode eval).
+	UsePriceAnalysisEpisodeFilter *bool
 }
 
 // Result is the workflow output after all applicable steps.
@@ -38,6 +40,9 @@ type Result struct {
 	FinalVerdict string `json:"final_verdict"` // 通过 | 换一对 | 拉长窗口
 	VerdictReason string `json:"verdict_reason,omitempty"`
 	JevVerdict    string `json:"jev_verdict,omitempty"`
+
+	PriceFilter *PriceFilterResult `json:"price_filter,omitempty"`
+	PriceEpisodeFilterStats *EpisodeTriggerFilterStats `json:"price_episode_filter_stats,omitempty"`
 }
 
 // Candidate is one catalog strategy eligible for Jev selection.

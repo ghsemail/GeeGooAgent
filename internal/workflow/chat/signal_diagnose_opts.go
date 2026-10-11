@@ -25,6 +25,9 @@ func ApplyPendingSignalDiagnoseOpts(session *runtime.Session, flow *Flow) {
 	}
 	o := session.PendingSignalDiagnoseOpts
 	flow.UseKeyLevelEpisodeStop = o.UseKeyLevelEpisodeStop
+	if o.UsePriceAnalysisEpisodeFilter != nil {
+		flow.UsePriceAnalysisEpisodeFilter = *o.UsePriceAnalysisEpisodeFilter
+	}
 	flow.KeyBreakMode = normalizeKeyBreakMode(o.KeyBreakMode)
 	flow.KeyBreakBuyRef = normalizeKeyBreakRef(o.KeyBreakBuyRef, defaultBuyBreakRef(o.KeyBreakMode))
 	flow.KeyBreakSellRef = normalizeKeyBreakRef(o.KeyBreakSellRef, defaultSellBreakRef(o.KeyBreakMode))
@@ -58,6 +61,9 @@ func ParseSignalDiagnoseOptsFromWorkflowOptions(raw map[string]any) *runtime.Sig
 	out := &runtime.SignalDiagnoseOpts{}
 	if v, ok := block["use_key_level_episode_stop"].(bool); ok {
 		out.UseKeyLevelEpisodeStop = v
+	}
+	if v, ok := block["use_price_analysis_episode_filter"].(bool); ok {
+		out.UsePriceAnalysisEpisodeFilter = &v
 	}
 	if s, ok := block["key_break_mode"].(string); ok {
 		out.KeyBreakMode = normalizeKeyBreakMode(s)
