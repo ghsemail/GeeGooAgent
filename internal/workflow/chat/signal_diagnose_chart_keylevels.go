@@ -2,6 +2,15 @@ package chat
 
 import "strings"
 
+const (
+	keyBreakRefSupportLow    = "support_low"
+	keyBreakRefSupportHigh   = "support_high"
+	keyBreakRefSupportCenter = "support_center"
+	keyBreakRefResistLow     = "resist_low"
+	keyBreakRefResistHigh    = "resist_high"
+	keyBreakRefResistCenter  = "resist_center"
+)
+
 func keyLevelSnapshotToMap(kl KeyLevelSnapshot) map[string]any {
 	if kl.SupportLow <= 0 && kl.ResistHigh <= 0 && kl.SupportHigh <= 0 {
 		return nil
@@ -53,17 +62,17 @@ func keyBreakRefPrice(flow *Flow, epEndIdx int, strictEndReason string) float64 
 	}
 	kl := flow.KeyLevels
 	switch field {
-	case KeyBreakRefSupportLow:
+	case keyBreakRefSupportLow:
 		return kl.SupportLow
-	case KeyBreakRefSupportHigh:
+	case keyBreakRefSupportHigh:
 		return kl.SupportHigh
-	case KeyBreakRefSupportCenter:
+	case keyBreakRefSupportCenter:
 		return kl.SupportCenter
-	case KeyBreakRefResistLow:
+	case keyBreakRefResistLow:
 		return kl.ResistLow
-	case KeyBreakRefResistHigh:
+	case keyBreakRefResistHigh:
 		return kl.ResistHigh
-	case KeyBreakRefResistCenter:
+	case keyBreakRefResistCenter:
 		return kl.ResistCenter
 	}
 	return 0
@@ -75,17 +84,17 @@ func seriesFloatAt(s *KeyLevelBarSeries, idx int, field string) float64 {
 	}
 	var src []float64
 	switch field {
-	case KeyBreakRefSupportLow:
+	case keyBreakRefSupportLow:
 		src = s.SupportLow
-	case KeyBreakRefSupportHigh:
+	case keyBreakRefSupportHigh:
 		src = s.SupportHigh
-	case KeyBreakRefSupportCenter:
+	case keyBreakRefSupportCenter:
 		src = s.SupportCenter
-	case KeyBreakRefResistLow:
+	case keyBreakRefResistLow:
 		src = s.ResistLow
-	case KeyBreakRefResistHigh:
+	case keyBreakRefResistHigh:
 		src = s.ResistHigh
-	case KeyBreakRefResistCenter:
+	case keyBreakRefResistCenter:
 		src = s.ResistCenter
 	default:
 		return 0

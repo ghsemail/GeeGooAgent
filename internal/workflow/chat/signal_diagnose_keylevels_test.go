@@ -16,7 +16,7 @@ func TestKeyLevelSnapshotFromProbeDataFlat(t *testing.T) {
 	if kl.SupportLow != 50 || kl.ResistHigh != 110 || kl.Summary != "probe snapshot" {
 		t.Fatalf("kl=%+v", kl)
 	}
-	if !keyLevelSnapshotUsableForEpisodeStop(kl) {
+	if !keyLevelSnapshotUsableForChart(kl) {
 		t.Fatal("expected usable")
 	}
 }
@@ -60,10 +60,6 @@ func TestSignalDiagnoseProbeSkipsGetKeyLevelsWhenEmbedded(t *testing.T) {
 		return signalDiagnoseTestRunner(t).RunTool(ctx, req, tc)
 	}
 	session := runtime.NewSession()
-	session.PendingSignalDiagnoseOpts = &runtime.SignalDiagnoseOpts{
-		UseKeyLevelEpisodeStop: true,
-		KeyBreakMode:           KeyBreakModeSupportLow,
-	}
 	result, handled := runner.RunTurn(context.Background(), session, "诊断 SAR 策略 · 腾讯", tools.Context{}, 8)
 	if !handled || result.Failed {
 		t.Fatalf("handled=%v failed=%v err=%s", handled, result.Failed, result.Error)
@@ -99,10 +95,6 @@ func TestSignalDiagnoseProbeFallsBackGetKeyLevels(t *testing.T) {
 		return signalDiagnoseTestRunner(t).RunTool(ctx, req, tc)
 	}
 	session := runtime.NewSession()
-	session.PendingSignalDiagnoseOpts = &runtime.SignalDiagnoseOpts{
-		UseKeyLevelEpisodeStop: true,
-		KeyBreakMode:           KeyBreakModeSupportLow,
-	}
 	_, handled := runner.RunTurn(context.Background(), session, "诊断 SAR 策略 · 腾讯", tools.Context{}, 8)
 	if !handled {
 		t.Fatal("expected handled")

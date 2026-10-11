@@ -107,13 +107,9 @@ type Flow struct {
 	DiagnoseRaw         map[string]any `json:"diagnose_raw,omitempty"`
 	ProbeRaw            map[string]any `json:"probe_raw,omitempty"`
 	SignalEval          slots.SignalEpisodeEval `json:"signal_eval,omitempty"`
-	UseKeyLevelEpisodeStop bool           `json:"use_key_level_episode_stop,omitempty"`
 	UsePriceAnalysisEpisodeFilter bool   `json:"use_price_analysis_episode_filter,omitempty"`
 	PriceFilter            *strategydev.PriceFilterResult         `json:"price_filter,omitempty"`
 	PriceEpisodeFilterStats *strategydev.EpisodeTriggerFilterStats `json:"price_episode_filter_stats,omitempty"`
-	KeyBreakMode           string         `json:"key_break_mode,omitempty"`
-	KeyBreakBuyRef         string         `json:"key_break_buy_ref,omitempty"`
-	KeyBreakSellRef        string         `json:"key_break_sell_ref,omitempty"`
 	ProbeBuyOverride       []any          `json:"probe_buy_override,omitempty"`
 	ProbeSellOverride      []any          `json:"probe_sell_override,omitempty"`
 	ProbeFrequencyOverride string         `json:"probe_frequency_override,omitempty"`

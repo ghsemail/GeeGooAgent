@@ -16,8 +16,6 @@ MESSAGE = (
 PASS_KEYWORDS = ["Episode", "命中", "SAR", "腾讯"]
 WORKFLOW_OPTIONS = {
     "signal_diagnose": {
-        "use_key_level_episode_stop": True,
-        "key_break_mode": "resist_high",
         "panel_strategy_label": "买:SAR · 卖:SAR",
         "frequency": "60m",
         "months_back": 3,

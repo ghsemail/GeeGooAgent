@@ -209,16 +209,6 @@ func renderSignalDiagnoseFacts(flow *Flow) string {
 		fmt.Fprintf(&b, "（%d 根 K 线）", flow.ProbeBarCount)
 	}
 	fmt.Fprintf(&b, " |\n")
-	if flow.UseKeyLevelEpisodeStop {
-		note := "开启 · 买段跌破支撑 low / 卖段突破阻力 high 提前结束 Strict"
-		if kl := flow.KeyLevels; kl.SupportLow > 0 || kl.ResistHigh > 0 {
-			note = fmt.Sprintf("%s（支撑 %.2f~%.2f · 阻力 %.2f~%.2f）",
-				note, kl.SupportLow, kl.SupportHigh, kl.ResistLow, kl.ResistHigh)
-		}
-		fmt.Fprintf(&b, "| 结构截断 Episode | %s |\n", note)
-	} else {
-		fmt.Fprintf(&b, "| 结构截断 Episode | 关闭（仅至反向信号） |\n")
-	}
 	if flow.UsePriceAnalysisEpisodeFilter {
 		note := "开启"
 		if pf := flow.PriceFilter; pf != nil {

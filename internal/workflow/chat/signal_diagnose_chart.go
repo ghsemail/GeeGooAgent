@@ -27,10 +27,6 @@ func chartProbePayload(flow *Flow) map[string]any {
 	if ser := keyLevelBarSeriesToMap(flow.KeyLevelSeries); ser != nil {
 		out["key_levels_series"] = ser
 	}
-	if flow.UseKeyLevelEpisodeStop {
-		out["key_break_buy_ref"] = normalizeKeyBreakRef(flow.KeyBreakBuyRef, defaultBuyBreakRef(flow.KeyBreakMode))
-		out["key_break_sell_ref"] = normalizeKeyBreakRef(flow.KeyBreakSellRef, defaultSellBreakRef(flow.KeyBreakMode))
-	}
 	if len(flow.SignalEval.BuyDetails) > 0 || len(flow.SignalEval.SellDetails) > 0 {
 		out["episodes"] = episodeOverlayPayload(flow, flow.SignalEval)
 	}

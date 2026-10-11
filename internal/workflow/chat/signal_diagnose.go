@@ -274,11 +274,9 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 		"sell_signal": sig.Sell,
 		"months_back": months,
 	}
-	if flow.UseKeyLevelEpisodeStop {
-		probeArgs["include_key_levels"] = true
-		probeArgs["key_levels_mode"] = "series"
-		probeArgs["key_levels_align"] = "daily"
-	}
+	probeArgs["include_key_levels"] = true
+	probeArgs["key_levels_mode"] = "series"
+	probeArgs["key_levels_align"] = "daily"
 	res := r.runTool(ctx, toolCtx, "probe_bot_signal_series", probeArgs, recordTool)
 	if res.Status != tools.StatusOK {
 		return fmt.Errorf("probe 失败：%s", res.Summary)
@@ -308,29 +306,25 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 		"buy_merged":  res.Data["buy_merged"],
 		"sell_merged": res.Data["sell_merged"],
 	}
-	if flow.UseKeyLevelEpisodeStop {
-		if serRaw := res.Data["key_levels_series"]; serRaw != nil {
-			flow.KeyLevelSeries = keyLevelBarSeriesFromProbeData(serRaw)
+	if serRaw := res.Data["key_levels_series"]; serRaw != nil {
+		flow.KeyLevelSeries = keyLevelBarSeriesFromProbeData(serRaw)
+	}
+	if klRaw := res.Data["key_levels"]; klRaw != nil {
+		flow.KeyLevels = keyLevelSnapshotFromProbeData(klRaw)
+	} else if flow.KeyLevelSeries != nil && len(flow.KeyLevelSeries.SupportLow) > 0 {
+		i := len(flow.KeyLevelSeries.SupportLow) - 1
+		flow.KeyLevels = KeyLevelSnapshot{
+			SupportLow:   flow.KeyLevelSeries.SupportLow[i],
+			SupportHigh:  sliceAt(flow.KeyLevelSeries.SupportHigh, i),
+			ResistHigh:   sliceAt(flow.KeyLevelSeries.ResistHigh, i),
+			ResistLow:    sliceAt(flow.KeyLevelSeries.ResistLow, i),
+			ResistCenter: sliceAt(flow.KeyLevelSeries.ResistCenter, i),
 		}
-		if klRaw := res.Data["key_levels"]; klRaw != nil {
-			flow.KeyLevels = keyLevelSnapshotFromProbeData(klRaw)
-		} else if flow.KeyLevelSeries != nil && len(flow.KeyLevelSeries.SupportLow) > 0 {
-			i := len(flow.KeyLevelSeries.SupportLow) - 1
-			flow.KeyLevels = KeyLevelSnapshot{
-				SupportLow:   flow.KeyLevelSeries.SupportLow[i],
-				SupportHigh:  sliceAt(flow.KeyLevelSeries.SupportHigh, i),
-				ResistHigh:   sliceAt(flow.KeyLevelSeries.ResistHigh, i),
-				ResistLow:    sliceAt(flow.KeyLevelSeries.ResistLow, i),
-				ResistCenter: sliceAt(flow.KeyLevelSeries.ResistCenter, i),
-			}
-		}
-		if keyLevelSnapshotUsableForEpisodeStop(flow.KeyLevels) || flow.KeyLevelSeries != nil {
-			flow.Phase = PhaseEvaluateAccuracy
-		} else {
-			flow.Phase = PhaseFetchKeyLevels
-		}
-	} else {
+	}
+	if keyLevelSnapshotUsableForChart(flow.KeyLevels) || flow.KeyLevelSeries != nil {
 		flow.Phase = PhaseEvaluateAccuracy
+	} else {
+		flow.Phase = PhaseFetchKeyLevels
 	}
 	flow.touch()
 	return nil
@@ -359,19 +353,7 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(_ context.Context, flow *Flow) erro
 			st := stats
 			flow.PriceEpisodeFilterStats = &st
 		}
-		var stop *slots.KeyLevelEpisodeStop
-		if flow.UseKeyLevelEpisodeStop {
-			buyRef := flow.KeyBreakBuyRef
-			sellRef := flow.KeyBreakSellRef
-			if buyRef == "" {
-				buyRef = defaultBuyBreakRef(flow.KeyBreakMode)
-			}
-			if sellRef == "" {
-				sellRef = defaultSellBreakRef(flow.KeyBreakMode)
-			}
-			stop = flow.KeyLevels.episodeStop(flow.KeyBreakMode, buyRef, sellRef, flow.KeyLevelSeries)
-		}
-		flow.SignalEval = slots.EvaluateSignalEpisodesWithKeyStop(bars, buyMerged, sellMerged, stop)
+		flow.SignalEval = slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
 		if flow.PriceEpisodeFilterStats != nil {
 			strategydev.EnrichEpisodeFilterStatsPostEval(flow.PriceEpisodeFilterStats, flow.SignalEval)
 		}

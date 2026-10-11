@@ -5,8 +5,8 @@ import "testing"
 func TestParseSignalDiagnoseOptsProbeOverrides(t *testing.T) {
 	raw := map[string]any{
 		"signal_diagnose": map[string]any{
-			"use_key_level_episode_stop": true,
-			"frequency":                  "60m",
+			"use_price_analysis_episode_filter": true,
+			"frequency":                         "60m",
 			"months_back":                3,
 			"buy_signal": []any{
 				map[string]any{"index": "SAR", "type": "signal"},
@@ -20,8 +20,8 @@ func TestParseSignalDiagnoseOptsProbeOverrides(t *testing.T) {
 	if o == nil {
 		t.Fatal("nil opts")
 	}
-	if !o.UseKeyLevelEpisodeStop {
-		t.Fatal("episode stop")
+	if o.UsePriceAnalysisEpisodeFilter == nil || !*o.UsePriceAnalysisEpisodeFilter {
+		t.Fatal("price filter")
 	}
 	if o.Frequency != "60m" || o.MonthsBack != 3 {
 		t.Fatalf("freq/months=%q %d", o.Frequency, o.MonthsBack)

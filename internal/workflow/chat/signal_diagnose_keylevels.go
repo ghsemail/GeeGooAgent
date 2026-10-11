@@ -64,7 +64,7 @@ func keyLevelSnapshotFromProbeData(raw any) KeyLevelSnapshot {
 	}
 }
 
-func keyLevelSnapshotUsableForEpisodeStop(kl KeyLevelSnapshot) bool {
+func keyLevelSnapshotUsableForChart(kl KeyLevelSnapshot) bool {
 	return kl.SupportLow > 0 || kl.ResistHigh > 0
 }
 
@@ -100,35 +100,6 @@ func floatMap(m map[string]any, key string) float64 {
 	return slots.FloatAny(m[key])
 }
 
-func (kl KeyLevelSnapshot) episodeStop(mode, buyRef, sellRef string, series *KeyLevelBarSeries) *slots.KeyLevelEpisodeStop {
-	if kl.SupportLow <= 0 && kl.ResistHigh <= 0 && series == nil {
-		return nil
-	}
-	stop := &slots.KeyLevelEpisodeStop{
-		SupportLow:    kl.SupportLow,
-		SupportHigh:   kl.SupportHigh,
-		SupportCenter: kl.SupportCenter,
-		ResistLow:     kl.ResistLow,
-		ResistHigh:    kl.ResistHigh,
-		ResistCenter:  kl.ResistCenter,
-		Mode:          normalizeKeyBreakMode(mode),
-		BuyBreakRef:  normalizeKeyBreakRef(buyRef, defaultBuyBreakRef(mode)),
-		SellBreakRef: normalizeKeyBreakRef(sellRef, defaultSellBreakRef(mode)),
-	}
-	if series != nil {
-		stop.SupportLowSeries = series.SupportLow
-		stop.SupportHighSeries = series.SupportHigh
-		stop.SupportCenterSeries = series.SupportCenter
-		stop.ResistLowSeries = series.ResistLow
-		stop.ResistHighSeries = series.ResistHigh
-		stop.ResistCenterSeries = series.ResistCenter
-	}
-	if !stop.HasLevels() {
-		return nil
-	}
-	return stop
-}
-
 func (r *Runner) phaseSignalDiagnoseFetchKeyLevels(
 	ctx context.Context,
 	flow *Flow,
@@ -140,7 +111,7 @@ func (r *Runner) phaseSignalDiagnoseFetchKeyLevels(
 		flow.touch()
 		return nil
 	}
-	if keyLevelSnapshotUsableForEpisodeStop(flow.KeyLevels) {
+	if keyLevelSnapshotUsableForChart(flow.KeyLevels) {
 		flow.Phase = PhaseEvaluateAccuracy
 		flow.touch()
 		return nil

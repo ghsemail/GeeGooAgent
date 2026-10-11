@@ -155,8 +155,6 @@ func TestEvalWorkflowSignalDiagnoseComposedPanelNoClarify(t *testing.T) {
 	msg := "信号诊断：帮我用 SAR 信号作为买入信号，用 SAR 信号作为卖出信号，开启阻力支撑熔断，测试一下腾讯控股（00700.HK）。"
 	session := runtime.NewSession()
 	session.PendingSignalDiagnoseOpts = &runtime.SignalDiagnoseOpts{
-		UseKeyLevelEpisodeStop: true,
-		KeyBreakMode:           KeyBreakModeResistHigh,
 		PanelStrategyLabel:     "买:SAR · 卖:SAR",
 		Frequency:              "60m",
 		MonthsBack:             3,

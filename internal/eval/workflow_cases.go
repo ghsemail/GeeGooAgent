@@ -94,9 +94,7 @@ func IndividualWorkflowEvalCases() []TurnPlanEvalCaseDef {
 				WaitTimeoutSec: 300,
 				WorkflowOptions: map[string]any{
 					"signal_diagnose": map[string]any{
-						"use_key_level_episode_stop": true,
-						"key_break_mode":             "resist_high",
-						"panel_strategy_label":       "买:SAR · 卖:SAR",
+						"panel_strategy_label": "买:SAR · 卖:SAR",
 						"frequency":                  "60m",
 						"months_back":                3,
 						"buy_signal": []any{

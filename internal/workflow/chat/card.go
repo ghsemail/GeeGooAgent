@@ -63,7 +63,6 @@ func CardPayload(flow *Flow) map[string]any {
 		if flow.SignalEval.Method != "" {
 			out["signal_eval"] = flow.SignalEval
 		}
-		out["use_key_level_episode_stop"] = flow.UseKeyLevelEpisodeStop
 		out["use_price_analysis_episode_filter"] = flow.UsePriceAnalysisEpisodeFilter
 		if flow.PriceFilter != nil {
 			out["price_filter"] = flow.PriceFilter
@@ -77,8 +76,6 @@ func CardPayload(flow *Flow) map[string]any {
 		if ser := keyLevelBarSeriesToMap(flow.KeyLevelSeries); ser != nil {
 			out["key_level_series"] = ser
 		}
-		out["key_break_buy_ref"] = flow.KeyBreakBuyRef
-		out["key_break_sell_ref"] = flow.KeyBreakSellRef
 	}
 	return out
 }
