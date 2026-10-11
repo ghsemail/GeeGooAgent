@@ -16,9 +16,9 @@ func runDiagnose(
 	buy, sell *Candidate,
 	regime string,
 	usePriceFilter bool,
-) (DiagnoseSummary, *PriceFilterResult, *EpisodeTriggerFilterStats, map[string]any, error) {
+) (DiagnoseSummary, *PriceFilterResult, *EpisodeTriggerFilterStats, *PriceAnalysis, map[string]any, error) {
 	if buy == nil || sell == nil || isNoSignalRules(buy.Buy) {
-		return DiagnoseSummary{}, nil, nil, nil, fmt.Errorf("买入策略无效")
+		return DiagnoseSummary{}, nil, nil, nil, nil, fmt.Errorf("买入策略无效")
 	}
 	if isNoSignalRules(sell.Sell) && len(sell.Buy) > 0 {
 		sell.Sell = sell.Buy
@@ -32,7 +32,7 @@ func runDiagnose(
 		"side":        "both",
 	})
 	if res.Status != tools.StatusOK {
-		return DiagnoseSummary{}, nil, nil, nil, fmt.Errorf("diagnose 失败：%s", res.Summary)
+		return DiagnoseSummary{}, nil, nil, nil, nil, fmt.Errorf("diagnose 失败：%s", res.Summary)
 	}
 	bars, _ := res.Data["bars"].([]any)
 	buyMerged, _ := res.Data["buy_merged"].([]any)
@@ -50,7 +50,14 @@ func runDiagnose(
 		}
 	}
 	summary, pf, pstats := finishDiagnoseFromMerged(bars, freq, buyMerged, sellMerged, regime, res.Data, usePriceFilter)
-	return summary, pf, pstats, res.Data, nil
+	var pa *PriceAnalysis
+	if len(bars) > 0 {
+		spot := slots.FloatAny(lastBarField(bars, "close"))
+		kl := KeyLevelBandsFromProbeData(res.Data)
+		built := BuildRunPriceAnalysis(ctx, run, code, months, spot, kl, freq)
+		pa = &built
+	}
+	return summary, pf, pstats, pa, res.Data, nil
 }
 
 func finishDiagnoseFromMerged(
@@ -128,6 +135,34 @@ func summarizeEval(eval slots.SignalEpisodeEval, regime string, buyHits, sellHit
 		CumPoints:    cum * 100,
 		PrimarySide:  primarySide,
 		Eval:         eval,
+	}
+}
+
+func lastBarField(bars []any, key string) any {
+	if len(bars) == 0 {
+		return nil
+	}
+	if row, ok := bars[len(bars)-1].(map[string]any); ok {
+		return row[key]
+	}
+	return nil
+}
+
+// KeyLevelBandsFromProbeData reads support/resistance from probe/diagnose payload.
+func KeyLevelBandsFromProbeData(data map[string]any) KeyLevelBands {
+	if data == nil {
+		return KeyLevelBands{}
+	}
+	raw := data["key_levels"]
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return KeyLevelBands{}
+	}
+	return KeyLevelBands{
+		SupportLow:  slots.FloatAny(m["support_low"]),
+		SupportHigh: slots.FloatAny(m["support_high"]),
+		ResistLow:   slots.FloatAny(m["resist_low"]),
+		ResistHigh:  slots.FloatAny(m["resist_high"]),
 	}
 }
 

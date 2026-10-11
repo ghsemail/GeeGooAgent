@@ -363,6 +363,14 @@ type StrippedEpisodeTrigger struct {
 	Close float64 `json:"close"`
 }
 
+// EpisodeTriggerRecord is one buy/sell trigger before masking (Masked=true if removed by gate).
+type EpisodeTriggerRecord struct {
+	Index  int     `json:"index,omitempty"`
+	Time   string  `json:"time"`
+	Close  float64 `json:"close"`
+	Masked bool    `json:"masked,omitempty"`
+}
+
 // EpisodeTriggerFilterStats counts triggers removed by the price gate and lists stripped bars.
 type EpisodeTriggerFilterStats struct {
 	PreFilterBuyHits  int `json:"pre_filter_buy_hits"`
@@ -377,6 +385,8 @@ type EpisodeTriggerFilterStats struct {
 	PostFilterSellEpisodesComplete int `json:"post_filter_sell_episodes_complete,omitempty"`
 	StrippedBuyTriggers  []StrippedEpisodeTrigger `json:"stripped_buy_triggers,omitempty"`
 	StrippedSellTriggers []StrippedEpisodeTrigger `json:"stripped_sell_triggers,omitempty"`
+	BuyTriggers          []EpisodeTriggerRecord   `json:"buy_triggers,omitempty"`
+	SellTriggers         []EpisodeTriggerRecord   `json:"sell_triggers,omitempty"`
 	InterceptionBasis    string                   `json:"interception_basis,omitempty"`
 }
 
@@ -401,6 +411,7 @@ func MaskEpisodeTriggers(bars []any, buyMerged, sellMerged []any, pf PriceFilter
 	}
 	stats.PreFilterBuyHits = countMergedSignal(buyMerged, 1)
 	stats.PreFilterSellHits = countMergedSignal(sellMerged, -1)
+	stats.BuyTriggers, stats.SellTriggers = collectPreFilterTriggers(bars, buyMerged, sellMerged)
 	n := len(buyMerged)
 	if len(sellMerged) > n {
 		n = len(sellMerged)
@@ -418,12 +429,16 @@ func MaskEpisodeTriggers(bars []any, buyMerged, sellMerged []any, pf PriceFilter
 		}
 		if bv == 1 && !pf.AllowLong {
 			stats.StrippedBuy++
-			stats.StrippedBuyTriggers = append(stats.StrippedBuyTriggers, triggerLedgerEntry(bars, i))
+			ent := triggerLedgerEntry(bars, i)
+			stats.StrippedBuyTriggers = append(stats.StrippedBuyTriggers, ent)
+			markTriggerMasked(&stats.BuyTriggers, i, true)
 			bv = 0
 		}
 		if sv == -1 && !pf.AllowShort {
 			stats.StrippedSell++
-			stats.StrippedSellTriggers = append(stats.StrippedSellTriggers, triggerLedgerEntry(bars, i))
+			ent := triggerLedgerEntry(bars, i)
+			stats.StrippedSellTriggers = append(stats.StrippedSellTriggers, ent)
+			markTriggerMasked(&stats.SellTriggers, i, true)
 			sv = 0
 		}
 		outBuy[i] = bv
@@ -434,6 +449,11 @@ func MaskEpisodeTriggers(bars []any, buyMerged, sellMerged []any, pf PriceFilter
 	return outBuy, outSell, stats
 }
 
+// CountMergedSignalHits counts merged marks equal to target (1 buy, -1 sell).
+func CountMergedSignalHits(merged []any, target int) int {
+	return countMergedSignal(merged, target)
+}
+
 func countMergedSignal(merged []any, target int) int {
 	n := 0
 	for _, raw := range merged {
@@ -442,6 +462,41 @@ func countMergedSignal(merged []any, target int) int {
 		}
 	}
 	return n
+}
+
+// CollectEpisodeTriggersFromMerged lists every buy/sell trigger bar (Masked=false).
+func CollectEpisodeTriggersFromMerged(bars []any, buyMerged, sellMerged []any) (buy, sell []EpisodeTriggerRecord) {
+	return collectPreFilterTriggers(bars, buyMerged, sellMerged)
+}
+
+func collectPreFilterTriggers(bars []any, buyMerged, sellMerged []any) (buy, sell []EpisodeTriggerRecord) {
+	n := len(buyMerged)
+	if len(sellMerged) > n {
+		n = len(sellMerged)
+	}
+	for i := 0; i < n; i++ {
+		if i < len(buyMerged) && int(slots.FloatAny(buyMerged[i])) == 1 {
+			ent := triggerLedgerEntry(bars, i)
+			buy = append(buy, EpisodeTriggerRecord{Index: ent.Index, Time: ent.Time, Close: ent.Close})
+		}
+		if i < len(sellMerged) && int(slots.FloatAny(sellMerged[i])) == -1 {
+			ent := triggerLedgerEntry(bars, i)
+			sell = append(sell, EpisodeTriggerRecord{Index: ent.Index, Time: ent.Time, Close: ent.Close})
+		}
+	}
+	return buy, sell
+}
+
+func markTriggerMasked(list *[]EpisodeTriggerRecord, idx int, masked bool) {
+	if list == nil {
+		return
+	}
+	for i := range *list {
+		if (*list)[i].Index == idx {
+			(*list)[i].Masked = masked
+			return
+		}
+	}
 }
 
 func triggerLedgerEntry(bars []any, i int) StrippedEpisodeTrigger {

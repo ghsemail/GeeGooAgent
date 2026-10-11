@@ -80,6 +80,14 @@ func TestMaskEpisodeTriggersStripsDisallowed(t *testing.T) {
 	if len(st.StrippedBuyTriggers) != 2 || len(st.StrippedSellTriggers) != 1 {
 		t.Fatalf("ledger buy=%d sell=%d", len(st.StrippedBuyTriggers), len(st.StrippedSellTriggers))
 	}
+	if len(st.BuyTriggers) != 2 || len(st.SellTriggers) != 1 {
+		t.Fatalf("all triggers buy=%d sell=%d", len(st.BuyTriggers), len(st.SellTriggers))
+	}
+	for _, tr := range st.BuyTriggers {
+		if !tr.Masked {
+			t.Fatal("buy should be masked")
+		}
+	}
 	if !strings.Contains(st.InterceptionBasis, "不明确") {
 		t.Fatalf("basis=%q", st.InterceptionBasis)
 	}

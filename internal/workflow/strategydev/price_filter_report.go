@@ -70,6 +70,22 @@ func AppendPriceEpisodeFilterMarkdown(b *strings.Builder, pf *PriceFilterResult,
 	fmt.Fprintf(b, "\n")
 	appendStrippedTriggerList(b, "被掩码剔除的买入触发", stats.StrippedBuyTriggers)
 	appendStrippedTriggerList(b, "被掩码剔除的卖出触发", stats.StrippedSellTriggers)
+	appendEpisodeTriggerRecords(b, "全部买入触发（含掩码）", stats.BuyTriggers)
+	appendEpisodeTriggerRecords(b, "全部卖出触发（含掩码）", stats.SellTriggers)
+}
+
+func appendEpisodeTriggerRecords(b *strings.Builder, title string, items []EpisodeTriggerRecord) {
+	if len(items) == 0 {
+		return
+	}
+	fmt.Fprintf(b, "\n**%s**（共 %d 个）：\n\n", title, len(items))
+	for i, tr := range items {
+		flag := ""
+		if tr.Masked {
+			flag = " · **已掩码**"
+		}
+		fmt.Fprintf(b, "%d. %s · 收盘 %.4f%s\n", i+1, tr.Time, tr.Close, flag)
+	}
 }
 
 func appendStrippedTriggerList(b *strings.Builder, title string, items []StrippedEpisodeTrigger) {

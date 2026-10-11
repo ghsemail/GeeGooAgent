@@ -43,6 +43,7 @@ type Result struct {
 
 	PriceFilter *PriceFilterResult `json:"price_filter,omitempty"`
 	PriceEpisodeFilterStats *EpisodeTriggerFilterStats `json:"price_episode_filter_stats,omitempty"`
+	PriceAnalysis           *PriceAnalysis             `json:"price_analysis,omitempty"`
 }
 
 // Candidate is one catalog strategy eligible for Jev selection.
