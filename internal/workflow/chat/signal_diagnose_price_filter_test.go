@@ -84,5 +84,4 @@ func TestParsePriceAnalysisEpisodeFilterOpt(t *testing.T) {
 	if flow.UsePriceAnalysisEpisodeFilter {
 		t.Fatal("pending opts should disable filter")
 	}
-	_ = strategydev.RegimeUp
 }
