@@ -8,6 +8,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
+	"github.com/ghsemail/GeeGooAgent/internal/tools"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
@@ -35,7 +36,7 @@ func TestSignalDiagnoseEvaluatePartialStripListsStrippedAndKeepsEpisodes(t *test
 		},
 	}
 	r := &Runner{}
-	if err := r.phaseSignalDiagnoseEvaluate(context.Background(), flow); err != nil {
+	if err := r.phaseSignalDiagnoseEvaluate(context.Background(), flow, tools.Context{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	st := flow.PriceEpisodeFilterStats
@@ -78,7 +79,7 @@ func TestSignalDiagnoseEvaluateAppliesPriceFilterWhenEnabled(t *testing.T) {
 		},
 	}
 	r := &Runner{}
-	if err := r.phaseSignalDiagnoseEvaluate(context.Background(), flow); err != nil {
+	if err := r.phaseSignalDiagnoseEvaluate(context.Background(), flow, tools.Context{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if flow.PriceFilter == nil {
@@ -105,7 +106,7 @@ func TestSignalDiagnoseEvaluateSkipsPriceFilterWhenDisabled(t *testing.T) {
 	}
 	before := slots.EvaluateSignalEpisodes(bars, buyM, sellM)
 	r := &Runner{}
-	if err := r.phaseSignalDiagnoseEvaluate(context.Background(), flow); err != nil {
+	if err := r.phaseSignalDiagnoseEvaluate(context.Background(), flow, tools.Context{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if flow.PriceFilter != nil {

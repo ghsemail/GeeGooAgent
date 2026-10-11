@@ -204,7 +204,7 @@ func (r *Runner) advanceSignalDiagnose(
 	case PhaseFetchKeyLevels:
 		return r.phaseSignalDiagnoseFetchKeyLevels(ctx, flow, toolCtx, recordTool)
 	case PhaseEvaluateAccuracy:
-		return r.phaseSignalDiagnoseEvaluate(ctx, flow)
+		return r.phaseSignalDiagnoseEvaluate(ctx, flow, toolCtx, recordTool)
 	case PhaseBuildDetail:
 		return r.phaseSignalDiagnoseBuildDetail(ctx, flow, toolCtx, recordTool)
 	case PhaseDiagCompose:
@@ -330,7 +330,12 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 	return nil
 }
 
-func (r *Runner) phaseSignalDiagnoseEvaluate(_ context.Context, flow *Flow) error {
+func (r *Runner) phaseSignalDiagnoseEvaluate(
+	ctx context.Context,
+	flow *Flow,
+	toolCtx tools.Context,
+	recordTool func(name, status, summary string),
+) error {
 	bars, _ := flow.ProbeRaw["bars"].([]any)
 	buyMerged, _ := flow.ProbeRaw["buy_merged"].([]any)
 	sellMerged, _ := flow.ProbeRaw["sell_merged"].([]any)
@@ -344,6 +349,7 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(_ context.Context, flow *Flow) erro
 		if len(flow.Strategies) > 0 && strings.TrimSpace(flow.Strategies[0].Frequency) != "" {
 			freq = flow.Strategies[0].Frequency
 		}
+		rawBuy, rawSell := buyMerged, sellMerged
 		if flow.UsePriceAnalysisEpisodeFilter {
 			var pfVal strategydev.PriceFilterResult
 			var stats strategydev.EpisodeTriggerFilterStats
@@ -352,11 +358,25 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(_ context.Context, flow *Flow) erro
 			flow.PriceFilter = &cp
 			st := stats
 			flow.PriceEpisodeFilterStats = &st
+		} else {
+			buyTr, sellTr := strategydev.CollectEpisodeTriggersFromMerged(bars, rawBuy, rawSell)
+			st := strategydev.EpisodeTriggerFilterStats{
+				PreFilterBuyHits:  strategydev.CountMergedSignalHits(rawBuy, 1),
+				PreFilterSellHits: strategydev.CountMergedSignalHits(rawSell, -1),
+				PostFilterBuyHits: strategydev.CountMergedSignalHits(rawBuy, 1),
+				PostFilterSellHits: strategydev.CountMergedSignalHits(rawSell, -1),
+				BuyTriggers:       buyTr,
+				SellTriggers:      sellTr,
+			}
+			flow.PriceEpisodeFilterStats = &st
 		}
 		flow.SignalEval = slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
 		if flow.PriceEpisodeFilterStats != nil {
 			strategydev.EnrichEpisodeFilterStatsPostEval(flow.PriceEpisodeFilterStats, flow.SignalEval)
 		}
+	}
+	if r != nil {
+		r.attachSignalDiagnosePriceAnalysis(ctx, flow, toolCtx, recordTool)
 	}
 	flow.Phase = PhaseBuildDetail
 	flow.touch()
@@ -386,6 +406,7 @@ func (r *Runner) phaseSignalDiagnoseBuildDetail(
 	if f := strings.TrimSpace(flow.ProbeFrequencyOverride); f != "" {
 		frequency = f
 	}
+	r.attachSignalDiagnosePriceAnalysis(ctx, flow, toolCtx, recordTool)
 	res := r.runTool(ctx, toolCtx, "diagnose_bot_signal_series", map[string]any{
 		"code":        flow.StockCode,
 		"frequency":   frequency,

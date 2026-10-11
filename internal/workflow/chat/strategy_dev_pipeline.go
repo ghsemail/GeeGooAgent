@@ -147,6 +147,9 @@ func renderStrategyDevPipelineReport(flow *Flow) string {
 		fmt.Fprintf(&b, "| 5 诊断（价格过滤） | %s |\n", line)
 		strategydev.AppendPriceEpisodeFilterMarkdown(&b, r.PriceFilter, r.PriceEpisodeFilterStats)
 	}
+	if r.PriceAnalysis != nil {
+		strategydev.AppendPriceAnalysisMarkdown(&b, r.PriceAnalysis)
+	}
 	fmt.Fprintf(&b, "| 5 诊断 | 买 %d / 卖 %d · 完成 %d 段 · 命中率 %.0f%% · 平均方向收益 %.2f%% · 累计 %.2f%% |\n",
 		r.Diagnose.BuyHits, r.Diagnose.SellHits, r.Diagnose.CompleteSegs,
 		r.Diagnose.HitRate*100, r.Diagnose.AvgDirection*100, r.Diagnose.CumPoints)

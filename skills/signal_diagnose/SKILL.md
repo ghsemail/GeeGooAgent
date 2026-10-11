@@ -33,6 +33,7 @@ trigger_modes: chat
 ## 价格分析 Episode 过滤（可选，默认开）
 
 - **Chat API**：`use_price_analysis_episode_filter`；在 `evaluate_accuracy` 阶段按纯价格结构剔除不允许方向的买/卖触发。
+- **workflow_card / 诊断 Markdown**：`price_analysis`（5m/60m/日线/周线表 + 支撑阻力 + 综合句）；`price_episode_filter_stats.buy_triggers` / `sell_triggers` 列出**全部**买/卖触发（`masked=true` 为掩码剔除），与 `stripped_*_triggers` 并存。
 
 ## 与 playbook 区别
 

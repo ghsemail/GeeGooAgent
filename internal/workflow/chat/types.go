@@ -110,6 +110,7 @@ type Flow struct {
 	UsePriceAnalysisEpisodeFilter bool   `json:"use_price_analysis_episode_filter,omitempty"`
 	PriceFilter            *strategydev.PriceFilterResult         `json:"price_filter,omitempty"`
 	PriceEpisodeFilterStats *strategydev.EpisodeTriggerFilterStats `json:"price_episode_filter_stats,omitempty"`
+	PriceAnalysis          *strategydev.PriceAnalysis             `json:"price_analysis,omitempty"`
 	ProbeBuyOverride       []any          `json:"probe_buy_override,omitempty"`
 	ProbeSellOverride      []any          `json:"probe_sell_override,omitempty"`
 	ProbeFrequencyOverride string         `json:"probe_frequency_override,omitempty"`

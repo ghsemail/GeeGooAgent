@@ -227,6 +227,7 @@ func renderSignalDiagnoseFacts(flow *Flow) string {
 	if flow.UsePriceAnalysisEpisodeFilter {
 		strategydev.AppendPriceEpisodeFilterMarkdown(&b, flow.PriceFilter, flow.PriceEpisodeFilterStats)
 	}
+	strategydev.AppendPriceAnalysisMarkdown(&b, flow.PriceAnalysis)
 	if flow.DiagnoseVerdict != "" {
 		fmt.Fprintf(&b, "| 诊断结论 | %s |\n", flow.DiagnoseVerdict)
 	}

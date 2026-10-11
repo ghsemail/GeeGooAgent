@@ -70,6 +70,9 @@ func CardPayload(flow *Flow) map[string]any {
 		if flow.PriceEpisodeFilterStats != nil {
 			out["price_episode_filter_stats"] = flow.PriceEpisodeFilterStats
 		}
+		if flow.PriceAnalysis != nil {
+			out["price_analysis"] = flow.PriceAnalysis
+		}
 		if kl := keyLevelSnapshotToMap(flow.KeyLevels); kl != nil {
 			out["key_levels"] = kl
 		}

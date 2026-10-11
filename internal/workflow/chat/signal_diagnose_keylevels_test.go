@@ -29,11 +29,13 @@ func TestSignalDiagnoseProbeSkipsGetKeyLevelsWhenEmbedded(t *testing.T) {
 			keyLevelCalls++
 		}
 		if req.Name == "probe_bot_signal_series" {
-			if v, _ := req.Arguments["include_key_levels"].(bool); !v {
-				t.Fatal("expected include_key_levels=true on probe")
-			}
-			if req.Arguments["key_levels_mode"] != "series" {
-				t.Fatalf("expected key_levels_mode=series got %v", req.Arguments["key_levels_mode"])
+			if !probeArgsArePriceAnalysisFetch(req.Arguments) {
+				if v, _ := req.Arguments["include_key_levels"].(bool); !v {
+					t.Fatal("expected include_key_levels=true on probe")
+				}
+				if req.Arguments["key_levels_mode"] != "series" {
+					t.Fatalf("expected key_levels_mode=series got %v", req.Arguments["key_levels_mode"])
+				}
 			}
 			res := signalDiagnoseTestRunner(t).RunTool(ctx, req, tc)
 			res.Data["key_levels"] = map[string]any{
