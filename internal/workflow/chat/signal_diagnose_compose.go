@@ -224,12 +224,18 @@ func renderSignalDiagnoseFacts(flow *Flow) string {
 		if pf := flow.PriceFilter; pf != nil {
 			note = strategydev.FormatPriceFilterNote(*pf)
 			if st := flow.PriceEpisodeFilterStats; st != nil && (st.StrippedBuy > 0 || st.StrippedSell > 0) {
-				note += fmt.Sprintf(" · 剔除触发 买 %d / 卖 %d", st.StrippedBuy, st.StrippedSell)
+				note += fmt.Sprintf(" · 过滤前 买 %d / 卖 %d · 剔除 买 %d / 卖 %d · 过滤后 买 %d / 卖 %d",
+					st.PreFilterBuyHits, st.PreFilterSellHits,
+					st.StrippedBuy, st.StrippedSell,
+					st.PostFilterBuyHits, st.PostFilterSellHits)
 			}
 		}
 		fmt.Fprintf(&b, "| 价格分析 Episode 过滤 | %s |\n", note)
 	} else {
 		fmt.Fprintf(&b, "| 价格分析 Episode 过滤 | 关闭 |\n")
+	}
+	if flow.UsePriceAnalysisEpisodeFilter {
+		strategydev.AppendPriceEpisodeFilterMarkdown(&b, flow.PriceFilter, flow.PriceEpisodeFilterStats)
 	}
 	if flow.DiagnoseVerdict != "" {
 		fmt.Fprintf(&b, "| 诊断结论 | %s |\n", flow.DiagnoseVerdict)

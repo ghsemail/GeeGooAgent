@@ -1,6 +1,8 @@
 package strategydev
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -55,9 +57,31 @@ func TestMaskEpisodeTriggersStripsDisallowed(t *testing.T) {
 	pf := PriceFilterResult{Regime: RegimeUnclear, AllowLong: false, AllowShort: false}
 	buy := []any{0, 1, 0, 1}
 	sell := []any{0, 0, -1, 0}
-	nb, ns, st := MaskEpisodeTriggers(buy, sell, pf)
+	bars := []any{
+		barOHLCV(0, 101, 99, 100, 1000),
+		barOHLCV(1, 101, 99, 101.5, 1000),
+		barOHLCV(2, 101, 99, 100, 1000),
+		barOHLCV(3, 101, 99, 102, 1000),
+	}
+	for i, row := range bars {
+		m := row.(map[string]any)
+		m["time"] = fmt.Sprintf("2026-01-0%d 10:00:00", i+1)
+	}
+	nb, ns, st := MaskEpisodeTriggers(bars, buy, sell, pf)
 	if st.StrippedBuy != 2 || st.StrippedSell != 1 {
 		t.Fatalf("stripped buy=%d sell=%d", st.StrippedBuy, st.StrippedSell)
+	}
+	if st.PreFilterBuyHits != 2 || st.PreFilterSellHits != 1 {
+		t.Fatalf("pre-filter buy=%d sell=%d", st.PreFilterBuyHits, st.PreFilterSellHits)
+	}
+	if st.PostFilterBuyHits != 0 || st.PostFilterSellHits != 0 {
+		t.Fatalf("post-filter buy=%d sell=%d", st.PostFilterBuyHits, st.PostFilterSellHits)
+	}
+	if len(st.StrippedBuyTriggers) != 2 || len(st.StrippedSellTriggers) != 1 {
+		t.Fatalf("ledger buy=%d sell=%d", len(st.StrippedBuyTriggers), len(st.StrippedSellTriggers))
+	}
+	if !strings.Contains(st.InterceptionBasis, "不明确") {
+		t.Fatalf("basis=%q", st.InterceptionBasis)
 	}
 	for _, v := range nb {
 		if int(v.(int)) == 1 {
@@ -67,6 +91,59 @@ func TestMaskEpisodeTriggersStripsDisallowed(t *testing.T) {
 	for _, v := range ns {
 		if int(v.(int)) == -1 {
 			t.Fatal("sell should be cleared")
+		}
+	}
+}
+
+func TestMaskEpisodeTriggersPartialStripKeepsAllowedSide(t *testing.T) {
+	pf := PriceFilterResult{Regime: RegimeUp, AllowLong: true, AllowShort: false}
+	buy := []any{0, 1, 0}
+	sell := []any{0, -1, 0}
+	bars := []any{
+		barOHLCV(0, 101, 99, 100, 1000),
+		barOHLCV(1, 101, 99, 101, 1000),
+		barOHLCV(2, 101, 99, 100, 1000),
+	}
+	nb, ns, st := MaskEpisodeTriggers(bars, buy, sell, pf)
+	if st.StrippedBuy != 0 || st.StrippedSell != 1 {
+		t.Fatalf("stripped buy=%d sell=%d", st.StrippedBuy, st.StrippedSell)
+	}
+	if int(nb[1].(int)) != 1 {
+		t.Fatal("buy trigger should remain")
+	}
+	if int(ns[1].(int)) != 0 {
+		t.Fatal("sell trigger should be stripped")
+	}
+}
+
+func TestFinishDiagnoseFromMergedAllStrippedListsLedger(t *testing.T) {
+	n := 65
+	bars := make([]any, n)
+	buyM := make([]any, n)
+	sellM := make([]any, n)
+	for i := 0; i < n; i++ {
+		bars[i] = barOHLCV(i, 101, 99, 100, 1000)
+	}
+	buyM[10] = 1
+	buyM[20] = 1
+	sellM[15] = -1
+	sellM[25] = -1
+	summary, pf, pstats := finishDiagnoseFromMerged(bars, "60m", buyM, sellM, RegimeUp, nil, true)
+	if pstats == nil || pf == nil {
+		t.Fatal("expected price filter stats")
+	}
+	if !pf.AllowLong && !pf.AllowShort {
+		if pstats.StrippedBuy != 2 || pstats.StrippedSell != 2 {
+			t.Fatalf("stripped buy=%d sell=%d", pstats.StrippedBuy, pstats.StrippedSell)
+		}
+		if len(pstats.StrippedBuyTriggers) != 2 || len(pstats.StrippedSellTriggers) != 2 {
+			t.Fatalf("ledger buy=%d sell=%d", len(pstats.StrippedBuyTriggers), len(pstats.StrippedSellTriggers))
+		}
+		if summary.BuyHits != 0 || summary.SellHits != 0 {
+			t.Fatalf("post-filter hits buy=%d sell=%d", summary.BuyHits, summary.SellHits)
+		}
+		if pstats.PostFilterBuyEpisodes != 0 || pstats.PostFilterSellEpisodes != 0 {
+			t.Fatalf("expected zero episodes, buy=%d sell=%d", pstats.PostFilterBuyEpisodes, pstats.PostFilterSellEpisodes)
 		}
 	}
 }

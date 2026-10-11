@@ -74,6 +74,9 @@ func finishDiagnoseFromMerged(
 	sellHits := hitCount(nil, "sell_hits", sellMerged, -1)
 	_ = rawData
 	eval := slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
+	if pstats != nil {
+		EnrichEpisodeFilterStatsPostEval(pstats, eval)
+	}
 	summary := summarizeEval(eval, regime, buyHits, sellHits)
 	return summary, pf, pstats
 }

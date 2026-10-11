@@ -372,6 +372,9 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(_ context.Context, flow *Flow) erro
 			stop = flow.KeyLevels.episodeStop(flow.KeyBreakMode, buyRef, sellRef, flow.KeyLevelSeries)
 		}
 		flow.SignalEval = slots.EvaluateSignalEpisodesWithKeyStop(bars, buyMerged, sellMerged, stop)
+		if flow.PriceEpisodeFilterStats != nil {
+			strategydev.EnrichEpisodeFilterStatsPostEval(flow.PriceEpisodeFilterStats, flow.SignalEval)
+		}
 	}
 	flow.Phase = PhaseBuildDetail
 	flow.touch()

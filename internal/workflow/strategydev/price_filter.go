@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
@@ -11,7 +12,7 @@ import (
 // ApplyPriceAnalysisEpisodeFilter analyzes bars and masks disallowed trigger marks.
 func ApplyPriceAnalysisEpisodeFilter(bars []any, freq string, buyMerged, sellMerged []any) ([]any, []any, PriceFilterResult, EpisodeTriggerFilterStats) {
 	pf := AnalyzePriceFilter(bars, freq)
-	buy, sell, stats := MaskEpisodeTriggers(buyMerged, sellMerged, pf)
+	buy, sell, stats := MaskEpisodeTriggers(bars, buyMerged, sellMerged, pf)
 	return buy, sell, pf, stats
 }
 
@@ -355,18 +356,51 @@ func UsePriceAnalysisEpisodeFilterEnabled(enabled *bool) bool {
 	return *enabled
 }
 
-// EpisodeTriggerFilterStats counts triggers removed by the price gate.
+// StrippedEpisodeTrigger is one buy/sell trigger removed by the price gate (for diagnose reporting).
+type StrippedEpisodeTrigger struct {
+	Index int     `json:"index,omitempty"`
+	Time  string  `json:"time"`
+	Close float64 `json:"close"`
+}
+
+// EpisodeTriggerFilterStats counts triggers removed by the price gate and lists stripped bars.
 type EpisodeTriggerFilterStats struct {
+	PreFilterBuyHits  int `json:"pre_filter_buy_hits"`
+	PreFilterSellHits int `json:"pre_filter_sell_hits"`
+	PostFilterBuyHits int `json:"post_filter_buy_hits"`
+	PostFilterSellHits int `json:"post_filter_sell_hits"`
 	StrippedBuy  int `json:"stripped_buy"`
 	StrippedSell int `json:"stripped_sell"`
+	PostFilterBuyEpisodes         int `json:"post_filter_buy_episodes,omitempty"`
+	PostFilterSellEpisodes        int `json:"post_filter_sell_episodes,omitempty"`
+	PostFilterBuyEpisodesComplete  int `json:"post_filter_buy_episodes_complete,omitempty"`
+	PostFilterSellEpisodesComplete int `json:"post_filter_sell_episodes_complete,omitempty"`
+	StrippedBuyTriggers  []StrippedEpisodeTrigger `json:"stripped_buy_triggers,omitempty"`
+	StrippedSellTriggers []StrippedEpisodeTrigger `json:"stripped_sell_triggers,omitempty"`
+	InterceptionBasis    string                   `json:"interception_basis,omitempty"`
+}
+
+// EnrichEpisodeFilterStatsPostEval fills episode counts after masked episode evaluation.
+func EnrichEpisodeFilterStatsPostEval(stats *EpisodeTriggerFilterStats, eval slots.SignalEpisodeEval) {
+	if stats == nil {
+		return
+	}
+	stats.PostFilterBuyEpisodes = len(eval.BuyDetails)
+	stats.PostFilterSellEpisodes = len(eval.SellDetails)
+	stats.PostFilterBuyEpisodesComplete = eval.BuyEpisodes.CompleteCount
+	stats.PostFilterSellEpisodesComplete = eval.SellEpisodes.CompleteCount
 }
 
 // MaskEpisodeTriggers zeros buy/sell merged marks disallowed by the price filter.
-func MaskEpisodeTriggers(buyMerged, sellMerged []any, pf PriceFilterResult) ([]any, []any, EpisodeTriggerFilterStats) {
-	stats := EpisodeTriggerFilterStats{}
+func MaskEpisodeTriggers(bars []any, buyMerged, sellMerged []any, pf PriceFilterResult) ([]any, []any, EpisodeTriggerFilterStats) {
+	stats := EpisodeTriggerFilterStats{
+		InterceptionBasis: BuildPriceFilterInterceptionBasis(pf),
+	}
 	if len(buyMerged) == 0 && len(sellMerged) == 0 {
 		return buyMerged, sellMerged, stats
 	}
+	stats.PreFilterBuyHits = countMergedSignal(buyMerged, 1)
+	stats.PreFilterSellHits = countMergedSignal(sellMerged, -1)
 	n := len(buyMerged)
 	if len(sellMerged) > n {
 		n = len(sellMerged)
@@ -384,16 +418,56 @@ func MaskEpisodeTriggers(buyMerged, sellMerged []any, pf PriceFilterResult) ([]a
 		}
 		if bv == 1 && !pf.AllowLong {
 			stats.StrippedBuy++
+			stats.StrippedBuyTriggers = append(stats.StrippedBuyTriggers, triggerLedgerEntry(bars, i))
 			bv = 0
 		}
 		if sv == -1 && !pf.AllowShort {
 			stats.StrippedSell++
+			stats.StrippedSellTriggers = append(stats.StrippedSellTriggers, triggerLedgerEntry(bars, i))
 			sv = 0
 		}
 		outBuy[i] = bv
 		outSell[i] = sv
 	}
+	stats.PostFilterBuyHits = countMergedSignal(outBuy, 1)
+	stats.PostFilterSellHits = countMergedSignal(outSell, -1)
 	return outBuy, outSell, stats
+}
+
+func countMergedSignal(merged []any, target int) int {
+	n := 0
+	for _, raw := range merged {
+		if int(slots.FloatAny(raw)) == target {
+			n++
+		}
+	}
+	return n
+}
+
+func triggerLedgerEntry(bars []any, i int) StrippedEpisodeTrigger {
+	ent := StrippedEpisodeTrigger{Index: i}
+	if i >= 0 && i < len(bars) {
+		if row, ok := bars[i].(map[string]any); ok {
+			ent.Time = formatBarTimeAsiaShanghai(row)
+			ent.Close = slots.FloatAny(row["close"])
+		}
+	}
+	if ent.Time == "" {
+		ent.Time = fmt.Sprintf("bar[%d]", i)
+	}
+	return ent
+}
+
+func formatBarTimeAsiaShanghai(row map[string]any) string {
+	ts := barTimeUnix(row)
+	if ts.IsZero() {
+		return strings.TrimSpace(fmt.Sprint(row["time"]))
+	}
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		return ts.Format("2006-01-02 15:04")
+	}
+	return ts.In(loc).Format("2006-01-02 15:04") + " (Asia/Shanghai)"
 }
 
 func FormatPriceFilterNote(pf PriceFilterResult) string {
