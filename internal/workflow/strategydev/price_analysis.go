@@ -19,6 +19,8 @@ type PriceAnalysis struct {
 	Summary             string              `json:"summary,omitempty"`
 	FilterTimeframe     string              `json:"filter_timeframe,omitempty"`
 	FilterTimeframeNote string              `json:"filter_timeframe_note,omitempty"`
+	AnchorTime          string              `json:"anchor_time,omitempty"`
+	AnchorClose         float64             `json:"anchor_close,omitempty"`
 }
 
 // PriceAnalysisRow is one row (周期) in the multi-TF table.

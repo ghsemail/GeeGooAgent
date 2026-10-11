@@ -339,9 +339,12 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 	bars, _ := flow.ProbeRaw["bars"].([]any)
 	buyMerged, _ := flow.ProbeRaw["buy_merged"].([]any)
 	sellMerged, _ := flow.ProbeRaw["sell_merged"].([]any)
-	if len(bars) == 0 || len(buyMerged) == 0 {
+	if len(bars) == 0 {
 		flow.SignalEval = slots.SignalEpisodeEval{Method: "until_opposite_signal"}
 	} else {
+		if len(buyMerged) == 0 {
+			buyMerged = make([]any, len(bars))
+		}
 		if len(sellMerged) == 0 {
 			sellMerged = make([]any, len(bars))
 		}
@@ -353,11 +356,23 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 		if flow.UsePriceAnalysisEpisodeFilter {
 			var pfVal strategydev.PriceFilterResult
 			var stats strategydev.EpisodeTriggerFilterStats
-			buyMerged, sellMerged, pfVal, stats = strategydev.ApplyPriceAnalysisEpisodeFilter(bars, freq, buyMerged, sellMerged)
+			months := flow.MonthsBack
+			if months <= 0 {
+				months = defaultMonthsBack
+			}
+			run := func(c context.Context, name string, args map[string]any) tools.Result {
+				return r.runTool(c, toolCtx, name, args, recordTool)
+			}
+			buyMerged, sellMerged, pfVal, stats = strategydev.ApplyPerSignalPriceAnalysisEpisodeFilter(ctx, strategydev.PerSignalPriceFilterInput{
+				Run: run, Code: flow.StockCode, Months: months, KL: keyLevelBandsFromFlow(flow),
+			}, bars, freq, buyMerged, sellMerged)
 			cp := pfVal
 			flow.PriceFilter = &cp
 			st := stats
 			flow.PriceEpisodeFilterStats = &st
+			if r != nil && r.ComposeLLM != nil {
+				strategydev.EnrichEpisodeStatsAIConclusions(ctx, r.ComposeLLM, flow.PriceEpisodeFilterStats)
+			}
 		} else {
 			buyTr, sellTr := strategydev.CollectEpisodeTriggersFromMerged(bars, rawBuy, rawSell)
 			st := strategydev.EpisodeTriggerFilterStats{

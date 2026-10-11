@@ -16,12 +16,12 @@ func TestAppendPriceEpisodeFilterMarkdownAllStripped(t *testing.T) {
 		StrippedBuy: 2, StrippedSell: 1,
 		PostFilterBuyHits: 0, PostFilterSellHits: 0,
 		InterceptionBasis: BuildPriceFilterInterceptionBasis(*pf),
-		StrippedBuyTriggers: []StrippedEpisodeTrigger{
-			{Time: "2026-01-01 10:00 (Asia/Shanghai)", Close: 101},
-			{Time: "2026-01-02 10:00 (Asia/Shanghai)", Close: 102},
+		StrippedBuyTriggers: []EpisodeTriggerRecord{
+			{Time: "2026-01-01 10:00 (Asia/Shanghai)", Close: 101, Masked: true},
+			{Time: "2026-01-02 10:00 (Asia/Shanghai)", Close: 102, Masked: true},
 		},
-		StrippedSellTriggers: []StrippedEpisodeTrigger{
-			{Time: "2026-01-03 10:00 (Asia/Shanghai)", Close: 100},
+		StrippedSellTriggers: []EpisodeTriggerRecord{
+			{Time: "2026-01-03 10:00 (Asia/Shanghai)", Close: 100, Masked: true},
 		},
 	}
 	var b strings.Builder

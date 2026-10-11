@@ -88,7 +88,7 @@ func appendEpisodeTriggerRecords(b *strings.Builder, title string, items []Episo
 	}
 }
 
-func appendStrippedTriggerList(b *strings.Builder, title string, items []StrippedEpisodeTrigger) {
+func appendStrippedTriggerList(b *strings.Builder, title string, items []EpisodeTriggerRecord) {
 	if len(items) == 0 {
 		return
 	}

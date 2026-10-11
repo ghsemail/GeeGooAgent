@@ -1,6 +1,7 @@
 package strategydev
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -136,7 +137,7 @@ func TestFinishDiagnoseFromMergedAllStrippedListsLedger(t *testing.T) {
 	buyM[20] = 1
 	sellM[15] = -1
 	sellM[25] = -1
-	summary, pf, pstats := finishDiagnoseFromMerged(bars, "60m", buyM, sellM, RegimeUp, nil, true)
+	summary, pf, pstats := finishDiagnoseFromMerged(context.Background(), nil, "", 3, KeyLevelBands{}, bars, "60m", buyM, sellM, RegimeUp, nil, true)
 	if pstats == nil || pf == nil {
 		t.Fatal("expected price filter stats")
 	}

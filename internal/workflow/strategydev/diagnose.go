@@ -49,11 +49,12 @@ func runDiagnose(
 			sellMerged, _ = probe.Data["sell_merged"].([]any)
 		}
 	}
-	summary, pf, pstats := finishDiagnoseFromMerged(bars, freq, buyMerged, sellMerged, regime, res.Data, usePriceFilter)
+	months = CapMonthsBack(months)
+	kl := KeyLevelBandsFromProbeData(res.Data)
+	summary, pf, pstats := finishDiagnoseFromMerged(ctx, run, code, months, kl, bars, freq, buyMerged, sellMerged, regime, res.Data, usePriceFilter)
 	var pa *PriceAnalysis
 	if len(bars) > 0 {
 		spot := slots.FloatAny(lastBarField(bars, "close"))
-		kl := KeyLevelBandsFromProbeData(res.Data)
 		built := BuildRunPriceAnalysis(ctx, run, code, months, spot, kl, freq)
 		pa = &built
 	}
@@ -61,6 +62,11 @@ func runDiagnose(
 }
 
 func finishDiagnoseFromMerged(
+	ctx context.Context,
+	run ToolRunner,
+	code string,
+	months int,
+	kl KeyLevelBands,
 	bars []any,
 	freq string,
 	buyMerged, sellMerged []any,
@@ -73,7 +79,9 @@ func finishDiagnoseFromMerged(
 	if usePriceFilter && len(bars) > 0 {
 		var stats EpisodeTriggerFilterStats
 		var pfVal PriceFilterResult
-		buyMerged, sellMerged, pfVal, stats = ApplyPriceAnalysisEpisodeFilter(bars, freq, buyMerged, sellMerged)
+		buyMerged, sellMerged, pfVal, stats = ApplyPerSignalPriceAnalysisEpisodeFilter(ctx, PerSignalPriceFilterInput{
+			Run: run, Code: code, Months: months, KL: kl,
+		}, bars, freq, buyMerged, sellMerged)
 		pf = &pfVal
 		pstats = &stats
 	}

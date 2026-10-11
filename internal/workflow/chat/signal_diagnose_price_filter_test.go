@@ -126,8 +126,8 @@ func TestRenderSignalDiagnoseFactsIncludesStrippedLedger(t *testing.T) {
 		PreFilterBuyHits: 12, PreFilterSellHits: 16,
 		StrippedBuy: 12, StrippedSell: 16,
 		InterceptionBasis: "价格分析结论为不明确，不允许买入/卖出，故掩码剔除",
-		StrippedBuyTriggers: []strategydev.StrippedEpisodeTrigger{
-			{Time: "2026-03-01 10:00 (Asia/Shanghai)", Close: 380.5},
+		StrippedBuyTriggers: []strategydev.EpisodeTriggerRecord{
+			{Time: "2026-03-01 10:00 (Asia/Shanghai)", Close: 380.5, Masked: true, Intercepted: true},
 		},
 	}
 	flow := &Flow{

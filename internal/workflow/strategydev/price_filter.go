@@ -365,10 +365,14 @@ type StrippedEpisodeTrigger struct {
 
 // EpisodeTriggerRecord is one buy/sell trigger before masking (Masked=true if removed by gate).
 type EpisodeTriggerRecord struct {
-	Index  int     `json:"index,omitempty"`
-	Time   string  `json:"time"`
-	Close  float64 `json:"close"`
-	Masked bool    `json:"masked,omitempty"`
+	Index                       int             `json:"index,omitempty"`
+	Time                        string          `json:"time"`
+	Close                       float64         `json:"close"`
+	Masked                      bool            `json:"masked,omitempty"`
+	Intercepted                 bool            `json:"intercepted,omitempty"`
+	PriceAnalysis               *PriceAnalysis  `json:"price_analysis,omitempty"`
+	AIInterceptConclusion       string          `json:"ai_intercept_conclusion,omitempty"`
+	AIInterceptConclusionSource string          `json:"ai_intercept_conclusion_source,omitempty"`
 }
 
 // EpisodeTriggerFilterStats counts triggers removed by the price gate and lists stripped bars.
@@ -383,10 +387,12 @@ type EpisodeTriggerFilterStats struct {
 	PostFilterSellEpisodes        int `json:"post_filter_sell_episodes,omitempty"`
 	PostFilterBuyEpisodesComplete  int `json:"post_filter_buy_episodes_complete,omitempty"`
 	PostFilterSellEpisodesComplete int `json:"post_filter_sell_episodes_complete,omitempty"`
-	StrippedBuyTriggers  []StrippedEpisodeTrigger `json:"stripped_buy_triggers,omitempty"`
-	StrippedSellTriggers []StrippedEpisodeTrigger `json:"stripped_sell_triggers,omitempty"`
-	BuyTriggers          []EpisodeTriggerRecord   `json:"buy_triggers,omitempty"`
-	SellTriggers         []EpisodeTriggerRecord   `json:"sell_triggers,omitempty"`
+	StrippedBuyTriggers  []EpisodeTriggerRecord `json:"stripped_buy_triggers,omitempty"`
+	StrippedSellTriggers []EpisodeTriggerRecord `json:"stripped_sell_triggers,omitempty"`
+	KeptBuyTriggers      []EpisodeTriggerRecord `json:"kept_buy_triggers,omitempty"`
+	KeptSellTriggers     []EpisodeTriggerRecord `json:"kept_sell_triggers,omitempty"`
+	BuyTriggers          []EpisodeTriggerRecord `json:"buy_triggers,omitempty"`
+	SellTriggers         []EpisodeTriggerRecord `json:"sell_triggers,omitempty"`
 	InterceptionBasis    string                   `json:"interception_basis,omitempty"`
 }
 
@@ -429,15 +435,11 @@ func MaskEpisodeTriggers(bars []any, buyMerged, sellMerged []any, pf PriceFilter
 		}
 		if bv == 1 && !pf.AllowLong {
 			stats.StrippedBuy++
-			ent := triggerLedgerEntry(bars, i)
-			stats.StrippedBuyTriggers = append(stats.StrippedBuyTriggers, ent)
 			markTriggerMasked(&stats.BuyTriggers, i, true)
 			bv = 0
 		}
 		if sv == -1 && !pf.AllowShort {
 			stats.StrippedSell++
-			ent := triggerLedgerEntry(bars, i)
-			stats.StrippedSellTriggers = append(stats.StrippedSellTriggers, ent)
 			markTriggerMasked(&stats.SellTriggers, i, true)
 			sv = 0
 		}
@@ -446,6 +448,20 @@ func MaskEpisodeTriggers(bars []any, buyMerged, sellMerged []any, pf PriceFilter
 	}
 	stats.PostFilterBuyHits = countMergedSignal(outBuy, 1)
 	stats.PostFilterSellHits = countMergedSignal(outSell, -1)
+	for _, tr := range stats.BuyTriggers {
+		if tr.Masked {
+			stats.StrippedBuyTriggers = append(stats.StrippedBuyTriggers, tr)
+		} else {
+			stats.KeptBuyTriggers = append(stats.KeptBuyTriggers, tr)
+		}
+	}
+	for _, tr := range stats.SellTriggers {
+		if tr.Masked {
+			stats.StrippedSellTriggers = append(stats.StrippedSellTriggers, tr)
+		} else {
+			stats.KeptSellTriggers = append(stats.KeptSellTriggers, tr)
+		}
+	}
 	return outBuy, outSell, stats
 }
 
@@ -476,12 +492,12 @@ func collectPreFilterTriggers(bars []any, buyMerged, sellMerged []any) (buy, sel
 	}
 	for i := 0; i < n; i++ {
 		if i < len(buyMerged) && int(slots.FloatAny(buyMerged[i])) == 1 {
-			ent := triggerLedgerEntry(bars, i)
-			buy = append(buy, EpisodeTriggerRecord{Index: ent.Index, Time: ent.Time, Close: ent.Close})
+			ent := triggerRecordEntry(bars, i)
+			buy = append(buy, ent)
 		}
 		if i < len(sellMerged) && int(slots.FloatAny(sellMerged[i])) == -1 {
-			ent := triggerLedgerEntry(bars, i)
-			sell = append(sell, EpisodeTriggerRecord{Index: ent.Index, Time: ent.Time, Close: ent.Close})
+			ent := triggerRecordEntry(bars, i)
+			sell = append(sell, ent)
 		}
 	}
 	return buy, sell
@@ -494,13 +510,19 @@ func markTriggerMasked(list *[]EpisodeTriggerRecord, idx int, masked bool) {
 	for i := range *list {
 		if (*list)[i].Index == idx {
 			(*list)[i].Masked = masked
+			(*list)[i].Intercepted = masked
 			return
 		}
 	}
 }
 
 func triggerLedgerEntry(bars []any, i int) StrippedEpisodeTrigger {
-	ent := StrippedEpisodeTrigger{Index: i}
+	ent := triggerRecordEntry(bars, i)
+	return StrippedEpisodeTrigger{Index: ent.Index, Time: ent.Time, Close: ent.Close}
+}
+
+func triggerRecordEntry(bars []any, i int) EpisodeTriggerRecord {
+	ent := EpisodeTriggerRecord{Index: i}
 	if i >= 0 && i < len(bars) {
 		if row, ok := bars[i].(map[string]any); ok {
 			ent.Time = formatBarTimeAsiaShanghai(row)

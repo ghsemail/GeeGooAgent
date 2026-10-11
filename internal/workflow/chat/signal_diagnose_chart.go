@@ -31,6 +31,7 @@ func chartProbePayload(flow *Flow) map[string]any {
 		out["episodes"] = episodeOverlayPayload(flow, flow.SignalEval)
 	}
 	if st := flow.PriceEpisodeFilterStats; st != nil {
+		out["price_episode_filter_stats"] = st
 		if len(st.BuyTriggers) > 0 {
 			out["buy_triggers"] = st.BuyTriggers
 		}
