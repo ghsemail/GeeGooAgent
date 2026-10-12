@@ -35,13 +35,15 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 	stats.PreFilterBuyHits = countMergedSignal(buyMerged, 1)
 	stats.PreFilterSellHits = countMergedSignal(sellMerged, -1)
 
-	months := CapMonthsBack(in.Months)
+	chartMonths := CapMonthsBack(in.Months)
+	_, chartLatest := barSeriesTimeExtent(bars)
 	barsByFreq := map[string][]any{}
 	fetchOKByFreq := map[string]bool{}
 	if in.Run != nil && strings.TrimSpace(in.Code) != "" {
 		for _, spec := range multiTimeframeSpecs {
-			bars, ok := fetchPriceAnalysisBars(ctx, in.Run, in.Code, spec.Freq, months)
-			barsByFreq[spec.Freq] = bars
+			fetchMonths := monthsBackForPerSignalPriceFetch(chartMonths, bars, spec.Freq, chartLatest)
+			fetched, ok := fetchPriceAnalysisBars(ctx, in.Run, in.Code, spec.Freq, fetchMonths)
+			barsByFreq[spec.Freq] = fetched
 			fetchOKByFreq[spec.Freq] = ok
 		}
 	}
@@ -79,12 +81,16 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 	var lastGate PriceFilterResult
 	for _, job := range jobs {
 		row := barRowAt(bars, job.idx)
-		anchorTime, anchorClose, ok := anchorForSignalBar(row, dailyBars)
-		if !ok {
-			anchorTime, anchorClose = fallbackAnchorFromChartBar(row, bars, job.idx)
+		anchorTime, anchorClose, anchorOK := anchorForSignalBar(row, dailyBars)
+		var pa PriceAnalysis
+		var pfGate PriceFilterResult
+		if !anchorOK {
+			pa = buildPriceAnalysisWhenPriorTradingDayMissing(job.close, gateFreq, in.KL)
+			pfGate = episodeGateWhenPriorTradingDayMissing(gateFreq)
+		} else {
+			pa = buildAnchoredPriceAnalysis(barsByFreq, fetchOKByFreq, bars, gateFreq, anchorTime, anchorClose, job.close, in.KL)
+			pfGate = priceFilterForGateFrequency(pa, gateFreq, barsByFreq, bars, anchorTime, gateFreq)
 		}
-		pa := buildAnchoredPriceAnalysis(barsByFreq, fetchOKByFreq, bars, gateFreq, job.idx, anchorTime, anchorClose, job.close, in.KL)
-		pfGate := priceFilterForGateFrequency(pa, gateFreq, barsByFreq, bars, job.idx, anchorTime, gateFreq)
 		lastGate = pfGate
 		intercept := shouldInterceptTrigger(job.side, pfGate)
 		rec := EpisodeTriggerRecord{
@@ -209,21 +215,6 @@ func anchorForSignalBar(signalRow map[string]any, dailyBars []any) (anchorTime t
 	return anchorTime, anchorClose, !anchorTime.IsZero()
 }
 
-func fallbackAnchorFromChartBar(signalRow map[string]any, bars []any, idx int) (time.Time, float64) {
-	if signalRow != nil {
-		ts := barTimeUnix(signalRow)
-		if !ts.IsZero() {
-			return ts, slots.FloatAny(signalRow["close"])
-		}
-	}
-	if idx > 0 {
-		if row := barRowAt(bars, idx-1); row != nil {
-			return barTimeUnix(row), slots.FloatAny(row["close"])
-		}
-	}
-	return time.Time{}, 0
-}
-
 func calendarDateAsiaShanghai(ts time.Time) time.Time {
 	if ts.IsZero() {
 		return time.Time{}
@@ -252,24 +243,46 @@ func anchorInstantFromDailyBar(row map[string]any) time.Time {
 	return time.Date(cal.Year(), cal.Month(), cal.Day(), 16, 0, 0, 0, loc)
 }
 
+func buildPriceAnalysisWhenPriorTradingDayMissing(signalClose float64, chartFreq string, kl KeyLevelBands) PriceAnalysis {
+	pa := PriceAnalysis{
+		SpotPrice:       signalClose,
+		FilterTimeframe: timeframeDisplayLabel(chartFreq),
+		SpotLabel:       "前一交易日锚点不可用",
+	}
+	for _, spec := range multiTimeframeSpecs {
+		pa.Rows = append(pa.Rows, emptyPriceAnalysisRow(spec.Label, structurePriorTradingDayUnavailable))
+	}
+	pa.Summary = "前一交易日日线锚点不可用，未做四周期结构门控。"
+	pa.FilterTimeframeNote = fmt.Sprintf("Episode 方向门控使用 %s 周期结论（锚点前）", timeframeDisplayLabel(chartFreq))
+	pa.SupportResistance = formatSupportResistanceLine(kl, pa.Rows)
+	return pa
+}
+
+func episodeGateWhenPriorTradingDayMissing(gateFreq string) PriceFilterResult {
+	return PriceFilterResult{
+		Regime:     RegimeUnclear,
+		Frequency:  NormalizeFrequency(gateFreq),
+		AllowLong:  true,
+		AllowShort: true,
+		Notes:      []string{"前一交易日锚点不可用，跳过 Episode 价格门控"},
+	}
+}
+
 func buildAnchoredPriceAnalysis(
 	barsByFreq map[string][]any,
 	fetchOKByFreq map[string]bool,
 	chartBars []any,
 	chartFreq string,
-	signalIdx int,
 	anchorTime time.Time,
 	anchorClose, signalClose float64,
 	kl KeyLevelBands,
 ) PriceAnalysis {
 	pa := PriceAnalysis{
-		SpotPrice:   signalClose,
+		SpotPrice:       signalClose,
 		FilterTimeframe: timeframeDisplayLabel(chartFreq),
 	}
 	if anchorClose > 0 {
 		pa.SpotLabel = fmt.Sprintf("锚点收盘 %.2g", anchorClose)
-	} else if signalClose > 0 {
-		pa.SpotLabel = fmt.Sprintf("信号收盘 %.2g", signalClose)
 	}
 	if !anchorTime.IsZero() {
 		loc, _ := time.LoadLocation("Asia/Shanghai")
@@ -283,9 +296,6 @@ func buildAnchoredPriceAnalysis(
 			src = chartBars
 		}
 		trunc := truncateBarsAtAnchor(src, anchorTime)
-		if len(trunc) == 0 && spec.Freq == NormalizeFrequency(chartFreq) && signalIdx >= 0 {
-			trunc = truncateBarsAtIndex(chartBars, signalIdx)
-		}
 		if len(trunc) == 0 {
 			reason := structureReasonAfterAnchorTruncate(len(src), fetchOKByFreq[spec.Freq])
 			pa.Rows = append(pa.Rows, emptyPriceAnalysisRow(spec.Label, reason))
@@ -304,7 +314,7 @@ func truncateBarsAtAnchor(bars []any, anchorTime time.Time) []any {
 		return nil
 	}
 	if anchorTime.IsZero() {
-		return bars
+		return nil
 	}
 	out := make([]any, 0, len(bars))
 	for _, raw := range bars {
@@ -320,22 +330,11 @@ func truncateBarsAtAnchor(bars []any, anchorTime time.Time) []any {
 	return out
 }
 
-func truncateBarsAtIndex(bars []any, idx int) []any {
-	if idx < 0 {
-		return nil
-	}
-	if idx >= len(bars) {
-		return bars
-	}
-	return bars[:idx+1]
-}
-
 func priceFilterForGateFrequency(
 	pa PriceAnalysis,
 	gateFreq string,
 	barsByFreq map[string][]any,
 	chartBars []any,
-	signalIdx int,
 	anchorTime time.Time,
 	chartFreq string,
 ) PriceFilterResult {
@@ -345,9 +344,6 @@ func priceFilterForGateFrequency(
 		src = chartBars
 	}
 	trunc := truncateBarsAtAnchor(src, anchorTime)
-	if len(trunc) == 0 && gateFreq == NormalizeFrequency(chartFreq) {
-		trunc = truncateBarsAtIndex(chartBars, signalIdx)
-	}
 	if len(trunc) == 0 {
 		for _, r := range pa.Rows {
 			if timeframeDisplayLabel(gateFreq) == r.Timeframe {

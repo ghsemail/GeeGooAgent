@@ -58,9 +58,10 @@ var nosignalProbe = []any{
 }
 
 const (
-	structureFetchFailed      = "拉数失败"
-	structureNoBarsBeforeAnchor = "锚点前无 K 线"
-	structureInsufficientBars = "根数不足"
+	structureFetchFailed              = "拉数失败"
+	structureNoBarsBeforeAnchor       = "锚点前无 K 线"
+	structureInsufficientBars         = "根数不足"
+	structurePriorTradingDayUnavailable = "前一交易日锚点不可用"
 )
 
 // BuildRunPriceAnalysis fetches OHLCV for standard TFs and builds the table.

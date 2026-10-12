@@ -5,19 +5,153 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
-func TestFallbackAnchorFromChartBarWhenDailyMissing(t *testing.T) {
+func TestPerSignalFilterNoChartBarAnchorFallbackWhenDailyMissing(t *testing.T) {
 	loc, _ := time.LoadLocation("Asia/Shanghai")
-	signal := map[string]any{"time": "2026-06-29 12:00:00", "close": 428.2}
-	_, _, ok := anchorForSignalBar(signal, nil)
-	if ok {
-		t.Fatal("expected no daily anchor")
+	n := 10
+	bars := make([]any, n)
+	buyM := make([]any, n)
+	for i := 0; i < n; i++ {
+		bars[i] = map[string]any{
+			"time": time.Date(2026, 6, 29, 11, 0, 0, 0, loc).Format("2006-01-02 15:04:05"),
+			"close": 428.2, "high": 429, "low": 427, "volume": 1000.0,
+		}
 	}
-	ts, close := fallbackAnchorFromChartBar(signal, nil, 0)
-	want := time.Date(2026, 6, 29, 12, 0, 0, 0, loc)
-	if !ts.Equal(want) || close != 428.2 {
-		t.Fatalf("fallback ts=%v close=%v", ts.In(loc), close)
+	buyM[5] = 1
+	_, _, _, stats := ApplyPerSignalPriceAnalysisEpisodeFilter(context.Background(), PerSignalPriceFilterInput{Months: 3}, bars, "60m", buyM, nil)
+	if len(stats.BuyTriggers) != 1 {
+		t.Fatalf("triggers=%d", len(stats.BuyTriggers))
+	}
+	pa := stats.BuyTriggers[0].PriceAnalysis
+	if pa == nil {
+		t.Fatal("missing price analysis")
+	}
+	if pa.AnchorClose != 0 || pa.AnchorTime != "" {
+		t.Fatalf("must not use signal/chart anchor: close=%v time=%q", pa.AnchorClose, pa.AnchorTime)
+	}
+	if pa.SpotLabel == "信号收盘 428.2" || pa.AnchorClose == 428.2 {
+		t.Fatalf("signal bar used as anchor: %+v", pa)
+	}
+}
+
+func TestPerSignalFilterExtendsFetchMonthsForEarlyChartSignal(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	n := 120
+	bars := make([]any, n)
+	buyM := make([]any, n)
+	sellM := make([]any, n)
+	for i := 0; i < n; i++ {
+		var ts string
+		if i < n-1 {
+			day := 24 + (i / 4)
+			if day > 30 {
+				day = 30
+			}
+			ts = fmt.Sprintf("2026-06-%02d 11:00:00", day)
+		} else {
+			ts = "2026-10-10 11:00:00"
+		}
+		bars[i] = map[string]any{
+			"time": ts,
+			"close": 400.0 + float64(i)*0.1, "high": 401.0, "low": 399.0, "volume": 1000.0,
+		}
+	}
+	bars[7] = map[string]any{
+		"time": "2026-06-24 11:00:00", "close": 428.8, "high": 430, "low": 427, "volume": 1000.0,
+	}
+	sellM[7] = -1
+	bars[20] = map[string]any{
+		"time": "2026-06-26 11:00:00", "close": 411.8, "high": 412, "low": 410, "volume": 1000.0,
+	}
+	buyM[20] = 1
+
+	dailyFull := make([]any, minBarsForPriceFilter("daily")+5)
+	for j := range dailyFull {
+		day := j + 1
+		c := 400.0 + float64(j)*0.3
+		dailyFull[j] = map[string]any{
+			"time": fmt.Sprintf("2026-04-%02d 00:00:00", (day%28)+1),
+			"close": c, "high": c + 1, "low": c - 1, "volume": 1e6,
+		}
+	}
+	dailyFull[len(dailyFull)-4] = map[string]any{"time": "2026-06-23 00:00:00", "close": 420.0, "high": 421, "low": 419, "volume": 1e6}
+	dailyFull[len(dailyFull)-3] = map[string]any{"time": "2026-06-24 00:00:00", "close": 428.8, "high": 430, "low": 427, "volume": 1e6}
+	dailyFull[len(dailyFull)-2] = map[string]any{"time": "2026-06-25 00:00:00", "close": 415.0, "high": 416, "low": 414, "volume": 1e6}
+	dailyFull[len(dailyFull)-1] = map[string]any{"time": "2026-06-26 00:00:00", "close": 411.8, "high": 412, "low": 410, "volume": 1e6}
+	dailyShort := []any{
+		map[string]any{"time": "2026-07-01 00:00:00", "close": 430.0, "high": 431, "low": 429, "volume": 1e6},
+	}
+
+	mkBars := func(freq string, minLen int) []any {
+		out := make([]any, minLen)
+		for i := 0; i < minLen; i++ {
+			c := 100.0 + float64(i)*0.05
+			out[i] = map[string]any{
+				"time": fmt.Sprintf("2026-05-%02d 10:00:00", (i%28)+1),
+				"close": c, "high": c + 1, "low": c - 1, "volume": 1000.0,
+			}
+		}
+		return out
+	}
+
+	monthsByFreq := map[string]int{}
+	run := ToolRunner(func(ctx context.Context, name string, args map[string]any) tools.Result {
+		if name != "probe_bot_signal_series" {
+			return tools.Result{Status: tools.StatusError}
+		}
+		freq := args["frequency"].(string)
+		monthsByFreq[freq] = args["months_back"].(int)
+		var daily []any
+		if months, ok := args["months_back"].(int); ok && months <= 3 {
+			daily = dailyShort
+		} else {
+			daily = dailyFull
+		}
+		minLen := minBarsForPriceFilter(freq) + 5
+		b := mkBars(freq, minLen)
+		if freq == "daily" {
+			b = daily
+		}
+		if freq == "weekly" {
+			b = mkBars(freq, minLen)
+		}
+		return tools.Result{Status: tools.StatusOK, Data: map[string]any{"bars": b}}
+	})
+
+	_, _, _, stats := ApplyPerSignalPriceAnalysisEpisodeFilter(context.Background(), PerSignalPriceFilterInput{
+		Run: run, Code: "00700.HK", Months: 3,
+	}, bars, "60m", buyM, sellM)
+	if len(stats.SellTriggers) != 1 || len(stats.BuyTriggers) != 1 {
+		t.Fatalf("sell=%d buy=%d", len(stats.SellTriggers), len(stats.BuyTriggers))
+	}
+	if monthsByFreq["daily"] <= 3 {
+		t.Fatalf("expected extended daily months_back, saw %v", monthsByFreq)
+	}
+	sellPA := stats.SellTriggers[0].PriceAnalysis
+	if sellPA == nil || sellPA.AnchorClose != 420.0 {
+		t.Fatalf("sell anchor close=%v want 420 (2026-06-23)", sellPA)
+	}
+	wantAnchor := time.Date(2026, 6, 23, 16, 0, 0, 0, loc)
+	at, _, ok := anchorForSignalBar(barRowAt(bars, 7), dailyFull)
+	if !ok || !at.Equal(wantAnchor) {
+		t.Fatalf("anchor=%v ok=%v", at.In(loc), ok)
+	}
+	for _, tr := range []EpisodeTriggerRecord{stats.SellTriggers[0], stats.BuyTriggers[0]} {
+		pa := tr.PriceAnalysis
+		if pa == nil || len(pa.Rows) != 4 {
+			t.Fatalf("rows=%d", len(pa.Rows))
+		}
+		for _, row := range pa.Rows {
+			if row.Structure == structureNoBarsBeforeAnchor || row.Structure == structureInsufficientBars {
+				t.Fatalf("%s structure=%q", row.Timeframe, row.Structure)
+			}
+		}
+		if pa.AnchorClose == tr.Close {
+			t.Fatalf("signal close used as anchor idx=%d", tr.Index)
+		}
 	}
 }
 
@@ -162,7 +296,7 @@ func TestBuildAnchoredPriceAnalysisEmptyStructureMessages(t *testing.T) {
 		"60m": {map[string]any{"time": "2026-03-01", "close": 1.0, "high": 1.1, "low": 0.9, "volume": 1.0}},
 	}
 	fetchOK := map[string]bool{"5m": false, "60m": true}
-	pa := buildAnchoredPriceAnalysis(barsByFreq, fetchOK, nil, "60m", 0, anchor, 100, 101, KeyLevelBands{})
+	pa := buildAnchoredPriceAnalysis(barsByFreq, fetchOK, nil, "60m", anchor, 100, 101, KeyLevelBands{})
 	if len(pa.Rows) != 4 {
 		t.Fatalf("rows=%d", len(pa.Rows))
 	}
