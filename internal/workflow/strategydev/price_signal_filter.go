@@ -186,21 +186,19 @@ func anchorForSignalBar(signalRow map[string]any, dailyBars []any) (anchorTime t
 		return time.Time{}, 0, false
 	}
 	var anchorRow map[string]any
+	var anchorDay time.Time
 	for _, raw := range dailyBars {
 		row, ok := raw.(map[string]any)
 		if !ok {
 			continue
 		}
 		d := calendarDateAsiaShanghai(barTimeUnix(row))
-		if d.IsZero() {
+		if d.IsZero() || !d.Before(signalDay) {
 			continue
 		}
-		if d.Before(signalDay) {
+		if anchorRow == nil || d.After(anchorDay) {
 			anchorRow = row
-			continue
-		}
-		if d.Equal(signalDay) {
-			break
+			anchorDay = d
 		}
 	}
 	if anchorRow == nil {
@@ -243,15 +241,15 @@ func anchorInstantFromDailyBar(row map[string]any) time.Time {
 	if ts.IsZero() {
 		return time.Time{}
 	}
+	cal := calendarDateAsiaShanghai(ts)
+	if cal.IsZero() {
+		return time.Time{}
+	}
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {
 		loc = time.UTC
 	}
-	inLoc := ts.In(loc)
-	if inLoc.Hour() == 0 && inLoc.Minute() == 0 && inLoc.Second() == 0 {
-		return time.Date(inLoc.Year(), inLoc.Month(), inLoc.Day(), 16, 0, 0, 0, loc)
-	}
-	return inLoc
+	return time.Date(cal.Year(), cal.Month(), cal.Day(), 16, 0, 0, 0, loc)
 }
 
 func buildAnchoredPriceAnalysis(

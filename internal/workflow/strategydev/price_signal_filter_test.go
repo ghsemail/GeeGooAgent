@@ -7,6 +7,41 @@ import (
 	"time"
 )
 
+func TestFallbackAnchorFromChartBarWhenDailyMissing(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	signal := map[string]any{"time": "2026-06-29 12:00:00", "close": 428.2}
+	_, _, ok := anchorForSignalBar(signal, nil)
+	if ok {
+		t.Fatal("expected no daily anchor")
+	}
+	ts, close := fallbackAnchorFromChartBar(signal, nil, 0)
+	want := time.Date(2026, 6, 29, 12, 0, 0, 0, loc)
+	if !ts.Equal(want) || close != 428.2 {
+		t.Fatalf("fallback ts=%v close=%v", ts.In(loc), close)
+	}
+}
+
+func TestAnchorForSignalMondayUsesFridayDailyClose00700(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	// Daily bars newest-first (common in API payloads) with 00:00:00 wall-clock strings.
+	daily := []any{
+		map[string]any{"time": "2026-06-29 00:00:00", "close": 428.2, "high": 430, "low": 425, "volume": 1e6},
+		map[string]any{"time": "2026-06-26 00:00:00", "close": 411.8, "high": 415, "low": 410, "volume": 1e6},
+	}
+	signal := map[string]any{"time": "2026-06-29 12:00:00", "close": 428.2, "high": 429, "low": 427, "volume": 1e5}
+	anchorTime, anchorClose, ok := anchorForSignalBar(signal, daily)
+	if !ok {
+		t.Fatal("expected prior trading day anchor")
+	}
+	if anchorClose != 411.8 {
+		t.Fatalf("anchor close=%v want 411.8", anchorClose)
+	}
+	wantAnchor := time.Date(2026, 6, 26, 16, 0, 0, 0, loc)
+	if !anchorTime.Equal(wantAnchor) {
+		t.Fatalf("anchor instant=%v want %v", anchorTime.In(loc), wantAnchor)
+	}
+}
+
 func TestAnchorForSignalMondayUsesFridayDaily(t *testing.T) {
 	loc, _ := time.LoadLocation("Asia/Shanghai")
 	daily := []any{
