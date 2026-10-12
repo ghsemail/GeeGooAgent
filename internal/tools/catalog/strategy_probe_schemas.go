@@ -32,7 +32,7 @@ func probeBotSignalSeriesParameters() map[string]any {
 		"required": []string{"code", "frequency", "buy_signal"},
 		"properties": map[string]any{
 			"code":      stringProp("标的代码，如 00700.HK、AAPL.US"),
-			"frequency": stringProp("K 线周期：5m / 15m / 60m / daily"),
+			"frequency": stringProp("K 线周期：5m / 15m / 60m / daily / weekly"),
 			"buy_signal": map[string]any{
 				"type":        "array",
 				"description": "买入规则链；每项含 index、type、param",
@@ -71,7 +71,7 @@ func probeBotSignalParameters() map[string]any {
 		"required": []string{"code", "frequency", "buy_signal"},
 		"properties": map[string]any{
 			"code":        stringProp("标的代码"),
-			"frequency":   stringProp("K 线周期：5m / 15m / 60m / daily"),
+			"frequency":   stringProp("K 线周期：5m / 15m / 60m / daily / weekly"),
 			"buy_signal":  map[string]any{"type": "array", "minItems": float64(1), "items": signalRuleItemSchema()},
 			"sell_signal": map[string]any{"type": "array", "items": signalRuleItemSchema()},
 			"at":          stringProp("可选，指定 bar 时间；默认最后一根"),
