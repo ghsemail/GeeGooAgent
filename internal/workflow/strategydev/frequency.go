@@ -1,6 +1,10 @@
 package strategydev
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/ghsemail/GeeGooAgent/internal/slots"
+)
 
 // NormalizeFrequency maps UI labels to probe frequency codes.
 func NormalizeFrequency(raw string) string {
@@ -40,12 +44,15 @@ func BarLimitForFrequency(freq string) int {
 // PriceAnalysisProbeArgs builds probe_bot_signal_series args for multi-TF price analysis.
 // Omits limit so GeeGooSignal derives bar span from months_back (not “latest N from now”).
 func PriceAnalysisProbeArgs(code, freq string, months int) map[string]any {
+	// Normalize so probe_bot_signal_series schema validation accepts nosignal placeholders.
+	buy := slots.NormalizeSignalChain(nosignalProbe)
+	sell := slots.NormalizeSignalChain(nosignalProbe)
 	return map[string]any{
 		"code":        strings.TrimSpace(code),
 		"frequency":   NormalizeFrequency(freq),
 		"months_back": CapMonthsBack(months),
-		"buy_signal":  nosignalProbe,
-		"sell_signal": nosignalProbe,
+		"buy_signal":  buy,
+		"sell_signal": sell,
 	}
 }
 
