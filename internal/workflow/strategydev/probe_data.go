@@ -45,18 +45,24 @@ func filterCompleteBars(bars []any, now time.Time) []any {
 }
 
 func barTimeUnix(row map[string]any) time.Time {
+	loc, locErr := time.LoadLocation("Asia/Shanghai")
+	if locErr != nil {
+		loc = time.UTC
+	}
 	for _, key := range []string{"time", "datetime", "date", "timestamp"} {
 		if v := row[key]; v != nil {
 			switch t := v.(type) {
 			case string:
 				s := strings.TrimSpace(t)
+				if parsed, err := time.Parse(time.RFC3339, s); err == nil {
+					return parsed
+				}
 				for _, layout := range []string{
-					time.RFC3339,
 					"2006-01-02 15:04:05",
 					"2006-01-02T15:04:05",
 					"2006-01-02",
 				} {
-					if parsed, err := time.Parse(layout, s); err == nil {
+					if parsed, err := time.ParseInLocation(layout, s, loc); err == nil {
 						return parsed
 					}
 				}
