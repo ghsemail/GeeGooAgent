@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
 func barOHLCV(i int, high, low, close, vol float64) map[string]any {
@@ -131,13 +133,41 @@ func TestFinishDiagnoseFromMergedAllStrippedListsLedger(t *testing.T) {
 	buyM := make([]any, n)
 	sellM := make([]any, n)
 	for i := 0; i < n; i++ {
-		bars[i] = barOHLCV(i, 101, 99, 100, 1000)
+		row := barOHLCV(i, 101, 99, 100, 1000)
+		row["time"] = fmt.Sprintf("2026-03-%02d 11:00:00", (i%28)+1)
+		bars[i] = row
 	}
 	buyM[10] = 1
 	buyM[20] = 1
 	sellM[15] = -1
 	sellM[25] = -1
-	summary, pf, pstats := finishDiagnoseFromMerged(context.Background(), nil, "", 3, KeyLevelBands{}, bars, "60m", buyM, sellM, RegimeUp, nil, true)
+	run := ToolRunner(func(ctx context.Context, name string, args map[string]any) tools.Result {
+		if name != "probe_bot_signal_series" {
+			return tools.Result{Status: tools.StatusError}
+		}
+		freq := args["frequency"].(string)
+		minLen := minBarsForPriceFilter(freq) + 10
+		out := make([]any, minLen)
+		for j := 0; j < minLen; j++ {
+			c := 100.0 + float64(j)*0.2
+			out[j] = map[string]any{
+				"time": fmt.Sprintf("2026-02-%02d 10:00:00", (j%28)+1),
+				"close": c, "high": c + 1, "low": c - 1, "volume": 1000.0,
+			}
+		}
+		if freq == "daily" {
+			out = make([]any, 40)
+			for j := 0; j < 40; j++ {
+				c := 100.0 + float64(j)*0.1
+				out[j] = map[string]any{
+					"time": fmt.Sprintf("2026-02-%02d", j+1),
+					"close": c, "high": c + 1, "low": c - 1, "volume": 1e6,
+				}
+			}
+		}
+		return tools.Result{Status: tools.StatusOK, Data: map[string]any{"bars": out}}
+	})
+	summary, pf, pstats := finishDiagnoseFromMerged(context.Background(), run, "00700.HK", 3, KeyLevelBands{}, bars, "60m", buyM, sellM, RegimeUp, nil, true)
 	if pstats == nil || pf == nil {
 		t.Fatal("expected price filter stats")
 	}
