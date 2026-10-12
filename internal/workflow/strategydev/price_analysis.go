@@ -57,6 +57,12 @@ var nosignalProbe = []any{
 	map[string]any{"index": "nosignal", "type": "", "param": map[string]any{}},
 }
 
+const (
+	structureFetchFailed      = "拉数失败"
+	structureNoBarsBeforeAnchor = "锚点前无 K 线"
+	structureInsufficientBars = "根数不足"
+)
+
 // BuildRunPriceAnalysis fetches OHLCV for standard TFs and builds the table.
 func BuildRunPriceAnalysis(
 	ctx context.Context,
@@ -78,16 +84,13 @@ func BuildRunPriceAnalysis(
 	if run != nil && strings.TrimSpace(code) != "" {
 		months = CapMonthsBack(months)
 		for _, spec := range multiTimeframeSpecs {
-			bars := fetchPriceAnalysisBars(ctx, run, code, spec.Freq, months)
-			if len(bars) == 0 {
-				out.Rows = append(out.Rows, PriceAnalysisRow{
-					Timeframe:  spec.Label,
-					Conclusion: RegimeUnclear,
-					Structure:  "K 线不足",
-					BosChoch:   "无",
-					Position:   "-",
-					VolumeNote: "-",
-				})
+			bars, fetchOK := fetchPriceAnalysisBars(ctx, run, code, spec.Freq, months)
+			if !fetchOK || len(bars) == 0 {
+				reason := structureFetchFailed
+				if fetchOK && len(bars) == 0 {
+					reason = structureInsufficientBars
+				}
+				out.Rows = append(out.Rows, emptyPriceAnalysisRow(spec.Label, reason))
 				continue
 			}
 			out.Rows = append(out.Rows, BuildPriceAnalysisRow(bars, spec.Label, spec.Freq))
@@ -102,7 +105,7 @@ func BuildRunPriceAnalysis(
 			if run == nil {
 				break
 			}
-			bars := fetchPriceAnalysisBars(ctx, run, code, spec.Freq, months)
+			bars, _ := fetchPriceAnalysisBars(ctx, run, code, spec.Freq, months)
 			if sp := lastClose(bars); sp > 0 {
 				out.SpotPrice = sp
 				out.SpotLabel = fmt.Sprintf("现价 %.2g", sp)
@@ -150,6 +153,13 @@ func BuildPriceAnalysisRow(bars []any, tfLabel, freq string) PriceAnalysisRow {
 
 	data := barsOHLCV(bars)
 	minBars := minBarsForPriceFilter(NormalizeFrequency(freq))
+	if len(data) < minBars {
+		row.Structure = structureInsufficientBars
+		if len(pf.Notes) > 0 {
+			row.VolumeNote = strings.TrimPrefix(pf.Notes[0], "K 线根数")
+		}
+		return row
+	}
 	k := swingKForFrequency(NormalizeFrequency(freq))
 	sh, sl := collectSwingPoints(data, k)
 	row.Structure = formatSwingStructureText(sh, sl)
@@ -165,23 +175,34 @@ func BuildPriceAnalysisRow(bars []any, tfLabel, freq string) PriceAnalysisRow {
 	return row
 }
 
-func fetchPriceAnalysisBars(ctx context.Context, run ToolRunner, code, freq string, months int) []any {
+func fetchPriceAnalysisBars(ctx context.Context, run ToolRunner, code, freq string, months int) ([]any, bool) {
 	if run == nil {
-		return nil
+		return nil, false
 	}
-	res := run(ctx, "probe_bot_signal_series", map[string]any{
-		"code":        code,
-		"frequency":   NormalizeFrequency(freq),
-		"limit":       BarLimitForFrequency(freq),
-		"months_back": months,
-		"buy_signal":  nosignalProbe,
-		"sell_signal": nosignalProbe,
-	})
+	res := run(ctx, "probe_bot_signal_series", PriceAnalysisProbeArgs(code, freq, months))
 	if res.Status != tools.StatusOK {
-		return nil
+		return nil, false
 	}
 	bars, _ := res.Data["bars"].([]any)
-	return bars
+	return bars, true
+}
+
+func emptyPriceAnalysisRow(tfLabel, structure string) PriceAnalysisRow {
+	return PriceAnalysisRow{
+		Timeframe:  tfLabel,
+		Conclusion: RegimeUnclear,
+		Structure:  structure,
+		BosChoch:   "无",
+		Position:   "-",
+		VolumeNote: "-",
+	}
+}
+
+func structureReasonAfterAnchorTruncate(srcLen int, fetchOK bool) string {
+	if !fetchOK || srcLen == 0 {
+		return structureFetchFailed
+	}
+	return structureNoBarsBeforeAnchor
 }
 
 func lastClose(bars []any) float64 {

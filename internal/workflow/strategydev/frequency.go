@@ -37,6 +37,18 @@ func BarLimitForFrequency(freq string) int {
 	}
 }
 
+// PriceAnalysisProbeArgs builds probe_bot_signal_series args for multi-TF price analysis.
+// Omits limit so GeeGooSignal derives bar span from months_back (not “latest N from now”).
+func PriceAnalysisProbeArgs(code, freq string, months int) map[string]any {
+	return map[string]any{
+		"code":        strings.TrimSpace(code),
+		"frequency":   NormalizeFrequency(freq),
+		"months_back": CapMonthsBack(months),
+		"buy_signal":  nosignalProbe,
+		"sell_signal": nosignalProbe,
+	}
+}
+
 // CapMonthsBack limits analysis window to half a year.
 func CapMonthsBack(months int) int {
 	if months <= 0 {

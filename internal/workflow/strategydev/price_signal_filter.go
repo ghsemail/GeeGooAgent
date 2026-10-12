@@ -37,9 +37,12 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 
 	months := CapMonthsBack(in.Months)
 	barsByFreq := map[string][]any{}
+	fetchOKByFreq := map[string]bool{}
 	if in.Run != nil && strings.TrimSpace(in.Code) != "" {
 		for _, spec := range multiTimeframeSpecs {
-			barsByFreq[spec.Freq] = fetchPriceAnalysisBars(ctx, in.Run, in.Code, spec.Freq, months)
+			bars, ok := fetchPriceAnalysisBars(ctx, in.Run, in.Code, spec.Freq, months)
+			barsByFreq[spec.Freq] = bars
+			fetchOKByFreq[spec.Freq] = ok
 		}
 	}
 	dailyBars := barsByFreq["daily"]
@@ -80,7 +83,7 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 		if !ok {
 			anchorTime, anchorClose = fallbackAnchorFromChartBar(row, bars, job.idx)
 		}
-		pa := buildAnchoredPriceAnalysis(barsByFreq, bars, gateFreq, job.idx, anchorTime, anchorClose, job.close, in.KL)
+		pa := buildAnchoredPriceAnalysis(barsByFreq, fetchOKByFreq, bars, gateFreq, job.idx, anchorTime, anchorClose, job.close, in.KL)
 		pfGate := priceFilterForGateFrequency(pa, gateFreq, barsByFreq, bars, job.idx, anchorTime, gateFreq)
 		lastGate = pfGate
 		intercept := shouldInterceptTrigger(job.side, pfGate)
@@ -253,6 +256,7 @@ func anchorInstantFromDailyBar(row map[string]any) time.Time {
 
 func buildAnchoredPriceAnalysis(
 	barsByFreq map[string][]any,
+	fetchOKByFreq map[string]bool,
 	chartBars []any,
 	chartFreq string,
 	signalIdx int,
@@ -285,10 +289,8 @@ func buildAnchoredPriceAnalysis(
 			trunc = truncateBarsAtIndex(chartBars, signalIdx)
 		}
 		if len(trunc) == 0 {
-			pa.Rows = append(pa.Rows, PriceAnalysisRow{
-				Timeframe: spec.Label, Conclusion: RegimeUnclear, Structure: "K 线不足",
-				BosChoch: "无", Position: "-", VolumeNote: "-",
-			})
+			reason := structureReasonAfterAnchorTruncate(len(src), fetchOKByFreq[spec.Freq])
+			pa.Rows = append(pa.Rows, emptyPriceAnalysisRow(spec.Label, reason))
 			continue
 		}
 		pa.Rows = append(pa.Rows, BuildPriceAnalysisRow(trunc, spec.Label, spec.Freq))
