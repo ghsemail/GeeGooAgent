@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -64,12 +65,43 @@ const (
 	structurePriorTradingDayUnavailable = "前一交易日锚点不可用"
 )
 
-// BuildRunPriceAnalysis fetches OHLCV for standard TFs and builds the table.
+// BuildRunPriceAnalysis fetches OHLCV for standard TFs and builds the table (latest window from now).
 func BuildRunPriceAnalysis(
 	ctx context.Context,
 	run ToolRunner,
 	code string,
 	months int,
+	spotPrice float64,
+	kl KeyLevelBands,
+	filterFreq string,
+) PriceAnalysis {
+	return buildRunPriceAnalysis(ctx, run, code, months, nil, spotPrice, kl, filterFreq)
+}
+
+// BuildRunPriceAnalysisAsOf is the single-point entry: four TFs probed with as_of/end at asOf (requires Signal as_of).
+func BuildRunPriceAnalysisAsOf(
+	ctx context.Context,
+	run ToolRunner,
+	code string,
+	asOf time.Time,
+	months int,
+	spotPrice float64,
+	kl KeyLevelBands,
+	filterFreq string,
+) PriceAnalysis {
+	if asOf.IsZero() {
+		return buildRunPriceAnalysis(ctx, run, code, months, nil, spotPrice, kl, filterFreq)
+	}
+	end := asOf
+	return buildRunPriceAnalysis(ctx, run, code, months, &end, spotPrice, kl, filterFreq)
+}
+
+func buildRunPriceAnalysis(
+	ctx context.Context,
+	run ToolRunner,
+	code string,
+	months int,
+	asOf *time.Time,
 	spotPrice float64,
 	kl KeyLevelBands,
 	filterFreq string,
@@ -82,16 +114,32 @@ func BuildRunPriceAnalysis(
 	if out.SpotPrice > 0 {
 		out.SpotLabel = fmt.Sprintf("现价 %.2f", out.SpotPrice)
 	}
+	if asOf != nil && !asOf.IsZero() {
+		loc, _ := time.LoadLocation("Asia/Shanghai")
+		out.AnchorTime = asOf.In(loc).Format("2006-01-02 15:04") + " (Asia/Shanghai)"
+	}
 	if run != nil && strings.TrimSpace(code) != "" {
 		months = CapMonthsBack(months)
+		barsByFreq, fetchOKByFreq := FetchMultiTimeframePriceAnalysisBars(ctx, MultiTimeframePriceBarsInput{
+			Run: run, Code: code, Months: months, AsOf: asOf,
+		})
 		for _, spec := range multiTimeframeSpecs {
-			bars, fetchOK := fetchPriceAnalysisBars(ctx, run, code, spec.Freq, months)
+			bars := barsByFreq[spec.Freq]
+			fetchOK := fetchOKByFreq[spec.Freq]
 			if !fetchOK || len(bars) == 0 {
 				reason := structureFetchFailed
 				if fetchOK && len(bars) == 0 {
 					reason = structureInsufficientBars
 				}
 				out.Rows = append(out.Rows, emptyPriceAnalysisRow(spec.Label, reason))
+				continue
+			}
+			if asOf != nil && !asOf.IsZero() {
+				bars = truncateBarsAtAnchor(bars, *asOf)
+			}
+			if len(bars) == 0 {
+				srcLen := len(barsByFreq[spec.Freq])
+				out.Rows = append(out.Rows, emptyPriceAnalysisRow(spec.Label, structureReasonAfterAnchorTruncate(srcLen, fetchOK)))
 				continue
 			}
 			out.Rows = append(out.Rows, BuildPriceAnalysisRow(bars, spec.Label, spec.Freq))
@@ -106,7 +154,7 @@ func BuildRunPriceAnalysis(
 			if run == nil {
 				break
 			}
-			bars, _ := fetchPriceAnalysisBars(ctx, run, code, spec.Freq, months)
+			bars, _ := fetchPriceAnalysisBarsWithAsOf(ctx, run, code, spec.Freq, months, nil)
 			if sp := lastClose(bars); sp > 0 {
 				out.SpotPrice = sp
 				out.SpotLabel = fmt.Sprintf("现价 %.2g", sp)
@@ -176,11 +224,13 @@ func BuildPriceAnalysisRow(bars []any, tfLabel, freq string) PriceAnalysisRow {
 	return row
 }
 
-func fetchPriceAnalysisBars(ctx context.Context, run ToolRunner, code, freq string, months int) ([]any, bool) {
+func fetchPriceAnalysisBarsWithAsOf(ctx context.Context, run ToolRunner, code, freq string, months int, asOf *time.Time) ([]any, bool) {
 	if run == nil {
 		return nil, false
 	}
-	res := run(ctx, "probe_bot_signal_series", PriceAnalysisProbeArgs(code, freq, months))
+	res := run(ctx, "probe_bot_signal_series", PriceAnalysisProbeArgsFrom(PriceAnalysisProbeParams{
+		Code: code, Freq: freq, Months: months, AsOf: asOf,
+	}))
 	if res.Status != tools.StatusOK {
 		return nil, false
 	}

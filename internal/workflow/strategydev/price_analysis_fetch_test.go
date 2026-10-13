@@ -16,7 +16,7 @@ func TestFetchPriceAnalysisBarsProbeArgsNoLimit(t *testing.T) {
 		captured = args
 		return tools.Result{Status: tools.StatusOK, Data: map[string]any{"bars": []any{}}}
 	})
-	_, ok := fetchPriceAnalysisBars(context.Background(), run, "00700.HK", "60m", 3)
+	_, ok := fetchPriceAnalysisBarsWithAsOf(context.Background(), run, "00700.HK", "60m", 3, nil)
 	if !ok {
 		t.Fatal("expected fetch ok")
 	}
@@ -35,7 +35,7 @@ func TestFetchPriceAnalysisBarsFetchFailed(t *testing.T) {
 	run := ToolRunner(func(ctx context.Context, name string, args map[string]any) tools.Result {
 		return tools.Result{Status: tools.StatusError, Summary: "timeout"}
 	})
-	bars, ok := fetchPriceAnalysisBars(context.Background(), run, "00700.HK", "daily", 3)
+	bars, ok := fetchPriceAnalysisBarsWithAsOf(context.Background(), run, "00700.HK", "daily", 3, nil)
 	if ok || len(bars) != 0 {
 		t.Fatalf("ok=%v bars=%d", ok, len(bars))
 	}

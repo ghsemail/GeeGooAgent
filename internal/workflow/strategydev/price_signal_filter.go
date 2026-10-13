@@ -37,16 +37,15 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 
 	chartMonths := CapMonthsBack(in.Months)
 	_, chartLatest := barSeriesTimeExtent(bars)
-	barsByFreq := map[string][]any{}
-	fetchOKByFreq := map[string]bool{}
-	if in.Run != nil && strings.TrimSpace(in.Code) != "" {
-		for _, spec := range multiTimeframeSpecs {
-			fetchMonths := monthsBackForPerSignalPriceFetch(chartMonths, bars, spec.Freq, chartLatest)
-			fetched, ok := fetchPriceAnalysisBars(ctx, in.Run, in.Code, spec.Freq, fetchMonths)
-			barsByFreq[spec.Freq] = fetched
-			fetchOKByFreq[spec.Freq] = ok
-		}
+	var windowEnd *time.Time
+	if !chartLatest.IsZero() {
+		end := chartLatest
+		windowEnd = &end
 	}
+	// One probe per TF (as_of = diagnosis window end when known); per-signal anchor truncate is local below.
+	barsByFreq, fetchOKByFreq := FetchMultiTimeframePriceAnalysisBars(ctx, MultiTimeframePriceBarsInput{
+		Run: in.Run, Code: in.Code, Months: chartMonths, AsOf: windowEnd, ChartBars: bars,
+	})
 	dailyBars := barsByFreq["daily"]
 	if len(dailyBars) == 0 && gateFreq == "daily" {
 		dailyBars = bars
