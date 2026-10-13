@@ -53,15 +53,15 @@ func minBarsForPriceFilter(freq string) int {
 func analysisBarsLimit(freq string) int {
 	switch NormalizeFrequency(freq) {
 	case "5m":
-		return 200 // ~1 week
+		return 330 // ~1 week (~5 HK trading days × ~66 bars/day)
 	case "60m", "15m":
-		return 200 // ~1 month
+		return 130 // ~1 month (~22 trading days × ~6 bars/day)
 	case "daily":
-		return 120 // ~1–3 months
+		return 60 // ~2–3 months
 	case "weekly", "1wk":
-		return 30 // ~6 months
+		return 26 // ~半年
 	default:
-		return 200
+		return 130 // align with 60m gate
 	}
 }
 

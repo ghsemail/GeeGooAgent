@@ -20,7 +20,7 @@ func mkOHLCVBarSeries(n int, timeFmt string) []any {
 
 func TestAnalysisBarsLimitDefaults(t *testing.T) {
 	cases := map[string]int{
-		"5m": 200, "60m": 200, "daily": 120, "weekly": 30,
+		"5m": 330, "15m": 130, "60m": 130, "daily": 60, "weekly": 26, "1wk": 26,
 	}
 	for freq, want := range cases {
 		if got := analysisBarsLimit(freq); got != want {
