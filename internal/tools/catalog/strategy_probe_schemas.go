@@ -49,6 +49,8 @@ func probeBotSignalSeriesParameters() map[string]any {
 				"description": "可选：显式 K 线根数（最大 800）。默认不传，由 months_back 自动换算；仅 Web 对齐「1天/1周」或特殊下限才用",
 			},
 			"months_back": intProp("回溯月数（优先使用）。默认 3；1月→1、3月→3；服务端按 frequency 换算 limit"),
+			"as_of": stringProp("可选：截止时刻（Asia/Shanghai，如 2026-10-13 16:00:00 或 2026-10-13）。传则返回该时刻之前的最近 months_back 窗口；需 GeeGooSignal 支持"),
+			"end":   stringProp("可选：与 as_of 同义（Signal 别名），Agent 价格分析优先传 as_of"),
 			"include_key_levels": map[string]any{
 				"type":        "boolean",
 				"description": "true 时在 probe 响应附带 key_levels（Key Level Engine，与 K 线拉取并行）",

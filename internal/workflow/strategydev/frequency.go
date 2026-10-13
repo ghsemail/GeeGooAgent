@@ -43,6 +43,7 @@ func BarLimitForFrequency(freq string) int {
 
 // PriceAnalysisProbeArgs builds probe_bot_signal_series args for multi-TF price analysis.
 // Omits limit so GeeGooSignal derives bar span from months_back (not “latest N from now”).
+// For anchored windows use PriceAnalysisProbeArgsFrom with AsOf (requires Signal as_of/end).
 func PriceAnalysisProbeArgs(code, freq string, months int) map[string]any {
 	// Normalize so probe_bot_signal_series schema validation accepts nosignal placeholders.
 	buy := slots.NormalizeSignalChain(nosignalProbe)
