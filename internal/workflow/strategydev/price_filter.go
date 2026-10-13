@@ -46,6 +46,34 @@ func minBarsForPriceFilter(freq string) int {
 	}
 }
 
+// analysisBarsLimit is the max OHLCV bars used for structure analysis after anchor
+// truncate (strategy-dev lock-in for 认行情/价格分析; excludes indicator warmup-only spans).
+// Episode fetch may span months_back; analysis must use only this tail. Hard rule: fetch
+// span is already capped by CapMonthsBack (≤6 calendar months).
+func analysisBarsLimit(freq string) int {
+	switch NormalizeFrequency(freq) {
+	case "5m":
+		return 200 // ~1 week
+	case "60m", "15m":
+		return 200 // ~1 month
+	case "daily":
+		return 120 // ~1–3 months
+	case "weekly", "1wk":
+		return 30 // ~6 months
+	default:
+		return 200
+	}
+}
+
+// tailBarsForPriceAnalysis keeps the last analysisBarsLimit bars (unchanged if shorter).
+func tailBarsForPriceAnalysis(bars []any, freq string) []any {
+	limit := analysisBarsLimit(freq)
+	if limit <= 0 || len(bars) <= limit {
+		return bars
+	}
+	return bars[len(bars)-limit:]
+}
+
 func swingKForFrequency(freq string) int {
 	switch NormalizeFrequency(freq) {
 	case "5m":
