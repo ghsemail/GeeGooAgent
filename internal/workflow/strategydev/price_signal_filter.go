@@ -300,7 +300,8 @@ func buildAnchoredPriceAnalysis(
 			pa.Rows = append(pa.Rows, emptyPriceAnalysisRow(spec.Label, reason))
 			continue
 		}
-		pa.Rows = append(pa.Rows, BuildPriceAnalysisRow(trunc, spec.Label, spec.Freq))
+		analysisBars := tailBarsForPriceAnalysis(trunc, spec.Freq)
+		pa.Rows = append(pa.Rows, BuildPriceAnalysisRow(analysisBars, spec.Label, spec.Freq))
 	}
 	pa.SupportResistance = formatSupportResistanceLine(kl, pa.Rows)
 	pa.Summary = SummarizeMultiTimeframeRows(pa.Rows)
@@ -355,7 +356,7 @@ func priceFilterForGateFrequency(
 		}
 		return PriceFilterResult{Regime: RegimeUnclear, Frequency: gateFreq}
 	}
-	return AnalyzePriceFilter(trunc, gateFreq)
+	return AnalyzePriceFilter(tailBarsForPriceAnalysis(trunc, gateFreq), gateFreq)
 }
 
 // RuleDerivedInterceptConclusion is the fallback one-line intercept summary.

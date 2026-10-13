@@ -142,7 +142,8 @@ func buildRunPriceAnalysis(
 				out.Rows = append(out.Rows, emptyPriceAnalysisRow(spec.Label, structureReasonAfterAnchorTruncate(srcLen, fetchOK)))
 				continue
 			}
-			out.Rows = append(out.Rows, BuildPriceAnalysisRow(bars, spec.Label, spec.Freq))
+			analysisBars := tailBarsForPriceAnalysis(bars, spec.Freq)
+			out.Rows = append(out.Rows, BuildPriceAnalysisRow(analysisBars, spec.Label, spec.Freq))
 		}
 	}
 	if out.SpotPrice <= 0 && len(out.Rows) > 0 {
