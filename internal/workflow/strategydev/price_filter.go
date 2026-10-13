@@ -466,7 +466,7 @@ func MaskEpisodeTriggers(bars []any, buyMerged, sellMerged []any, pf PriceFilter
 			markTriggerMasked(&stats.BuyTriggers, i, true)
 			bv = 0
 		}
-		if sv == -1 && !pf.AllowShort {
+		if sv == -1 && pf.Regime == RegimeUp {
 			stats.StrippedSell++
 			markTriggerMasked(&stats.SellTriggers, i, true)
 			sv = 0

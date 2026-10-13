@@ -71,16 +71,16 @@ func TestMaskEpisodeTriggersStripsDisallowed(t *testing.T) {
 		m["time"] = fmt.Sprintf("2026-01-0%d 10:00:00", i+1)
 	}
 	nb, ns, st := MaskEpisodeTriggers(bars, buy, sell, pf)
-	if st.StrippedBuy != 2 || st.StrippedSell != 1 {
-		t.Fatalf("stripped buy=%d sell=%d", st.StrippedBuy, st.StrippedSell)
+	if st.StrippedBuy != 2 || st.StrippedSell != 0 {
+		t.Fatalf("stripped buy=%d sell=%d (sell passes when regime unclear)", st.StrippedBuy, st.StrippedSell)
 	}
 	if st.PreFilterBuyHits != 2 || st.PreFilterSellHits != 1 {
 		t.Fatalf("pre-filter buy=%d sell=%d", st.PreFilterBuyHits, st.PreFilterSellHits)
 	}
-	if st.PostFilterBuyHits != 0 || st.PostFilterSellHits != 0 {
+	if st.PostFilterBuyHits != 0 || st.PostFilterSellHits != 1 {
 		t.Fatalf("post-filter buy=%d sell=%d", st.PostFilterBuyHits, st.PostFilterSellHits)
 	}
-	if len(st.StrippedBuyTriggers) != 2 || len(st.StrippedSellTriggers) != 1 {
+	if len(st.StrippedBuyTriggers) != 2 || len(st.StrippedSellTriggers) != 0 {
 		t.Fatalf("ledger buy=%d sell=%d", len(st.StrippedBuyTriggers), len(st.StrippedSellTriggers))
 	}
 	if len(st.BuyTriggers) != 2 || len(st.SellTriggers) != 1 {
@@ -99,10 +99,8 @@ func TestMaskEpisodeTriggersStripsDisallowed(t *testing.T) {
 			t.Fatal("buy should be cleared")
 		}
 	}
-	for _, v := range ns {
-		if int(v.(int)) == -1 {
-			t.Fatal("sell should be cleared")
-		}
+	if int(ns[2].(int)) != -1 {
+		t.Fatal("sell should remain when regime is not uptrend")
 	}
 }
 

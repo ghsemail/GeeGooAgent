@@ -155,13 +155,6 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 	return outBuy, outSell, runPF, stats
 }
 
-func shouldInterceptTrigger(side string, pf PriceFilterResult) bool {
-	if side == "buy" {
-		return !pf.AllowLong
-	}
-	return !pf.AllowShort
-}
-
 func cloneMerged(src []any, n int) []any {
 	out := make([]any, n)
 	for i := 0; i < n; i++ {
@@ -339,24 +332,25 @@ func priceFilterForGateFrequency(
 	chartFreq string,
 ) PriceFilterResult {
 	gateFreq = NormalizeFrequency(gateFreq)
-	src := barsByFreq[gateFreq]
-	if len(src) == 0 && gateFreq == NormalizeFrequency(chartFreq) {
-		src = chartBars
-	}
-	trunc := truncateBarsAtAnchor(src, anchorTime)
-	if len(trunc) == 0 {
-		for _, r := range pa.Rows {
-			if timeframeDisplayLabel(gateFreq) == r.Timeframe {
-				return PriceFilterResult{
-					Regime: r.Conclusion, Frequency: gateFreq, BarCount: 0,
-					AllowLong: r.Conclusion == RegimeUp || r.Conclusion == RegimeWeakUp,
-					AllowShort: r.Conclusion == RegimeDown || r.Conclusion == RegimeWeakDown,
-				}
-			}
+	participating := hardGateParticipatingFrequencies(gateFreq)
+	var gatePF PriceFilterResult
+	allowLong := true
+	for _, freq := range participating {
+		pf := priceFilterResultForFrequency(pa, freq, barsByFreq, chartBars, anchorTime, chartFreq)
+		if freq == gateFreq {
+			gatePF = pf
 		}
-		return PriceFilterResult{Regime: RegimeUnclear, Frequency: gateFreq}
+		if !pf.AllowLong {
+			allowLong = false
+		}
 	}
-	return AnalyzePriceFilter(tailBarsForPriceAnalysis(trunc, gateFreq), gateFreq)
+	if gatePF.Frequency == "" {
+		gatePF = priceFilterResultForFrequency(pa, gateFreq, barsByFreq, chartBars, anchorTime, chartFreq)
+	}
+	gatePF.AllowLong = allowLong
+	// Reporting: shorts disallowed only on gate uptrend (intercept uses Regime directly).
+	gatePF.AllowShort = gatePF.Regime != RegimeUp
+	return gatePF
 }
 
 // RuleDerivedInterceptConclusion is the fallback one-line intercept summary.
