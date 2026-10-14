@@ -11,7 +11,7 @@ func TestCardPayloadPriceEpisodeFilterStatsShape(t *testing.T) {
 	pa := strategydev.BuildPriceAnalysisFromBars(map[string][]any{
 		"5m": strategydevTestBars(90), "60m": strategydevTestBars(90),
 		"daily": strategydevTestBars(50), "weekly": strategydevTestBars(25),
-	}, 12.3, strategydev.KeyLevelBands{})
+	}, 12.3, strategydev.KeyLevelBands{}, "")
 	pa.AnchorTime = "2026-03-06 16:00 (Asia/Shanghai)"
 	pa.AnchorClose = 12.0
 	st := &strategydev.EpisodeTriggerFilterStats{

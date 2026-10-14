@@ -20,16 +20,48 @@ func gateFrequencyRank(freq string) int {
 	}
 }
 
+// priceAnalysisMinRank is the coarsest rank floor for standard four-TF probes and rows.
+// 15m diagnose charts align with the 60m upward set (no 5m).
+func priceAnalysisMinRank(gateFreq string) int {
+	gate := NormalizeFrequency(gateFreq)
+	switch gate {
+	case "15m":
+		return gateFrequencyRank("60m")
+	default:
+		return gateFrequencyRank(gate)
+	}
+}
+
+// multiTimeframeSpecsForGate returns 5m/60m/日线/周线 rows to fetch and display:
+// signal period plus coarser TFs only (never finer than the diagnose frequency).
+func multiTimeframeSpecsForGate(gateFreq string) []struct {
+	Label string
+	Freq  string
+} {
+	gate := NormalizeFrequency(gateFreq)
+	if gate == "" {
+		return multiTimeframeSpecs
+	}
+	minRank := priceAnalysisMinRank(gateFreq)
+	var out []struct {
+		Label string
+		Freq  string
+	}
+	for _, spec := range multiTimeframeSpecs {
+		if gateFrequencyRank(spec.Freq) >= minRank {
+			out = append(out, spec)
+		}
+	}
+	return out
+}
+
 // hardGateParticipatingFrequencies lists TFs at or above the diagnose (gate) frequency.
 // Example: gate 60m → 60m, daily, weekly (5m is display-only).
 func hardGateParticipatingFrequencies(gateFreq string) []string {
-	gate := NormalizeFrequency(gateFreq)
-	minRank := gateFrequencyRank(gate)
-	var out []string
-	for _, spec := range multiTimeframeSpecs {
-		if gateFrequencyRank(spec.Freq) >= minRank {
-			out = append(out, spec.Freq)
-		}
+	specs := multiTimeframeSpecsForGate(gateFreq)
+	out := make([]string, len(specs))
+	for i, spec := range specs {
+		out[i] = spec.Freq
 	}
 	return out
 }

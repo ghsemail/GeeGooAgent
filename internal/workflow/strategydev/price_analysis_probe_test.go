@@ -62,11 +62,14 @@ func TestEpisodeFilterOneProbePerFrequencyWithAsOf(t *testing.T) {
 	ApplyPerSignalPriceAnalysisEpisodeFilter(context.Background(), PerSignalPriceFilterInput{
 		Run: run, Code: "00700.HK", Months: 3,
 	}, bars, "60m", buyM, nil)
-	if probeCount != 4 {
-		t.Fatalf("probe calls=%d want 4 one-shot per TF", probeCount)
+	if probeCount != 3 {
+		t.Fatalf("probe calls=%d want 3 (60m upward set)", probeCount)
 	}
-	if len(asOfSeen) != 4 {
+	if len(asOfSeen) != 3 {
 		t.Fatalf("expected as_of on all probes, got %v", asOfSeen)
+	}
+	if _, ok := asOfSeen["5m"]; ok {
+		t.Fatal("60m gate must not probe 5m")
 	}
 }
 
@@ -148,8 +151,8 @@ func TestEpisodeFilter00700JulyAnchor5mNotEmptyBeforeAnchor(t *testing.T) {
 	}
 	_ = wantAnchor
 	for _, row := range pa.Rows {
-		if row.Timeframe == "5m" && row.Structure == structureNoBarsBeforeAnchor {
-			t.Fatalf("5m should have bars before July anchor when mock returns full window: %+v", row)
+		if row.Timeframe == "5m" {
+			t.Fatalf("60m diagnose must not include 5m price_analysis row: %+v", row)
 		}
 	}
 }
@@ -178,8 +181,8 @@ func TestBuildRunPriceAnalysisAsOfUsesProbeAsOf(t *testing.T) {
 	if !sawAsOf {
 		t.Fatal("expected as_of on single-point probes")
 	}
-	if len(pa.Rows) != 4 {
-		t.Fatalf("rows=%d", len(pa.Rows))
+	if len(pa.Rows) != 3 {
+		t.Fatalf("rows=%d want 3 for 60m filter", len(pa.Rows))
 	}
 	if pa.AnchorTime == "" {
 		t.Fatal("expected anchor_time set for as_of run")

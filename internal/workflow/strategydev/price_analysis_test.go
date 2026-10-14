@@ -35,7 +35,7 @@ func TestBuildPriceAnalysisFromBarsPayload(t *testing.T) {
 	}
 	pa := BuildPriceAnalysisFromBars(bars, 20.84, KeyLevelBands{
 		SupportLow: 17.77, SupportHigh: 18.23, ResistLow: 22.76, ResistHigh: 23.32,
-	})
+	}, "")
 	if len(pa.Rows) != 4 {
 		t.Fatalf("rows=%d", len(pa.Rows))
 	}
@@ -67,7 +67,7 @@ func TestPriceAnalysisJSONPayloadShape(t *testing.T) {
 	pa := BuildPriceAnalysisFromBars(map[string][]any{
 		"5m": buildTrendBars(90, "up"), "60m": buildTrendBars(90, "up"),
 		"daily": buildTrendBars(50, "up"), "weekly": buildTrendBars(25, "down"),
-	}, 20.84, KeyLevelBands{SupportLow: 1, ResistHigh: 2})
+	}, 20.84, KeyLevelBands{SupportLow: 1, ResistHigh: 2}, "")
 	raw, err := json.Marshal(pa)
 	if err != nil {
 		t.Fatal(err)
@@ -92,7 +92,7 @@ func TestAppendPriceAnalysisMarkdownTableHeaders(t *testing.T) {
 	pa := BuildPriceAnalysisFromBars(map[string][]any{
 		"5m": buildTrendBars(90, "up"), "60m": buildTrendBars(90, "up"),
 		"daily": buildTrendBars(50, "up"), "weekly": buildTrendBars(25, "down"),
-	}, 10, KeyLevelBands{})
+	}, 10, KeyLevelBands{}, "")
 	var b strings.Builder
 	AppendPriceAnalysisMarkdown(&b, &pa)
 	out := b.String()

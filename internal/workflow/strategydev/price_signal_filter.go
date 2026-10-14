@@ -51,7 +51,7 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 	}
 	// One probe per TF (as_of = diagnosis window end when known); per-signal anchor truncate is local below.
 	barsByFreq, fetchOKByFreq := FetchMultiTimeframePriceAnalysisBars(ctx, MultiTimeframePriceBarsInput{
-		Run: in.Run, Code: in.Code, Months: chartMonths, AsOf: windowEnd, ChartBars: bars,
+		Run: in.Run, Code: in.Code, Months: chartMonths, GateFreq: gateFreq, AsOf: windowEnd, ChartBars: bars,
 	})
 	dailyBars := barsByFreq["daily"]
 	if len(dailyBars) == 0 && gateFreq == "daily" {
@@ -267,10 +267,10 @@ func buildPriceAnalysisWhenPriorTradingDayMissing(signalClose float64, chartFreq
 		FilterTimeframe: timeframeDisplayLabel(chartFreq),
 		SpotLabel:       "前一交易日锚点不可用",
 	}
-	for _, spec := range multiTimeframeSpecs {
+	for _, spec := range multiTimeframeSpecsForGate(chartFreq) {
 		pa.Rows = append(pa.Rows, emptyPriceAnalysisRow(spec.Label, structurePriorTradingDayUnavailable))
 	}
-	pa.Summary = "前一交易日日线锚点不可用，未做四周期结构门控。"
+	pa.Summary = "前一交易日日线锚点不可用，未做多周期结构门控。"
 	pa.FilterTimeframeNote = fmt.Sprintf("Episode 方向门控使用 %s 周期结论（锚点前）", timeframeDisplayLabel(chartFreq))
 	pa.SupportResistance = formatSupportResistanceLine(kl, pa.Rows)
 	return pa
@@ -308,7 +308,7 @@ func buildAnchoredPriceAnalysis(
 	}
 	pa.AnchorClose = anchorClose
 
-	for _, spec := range multiTimeframeSpecs {
+	for _, spec := range multiTimeframeSpecsForGate(chartFreq) {
 		src := barsByFreq[spec.Freq]
 		if len(src) == 0 && NormalizeFrequency(chartFreq) == spec.Freq {
 			src = chartBars

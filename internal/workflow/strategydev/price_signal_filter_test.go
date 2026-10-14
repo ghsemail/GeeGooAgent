@@ -141,8 +141,8 @@ func TestPerSignalFilterExtendsFetchMonthsForEarlyChartSignal(t *testing.T) {
 	}
 	for _, tr := range []EpisodeTriggerRecord{stats.SellTriggers[0], stats.BuyTriggers[0]} {
 		pa := tr.PriceAnalysis
-		if pa == nil || len(pa.Rows) != 4 {
-			t.Fatalf("rows=%d", len(pa.Rows))
+		if pa == nil || len(pa.Rows) != 3 {
+			t.Fatalf("rows=%d want 3 for 60m gate", len(pa.Rows))
 		}
 		for _, row := range pa.Rows {
 			if row.Structure == structureNoBarsBeforeAnchor || row.Structure == structureInsufficientBars {
@@ -216,13 +216,13 @@ func TestPerSignalFilterFourTimeframeRows(t *testing.T) {
 	}
 	_, _, _, stats := ApplyPerSignalPriceAnalysisEpisodeFilter(context.Background(), PerSignalPriceFilterInput{
 		Months: 3,
-	}, bars, "60m", buyM, sellM)
+	}, bars, "5m", buyM, sellM)
 	if len(stats.BuyTriggers) != 1 {
 		t.Fatalf("buy triggers=%d", len(stats.BuyTriggers))
 	}
 	tr := stats.BuyTriggers[0]
 	if tr.PriceAnalysis == nil || len(tr.PriceAnalysis.Rows) != 4 {
-		t.Fatalf("rows=%d", len(tr.PriceAnalysis.Rows))
+		t.Fatalf("rows=%d want 4 for 5m gate", len(tr.PriceAnalysis.Rows))
 	}
 	if tr.AIInterceptConclusion == "" {
 		t.Fatal("missing ai_intercept_conclusion")
@@ -297,13 +297,13 @@ func TestBuildAnchoredPriceAnalysisEmptyStructureMessages(t *testing.T) {
 	}
 	fetchOK := map[string]bool{"5m": false, "60m": true}
 	pa := buildAnchoredPriceAnalysis(barsByFreq, fetchOK, nil, "60m", anchor, 100, 101, KeyLevelBands{})
-	if len(pa.Rows) != 4 {
-		t.Fatalf("rows=%d", len(pa.Rows))
+	if len(pa.Rows) != 3 {
+		t.Fatalf("rows=%d want 3 (60m gate excludes 5m)", len(pa.Rows))
 	}
-	if pa.Rows[0].Structure != structureFetchFailed {
-		t.Fatalf("5m structure=%q", pa.Rows[0].Structure)
+	if pa.Rows[0].Timeframe != "60m" {
+		t.Fatalf("first row=%s want 60m", pa.Rows[0].Timeframe)
 	}
-	if pa.Rows[1].Structure != structureNoBarsBeforeAnchor {
-		t.Fatalf("60m structure=%q", pa.Rows[1].Structure)
+	if pa.Rows[0].Structure != structureNoBarsBeforeAnchor {
+		t.Fatalf("60m structure=%q", pa.Rows[0].Structure)
 	}
 }
