@@ -33,7 +33,7 @@ func newStrategyDevPipelineFlow(userText string, opts *runtime.StrategyDevOpts) 
 		StockCode:    code,
 		ProbeFrequencyOverride: freq,
 		MonthsBack:   months,
-		UsePriceAnalysisEpisodeFilter: true,
+		UsePriceAnalysisEpisodeFilter: false,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -90,14 +90,10 @@ func (r *Runner) advanceStrategyDevPipeline(
 	runTool := func(c context.Context, name string, args map[string]any) tools.Result {
 		return r.runTool(c, toolCtx, name, args, recordTool)
 	}
-	var usePriceFilter *bool
-	if !flow.UsePriceAnalysisEpisodeFilter {
-		v := false
-		usePriceFilter = &v
-	}
+	useHardMask := flow.UsePriceAnalysisEpisodeFilter
 	res, err := strategydev.Run(ctx, strategydev.Input{
 		Code: code, Frequency: freq, MonthsBack: flow.MonthsBack,
-		UsePriceAnalysisEpisodeFilter: usePriceFilter,
+		UsePriceAnalysisEpisodeFilter: &useHardMask,
 	}, strategydev.Deps{Run: runTool, Jev: jev})
 	if err != nil {
 		return err

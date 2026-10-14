@@ -109,8 +109,17 @@ func TestSignalDiagnoseEvaluateSkipsPriceFilterWhenDisabled(t *testing.T) {
 	if err := r.phaseSignalDiagnoseEvaluate(context.Background(), flow, tools.Context{}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if flow.PriceFilter != nil {
-		t.Fatal("filter should be skipped")
+	if flow.PriceFilter == nil {
+		t.Fatal("expected price filter snapshot for soft gate")
+	}
+	if flow.PriceEpisodeFilterStats == nil || len(flow.PriceEpisodeFilterStats.BuyTriggers) == 0 {
+		t.Fatal("expected per-trigger price analysis when filter off")
+	}
+	if flow.PriceEpisodeFilterStats.BuyTriggers[0].PriceAnalysis == nil {
+		t.Fatal("missing price_analysis on trigger")
+	}
+	if flow.PriceEpisodeFilterStats.BuyTriggers[0].Masked {
+		t.Fatal("soft gate must not set masked")
 	}
 	if len(flow.SignalEval.BuyDetails) != len(before.BuyDetails) {
 		t.Fatalf("buy episodes changed when filter off")

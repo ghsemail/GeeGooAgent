@@ -225,18 +225,45 @@ func BuildPriceAnalysisRow(bars []any, tfLabel, freq string) PriceAnalysisRow {
 	return row
 }
 
+const (
+	priceAnalysisProbeMaxAttempts = 3
+	priceAnalysisProbeRetryBase   = 200 * time.Millisecond
+)
+
 func fetchPriceAnalysisBarsWithAsOf(ctx context.Context, run ToolRunner, code, freq string, months int, asOf *time.Time) ([]any, bool) {
 	if run == nil {
 		return nil, false
 	}
-	res := run(ctx, "probe_bot_signal_series", PriceAnalysisProbeArgsFrom(PriceAnalysisProbeParams{
-		Code: code, Freq: freq, Months: months, AsOf: asOf,
-	}))
-	if res.Status != tools.StatusOK {
-		return nil, false
+	key := probeCacheKey(code, freq, months, asOf)
+	if bars, ok, hit := lookupPriceProbeCache(ctx, key); hit {
+		return bars, ok
 	}
-	bars, _ := res.Data["bars"].([]any)
-	return bars, true
+	var lastSummary string
+	for attempt := 1; attempt <= priceAnalysisProbeMaxAttempts; attempt++ {
+		res := run(ctx, "probe_bot_signal_series", PriceAnalysisProbeArgsFrom(PriceAnalysisProbeParams{
+			Code: code, Freq: freq, Months: months, AsOf: asOf,
+		}))
+		if res.Status == tools.StatusOK {
+			bars, _ := res.Data["bars"].([]any)
+			storePriceProbeCache(ctx, key, bars, true)
+			return bars, true
+		}
+		lastSummary = res.Summary
+		if attempt < priceAnalysisProbeMaxAttempts && ctx.Err() == nil {
+			delay := priceAnalysisProbeRetryBase * time.Duration(attempt)
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				storePriceProbeCache(ctx, key, nil, false)
+				return nil, false
+			case <-timer.C:
+			}
+		}
+	}
+	_ = lastSummary
+	storePriceProbeCache(ctx, key, nil, false)
+	return nil, false
 }
 
 func emptyPriceAnalysisRow(tfLabel, structure string) PriceAnalysisRow {

@@ -76,11 +76,11 @@ func finishDiagnoseFromMerged(
 ) (DiagnoseSummary, *PriceFilterResult, *EpisodeTriggerFilterStats) {
 	var pf *PriceFilterResult
 	var pstats *EpisodeTriggerFilterStats
-	if usePriceFilter && len(bars) > 0 {
+	if len(bars) > 0 {
 		var stats EpisodeTriggerFilterStats
 		var pfVal PriceFilterResult
 		buyMerged, sellMerged, pfVal, stats = ApplyPerSignalPriceAnalysisEpisodeFilter(ctx, PerSignalPriceFilterInput{
-			Run: run, Code: code, Months: months, KL: kl,
+			Run: run, Code: code, Months: months, KL: kl, AnnotateOnly: !usePriceFilter,
 		}, bars, freq, buyMerged, sellMerged)
 		pf = &pfVal
 		pstats = &stats
