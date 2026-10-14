@@ -35,12 +35,18 @@ func monthsBackForPerSignalPriceFetch(chartMonths int, chartBars []any, freq str
 	if spanMonths > base {
 		base = spanMonths
 	}
-	return CapMonthsBack(base)
+	return capMonthsBackForPriceAnalysisFetch(freq, base)
 }
 
 func minBarCalendarLookback(freq string) time.Duration {
-	// Conservative calendar span so truncateBarsAtAnchor still leaves minBarsForPriceFilter bars.
+	// Conservative calendar span so truncateBarsAtAnchor still leaves enough bars for tail analysis.
 	minBars := minBarsForPriceFilter(freq)
+	switch NormalizeFrequency(freq) {
+	case "weekly", "1wk":
+		if want := analysisBarsLimit(freq); want > minBars {
+			minBars = want
+		}
+	}
 	switch NormalizeFrequency(freq) {
 	case "5m":
 		// ~48 A-share 5m bars / session

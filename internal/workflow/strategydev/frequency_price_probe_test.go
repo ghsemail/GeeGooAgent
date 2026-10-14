@@ -24,3 +24,14 @@ func TestPriceAnalysisProbeArgsCapsMonthsBack(t *testing.T) {
 		t.Fatalf("months_back=%v want cap 6", args["months_back"])
 	}
 }
+
+func TestPriceAnalysisProbeArgsWeeklyAllowsExtendedMonthsBack(t *testing.T) {
+	args := PriceAnalysisProbeArgs("AAPL.US", "weekly", 10)
+	if args["months_back"] != 10 {
+		t.Fatalf("weekly months_back=%v want 10 (coarse TF fetch cap)", args["months_back"])
+	}
+	args = PriceAnalysisProbeArgs("AAPL.US", "weekly", 20)
+	if args["months_back"] != 12 {
+		t.Fatalf("weekly months_back=%v want hard cap 12", args["months_back"])
+	}
+}
