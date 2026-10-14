@@ -121,9 +121,9 @@ func buildRunPriceAnalysis(
 	if run != nil && strings.TrimSpace(code) != "" {
 		months = CapMonthsBack(months)
 		barsByFreq, fetchOKByFreq := FetchMultiTimeframePriceAnalysisBars(ctx, MultiTimeframePriceBarsInput{
-			Run: run, Code: code, Months: months, AsOf: asOf,
+			Run: run, Code: code, Months: months, AsOf: asOf, GateFreq: filterFreq,
 		})
-		for _, spec := range multiTimeframeSpecs {
+		for _, spec := range multiTimeframeSpecsForGate(filterFreq) {
 			bars := barsByFreq[spec.Freq]
 			fetchOK := fetchOKByFreq[spec.Freq]
 			if !fetchOK || len(bars) == 0 {
@@ -172,12 +172,13 @@ func buildRunPriceAnalysis(
 }
 
 // BuildPriceAnalysisFromBars builds a table when bars are already available (tests / offline).
-func BuildPriceAnalysisFromBars(barsByFreq map[string][]any, spot float64, kl KeyLevelBands) PriceAnalysis {
+// gateFreq selects upward TFs only; empty gateFreq keeps the full standard four-TF table.
+func BuildPriceAnalysisFromBars(barsByFreq map[string][]any, spot float64, kl KeyLevelBands, gateFreq string) PriceAnalysis {
 	out := PriceAnalysis{SpotPrice: spot}
 	if spot > 0 {
 		out.SpotLabel = fmt.Sprintf("现价 %.2f", spot)
 	}
-	for _, spec := range multiTimeframeSpecs {
+	for _, spec := range multiTimeframeSpecsForGate(gateFreq) {
 		bars := barsByFreq[spec.Freq]
 		if len(bars) == 0 {
 			out.Rows = append(out.Rows, PriceAnalysisRow{

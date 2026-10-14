@@ -18,6 +18,19 @@ func TestHardGateParticipatingFrequencies60mExcludes5m(t *testing.T) {
 	}
 }
 
+func TestHardGateParticipatingFrequenciesDailyExcludesIntraday(t *testing.T) {
+	got := hardGateParticipatingFrequencies("daily")
+	want := []string{"daily", "weekly"}
+	if len(got) != len(want) {
+		t.Fatalf("got=%v want=%v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got=%v want=%v", got, want)
+		}
+	}
+}
+
 func TestShouldInterceptSellOnlyOnGateUp(t *testing.T) {
 	cases := []struct {
 		regime   string

@@ -39,13 +39,15 @@ type MultiTimeframePriceBarsInput struct {
 	Run    ToolRunner
 	Code   string
 	Months int
+	// GateFreq is the diagnose chart frequency; only this TF and coarser standard TFs are probed.
+	GateFreq string
 	// AsOf ends each probe window at this instant (diagnosis chart end or single-point date).
 	AsOf *time.Time
 	// ChartBars when set, extends months_back per TF to cover earliest bar + prior-day anchor buffer.
 	ChartBars []any
 }
 
-// FetchMultiTimeframePriceAnalysisBars probes 5m/60m/daily/weekly once each and caches by frequency code.
+// FetchMultiTimeframePriceAnalysisBars probes each upward standard TF once and caches by frequency code.
 func FetchMultiTimeframePriceAnalysisBars(ctx context.Context, in MultiTimeframePriceBarsInput) (barsByFreq map[string][]any, fetchOKByFreq map[string]bool) {
 	barsByFreq = map[string][]any{}
 	fetchOKByFreq = map[string]bool{}
@@ -68,7 +70,7 @@ func FetchMultiTimeframePriceAnalysisBars(ctx context.Context, in MultiTimeframe
 		end := windowEnd
 		asOfPtr = &end
 	}
-	for _, spec := range multiTimeframeSpecs {
+	for _, spec := range multiTimeframeSpecsForGate(in.GateFreq) {
 		months := chartMonths
 		if len(in.ChartBars) > 0 {
 			months = monthsBackForPerSignalPriceFetch(chartMonths, in.ChartBars, spec.Freq, windowEnd)

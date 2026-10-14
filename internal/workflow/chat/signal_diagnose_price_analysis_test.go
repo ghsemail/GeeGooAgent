@@ -10,7 +10,7 @@ func TestCardPayloadIncludesPriceAnalysis(t *testing.T) {
 	pa := strategydev.BuildPriceAnalysisFromBars(map[string][]any{
 		"5m": strategydevTestBars(90), "60m": strategydevTestBars(90),
 		"daily": strategydevTestBars(50), "weekly": strategydevTestBars(25),
-	}, 12.3, strategydev.KeyLevelBands{})
+	}, 12.3, strategydev.KeyLevelBands{}, "")
 	flow := &Flow{
 		Template:      SkillSignalDiagnose,
 		StockCode:     "00772.HK",
