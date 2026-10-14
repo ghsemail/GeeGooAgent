@@ -34,3 +34,22 @@ func TestMonthsBackForPerSignalPriceFetchWeeklyNeedsLongerSpan(t *testing.T) {
 		t.Fatalf("weekly months_back=%d want enough for min weekly bars", got)
 	}
 }
+
+func TestMonthsBackForPerSignalPriceFetchThreeMonthChartJulyAnchorWeekly(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	// 60m diagnose with months_back=3 but bars span Jul–Oct; early signal anchor ~Jul 24 needs
+	// ~26 weekly bars before truncate — must exceed CapMonthsBack(6) on the probe.
+	chart := []any{
+		map[string]any{"time": "2026-07-01 10:00:00", "close": 210.0, "high": 211, "low": 209, "volume": 1},
+		map[string]any{"time": "2026-10-10 11:00:00", "close": 230.0, "high": 231, "low": 229, "volume": 1},
+	}
+	end := time.Date(2026, 10, 10, 11, 0, 0, 0, loc)
+	got := monthsBackForPerSignalPriceFetch(3, chart, "weekly", end)
+	if got <= 6 {
+		t.Fatalf("weekly months_back=%d want >6 for Jul anchor + 26-bar analysis tail", got)
+	}
+	args := PriceAnalysisProbeArgs("AAPL", "weekly", got)
+	if args["months_back"].(int) != got {
+		t.Fatalf("probe months_back=%v want uncapped weekly fetch %d", args["months_back"], got)
+	}
+}

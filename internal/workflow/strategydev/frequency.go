@@ -51,7 +51,7 @@ func PriceAnalysisProbeArgs(code, freq string, months int) map[string]any {
 	return map[string]any{
 		"code":        strings.TrimSpace(code),
 		"frequency":   NormalizeFrequency(freq),
-		"months_back": CapMonthsBack(months),
+		"months_back": capMonthsBackForPriceAnalysisFetch(freq, months),
 		"buy_signal":  buy,
 		"sell_signal": sell,
 	}
@@ -66,4 +66,22 @@ func CapMonthsBack(months int) int {
 		return 6
 	}
 	return months
+}
+
+// capMonthsBackForPriceAnalysisFetch applies CapMonthsBack for fine TFs; coarse TFs (weekly)
+// may need a longer calendar span so anchor truncate + analysis tail still has enough bars.
+func capMonthsBackForPriceAnalysisFetch(freq string, months int) int {
+	if months <= 0 {
+		months = 3
+	}
+	switch NormalizeFrequency(freq) {
+	case "weekly", "1wk":
+		const weeklyFetchMonthsCap = 12
+		if months > weeklyFetchMonthsCap {
+			return weeklyFetchMonthsCap
+		}
+		return months
+	default:
+		return CapMonthsBack(months)
+	}
 }
