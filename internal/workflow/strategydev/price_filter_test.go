@@ -185,9 +185,69 @@ func TestFinishDiagnoseFromMergedAllStrippedListsLedger(t *testing.T) {
 	}
 }
 
-func TestUsePriceAnalysisEpisodeFilterDefaultOn(t *testing.T) {
-	if !UsePriceAnalysisEpisodeFilterEnabled(nil) {
-		t.Fatal("nil should default to enabled")
+func TestFinishDiagnoseFromMergedSoftAnnotatePreservesHits(t *testing.T) {
+	n := 65
+	bars := make([]any, n)
+	buyM := make([]any, n)
+	sellM := make([]any, n)
+	for i := 0; i < n; i++ {
+		row := barOHLCV(i, 101, 99, 100, 1000)
+		row["time"] = fmt.Sprintf("2026-03-%02d 11:00:00", (i%28)+1)
+		bars[i] = row
+	}
+	buyM[10] = 1
+	sellM[15] = -1
+	run := ToolRunner(func(ctx context.Context, name string, args map[string]any) tools.Result {
+		if name != "probe_bot_signal_series" {
+			return tools.Result{Status: tools.StatusError}
+		}
+		freq := args["frequency"].(string)
+		minLen := minBarsForPriceFilter(freq) + 10
+		out := make([]any, minLen)
+		for j := 0; j < minLen; j++ {
+			c := 100.0 + float64(j)*0.2
+			out[j] = map[string]any{
+				"time": fmt.Sprintf("2026-02-%02d 10:00:00", (j%28)+1),
+				"close": c, "high": c + 1, "low": c - 1, "volume": 1000.0,
+			}
+		}
+		if freq == "daily" {
+			out = make([]any, 40)
+			for j := 0; j < 40; j++ {
+				c := 100.0 + float64(j)*0.1
+				out[j] = map[string]any{
+					"time": fmt.Sprintf("2026-02-%02d", j+1),
+					"close": c, "high": c + 1, "low": c - 1, "volume": 1e6,
+				}
+			}
+		}
+		return tools.Result{Status: tools.StatusOK, Data: map[string]any{"bars": out}}
+	})
+	summary, pf, pstats := finishDiagnoseFromMerged(context.Background(), run, "00700.HK", 3, KeyLevelBands{}, bars, "60m", buyM, sellM, RegimeUp, nil, false)
+	if pf == nil || pstats == nil {
+		t.Fatal("expected soft gate stats")
+	}
+	if summary.BuyHits != 1 || summary.SellHits != 1 {
+		t.Fatalf("hits changed buy=%d sell=%d", summary.BuyHits, summary.SellHits)
+	}
+	if pstats.PostFilterBuyHits != pstats.PreFilterBuyHits || pstats.PostFilterSellHits != pstats.PreFilterSellHits {
+		t.Fatalf("post-filter hits should match pre-filter in soft mode")
+	}
+	if len(pstats.BuyTriggers) != 1 || pstats.BuyTriggers[0].PriceAnalysis == nil {
+		t.Fatal("expected per-trigger price analysis")
+	}
+	if pstats.BuyTriggers[0].Masked {
+		t.Fatal("soft gate must not mask")
+	}
+}
+
+func TestUsePriceAnalysisEpisodeFilterDefaultOff(t *testing.T) {
+	if UsePriceAnalysisEpisodeFilterEnabled(nil) {
+		t.Fatal("nil should default to disabled (soft gate)")
+	}
+	on := true
+	if !UsePriceAnalysisEpisodeFilterEnabled(&on) {
+		t.Fatal("explicit true should enable hard mask")
 	}
 	off := false
 	if UsePriceAnalysisEpisodeFilterEnabled(&off) {

@@ -42,7 +42,7 @@ func newSignalDiagnoseFlow(userText string) *Flow {
 		StrategyQuery: strategy,
 		StockQuery:    stock,
 		MonthsBack:    defaultMonthsBack,
-		UsePriceAnalysisEpisodeFilter: true,
+		UsePriceAnalysisEpisodeFilter: false,
 		TriggerText:   strings.TrimSpace(userText),
 		CreatedAt:     now,
 		UpdatedAt:     now,
@@ -352,38 +352,26 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 		if len(flow.Strategies) > 0 && strings.TrimSpace(flow.Strategies[0].Frequency) != "" {
 			freq = flow.Strategies[0].Frequency
 		}
-		rawBuy, rawSell := buyMerged, sellMerged
-		if flow.UsePriceAnalysisEpisodeFilter {
-			var pfVal strategydev.PriceFilterResult
-			var stats strategydev.EpisodeTriggerFilterStats
-			months := flow.MonthsBack
-			if months <= 0 {
-				months = defaultMonthsBack
-			}
-			run := func(c context.Context, name string, args map[string]any) tools.Result {
-				return r.runTool(c, toolCtx, name, args, recordTool)
-			}
-			buyMerged, sellMerged, pfVal, stats = strategydev.ApplyPerSignalPriceAnalysisEpisodeFilter(ctx, strategydev.PerSignalPriceFilterInput{
-				Run: run, Code: flow.StockCode, Months: months, KL: keyLevelBandsFromFlow(flow),
-			}, bars, freq, buyMerged, sellMerged)
-			cp := pfVal
-			flow.PriceFilter = &cp
-			st := stats
-			flow.PriceEpisodeFilterStats = &st
-			if r != nil && r.ComposeLLM != nil {
-				strategydev.EnrichEpisodeStatsAIConclusions(ctx, r.ComposeLLM, flow.PriceEpisodeFilterStats)
-			}
-		} else {
-			buyTr, sellTr := strategydev.CollectEpisodeTriggersFromMerged(bars, rawBuy, rawSell)
-			st := strategydev.EpisodeTriggerFilterStats{
-				PreFilterBuyHits:  strategydev.CountMergedSignalHits(rawBuy, 1),
-				PreFilterSellHits: strategydev.CountMergedSignalHits(rawSell, -1),
-				PostFilterBuyHits: strategydev.CountMergedSignalHits(rawBuy, 1),
-				PostFilterSellHits: strategydev.CountMergedSignalHits(rawSell, -1),
-				BuyTriggers:       buyTr,
-				SellTriggers:      sellTr,
-			}
-			flow.PriceEpisodeFilterStats = &st
+		months := flow.MonthsBack
+		if months <= 0 {
+			months = defaultMonthsBack
+		}
+		ctx = strategydev.ContextWithPriceProbeCache(ctx)
+		run := func(c context.Context, name string, args map[string]any) tools.Result {
+			return r.runTool(c, toolCtx, name, args, recordTool)
+		}
+		var pfVal strategydev.PriceFilterResult
+		var stats strategydev.EpisodeTriggerFilterStats
+		buyMerged, sellMerged, pfVal, stats = strategydev.ApplyPerSignalPriceAnalysisEpisodeFilter(ctx, strategydev.PerSignalPriceFilterInput{
+			Run: run, Code: flow.StockCode, Months: months, KL: keyLevelBandsFromFlow(flow),
+			AnnotateOnly: !flow.UsePriceAnalysisEpisodeFilter,
+		}, bars, freq, buyMerged, sellMerged)
+		cp := pfVal
+		flow.PriceFilter = &cp
+		st := stats
+		flow.PriceEpisodeFilterStats = &st
+		if r != nil && r.ComposeLLM != nil {
+			strategydev.EnrichEpisodeStatsAIConclusions(ctx, r.ComposeLLM, flow.PriceEpisodeFilterStats)
 		}
 		flow.SignalEval = slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
 		if flow.PriceEpisodeFilterStats != nil {

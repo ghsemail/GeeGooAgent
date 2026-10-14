@@ -9,7 +9,7 @@ type Input struct {
 	Frequency   string
 	MonthsBack  int // analysis window, capped at 6 months
 	MonthsBackH int // optional longer window hint for step 6 (Jev only)
-	// UsePriceAnalysisEpisodeFilter nil = default on (mask disallowed buy/sell triggers before episode eval).
+	// UsePriceAnalysisEpisodeFilter nil = default off; true hard-masks disallowed buy/sell triggers before episode eval.
 	UsePriceAnalysisEpisodeFilter *bool
 }
 

@@ -68,7 +68,7 @@ type StrategyDevOpts struct {
 
 // SignalDiagnoseOpts configures optional signal_diagnose workflow behavior for one turn.
 type SignalDiagnoseOpts struct {
-	// UsePriceAnalysisEpisodeFilter nil = default on in chat flow.
+	// UsePriceAnalysisEpisodeFilter nil = default off (soft annotate); true = hard mask before episode eval.
 	UsePriceAnalysisEpisodeFilter *bool `json:"use_price_analysis_episode_filter,omitempty"`
 	// Optional probe overrides from strategy-dev panel (buy/sell configured separately).
 	BuySignal   []any  `json:"buy_signal,omitempty"`

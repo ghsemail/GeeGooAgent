@@ -15,6 +15,9 @@ type PerSignalPriceFilterInput struct {
 	Code   string
 	Months int
 	KL     KeyLevelBands
+	// AnnotateOnly when true computes per-trigger price analysis and would-intercept labels
+	// without zeroing buy_merged/sell_merged (soft gate, default product mode).
+	AnnotateOnly bool
 }
 
 // ApplyPerSignalPriceAnalysisEpisodeFilter masks triggers using each signal's anchored multi-TF gate.
@@ -26,8 +29,12 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 	buyMerged, sellMerged []any,
 ) ([]any, []any, PriceFilterResult, EpisodeTriggerFilterStats) {
 	gateFreq := NormalizeFrequency(freq)
+	basis := "按各触发信号日历日的前一交易日收盘为锚点，逐条多周期价格分析后掩码剔除"
+	if in.AnnotateOnly {
+		basis = "软门控：逐条多周期价格分析并标注本会拦截的触发，不掩码剔除（Episode 评价与未门控一致）"
+	}
 	stats := EpisodeTriggerFilterStats{
-		InterceptionBasis: "按各触发信号日历日的前一交易日收盘为锚点，逐条多周期价格分析后掩码剔除",
+		InterceptionBasis: basis,
 	}
 	if len(buyMerged) == 0 && len(sellMerged) == 0 {
 		return buyMerged, sellMerged, AnalyzePriceFilter(bars, gateFreq), stats
@@ -91,38 +98,52 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 			pfGate = priceFilterForGateFrequency(pa, gateFreq, barsByFreq, bars, anchorTime, gateFreq)
 		}
 		lastGate = pfGate
-		intercept := shouldInterceptTrigger(job.side, pfGate)
+		wouldIntercept := shouldInterceptTrigger(job.side, pfGate)
+		hardMask := !in.AnnotateOnly
 		rec := EpisodeTriggerRecord{
 			Index:                 job.idx,
 			Time:                  job.time,
 			Close:                 job.close,
-			Masked:                intercept,
-			Intercepted:           intercept,
+			WouldIntercept:        wouldIntercept,
+			Intercepted:           wouldIntercept,
 			PriceAnalysis:         &pa,
-			AIInterceptConclusion: RuleDerivedInterceptConclusion(job.side, intercept, pa, pfGate),
+			AIInterceptConclusion: RuleDerivedInterceptConclusion(job.side, wouldIntercept, hardMask, pa, pfGate),
 			AIInterceptConclusionSource: "rule",
+		}
+		if hardMask && wouldIntercept {
+			rec.Masked = true
 		}
 		key := fmt.Sprintf("%s:%d", job.side, job.idx)
 		recordByIdxSide[key] = rec
-		if job.side == "buy" {
-			if intercept {
-				maskBuy[job.idx] = true
+		if hardMask {
+			if job.side == "buy" {
+				if wouldIntercept {
+					maskBuy[job.idx] = true
+				}
+			} else if wouldIntercept {
+				maskSell[job.idx] = true
 			}
-		} else if intercept {
-			maskSell[job.idx] = true
+		} else if wouldIntercept {
+			if job.side == "buy" {
+				stats.StrippedBuy++
+			} else {
+				stats.StrippedSell++
+			}
 		}
 	}
 
 	outBuy := cloneMerged(buyMerged, n)
 	outSell := cloneMerged(sellMerged, n)
-	for i := 0; i < n; i++ {
-		if maskBuy[i] {
-			outBuy[i] = 0
-			stats.StrippedBuy++
-		}
-		if maskSell[i] {
-			outSell[i] = 0
-			stats.StrippedSell++
+	if !in.AnnotateOnly {
+		for i := 0; i < n; i++ {
+			if maskBuy[i] {
+				outBuy[i] = 0
+				stats.StrippedBuy++
+			}
+			if maskSell[i] {
+				outSell[i] = 0
+				stats.StrippedSell++
+			}
 		}
 	}
 
@@ -131,14 +152,14 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 		rec := recordByIdxSide[key]
 		if job.side == "buy" {
 			stats.BuyTriggers = append(stats.BuyTriggers, rec)
-			if rec.Masked {
+			if rec.WouldIntercept {
 				stats.StrippedBuyTriggers = append(stats.StrippedBuyTriggers, rec)
 			} else {
 				stats.KeptBuyTriggers = append(stats.KeptBuyTriggers, rec)
 			}
 		} else {
 			stats.SellTriggers = append(stats.SellTriggers, rec)
-			if rec.Masked {
+			if rec.WouldIntercept {
 				stats.StrippedSellTriggers = append(stats.StrippedSellTriggers, rec)
 			} else {
 				stats.KeptSellTriggers = append(stats.KeptSellTriggers, rec)
@@ -146,8 +167,13 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 		}
 	}
 
-	stats.PostFilterBuyHits = countMergedSignal(outBuy, 1)
-	stats.PostFilterSellHits = countMergedSignal(outSell, -1)
+	if in.AnnotateOnly {
+		stats.PostFilterBuyHits = stats.PreFilterBuyHits
+		stats.PostFilterSellHits = stats.PreFilterSellHits
+	} else {
+		stats.PostFilterBuyHits = countMergedSignal(outBuy, 1)
+		stats.PostFilterSellHits = countMergedSignal(outSell, -1)
+	}
 	runPF := AnalyzePriceFilter(bars, gateFreq)
 	if lastGate.BarCount > 0 {
 		runPF = lastGate
@@ -354,20 +380,24 @@ func priceFilterForGateFrequency(
 }
 
 // RuleDerivedInterceptConclusion is the fallback one-line intercept summary.
-func RuleDerivedInterceptConclusion(side string, intercepted bool, pa PriceAnalysis, pf PriceFilterResult) string {
+func RuleDerivedInterceptConclusion(side string, wouldIntercept, hardMask bool, pa PriceAnalysis, pf PriceFilterResult) string {
 	dir := "买入"
 	if side == "sell" {
 		dir = "卖出"
 	}
-	if intercepted {
+	if wouldIntercept {
 		reason := strings.TrimSpace(BuildPriceFilterInterceptionBasis(pf))
 		if reason == "" {
 			reason = fmt.Sprintf("%s 周期结构为 %s", timeframeDisplayLabel(pf.Frequency), pf.Regime)
 		}
-		if s := strings.TrimSpace(pa.Summary); s != "" {
-			return fmt.Sprintf("已拦截%s信号：%s；%s", dir, reason, s)
+		verb := "已拦截"
+		if !hardMask {
+			verb = "本会拦截"
 		}
-		return fmt.Sprintf("已拦截%s信号：%s", dir, reason)
+		if s := strings.TrimSpace(pa.Summary); s != "" {
+			return fmt.Sprintf("%s%s信号：%s；%s", verb, dir, reason, s)
+		}
+		return fmt.Sprintf("%s%s信号：%s", verb, dir, reason)
 	}
 	if s := strings.TrimSpace(pa.Summary); s != "" {
 		return fmt.Sprintf("通过%s信号：%s 周期允许该方向；%s", dir, timeframeDisplayLabel(pf.Frequency), s)

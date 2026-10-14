@@ -376,10 +376,10 @@ func allowDirectionsFromFilter(pf PriceFilterResult) (allowLong, allowShort bool
 	return longOK, shortOK
 }
 
-// UsePriceAnalysisEpisodeFilterEnabled returns true when nil (default on).
+// UsePriceAnalysisEpisodeFilterEnabled returns true only when explicitly enabled (default off = soft annotate only).
 func UsePriceAnalysisEpisodeFilterEnabled(enabled *bool) bool {
 	if enabled == nil {
-		return true
+		return false
 	}
 	return *enabled
 }
@@ -398,6 +398,7 @@ type EpisodeTriggerRecord struct {
 	Close                       float64         `json:"close"`
 	Masked                      bool            `json:"masked,omitempty"`
 	Intercepted                 bool            `json:"intercepted,omitempty"`
+	WouldIntercept              bool            `json:"would_intercept,omitempty"`
 	PriceAnalysis               *PriceAnalysis  `json:"price_analysis,omitempty"`
 	AIInterceptConclusion       string          `json:"ai_intercept_conclusion,omitempty"`
 	AIInterceptConclusionSource string          `json:"ai_intercept_conclusion_source,omitempty"`

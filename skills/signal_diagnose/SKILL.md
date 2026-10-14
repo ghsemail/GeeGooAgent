@@ -30,10 +30,10 @@ trigger_modes: chat
 
 - probe 传 `key_levels_mode=series`（默认 `key_levels_align=daily`），六档与 bars 等长；策略开发页 K 线展示买段 `support_high` / 卖段 `resist_low` 阶梯线（与 Episode 评价解耦，不再做结构熔断截断）。
 
-## 价格分析 Episode 过滤（可选，默认开）
+## 价格分析 Episode 门控（默认关 / 软标注）
 
-- **Chat API**：`use_price_analysis_episode_filter`；在 `evaluate_accuracy` 阶段按纯价格结构剔除不允许方向的买/卖触发。
-- **workflow_card / 诊断 Markdown**：`price_analysis`（5m/60m/日线/周线表 + 支撑阻力 + 综合句）；`price_episode_filter_stats.buy_triggers` / `sell_triggers` 列出**全部**买/卖触发（`masked=true` 为掩码剔除），与 `stripped_*_triggers` 并存。
+- **Chat API**：`use_price_analysis_episode_filter` 默认 **false**；false 时仍逐条计算四周期 `price_analysis` 与 `would_intercept` / `ai_intercept_conclusion`（本会拦截），**不**掩码剔除触发；true 时恢复硬掩码（与旧行为一致）。
+- **workflow_card / 诊断 Markdown**：`price_analysis`（5m/60m/日线/周线表 + 支撑阻力 + 综合句）；`price_episode_filter_stats.buy_triggers` / `sell_triggers` 列出全部买/卖触发（`would_intercept=true` 为按规则本会硬拦），与 `stripped_*_triggers` 并存。
 - **取 K 编排（Agent）**：打开 Episode 过滤时，四周期各 **一次** `probe_bot_signal_series`（`months_back` 按诊断窗扩展，`as_of`=图表最晚 bar）；每条触发在本地按「前一交易日 16:00」锚点截断后再分析。**依赖 GeeGooSignal `as_of`/`end`**；未合入前 probe 仍可能只返回「从现在往前 ≤800 根」导致早期 5m「锚点前无 K」。
 - **单点四周期表**：代码入口 `strategydev.BuildRunPriceAnalysisAsOf(ctx, run, code, asOf, months, …)`；probe 传 `as_of` + `months_back`（默认 3），不传 `as_of` 时 `BuildRunPriceAnalysis` 保持旧「最新窗」行为。
 
