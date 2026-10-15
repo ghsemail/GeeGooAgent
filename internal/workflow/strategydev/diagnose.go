@@ -16,6 +16,7 @@ func runDiagnose(
 	buy, sell *Candidate,
 	regime string,
 	usePriceFilter bool,
+	scoreThreshold *float64,
 ) (DiagnoseSummary, *PriceFilterResult, *EpisodeTriggerFilterStats, *PriceAnalysis, map[string]any, error) {
 	if buy == nil || sell == nil || isNoSignalRules(buy.Buy) {
 		return DiagnoseSummary{}, nil, nil, nil, nil, fmt.Errorf("买入策略无效")
@@ -51,7 +52,7 @@ func runDiagnose(
 	}
 	months = CapMonthsBack(months)
 	kl := KeyLevelBandsFromProbeData(res.Data)
-	summary, pf, pstats := finishDiagnoseFromMerged(ctx, run, code, months, kl, bars, freq, buyMerged, sellMerged, regime, res.Data, usePriceFilter)
+	summary, pf, pstats := finishDiagnoseFromMerged(ctx, run, code, months, kl, bars, freq, buyMerged, sellMerged, regime, res.Data, usePriceFilter, scoreThreshold)
 	var pa *PriceAnalysis
 	if len(bars) > 0 {
 		spot := slots.FloatAny(lastBarField(bars, "close"))
@@ -73,6 +74,7 @@ func finishDiagnoseFromMerged(
 	regime string,
 	rawData map[string]any,
 	usePriceFilter bool,
+	scoreThreshold *float64,
 ) (DiagnoseSummary, *PriceFilterResult, *EpisodeTriggerFilterStats) {
 	var pf *PriceFilterResult
 	var pstats *EpisodeTriggerFilterStats
@@ -81,6 +83,7 @@ func finishDiagnoseFromMerged(
 		var pfVal PriceFilterResult
 		buyMerged, sellMerged, pfVal, stats = ApplyPerSignalPriceAnalysisEpisodeFilter(ctx, PerSignalPriceFilterInput{
 			Run: run, Code: code, Months: months, KL: kl, AnnotateOnly: !usePriceFilter,
+			ScoreThreshold: scoreThreshold,
 		}, bars, freq, buyMerged, sellMerged)
 		pf = &pfVal
 		pstats = &stats

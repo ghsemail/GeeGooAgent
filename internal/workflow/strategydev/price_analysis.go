@@ -22,6 +22,9 @@ type PriceAnalysis struct {
 	FilterTimeframeNote string              `json:"filter_timeframe_note,omitempty"`
 	AnchorTime          string              `json:"anchor_time,omitempty"`
 	AnchorClose         float64             `json:"anchor_close,omitempty"`
+	PriceScore          float64             `json:"price_score,omitempty"`
+	TFScores            map[string]TFScoreBreakdown `json:"tf_scores,omitempty"`
+	ScoreReason         string              `json:"score_reason,omitempty"`
 }
 
 // PriceAnalysisRow is one row (周期) in the multi-TF table.
@@ -558,6 +561,13 @@ func AppendPriceAnalysisMarkdown(b *strings.Builder, pa *PriceAnalysis) {
 	}
 	if s := strings.TrimSpace(pa.Summary); s != "" {
 		fmt.Fprintf(b, "\n**综合**：%s\n", s)
+	}
+	if pa.PriceScore != 0 || strings.TrimSpace(pa.ScoreReason) != "" {
+		if r := strings.TrimSpace(pa.ScoreReason); r != "" {
+			fmt.Fprintf(b, "\n**多周期打分**：%.0f — %s\n", pa.PriceScore, r)
+		} else {
+			fmt.Fprintf(b, "\n**多周期打分**：%.0f\n", pa.PriceScore)
+		}
 	}
 	if note := strings.TrimSpace(pa.FilterTimeframeNote); note != "" {
 		fmt.Fprintf(b, "\n_%s_\n", note)

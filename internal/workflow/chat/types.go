@@ -107,7 +107,8 @@ type Flow struct {
 	DiagnoseRaw         map[string]any `json:"diagnose_raw,omitempty"`
 	ProbeRaw            map[string]any `json:"probe_raw,omitempty"`
 	SignalEval          slots.SignalEpisodeEval `json:"signal_eval,omitempty"`
-	UsePriceAnalysisEpisodeFilter bool   `json:"use_price_analysis_episode_filter,omitempty"`
+	UsePriceAnalysisEpisodeFilter bool    `json:"use_price_analysis_episode_filter,omitempty"`
+	PriceAnalysisScoreThreshold   float64 `json:"price_analysis_score_threshold,omitempty"`
 	PriceFilter            *strategydev.PriceFilterResult         `json:"price_filter,omitempty"`
 	PriceEpisodeFilterStats *strategydev.EpisodeTriggerFilterStats `json:"price_episode_filter_stats,omitempty"`
 	PriceAnalysis          *strategydev.PriceAnalysis             `json:"price_analysis,omitempty"`

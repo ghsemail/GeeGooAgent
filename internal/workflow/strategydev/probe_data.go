@@ -44,40 +44,6 @@ func filterCompleteBars(bars []any, now time.Time) []any {
 	return out
 }
 
-func barTimeUnix(row map[string]any) time.Time {
-	loc, locErr := time.LoadLocation("Asia/Shanghai")
-	if locErr != nil {
-		loc = time.UTC
-	}
-	for _, key := range []string{"time", "datetime", "date", "timestamp"} {
-		if v := row[key]; v != nil {
-			switch t := v.(type) {
-			case string:
-				s := strings.TrimSpace(t)
-				if parsed, err := time.Parse(time.RFC3339, s); err == nil {
-					return parsed
-				}
-				for _, layout := range []string{
-					"2006-01-02 15:04:05",
-					"2006-01-02T15:04:05",
-					"2006-01-02",
-				} {
-					if parsed, err := time.ParseInLocation(layout, s, loc); err == nil {
-						return parsed
-					}
-				}
-			case float64:
-				sec := int64(t)
-				if sec > 1_000_000_000_000 {
-					sec /= 1000
-				}
-				return time.Unix(sec, 0)
-			}
-		}
-	}
-	return time.Time{}
-}
-
 func probeRules(data map[string]any) []map[string]any {
 	raw, _ := data["buy_rules"].([]any)
 	out := make([]map[string]any, 0, len(raw))

@@ -246,7 +246,7 @@ func appendSignalEvalMethodology(b *strings.Builder) {
 	fmt.Fprintf(b, "4. **命中**：买段方向收益 > 0；卖段 < 0（卖段方向收益取反便于阅读）。\n")
 	fmt.Fprintf(b, "5. **仅买无卖**时请看 **Path 汇总**，strict 命中率可能为 N/A。\n")
 	fmt.Fprintf(b, "6. **结构截断（可选）**：买/卖 Strict 段按配置的参考线（默认买 `support_high`、卖 `resist_low`）逐 K 与 **as-of 该 bar 的 Key Level 序列**比较提前结束（probe `key_levels_series`，默认按日对齐重算，无未来函数）。\n")
-	fmt.Fprintf(b, "7. **价格分析门控（默认关 / 软标注）**：默认仅逐条计算四周期价格分析与「本会拦截」结论，不掩码剔除；显式开启 `use_price_analysis_episode_filter` 时才会硬拦截触发。\n")
+	fmt.Fprintf(b, "7. **价格分析门控（默认关 / 软标注）**：默认逐条计算多周期价格分析与综合分（`price_score`），标注「本会拦截」，不掩码；开启 `use_price_analysis_episode_filter` 时按综合分阈值（默认 0，可配 `price_analysis_score_threshold`）硬拦截，不再要求信号周期必须「上涨」。\n")
 }
 
 func appendSignalEvalSection(b *strings.Builder, eval slots.SignalEpisodeEval) {

@@ -15,6 +15,9 @@ func ApplyPendingSignalDiagnoseOpts(session *runtime.Session, flow *Flow) {
 	if o.UsePriceAnalysisEpisodeFilter != nil {
 		flow.UsePriceAnalysisEpisodeFilter = *o.UsePriceAnalysisEpisodeFilter
 	}
+	if o.PriceAnalysisScoreThreshold != nil {
+		flow.PriceAnalysisScoreThreshold = *o.PriceAnalysisScoreThreshold
+	}
 	if len(o.BuySignal) > 0 {
 		flow.ProbeBuyOverride = o.BuySignal
 	}
@@ -46,6 +49,9 @@ func ParseSignalDiagnoseOptsFromWorkflowOptions(raw map[string]any) *runtime.Sig
 	// Legacy clients may still send use_key_level_episode_stop; ignored (feature removed).
 	if v, ok := block["use_price_analysis_episode_filter"].(bool); ok {
 		out.UsePriceAnalysisEpisodeFilter = &v
+	}
+	if v, ok := block["price_analysis_score_threshold"].(float64); ok {
+		out.PriceAnalysisScoreThreshold = &v
 	}
 	if raw, ok := block["buy_signal"].([]any); ok && len(raw) > 0 {
 		out.BuySignal = raw

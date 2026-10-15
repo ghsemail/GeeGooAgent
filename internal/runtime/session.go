@@ -63,13 +63,16 @@ type StrategyDevOpts struct {
 	Code       string `json:"code,omitempty"`
 	Frequency  string `json:"frequency,omitempty"`
 	MonthsBack int    `json:"months_back,omitempty"`
-	UsePriceAnalysisEpisodeFilter *bool `json:"use_price_analysis_episode_filter,omitempty"`
+	UsePriceAnalysisEpisodeFilter *bool    `json:"use_price_analysis_episode_filter,omitempty"`
+	PriceAnalysisScoreThreshold   *float64 `json:"price_analysis_score_threshold,omitempty"`
 }
 
 // SignalDiagnoseOpts configures optional signal_diagnose workflow behavior for one turn.
 type SignalDiagnoseOpts struct {
 	// UsePriceAnalysisEpisodeFilter nil = default off (soft annotate); true = hard mask before episode eval.
 	UsePriceAnalysisEpisodeFilter *bool `json:"use_price_analysis_episode_filter,omitempty"`
+	// PriceAnalysisScoreThreshold nil = default 0 for hard gate buy/sell score cutoffs.
+	PriceAnalysisScoreThreshold *float64 `json:"price_analysis_score_threshold,omitempty"`
 	// Optional probe overrides from strategy-dev panel (buy/sell configured separately).
 	BuySignal   []any  `json:"buy_signal,omitempty"`
 	SellSignal  []any  `json:"sell_signal,omitempty"`

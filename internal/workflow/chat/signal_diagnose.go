@@ -362,9 +362,10 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 		}
 		var pfVal strategydev.PriceFilterResult
 		var stats strategydev.EpisodeTriggerFilterStats
+		scoreTh := flow.PriceAnalysisScoreThreshold
 		buyMerged, sellMerged, pfVal, stats = strategydev.ApplyPerSignalPriceAnalysisEpisodeFilter(ctx, strategydev.PerSignalPriceFilterInput{
 			Run: run, Code: flow.StockCode, Months: months, KL: keyLevelBandsFromFlow(flow),
-			AnnotateOnly: !flow.UsePriceAnalysisEpisodeFilter,
+			AnnotateOnly: !flow.UsePriceAnalysisEpisodeFilter, ScoreThreshold: &scoreTh,
 		}, bars, freq, buyMerged, sellMerged)
 		cp := pfVal
 		flow.PriceFilter = &cp

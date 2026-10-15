@@ -400,6 +400,9 @@ type EpisodeTriggerRecord struct {
 	Intercepted                 bool            `json:"intercepted,omitempty"`
 	WouldIntercept              bool            `json:"would_intercept,omitempty"`
 	PriceAnalysis               *PriceAnalysis  `json:"price_analysis,omitempty"`
+	PriceScore                  float64         `json:"price_score,omitempty"`
+	TFScores                    map[string]TFScoreBreakdown `json:"tf_scores,omitempty"`
+	ScoreReason                 string          `json:"score_reason,omitempty"`
 	AIInterceptConclusion       string          `json:"ai_intercept_conclusion,omitempty"`
 	AIInterceptConclusionSource string          `json:"ai_intercept_conclusion_source,omitempty"`
 }

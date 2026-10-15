@@ -122,7 +122,7 @@ func Run(ctx context.Context, in Input, deps Deps) (Result, error) {
 
 	// Step 5 — diagnose (optional price-analysis trigger filter before episode metrics)
 	usePriceFilter := UsePriceAnalysisEpisodeFilterEnabled(in.UsePriceAnalysisEpisodeFilter)
-	diag, pf, pfStats, pa, _, err := runDiagnose(ctx, deps.Run, code, freq, months, buyCand, sellCand, out.Regime, usePriceFilter)
+	diag, pf, pfStats, pa, _, err := runDiagnose(ctx, deps.Run, code, freq, months, buyCand, sellCand, out.Regime, usePriceFilter, in.PriceAnalysisScoreThreshold)
 	if err != nil {
 		return out, err
 	}

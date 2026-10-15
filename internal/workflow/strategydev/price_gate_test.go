@@ -75,7 +75,7 @@ func TestPriceFilterForGate60mIgnores5mRowForBuyAllowLong(t *testing.T) {
 	}
 }
 
-func TestPriceFilterForGate60mComposesHigherTFBlockBuy(t *testing.T) {
+func TestPriceFilterForGate60mComposedAllowLongLegacyOnly(t *testing.T) {
 	pa := PriceAnalysis{
 		Rows: []PriceAnalysisRow{
 			{Timeframe: "5m", Conclusion: RegimeDown},
@@ -88,7 +88,8 @@ func TestPriceFilterForGate60mComposesHigherTFBlockBuy(t *testing.T) {
 	if pf.AllowLong {
 		t.Fatal("daily unclear should block composed allow_long")
 	}
-	if !shouldInterceptTrigger("buy", pf) {
-		t.Fatal("buy should intercept")
+	sc := ComputeMultiTFPriceScore(pa, "60m")
+	if ShouldInterceptTriggerByScore("buy", sc.Score, 0) {
+		t.Fatalf("score gate must not mirror legacy allow_long block; score=%.1f", sc.Score)
 	}
 }

@@ -18,6 +18,8 @@ type PerSignalPriceFilterInput struct {
 	// AnnotateOnly when true computes per-trigger price analysis and would-intercept labels
 	// without zeroing buy_merged/sell_merged (soft gate, default product mode).
 	AnnotateOnly bool
+	// ScoreThreshold for hard gate (default 0); buys blocked when score < threshold.
+	ScoreThreshold *float64
 }
 
 // ApplyPerSignalPriceAnalysisEpisodeFilter masks triggers using each signal's anchored multi-TF gate.
@@ -29,9 +31,10 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 	buyMerged, sellMerged []any,
 ) ([]any, []any, PriceFilterResult, EpisodeTriggerFilterStats) {
 	gateFreq := NormalizeFrequency(freq)
-	basis := "按各触发信号日历日的前一交易日收盘为锚点，逐条多周期价格分析后掩码剔除"
+	scoreThreshold := PriceAnalysisScoreThreshold(in.ScoreThreshold)
+	basis := fmt.Sprintf("按各触发前一交易日锚点多周期打分，综合分低于 %.0f 时掩码剔除买入；卖出在综合分高于 %.0f 时掩码", scoreThreshold, -scoreThreshold)
 	if in.AnnotateOnly {
-		basis = "软门控：逐条多周期价格分析并标注本会拦截的触发，不掩码剔除（Episode 评价与未门控一致）"
+		basis = "软门控：逐条多周期打分并标注本会拦截的触发，不掩码剔除（Episode 评价与未门控一致）"
 	}
 	stats := EpisodeTriggerFilterStats{
 		InterceptionBasis: basis,
@@ -97,8 +100,9 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 			pa = buildAnchoredPriceAnalysis(barsByFreq, fetchOKByFreq, bars, gateFreq, anchorTime, anchorClose, job.close, in.KL)
 			pfGate = priceFilterForGateFrequency(pa, gateFreq, barsByFreq, bars, anchorTime, gateFreq)
 		}
+		scoreResult := attachScoreToPriceAnalysis(&pa, gateFreq)
 		lastGate = pfGate
-		wouldIntercept := shouldInterceptTrigger(job.side, pfGate)
+		wouldIntercept := ShouldInterceptTriggerByScore(job.side, scoreResult.Score, scoreThreshold)
 		hardMask := !in.AnnotateOnly
 		rec := EpisodeTriggerRecord{
 			Index:                 job.idx,
@@ -107,7 +111,10 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 			WouldIntercept:        wouldIntercept,
 			Intercepted:           wouldIntercept,
 			PriceAnalysis:         &pa,
-			AIInterceptConclusion: RuleDerivedInterceptConclusion(job.side, wouldIntercept, hardMask, pa, pfGate),
+			PriceScore:            scoreResult.Score,
+			TFScores:              scoreResult.TFScores,
+			ScoreReason:           scoreResult.ScoreReason,
+			AIInterceptConclusion: RuleDerivedInterceptConclusionScore(job.side, wouldIntercept, hardMask, pa, scoreResult, scoreThreshold),
 			AIInterceptConclusionSource: "rule",
 		}
 		if hardMask && wouldIntercept {
@@ -379,7 +386,31 @@ func priceFilterForGateFrequency(
 	return gatePF
 }
 
-// RuleDerivedInterceptConclusion is the fallback one-line intercept summary.
+// RuleDerivedInterceptConclusionScore summarizes intercept from multi-TF score.
+func RuleDerivedInterceptConclusionScore(side string, wouldIntercept, hardMask bool, pa PriceAnalysis, sc MultiTFPriceScore, threshold float64) string {
+	dir := "买入"
+	if side == "sell" {
+		dir = "卖出"
+	}
+	reason := strings.TrimSpace(sc.ScoreReason)
+	if reason == "" {
+		reason = fmt.Sprintf("综合分 %.0f", sc.Score)
+	}
+	if wouldIntercept {
+		verb := "已拦截"
+		if !hardMask {
+			verb = "本会拦截"
+		}
+		limit := fmt.Sprintf("%.0f", threshold)
+		if side == "sell" {
+			limit = fmt.Sprintf("%.0f", -threshold)
+		}
+		return fmt.Sprintf("%s%s信号：综合分 %.0f 未达阈值 %s；%s", verb, dir, sc.Score, limit, reason)
+	}
+	return fmt.Sprintf("通过%s信号：综合分 %.0f；%s", dir, sc.Score, reason)
+}
+
+// RuleDerivedInterceptConclusion is the legacy regime-based summary (non per-episode paths).
 func RuleDerivedInterceptConclusion(side string, wouldIntercept, hardMask bool, pa PriceAnalysis, pf PriceFilterResult) string {
 	dir := "买入"
 	if side == "sell" {

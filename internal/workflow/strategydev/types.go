@@ -11,6 +11,8 @@ type Input struct {
 	MonthsBackH int // optional longer window hint for step 6 (Jev only)
 	// UsePriceAnalysisEpisodeFilter nil = default off; true hard-masks disallowed buy/sell triggers before episode eval.
 	UsePriceAnalysisEpisodeFilter *bool
+	// PriceAnalysisScoreThreshold nil = default 0; hard gate uses multi-TF score vs this threshold.
+	PriceAnalysisScoreThreshold *float64
 }
 
 // Result is the workflow output after all applicable steps.
