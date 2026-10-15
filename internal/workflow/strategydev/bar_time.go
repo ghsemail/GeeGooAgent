@@ -1,6 +1,7 @@
 package strategydev
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -64,7 +65,60 @@ func parseBarTimeString(s string, loc *time.Location) time.Time {
 			return parsed
 		}
 	}
+	if ts := parseCompactBarTimeString(s, loc); !ts.IsZero() {
+		return ts
+	}
 	return time.Time{}
+}
+
+// parseCompactBarTimeString handles A-share 60m stamps like "202604291130 00:00:00".
+func parseCompactBarTimeString(s string, loc *time.Location) time.Time {
+	for _, token := range strings.Fields(s) {
+		if ts := parseCompactDigitTimestamp(strings.TrimSpace(token), loc); !ts.IsZero() {
+			return ts
+		}
+	}
+	digits := extractLongestDigitRun(s)
+	return parseCompactDigitTimestamp(digits, loc)
+}
+
+func parseCompactDigitTimestamp(digits string, loc *time.Location) time.Time {
+	if digits == "" {
+		return time.Time{}
+	}
+	switch len(digits) {
+	case 8:
+		if parsed, err := time.ParseInLocation("20060102", digits, loc); err == nil {
+			return parsed
+		}
+	case 12:
+		if parsed, err := time.ParseInLocation("200601021504", digits, loc); err == nil {
+			return parsed
+		}
+	case 14:
+		if parsed, err := time.ParseInLocation("20060102150405", digits, loc); err == nil {
+			return parsed
+		}
+	}
+	return time.Time{}
+}
+
+func extractLongestDigitRun(s string) string {
+	best, cur := "", ""
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			cur += string(r)
+			continue
+		}
+		if len(cur) > len(best) {
+			best = cur
+		}
+		cur = ""
+	}
+	if len(cur) > len(best) {
+		best = cur
+	}
+	return best
 }
 
 func parseBarTimeNumber(v float64, loc *time.Location) time.Time {
@@ -75,6 +129,16 @@ func parseBarTimeNumber(v float64, loc *time.Location) time.Time {
 		d := int(iv % 100)
 		if m >= 1 && m <= 12 && d >= 1 && d <= 31 {
 			return time.Date(y, time.Month(m), d, 0, 0, 0, 0, loc)
+		}
+	}
+	if iv >= 100_000_000_000 && iv < 1_000_000_000_000 {
+		if ts := parseCompactDigitTimestamp(fmt.Sprintf("%012d", iv), loc); !ts.IsZero() {
+			return ts
+		}
+	}
+	if iv >= 1_000_000_000_000 && iv < 1_000_000_000_000_000 {
+		if ts := parseCompactDigitTimestamp(fmt.Sprintf("%d", iv), loc); !ts.IsZero() {
+			return ts
 		}
 	}
 	sec := iv

@@ -20,12 +20,13 @@ func EnrichEpisodeStatsAIConclusions(ctx context.Context, llmClient InterceptCon
 		return
 	}
 	type item struct {
-		Key     string `json:"key"`
-		Side    string `json:"side"`
-		Time    string `json:"time"`
-		Masked  bool   `json:"masked"`
-		Rule    string `json:"rule_conclusion"`
-		Summary string `json:"price_summary,omitempty"`
+		Key            string `json:"key"`
+		Side           string `json:"side"`
+		Time           string `json:"time"`
+		Masked         bool   `json:"masked"`
+		WouldIntercept bool   `json:"would_intercept"`
+		Rule           string `json:"rule_conclusion"`
+		Summary        string `json:"price_summary,omitempty"`
 	}
 	var batch []item
 	index := map[string]*EpisodeTriggerRecord{}
@@ -37,7 +38,7 @@ func EnrichEpisodeStatsAIConclusions(ctx context.Context, llmClient InterceptCon
 		if tr.PriceAnalysis != nil {
 			sum = tr.PriceAnalysis.Summary
 		}
-		batch = append(batch, item{Key: key, Side: "buy", Time: tr.Time, Masked: tr.Masked, Rule: tr.AIInterceptConclusion, Summary: sum})
+		batch = append(batch, item{Key: key, Side: "buy", Time: tr.Time, Masked: tr.Masked, WouldIntercept: tr.WouldIntercept, Rule: tr.AIInterceptConclusion, Summary: sum})
 	}
 	for i := range stats.SellTriggers {
 		tr := &stats.SellTriggers[i]
@@ -47,7 +48,7 @@ func EnrichEpisodeStatsAIConclusions(ctx context.Context, llmClient InterceptCon
 		if tr.PriceAnalysis != nil {
 			sum = tr.PriceAnalysis.Summary
 		}
-		batch = append(batch, item{Key: key, Side: "sell", Time: tr.Time, Masked: tr.Masked, Rule: tr.AIInterceptConclusion, Summary: sum})
+		batch = append(batch, item{Key: key, Side: "sell", Time: tr.Time, Masked: tr.Masked, WouldIntercept: tr.WouldIntercept, Rule: tr.AIInterceptConclusion, Summary: sum})
 	}
 	if len(batch) == 0 {
 		return
@@ -56,7 +57,8 @@ func EnrichEpisodeStatsAIConclusions(ctx context.Context, llmClient InterceptCon
 	if err != nil {
 		return
 	}
-	user := fmt.Sprintf(`以下为同一次信号诊断中各触发的多周期价格分析结论草稿（rule 字段）。请为每条写一句中文 ai_intercept_conclusion：说明「已拦截」或「通过」及核心理由，勿编造数据。
+	user := fmt.Sprintf(`以下为同一次信号诊断中各触发的多周期价格分析结论草稿（rule 字段）。请为每条写一句中文 ai_intercept_conclusion。
+规则：would_intercept=false 且 masked=false 时必须写「保留」或「通过」，不得写「已拦截」；would_intercept=true 且 masked=false 写「本会拦截」；masked=true 写「已拦截」。锚点不可用不等于已掩码拦截。
 返回 JSON 数组：[{"key":"buy:3","conclusion":"..."}]，key 必须与输入一致。
 
 输入：

@@ -22,7 +22,7 @@ type PriceAnalysis struct {
 	FilterTimeframeNote string              `json:"filter_timeframe_note,omitempty"`
 	AnchorTime          string              `json:"anchor_time,omitempty"`
 	AnchorClose         float64             `json:"anchor_close,omitempty"`
-	PriceScore          float64             `json:"price_score,omitempty"`
+	PriceScore          float64             `json:"price_score"`
 	TFScores            map[string]TFScoreBreakdown `json:"tf_scores,omitempty"`
 	ScoreReason         string              `json:"score_reason,omitempty"`
 }

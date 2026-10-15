@@ -277,7 +277,7 @@ func buildPriceAnalysisWhenPriorTradingDayMissing(signalClose float64, chartFreq
 	for _, spec := range multiTimeframeSpecsForGate(chartFreq) {
 		pa.Rows = append(pa.Rows, emptyPriceAnalysisRow(spec.Label, structurePriorTradingDayUnavailable))
 	}
-	pa.Summary = "前一交易日日线锚点不可用，未做多周期结构门控。"
+	pa.Summary = "前一交易日日线锚点不可用，Episode 多周期打分仅供参考。"
 	pa.FilterTimeframeNote = fmt.Sprintf("Episode 方向门控使用 %s 周期结论（锚点前）", timeframeDisplayLabel(chartFreq))
 	pa.SupportResistance = formatSupportResistanceLine(kl, pa.Rows)
 	return pa
@@ -396,6 +396,8 @@ func RuleDerivedInterceptConclusionScore(side string, wouldIntercept, hardMask b
 	if reason == "" {
 		reason = fmt.Sprintf("综合分 %.0f", sc.Score)
 	}
+	anchorMissing := strings.Contains(pa.SpotLabel, structurePriorTradingDayUnavailable) ||
+		strings.Contains(pa.Summary, "锚点不可用")
 	if wouldIntercept {
 		verb := "已拦截"
 		if !hardMask {
@@ -406,6 +408,12 @@ func RuleDerivedInterceptConclusionScore(side string, wouldIntercept, hardMask b
 			limit = fmt.Sprintf("%.0f", -threshold)
 		}
 		return fmt.Sprintf("%s%s信号：综合分 %.0f 未达阈值 %s；%s", verb, dir, sc.Score, limit, reason)
+	}
+	if anchorMissing && !hardMask {
+		return fmt.Sprintf("保留%s信号（软门控）：前一交易日锚点不可用，综合分 %.0f；%s", dir, sc.Score, reason)
+	}
+	if anchorMissing && hardMask {
+		return fmt.Sprintf("通过%s信号：锚点不可用但综合分 %.0f 未触发硬拦；%s", dir, sc.Score, reason)
 	}
 	return fmt.Sprintf("通过%s信号：综合分 %.0f；%s", dir, sc.Score, reason)
 }
