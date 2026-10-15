@@ -397,7 +397,7 @@ func RuleDerivedInterceptConclusionScore(side string, wouldIntercept, hardMask b
 	}
 	reason := strings.TrimSpace(sc.ScoreReason)
 	if reason == "" {
-		reason = fmt.Sprintf("综合分 %.0f", sc.Score)
+		reason = fmt.Sprintf("综合分 %.2f", NormalizePriceScore(sc.Score))
 	}
 	anchorMissing := strings.Contains(pa.SpotLabel, structurePriorTradingDayUnavailable) ||
 		strings.Contains(pa.Summary, "锚点不可用")
@@ -410,15 +410,16 @@ func RuleDerivedInterceptConclusionScore(side string, wouldIntercept, hardMask b
 		if side == "sell" {
 			limit = fmt.Sprintf("%.0f", -threshold)
 		}
-		return fmt.Sprintf("%s%s信号：综合分 %.0f 未达阈值 %s；%s", verb, dir, sc.Score, limit, reason)
+		score := NormalizePriceScore(sc.Score)
+		return fmt.Sprintf("%s%s信号：综合分 %.2f 未达阈值 %s；%s", verb, dir, score, limit, reason)
 	}
 	if anchorMissing && !hardMask {
-		return fmt.Sprintf("保留%s信号（软门控）：前一交易日锚点不可用，综合分 %.0f；%s", dir, sc.Score, reason)
+		return fmt.Sprintf("保留%s信号（软门控）：前一交易日锚点不可用，综合分 %.2f；%s", dir, NormalizePriceScore(sc.Score), reason)
 	}
 	if anchorMissing && hardMask {
-		return fmt.Sprintf("通过%s信号：锚点不可用但综合分 %.0f 未触发硬拦；%s", dir, sc.Score, reason)
+		return fmt.Sprintf("通过%s信号：锚点不可用但综合分 %.2f 未触发硬拦；%s", dir, NormalizePriceScore(sc.Score), reason)
 	}
-	return fmt.Sprintf("通过%s信号：综合分 %.0f；%s", dir, sc.Score, reason)
+	return fmt.Sprintf("通过%s信号：综合分 %.2f；%s", dir, NormalizePriceScore(sc.Score), reason)
 }
 
 // RuleDerivedInterceptConclusion is the legacy regime-based summary (non per-episode paths).

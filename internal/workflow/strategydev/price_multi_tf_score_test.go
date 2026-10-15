@@ -62,6 +62,23 @@ func TestComputeMultiTFPriceScoreMissingTF(t *testing.T) {
 	}
 }
 
+func TestNormalizePriceScoreNearZeroNotWouldIntercept(t *testing.T) {
+	raw := -0.001
+	if got := NormalizePriceScore(raw); got != 0 {
+		t.Fatalf("NormalizePriceScore(%v)=%v want 0", raw, got)
+	}
+	if ShouldInterceptTriggerByScore("buy", raw, 0) {
+		t.Fatal("buy must not intercept when score rounds to 0")
+	}
+	reason := formatScoreReason(raw, nil)
+	if strings.Contains(reason, "-0") {
+		t.Fatalf("score reason must not show -0: %q", reason)
+	}
+	if !strings.Contains(reason, "0.00") && !strings.Contains(reason, "综合分 0") {
+		t.Fatalf("expected zero display in reason: %q", reason)
+	}
+}
+
 func TestShouldInterceptSellOnPositiveScore(t *testing.T) {
 	if !ShouldInterceptTriggerByScore("sell", 25, 0) {
 		t.Fatal("sell should intercept when score > -threshold and score bullish")

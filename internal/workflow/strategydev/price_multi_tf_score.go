@@ -100,9 +100,18 @@ func ComputeMultiTFPriceScore(pa PriceAnalysis, gateFreq string) MultiTFPriceSco
 		return out
 	}
 	norm := weighted / weightSum
-	out.Score = 100 * clamp(norm/2, -1, 1)
+	out.Score = NormalizePriceScore(100 * clamp(norm/2, -1, 1))
 	out.ScoreReason = formatScoreReason(out.Score, missing)
 	return out
+}
+
+// NormalizePriceScore rounds to 2 decimal places for gating/display and maps -0 to 0.
+func NormalizePriceScore(score float64) float64 {
+	rounded := math.Round(score*100) / 100
+	if rounded == 0 {
+		return 0
+	}
+	return rounded
 }
 
 func gateTFScoreKey(gate string) string {
@@ -188,6 +197,7 @@ func clamp(v, lo, hi float64) float64 {
 }
 
 func formatScoreReason(score float64, missing []string) string {
+	score = NormalizePriceScore(score)
 	var tone string
 	switch {
 	case score >= 40:
@@ -202,13 +212,15 @@ func formatScoreReason(score float64, missing []string) string {
 		tone = "中性"
 	}
 	if len(missing) > 0 {
-		return fmt.Sprintf("%s（综合分 %.0f；缺周期：%s）", tone, score, strings.Join(missing, "、"))
+		return fmt.Sprintf("%s（综合分 %.2f；缺周期：%s）", tone, score, strings.Join(missing, "、"))
 	}
-	return fmt.Sprintf("%s（综合分 %.0f）", tone, score)
+	return fmt.Sprintf("%s（综合分 %.2f）", tone, score)
 }
 
 // ShouldInterceptTriggerByScore applies hard gate from multi-TF score (not gate-TF regime alone).
 func ShouldInterceptTriggerByScore(side string, score, threshold float64) bool {
+	score = NormalizePriceScore(score)
+	threshold = NormalizePriceScore(threshold)
 	if side == "buy" {
 		return score < threshold
 	}

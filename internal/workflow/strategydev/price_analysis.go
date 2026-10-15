@@ -564,9 +564,9 @@ func AppendPriceAnalysisMarkdown(b *strings.Builder, pa *PriceAnalysis) {
 	}
 	if pa.PriceScore != 0 || strings.TrimSpace(pa.ScoreReason) != "" {
 		if r := strings.TrimSpace(pa.ScoreReason); r != "" {
-			fmt.Fprintf(b, "\n**多周期打分**：%.0f — %s\n", pa.PriceScore, r)
+			fmt.Fprintf(b, "\n**多周期打分**：%.2f — %s\n", NormalizePriceScore(pa.PriceScore), r)
 		} else {
-			fmt.Fprintf(b, "\n**多周期打分**：%.0f\n", pa.PriceScore)
+			fmt.Fprintf(b, "\n**多周期打分**：%.2f\n", NormalizePriceScore(pa.PriceScore))
 		}
 	}
 	if note := strings.TrimSpace(pa.FilterTimeframeNote); note != "" {
