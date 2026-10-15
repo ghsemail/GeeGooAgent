@@ -20,6 +20,8 @@ type PerSignalPriceFilterInput struct {
 	AnnotateOnly bool
 	// ScoreThreshold for hard gate (default 0); buys blocked when score < threshold.
 	ScoreThreshold *float64
+	// LookbackChartBars is the pre-clamp probe span used for multi-TF fetch sizing and signal-TF OHLCV.
+	LookbackChartBars []any
 }
 
 // ApplyPerSignalPriceAnalysisEpisodeFilter masks triggers using each signal's anchored multi-TF gate.
@@ -52,9 +54,13 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 		end := chartLatest
 		windowEnd = &end
 	}
+	lookbackBars := in.LookbackChartBars
+	if len(lookbackBars) == 0 {
+		lookbackBars = bars
+	}
 	// One probe per TF (as_of = diagnosis window end when known); per-signal anchor truncate is local below.
 	barsByFreq, fetchOKByFreq := FetchMultiTimeframePriceAnalysisBars(ctx, MultiTimeframePriceBarsInput{
-		Run: in.Run, Code: in.Code, Months: chartMonths, GateFreq: gateFreq, AsOf: windowEnd, ChartBars: bars,
+		Run: in.Run, Code: in.Code, Months: chartMonths, GateFreq: gateFreq, AsOf: windowEnd, ChartBars: lookbackBars,
 	})
 	dailyBars := barsByFreq["daily"]
 	if len(dailyBars) == 0 && gateFreq == "daily" {
@@ -97,8 +103,8 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 			pa = buildPriceAnalysisWhenPriorTradingDayMissing(job.close, gateFreq, in.KL)
 			pfGate = episodeGateWhenPriorTradingDayMissing(gateFreq)
 		} else {
-			pa = buildAnchoredPriceAnalysis(barsByFreq, fetchOKByFreq, bars, gateFreq, anchorTime, anchorClose, job.close, in.KL)
-			pfGate = priceFilterForGateFrequency(pa, gateFreq, barsByFreq, bars, anchorTime, gateFreq)
+			pa = buildAnchoredPriceAnalysis(barsByFreq, fetchOKByFreq, lookbackBars, gateFreq, anchorTime, anchorClose, job.close, in.KL)
+			pfGate = priceFilterForGateFrequency(pa, gateFreq, barsByFreq, lookbackBars, anchorTime, gateFreq)
 		}
 		scoreResult := attachScoreToPriceAnalysis(&pa, gateFreq)
 		lastGate = pfGate
@@ -109,7 +115,7 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 			Time:                  job.time,
 			Close:                 job.close,
 			WouldIntercept:        wouldIntercept,
-			Intercepted:           wouldIntercept,
+			Intercepted:           hardMask && wouldIntercept,
 			PriceAnalysis:         &pa,
 			PriceScore:            scoreResult.Score,
 			TFScores:              scoreResult.TFScores,
@@ -132,9 +138,9 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 			}
 		} else if wouldIntercept {
 			if job.side == "buy" {
-				stats.StrippedBuy++
+				stats.WouldInterceptBuy++
 			} else {
-				stats.StrippedSell++
+				stats.WouldInterceptSell++
 			}
 		}
 	}
@@ -316,10 +322,7 @@ func buildAnchoredPriceAnalysis(
 	pa.AnchorClose = anchorClose
 
 	for _, spec := range multiTimeframeSpecsForGate(chartFreq) {
-		src := barsByFreq[spec.Freq]
-		if len(src) == 0 && NormalizeFrequency(chartFreq) == spec.Freq {
-			src = chartBars
-		}
+		src := ohlcvSourceForTimeframe(spec.Freq, chartFreq, barsByFreq, chartBars, anchorTime)
 		trunc := truncateBarsAtAnchor(src, anchorTime)
 		if len(trunc) == 0 {
 			reason := structureReasonAfterAnchorTruncate(len(src), fetchOKByFreq[spec.Freq])

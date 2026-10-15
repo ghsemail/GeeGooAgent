@@ -81,19 +81,39 @@ func priceFilterResultFromRowConclusion(r PriceAnalysisRow, freq string) PriceFi
 	return pf
 }
 
+func ohlcvSourceForTimeframe(
+	specFreq string,
+	chartFreq string,
+	barsByFreq map[string][]any,
+	lookbackBars []any,
+	anchorTime time.Time,
+) []any {
+	fetched := barsByFreq[specFreq]
+	if NormalizeFrequency(chartFreq) != NormalizeFrequency(specFreq) {
+		return fetched
+	}
+	if len(fetched) == 0 {
+		return lookbackBars
+	}
+	if len(lookbackBars) == 0 {
+		return fetched
+	}
+	if len(truncateBarsAtAnchor(lookbackBars, anchorTime)) > len(truncateBarsAtAnchor(fetched, anchorTime)) {
+		return lookbackBars
+	}
+	return fetched
+}
+
 func priceFilterResultForFrequency(
 	pa PriceAnalysis,
 	freq string,
 	barsByFreq map[string][]any,
-	chartBars []any,
+	lookbackBars []any,
 	anchorTime time.Time,
 	chartFreq string,
 ) PriceFilterResult {
 	freq = NormalizeFrequency(freq)
-	src := barsByFreq[freq]
-	if len(src) == 0 && freq == NormalizeFrequency(chartFreq) {
-		src = chartBars
-	}
+	src := ohlcvSourceForTimeframe(freq, chartFreq, barsByFreq, lookbackBars, anchorTime)
 	trunc := truncateBarsAtAnchor(src, anchorTime)
 	if len(trunc) == 0 {
 		for _, r := range pa.Rows {

@@ -87,7 +87,7 @@ func finishDiagnoseFromMerged(
 		var pfVal PriceFilterResult
 		buyMerged, sellMerged, pfVal, stats = ApplyPerSignalPriceAnalysisEpisodeFilter(ctx, PerSignalPriceFilterInput{
 			Run: run, Code: code, Months: months, KL: kl, AnnotateOnly: !usePriceFilter,
-			ScoreThreshold: scoreThreshold,
+			ScoreThreshold: scoreThreshold, LookbackChartBars: ProbeLookbackBarsFromData(rawData),
 		}, bars, freq, buyMerged, sellMerged)
 		pf = &pfVal
 		pstats = &stats

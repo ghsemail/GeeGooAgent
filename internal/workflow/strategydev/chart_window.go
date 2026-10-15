@@ -8,12 +8,40 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
+// PreserveProbeLookbackBars snapshots full-span bars before months_back clamp (for per-signal lookback).
+func PreserveProbeLookbackBars(data map[string]any) {
+	if data == nil {
+		return
+	}
+	if _, ok := data["bars_lookback"]; ok {
+		return
+	}
+	bars, _ := data["bars"].([]any)
+	if len(bars) == 0 {
+		return
+	}
+	data["bars_lookback"] = append([]any(nil), bars...)
+}
+
+// ProbeLookbackBarsFromData returns pre-clamp bars when present, else current bars.
+func ProbeLookbackBarsFromData(data map[string]any) []any {
+	if data == nil {
+		return nil
+	}
+	if lb, ok := data["bars_lookback"].([]any); ok && len(lb) > 0 {
+		return lb
+	}
+	bars, _ := data["bars"].([]any)
+	return bars
+}
+
 // ClampProbeSeriesToMonthsBack keeps only bars in [windowEnd−monthsBack calendar months, windowEnd]
 // and slices per-bar aligned arrays (merged signals, rules, key_levels_series, etc.).
 func ClampProbeSeriesToMonthsBack(data map[string]any, months int) {
 	if data == nil {
 		return
 	}
+	PreserveProbeLookbackBars(data)
 	months = CapMonthsBack(months)
 	bars, _ := data["bars"].([]any)
 	if len(bars) == 0 {

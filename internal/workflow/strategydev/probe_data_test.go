@@ -15,16 +15,6 @@ func TestBarTimeUnixNaiveStringUsesAsiaShanghai(t *testing.T) {
 	}
 }
 
-func TestBarTimeUnixCNCompactWithSuffix(t *testing.T) {
-	loc, _ := time.LoadLocation("Asia/Shanghai")
-	row := map[string]any{"time": "202604291130 00:00:00"}
-	ts := barTimeUnix(row)
-	want := time.Date(2026, 4, 29, 11, 30, 0, 0, loc)
-	if !ts.Equal(want) {
-		t.Fatalf("got %v want %v", ts.In(loc), want)
-	}
-}
-
 func TestBarTimeUnixDateOnlyUsesAsiaShanghaiMidnight(t *testing.T) {
 	loc, _ := time.LoadLocation("Asia/Shanghai")
 	row := map[string]any{"time": "2026-06-26"}

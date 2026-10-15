@@ -304,9 +304,10 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 	item.Summary = strings.TrimSpace(res.Summary)
 	item.Status = StepDone
 	flow.ProbeRaw = map[string]any{
-		"bars":        res.Data["bars"],
-		"buy_merged":  res.Data["buy_merged"],
-		"sell_merged": res.Data["sell_merged"],
+		"bars":          res.Data["bars"],
+		"buy_merged":    res.Data["buy_merged"],
+		"sell_merged":   res.Data["sell_merged"],
+		"bars_lookback": res.Data["bars_lookback"],
 	}
 	if serRaw := res.Data["key_levels_series"]; serRaw != nil {
 		flow.KeyLevelSeries = keyLevelBarSeriesFromProbeData(serRaw)
@@ -365,9 +366,11 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 		var pfVal strategydev.PriceFilterResult
 		var stats strategydev.EpisodeTriggerFilterStats
 		scoreTh := flow.PriceAnalysisScoreThreshold
+		lookback, _ := flow.ProbeRaw["bars_lookback"].([]any)
 		buyMerged, sellMerged, pfVal, stats = strategydev.ApplyPerSignalPriceAnalysisEpisodeFilter(ctx, strategydev.PerSignalPriceFilterInput{
 			Run: run, Code: flow.StockCode, Months: months, KL: keyLevelBandsFromFlow(flow),
 			AnnotateOnly: !flow.UsePriceAnalysisEpisodeFilter, ScoreThreshold: &scoreTh,
+			LookbackChartBars: lookback,
 		}, bars, freq, buyMerged, sellMerged)
 		cp := pfVal
 		flow.PriceFilter = &cp

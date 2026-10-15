@@ -415,6 +415,8 @@ type EpisodeTriggerFilterStats struct {
 	PostFilterSellHits int `json:"post_filter_sell_hits"`
 	StrippedBuy  int `json:"stripped_buy"`
 	StrippedSell int `json:"stripped_sell"`
+	WouldInterceptBuy  int `json:"would_intercept_buy,omitempty"`
+	WouldInterceptSell int `json:"would_intercept_sell,omitempty"`
 	PostFilterBuyEpisodes         int `json:"post_filter_buy_episodes,omitempty"`
 	PostFilterSellEpisodes        int `json:"post_filter_sell_episodes,omitempty"`
 	PostFilterBuyEpisodesComplete  int `json:"post_filter_buy_episodes_complete,omitempty"`

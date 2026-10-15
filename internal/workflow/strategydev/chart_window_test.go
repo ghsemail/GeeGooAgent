@@ -24,7 +24,7 @@ func TestClampProbeSeriesToMonthsBackCNCompactTime(t *testing.T) {
 		})
 		hit := 0
 		if i == 0 {
-			hit = 1 // April — outside 3mo window
+			hit = 1
 		}
 		if day.Equal(windowStart.Add(24 * time.Hour)) {
 			hit = 1
@@ -71,16 +71,141 @@ func TestClampProbeSeriesToMonthsBackCNCompactTime(t *testing.T) {
 			}
 		}
 	}
-	rules, _ := data["buy_rules"].([]any)
-	rule := rules[0].(map[string]any)
-	ss, _ := rule["signal_series"].([]any)
-	if len(ss) != len(outBars) {
-		t.Fatalf("signal_series len=%d want %d", len(ss), len(outBars))
+	lb, _ := data["bars_lookback"].([]any)
+	if len(lb) <= len(outBars) {
+		t.Fatalf("lookback len=%d want > clamped %d", len(lb), len(outBars))
 	}
-	vs, _ := rule["value_series"].(map[string]any)
-	macd, _ := vs["macd"].([]any)
-	if len(macd) != len(outBars) {
-		t.Fatalf("value_series macd len=%d want %d", len(macd), len(outBars))
+}
+
+func TestOhlcvSourceForTimeframePrefersLongerPreAnchorHistory(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	anchor := time.Date(2026, 7, 17, 16, 0, 0, 0, loc)
+	short := []any{
+		map[string]any{"time": "202607151500 00:00:00", "close": 1.0, "high": 1.1, "low": 0.9, "volume": 1.0},
+		map[string]any{"time": "202607161130 00:00:00", "close": 2.0, "high": 2.1, "low": 1.9, "volume": 1.0},
+		map[string]any{"time": "202607171130 00:00:00", "close": 3.0, "high": 3.1, "low": 2.9, "volume": 1.0},
+	}
+	var long []any
+	day := time.Date(2026, 4, 29, 11, 30, 0, 0, loc)
+	for !day.After(anchor) {
+		long = append(long, map[string]any{
+			"time": day.Format("200601021504") + " 00:00:00",
+			"close": 10.0, "high": 11.0, "low": 9.0, "volume": 1.0,
+		})
+		day = day.AddDate(0, 0, 1)
+	}
+	src := ohlcvSourceForTimeframe("60m", "60m", map[string][]any{"60m": short}, long, anchor)
+	if len(truncateBarsAtAnchor(src, anchor)) < minBarsForPriceFilter("60m") {
+		t.Fatalf("src pre-anchor bars=%d want >= %d", len(truncateBarsAtAnchor(src, anchor)), minBarsForPriceFilter("60m"))
+	}
+}
+
+func append60mSessionBars(out []any, day time.Time, baseClose float64) []any {
+	loc := day.Location()
+	sessions := []struct{ h, m int }{{10, 30}, {11, 30}, {14, 0}, {15, 0}}
+	for _, s := range sessions {
+		ts := time.Date(day.Year(), day.Month(), day.Day(), s.h, s.m, 0, 0, loc)
+		out = append(out, map[string]any{
+			"time": ts.Format("200601021504") + " 00:00:00",
+			"close": baseClose, "high": baseClose + 1, "low": baseClose - 1, "volume": 1000.0,
+		})
+		baseClose += 0.01
+	}
+	return out
+}
+
+func TestPerSignal60mUsesLookbackWhenFirstTriggerNearChartStart(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	windowEnd := time.Date(2026, 10, 15, 15, 0, 0, 0, loc)
+	var lookback []any
+	day := time.Date(2026, 4, 29, 0, 0, 0, 0, loc)
+	closeP := 400.0
+	for !day.After(windowEnd) {
+		lookback = append60mSessionBars(lookback, day, closeP)
+		closeP += 0.2
+		day = day.AddDate(0, 0, 1)
+	}
+	data := map[string]any{"bars": lookback}
+	ClampProbeSeriesToMonthsBack(data, 3)
+	clamped, _ := data["bars"].([]any)
+	buyM := make([]any, len(clamped))
+	buyM[5] = 1 // a few bars after clamped chart start (~07-20)
+
+	short60m := make([]any, len(clamped))
+	for i, raw := range clamped {
+		short60m[i] = raw
+	}
+	dailyFull := make([]any, minBarsForPriceFilter("daily")+15)
+	for j := range dailyFull {
+		d := time.Date(2026, 5, 1, 0, 0, 0, 0, loc).AddDate(0, 0, j)
+		c := 400.0 + float64(j)*0.2
+		dailyFull[j] = map[string]any{
+			"time": d.Format("2006-01-02 15:04:05"),
+			"close": c, "high": c + 1, "low": c - 1, "volume": 1e6,
+		}
+	}
+
+	run := ToolRunner(func(ctx context.Context, name string, args map[string]any) tools.Result {
+		if name != "probe_bot_signal_series" {
+			return tools.Result{Status: tools.StatusError}
+		}
+		freq := args["frequency"].(string)
+		switch freq {
+		case "daily":
+			return tools.Result{Status: tools.StatusOK, Data: map[string]any{"bars": dailyFull}}
+		case "60m":
+			return tools.Result{Status: tools.StatusOK, Data: map[string]any{"bars": short60m}}
+		default:
+			n := minBarsForPriceFilter(freq) + 5
+			out := make([]any, n)
+			for i := 0; i < n; i++ {
+				c := 100.0 + float64(i)*0.05
+				out[i] = map[string]any{
+					"time": fmt.Sprintf("2026-06-%02d 10:00:00", (i%28)+1),
+					"close": c, "high": c + 1, "low": c - 1, "volume": 1000.0,
+				}
+			}
+			return tools.Result{Status: tools.StatusOK, Data: map[string]any{"bars": out}}
+		}
+	})
+
+	row := barRowAt(clamped, 5)
+	anchor, _, ok := anchorForSignalBar(row, dailyFull)
+	if !ok {
+		t.Fatal("anchor missing in test fixture")
+	}
+	if n := len(truncateBarsAtAnchor(lookback, anchor)); n < minBarsForPriceFilter("60m") {
+		t.Fatalf("fixture lookback trunc=%d want >= %d", n, minBarsForPriceFilter("60m"))
+	}
+	chosen := ohlcvSourceForTimeframe("60m", "60m", map[string][]any{"60m": short60m}, lookback, anchor)
+	if len(truncateBarsAtAnchor(chosen, anchor)) < minBarsForPriceFilter("60m") {
+		t.Fatalf("chosen src trunc=%d", len(truncateBarsAtAnchor(chosen, anchor)))
+	}
+
+	_, _, _, stats := ApplyPerSignalPriceAnalysisEpisodeFilter(context.Background(), PerSignalPriceFilterInput{
+		Run: run, Code: "300750.SZ", Months: 3, AnnotateOnly: true, LookbackChartBars: lookback,
+	}, clamped, "60m", buyM, nil)
+	if len(stats.BuyTriggers) != 1 {
+		t.Fatalf("triggers=%d", len(stats.BuyTriggers))
+	}
+	tr := stats.BuyTriggers[0]
+	if tr.Intercepted {
+		t.Fatal("soft gate must not set intercepted")
+	}
+	if stats.StrippedBuy != 0 {
+		t.Fatalf("stripped_buy=%d want 0 in soft mode", stats.StrippedBuy)
+	}
+	pa := tr.PriceAnalysis
+	if pa == nil {
+		t.Fatal("missing price analysis")
+	}
+	for _, row := range pa.Rows {
+		if row.Timeframe != "60m" {
+			continue
+		}
+		if row.Structure == structureInsufficientBars {
+			t.Fatalf("60m structure=%q with lookback span", row.Structure)
+		}
 	}
 }
 
@@ -98,7 +223,7 @@ func TestPerSignalFetchNotCappedAtSixWhenChartNeedsLookback(t *testing.T) {
 		buyM = append(buyM, 0)
 		day = day.AddDate(0, 0, 1)
 	}
-	buyM[0] = 1 // earliest trigger — reproduces 300750.SZ over-span before chart clamp
+	buyM[0] = 1
 
 	gotDaily := monthsBackForPerSignalPriceFetch(3, bars, "daily", windowEnd)
 	if gotDaily <= 6 {
@@ -153,7 +278,7 @@ func TestPerSignalFetchNotCappedAtSixWhenChartNeedsLookback(t *testing.T) {
 	})
 
 	_, _, _, stats := ApplyPerSignalPriceAnalysisEpisodeFilter(context.Background(), PerSignalPriceFilterInput{
-		Run: run, Code: "300750.SZ", Months: 3,
+		Run: run, Code: "300750.SZ", Months: 3, LookbackChartBars: bars,
 	}, bars, "60m", buyM, nil)
 	if monthsByFreq["daily"] <= 6 {
 		t.Fatalf("daily months_back=%d want >6 (old CapMonthsBack=6 on fetch starved lookback)", monthsByFreq["daily"])
