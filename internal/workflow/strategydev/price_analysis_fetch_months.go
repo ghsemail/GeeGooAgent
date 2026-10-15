@@ -35,7 +35,7 @@ func monthsBackForPerSignalPriceFetch(chartMonths int, chartBars []any, freq str
 	if spanMonths > base {
 		base = spanMonths
 	}
-	return capMonthsBackForPriceAnalysisFetch(freq, base)
+	return capMonthsBackForPerSignalPriceFetch(freq, base)
 }
 
 func minBarCalendarLookback(freq string) time.Duration {

@@ -85,3 +85,19 @@ func capMonthsBackForPriceAnalysisFetch(freq string, months int) int {
 		return CapMonthsBack(months)
 	}
 }
+
+// perSignalPriceFetchMonthsCap is the max calendar span for multi-TF lookback probes (取数窗),
+// separate from the diagnose analysis window (分析窗) capped at CapMonthsBack.
+const perSignalPriceFetchMonthsCap = 12
+
+// capMonthsBackForPerSignalPriceFetch caps extended per-signal lookback fetches (not the 6mo analysis cap).
+func capMonthsBackForPerSignalPriceFetch(freq string, months int) int {
+	if months <= 0 {
+		months = 3
+	}
+	_ = freq
+	if months > perSignalPriceFetchMonthsCap {
+		return perSignalPriceFetchMonthsCap
+	}
+	return months
+}

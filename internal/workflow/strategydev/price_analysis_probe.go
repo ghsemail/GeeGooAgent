@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"time"
+
+	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
 // PriceAnalysisProbeParams builds probe_bot_signal_series args for multi-TF price analysis.
@@ -14,11 +16,25 @@ type PriceAnalysisProbeParams struct {
 	Freq   string
 	Months int
 	AsOf   *time.Time
+	// ExtendedFetch when true uses capMonthsBackForPerSignalPriceFetch (up to 12mo lookback).
+	ExtendedFetch bool
 }
 
 // PriceAnalysisProbeArgsFrom returns probe args; omits as_of when unset so old Signal stays valid.
 func PriceAnalysisProbeArgsFrom(p PriceAnalysisProbeParams) map[string]any {
-	args := PriceAnalysisProbeArgs(p.Code, p.Freq, p.Months)
+	months := p.Months
+	if p.ExtendedFetch {
+		months = capMonthsBackForPerSignalPriceFetch(p.Freq, months)
+	} else {
+		months = capMonthsBackForPriceAnalysisFetch(p.Freq, months)
+	}
+	args := map[string]any{
+		"code":        strings.TrimSpace(p.Code),
+		"frequency":   NormalizeFrequency(p.Freq),
+		"months_back": months,
+		"buy_signal":  slots.NormalizeSignalChain(nosignalProbe),
+		"sell_signal": slots.NormalizeSignalChain(nosignalProbe),
+	}
 	if p.AsOf != nil && !p.AsOf.IsZero() {
 		args["as_of"] = formatPriceAnalysisAsOf(*p.AsOf)
 	}

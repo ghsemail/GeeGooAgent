@@ -281,6 +281,8 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 	if res.Status != tools.StatusOK {
 		return fmt.Errorf("probe 失败：%s", res.Summary)
 	}
+	months = strategydev.CapMonthsBack(months)
+	strategydev.ClampProbeSeriesToMonthsBack(res.Data, months)
 	flow.ProbeBuyHits = probeHitCount(res.Data, "buy_hits", "buy_merged", 1)
 	flow.ProbeSellHits = probeHitCount(res.Data, "sell_hits", "sell_merged", -1)
 	flow.ProbeBarCount = intAny(res.Data["bar_count"])
@@ -422,6 +424,7 @@ func (r *Runner) phaseSignalDiagnoseBuildDetail(
 	if res.Status != tools.StatusOK {
 		return fmt.Errorf("diagnose 失败：%s", res.Summary)
 	}
+	strategydev.ClampProbeSeriesToMonthsBack(res.Data, strategydev.CapMonthsBack(months))
 	flow.DiagnoseRaw = res.Data
 	flow.DiagnoseVerdict = strings.TrimSpace(fmt.Sprint(res.Data["verdict"]))
 	flow.DiagnoseSummary = strings.TrimSpace(fmt.Sprint(res.Data["summary"]))

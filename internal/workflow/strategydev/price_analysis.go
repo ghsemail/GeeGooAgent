@@ -245,7 +245,7 @@ func fetchPriceAnalysisBarsWithAsOf(ctx context.Context, run ToolRunner, code, f
 	var lastSummary string
 	for attempt := 1; attempt <= priceAnalysisProbeMaxAttempts; attempt++ {
 		res := run(ctx, "probe_bot_signal_series", PriceAnalysisProbeArgsFrom(PriceAnalysisProbeParams{
-			Code: code, Freq: freq, Months: months, AsOf: asOf,
+			Code: code, Freq: freq, Months: months, AsOf: asOf, ExtendedFetch: true,
 		}))
 		if res.Status == tools.StatusOK {
 			bars, _ := res.Data["bars"].([]any)

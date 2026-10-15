@@ -51,6 +51,10 @@ func runDiagnose(
 		}
 	}
 	months = CapMonthsBack(months)
+	ClampProbeSeriesToMonthsBack(res.Data, months)
+	bars, _ = res.Data["bars"].([]any)
+	buyMerged, _ = res.Data["buy_merged"].([]any)
+	sellMerged, _ = res.Data["sell_merged"].([]any)
 	kl := KeyLevelBandsFromProbeData(res.Data)
 	summary, pf, pstats := finishDiagnoseFromMerged(ctx, run, code, months, kl, bars, freq, buyMerged, sellMerged, regime, res.Data, usePriceFilter, scoreThreshold)
 	var pa *PriceAnalysis

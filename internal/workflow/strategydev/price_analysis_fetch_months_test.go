@@ -17,8 +17,8 @@ func TestMonthsBackForPerSignalPriceFetchExtendsShortChartWindow(t *testing.T) {
 	if got <= 3 {
 		t.Fatalf("daily months_back=%d want > 3 to cover June anchor", got)
 	}
-	if got > 6 {
-		t.Fatalf("daily months_back=%d want capped at 6", got)
+	if got > perSignalPriceFetchMonthsCap {
+		t.Fatalf("daily months_back=%d want capped at %d", got, perSignalPriceFetchMonthsCap)
 	}
 }
 
