@@ -161,12 +161,15 @@ func rowToResolved(row map[string]any) (ResolvedSignal, error) {
 	if frequency == "" {
 		frequency = "60m"
 	}
-	return ResolvedSignal{
+	label := strings.TrimSpace(fmt.Sprint(row["name"]))
+	out := ResolvedSignal{
 		Buy:           buy,
 		Sell:          sell,
 		Frequency:     frequency,
-		StrategyLabel: strings.TrimSpace(fmt.Sprint(row["name"])),
-	}, nil
+		StrategyLabel: label,
+	}
+	applySARMACDStrategyBSellDefault(&out, row)
+	return out, nil
 }
 
 // PickCombination selects a combination signal row by token overlap.

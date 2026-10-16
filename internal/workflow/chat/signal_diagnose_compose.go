@@ -198,6 +198,9 @@ func renderSignalDiagnoseFacts(flow *Flow) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "| 步骤 | 结果 |\n| --- | --- |\n")
 	fmt.Fprintf(&b, "| 读取策略 | %s（%s） |\n", label, flow.CatalogType)
+	if ruleNote := slots.SARMACDAgentRuleSummary(label); ruleNote != "" && !flowHasProbePanelOverrides(flow) {
+		fmt.Fprintf(&b, "| 买卖点规则（Agent 默认） | %s |\n", ruleNote)
+	}
 	fmt.Fprintf(&b, "| 标的 | %s %s |\n", flow.StockName, flow.StockCode)
 	freq := "-"
 	if len(flow.Strategies) > 0 && flow.Strategies[0].Frequency != "" {

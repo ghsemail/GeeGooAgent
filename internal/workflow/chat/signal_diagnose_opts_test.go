@@ -1,6 +1,10 @@
 package chat
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
+)
 
 func TestParseSignalDiagnoseOptsProbeOverrides(t *testing.T) {
 	raw := map[string]any{
@@ -32,6 +36,25 @@ func TestParseSignalDiagnoseOptsProbeOverrides(t *testing.T) {
 	}
 	if len(o.BuySignal) != 1 || len(o.SellSignal) != 1 {
 		t.Fatalf("buy=%d sell=%d", len(o.BuySignal), len(o.SellSignal))
+	}
+}
+
+func TestNewSignalDiagnoseFlowSoftDefaults(t *testing.T) {
+	flow := newSignalDiagnoseFlow("诊断 SAR+MACD · 00700.HK")
+	if flow.UsePriceAnalysisEpisodeFilter {
+		t.Fatal("hard episode filter should default off")
+	}
+	if flow.PriceAnalysisBuyScoreDirection != strategydev.BuyScoreDirectionReverse {
+		t.Fatalf("buy score direction=%q", flow.PriceAnalysisBuyScoreDirection)
+	}
+}
+
+func TestEffectiveSignalDiagnoseBuyScoreDirection(t *testing.T) {
+	if effectiveSignalDiagnoseBuyScoreDirection("") != strategydev.BuyScoreDirectionReverse {
+		t.Fatal("empty should reverse")
+	}
+	if effectiveSignalDiagnoseBuyScoreDirection(strategydev.BuyScoreDirectionNormal) != strategydev.BuyScoreDirectionNormal {
+		t.Fatal("explicit normal should stay")
 	}
 }
 
