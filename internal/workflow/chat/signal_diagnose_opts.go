@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
 // ApplyPendingSignalDiagnoseOpts copies session pending opts onto a new flow and clears pending.
@@ -17,6 +18,9 @@ func ApplyPendingSignalDiagnoseOpts(session *runtime.Session, flow *Flow) {
 	}
 	if o.PriceAnalysisScoreThreshold != nil {
 		flow.PriceAnalysisScoreThreshold = *o.PriceAnalysisScoreThreshold
+	}
+	if strings.TrimSpace(o.PriceAnalysisBuyScoreDirection) != "" {
+		flow.PriceAnalysisBuyScoreDirection = strategydev.ParseBuyScoreDirection(o.PriceAnalysisBuyScoreDirection)
 	}
 	if len(o.BuySignal) > 0 {
 		flow.ProbeBuyOverride = o.BuySignal
@@ -52,6 +56,9 @@ func ParseSignalDiagnoseOptsFromWorkflowOptions(raw map[string]any) *runtime.Sig
 	}
 	if v, ok := block["price_analysis_score_threshold"].(float64); ok {
 		out.PriceAnalysisScoreThreshold = &v
+	}
+	if s, ok := block["price_analysis_buy_score_direction"].(string); ok && strings.TrimSpace(s) != "" {
+		out.PriceAnalysisBuyScoreDirection = strings.TrimSpace(s)
 	}
 	if raw, ok := block["buy_signal"].([]any); ok && len(raw) > 0 {
 		out.BuySignal = raw

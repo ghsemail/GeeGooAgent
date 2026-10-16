@@ -13,6 +13,8 @@ type Input struct {
 	UsePriceAnalysisEpisodeFilter *bool
 	// PriceAnalysisScoreThreshold nil = default 0; hard gate uses multi-TF score vs this threshold.
 	PriceAnalysisScoreThreshold *float64
+	// PriceAnalysisBuyScoreDirection soft buy would_intercept: normal | reverse (empty = normal).
+	PriceAnalysisBuyScoreDirection string
 }
 
 // Result is the workflow output after all applicable steps.

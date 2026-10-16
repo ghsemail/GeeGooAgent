@@ -22,6 +22,8 @@ type PerSignalPriceFilterInput struct {
 	ScoreThreshold *float64
 	// LookbackChartBars is the pre-clamp probe span used for multi-TF fetch sizing and signal-TF OHLCV.
 	LookbackChartBars []any
+	// BuyScoreDirection soft-annotation buy would_intercept rule (default normal); ignored when hard mask.
+	BuyScoreDirection BuyScoreDirection
 }
 
 // ApplyPerSignalPriceAnalysisEpisodeFilter masks triggers using each signal's anchored multi-TF gate.
@@ -34,12 +36,18 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 ) ([]any, []any, PriceFilterResult, EpisodeTriggerFilterStats) {
 	gateFreq := NormalizeFrequency(freq)
 	scoreThreshold := PriceAnalysisScoreThreshold(in.ScoreThreshold)
+	buyDir := in.BuyScoreDirection
+	if buyDir == "" {
+		buyDir = BuyScoreDirectionNormal
+	}
 	basis := fmt.Sprintf("按各触发前一交易日锚点多周期打分，综合分低于 %.0f 时掩码剔除买入；卖出在综合分高于 %.0f 时掩码", scoreThreshold, -scoreThreshold)
 	if in.AnnotateOnly {
-		basis = "软门控：逐条多周期打分并标注本会拦截的触发，不掩码剔除（Episode 评价与未门控一致）"
+		basis = fmt.Sprintf("软门控：逐条多周期打分并标注买入 would_intercept（买点打分方向：%s），卖出不参与打分拦截；不掩码剔除（Episode 评价与未门控一致）",
+			BuyScoreDirectionDisplayLabel(buyDir))
 	}
 	stats := EpisodeTriggerFilterStats{
-		InterceptionBasis: basis,
+		InterceptionBasis:              basis,
+		PriceAnalysisBuyScoreDirection: string(buyDir),
 	}
 	if len(buyMerged) == 0 && len(sellMerged) == 0 {
 		return buyMerged, sellMerged, AnalyzePriceFilter(bars, gateFreq), stats
@@ -108,7 +116,7 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 		}
 		scoreResult := attachScoreToPriceAnalysis(&pa, gateFreq)
 		lastGate = pfGate
-		wouldIntercept := ShouldInterceptTriggerByScore(job.side, scoreResult.Score, scoreThreshold)
+		wouldIntercept := WouldInterceptTriggerByScoreMode(job.side, scoreResult.Score, scoreThreshold, buyDir, in.AnnotateOnly)
 		hardMask := !in.AnnotateOnly
 		rec := EpisodeTriggerRecord{
 			Index:                 job.idx,

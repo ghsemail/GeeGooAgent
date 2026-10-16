@@ -428,6 +428,8 @@ type EpisodeTriggerFilterStats struct {
 	BuyTriggers          []EpisodeTriggerRecord `json:"buy_triggers,omitempty"`
 	SellTriggers         []EpisodeTriggerRecord `json:"sell_triggers,omitempty"`
 	InterceptionBasis    string                   `json:"interception_basis,omitempty"`
+	// PriceAnalysisBuyScoreDirection is soft buy annotation mode: normal | reverse.
+	PriceAnalysisBuyScoreDirection string `json:"price_analysis_buy_score_direction,omitempty"`
 }
 
 // EnrichEpisodeFilterStatsPostEval fills episode counts after masked episode evaluation.

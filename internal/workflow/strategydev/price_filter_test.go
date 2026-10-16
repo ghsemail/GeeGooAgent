@@ -165,7 +165,7 @@ func TestFinishDiagnoseFromMergedAllStrippedListsLedger(t *testing.T) {
 		}
 		return tools.Result{Status: tools.StatusOK, Data: map[string]any{"bars": out}}
 	})
-	summary, pf, pstats := finishDiagnoseFromMerged(context.Background(), run, "00700.HK", 3, KeyLevelBands{}, bars, "60m", buyM, sellM, RegimeUp, nil, true, nil)
+	summary, pf, pstats := finishDiagnoseFromMerged(context.Background(), run, "00700.HK", 3, KeyLevelBands{}, bars, "60m", buyM, sellM, RegimeUp, nil, true, nil, BuyScoreDirectionNormal)
 	if pstats == nil || pf == nil {
 		t.Fatal("expected price filter stats")
 	}
@@ -223,7 +223,7 @@ func TestFinishDiagnoseFromMergedSoftAnnotatePreservesHits(t *testing.T) {
 		}
 		return tools.Result{Status: tools.StatusOK, Data: map[string]any{"bars": out}}
 	})
-	summary, pf, pstats := finishDiagnoseFromMerged(context.Background(), run, "00700.HK", 3, KeyLevelBands{}, bars, "60m", buyM, sellM, RegimeUp, nil, false, nil)
+	summary, pf, pstats := finishDiagnoseFromMerged(context.Background(), run, "00700.HK", 3, KeyLevelBands{}, bars, "60m", buyM, sellM, RegimeUp, nil, false, nil, BuyScoreDirectionNormal)
 	if pf == nil || pstats == nil {
 		t.Fatal("expected soft gate stats")
 	}
