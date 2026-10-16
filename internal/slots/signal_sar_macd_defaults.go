@@ -16,9 +16,9 @@ func SARMACDStrategyBSellRule() map[string]any {
 		"index": "MACD",
 		"type":  "signal",
 		"param": map[string]any{
-			"fast":   12,
-			"slow":   26,
-			"signal": 9,
+			"fastPeriod":   "12",
+			"slowPeriod":   "26",
+			"signalPeriod": "9",
 		},
 	}
 }

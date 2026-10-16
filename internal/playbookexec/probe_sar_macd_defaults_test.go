@@ -68,6 +68,10 @@ func TestRunProbeSARMACDUsesAgentSellDefault(t *testing.T) {
 	if fmt.Sprint(row["index"]) != "MACD" || fmt.Sprint(row["type"]) != "signal" {
 		t.Fatalf("sell rule=%v", row)
 	}
+	param, _ := row["param"].(map[string]any)
+	if fmt.Sprint(param["fastPeriod"]) != "12" || fmt.Sprint(param["slowPeriod"]) != "26" || fmt.Sprint(param["signalPeriod"]) != "9" {
+		t.Fatalf("param=%v", param)
+	}
 	buy, _ := probeArgs["buy_signal"].([]any)
 	if len(buy) != 2 {
 		t.Fatalf("buy=%v", buy)

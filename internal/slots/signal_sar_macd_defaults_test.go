@@ -28,6 +28,27 @@ func TestApplySARMACDStrategyBSellDefaultFromCatalogSAR(t *testing.T) {
 	if fmt.Sprint(row["index"]) != "MACD" || fmt.Sprint(row["type"]) != "signal" {
 		t.Fatalf("sell rule=%v", row)
 	}
+	assertMACDSignalSellParam(t, row["param"])
+}
+
+func assertMACDSignalSellParam(t *testing.T, raw any) {
+	t.Helper()
+	p, ok := raw.(map[string]any)
+	if !ok {
+		t.Fatalf("param=%v", raw)
+	}
+	for k, want := range map[string]string{
+		"fastPeriod": "12", "slowPeriod": "26", "signalPeriod": "9",
+	} {
+		if fmt.Sprint(p[k]) != want {
+			t.Fatalf("param[%q]=%v want %q", k, p[k], want)
+		}
+	}
+}
+
+func TestSARMACDStrategyBSellRuleParamShape(t *testing.T) {
+	row := SARMACDStrategyBSellRule()
+	assertMACDSignalSellParam(t, row["param"])
 }
 
 func TestApplySARMACDStrategyBSellDefaultLeavesMACDSignal(t *testing.T) {
