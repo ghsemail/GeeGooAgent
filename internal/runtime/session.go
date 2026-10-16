@@ -78,6 +78,10 @@ type SignalDiagnoseOpts struct {
 	// Optional probe overrides from strategy-dev panel (buy/sell configured separately).
 	BuySignal   []any  `json:"buy_signal,omitempty"`
 	SellSignal  []any  `json:"sell_signal,omitempty"`
+	// SellMerge forwarded to probeBotSignalSeries: and (default) | or.
+	SellMerge   string `json:"sell_merge,omitempty"`
+	// BuyMerge optional; forwarded when set.
+	BuyMerge    string `json:"buy_merge,omitempty"`
 	Frequency   string `json:"frequency,omitempty"`
 	MonthsBack  int    `json:"months_back,omitempty"`
 	// PanelStrategyLabel is the strategy-dev UI title (may differ from chat utterance).

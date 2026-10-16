@@ -115,6 +115,8 @@ type Flow struct {
 	PriceAnalysis          *strategydev.PriceAnalysis             `json:"price_analysis,omitempty"`
 	ProbeBuyOverride       []any          `json:"probe_buy_override,omitempty"`
 	ProbeSellOverride      []any          `json:"probe_sell_override,omitempty"`
+	ProbeSellMerge         string         `json:"probe_sell_merge,omitempty"`
+	ProbeBuyMerge          string         `json:"probe_buy_merge,omitempty"`
 	ProbeFrequencyOverride string         `json:"probe_frequency_override,omitempty"`
 	ProbePanelLabel        string         `json:"probe_panel_label,omitempty"`
 	KeyLevels              KeyLevelSnapshot   `json:"key_levels,omitempty"`

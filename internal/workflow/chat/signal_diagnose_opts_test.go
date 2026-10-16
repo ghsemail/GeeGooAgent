@@ -34,3 +34,15 @@ func TestParseSignalDiagnoseOptsProbeOverrides(t *testing.T) {
 		t.Fatalf("buy=%d sell=%d", len(o.BuySignal), len(o.SellSignal))
 	}
 }
+
+func TestParseSellMergeFromWorkflowOptions(t *testing.T) {
+	o := ParseSignalDiagnoseOptsFromWorkflowOptions(map[string]any{
+		"signal_diagnose": map[string]any{
+			"sell_merge": "or",
+			"buy_merge":  "and",
+		},
+	})
+	if o == nil || o.SellMerge != "or" || o.BuyMerge != "and" {
+		t.Fatalf("got %+v", o)
+	}
+}

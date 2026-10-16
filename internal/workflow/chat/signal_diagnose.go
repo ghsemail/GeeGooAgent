@@ -274,6 +274,12 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 		"sell_signal": sig.Sell,
 		"months_back": months,
 	}
+	if s := strings.TrimSpace(flow.ProbeSellMerge); s != "" {
+		probeArgs["sell_merge"] = s
+	}
+	if s := strings.TrimSpace(flow.ProbeBuyMerge); s != "" {
+		probeArgs["buy_merge"] = s
+	}
 	probeArgs["include_key_levels"] = true
 	probeArgs["key_levels_mode"] = "series"
 	probeArgs["key_levels_align"] = "daily"
