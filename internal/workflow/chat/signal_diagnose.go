@@ -43,7 +43,8 @@ func newSignalDiagnoseFlow(userText string) *Flow {
 		StockQuery:    stock,
 		MonthsBack:    defaultMonthsBack,
 		UsePriceAnalysisEpisodeFilter: false,
-		TriggerText:   strings.TrimSpace(userText),
+		PriceAnalysisBuyScoreDirection: strategydev.BuyScoreDirectionReverse,
+		TriggerText:                    strings.TrimSpace(userText),
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
@@ -373,10 +374,7 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 		var stats strategydev.EpisodeTriggerFilterStats
 		scoreTh := flow.PriceAnalysisScoreThreshold
 		lookback, _ := flow.ProbeRaw["bars_lookback"].([]any)
-		buyDir := flow.PriceAnalysisBuyScoreDirection
-		if buyDir == "" {
-			buyDir = strategydev.BuyScoreDirectionNormal
-		}
+		buyDir := effectiveSignalDiagnoseBuyScoreDirection(flow.PriceAnalysisBuyScoreDirection)
 		buyMerged, sellMerged, pfVal, stats = strategydev.ApplyPerSignalPriceAnalysisEpisodeFilter(ctx, strategydev.PerSignalPriceFilterInput{
 			Run: run, Code: flow.StockCode, Months: months, KL: keyLevelBandsFromFlow(flow),
 			AnnotateOnly: !flow.UsePriceAnalysisEpisodeFilter, ScoreThreshold: &scoreTh,

@@ -46,6 +46,15 @@ func ApplyPendingSignalDiagnoseOpts(session *runtime.Session, flow *Flow) {
 	session.PendingSignalDiagnoseOpts = nil
 }
 
+// effectiveSignalDiagnoseBuyScoreDirection is the soft price-analysis buy intercept mode
+// when unset on a diagnose flow (production default: reverse).
+func effectiveSignalDiagnoseBuyScoreDirection(d strategydev.BuyScoreDirection) strategydev.BuyScoreDirection {
+	if strings.TrimSpace(string(d)) == "" {
+		return strategydev.BuyScoreDirectionReverse
+	}
+	return d
+}
+
 // ParseSignalDiagnoseOptsFromWorkflowOptions reads workflow_options.signal_diagnose from chat request.
 func ParseSignalDiagnoseOptsFromWorkflowOptions(raw map[string]any) *runtime.SignalDiagnoseOpts {
 	if len(raw) == 0 {
