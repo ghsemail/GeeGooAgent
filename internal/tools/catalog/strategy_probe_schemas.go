@@ -44,6 +44,8 @@ func probeBotSignalSeriesParameters() map[string]any {
 				"description": "卖出规则链；可空",
 				"items":       signalRuleItemSchema(),
 			},
+			"sell_merge": stringProp("卖侧多规则合并：and（默认，需全部为卖）| or（任一为卖即 sell_merged=-1）；需 GeeGooSignal ≥56c6cf0"),
+			"buy_merge":  stringProp("买侧多规则合并：and（默认）| or；可选"),
 			"limit": map[string]any{
 				"type":        "integer",
 				"description": "可选：显式 K 线根数（最大 800）。默认不传，由 months_back 自动换算；仅 Web 对齐「1天/1周」或特殊下限才用",

@@ -28,6 +28,12 @@ func ApplyPendingSignalDiagnoseOpts(session *runtime.Session, flow *Flow) {
 	if len(o.SellSignal) > 0 {
 		flow.ProbeSellOverride = o.SellSignal
 	}
+	if s := strings.TrimSpace(o.SellMerge); s != "" {
+		flow.ProbeSellMerge = s
+	}
+	if s := strings.TrimSpace(o.BuyMerge); s != "" {
+		flow.ProbeBuyMerge = s
+	}
 	if strings.TrimSpace(o.Frequency) != "" {
 		flow.ProbeFrequencyOverride = strings.TrimSpace(o.Frequency)
 	}
@@ -65,6 +71,12 @@ func ParseSignalDiagnoseOptsFromWorkflowOptions(raw map[string]any) *runtime.Sig
 	}
 	if raw, ok := block["sell_signal"].([]any); ok && len(raw) > 0 {
 		out.SellSignal = raw
+	}
+	if s, ok := block["sell_merge"].(string); ok && strings.TrimSpace(s) != "" {
+		out.SellMerge = strings.TrimSpace(s)
+	}
+	if s, ok := block["buy_merge"].(string); ok && strings.TrimSpace(s) != "" {
+		out.BuyMerge = strings.TrimSpace(s)
 	}
 	if s, ok := block["frequency"].(string); ok {
 		out.Frequency = strings.TrimSpace(s)
