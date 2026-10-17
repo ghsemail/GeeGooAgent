@@ -401,8 +401,11 @@ type EpisodeTriggerRecord struct {
 	WouldIntercept              bool            `json:"would_intercept,omitempty"`
 	PriceAnalysis               *PriceAnalysis  `json:"price_analysis,omitempty"`
 	PriceScore                  float64         `json:"price_score"`
-	// GatePriceScore is the composite used for score intercept when price_analysis_gate_score_mode=htf_only.
-	GatePriceScore              float64         `json:"gate_price_score,omitempty"`
+	// GatePriceScore is always the HTF-only composite (weekly+daily renormalized) for Monday display.
+	GatePriceScore              float64         `json:"gate_price_score"`
+	PAWeeklySubscore            *float64        `json:"pa_weekly_subscore,omitempty"`
+	PADailySubscore             *float64        `json:"pa_daily_subscore,omitempty"`
+	EMAStacks                   *EMAStacks      `json:"ema_stacks,omitempty"`
 	TFScores                    map[string]TFScoreBreakdown `json:"tf_scores,omitempty"`
 	ScoreReason                 string          `json:"score_reason,omitempty"`
 	AIInterceptConclusion       string          `json:"ai_intercept_conclusion,omitempty"`

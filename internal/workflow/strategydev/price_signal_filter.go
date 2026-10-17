@@ -121,14 +121,21 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 			pfGate = priceFilterForGateFrequency(pa, gateFreq, barsByFreq, lookbackBars, anchorTime, gateFreq)
 		}
 		displayScore := attachScoreToPriceAnalysis(&pa, gateFreq)
+		htfGateScore := ComputeHTFGatePriceScore(pa, gateFreq)
 		gateScoreResult := displayScore
 		if gateMode == PriceAnalysisGateScoreModeHTFOnly {
-			gateScoreResult = ComputeHTFGatePriceScore(pa, gateFreq)
+			gateScoreResult = htfGateScore
 		}
 		interceptScore := gateScoreResult.Score
 		lastGate = pfGate
 		wouldIntercept := WouldInterceptTriggerByScoreMode(job.side, interceptScore, scoreThreshold, buyDir, in.AnnotateOnly)
 		hardMask := !in.AnnotateOnly
+		var emaStacks EMAStacks
+		if anchorOK {
+			emaStacks = ComputeEMAStacksAtAnchor(barsByFreq, fetchOKByFreq, lookbackBars, gateFreq, anchorTime)
+		} else {
+			emaStacks = unknownEMAStacks()
+		}
 		rec := EpisodeTriggerRecord{
 			Index:                 job.idx,
 			Time:                  job.time,
@@ -137,13 +144,14 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 			Intercepted:           hardMask && wouldIntercept,
 			PriceAnalysis:         &pa,
 			PriceScore:            displayScore.Score,
+			GatePriceScore:        htfGateScore.Score,
+			PAWeeklySubscore:      paSubscoreFromTFScores(displayScore.TFScores, "周线"),
+			PADailySubscore:       paSubscoreFromTFScores(displayScore.TFScores, "日线"),
+			EMAStacks:             &emaStacks,
 			TFScores:              displayScore.TFScores,
 			ScoreReason:           displayScore.ScoreReason,
 			AIInterceptConclusion: RuleDerivedInterceptConclusionScore(job.side, wouldIntercept, hardMask, pa, gateScoreResult, scoreThreshold),
 			AIInterceptConclusionSource: "rule",
-		}
-		if gateMode == PriceAnalysisGateScoreModeHTFOnly {
-			rec.GatePriceScore = interceptScore
 		}
 		if hardMask && wouldIntercept {
 			rec.Masked = true

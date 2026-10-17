@@ -233,6 +233,68 @@ func TestPerSignalFilterFourTimeframeRows(t *testing.T) {
 	_ = barsByFreq
 }
 
+func TestPerSignalFilterTriggerRecordDiagnoseFields(t *testing.T) {
+	n := 90
+	bars := make([]any, n)
+	buyM := make([]any, n)
+	for i := 0; i < n; i++ {
+		c := 100.0 + float64(i)*0.4
+		bars[i] = map[string]any{"time": fmtDaily(i), "high": c + 1, "low": c - 1, "close": c, "volume": 1000.0}
+	}
+	buyM[15] = 1
+	daily := make([]any, 130)
+	for i := 0; i < 130; i++ {
+		c := 100.0 + float64(i)*0.35
+		daily[i] = map[string]any{
+			"time": fmt.Sprintf("2026-01-%02d", (i%28)+1), "close": c, "high": c + 1, "low": c - 1, "volume": 1e6,
+		}
+	}
+	run := ToolRunner(func(ctx context.Context, name string, args map[string]any) tools.Result {
+		if name != "probe_bot_signal_series" {
+			return tools.Result{Status: tools.StatusError}
+		}
+		freq := args["frequency"].(string)
+		minLen := minBarsForPriceFilter(freq) + 5
+		b := daily
+		if freq == "weekly" || freq == "60m" {
+			b = make([]any, minLen)
+			for i := 0; i < minLen; i++ {
+				c := 100.0 + float64(i)*0.3
+				b[i] = map[string]any{
+					"time": fmt.Sprintf("2026-05-%02d 10:00:00", (i%28)+1),
+					"close": c, "high": c + 1, "low": c - 1, "volume": 1000.0,
+				}
+			}
+		}
+		return tools.Result{Status: tools.StatusOK, Data: map[string]any{"bars": b}}
+	})
+	_, _, _, stats := ApplyPerSignalPriceAnalysisEpisodeFilter(context.Background(), PerSignalPriceFilterInput{
+		Run: run, Code: "AAPL.US", Months: 3, AnnotateOnly: true, GateScoreMode: PriceAnalysisGateScoreModeHTFOnly,
+	}, bars, "60m", buyM, nil)
+	if len(stats.BuyTriggers) != 1 {
+		t.Fatalf("triggers=%d", len(stats.BuyTriggers))
+	}
+	tr := stats.BuyTriggers[0]
+	if tr.EMAStacks == nil {
+		t.Fatal("missing ema_stacks")
+	}
+	if tr.EMAStacks.Weekly.Label == "" {
+		t.Fatal("weekly ema label required")
+	}
+	if tr.GatePriceScore == 0 && tr.PriceScore != 0 {
+		// gate may legitimately be 0; ensure field was set by comparing HTF recompute
+		htf := ComputeHTFGatePriceScore(*tr.PriceAnalysis, "60m")
+		if tr.GatePriceScore != htf.Score {
+			t.Fatalf("gate_price_score=%v want htf %v", tr.GatePriceScore, htf.Score)
+		}
+	}
+	if tr.PAWeeklySubscore == nil && tr.TFScores["周线"].Missing {
+		// ok when weekly missing
+	} else if tr.PAWeeklySubscore == nil {
+		t.Fatal("expected pa_weekly_subscore when weekly tf present")
+	}
+}
+
 func TestPerSignalFilterKeptAndStrippedLists(t *testing.T) {
 	n := 90
 	bars := make([]any, n)
