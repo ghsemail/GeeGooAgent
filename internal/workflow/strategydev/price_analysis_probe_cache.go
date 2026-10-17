@@ -10,6 +10,7 @@ type priceProbeCacheKey struct {
 	code   string
 	freq   string
 	months int
+	limit  int
 	asOf   string
 }
 
@@ -43,8 +44,8 @@ func priceProbeCacheFromContext(ctx context.Context) *priceProbeCache {
 	return c
 }
 
-func probeCacheKey(code, freq string, months int, asOf *time.Time) priceProbeCacheKey {
-	k := priceProbeCacheKey{code: code, freq: freq, months: months}
+func probeCacheKey(code, freq string, months, limit int, asOf *time.Time) priceProbeCacheKey {
+	k := priceProbeCacheKey{code: code, freq: freq, months: months, limit: limit}
 	if asOf != nil && !asOf.IsZero() {
 		k.asOf = formatPriceAnalysisAsOf(*asOf)
 	}

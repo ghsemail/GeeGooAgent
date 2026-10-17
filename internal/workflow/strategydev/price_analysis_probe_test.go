@@ -38,13 +38,18 @@ func TestEpisodeFilterOneProbePerFrequencyWithAsOf(t *testing.T) {
 		}
 	}
 	buyM[10] = 1
-	probeCount := 0
+	paProbeCount := 0
+	emaProbeCount := 0
 	asOfSeen := map[string]string{}
 	run := ToolRunner(func(ctx context.Context, name string, args map[string]any) tools.Result {
 		if name != "probe_bot_signal_series" {
 			return tools.Result{Status: tools.StatusError}
 		}
-		probeCount++
+		if isEMAStackProbeArgs(args) {
+			emaProbeCount++
+		} else {
+			paProbeCount++
+		}
 		freq := args["frequency"].(string)
 		if v, ok := args["as_of"].(string); ok {
 			asOfSeen[freq] = v
@@ -62,8 +67,11 @@ func TestEpisodeFilterOneProbePerFrequencyWithAsOf(t *testing.T) {
 	ApplyPerSignalPriceAnalysisEpisodeFilter(context.Background(), PerSignalPriceFilterInput{
 		Run: run, Code: "00700.HK", Months: 3,
 	}, bars, "60m", buyM, nil)
-	if probeCount != 3 {
-		t.Fatalf("probe calls=%d want 3 (60m upward set)", probeCount)
+	if paProbeCount != 3 {
+		t.Fatalf("PA probe calls=%d want 3 (60m upward set)", paProbeCount)
+	}
+	if emaProbeCount != 3 {
+		t.Fatalf("EMA probe calls=%d want 3 (weekly/daily/60m display)", emaProbeCount)
 	}
 	if len(asOfSeen) != 3 {
 		t.Fatalf("expected as_of on all probes, got %v", asOfSeen)
