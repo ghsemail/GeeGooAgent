@@ -92,8 +92,16 @@ func finishDiagnoseFromMerged(
 	if !PriceAnalysisFeatureEnabled() {
 		buyHits := hitCount(nil, "buy_hits", buyMerged, 1)
 		sellHits := hitCount(nil, "sell_hits", sellMerged, -1)
+		patternSeries := PatternHitsSeriesFromProbe(rawData)
 		eval := slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
-		return summarizeEval(eval, regime, buyHits, sellHits), nil, nil
+		EnrichSignalEpisodeEvalPatterns(&eval, patternSeries)
+		var pstats *EpisodeTriggerFilterStats
+		if KlinePatternDisplayEnabled() && len(bars) > 0 && len(patternSeries) > 0 {
+			buyTr, sellTr := CollectEpisodeTriggersFromMerged(bars, buyMerged, sellMerged)
+			AttachKlinePatternsToProbeTriggers(buyTr, sellTr, patternSeries)
+			pstats = &EpisodeTriggerFilterStats{BuyTriggers: buyTr, SellTriggers: sellTr}
+		}
+		return summarizeEval(eval, regime, buyHits, sellHits), nil, pstats
 	}
 	var pf *PriceFilterResult
 	var pstats *EpisodeTriggerFilterStats
@@ -110,10 +118,16 @@ func finishDiagnoseFromMerged(
 	}
 	buyHits := hitCount(nil, "buy_hits", buyMerged, 1)
 	sellHits := hitCount(nil, "sell_hits", sellMerged, -1)
-	_ = rawData
+	patternSeries := PatternHitsSeriesFromProbe(rawData)
 	eval := slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
+	EnrichSignalEpisodeEvalPatterns(&eval, patternSeries)
 	if pstats != nil {
 		EnrichEpisodeFilterStatsPostEval(pstats, eval)
+		EnrichEpisodeTriggerFilterStatsPatterns(pstats, patternSeries)
+	} else if KlinePatternDisplayEnabled() && len(bars) > 0 && len(patternSeries) > 0 {
+		buyTr, sellTr := CollectEpisodeTriggersFromMerged(bars, buyMerged, sellMerged)
+		AttachKlinePatternsToProbeTriggers(buyTr, sellTr, patternSeries)
+		pstats = &EpisodeTriggerFilterStats{BuyTriggers: buyTr, SellTriggers: sellTr}
 	}
 	summary := summarizeEval(eval, regime, buyHits, sellHits)
 	return summary, pf, pstats

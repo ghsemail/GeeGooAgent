@@ -70,11 +70,21 @@ func CardPayload(flow *Flow) map[string]any {
 			if flow.PriceFilter != nil {
 				out["price_filter"] = flow.PriceFilter
 			}
-			if flow.PriceEpisodeFilterStats != nil {
-				out["price_episode_filter_stats"] = flow.PriceEpisodeFilterStats
-			}
 			if flow.PriceAnalysis != nil {
 				out["price_analysis"] = flow.PriceAnalysis
+			}
+		}
+		if flow.PriceEpisodeFilterStats != nil {
+			if strategydev.PriceAnalysisFeatureEnabled() {
+				out["price_episode_filter_stats"] = flow.PriceEpisodeFilterStats
+			}
+			if strategydev.KlinePatternDisplayEnabled() {
+				if len(flow.PriceEpisodeFilterStats.BuyTriggers) > 0 {
+					out["buy_triggers"] = flow.PriceEpisodeFilterStats.BuyTriggers
+				}
+				if len(flow.PriceEpisodeFilterStats.SellTriggers) > 0 {
+					out["sell_triggers"] = flow.PriceEpisodeFilterStats.SellTriggers
+				}
 			}
 		}
 		if kl := keyLevelSnapshotToMap(flow.KeyLevels); kl != nil {

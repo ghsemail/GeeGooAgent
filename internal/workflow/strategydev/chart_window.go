@@ -79,6 +79,9 @@ func ClampProbeSeriesToMonthsBack(data map[string]any, months int) {
 	if merged, ok := data["sell_merged"].([]any); ok && len(merged) == oldLen {
 		data["sell_merged"] = merged[startIdx:endIdx]
 	}
+	if hits, ok := data["pattern_hits"].([]any); ok && len(hits) == oldLen {
+		data["pattern_hits"] = hits[startIdx:endIdx]
+	}
 	if rules, ok := data["buy_rules"].([]any); ok {
 		data["buy_rules"] = sliceSignalRules(rules, startIdx, endIdx, oldLen)
 	}

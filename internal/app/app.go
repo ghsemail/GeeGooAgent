@@ -147,6 +147,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	wf := workflow.NewRunner(executor, working, cpAdapter)
 
 	strategydev.ConfigurePriceAnalysisEnabled(cfg.PriceAnalysisEnabled())
+	strategydev.ConfigureKlinePatternDisplayEnabled(cfg.KlinePatternDisplayEnabled())
 
 	app := &App{
 		Config: cfg, MCP: httpBackends.MCP, SignalAPI: httpBackends.SignalAPI,

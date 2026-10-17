@@ -43,19 +43,19 @@ func chartProbePayload(flow *Flow) map[string]any {
 	if len(flow.SignalEval.BuyDetails) > 0 || len(flow.SignalEval.SellDetails) > 0 {
 		out["episodes"] = episodeOverlayPayload(flow, flow.SignalEval)
 	}
-	if strategydev.PriceAnalysisFeatureEnabled() {
-		if st := flow.PriceEpisodeFilterStats; st != nil {
+	if st := flow.PriceEpisodeFilterStats; st != nil {
+		if strategydev.PriceAnalysisFeatureEnabled() {
 			out["price_episode_filter_stats"] = st
-			if len(st.BuyTriggers) > 0 {
-				out["buy_triggers"] = st.BuyTriggers
-			}
-			if len(st.SellTriggers) > 0 {
-				out["sell_triggers"] = st.SellTriggers
-			}
 		}
-		if flow.PriceAnalysis != nil {
-			out["price_analysis"] = flow.PriceAnalysis
+		if len(st.BuyTriggers) > 0 && (strategydev.PriceAnalysisFeatureEnabled() || strategydev.KlinePatternDisplayEnabled()) {
+			out["buy_triggers"] = st.BuyTriggers
 		}
+		if len(st.SellTriggers) > 0 && (strategydev.PriceAnalysisFeatureEnabled() || strategydev.KlinePatternDisplayEnabled()) {
+			out["sell_triggers"] = st.SellTriggers
+		}
+	}
+	if strategydev.PriceAnalysisFeatureEnabled() && flow.PriceAnalysis != nil {
+		out["price_analysis"] = flow.PriceAnalysis
 	}
 	return out
 }
@@ -114,6 +114,12 @@ func episodeOverlayRow(side string, idx int, ep slots.SignalEpisodeDetail) map[s
 	}
 	if ep.OppositeTime != "" {
 		row["opposite_time"] = ep.OppositeTime
+	}
+	if len(ep.KlinePatterns) > 0 {
+		row["kline_patterns"] = ep.KlinePatterns
+	}
+	if ep.KlinePatternSummary != "" {
+		row["kline_pattern_summary"] = ep.KlinePatternSummary
 	}
 	return row
 }

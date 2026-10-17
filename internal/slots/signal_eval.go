@@ -45,6 +45,8 @@ type SignalEpisodeDetail struct {
 	StrictEndReason      string  `json:"strict_end_reason,omitempty"`
 	KeyBreakRefPrice     float64 `json:"key_break_ref_price,omitempty"`
 	KeyBreakBarIdx       int     `json:"key_break_bar_idx,omitempty"`
+	KlinePatterns        []KlinePatternHit `json:"kline_patterns,omitempty"`
+	KlinePatternSummary  string            `json:"kline_pattern_summary,omitempty"`
 }
 
 // SignalEpisodeMetrics summarizes directional accuracy for a cohort of episodes.

@@ -319,6 +319,9 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 		"sell_merged":   res.Data["sell_merged"],
 		"bars_lookback": res.Data["bars_lookback"],
 	}
+	if v := res.Data["pattern_hits"]; v != nil {
+		flow.ProbeRaw["pattern_hits"] = v
+	}
 	if warmupMeta.Note != "" {
 		flow.ProbeRaw["indicator_warmup_note"] = warmupMeta.Note
 	}
@@ -410,6 +413,18 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 			}
 		} else {
 			flow.SignalEval = slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
+		}
+		patternSeries := strategydev.PatternHitsSeriesFromProbe(flow.ProbeRaw)
+		strategydev.EnrichSignalEpisodeEvalPatterns(&flow.SignalEval, patternSeries)
+		if flow.PriceEpisodeFilterStats != nil {
+			strategydev.EnrichEpisodeTriggerFilterStatsPatterns(flow.PriceEpisodeFilterStats, patternSeries)
+		} else if strategydev.KlinePatternDisplayEnabled() && len(bars) > 0 && len(patternSeries) > 0 {
+			buyTr, sellTr := strategydev.CollectEpisodeTriggersFromMerged(bars, buyMerged, sellMerged)
+			strategydev.AttachKlinePatternsToProbeTriggers(buyTr, sellTr, patternSeries)
+			flow.PriceEpisodeFilterStats = &strategydev.EpisodeTriggerFilterStats{
+				BuyTriggers:  buyTr,
+				SellTriggers: sellTr,
+			}
 		}
 	}
 	if r != nil {

@@ -410,6 +410,8 @@ type EpisodeTriggerRecord struct {
 	ScoreReason                 string          `json:"score_reason,omitempty"`
 	AIInterceptConclusion       string          `json:"ai_intercept_conclusion,omitempty"`
 	AIInterceptConclusionSource string          `json:"ai_intercept_conclusion_source,omitempty"`
+	KlinePatterns               []slots.KlinePatternHit `json:"kline_patterns,omitempty"`
+	KlinePatternSummary         string                  `json:"kline_pattern_summary,omitempty"`
 }
 
 // EpisodeTriggerFilterStats counts triggers removed by the price gate and lists stripped bars.
