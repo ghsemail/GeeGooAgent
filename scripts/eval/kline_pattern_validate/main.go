@@ -39,13 +39,14 @@ func main() {
 	spacexCode, spacexNote := resolveSpaceXCode(ctx, run)
 	fmt.Printf("SpaceX symbol: %s (%s)\n", spacexCode, spacexNote)
 
+	// Two stocks only; frequencies chosen to exercise MTF ladders (60m→60m/日/周, 5m→5m/60m/日/周).
 	cases := []struct {
 		Code  string
 		Freq  string
 		Label string
 	}{
-		{Code: "00700.HK", Freq: "daily", Label: "腾讯控股"},
-		{Code: spacexCode, Freq: "daily", Label: "SpaceX"},
+		{Code: "00700.HK", Freq: "60m", Label: "腾讯控股"},
+		{Code: spacexCode, Freq: "5m", Label: "SpaceX"},
 	}
 
 	for _, cs := range cases {
