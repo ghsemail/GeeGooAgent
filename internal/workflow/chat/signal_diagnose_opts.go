@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
+	"github.com/ghsemail/GeeGooAgent/internal/slots"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
@@ -46,7 +47,17 @@ func ApplyPendingSignalDiagnoseOpts(session *runtime.Session, flow *Flow) {
 	if strings.TrimSpace(o.PanelStrategyLabel) != "" {
 		flow.ProbePanelLabel = strings.TrimSpace(o.PanelStrategyLabel)
 	}
+	if o.TradeDirection != nil {
+		flow.TradeDirection = *o.TradeDirection
+	}
 	session.PendingSignalDiagnoseOpts = nil
+}
+
+func signalDiagnoseEpisodeEvalOpts(flow *Flow) slots.EvaluateSignalEpisodesOptions {
+	if flow != nil && flow.TradeDirection.LongOnlyEpisodeEval() {
+		return slots.EvaluateSignalEpisodesOptions{LongOnly: true}
+	}
+	return slots.EvaluateSignalEpisodesOptions{}
 }
 
 // effectiveSignalDiagnoseBuyScoreDirection is the soft price-analysis buy intercept mode
@@ -103,6 +114,11 @@ func ParseSignalDiagnoseOptsFromWorkflowOptions(raw map[string]any) *runtime.Sig
 	}
 	if s, ok := block["panel_strategy_label"].(string); ok {
 		out.PanelStrategyLabel = strings.TrimSpace(s)
+	}
+	if _, ok := block["trade_direction"]; ok {
+		s, _ := block["trade_direction"].(string)
+		td := runtime.ParseTradeDirection(s)
+		out.TradeDirection = &td
 	}
 	return out
 }

@@ -92,6 +92,54 @@ func TestEvaluateSignalEpisodes_IncompleteTail(t *testing.T) {
 	}
 }
 
+func TestEvaluateSignalEpisodesWithOptions_LongOnly(t *testing.T) {
+	bars := []any{
+		map[string]any{"time": "t0", "close": 100.0, "high": 101.0, "low": 99.0},
+		map[string]any{"time": "t1", "close": 110.0, "high": 112.0, "low": 108.0},
+		map[string]any{"time": "t2", "close": 105.0, "high": 111.0, "low": 104.0},
+		map[string]any{"time": "t3", "close": 95.0, "high": 96.0, "low": 94.0},
+		map[string]any{"time": "t4", "close": 90.0, "high": 91.0, "low": 89.0},
+	}
+	buyMerged := []any{1, 0, 0, 0, 0}
+	sellMerged := []any{0, 0, 0, -1, 0}
+
+	both := EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
+	longOnly := EvaluateSignalEpisodesWithOptions(bars, buyMerged, sellMerged, EvaluateSignalEpisodesOptions{LongOnly: true})
+
+	if longOnly.BuyEpisodes.CompleteCount != both.BuyEpisodes.CompleteCount {
+		t.Fatalf("buy complete long=%d both=%d", longOnly.BuyEpisodes.CompleteCount, both.BuyEpisodes.CompleteCount)
+	}
+	if len(longOnly.BuyDetails) != 1 || !longOnly.BuyDetails[0].Complete {
+		t.Fatalf("buy should complete on sell opposite: %+v", longOnly.BuyDetails)
+	}
+	if longOnly.BuyDetails[0].HoldingBars != both.BuyDetails[0].HoldingBars {
+		t.Fatalf("holding long=%d both=%d", longOnly.BuyDetails[0].HoldingBars, both.BuyDetails[0].HoldingBars)
+	}
+	if len(longOnly.SellDetails) != 0 || longOnly.SellEpisodes.CompleteCount != 0 {
+		t.Fatalf("sell side should be empty: details=%d complete=%d", len(longOnly.SellDetails), longOnly.SellEpisodes.CompleteCount)
+	}
+	if longOnly.SellPathEpisodes.CompleteCount != 0 {
+		t.Fatalf("sell path should be empty")
+	}
+	sellBars := []any{
+		map[string]any{"time": "t0", "close": 100.0},
+		map[string]any{"time": "t1", "close": 95.0},
+		map[string]any{"time": "t2", "close": 90.0},
+		map[string]any{"time": "t3", "close": 92.0},
+		map[string]any{"time": "t4", "close": 88.0},
+	}
+	sellBuy := []any{0, 0, 0, 1, 0}
+	sellSell := []any{0, -1, 0, 0, 0}
+	bothSell := EvaluateSignalEpisodes(sellBars, sellBuy, sellSell)
+	longOnlySell := EvaluateSignalEpisodesWithOptions(sellBars, sellBuy, sellSell, EvaluateSignalEpisodesOptions{LongOnly: true})
+	if bothSell.SellEpisodes.CompleteCount != 1 {
+		t.Fatalf("both sell complete=%d want 1", bothSell.SellEpisodes.CompleteCount)
+	}
+	if len(longOnlySell.SellDetails) != 0 {
+		t.Fatalf("long_only sell details=%d", len(longOnlySell.SellDetails))
+	}
+}
+
 func TestEvaluateSignalEpisodes_PathUntilNextBuy(t *testing.T) {
 	bars := []any{
 		map[string]any{"time": "t0", "close": 100.0, "high": 100.0, "low": 100.0},

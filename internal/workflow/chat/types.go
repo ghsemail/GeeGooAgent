@@ -3,6 +3,7 @@ package chat
 import (
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
@@ -120,6 +121,7 @@ type Flow struct {
 	ProbeBuyMerge          string         `json:"probe_buy_merge,omitempty"`
 	ProbeFrequencyOverride string         `json:"probe_frequency_override,omitempty"`
 	ProbePanelLabel        string         `json:"probe_panel_label,omitempty"`
+	TradeDirection         runtime.TradeDirection `json:"trade_direction,omitempty"`
 	KeyLevels              KeyLevelSnapshot   `json:"key_levels,omitempty"`
 	KeyLevelSeries         *KeyLevelBarSeries `json:"key_level_series,omitempty"`
 	EvalJudgment        string         `json:"eval_judgment,omitempty"`

@@ -45,6 +45,7 @@ func newSignalDiagnoseFlow(userText string) *Flow {
 		UsePriceAnalysisEpisodeFilter: false,
 		PriceAnalysisBuyScoreDirection: strategydev.BuyScoreDirectionReverse,
 		PriceAnalysisGateScoreMode:     strategydev.PriceAnalysisGateScoreModeHTFOnly,
+		TradeDirection:                 runtime.TradeDirectionBoth,
 		TriggerText:                    strings.TrimSpace(userText),
 		CreatedAt:     now,
 		UpdatedAt:     now,
@@ -404,12 +405,12 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 			if r != nil && r.ComposeLLM != nil {
 				strategydev.EnrichEpisodeStatsAIConclusions(ctx, r.ComposeLLM, flow.PriceEpisodeFilterStats)
 			}
-			flow.SignalEval = slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
+			flow.SignalEval = slots.EvaluateSignalEpisodesWithOptions(bars, buyMerged, sellMerged, signalDiagnoseEpisodeEvalOpts(flow))
 			if flow.PriceEpisodeFilterStats != nil {
 				strategydev.EnrichEpisodeFilterStatsPostEval(flow.PriceEpisodeFilterStats, flow.SignalEval)
 			}
 		} else {
-			flow.SignalEval = slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
+			flow.SignalEval = slots.EvaluateSignalEpisodesWithOptions(bars, buyMerged, sellMerged, signalDiagnoseEpisodeEvalOpts(flow))
 		}
 	}
 	if r != nil {
