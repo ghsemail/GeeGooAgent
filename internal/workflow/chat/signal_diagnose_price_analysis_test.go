@@ -7,6 +7,7 @@ import (
 )
 
 func TestCardPayloadIncludesPriceAnalysis(t *testing.T) {
+	strategydev.SetPriceAnalysisFeatureEnabledForTest(t, true)
 	pa := strategydev.BuildPriceAnalysisFromBars(map[string][]any{
 		"5m": strategydevTestBars(90), "60m": strategydevTestBars(90),
 		"daily": strategydevTestBars(50), "weekly": strategydevTestBars(25),

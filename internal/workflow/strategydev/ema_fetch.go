@@ -152,9 +152,12 @@ type MultiTimeframeEMABarsInput struct {
 
 // FetchMultiTimeframeEMABars probes weekly / daily / 60m with EMA-specific fetch margins.
 func FetchMultiTimeframeEMABars(ctx context.Context, in MultiTimeframeEMABarsInput) (barsByFreq map[string][]any, fetchOKByFreq map[string]bool) {
-	ctx = ContextWithPriceProbeCache(ctx)
 	barsByFreq = map[string][]any{}
 	fetchOKByFreq = map[string]bool{}
+	if !PriceAnalysisFeatureEnabled() {
+		return barsByFreq, fetchOKByFreq
+	}
+	ctx = ContextWithPriceProbeCache(ctx)
 	if in.Run == nil || strings.TrimSpace(in.Code) == "" {
 		return barsByFreq, fetchOKByFreq
 	}

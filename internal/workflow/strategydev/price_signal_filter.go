@@ -36,6 +36,9 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 	freq string,
 	buyMerged, sellMerged []any,
 ) ([]any, []any, PriceFilterResult, EpisodeTriggerFilterStats) {
+	if !PriceAnalysisFeatureEnabled() {
+		return buyMerged, sellMerged, PriceFilterResult{}, EpisodeTriggerFilterStats{}
+	}
 	gateFreq := NormalizeFrequency(freq)
 	scoreThreshold := PriceAnalysisScoreThreshold(in.ScoreThreshold)
 	buyDir := in.BuyScoreDirection

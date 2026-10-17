@@ -132,19 +132,21 @@ func renderStrategyDevPipelineReport(flow *Flow) string {
 	if r.BuyFallbackNote != "" {
 		fmt.Fprintf(&b, "| 平空买入 | %s |\n", r.BuyFallbackNote)
 	}
-	if r.PriceFilter != nil {
-		line := strategydev.FormatPriceFilterNote(*r.PriceFilter)
-		if st := r.PriceEpisodeFilterStats; st != nil && (st.StrippedBuy > 0 || st.StrippedSell > 0) {
-			line += fmt.Sprintf(" · 过滤前 买 %d / 卖 %d · 剔除 买 %d / 卖 %d · 过滤后 买 %d / 卖 %d",
-				st.PreFilterBuyHits, st.PreFilterSellHits,
-				st.StrippedBuy, st.StrippedSell,
-				st.PostFilterBuyHits, st.PostFilterSellHits)
+	if strategydev.PriceAnalysisFeatureEnabled() {
+		if r.PriceFilter != nil {
+			line := strategydev.FormatPriceFilterNote(*r.PriceFilter)
+			if st := r.PriceEpisodeFilterStats; st != nil && (st.StrippedBuy > 0 || st.StrippedSell > 0) {
+				line += fmt.Sprintf(" · 过滤前 买 %d / 卖 %d · 剔除 买 %d / 卖 %d · 过滤后 买 %d / 卖 %d",
+					st.PreFilterBuyHits, st.PreFilterSellHits,
+					st.StrippedBuy, st.StrippedSell,
+					st.PostFilterBuyHits, st.PostFilterSellHits)
+			}
+			fmt.Fprintf(&b, "| 5 诊断（价格过滤） | %s |\n", line)
+			strategydev.AppendPriceEpisodeFilterMarkdown(&b, r.PriceFilter, r.PriceEpisodeFilterStats)
 		}
-		fmt.Fprintf(&b, "| 5 诊断（价格过滤） | %s |\n", line)
-		strategydev.AppendPriceEpisodeFilterMarkdown(&b, r.PriceFilter, r.PriceEpisodeFilterStats)
-	}
-	if r.PriceAnalysis != nil {
-		strategydev.AppendPriceAnalysisMarkdown(&b, r.PriceAnalysis)
+		if r.PriceAnalysis != nil {
+			strategydev.AppendPriceAnalysisMarkdown(&b, r.PriceAnalysis)
+		}
 	}
 	fmt.Fprintf(&b, "| 5 诊断 | 买 %d / 卖 %d · 完成 %d 段 · 命中率 %.0f%% · 平均方向收益 %.2f%% · 累计 %.2f%% |\n",
 		r.Diagnose.BuyHits, r.Diagnose.SellHits, r.Diagnose.CompleteSegs,

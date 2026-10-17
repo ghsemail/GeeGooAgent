@@ -1,5 +1,7 @@
 package chat
 
+import "github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
+
 // CardPayload builds SSE card data for the live UI.
 func CardPayload(flow *Flow) map[string]any {
 	if flow == nil {
@@ -63,15 +65,17 @@ func CardPayload(flow *Flow) map[string]any {
 		if flow.SignalEval.Method != "" {
 			out["signal_eval"] = flow.SignalEval
 		}
-		out["use_price_analysis_episode_filter"] = flow.UsePriceAnalysisEpisodeFilter
-		if flow.PriceFilter != nil {
-			out["price_filter"] = flow.PriceFilter
-		}
-		if flow.PriceEpisodeFilterStats != nil {
-			out["price_episode_filter_stats"] = flow.PriceEpisodeFilterStats
-		}
-		if flow.PriceAnalysis != nil {
-			out["price_analysis"] = flow.PriceAnalysis
+		if strategydev.PriceAnalysisFeatureEnabled() {
+			out["use_price_analysis_episode_filter"] = flow.UsePriceAnalysisEpisodeFilter
+			if flow.PriceFilter != nil {
+				out["price_filter"] = flow.PriceFilter
+			}
+			if flow.PriceEpisodeFilterStats != nil {
+				out["price_episode_filter_stats"] = flow.PriceEpisodeFilterStats
+			}
+			if flow.PriceAnalysis != nil {
+				out["price_analysis"] = flow.PriceAnalysis
+			}
 		}
 		if kl := keyLevelSnapshotToMap(flow.KeyLevels); kl != nil {
 			out["key_levels"] = kl

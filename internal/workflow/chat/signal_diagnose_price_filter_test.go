@@ -13,6 +13,7 @@ import (
 )
 
 func TestSignalDiagnoseEvaluatePartialStripListsStrippedAndKeepsEpisodes(t *testing.T) {
+	strategydev.SetPriceAnalysisFeatureEnabledForTest(t, true)
 	n := 90
 	bars := make([]any, n)
 	buyM := make([]any, n)
@@ -59,6 +60,7 @@ func TestSignalDiagnoseEvaluatePartialStripListsStrippedAndKeepsEpisodes(t *test
 }
 
 func TestSignalDiagnoseEvaluateAppliesPriceFilterWhenEnabled(t *testing.T) {
+	strategydev.SetPriceAnalysisFeatureEnabledForTest(t, true)
 	n := 90
 	bars := make([]any, n)
 	buyM := make([]any, n)
@@ -88,6 +90,7 @@ func TestSignalDiagnoseEvaluateAppliesPriceFilterWhenEnabled(t *testing.T) {
 }
 
 func TestSignalDiagnoseEvaluateSkipsPriceFilterWhenDisabled(t *testing.T) {
+	strategydev.SetPriceAnalysisFeatureEnabledForTest(t, true)
 	n := 90
 	bars := make([]any, n)
 	buyM := make([]any, n)
@@ -127,6 +130,7 @@ func TestSignalDiagnoseEvaluateSkipsPriceFilterWhenDisabled(t *testing.T) {
 }
 
 func TestRenderSignalDiagnoseFactsIncludesStrippedLedger(t *testing.T) {
+	strategydev.SetPriceAnalysisFeatureEnabledForTest(t, true)
 	pf := strategydev.PriceFilterResult{
 		Regime: strategydev.RegimeUnclear, Side: strategydev.SideNone,
 		AllowLong: false, AllowShort: false,
@@ -153,6 +157,27 @@ func TestRenderSignalDiagnoseFactsIncludesStrippedLedger(t *testing.T) {
 	}
 	if !strings.Contains(out, "被掩码剔除的买入触发") {
 		t.Fatal("missing buy ledger")
+	}
+}
+
+func TestSignalDiagnoseEvaluateMasterSwitchOffSkipsPriceAnalysis(t *testing.T) {
+	strategydev.SetPriceAnalysisFeatureEnabledForTest(t, false)
+	bars := []any{map[string]any{"high": 101.0, "low": 99.0, "close": 100.0, "volume": 1000.0}}
+	buyM := []any{1}
+	sellM := []any{0}
+	flow := &Flow{
+		UsePriceAnalysisEpisodeFilter: false,
+		Strategies:                    []StrategyItem{{Frequency: "60m"}},
+		ProbeRaw: map[string]any{
+			"bars": bars, "buy_merged": buyM, "sell_merged": sellM,
+		},
+	}
+	r := &Runner{}
+	if err := r.phaseSignalDiagnoseEvaluate(context.Background(), flow, tools.Context{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if flow.PriceFilter != nil || flow.PriceEpisodeFilterStats != nil || flow.PriceAnalysis != nil {
+		t.Fatalf("expected no PA artifacts, pf=%v stats=%v pa=%v", flow.PriceFilter, flow.PriceEpisodeFilterStats, flow.PriceAnalysis)
 	}
 }
 
