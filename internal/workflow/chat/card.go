@@ -1,6 +1,11 @@
 package chat
 
-import "github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
+import (
+	"strings"
+
+	"github.com/ghsemail/GeeGooAgent/internal/runtime"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
+)
 
 // CardPayload builds SSE card data for the live UI.
 func CardPayload(flow *Flow) map[string]any {
@@ -59,6 +64,11 @@ func CardPayload(flow *Flow) map[string]any {
 		out["probe_buy_hits"] = flow.ProbeBuyHits
 		out["probe_sell_hits"] = flow.ProbeSellHits
 		out["probe_bar_count"] = flow.ProbeBarCount
+		if td := strings.TrimSpace(string(flow.TradeDirection)); td != "" {
+			out["trade_direction"] = td
+		} else {
+			out["trade_direction"] = string(runtime.TradeDirectionBoth)
+		}
 		if cp := chartProbePayload(flow); cp != nil {
 			out["chart_probe"] = cp
 		}

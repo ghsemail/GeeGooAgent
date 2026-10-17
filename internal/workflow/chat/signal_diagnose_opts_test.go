@@ -3,6 +3,7 @@ package chat
 import (
 	"testing"
 
+	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
@@ -45,6 +46,9 @@ func TestParseSignalDiagnoseOptsProbeOverrides(t *testing.T) {
 
 func TestNewSignalDiagnoseFlowSoftDefaults(t *testing.T) {
 	flow := newSignalDiagnoseFlow("诊断 SAR+MACD · 00700.HK")
+	if flow.TradeDirection != runtime.TradeDirectionBoth {
+		t.Fatalf("trade_direction=%q want both", flow.TradeDirection)
+	}
 	if flow.UsePriceAnalysisEpisodeFilter {
 		t.Fatal("hard episode filter should default off")
 	}
@@ -62,6 +66,51 @@ func TestEffectiveSignalDiagnoseBuyScoreDirection(t *testing.T) {
 	}
 	if effectiveSignalDiagnoseBuyScoreDirection(strategydev.BuyScoreDirectionNormal) != strategydev.BuyScoreDirectionNormal {
 		t.Fatal("explicit normal should stay")
+	}
+}
+
+func TestParseTradeDirectionFromWorkflowOptions(t *testing.T) {
+	t.Run("omitted defaults unset pointer", func(t *testing.T) {
+		o := ParseSignalDiagnoseOptsFromWorkflowOptions(map[string]any{
+			"signal_diagnose": map[string]any{},
+		})
+		if o == nil || o.TradeDirection != nil {
+			t.Fatalf("TradeDirection=%v want nil", o)
+		}
+	})
+	t.Run("long_only", func(t *testing.T) {
+		o := ParseSignalDiagnoseOptsFromWorkflowOptions(map[string]any{
+			"signal_diagnose": map[string]any{"trade_direction": " LONG_ONLY "},
+		})
+		if o == nil || o.TradeDirection == nil || *o.TradeDirection != runtime.TradeDirectionLongOnly {
+			t.Fatalf("got %+v", o)
+		}
+	})
+	t.Run("both explicit", func(t *testing.T) {
+		o := ParseSignalDiagnoseOptsFromWorkflowOptions(map[string]any{
+			"signal_diagnose": map[string]any{"trade_direction": "both"},
+		})
+		if o == nil || o.TradeDirection == nil || *o.TradeDirection != runtime.TradeDirectionBoth {
+			t.Fatalf("got %+v", o)
+		}
+	})
+	t.Run("invalid maps to both", func(t *testing.T) {
+		o := ParseSignalDiagnoseOptsFromWorkflowOptions(map[string]any{
+			"signal_diagnose": map[string]any{"trade_direction": "nope"},
+		})
+		if o == nil || o.TradeDirection == nil || *o.TradeDirection != runtime.TradeDirectionBoth {
+			t.Fatalf("got %+v", o)
+		}
+	})
+}
+
+func TestApplyPendingTradeDirection(t *testing.T) {
+	td := runtime.TradeDirectionLongOnly
+	session := &runtime.Session{PendingSignalDiagnoseOpts: &runtime.SignalDiagnoseOpts{TradeDirection: &td}}
+	flow := newSignalDiagnoseFlow("诊断 x · y")
+	ApplyPendingSignalDiagnoseOpts(session, flow)
+	if flow.TradeDirection != runtime.TradeDirectionLongOnly {
+		t.Fatalf("flow=%q", flow.TradeDirection)
 	}
 }
 

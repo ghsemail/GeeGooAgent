@@ -79,16 +79,30 @@ const (
 	pathEndOpenTail               = "open_tail"
 )
 
+// EvaluateSignalEpisodesOptions configures episode evaluation (zero value = both sides).
+type EvaluateSignalEpisodesOptions struct {
+	// LongOnly skips sell-side episodes; sell_merged still closes buy episodes as opposite signal.
+	LongOnly bool
+}
+
 // EvaluateSignalEpisodes scores triggers with strict (until opposite) and path (fallback) windows.
 func EvaluateSignalEpisodes(bars []any, buyMerged, sellMerged []any) SignalEpisodeEval {
+	return EvaluateSignalEpisodesWithOptions(bars, buyMerged, sellMerged, EvaluateSignalEpisodesOptions{})
+}
+
+// EvaluateSignalEpisodesWithOptions scores triggers; LongOnly omits sell-side episode cohorts.
+func EvaluateSignalEpisodesWithOptions(bars []any, buyMerged, sellMerged []any, opts EvaluateSignalEpisodesOptions) SignalEpisodeEval {
 	closes := barCloses(bars)
 	highs := barHighs(bars, closes)
 	lows := barLows(bars, closes)
 	times := barTimes(bars)
 	buyStarts := episodeStarts(buyMerged, 1)
-	sellStarts := episodeStarts(sellMerged, -1)
 	buyDetails := collectEpisodes("buy", buyStarts, closes, highs, lows, times, oppositeIndices(sellMerged, -1), buyStarts, true)
-	sellDetails := collectEpisodes("sell", sellStarts, closes, highs, lows, times, oppositeIndices(buyMerged, 1), sellStarts, false)
+	var sellDetails []SignalEpisodeDetail
+	if !opts.LongOnly {
+		sellStarts := episodeStarts(sellMerged, -1)
+		sellDetails = collectEpisodes("sell", sellStarts, closes, highs, lows, times, oppositeIndices(buyMerged, 1), sellStarts, false)
+	}
 	return SignalEpisodeEval{
 		Method:           signalEvalMethodUntilOpposite,
 		BuyDetails:       buyDetails,

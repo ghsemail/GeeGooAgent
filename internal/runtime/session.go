@@ -88,6 +88,8 @@ type SignalDiagnoseOpts struct {
 	MonthsBack  int    `json:"months_back,omitempty"`
 	// PanelStrategyLabel is the strategy-dev UI title (may differ from chat utterance).
 	PanelStrategyLabel string `json:"panel_strategy_label,omitempty"`
+	// TradeDirection both (default) | long_only — skip short-side episode eval when long_only.
+	TradeDirection *TradeDirection `json:"trade_direction,omitempty"`
 }
 
 // PendingPlan is a held mutating-tool batch from one LLM round.
