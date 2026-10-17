@@ -7,6 +7,29 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
+func TestFilteredKlinePatternsAtIndex_GeeGooPatternField(t *testing.T) {
+	SetKlinePatternDisplayEnabledForTest(t, true)
+	series := []any{
+		[]any{map[string]any{"name": "Engulfing", "name_chs": "吞没模式", "pattern": -1}},
+		[]any{map[string]any{"name": "Evening Star", "pattern": 1}},
+	}
+	h0 := FilteredKlinePatternsAtIndex(series, 0)
+	if len(h0) != 1 || h0[0].Direction != -1 {
+		t.Fatalf("engulfing=%+v", h0)
+	}
+	b0 := slots.ScoreKlinePatternHits(h0)
+	if b0.Score == 0 || b0.Bias == "中性" {
+		t.Fatalf("score=%+v want non-neutral bear", b0)
+	}
+	h1 := FilteredKlinePatternsAtIndex(series, 1)
+	if len(h1) != 1 || h1[0].Name != "EveningStar" || h1[0].Direction != 1 {
+		t.Fatalf("evening star=%+v", h1)
+	}
+	if slots.ScoreKlinePatternHits(h1).Score <= 0 {
+		t.Fatal("expected positive score")
+	}
+}
+
 func TestFilteredKlinePatternsAtIndex_WhitelistAndDirection(t *testing.T) {
 	SetKlinePatternDisplayEnabledForTest(t, true)
 	series := []any{

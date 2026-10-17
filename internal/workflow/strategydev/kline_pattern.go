@@ -93,7 +93,7 @@ func parsePatternHitList(items []any) []parsedPatternHit {
 	for _, item := range items {
 		switch row := item.(type) {
 		case map[string]any:
-			name := canonicalPatternName(firstString(row, "name", "pattern", "index", "id"))
+			name := canonicalPatternName(patternHitName(row))
 			if name == "" {
 				continue
 			}
@@ -136,12 +136,39 @@ func isMetaPatternKey(key string) bool {
 }
 
 func patternDirectionValue(row map[string]any) float64 {
-	for _, key := range []string{"direction", "dir", "sign", "value", "signal", "side"} {
+	for _, key := range []string{"direction", "dir", "sign", "pattern", "value", "signal", "side"} {
 		if v, ok := row[key]; ok {
+			if key == "pattern" {
+				if _, isStr := v.(string); isStr {
+					continue
+				}
+			}
 			return slots.FloatAny(v)
 		}
 	}
 	return 0
+}
+
+// patternHitName reads English TA-Lib name from GeeGooSignal pattern_hits entries.
+func patternHitName(row map[string]any) string {
+	if s := firstString(row, "name"); s != "" && !looksLikeNumericDirection(s) {
+		return s
+	}
+	return firstString(row, "index", "id")
+}
+
+func looksLikeNumericDirection(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	switch s {
+	case "1", "-1", "2", "-2", "100", "-100":
+		return true
+	}
+	var f float64
+	_, err := fmt.Sscan(s, &f)
+	return err == nil && strings.ContainsAny(s, "0123456789")
 }
 
 func firstString(row map[string]any, keys ...string) string {
