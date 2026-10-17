@@ -238,7 +238,7 @@ func fetchPriceAnalysisBarsWithAsOf(ctx context.Context, run ToolRunner, code, f
 	if run == nil {
 		return nil, false
 	}
-	key := probeCacheKey(code, freq, months, asOf)
+	key := probeCacheKey(code, freq, months, 0, asOf)
 	if bars, ok, hit := lookupPriceProbeCache(ctx, key); hit {
 		return bars, ok
 	}

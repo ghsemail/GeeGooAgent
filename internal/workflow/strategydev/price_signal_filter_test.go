@@ -233,6 +233,56 @@ func TestPerSignalFilterFourTimeframeRows(t *testing.T) {
 	_ = barsByFreq
 }
 
+func TestPerSignalFilterEMAFetchSeparateFromPriceAnalysis(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	n := 90
+	bars := make([]any, n)
+	buyM := make([]any, n)
+	for i := 0; i < n; i++ {
+		c := 100.0 + float64(i)*0.2
+		bars[i] = map[string]any{
+			"time": time.Date(2026, 6, 1, 10, 0, 0, 0, loc).AddDate(0, 0, i).Format("2006-01-02 15:04:05"),
+			"close": c, "high": c + 1, "low": c - 1, "volume": 1000.0,
+		}
+	}
+	buyM[10] = 1
+	daily := make([]any, 130)
+	for i := 0; i < 130; i++ {
+		c := 100.0 + float64(i)*0.3
+		daily[i] = map[string]any{
+			"time": fmt.Sprintf("2026-04-%02d 00:00:00", (i%28)+1),
+			"close": c, "high": c + 1, "low": c - 1, "volume": 1e6,
+		}
+	}
+	paMonths := map[string]int{}
+	emaMonths := map[string]int{}
+	run := ToolRunner(func(ctx context.Context, name string, args map[string]any) tools.Result {
+		freq := args["frequency"].(string)
+		m := args["months_back"].(int)
+		if isEMAStackProbeArgs(args) {
+			emaMonths[freq] = m
+		} else {
+			paMonths[freq] = m
+		}
+		return tools.Result{Status: tools.StatusOK, Data: map[string]any{"bars": daily}}
+	})
+	_, _, _, stats := ApplyPerSignalPriceAnalysisEpisodeFilter(context.Background(), PerSignalPriceFilterInput{
+		Run: run, Code: "00700.HK", Months: 3, AnnotateOnly: true,
+	}, bars, "60m", buyM, nil)
+	if len(stats.BuyTriggers) != 1 {
+		t.Fatalf("triggers=%d", len(stats.BuyTriggers))
+	}
+	if paMonths["weekly"] > perSignalPriceFetchMonthsCap {
+		t.Fatalf("PA weekly months=%d must stay <= %d", paMonths["weekly"], perSignalPriceFetchMonthsCap)
+	}
+	if emaMonths["weekly"] < emaWeeklyFetchMonthsFloor {
+		t.Fatalf("EMA weekly months=%d want >= %d", emaMonths["weekly"], emaWeeklyFetchMonthsFloor)
+	}
+	if emaMonths["daily"] < emaDailyFetchMonthsFloor {
+		t.Fatalf("EMA daily months=%d want >= %d", emaMonths["daily"], emaDailyFetchMonthsFloor)
+	}
+}
+
 func TestPerSignalFilterTriggerRecordDiagnoseFields(t *testing.T) {
 	n := 90
 	bars := make([]any, n)
@@ -266,6 +316,15 @@ func TestPerSignalFilterTriggerRecordDiagnoseFields(t *testing.T) {
 				}
 			}
 		}
+		if isEMAStackProbeArgs(args) {
+			b = make([]any, 130)
+			for i := 0; i < 130; i++ {
+				c := 100.0 + float64(i)*0.35
+				b[i] = map[string]any{
+					"time": fmt.Sprintf("2026-01-%02d", (i%28)+1), "close": c, "high": c + 1, "low": c - 1, "volume": 1e6,
+				}
+			}
+		}
 		return tools.Result{Status: tools.StatusOK, Data: map[string]any{"bars": b}}
 	})
 	_, _, _, stats := ApplyPerSignalPriceAnalysisEpisodeFilter(context.Background(), PerSignalPriceFilterInput{
@@ -278,8 +337,11 @@ func TestPerSignalFilterTriggerRecordDiagnoseFields(t *testing.T) {
 	if tr.EMAStacks == nil {
 		t.Fatal("missing ema_stacks")
 	}
-	if tr.EMAStacks.Weekly.Label == "" {
-		t.Fatal("weekly ema label required")
+	if tr.EMAStacks.Weekly.Label == "" || tr.EMAStacks.Weekly.Label == emaStackLabelUnknown {
+		t.Fatalf("weekly ema label=%q want classified stack from EMA fetch", tr.EMAStacks.Weekly.Label)
+	}
+	if tr.EMAStacks.Daily.Label == emaStackLabelUnknown {
+		t.Fatalf("daily ema should classify with extended fetch, got %q", tr.EMAStacks.Daily.Label)
 	}
 	if tr.GatePriceScore == 0 && tr.PriceScore != 0 {
 		// gate may legitimately be 0; ensure field was set by comparing HTF recompute

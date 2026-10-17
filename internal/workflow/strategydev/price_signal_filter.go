@@ -76,6 +76,9 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 	barsByFreq, fetchOKByFreq := FetchMultiTimeframePriceAnalysisBars(ctx, MultiTimeframePriceBarsInput{
 		Run: in.Run, Code: in.Code, Months: chartMonths, GateFreq: gateFreq, AsOf: windowEnd, ChartBars: lookbackBars,
 	})
+	emaBarsByFreq, emaFetchOKByFreq := FetchMultiTimeframeEMABars(ctx, MultiTimeframeEMABarsInput{
+		Run: in.Run, Code: in.Code, Months: chartMonths, AsOf: windowEnd, ChartBars: lookbackBars,
+	})
 	dailyBars := barsByFreq["daily"]
 	if len(dailyBars) == 0 && gateFreq == "daily" {
 		dailyBars = bars
@@ -132,7 +135,7 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 		hardMask := !in.AnnotateOnly
 		var emaStacks EMAStacks
 		if anchorOK {
-			emaStacks = ComputeEMAStacksAtAnchor(barsByFreq, fetchOKByFreq, lookbackBars, gateFreq, anchorTime)
+			emaStacks = ComputeEMAStacksAtAnchor(emaBarsByFreq, emaFetchOKByFreq, lookbackBars, gateFreq, anchorTime)
 		} else {
 			emaStacks = unknownEMAStacks()
 		}
