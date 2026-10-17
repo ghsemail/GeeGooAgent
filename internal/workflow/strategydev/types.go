@@ -15,7 +15,7 @@ type Input struct {
 	PriceAnalysisScoreThreshold *float64
 	// PriceAnalysisBuyScoreDirection soft buy would_intercept: normal | reverse (empty = normal).
 	PriceAnalysisBuyScoreDirection string
-	// PriceAnalysisGateScoreMode full | htf_only (empty = full).
+	// PriceAnalysisGateScoreMode full | htf_only | tf_tiered (empty = full).
 	PriceAnalysisGateScoreMode string
 }
 

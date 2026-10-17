@@ -47,8 +47,8 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 	if in.AnnotateOnly {
 		basis = fmt.Sprintf("软门控：逐条多周期打分并标注买入 would_intercept（买点打分方向：%s；门控综合分：%s），卖出不参与打分拦截；不掩码剔除（Episode 评价与未门控一致）",
 			BuyScoreDirectionDisplayLabel(buyDir), gateScoreModeDisplayLabel(gateMode))
-	} else if gateMode == PriceAnalysisGateScoreModeHTFOnly {
-		basis = fmt.Sprintf("%s；买点门控综合分仅含更大周期（%s）", basis, gateScoreModeDisplayLabel(gateMode))
+	} else if gateMode == PriceAnalysisGateScoreModeHTFOnly || gateMode == PriceAnalysisGateScoreModeTFTiered {
+		basis = fmt.Sprintf("%s；买点门控综合分（%s）", basis, gateScoreModeDisplayLabel(gateMode))
 	}
 	stats := EpisodeTriggerFilterStats{
 		InterceptionBasis:              basis,
@@ -125,9 +125,17 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 		}
 		displayScore := attachScoreToPriceAnalysis(&pa, gateFreq)
 		htfGateScore := ComputeHTFGatePriceScore(pa, gateFreq)
+		tieredGateScore := ComputeTFTieredGatePriceScore(pa, gateFreq)
 		gateScoreResult := displayScore
-		if gateMode == PriceAnalysisGateScoreModeHTFOnly {
+		switch gateMode {
+		case PriceAnalysisGateScoreModeHTFOnly:
 			gateScoreResult = htfGateScore
+		case PriceAnalysisGateScoreModeTFTiered:
+			gateScoreResult = tieredGateScore
+		}
+		gatePriceScore := htfGateScore.Score
+		if gateMode == PriceAnalysisGateScoreModeTFTiered {
+			gatePriceScore = tieredGateScore.Score
 		}
 		interceptScore := gateScoreResult.Score
 		lastGate = pfGate
@@ -147,7 +155,7 @@ func ApplyPerSignalPriceAnalysisEpisodeFilter(
 			Intercepted:           hardMask && wouldIntercept,
 			PriceAnalysis:         &pa,
 			PriceScore:            displayScore.Score,
-			GatePriceScore:        htfGateScore.Score,
+			GatePriceScore:        gatePriceScore,
 			PAWeeklySubscore:      paSubscoreFromTFScores(displayScore.TFScores, "周线"),
 			PADailySubscore:       paSubscoreFromTFScores(displayScore.TFScores, "日线"),
 			EMAStacks:             &emaStacks,

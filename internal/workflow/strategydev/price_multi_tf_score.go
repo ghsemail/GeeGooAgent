@@ -62,6 +62,68 @@ func ComputeMultiTFPriceScore(pa PriceAnalysis, gateFreq string) MultiTFPriceSco
 	return computeWeightedMultiTFPriceScore(pa, want, gateFreq)
 }
 
+// ComputeTFTieredGatePriceScore uses fixed weights by signal TF (no renormalization when a TF is missing).
+// 60m (and 15m): weekly 0.55 + daily 0.45. 5m: weekly 0.45 + daily 0.35 + 60m 0.20.
+// Daily and weekly signals fall back to ComputeHTFGatePriceScore (same as htf_only path).
+func ComputeTFTieredGatePriceScore(pa PriceAnalysis, gateFreq string) MultiTFPriceScore {
+	gate := NormalizeFrequency(gateFreq)
+	switch gate {
+	case "5m":
+		return computeFixedWeightMultiTFPriceScore(pa, []fixedTFWeight{
+			{"weekly", "周线", 0.45},
+			{"daily", "日线", 0.35},
+			{"60m", "60m", 0.20},
+		}, gateFreq)
+	case "15m", "60m":
+		return computeFixedWeightMultiTFPriceScore(pa, []fixedTFWeight{
+			{"weekly", "周线", 0.55},
+			{"daily", "日线", 0.45},
+		}, gateFreq)
+	default:
+		return ComputeHTFGatePriceScore(pa, gateFreq)
+	}
+}
+
+type fixedTFWeight struct {
+	key    string
+	label  string
+	weight float64
+}
+
+func computeFixedWeightMultiTFPriceScore(pa PriceAnalysis, specs []fixedTFWeight, gateFreq string) MultiTFPriceScore {
+	_ = NormalizeFrequency(gateFreq)
+	byLabel := map[string]PriceAnalysisRow{}
+	for _, r := range pa.Rows {
+		byLabel[r.Timeframe] = r
+	}
+	var missing []string
+	var weighted float64
+	tfScores := map[string]TFScoreBreakdown{}
+	for _, spec := range specs {
+		row, ok := byLabel[spec.label]
+		if !ok || rowMissingForScore(row) {
+			missing = append(missing, spec.label)
+			tfScores[spec.label] = TFScoreBreakdown{Missing: true}
+			continue
+		}
+		br := scorePriceAnalysisRow(row)
+		tfScores[spec.label] = br
+		weighted += spec.weight * br.Subscore
+	}
+	out := MultiTFPriceScore{TFScores: tfScores}
+	if len(specs) > 0 {
+		allMissing := len(missing) == len(specs)
+		if allMissing {
+			out.Score = 0
+			out.ScoreReason = formatScoreReason(0, missing)
+			return out
+		}
+	}
+	out.Score = NormalizePriceScore(100 * clamp(weighted/2, -1, 1))
+	out.ScoreReason = formatScoreReason(out.Score, missing)
+	return out
+}
+
 // ComputeHTFGatePriceScore is the buy-gate composite using only TFs coarser than gateFreq.
 // Entry-period subscore is excluded; remaining base weights (0.45/0.35/0.20) renormalize over present HTFs.
 // Weekly-only signal has no coarser TF — falls back to ComputeMultiTFPriceScore (gate equals display).

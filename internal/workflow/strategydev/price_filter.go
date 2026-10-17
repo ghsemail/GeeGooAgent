@@ -435,7 +435,7 @@ type EpisodeTriggerFilterStats struct {
 	InterceptionBasis    string                   `json:"interception_basis,omitempty"`
 	// PriceAnalysisBuyScoreDirection is soft buy annotation mode: normal | reverse.
 	PriceAnalysisBuyScoreDirection string `json:"price_analysis_buy_score_direction,omitempty"`
-	// PriceAnalysisGateScoreMode is full | htf_only (default full when omitted).
+	// PriceAnalysisGateScoreMode is full | htf_only | tf_tiered (default full when omitted).
 	PriceAnalysisGateScoreMode string `json:"price_analysis_gate_score_mode,omitempty"`
 }
 
