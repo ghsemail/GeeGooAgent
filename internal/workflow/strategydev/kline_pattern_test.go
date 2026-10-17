@@ -53,7 +53,8 @@ func TestEnrichSignalEpisodeEvalPatterns_AttachesAtStartIdx(t *testing.T) {
 		nil,
 		[]any{map[string]any{"name": "Doji", "direction": 2}},
 	}
-	EnrichSignalEpisodeEvalPatterns(&eval, series)
+	patIn := NewKlinePatternDisplayInput("daily", bars, map[string]any{"pattern_hits": series}, nil)
+	EnrichSignalEpisodeEvalKlineDisplay(&eval, patIn)
 	if len(eval.BuyDetails) != 1 {
 		t.Fatalf("buy details=%d", len(eval.BuyDetails))
 	}
@@ -61,9 +62,13 @@ func TestEnrichSignalEpisodeEvalPatterns_AttachesAtStartIdx(t *testing.T) {
 		t.Fatalf("expected patterns at start idx 0 empty, got %+v", eval.BuyDetails[0].KlinePatterns)
 	}
 	series[0] = []any{map[string]any{"name": "Hammer", "direction": 1}}
-	EnrichSignalEpisodeEvalPatterns(&eval, series)
+	patIn.PatternHits = series
+	EnrichSignalEpisodeEvalKlineDisplay(&eval, patIn)
 	if len(eval.BuyDetails[0].KlinePatterns) != 1 || eval.BuyDetails[0].KlinePatternSummary == "" {
 		t.Fatalf("detail=%+v", eval.BuyDetails[0])
+	}
+	if eval.BuyDetails[0].KlinePatternThreeBar == nil || eval.BuyDetails[0].KlinePatternBias == nil {
+		t.Fatal("expected three-bar window and bias")
 	}
 }
 
@@ -107,7 +112,7 @@ func TestEvaluateSignalEpisodes_UnchangedByPatternEnrichment(t *testing.T) {
 		nil,
 		[]any{map[string]any{"name": "EveningStar", "direction": -1}},
 	}
-	EnrichSignalEpisodeEvalPatterns(&after, series)
+	EnrichSignalEpisodeEvalKlineDisplay(&after, NewKlinePatternDisplayInput("daily", bars, map[string]any{"pattern_hits": series}, nil))
 	if before.BuyEpisodes.HitCount != after.BuyEpisodes.HitCount {
 		t.Fatalf("hit count changed: before=%d after=%d", before.BuyEpisodes.HitCount, after.BuyEpisodes.HitCount)
 	}

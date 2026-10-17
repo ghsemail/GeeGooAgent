@@ -162,6 +162,7 @@ func TestRenderSignalDiagnoseFactsIncludesStrippedLedger(t *testing.T) {
 
 func TestSignalDiagnoseEvaluateMasterSwitchOffSkipsPriceAnalysis(t *testing.T) {
 	strategydev.SetPriceAnalysisFeatureEnabledForTest(t, false)
+	strategydev.SetKlinePatternDisplayEnabledForTest(t, false)
 	bars := []any{map[string]any{"high": 101.0, "low": 99.0, "close": 100.0, "volume": 1000.0}}
 	buyM := []any{1}
 	sellM := []any{0}

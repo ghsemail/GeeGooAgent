@@ -121,6 +121,15 @@ func episodeOverlayRow(side string, idx int, ep slots.SignalEpisodeDetail) map[s
 	if ep.KlinePatternSummary != "" {
 		row["kline_pattern_summary"] = ep.KlinePatternSummary
 	}
+	if ep.KlinePatternThreeBar != nil {
+		row["kline_pattern_three_bar"] = ep.KlinePatternThreeBar
+	}
+	if ep.KlinePatternBias != nil {
+		row["kline_pattern_bias"] = ep.KlinePatternBias
+	}
+	if ep.KlinePatternMTF != nil {
+		row["kline_pattern_mtf"] = ep.KlinePatternMTF
+	}
 	return row
 }
 

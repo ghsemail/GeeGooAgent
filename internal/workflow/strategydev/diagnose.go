@@ -92,13 +92,13 @@ func finishDiagnoseFromMerged(
 	if !PriceAnalysisFeatureEnabled() {
 		buyHits := hitCount(nil, "buy_hits", buyMerged, 1)
 		sellHits := hitCount(nil, "sell_hits", sellMerged, -1)
-		patternSeries := PatternHitsSeriesFromProbe(rawData)
+		patIn := NewKlinePatternDisplayInput(freq, bars, rawData, BuildKlinePatternMTFForDiagnose(ctx, run, code, freq, months, bars))
 		eval := slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
-		EnrichSignalEpisodeEvalPatterns(&eval, patternSeries)
+		EnrichSignalEpisodeEvalKlineDisplay(&eval, patIn)
 		var pstats *EpisodeTriggerFilterStats
-		if KlinePatternDisplayEnabled() && len(bars) > 0 && len(patternSeries) > 0 {
+		if KlinePatternDisplayEnabled() && len(bars) > 0 {
 			buyTr, sellTr := CollectEpisodeTriggersFromMerged(bars, buyMerged, sellMerged)
-			AttachKlinePatternsToProbeTriggers(buyTr, sellTr, patternSeries)
+			AttachKlineDisplayToProbeTriggers(buyTr, sellTr, patIn)
 			pstats = &EpisodeTriggerFilterStats{BuyTriggers: buyTr, SellTriggers: sellTr}
 		}
 		return summarizeEval(eval, regime, buyHits, sellHits), nil, pstats
@@ -118,15 +118,15 @@ func finishDiagnoseFromMerged(
 	}
 	buyHits := hitCount(nil, "buy_hits", buyMerged, 1)
 	sellHits := hitCount(nil, "sell_hits", sellMerged, -1)
-	patternSeries := PatternHitsSeriesFromProbe(rawData)
+	patIn := NewKlinePatternDisplayInput(freq, bars, rawData, BuildKlinePatternMTFForDiagnose(ctx, run, code, freq, months, bars))
 	eval := slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
-	EnrichSignalEpisodeEvalPatterns(&eval, patternSeries)
+	EnrichSignalEpisodeEvalKlineDisplay(&eval, patIn)
 	if pstats != nil {
 		EnrichEpisodeFilterStatsPostEval(pstats, eval)
-		EnrichEpisodeTriggerFilterStatsPatterns(pstats, patternSeries)
-	} else if KlinePatternDisplayEnabled() && len(bars) > 0 && len(patternSeries) > 0 {
+		EnrichEpisodeTriggerFilterStatsKlineDisplay(pstats, patIn)
+	} else if KlinePatternDisplayEnabled() && len(bars) > 0 {
 		buyTr, sellTr := CollectEpisodeTriggersFromMerged(bars, buyMerged, sellMerged)
-		AttachKlinePatternsToProbeTriggers(buyTr, sellTr, patternSeries)
+		AttachKlineDisplayToProbeTriggers(buyTr, sellTr, patIn)
 		pstats = &EpisodeTriggerFilterStats{BuyTriggers: buyTr, SellTriggers: sellTr}
 	}
 	summary := summarizeEval(eval, regime, buyHits, sellHits)
