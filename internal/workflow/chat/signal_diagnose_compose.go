@@ -314,8 +314,8 @@ func appendEpisodeDetailTable(b *strings.Builder, title string, details []slots.
 		fmt.Fprintf(b, "_无 episode_\n")
 		return
 	}
-	fmt.Fprintf(b, "| # | 信号时间 | 起点价 | Strict | Path 终点 | peak | maxDD | Path 方向收益 | Path 命中 |\n")
-	fmt.Fprintf(b, "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
+	fmt.Fprintf(b, "| # | 信号时间 | 起点价 | Strict | Path 终点 | peak | maxDD | Path 方向收益 | Path 命中 | K线形态 |\n")
+	fmt.Fprintf(b, "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	for i, ep := range details {
 		strict := "未闭合"
 		if ep.Complete {
@@ -337,8 +337,12 @@ func appendEpisodeDetailTable(b *strings.Builder, title string, details []slots.
 			peak = slots.FormatPct(ep.PeakReturn)
 			dd = slots.FormatPct(ep.MaxDrawdownFromPeak)
 		}
-		fmt.Fprintf(b, "| %d | %s | %.2f | %s | %s | %s | %s | %s | %s |\n",
-			i+1, dashTime(ep.StartTime), ep.StartClose, strict, pathEnd, peak, dd, pathRet, pathHit)
+		patternCol := "—"
+		if ep.KlinePatternSummary != "" {
+			patternCol = ep.KlinePatternSummary
+		}
+		fmt.Fprintf(b, "| %d | %s | %.2f | %s | %s | %s | %s | %s | %s | %s |\n",
+			i+1, dashTime(ep.StartTime), ep.StartClose, strict, pathEnd, peak, dd, pathRet, pathHit, patternCol)
 	}
 }
 

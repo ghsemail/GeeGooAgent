@@ -36,6 +36,7 @@ func TestStripSignalPriceAnalysisPayloadWhenEnabledKeepsFields(t *testing.T) {
 
 func TestDiagnoseIgnoresSignalPriceFieldsWhenDisabled(t *testing.T) {
 	ConfigurePriceAnalysisEnabled(false)
+	SetKlinePatternDisplayEnabledForTest(t, false)
 	t.Cleanup(func() { ConfigurePriceAnalysisEnabled(true) })
 	bars := makeBarsWithBuy(3)
 	buyM := []any{0, 0, 1}
