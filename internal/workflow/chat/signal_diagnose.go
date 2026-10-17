@@ -44,6 +44,7 @@ func newSignalDiagnoseFlow(userText string) *Flow {
 		MonthsBack:    defaultMonthsBack,
 		UsePriceAnalysisEpisodeFilter: false,
 		PriceAnalysisBuyScoreDirection: strategydev.BuyScoreDirectionReverse,
+		PriceAnalysisGateScoreMode:     strategydev.PriceAnalysisGateScoreModeHTFOnly,
 		TriggerText:                    strings.TrimSpace(userText),
 		CreatedAt:     now,
 		UpdatedAt:     now,

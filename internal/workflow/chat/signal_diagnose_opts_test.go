@@ -51,8 +51,8 @@ func TestNewSignalDiagnoseFlowSoftDefaults(t *testing.T) {
 	if flow.PriceAnalysisBuyScoreDirection != strategydev.BuyScoreDirectionReverse {
 		t.Fatalf("buy score direction=%q", flow.PriceAnalysisBuyScoreDirection)
 	}
-	if flow.PriceAnalysisGateScoreMode != "" {
-		t.Fatalf("gate score mode should default empty/full, got %q", flow.PriceAnalysisGateScoreMode)
+	if flow.PriceAnalysisGateScoreMode != strategydev.PriceAnalysisGateScoreModeHTFOnly {
+		t.Fatalf("gate score mode should soft-default htf_only, got %q", flow.PriceAnalysisGateScoreMode)
 	}
 }
 
