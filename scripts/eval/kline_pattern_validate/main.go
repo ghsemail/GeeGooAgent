@@ -1,6 +1,8 @@
 // Command kline_pattern_validate runs probe_bot_signal_series on live symbols and prints
 // K-line pattern display JSON snippets for manual review.
 //
+// Fixed symbols: 00700.HK (腾讯), SpaceX (resolved via search_code → SPACEX.US / fallback SPCX.US).
+//
 // Env: SIGNAL_API_URL (default http://146.56.225.252:3200), SIGNAL_API_KEY (required)
 package main
 
@@ -27,82 +29,147 @@ func main() {
 		AllowedHosts: []string{"146.56.225.252", "127.0.0.1", "localhost"},
 	})
 	reg := tools.NewRegistry()
-	tools.RegisterAll(reg, tools.Deps{HTTP: tools.HTTPBackends{SignalAPI: client}})
-
-	type caseSpec struct {
-		Code  string
-		Freq  string
-		Label string
-	}
-	cases := []caseSpec{
-		{Code: "00700.HK", Freq: "daily", Label: "腾讯日线"},
-		{Code: "AAPL.US", Freq: "60m", Label: "苹果60m"},
-	}
-	if extra := strings.TrimSpace(os.Getenv("KLINE_VALIDATE_CODE")); extra != "" {
-		cases = append(cases, caseSpec{Code: extra, Freq: envOr("KLINE_VALIDATE_FREQ", "daily"), Label: "extra"})
-	}
+	tools.RegisterAll(reg, tools.Deps{HTTP: tools.HTTPBackends{SignalAPI: client, SignalCatalog: client}})
 
 	ctx := context.Background()
-	run := func(c context.Context, name string, args map[string]any) tools.Result {
+	var run strategydev.ToolRunner = func(c context.Context, name string, args map[string]any) tools.Result {
 		return reg.Execute(tools.CallRequest{Name: name, Arguments: args}, tools.Context{})
 	}
 
+	spacexCode, spacexNote := resolveSpaceXCode(ctx, run)
+	fmt.Printf("SpaceX symbol: %s (%s)\n", spacexCode, spacexNote)
+
+	cases := []struct {
+		Code  string
+		Freq  string
+		Label string
+	}{
+		{Code: "00700.HK", Freq: "daily", Label: "腾讯控股"},
+		{Code: spacexCode, Freq: "daily", Label: "SpaceX"},
+	}
+
 	for _, cs := range cases {
-		fmt.Printf("\n======== %s %s ========\n", cs.Label, cs.Code)
-		probeArgs := map[string]any{
-			"code": cs.Code, "frequency": strategydev.NormalizeFrequency(cs.Freq),
-			"months_back": 3,
-			"buy_signal":  []any{map[string]any{"index": "RSIThrehold", "type": "signal", "param": map[string]any{"period": 14, "threholdBuy": 30, "threholdSell": 70}}},
-			"sell_signal": []any{map[string]any{"index": "RSIThrehold", "type": "signal", "param": map[string]any{"period": 14, "threholdBuy": 30, "threholdSell": 70}}},
-		}
-		res := run(ctx, "probe_bot_signal_series", probeArgs)
-		if res.Status != tools.StatusOK {
-			fmt.Printf("probe failed: %s\n", res.Summary)
-			continue
-		}
-		bars, _ := res.Data["bars"].([]any)
-		buyM, _ := res.Data["buy_merged"].([]any)
-		sellM, _ := res.Data["sell_merged"].([]any)
-		fmt.Printf("bars=%d pattern_hits=%v buy_hits=%v\n", len(bars), lenAny(res.Data["pattern_hits"]), res.Data["buy_hits"])
-
-		mtf := strategydev.BuildKlinePatternMTFForDiagnose(ctx, run, cs.Code, cs.Freq, 3, bars)
-		patIn := strategydev.NewKlinePatternDisplayInput(cs.Freq, bars, res.Data, mtf)
-		buyTr, sellTr := strategydev.CollectEpisodeTriggersFromMerged(bars, buyM, sellM)
-		strategydev.AttachKlineDisplayToProbeTriggers(buyTr, sellTr, patIn)
-
-		show := func(side string, trs []strategydev.EpisodeTriggerRecord) {
-			if len(trs) == 0 {
-				fmt.Printf("no %s triggers\n", side)
-				return
+		if !runCase(ctx, run, cs.Label, cs.Code, cs.Freq) {
+			if cs.Label == "SpaceX" && spacexCode != "SPCX.US" {
+				fmt.Println("retry SpaceX with SPCX.US …")
+				runCase(ctx, run, cs.Label, "SPCX.US", cs.Freq)
 			}
-			tr := trs[0]
-			fmt.Printf("%s trigger[0] idx=%d time=%s summary=%q bias=%+v\n", side, tr.Index, tr.Time, tr.KlinePatternSummary, tr.KlinePatternBias)
-			if tr.KlinePatternThreeBar != nil {
-				for _, b := range tr.KlinePatternThreeBar.Bars {
-					fmt.Printf("  %s idx=%d omitted=%v close=%.2f patterns=%q\n", b.Role, b.Index, b.Omitted, b.Close, b.KlinePatternSummary)
-				}
-			}
-			if tr.KlinePatternMTF != nil {
-				fmt.Printf("  MTF note=%s primary=%+v tfs=%d\n", tr.KlinePatternMTF.Note, tr.KlinePatternMTF.PrimaryBias, len(tr.KlinePatternMTF.Timeframes))
-				for _, tf := range tr.KlinePatternMTF.Timeframes {
-					fmt.Printf("    %s aligned=%d bias=%+v three_bar=%v\n", tf.Label, tf.AlignedIndex, tf.Bias, tf.ThreeBar != nil)
-				}
-			}
-			if len(bars) > tr.Index+3 {
-				row, _ := bars[tr.Index+3].(map[string]any)
-				fmt.Printf("  forward+3 close=%.2f (walk-forward sanity, not prediction)\n", floatAny(row["close"]))
-			}
-			raw, _ := json.MarshalIndent(map[string]any{
-				"kline_patterns": tr.KlinePatterns, "kline_pattern_bias": tr.KlinePatternBias,
-				"kline_pattern_three_bar": tr.KlinePatternThreeBar, "kline_pattern_mtf": tr.KlinePatternMTF,
-			}, "  ", "  ")
-			fmt.Printf("  json snippet:\n  %s\n", string(raw))
-		}
-		show("buy", buyTr)
-		if len(sellTr) > 0 {
-			show("sell", sellTr)
 		}
 	}
+}
+
+func resolveSpaceXCode(ctx context.Context, run strategydev.ToolRunner) (code, note string) {
+	code = envOr("SPACEX_PROBE_CODE", "SPACEX.US")
+	note = "default SPACEX.US (search_code catalog / deploy checklist)"
+	res := run(ctx, "search_code", map[string]any{"query": "SpaceX", "limit": 8})
+	if res.Status != tools.StatusOK {
+		return code, note + "; search_code failed: " + res.Summary
+	}
+	items, _ := res.Data["items"].([]any)
+	for _, raw := range items {
+		row, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		c := strings.TrimSpace(fmt.Sprint(row["code"]))
+		if c == "" {
+			continue
+		}
+		upper := strings.ToUpper(c)
+		if strings.Contains(upper, "SPAC") || strings.Contains(upper, "SPCX") {
+			return c, "search_code first match"
+		}
+	}
+	return code, note
+}
+
+func runCase(ctx context.Context, run strategydev.ToolRunner, label, code, freq string) bool {
+	fmt.Printf("\n======== %s %s (%s) ========\n", label, code, freq)
+	probeArgs := map[string]any{
+		"code": code, "frequency": strategydev.NormalizeFrequency(freq),
+		"months_back": 3,
+		"buy_signal":  []any{map[string]any{"index": "RSIThrehold", "type": "signal", "param": map[string]any{"period": 14, "threholdBuy": 30, "threholdSell": 70}}},
+		"sell_signal": []any{map[string]any{"index": "RSIThrehold", "type": "signal", "param": map[string]any{"period": 14, "threholdBuy": 30, "threholdSell": 70}}},
+	}
+	res := run(ctx, "probe_bot_signal_series", probeArgs)
+	if res.Status != tools.StatusOK {
+		fmt.Printf("probe failed: %s\n", res.Summary)
+		return false
+	}
+	bars, _ := res.Data["bars"].([]any)
+	buyM, _ := res.Data["buy_merged"].([]any)
+	sellM, _ := res.Data["sell_merged"].([]any)
+	fmt.Printf("bars=%d pattern_hits=%d buy_hits=%v\n", len(bars), lenAny(res.Data["pattern_hits"]), res.Data["buy_hits"])
+
+	mtf := strategydev.BuildKlinePatternMTFForDiagnose(ctx, run, code, freq, 3, bars)
+	patIn := strategydev.NewKlinePatternDisplayInput(freq, bars, res.Data, mtf)
+	buyTr, sellTr := strategydev.CollectEpisodeTriggersFromMerged(bars, buyM, sellM)
+	strategydev.AttachKlineDisplayToProbeTriggers(buyTr, sellTr, patIn)
+
+	showTriggers(label, bars, buyTr, sellTr)
+	return true
+}
+
+func showTriggers(label string, bars []any, buyTr, sellTr []strategydev.EpisodeTriggerRecord) {
+	show := func(side string, trs []strategydev.EpisodeTriggerRecord) {
+		if len(trs) == 0 {
+			fmt.Printf("no %s triggers\n", side)
+			return
+		}
+		tr := trs[0]
+		fmt.Printf("%s trigger[0] idx=%d time=%s summary=%q bias=%+v\n", side, tr.Index, tr.Time, tr.KlinePatternSummary, tr.KlinePatternBias)
+		if tr.KlinePatternThreeBar != nil {
+			fmt.Printf("  three_bar anchor_idx=%d note=%q\n", tr.KlinePatternThreeBar.AnchorIndex, tr.KlinePatternThreeBar.WindowNote)
+			for _, b := range tr.KlinePatternThreeBar.Bars {
+				fmt.Printf("  %s idx=%d omitted=%v close=%.4f patterns=%q bias=%+v\n",
+					b.Role, b.Index, b.Omitted, b.Close, b.KlinePatternSummary, b.KlinePatternBias)
+			}
+		}
+		if tr.KlinePatternMTF != nil {
+			fmt.Printf("  MTF primary=%+v frames=%d\n", tr.KlinePatternMTF.PrimaryBias, len(tr.KlinePatternMTF.Timeframes))
+			for _, tf := range tr.KlinePatternMTF.Timeframes {
+				fmt.Printf("    %s aligned=%d bias=%+v has_three_bar=%v\n", tf.Label, tf.AlignedIndex, tf.Bias, tf.ThreeBar != nil)
+			}
+		}
+		walkForwardNote(bars, tr.Index)
+		raw, _ := json.MarshalIndent(map[string]any{
+			"kline_pattern_bias": tr.KlinePatternBias,
+			"kline_pattern_three_bar": tr.KlinePatternThreeBar,
+			"kline_pattern_mtf": tr.KlinePatternMTF,
+		}, "  ", "  ")
+		fmt.Printf("  json snippet:\n  %s\n", string(raw))
+	}
+	show("buy", buyTr)
+	if len(sellTr) > 0 {
+		show("sell", sellTr)
+	}
+	_ = label
+}
+
+func walkForwardNote(bars []any, triggerIdx int) {
+	if triggerIdx < 0 || triggerIdx >= len(bars) {
+		return
+	}
+	startClose := floatAny(fieldAt(bars, triggerIdx, "close"))
+	endIdx := triggerIdx + 5
+	if endIdx >= len(bars) {
+		endIdx = len(bars) - 1
+	}
+	if endIdx <= triggerIdx {
+		return
+	}
+	endClose := floatAny(fieldAt(bars, endIdx, "close"))
+	ret := (endClose - startClose) / startClose * 100
+	fmt.Printf("  walk-forward +%d bars: close %.4f → %.4f (%.2f%%, descriptive only)\n",
+		endIdx-triggerIdx, startClose, endClose, ret)
+}
+
+func fieldAt(bars []any, idx int, key string) any {
+	row, _ := bars[idx].(map[string]any)
+	if row == nil {
+		return nil
+	}
+	return row[key]
 }
 
 func envOr(k, fb string) string {
