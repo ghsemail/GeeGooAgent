@@ -285,12 +285,13 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 	probeArgs["include_key_levels"] = true
 	probeArgs["key_levels_mode"] = "series"
 	probeArgs["key_levels_align"] = "daily"
+	strategydev.EnrichProbeArgsForIndicatorWarmup(probeArgs, sig.Buy, sig.Sell)
 	res := r.runTool(ctx, toolCtx, "probe_bot_signal_series", probeArgs, recordTool)
 	if res.Status != tools.StatusOK {
 		return fmt.Errorf("probe 失败：%s", res.Summary)
 	}
 	months = strategydev.CapMonthsBack(months)
-	strategydev.ClampProbeSeriesToMonthsBack(res.Data, months)
+	warmupMeta := strategydev.FinalizeDiagnoseProbeSeries(res.Data, months, sig.Buy, sig.Sell)
 	flow.ProbeBuyHits = probeHitCount(res.Data, "buy_hits", "buy_merged", 1)
 	flow.ProbeSellHits = probeHitCount(res.Data, "sell_hits", "sell_merged", -1)
 	flow.ProbeBarCount = intAny(res.Data["bar_count"])
@@ -316,6 +317,18 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 		"buy_merged":    res.Data["buy_merged"],
 		"sell_merged":   res.Data["sell_merged"],
 		"bars_lookback": res.Data["bars_lookback"],
+	}
+	if warmupMeta.Note != "" {
+		flow.ProbeRaw["indicator_warmup_note"] = warmupMeta.Note
+	}
+	if warmupMeta.RequiredWarmupBars > 0 {
+		flow.ProbeRaw["indicator_warmup_bars"] = warmupMeta.RequiredWarmupBars
+	}
+	if warmupMeta.PrefixBarsBeforeWindow > 0 {
+		flow.ProbeRaw["indicator_warmup_prefix_bars"] = warmupMeta.PrefixBarsBeforeWindow
+	}
+	if warmupMeta.SuppressedInWindowBars > 0 {
+		flow.ProbeRaw["indicator_warmup_suppressed_bars"] = warmupMeta.SuppressedInWindowBars
 	}
 	if serRaw := res.Data["key_levels_series"]; serRaw != nil {
 		flow.KeyLevelSeries = keyLevelBarSeriesFromProbeData(serRaw)
@@ -426,18 +439,20 @@ func (r *Runner) phaseSignalDiagnoseBuildDetail(
 		frequency = f
 	}
 	r.attachSignalDiagnosePriceAnalysis(ctx, flow, toolCtx, recordTool)
-	res := r.runTool(ctx, toolCtx, "diagnose_bot_signal_series", map[string]any{
+	diagArgs := map[string]any{
 		"code":        flow.StockCode,
 		"frequency":   frequency,
 		"buy_signal":  sig.Buy,
 		"sell_signal": sig.Sell,
 		"months_back": months,
 		"side":        "both",
-	}, recordTool)
+	}
+	strategydev.EnrichProbeArgsForIndicatorWarmup(diagArgs, sig.Buy, sig.Sell)
+	res := r.runTool(ctx, toolCtx, "diagnose_bot_signal_series", diagArgs, recordTool)
 	if res.Status != tools.StatusOK {
 		return fmt.Errorf("diagnose 失败：%s", res.Summary)
 	}
-	strategydev.ClampProbeSeriesToMonthsBack(res.Data, strategydev.CapMonthsBack(months))
+	strategydev.FinalizeDiagnoseProbeSeries(res.Data, strategydev.CapMonthsBack(months), sig.Buy, sig.Sell)
 	flow.DiagnoseRaw = res.Data
 	flow.DiagnoseVerdict = strings.TrimSpace(fmt.Sprint(res.Data["verdict"]))
 	flow.DiagnoseSummary = strings.TrimSpace(fmt.Sprint(res.Data["summary"]))
