@@ -244,6 +244,8 @@ type AppConfig struct {
 	MCPMaxParallel      int            `json:"mcp_max_parallel,omitempty"`
 	Hooks            HooksConfig       `json:"hooks,omitempty"`
 	Advisor          AdvisorConfig     `json:"advisor,omitempty"`
+	// PriceAnalysisEnabledField master switch for multi-TF price analysis in workflows (default off).
+	PriceAnalysisEnabledField *bool `json:"price_analysis_enabled,omitempty"`
 	Display          DisplayConfig     `json:"display,omitempty"`
 	Skills           SkillsConfig      `json:"skills,omitempty"`
 	ContextProfiles  ContextProfilesConfig `json:"context_profiles,omitempty"`

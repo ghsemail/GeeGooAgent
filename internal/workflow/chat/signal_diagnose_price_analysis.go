@@ -14,7 +14,7 @@ func (r *Runner) attachSignalDiagnosePriceAnalysis(
 	toolCtx tools.Context,
 	recordTool func(name, status, summary string),
 ) {
-	if flow == nil {
+	if flow == nil || !strategydev.PriceAnalysisFeatureEnabled() {
 		return
 	}
 	code := flow.StockCode

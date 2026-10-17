@@ -109,6 +109,9 @@ func buildRunPriceAnalysis(
 	kl KeyLevelBands,
 	filterFreq string,
 ) PriceAnalysis {
+	if !PriceAnalysisFeatureEnabled() {
+		return PriceAnalysis{}
+	}
 	out := PriceAnalysis{
 		Code:            strings.TrimSpace(code),
 		SpotPrice:       spotPrice,
@@ -235,7 +238,7 @@ const (
 )
 
 func fetchPriceAnalysisBarsWithAsOf(ctx context.Context, run ToolRunner, code, freq string, months int, asOf *time.Time) ([]any, bool) {
-	if run == nil {
+	if !PriceAnalysisFeatureEnabled() || run == nil {
 		return nil, false
 	}
 	key := probeCacheKey(code, freq, months, 0, asOf)

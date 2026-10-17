@@ -65,9 +65,12 @@ type MultiTimeframePriceBarsInput struct {
 
 // FetchMultiTimeframePriceAnalysisBars probes each upward standard TF once and caches by frequency code.
 func FetchMultiTimeframePriceAnalysisBars(ctx context.Context, in MultiTimeframePriceBarsInput) (barsByFreq map[string][]any, fetchOKByFreq map[string]bool) {
-	ctx = ContextWithPriceProbeCache(ctx)
 	barsByFreq = map[string][]any{}
 	fetchOKByFreq = map[string]bool{}
+	if !PriceAnalysisFeatureEnabled() {
+		return barsByFreq, fetchOKByFreq
+	}
+	ctx = ContextWithPriceProbeCache(ctx)
 	if in.Run == nil || strings.TrimSpace(in.Code) == "" {
 		return barsByFreq, fetchOKByFreq
 	}

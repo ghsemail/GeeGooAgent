@@ -62,9 +62,10 @@ func runDiagnose(
 	buyMerged, _ = res.Data["buy_merged"].([]any)
 	sellMerged, _ = res.Data["sell_merged"].([]any)
 	kl := KeyLevelBandsFromProbeData(res.Data)
+	StripSignalPriceAnalysisPayload(res.Data)
 	summary, pf, pstats := finishDiagnoseFromMerged(ctx, run, code, months, kl, bars, freq, buyMerged, sellMerged, regime, res.Data, usePriceFilter, scoreThreshold, buyScoreDirection, gateScoreMode)
 	var pa *PriceAnalysis
-	if len(bars) > 0 {
+	if PriceAnalysisFeatureEnabled() && len(bars) > 0 {
 		spot := slots.FloatAny(lastBarField(bars, "close"))
 		built := BuildRunPriceAnalysis(ctx, run, code, months, spot, kl, freq)
 		pa = &built
@@ -88,6 +89,12 @@ func finishDiagnoseFromMerged(
 	buyScoreDirection BuyScoreDirection,
 	gateScoreMode PriceAnalysisGateScoreMode,
 ) (DiagnoseSummary, *PriceFilterResult, *EpisodeTriggerFilterStats) {
+	if !PriceAnalysisFeatureEnabled() {
+		buyHits := hitCount(nil, "buy_hits", buyMerged, 1)
+		sellHits := hitCount(nil, "sell_hits", sellMerged, -1)
+		eval := slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
+		return summarizeEval(eval, regime, buyHits, sellHits), nil, nil
+	}
 	var pf *PriceFilterResult
 	var pstats *EpisodeTriggerFilterStats
 	if len(bars) > 0 {

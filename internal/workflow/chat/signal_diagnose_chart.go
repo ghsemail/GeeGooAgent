@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
 // chartProbePayload is the probe snapshot for StrategyKlineChart mirroring.
@@ -42,17 +43,19 @@ func chartProbePayload(flow *Flow) map[string]any {
 	if len(flow.SignalEval.BuyDetails) > 0 || len(flow.SignalEval.SellDetails) > 0 {
 		out["episodes"] = episodeOverlayPayload(flow, flow.SignalEval)
 	}
-	if st := flow.PriceEpisodeFilterStats; st != nil {
-		out["price_episode_filter_stats"] = st
-		if len(st.BuyTriggers) > 0 {
-			out["buy_triggers"] = st.BuyTriggers
+	if strategydev.PriceAnalysisFeatureEnabled() {
+		if st := flow.PriceEpisodeFilterStats; st != nil {
+			out["price_episode_filter_stats"] = st
+			if len(st.BuyTriggers) > 0 {
+				out["buy_triggers"] = st.BuyTriggers
+			}
+			if len(st.SellTriggers) > 0 {
+				out["sell_triggers"] = st.SellTriggers
+			}
 		}
-		if len(st.SellTriggers) > 0 {
-			out["sell_triggers"] = st.SellTriggers
+		if flow.PriceAnalysis != nil {
+			out["price_analysis"] = flow.PriceAnalysis
 		}
-	}
-	if flow.PriceAnalysis != nil {
-		out["price_analysis"] = flow.PriceAnalysis
 	}
 	return out
 }

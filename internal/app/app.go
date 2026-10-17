@@ -39,6 +39,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/userllmstore"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
 	workflowchat "github.com/ghsemail/GeeGooAgent/internal/workflow/chat"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
 var fallbackSessionCounter uint64
@@ -144,6 +145,8 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 		})
 	}}
 	wf := workflow.NewRunner(executor, working, cpAdapter)
+
+	strategydev.ConfigurePriceAnalysisEnabled(cfg.PriceAnalysisEnabled())
 
 	app := &App{
 		Config: cfg, MCP: httpBackends.MCP, SignalAPI: httpBackends.SignalAPI,

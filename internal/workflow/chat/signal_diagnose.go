@@ -290,6 +290,7 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 	if res.Status != tools.StatusOK {
 		return fmt.Errorf("probe 失败：%s", res.Summary)
 	}
+	strategydev.StripSignalPriceAnalysisPayload(res.Data)
 	months = strategydev.CapMonthsBack(months)
 	warmupMeta := strategydev.FinalizeDiagnoseProbeSeries(res.Data, months, sig.Buy, sig.Sell)
 	flow.ProbeBuyHits = probeHitCount(res.Data, "buy_hits", "buy_merged", 1)
@@ -380,31 +381,35 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 		if months <= 0 {
 			months = defaultMonthsBack
 		}
-		ctx = strategydev.ContextWithPriceProbeCache(ctx)
-		run := func(c context.Context, name string, args map[string]any) tools.Result {
-			return r.runTool(c, toolCtx, name, args, recordTool)
-		}
-		var pfVal strategydev.PriceFilterResult
-		var stats strategydev.EpisodeTriggerFilterStats
-		scoreTh := flow.PriceAnalysisScoreThreshold
-		lookback, _ := flow.ProbeRaw["bars_lookback"].([]any)
-		buyDir := effectiveSignalDiagnoseBuyScoreDirection(flow.PriceAnalysisBuyScoreDirection)
-		gateMode := strategydev.EffectiveGateScoreMode(flow.PriceAnalysisGateScoreMode)
-		buyMerged, sellMerged, pfVal, stats = strategydev.ApplyPerSignalPriceAnalysisEpisodeFilter(ctx, strategydev.PerSignalPriceFilterInput{
-			Run: run, Code: flow.StockCode, Months: months, KL: keyLevelBandsFromFlow(flow),
-			AnnotateOnly: !flow.UsePriceAnalysisEpisodeFilter, ScoreThreshold: &scoreTh,
-			LookbackChartBars: lookback, BuyScoreDirection: buyDir, GateScoreMode: gateMode,
-		}, bars, freq, buyMerged, sellMerged)
-		cp := pfVal
-		flow.PriceFilter = &cp
-		st := stats
-		flow.PriceEpisodeFilterStats = &st
-		if r != nil && r.ComposeLLM != nil {
-			strategydev.EnrichEpisodeStatsAIConclusions(ctx, r.ComposeLLM, flow.PriceEpisodeFilterStats)
-		}
-		flow.SignalEval = slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
-		if flow.PriceEpisodeFilterStats != nil {
-			strategydev.EnrichEpisodeFilterStatsPostEval(flow.PriceEpisodeFilterStats, flow.SignalEval)
+		if strategydev.PriceAnalysisFeatureEnabled() {
+			ctx = strategydev.ContextWithPriceProbeCache(ctx)
+			run := func(c context.Context, name string, args map[string]any) tools.Result {
+				return r.runTool(c, toolCtx, name, args, recordTool)
+			}
+			var pfVal strategydev.PriceFilterResult
+			var stats strategydev.EpisodeTriggerFilterStats
+			scoreTh := flow.PriceAnalysisScoreThreshold
+			lookback, _ := flow.ProbeRaw["bars_lookback"].([]any)
+			buyDir := effectiveSignalDiagnoseBuyScoreDirection(flow.PriceAnalysisBuyScoreDirection)
+			gateMode := strategydev.EffectiveGateScoreMode(flow.PriceAnalysisGateScoreMode)
+			buyMerged, sellMerged, pfVal, stats = strategydev.ApplyPerSignalPriceAnalysisEpisodeFilter(ctx, strategydev.PerSignalPriceFilterInput{
+				Run: run, Code: flow.StockCode, Months: months, KL: keyLevelBandsFromFlow(flow),
+				AnnotateOnly: !flow.UsePriceAnalysisEpisodeFilter, ScoreThreshold: &scoreTh,
+				LookbackChartBars: lookback, BuyScoreDirection: buyDir, GateScoreMode: gateMode,
+			}, bars, freq, buyMerged, sellMerged)
+			cp := pfVal
+			flow.PriceFilter = &cp
+			st := stats
+			flow.PriceEpisodeFilterStats = &st
+			if r != nil && r.ComposeLLM != nil {
+				strategydev.EnrichEpisodeStatsAIConclusions(ctx, r.ComposeLLM, flow.PriceEpisodeFilterStats)
+			}
+			flow.SignalEval = slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
+			if flow.PriceEpisodeFilterStats != nil {
+				strategydev.EnrichEpisodeFilterStatsPostEval(flow.PriceEpisodeFilterStats, flow.SignalEval)
+			}
+		} else {
+			flow.SignalEval = slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
 		}
 	}
 	if r != nil {
