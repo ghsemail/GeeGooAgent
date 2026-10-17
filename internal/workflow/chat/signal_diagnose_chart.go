@@ -21,6 +21,18 @@ func chartProbePayload(flow *Flow) map[string]any {
 		"buy_merged":  flow.ProbeRaw["buy_merged"],
 		"sell_merged": flow.ProbeRaw["sell_merged"],
 	}
+	if v := flow.ProbeRaw["indicator_warmup_note"]; v != nil {
+		out["indicator_warmup_note"] = v
+	}
+	if v := flow.ProbeRaw["indicator_warmup_bars"]; v != nil {
+		out["indicator_warmup_bars"] = v
+	}
+	if v := flow.ProbeRaw["indicator_warmup_prefix_bars"]; v != nil {
+		out["indicator_warmup_prefix_bars"] = v
+	}
+	if v := flow.ProbeRaw["indicator_warmup_suppressed_bars"]; v != nil {
+		out["indicator_warmup_suppressed_bars"] = v
+	}
 	if kl := keyLevelSnapshotToMap(flow.KeyLevels); kl != nil {
 		out["key_levels"] = kl
 	}

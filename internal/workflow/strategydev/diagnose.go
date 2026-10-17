@@ -26,14 +26,16 @@ func runDiagnose(
 	if isNoSignalRules(sell.Sell) && len(sell.Buy) > 0 {
 		sell.Sell = sell.Buy
 	}
-	res := run(ctx, "diagnose_bot_signal_series", map[string]any{
+	diagArgs := map[string]any{
 		"code":        code,
 		"frequency":   NormalizeFrequency(freq),
 		"buy_signal":  buy.Buy,
 		"sell_signal": coalesceSellSignal(*sell),
 		"months_back": months,
 		"side":        "both",
-	})
+	}
+	EnrichProbeArgsForIndicatorWarmup(diagArgs, buy.Buy, coalesceSellSignal(*sell))
+	res := run(ctx, "diagnose_bot_signal_series", diagArgs)
 	if res.Status != tools.StatusOK {
 		return DiagnoseSummary{}, nil, nil, nil, nil, fmt.Errorf("diagnose 失败：%s", res.Summary)
 	}
@@ -41,11 +43,13 @@ func runDiagnose(
 	buyMerged, _ := res.Data["buy_merged"].([]any)
 	sellMerged, _ := res.Data["sell_merged"].([]any)
 	if len(bars) == 0 {
-		probe := run(ctx, "probe_bot_signal_series", map[string]any{
+		probeArgs := map[string]any{
 			"code": code, "frequency": NormalizeFrequency(freq),
 			"buy_signal": buy.Buy, "sell_signal": coalesceSellSignal(*sell),
 			"months_back": months,
-		})
+		}
+		EnrichProbeArgsForIndicatorWarmup(probeArgs, buy.Buy, coalesceSellSignal(*sell))
+		probe := run(ctx, "probe_bot_signal_series", probeArgs)
 		if probe.Status == tools.StatusOK {
 			bars, _ = probe.Data["bars"].([]any)
 			buyMerged, _ = probe.Data["buy_merged"].([]any)
@@ -53,7 +57,7 @@ func runDiagnose(
 		}
 	}
 	months = CapMonthsBack(months)
-	ClampProbeSeriesToMonthsBack(res.Data, months)
+	FinalizeDiagnoseProbeSeries(res.Data, months, buy.Buy, coalesceSellSignal(*sell))
 	bars, _ = res.Data["bars"].([]any)
 	buyMerged, _ = res.Data["buy_merged"].([]any)
 	sellMerged, _ = res.Data["sell_merged"].([]any)
