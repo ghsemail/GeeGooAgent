@@ -110,6 +110,7 @@ type Flow struct {
 	UsePriceAnalysisEpisodeFilter bool    `json:"use_price_analysis_episode_filter,omitempty"`
 	PriceAnalysisScoreThreshold   float64 `json:"price_analysis_score_threshold,omitempty"`
 	PriceAnalysisBuyScoreDirection strategydev.BuyScoreDirection `json:"price_analysis_buy_score_direction,omitempty"`
+	PriceAnalysisGateScoreMode     strategydev.PriceAnalysisGateScoreMode `json:"price_analysis_gate_score_mode,omitempty"`
 	PriceFilter            *strategydev.PriceFilterResult         `json:"price_filter,omitempty"`
 	PriceEpisodeFilterStats *strategydev.EpisodeTriggerFilterStats `json:"price_episode_filter_stats,omitempty"`
 	PriceAnalysis          *strategydev.PriceAnalysis             `json:"price_analysis,omitempty"`

@@ -15,6 +15,8 @@ type Input struct {
 	PriceAnalysisScoreThreshold *float64
 	// PriceAnalysisBuyScoreDirection soft buy would_intercept: normal | reverse (empty = normal).
 	PriceAnalysisBuyScoreDirection string
+	// PriceAnalysisGateScoreMode full | htf_only (empty = full).
+	PriceAnalysisGateScoreMode string
 }
 
 // Result is the workflow output after all applicable steps.

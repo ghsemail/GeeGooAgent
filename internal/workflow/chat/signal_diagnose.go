@@ -375,10 +375,11 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 		scoreTh := flow.PriceAnalysisScoreThreshold
 		lookback, _ := flow.ProbeRaw["bars_lookback"].([]any)
 		buyDir := effectiveSignalDiagnoseBuyScoreDirection(flow.PriceAnalysisBuyScoreDirection)
+		gateMode := strategydev.EffectiveGateScoreMode(flow.PriceAnalysisGateScoreMode)
 		buyMerged, sellMerged, pfVal, stats = strategydev.ApplyPerSignalPriceAnalysisEpisodeFilter(ctx, strategydev.PerSignalPriceFilterInput{
 			Run: run, Code: flow.StockCode, Months: months, KL: keyLevelBandsFromFlow(flow),
 			AnnotateOnly: !flow.UsePriceAnalysisEpisodeFilter, ScoreThreshold: &scoreTh,
-			LookbackChartBars: lookback, BuyScoreDirection: buyDir,
+			LookbackChartBars: lookback, BuyScoreDirection: buyDir, GateScoreMode: gateMode,
 		}, bars, freq, buyMerged, sellMerged)
 		cp := pfVal
 		flow.PriceFilter = &cp

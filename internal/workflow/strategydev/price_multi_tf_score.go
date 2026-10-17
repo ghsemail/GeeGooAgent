@@ -59,6 +59,70 @@ func ComputeMultiTFPriceScore(pa PriceAnalysis, gateFreq string) MultiTFPriceSco
 			label string
 		}{lowKey, lowLabel})
 	}
+	return computeWeightedMultiTFPriceScore(pa, want, gateFreq)
+}
+
+// ComputeHTFGatePriceScore is the buy-gate composite using only TFs coarser than gateFreq.
+// Entry-period subscore is excluded; remaining base weights (0.45/0.35/0.20) renormalize over present HTFs.
+// Weekly-only signal has no coarser TF — falls back to ComputeMultiTFPriceScore (gate equals display).
+func ComputeHTFGatePriceScore(pa PriceAnalysis, gateFreq string) MultiTFPriceScore {
+	want, ok := htfGateWantSpecs(gateFreq)
+	if !ok || len(want) == 0 {
+		return ComputeMultiTFPriceScore(pa, gateFreq)
+	}
+	return computeWeightedMultiTFPriceScore(pa, want, gateFreq)
+}
+
+func htfGateWantSpecs(gateFreq string) ([]struct {
+	key   string
+	label string
+}, bool) {
+	entryKey := gateTFScoreKey(gateFreq)
+	candidates := []struct {
+		key   string
+		label string
+	}{
+		{"weekly", "周线"},
+		{"daily", "日线"},
+	}
+	var want []struct {
+		key   string
+		label string
+	}
+	for _, spec := range candidates {
+		if tfScoreRank(spec.key) > tfScoreRank(entryKey) {
+			want = append(want, spec)
+		}
+	}
+	if len(want) == 0 {
+		return nil, false
+	}
+	return want, true
+}
+
+func tfScoreRank(key string) int {
+	switch key {
+	case "weekly":
+		return 3
+	case "daily":
+		return 2
+	case "60m":
+		return 1
+	case "5m":
+		return 0
+	default:
+		return 1
+	}
+}
+
+func computeWeightedMultiTFPriceScore(pa PriceAnalysis, want []struct {
+	key   string
+	label string
+}, gateFreq string) MultiTFPriceScore {
+	gate := NormalizeFrequency(gateFreq)
+	if gate == "" {
+		gate = "60m"
+	}
 	byLabel := map[string]PriceAnalysisRow{}
 	for _, r := range pa.Rows {
 		byLabel[r.Timeframe] = r

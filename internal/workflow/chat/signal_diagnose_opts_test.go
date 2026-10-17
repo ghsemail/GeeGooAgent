@@ -11,6 +11,7 @@ func TestParseSignalDiagnoseOptsProbeOverrides(t *testing.T) {
 		"signal_diagnose": map[string]any{
 			"use_price_analysis_episode_filter": true,
 			"price_analysis_buy_score_direction": "reverse",
+			"price_analysis_gate_score_mode":     "htf_only",
 			"frequency":                         "60m",
 			"months_back":                3,
 			"buy_signal": []any{
@@ -31,6 +32,9 @@ func TestParseSignalDiagnoseOptsProbeOverrides(t *testing.T) {
 	if o.PriceAnalysisBuyScoreDirection != "reverse" {
 		t.Fatalf("buy score direction=%q", o.PriceAnalysisBuyScoreDirection)
 	}
+	if o.PriceAnalysisGateScoreMode != "htf_only" {
+		t.Fatalf("gate score mode=%q", o.PriceAnalysisGateScoreMode)
+	}
 	if o.Frequency != "60m" || o.MonthsBack != 3 {
 		t.Fatalf("freq/months=%q %d", o.Frequency, o.MonthsBack)
 	}
@@ -46,6 +50,9 @@ func TestNewSignalDiagnoseFlowSoftDefaults(t *testing.T) {
 	}
 	if flow.PriceAnalysisBuyScoreDirection != strategydev.BuyScoreDirectionReverse {
 		t.Fatalf("buy score direction=%q", flow.PriceAnalysisBuyScoreDirection)
+	}
+	if flow.PriceAnalysisGateScoreMode != "" {
+		t.Fatalf("gate score mode should default empty/full, got %q", flow.PriceAnalysisGateScoreMode)
 	}
 }
 

@@ -75,6 +75,8 @@ type SignalDiagnoseOpts struct {
 	PriceAnalysisScoreThreshold *float64 `json:"price_analysis_score_threshold,omitempty"`
 	// PriceAnalysisBuyScoreDirection soft buy would_intercept: normal (score<threshold) | reverse (score>threshold).
 	PriceAnalysisBuyScoreDirection string `json:"price_analysis_buy_score_direction,omitempty"`
+	// PriceAnalysisGateScoreMode full | htf_only (default full).
+	PriceAnalysisGateScoreMode string `json:"price_analysis_gate_score_mode,omitempty"`
 	// Optional probe overrides from strategy-dev panel (buy/sell configured separately).
 	BuySignal   []any  `json:"buy_signal,omitempty"`
 	SellSignal  []any  `json:"sell_signal,omitempty"`
