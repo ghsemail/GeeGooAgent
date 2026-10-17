@@ -123,7 +123,8 @@ func Run(ctx context.Context, in Input, deps Deps) (Result, error) {
 	// Step 5 — diagnose (optional price-analysis trigger filter before episode metrics)
 	usePriceFilter := UsePriceAnalysisEpisodeFilterEnabled(in.UsePriceAnalysisEpisodeFilter)
 	buyScoreDir := ParseBuyScoreDirection(in.PriceAnalysisBuyScoreDirection)
-	diag, pf, pfStats, pa, _, err := runDiagnose(ctx, deps.Run, code, freq, months, buyCand, sellCand, out.Regime, usePriceFilter, in.PriceAnalysisScoreThreshold, buyScoreDir)
+	gateScoreMode := ParsePriceAnalysisGateScoreMode(in.PriceAnalysisGateScoreMode)
+	diag, pf, pfStats, pa, _, err := runDiagnose(ctx, deps.Run, code, freq, months, buyCand, sellCand, out.Regime, usePriceFilter, in.PriceAnalysisScoreThreshold, buyScoreDir, gateScoreMode)
 	if err != nil {
 		return out, err
 	}

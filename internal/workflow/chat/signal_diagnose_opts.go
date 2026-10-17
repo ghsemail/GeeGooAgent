@@ -22,6 +22,9 @@ func ApplyPendingSignalDiagnoseOpts(session *runtime.Session, flow *Flow) {
 	if strings.TrimSpace(o.PriceAnalysisBuyScoreDirection) != "" {
 		flow.PriceAnalysisBuyScoreDirection = strategydev.ParseBuyScoreDirection(o.PriceAnalysisBuyScoreDirection)
 	}
+	if strings.TrimSpace(o.PriceAnalysisGateScoreMode) != "" {
+		flow.PriceAnalysisGateScoreMode = strategydev.ParsePriceAnalysisGateScoreMode(o.PriceAnalysisGateScoreMode)
+	}
 	if len(o.BuySignal) > 0 {
 		flow.ProbeBuyOverride = o.BuySignal
 	}
@@ -74,6 +77,9 @@ func ParseSignalDiagnoseOptsFromWorkflowOptions(raw map[string]any) *runtime.Sig
 	}
 	if s, ok := block["price_analysis_buy_score_direction"].(string); ok && strings.TrimSpace(s) != "" {
 		out.PriceAnalysisBuyScoreDirection = strings.TrimSpace(s)
+	}
+	if s, ok := block["price_analysis_gate_score_mode"].(string); ok && strings.TrimSpace(s) != "" {
+		out.PriceAnalysisGateScoreMode = strings.TrimSpace(s)
 	}
 	if raw, ok := block["buy_signal"].([]any); ok && len(raw) > 0 {
 		out.BuySignal = raw

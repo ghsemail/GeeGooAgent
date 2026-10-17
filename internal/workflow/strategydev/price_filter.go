@@ -401,6 +401,8 @@ type EpisodeTriggerRecord struct {
 	WouldIntercept              bool            `json:"would_intercept,omitempty"`
 	PriceAnalysis               *PriceAnalysis  `json:"price_analysis,omitempty"`
 	PriceScore                  float64         `json:"price_score"`
+	// GatePriceScore is the composite used for score intercept when price_analysis_gate_score_mode=htf_only.
+	GatePriceScore              float64         `json:"gate_price_score,omitempty"`
 	TFScores                    map[string]TFScoreBreakdown `json:"tf_scores,omitempty"`
 	ScoreReason                 string          `json:"score_reason,omitempty"`
 	AIInterceptConclusion       string          `json:"ai_intercept_conclusion,omitempty"`
@@ -430,6 +432,8 @@ type EpisodeTriggerFilterStats struct {
 	InterceptionBasis    string                   `json:"interception_basis,omitempty"`
 	// PriceAnalysisBuyScoreDirection is soft buy annotation mode: normal | reverse.
 	PriceAnalysisBuyScoreDirection string `json:"price_analysis_buy_score_direction,omitempty"`
+	// PriceAnalysisGateScoreMode is full | htf_only (default full when omitted).
+	PriceAnalysisGateScoreMode string `json:"price_analysis_gate_score_mode,omitempty"`
 }
 
 // EnrichEpisodeFilterStatsPostEval fills episode counts after masked episode evaluation.
