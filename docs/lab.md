@@ -68,7 +68,7 @@ Agent 通过 `internal/lab/signalclient` 实现上述契约。单测使用 `Mock
 | --- | --- | --- | --- |
 | `code` | string | 是 | 标的代码 |
 | `frequency` | string | 是 | `5m` / `60m` / `daily` / `weekly` 等 |
-| `months_back` | int | 是 | 日历回溯月数（Agent 侧已按 TF 封顶） |
+| `months_back` | int | 是 | 日历回溯月数（Agent 按 **周期** 计算：`信号锚点跨度 + 分析窗月数 + 预热`，并 respect 单任务 5000 根上限） |
 | `as_of` | string | 否 | **Asia/Shanghai**，格式 **`2006-01-02 15:04:05`**；lab-api 只返回 **`time <= as_of`** 的 bar（与现网 probe 一致）；**不传**则取到最新 |
 
 成功响应：
@@ -99,6 +99,19 @@ Agent 通过 `internal/lab/signalclient` 实现上述契约。单测使用 `Mock
 | job 成功 | 轮询 GET **200** | `status=completed`，**必有** `result.bars` |
 
 Agent `signalclient` 对 4xx/5xx 解析 JSON `error` 字段并包装为 `APIError`；对 `completed` 但缺少 `result` / `result.bars` 视为协议错误。
+
+### Agent 侧 `months_back` 算法（`MonthsBackForLabFetch`）
+
+`months_back(tf) = CapMonthsBack(信号 months) + analysisWindowMonths(tf) + warmupMonths(tf)`，再按 `EstimateFetchBars` 校验 Signal **5000 根/任务** 上限。
+
+| 周期 | 分析窗（tail 根数） | 分析窗折算月数 | 预热 | **示例：信号 months=3** |
+| --- | ---: | ---: | ---: | ---: |
+| 5m | 330 | 1 | 1 | **4**（5 会超 5000 根，压到 4） |
+| 60m | 130 | 1 | 1 | **5** |
+| 日线 | 60 | 3 | 1 | **7** |
+| 周线 | 26（min 20） | 6 | 1 | **10**（约 43 根，不再缺周期） |
+
+结构分析仍只对锚点截断后的 **tail 分析窗** 做 `AnalyzePriceFilter`，长取数窗仅用于保证最早锚点处根数充足。
 
 ## 模块结构
 
