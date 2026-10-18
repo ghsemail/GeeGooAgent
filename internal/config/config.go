@@ -248,6 +248,10 @@ type AppConfig struct {
 	PriceAnalysisEnabledField *bool `json:"price_analysis_enabled,omitempty"`
 	// KlinePatternDisplayField shows TA pattern hits on trigger bars (default on when unset).
 	KlinePatternDisplayField *bool `json:"kline_pattern_display,omitempty"`
+	// LabEnabledField exposes /v1/lab/* experiment routes (default off).
+	LabEnabledField *bool  `json:"lab_enabled,omitempty"`
+	LabAPIURLField  string `json:"lab_api_url,omitempty"`
+	LabAPIKeyField  string `json:"lab_api_key,omitempty"`
 	Display          DisplayConfig     `json:"display,omitempty"`
 	Skills           SkillsConfig      `json:"skills,omitempty"`
 	ContextProfiles  ContextProfilesConfig `json:"context_profiles,omitempty"`
