@@ -39,8 +39,8 @@ func (f SignalBarsFetcher) FetchBars(ctx context.Context, code, freq string, mon
 		}
 		switch job.Status {
 		case signalclient.JobCompleted:
-			if job.Result == nil {
-				return nil, true
+			if job.Result == nil || job.Result.Bars == nil {
+				return nil, false
 			}
 			return job.Result.Bars, true
 		case signalclient.JobFailed:
