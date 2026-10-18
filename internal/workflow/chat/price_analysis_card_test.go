@@ -9,6 +9,7 @@ import (
 
 func TestCardPayloadOmitsPriceAnalysisWhenMasterSwitchOff(t *testing.T) {
 	strategydev.SetPriceAnalysisFeatureEnabledForTest(t, false)
+	strategydev.SetKlinePatternDisplayEnabledForTest(t, false)
 	pa := strategydev.BuildPriceAnalysisFromBars(map[string][]any{
 		"60m": strategydevTestBars(90),
 	}, 12.3, strategydev.KeyLevelBands{}, "")
@@ -34,6 +35,27 @@ func TestCardPayloadOmitsPriceAnalysisWhenMasterSwitchOff(t *testing.T) {
 				t.Fatalf("chart_probe must omit %q, got %v", key, cp[key])
 			}
 		}
+	}
+}
+
+func TestCardPayloadIncludesKlineTriggersWhenPatternDisplayOnAndPADisabled(t *testing.T) {
+	strategydev.SetPriceAnalysisFeatureEnabledForTest(t, false)
+	strategydev.SetKlinePatternDisplayEnabledForTest(t, true)
+	flow := &Flow{
+		Template: SkillSignalDiagnose,
+		PriceEpisodeFilterStats: &strategydev.EpisodeTriggerFilterStats{
+			BuyTriggers: []strategydev.EpisodeTriggerRecord{{
+				Time: "t", KlinePatternSummary: "锤头线(看多)",
+			}},
+		},
+		ProbeRaw: map[string]any{"bars": strategydevTestBars(5), "buy_merged": []any{0}, "sell_merged": []any{0}},
+	}
+	out := CardPayload(flow)
+	if out["buy_triggers"] == nil {
+		t.Fatal("expected buy_triggers for kline pattern display")
+	}
+	if _, ok := out["price_episode_filter_stats"]; ok {
+		t.Fatal("price_episode_filter_stats should stay omitted when PA off")
 	}
 }
 

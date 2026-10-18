@@ -84,7 +84,11 @@ func appendEpisodeTriggerRecords(b *strings.Builder, title string, items []Episo
 		if tr.Masked {
 			flag = " · **已掩码**"
 		}
-		fmt.Fprintf(b, "%d. %s · 收盘 %.4f%s\n", i+1, tr.Time, tr.Close, flag)
+		patternNote := ""
+		if tr.KlinePatternSummary != "" {
+			patternNote = " · " + tr.KlinePatternSummary
+		}
+		fmt.Fprintf(b, "%d. %s · 收盘 %.4f%s%s\n", i+1, tr.Time, tr.Close, flag, patternNote)
 	}
 }
 

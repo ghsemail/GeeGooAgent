@@ -92,8 +92,16 @@ func finishDiagnoseFromMerged(
 	if !PriceAnalysisFeatureEnabled() {
 		buyHits := hitCount(nil, "buy_hits", buyMerged, 1)
 		sellHits := hitCount(nil, "sell_hits", sellMerged, -1)
+		patIn := NewKlinePatternDisplayInput(freq, bars, rawData, BuildKlinePatternMTFForDiagnose(ctx, run, code, freq, months, bars))
 		eval := slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
-		return summarizeEval(eval, regime, buyHits, sellHits), nil, nil
+		EnrichSignalEpisodeEvalKlineDisplay(&eval, patIn)
+		var pstats *EpisodeTriggerFilterStats
+		if KlinePatternDisplayEnabled() && len(bars) > 0 {
+			buyTr, sellTr := CollectEpisodeTriggersFromMerged(bars, buyMerged, sellMerged)
+			AttachKlineDisplayToProbeTriggers(buyTr, sellTr, patIn)
+			pstats = &EpisodeTriggerFilterStats{BuyTriggers: buyTr, SellTriggers: sellTr}
+		}
+		return summarizeEval(eval, regime, buyHits, sellHits), nil, pstats
 	}
 	var pf *PriceFilterResult
 	var pstats *EpisodeTriggerFilterStats
@@ -110,10 +118,16 @@ func finishDiagnoseFromMerged(
 	}
 	buyHits := hitCount(nil, "buy_hits", buyMerged, 1)
 	sellHits := hitCount(nil, "sell_hits", sellMerged, -1)
-	_ = rawData
+	patIn := NewKlinePatternDisplayInput(freq, bars, rawData, BuildKlinePatternMTFForDiagnose(ctx, run, code, freq, months, bars))
 	eval := slots.EvaluateSignalEpisodes(bars, buyMerged, sellMerged)
+	EnrichSignalEpisodeEvalKlineDisplay(&eval, patIn)
 	if pstats != nil {
 		EnrichEpisodeFilterStatsPostEval(pstats, eval)
+		EnrichEpisodeTriggerFilterStatsKlineDisplay(pstats, patIn)
+	} else if KlinePatternDisplayEnabled() && len(bars) > 0 {
+		buyTr, sellTr := CollectEpisodeTriggersFromMerged(bars, buyMerged, sellMerged)
+		AttachKlineDisplayToProbeTriggers(buyTr, sellTr, patIn)
+		pstats = &EpisodeTriggerFilterStats{BuyTriggers: buyTr, SellTriggers: sellTr}
 	}
 	summary := summarizeEval(eval, regime, buyHits, sellHits)
 	return summary, pf, pstats

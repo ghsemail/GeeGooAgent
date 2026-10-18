@@ -45,6 +45,12 @@ type SignalEpisodeDetail struct {
 	StrictEndReason      string  `json:"strict_end_reason,omitempty"`
 	KeyBreakRefPrice     float64 `json:"key_break_ref_price,omitempty"`
 	KeyBreakBarIdx       int     `json:"key_break_bar_idx,omitempty"`
+	KlinePatterns         []KlinePatternHit         `json:"kline_patterns,omitempty"`
+	KlinePatternSummary   string                    `json:"kline_pattern_summary,omitempty"`
+	KlinePatternThreeBar  *KlinePatternThreeBarWindow `json:"kline_pattern_three_bar,omitempty"`
+	KlinePatternBias      *KlinePatternBias         `json:"kline_pattern_bias,omitempty"`
+	KlinePatternMTF       *KlinePatternMTFContext   `json:"kline_pattern_mtf,omitempty"`
+	HigherTFContext       *KlinePatternMTFContext   `json:"higher_tf_context,omitempty"`
 }
 
 // SignalEpisodeMetrics summarizes directional accuracy for a cohort of episodes.
