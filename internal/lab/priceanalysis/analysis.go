@@ -83,20 +83,23 @@ func Run(ctx context.Context, fetch BarsFetcher, req RunRequest) PriceAnalysis {
 		FilterTimeframe: timeframeDisplayLabel(filterFreq),
 	}
 	if out.SpotPrice > 0 {
-		out.SpotLabel = fmt.Sprintf("现价 %.2f", out.SpotPrice)
+		out.SpotLabel = FormatLabSpotLabel(out.SpotPrice)
 	}
 	if req.AsOf != nil && !req.AsOf.IsZero() {
 		loc, _ := time.LoadLocation("Asia/Shanghai")
 		out.AnchorTime = req.AsOf.In(loc).Format("2006-01-02 15:04") + " (Asia/Shanghai)"
 	}
 	if fetch != nil && code != "" {
-		months := CapMonthsBack(req.Months)
-		barsByFreq, fetchOKByFreq := FetchMultiTimeframeBars(ctx, MultiTFBarsInput{
-			Fetch: fetch, Code: code, Months: months, AsOf: req.AsOf, GateFreq: filterFreq,
+		barsByFreq, fetchOKByFreq, fetchErrByFreq := FetchMultiTimeframeBars(ctx, MultiTFBarsInput{
+			Fetch: fetch, Code: code, Months: req.Months, AsOf: req.AsOf, GateFreq: filterFreq,
 		})
 		for _, spec := range multiTimeframeSpecsForGate(filterFreq) {
 			bars := barsByFreq[spec.Freq]
 			fetchOK := fetchOKByFreq[spec.Freq]
+			if err := fetchErrByFreq[spec.Freq]; err != nil {
+				out.Rows = append(out.Rows, emptyPriceAnalysisRow(spec.Label, err.Error()))
+				continue
+			}
 			if !fetchOK || len(bars) == 0 {
 				reason := structureFetchFailed
 				if fetchOK && len(bars) == 0 {
@@ -120,7 +123,7 @@ func Run(ctx context.Context, fetch BarsFetcher, req RunRequest) PriceAnalysis {
 			if bars := barsByFreq["daily"]; len(bars) > 0 {
 				if sp := lastClose(bars); sp > 0 {
 					out.SpotPrice = sp
-					out.SpotLabel = fmt.Sprintf("现价 %.2g", sp)
+					out.SpotLabel = FormatLabSpotLabel(sp)
 				}
 			}
 		}
@@ -150,7 +153,7 @@ func EnrichCompositeAnalysis(pa *PriceAnalysis, signalFreq string) {
 func BuildPriceAnalysisFromBars(barsByFreq map[string][]any, spot float64, kl KeyLevelBands, gateFreq string) PriceAnalysis {
 	out := PriceAnalysis{SpotPrice: spot}
 	if spot > 0 {
-		out.SpotLabel = fmt.Sprintf("现价 %.2f", spot)
+		out.SpotLabel = FormatLabSpotLabel(spot)
 	}
 	for _, spec := range multiTimeframeSpecsForGate(gateFreq) {
 		bars := barsByFreq[spec.Freq]
@@ -235,7 +238,9 @@ func formatSwingStructureText(sh, sl []swingPoint) string {
 	h1, h2 := sh[len(sh)-2], sh[len(sh)-1]
 	l1, l2 := sl[len(sl)-2], sl[len(sl)-1]
 	tag := swingStructureTag(h1.price, h2.price, l1.price, l2.price)
-	return fmt.Sprintf("高 %.2g→%.2g, 低 %.2g→%.2g (%s)", h1.price, h2.price, l1.price, l2.price, tag)
+	return fmt.Sprintf("高 %s→%s, 低 %s→%s (%s)",
+		FormatLabPrice(h1.price), FormatLabPrice(h2.price),
+		FormatLabPrice(l1.price), FormatLabPrice(l2.price), tag)
 }
 
 func swingStructureTag(h1, h2, l1, l2 float64) string {
@@ -377,7 +382,9 @@ func formatSupportResistanceLine(kl KeyLevelBands, rows []PriceAnalysisRow) stri
 		if rLo <= 0 || rLo > kl.ResistHigh {
 			rLo = kl.ResistHigh
 		}
-		return fmt.Sprintf("支撑 %.2f-%.2f, 阻力 %.2f-%.2f", kl.SupportLow, sHi, rLo, kl.ResistHigh)
+		return fmt.Sprintf("支撑 %s-%s, 阻力 %s-%s",
+			FormatLabPrice(kl.SupportLow), FormatLabPrice(sHi),
+			FormatLabPrice(rLo), FormatLabPrice(kl.ResistHigh))
 	}
 	// Fallback: daily-ish range from rows if present.
 	for _, r := range rows {

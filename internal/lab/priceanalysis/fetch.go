@@ -21,26 +21,28 @@ type MultiTFBarsInput struct {
 }
 
 // FetchMultiTimeframeBars probes each upward standard TF once.
-func FetchMultiTimeframeBars(ctx context.Context, in MultiTFBarsInput) (barsByFreq map[string][]any, fetchOKByFreq map[string]bool) {
+func FetchMultiTimeframeBars(ctx context.Context, in MultiTFBarsInput) (barsByFreq map[string][]any, fetchOKByFreq map[string]bool, fetchErrByFreq map[string]error) {
 	barsByFreq = map[string][]any{}
 	fetchOKByFreq = map[string]bool{}
+	fetchErrByFreq = map[string]error{}
 	if in.Fetch == nil || strings.TrimSpace(in.Code) == "" {
-		return barsByFreq, fetchOKByFreq
+		return barsByFreq, fetchOKByFreq, fetchErrByFreq
 	}
-	months := CapMonthsBack(in.Months)
 	var asOfPtr *time.Time
 	if in.AsOf != nil && !in.AsOf.IsZero() {
 		end := *in.AsOf
 		asOfPtr = &end
 	}
 	for _, spec := range multiTimeframeSpecsForGate(in.GateFreq) {
-		monthsBack := capMonthsBackForPriceAnalysisFetch(spec.Freq, months)
-		if asOfPtr != nil {
-			monthsBack = capMonthsBackForPerSignalPriceFetch(spec.Freq, monthsBack)
+		monthsBack, err := MonthsBackForLabFetch(in.Months, spec.Freq)
+		if err != nil {
+			fetchErrByFreq[spec.Freq] = err
+			fetchOKByFreq[spec.Freq] = false
+			continue
 		}
 		bars, ok := in.Fetch.FetchBars(ctx, in.Code, spec.Freq, monthsBack, asOfPtr)
 		barsByFreq[spec.Freq] = bars
 		fetchOKByFreq[spec.Freq] = ok
 	}
-	return barsByFreq, fetchOKByFreq
+	return barsByFreq, fetchOKByFreq, fetchErrByFreq
 }
