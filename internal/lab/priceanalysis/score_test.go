@@ -71,6 +71,63 @@ func TestNormalizePriceScoreNearZeroNotWouldIntercept(t *testing.T) {
 	}
 }
 
+func TestComputeMultiTFPriceScore5mGateUses60mNotEntry(t *testing.T) {
+	pa := PriceAnalysis{
+		Rows: []PriceAnalysisRow{
+			{Timeframe: "5m", Conclusion: RegimeDown, Position: "靠近上沿", BosChoch: "无"},
+			{Timeframe: "60m", Conclusion: RegimeUp, Position: "中部", BosChoch: "无"},
+			{Timeframe: "日线", Conclusion: RegimeUp, Position: "中部", BosChoch: "无"},
+			{Timeframe: "周线", Conclusion: RegimeUp, Position: "中部", BosChoch: "无"},
+		},
+	}
+	sc := ComputeMultiTFPriceScore(pa, "5m")
+	if _, ok := sc.TFScores["5m"]; ok {
+		t.Fatal("5m must not appear in tf_scores")
+	}
+	for _, label := range []string{"60m", "日线", "周线"} {
+		if sc.TFScores[label].Missing {
+			t.Fatalf("%s missing in tf_scores", label)
+		}
+	}
+	// 60m-only bullish subscore (1.0) with flat HTFs → weight 0.20 of composite.
+	pa60Only := PriceAnalysis{
+		Rows: []PriceAnalysisRow{
+			{Timeframe: "5m", Conclusion: RegimeDown, Position: "靠近上沿", BosChoch: "无"},
+			{Timeframe: "60m", Conclusion: RegimeUp, Position: "中部", BosChoch: "无"},
+			{Timeframe: "日线", Conclusion: RegimeUnclear, Position: "中部", BosChoch: "无"},
+			{Timeframe: "周线", Conclusion: RegimeUnclear, Position: "中部", BosChoch: "无"},
+		},
+	}
+	sc60 := ComputeMultiTFPriceScore(pa60Only, "5m")
+	wantScore := NormalizePriceScore(100 * clamp(0.20*1.0/2, -1, 1))
+	if sc60.Score != wantScore {
+		t.Fatalf("score=%.2f want %.2f (60m weight 0.20)", sc60.Score, wantScore)
+	}
+	_ = sc
+}
+
+func TestComputeMultiTFPriceScoreDailyGateRenormalizesNo60mMissing(t *testing.T) {
+	pa := PriceAnalysis{
+		Rows: []PriceAnalysisRow{
+			{Timeframe: "日线", Conclusion: RegimeUp, Position: "中部", BosChoch: "无"},
+			{Timeframe: "周线", Conclusion: RegimeUp, Position: "中部", BosChoch: "无"},
+		},
+	}
+	sc := ComputeMultiTFPriceScore(pa, "daily")
+	if _, ok := sc.TFScores["60m"]; ok {
+		t.Fatal("daily signal must not include 60m in tf_scores")
+	}
+	if strings.Contains(sc.ScoreReason, "60m") {
+		t.Fatalf("must not report missing 60m: %q", sc.ScoreReason)
+	}
+	if !strings.Contains(sc.ScoreReason, "综合周期权重") {
+		t.Fatalf("expected weight note: %q", sc.ScoreReason)
+	}
+	if !strings.Contains(sc.ScoreReason, "周线 56.2%") || !strings.Contains(sc.ScoreReason, "日线 43.8%") {
+		t.Fatalf("renormalized weights: %q", sc.ScoreReason)
+	}
+}
+
 func TestShouldInterceptSellOnPositiveScore(t *testing.T) {
 	if !ShouldInterceptTriggerByScore("sell", 25, 0) {
 		t.Fatal("sell should intercept when score > -threshold and score bullish")

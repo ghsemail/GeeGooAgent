@@ -57,6 +57,7 @@ func (s *Service) RunPriceAnalysis(ctx context.Context, req PriceAnalysisRequest
 		AsOf:       req.AnchorTime,
 		SpotPrice:  req.SpotPrice,
 	})
+	pa = priceanalysis.RoundPriceAnalysisForOutput(pa)
 	return PriceAnalysisResponse{Experiment: ExperimentPriceAnalysis, Analysis: pa}, nil
 }
 

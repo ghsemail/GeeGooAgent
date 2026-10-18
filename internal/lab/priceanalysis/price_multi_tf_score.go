@@ -38,28 +38,54 @@ func PriceAnalysisScoreThreshold(threshold *float64) float64 {
 	return *threshold
 }
 
-// ComputeMultiTFPriceScore scores 周线/日线/gate-TF rows for buy-direction bias.
+// ComputeMultiTFPriceScore scores 周线/日线/60m for lab composite (signal entry TF e.g. 5m is display-only).
 func ComputeMultiTFPriceScore(pa PriceAnalysis, gateFreq string) MultiTFPriceScore {
+	return computeWeightedMultiTFPriceScore(pa, compositeScoreWantSpecs(gateFreq), gateFreq)
+}
+
+// compositeScoreWantSpecs selects TFs for composite: fixed 60m+日线+周线 when signal is intraday;
+// 日线 signal uses 日线+周线 only (weights renormalize; 60m is not fetched and not "missing").
+func compositeScoreWantSpecs(gateFreq string) []struct {
+	key   string
+	label string
+} {
 	gate := NormalizeFrequency(gateFreq)
 	if gate == "" {
 		gate = "60m"
 	}
-	want := []struct {
-		key   string
-		label string
-	}{
-		{"weekly", "周线"},
-		{"daily", "日线"},
-	}
-	lowKey := gateTFScoreKey(gate)
-	lowLabel := timeframeDisplayLabel(gate)
-	if lowKey != "weekly" && lowKey != "daily" {
-		want = append(want, struct {
+	switch gateTFScoreKey(gate) {
+	case "weekly":
+		return []struct {
 			key   string
 			label string
-		}{lowKey, lowLabel})
+		}{{"weekly", "周线"}}
+	case "daily":
+		return []struct {
+			key   string
+			label string
+		}{
+			{"weekly", "周线"},
+			{"daily", "日线"},
+		}
+	default:
+		return []struct {
+			key   string
+			label string
+		}{
+			{"weekly", "周线"},
+			{"daily", "日线"},
+			{"60m", "60m"},
+		}
 	}
-	return computeWeightedMultiTFPriceScore(pa, want, gateFreq)
+}
+
+func compositeIncludes60m(gateFreq string) bool {
+	for _, spec := range compositeScoreWantSpecs(gateFreq) {
+		if spec.key == "60m" {
+			return true
+		}
+	}
+	return false
 }
 
 // ComputeHTFGatePriceScore is the buy-gate composite using only TFs coarser than gateFreq.
@@ -132,14 +158,12 @@ func computeWeightedMultiTFPriceScore(pa PriceAnalysis, want []struct {
 	var weighted float64
 	var weightSum float64
 	tfScores := map[string]TFScoreBreakdown{}
+	var applied []compositeAppliedWeight
 
 	for _, spec := range want {
 		w := multiTFScoreBaseWeights[spec.key]
 		if w <= 0 {
-			if spec.key != gateTFScoreKey(gate) {
-				continue
-			}
-			w = 0.20
+			continue
 		}
 		row, ok := byLabel[spec.label]
 		if !ok || rowMissingForScore(row) {
@@ -151,6 +175,7 @@ func computeWeightedMultiTFPriceScore(pa PriceAnalysis, want []struct {
 		tfScores[spec.label] = br
 		weighted += w * br.Subscore
 		weightSum += w
+		applied = append(applied, compositeAppliedWeight{label: spec.label, w: w})
 	}
 
 	out := MultiTFPriceScore{TFScores: tfScores}
@@ -166,7 +191,15 @@ func computeWeightedMultiTFPriceScore(pa PriceAnalysis, want []struct {
 	norm := weighted / weightSum
 	out.Score = NormalizePriceScore(100 * clamp(norm/2, -1, 1))
 	out.ScoreReason = formatScoreReason(out.Score, missing)
+	if !compositeIncludes60m(gateFreq) && len(applied) > 0 {
+		out.ScoreReason = appendCompositeWeightNote(out.ScoreReason, applied, weightSum)
+	}
 	return out
+}
+
+type compositeAppliedWeight struct {
+	label string
+	w     float64
 }
 
 // NormalizePriceScore rounds to 2 decimal places for gating/display and maps -0 to 0.
@@ -258,6 +291,18 @@ func bosChochSubscore(note string) float64 {
 
 func clamp(v, lo, hi float64) float64 {
 	return math.Max(lo, math.Min(hi, v))
+}
+
+func appendCompositeWeightNote(reason string, applied []compositeAppliedWeight, weightSum float64) string {
+	if weightSum <= 0 || len(applied) == 0 {
+		return reason
+	}
+	var parts []string
+	for _, a := range applied {
+		pct := 100 * a.w / weightSum
+		parts = append(parts, fmt.Sprintf("%s %.1f%%", a.label, pct))
+	}
+	return reason + fmt.Sprintf("；综合周期权重 %s", strings.Join(parts, "、"))
 }
 
 func formatScoreReason(score float64, missing []string) string {
