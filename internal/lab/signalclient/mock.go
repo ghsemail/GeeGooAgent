@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-// MockClient is an in-memory lab-api for unit tests.
+// MockClient is an in-memory lab-api for unit tests (matches finalized job status enum).
 type MockClient struct {
 	mu      sync.Mutex
 	seq     int
@@ -35,6 +35,9 @@ func (m *MockClient) CreateKlineJob(ctx context.Context, req KlineJobRequest) (s
 			job.Error = err.Error()
 		} else {
 			job.Status = JobCompleted
+			if bars == nil {
+				bars = []any{}
+			}
 			job.Result = &KlineJobResult{Bars: bars}
 		}
 	}

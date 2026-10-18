@@ -5,8 +5,8 @@
 `internal/lab` 承载 **实验能力**，与现网 `diagnose` / `strategydev` / worker 路径 **完全隔离**：
 
 - 不修改现网信号诊断行为；现网 diagnose **不暴露** 实验 PA。
-- 现网 worker **不执行** lab 任务。
-- Lab 取数 **仅** 调用 GeeGooSignal **lab-api**（默认 `:3250`），不经过 `probe_bot_signal_series`、不调用 `/getSupportingPrice` 或 probe `key_levels`。
+- 现网 worker **不执行** lab 任务（Signal 侧为独立 **lab-api + lab-worker**）。
+- Lab 取数 **仅** 调用 GeeGooSignal **lab-api**（`:3250`），不经过 `probe_bot_signal_series`、不调用 `/getSupportingPrice` 或 probe `key_levels`。
 
 首个实验：**多周期价格分析（price-analysis）**，自归档 `archive/price-analysis-2026-10-17`（`6d3cc3e`）迁入，算法包括摆动 HH/HL/LH/LL、BOS/CHOCH、区间位置、Kaufman ER（无硬阈值）、RVOL 量能确认、多周期综合分（周线 0.45 + 日线 0.35 + 60m 0.20，约 −100～+100）。**默认只展示，不硬拦截**；对外术语统一为 **「分析」**，不叫「打分」。
 
@@ -44,9 +44,21 @@
 
 响应含 `experiment: "price-analysis"` 与 `analysis`（多周期表 + `price_score` / `tf_scores` / `score_reason`）。
 
-## 与 GeeGooSignal lab-api 的契约（Agent 侧定义，Signal 并行实现对齐）
+## GeeGooSignal lab-api 契约（定稿）
 
-Agent 通过 `internal/lab/signalclient` 访问 lab-api。**任务状态查询走 lab-api**，Agent 不直连 worker。
+- **Base URL**：`:3250`（如 `http://<signal-host>:3250`）
+- **鉴权**：`Authorization: Bearer <GEEGOO_SIGNAL_LAB_API_KEY>`
+- **路径前缀**：`/v1/lab/...`
+- **v1 无 batch**：Agent 按周期 **多次** `POST /v1/lab/kline/jobs`（每个 TF 一次 CreateKlineJob），不调用 batch API。
+- **任务状态**：仅通过 lab-api 轮询 `GET /v1/lab/jobs/{job_id}`；Agent **不直连** lab-worker。
+- **Signal 并发**：lab-worker 同时 **running ≤ 4**，多余任务 **pending 排队**；Agent 客户端保持轮询即可，无需额外限流逻辑。
+
+Agent 通过 `internal/lab/signalclient` 实现上述契约。单测使用 `MockClient`，**不依赖** Signal 已上线。
+
+### `GET /health`（可选）
+
+- 响应 **HTTP 200** 表示 lab-api 可达。
+- Agent **可选**调用（如运维探测）；实验取数 **不强依赖** 健康检查。
 
 ### `POST /v1/lab/kline/jobs`
 
@@ -57,9 +69,9 @@ Agent 通过 `internal/lab/signalclient` 访问 lab-api。**任务状态查询�
 | `code` | string | 是 | 标的代码 |
 | `frequency` | string | 是 | `5m` / `60m` / `daily` / `weekly` 等 |
 | `months_back` | int | 是 | 日历回溯月数（Agent 侧已按 TF 封顶） |
-| `as_of` | string | 否 | 上海时区 `2006-01-02 15:04:05`，窗口结束锚点 |
+| `as_of` | string | 否 | **Asia/Shanghai**，格式 **`2006-01-02 15:04:05`**；lab-api 只返回 **`time <= as_of`** 的 bar（与现网 probe 一致）；**不传**则取到最新 |
 
-响应：
+成功响应：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -67,17 +79,26 @@ Agent 通过 `internal/lab/signalclient` 访问 lab-api。**任务状态查询�
 
 ### `GET /v1/lab/jobs/{job_id}`
 
+对已创建任务的轮询：**HTTP 200** + JSON 任务体（含 `pending` / `running` / `failed` / `completed`）。
+
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | string | 任务 ID |
-| `status` | string | `pending` \| `running` \| `completed` \| `failed` |
-| `error` | string | 失败原因 |
-| `result` | object | `status=completed` 时存在 |
-| `result.bars` | array | OHLCV bar 列表（与现网 probe `bars` 元素形状兼容：`time`/`open`/`high`/`low`/`close`/`volume`） |
+| `status` | string | **`pending`** \| **`running`** \| **`completed`** \| **`failed`**（仅此四值） |
+| `error` | string | `status=failed` 时的失败原因 |
+| `result` | object | `status=completed` 时 **必须** 存在 |
+| `result.bars` | array | `status=completed` 时 **必须** 存在（可为空数组）；元素与现网 probe `bars` 兼容：`time`/`open`/`high`/`low`/`close`/`volume` |
 
-鉴权：`Authorization: Bearer <GEEGOO_SIGNAL_LAB_API_KEY>`。
+### 失败语义
 
-单测使用 `signalclient.MockClient`，**不依赖** Signal 已上线。
+| 场景 | HTTP |  body |
+| --- | --- | --- |
+| 非法请求、鉴权失败、job 不存在等 | **4xx** | `{"error":"<message>"}` |
+| lab-api 内部错误（创建 job 前） | **5xx** | 通常含 `{"error":...}` |
+| job 已创建后 worker 失败 | 轮询 GET 仍 **200** | `status=failed`，`error` 字段说明原因 |
+| job 成功 | 轮询 GET **200** | `status=completed`，**必有** `result.bars` |
+
+Agent `signalclient` 对 4xx/5xx 解析 JSON `error` 字段并包装为 `APIError`；对 `completed` 但缺少 `result` / `result.bars` 视为协议错误。
 
 ## 模块结构
 
@@ -94,16 +115,7 @@ internal/config/lab.go
 ## 如何新增实验
 
 1. 在 `internal/lab` 增加子包或 `experiments/<name>`，**不要** import / 修改 `internal/workflow/strategydev` 诊断链。
-2. 若需行情/K 线，扩展 `signalclient` 契约（或新增 lab-api 路径），并在 `docs/lab.md` 记录字段。
+2. 若需行情/K 线，在 **定稿契约** 下扩展 lab-api（需与 Signal 联调），并更新 `docs/lab.md`。
 3. 在 `lab.Service` 增加方法，于 `runtimeapi/lab.go` 注册 `POST /v1/lab/experiments/<name>`。
 4. 在 `GET /v1/lab/experiments` 列表中登记元数据。
 5. 为 client 与 HTTP handler 编写 mock 单测。
-
-## 与 Signal 侧待对齐项
-
-- lab-api 路径前缀是否为 `/v1/lab/...`（含 `kline/jobs` 与 `jobs/{id}`）。
-- `status` 枚举与 Agent 约定是否一致。
-- `as_of` 语义是否与归档 PA 一致（截断为 `<= anchor` 的 bar，不含 anchor 之后）。
-- 失败时 HTTP 状态码（4xx/5xx）与 JSON `error` 字段格式。
-- 是否提供 batch 取数接口；当前 Agent 按 TF 多次 `CreateKlineJob`。
-- lab-api 与 `cmd/lab-worker` 的部署端口、TLS、限流策略。

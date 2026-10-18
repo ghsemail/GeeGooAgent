@@ -11,13 +11,17 @@ import (
 	"time"
 )
 
-// Client talks to GeeGooSignal lab-api (:3250). Task lifecycle is always queried via lab-api.
+// Client talks to GeeGooSignal lab-api on :3250.
+// Task lifecycle is always queried via lab-api (GET /v1/lab/jobs/{job_id}); Agent never calls lab-worker.
+// v1 has no batch endpoint — callers create one job per timeframe.
 type Client interface {
 	CreateKlineJob(ctx context.Context, req KlineJobRequest) (jobID string, err error)
 	GetJob(ctx context.Context, jobID string) (Job, error)
 }
 
 // KlineJobRequest asks lab-api to fetch OHLCV (取数窗).
+// When AsOf is set, lab-api returns only bars with time <= as_of (Asia/Shanghai, same as probe).
+// When AsOf is nil, bars run through latest available.
 type KlineJobRequest struct {
 	Code       string     `json:"code"`
 	Frequency  string     `json:"frequency"`
@@ -25,15 +29,15 @@ type KlineJobRequest struct {
 	AsOf       *time.Time `json:"as_of,omitempty"`
 }
 
-// Job is a lab-api async task snapshot.
+// Job is a lab-api async task snapshot from GET /v1/lab/jobs/{job_id} (HTTP 200 while polling).
 type Job struct {
-	ID     string         `json:"id"`
-	Status JobStatus      `json:"status"`
-	Error  string         `json:"error,omitempty"`
+	ID     string          `json:"id"`
+	Status JobStatus       `json:"status"`
+	Error  string          `json:"error,omitempty"`
 	Result *KlineJobResult `json:"result,omitempty"`
 }
 
-// JobStatus matches Signal lab-api task states (align with Signal implementation).
+// JobStatus is the finalized lab-api task enum.
 type JobStatus string
 
 const (
@@ -43,12 +47,29 @@ const (
 	JobFailed    JobStatus = "failed"
 )
 
-// KlineJobResult is returned when status=completed.
+// KlineJobResult is required when status=completed (result.bars must be present, may be empty).
 type KlineJobResult struct {
 	Bars []any `json:"bars"`
 }
 
+// APIError is returned for lab-api HTTP 4xx/5xx with JSON {"error":"..."}.
+type APIError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *APIError) Error() string {
+	if e == nil {
+		return "lab-api error"
+	}
+	if e.Message != "" {
+		return fmt.Sprintf("lab-api: HTTP %d: %s", e.StatusCode, e.Message)
+	}
+	return fmt.Sprintf("lab-api: HTTP %d", e.StatusCode)
+}
+
 // HTTPClient implements Client against GeeGooSignal lab-api.
+// Signal lab-worker runs at most 4 jobs concurrently; extra jobs stay pending — polling handles queueing.
 type HTTPClient struct {
 	BaseURL    string
 	APIKey     string
@@ -68,6 +89,8 @@ func NewHTTPClient(baseURL, apiKey string) *HTTPClient {
 	}
 }
 
+const asOfLayout = "2006-01-02 15:04:05"
+
 func (c *HTTPClient) CreateKlineJob(ctx context.Context, req KlineJobRequest) (string, error) {
 	body := map[string]any{
 		"code":        strings.TrimSpace(req.Code),
@@ -76,7 +99,7 @@ func (c *HTTPClient) CreateKlineJob(ctx context.Context, req KlineJobRequest) (s
 	}
 	if req.AsOf != nil && !req.AsOf.IsZero() {
 		loc, _ := time.LoadLocation("Asia/Shanghai")
-		body["as_of"] = req.AsOf.In(loc).Format("2006-01-02 15:04:05")
+		body["as_of"] = req.AsOf.In(loc).Format(asOfLayout)
 	}
 	var resp struct {
 		JobID string `json:"job_id"`
@@ -105,7 +128,26 @@ func (c *HTTPClient) GetJob(ctx context.Context, jobID string) (Job, error) {
 	return out, nil
 }
 
-// FetchBars creates a kline job and polls until completion (for Agent lab orchestration).
+// Health optionally probes GET /health (200 = reachable). Lab experiments do not require it.
+func (c *HTTPClient) Health(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/health", nil)
+	if err != nil {
+		return err
+	}
+	c.applyAuth(req)
+	res, err := c.http().Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	b, _ := io.ReadAll(res.Body)
+	if res.StatusCode == http.StatusOK {
+		return nil
+	}
+	return apiErrorFromResponse(res.StatusCode, b)
+}
+
+// FetchBars creates a kline job and polls GET /v1/lab/jobs/{id} until completed or failed.
 func (c *HTTPClient) FetchBars(ctx context.Context, req KlineJobRequest) ([]any, error) {
 	jobID, err := c.CreateKlineJob(ctx, req)
 	if err != nil {
@@ -121,6 +163,10 @@ func (c *HTTPClient) FetchBars(ctx context.Context, req KlineJobRequest) ([]any,
 		case JobCompleted:
 			if job.Result == nil {
 				return nil, fmt.Errorf("lab-api: job %s completed without result", jobID)
+			}
+			// result.bars must be present per contract (nil slice treated as missing).
+			if job.Result.Bars == nil {
+				return nil, fmt.Errorf("lab-api: job %s completed without result.bars", jobID)
 			}
 			return job.Result.Bars, nil
 		case JobFailed:
@@ -211,11 +257,7 @@ func decodeJSON(res *http.Response, out any) error {
 		return err
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		msg := strings.TrimSpace(string(b))
-		if msg == "" {
-			msg = res.Status
-		}
-		return fmt.Errorf("lab-api: HTTP %d: %s", res.StatusCode, msg)
+		return apiErrorFromResponse(res.StatusCode, b)
 	}
 	if out == nil {
 		return nil
@@ -224,4 +266,28 @@ func decodeJSON(res *http.Response, out any) error {
 		return nil
 	}
 	return json.Unmarshal(b, out)
+}
+
+func apiErrorFromResponse(status int, body []byte) error {
+	msg := parseErrorJSON(body)
+	if msg == "" {
+		msg = strings.TrimSpace(string(body))
+	}
+	if msg == "" {
+		msg = http.StatusText(status)
+	}
+	return &APIError{StatusCode: status, Message: msg}
+}
+
+func parseErrorJSON(body []byte) string {
+	var wrap struct {
+		Error string `json:"error"`
+	}
+	if len(body) == 0 {
+		return ""
+	}
+	if err := json.Unmarshal(body, &wrap); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(wrap.Error)
 }
