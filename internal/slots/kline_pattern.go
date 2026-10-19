@@ -19,9 +19,9 @@ type KlinePatternBias struct {
 	BiasColor string  `json:"bias_color"` // green | red | gray
 }
 
-// KlinePatternBarWindowEntry is one bar in the prev/anchor/next window.
+// KlinePatternBarWindowEntry is one bar in the prev2/prev/anchor window.
 type KlinePatternBarWindowEntry struct {
-	Role                string            `json:"role"` // prev | anchor | next
+	Role                string            `json:"role"` // prev2 | prev | anchor
 	Index               int               `json:"index,omitempty"`
 	Omitted             bool              `json:"omitted,omitempty"`
 	OmitReason          string            `json:"omit_reason,omitempty"` // before_series_start | after_series_end
@@ -35,7 +35,7 @@ type KlinePatternBarWindowEntry struct {
 	KlinePatternBias    *KlinePatternBias `json:"kline_pattern_bias,omitempty"`
 }
 
-// KlinePatternThreeBarWindow is prev + trigger anchor + next on the signal timeframe.
+// KlinePatternThreeBarWindow is prev2 + prev + trigger anchor on the signal timeframe.
 type KlinePatternThreeBarWindow struct {
 	AnchorIndex int                          `json:"anchor_index"`
 	Bars        []KlinePatternBarWindowEntry `json:"bars"`

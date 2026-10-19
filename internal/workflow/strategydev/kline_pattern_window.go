@@ -8,7 +8,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
-// BuildKlinePatternThreeBarWindow builds prev/anchor/next OHLC + patterns around anchorIdx.
+// BuildKlinePatternThreeBarWindow builds prev2/prev/anchor OHLC + patterns around anchorIdx (trigger bar).
 func BuildKlinePatternThreeBarWindow(bars []any, patternHits []any, anchorIdx int) *slots.KlinePatternThreeBarWindow {
 	if !KlinePatternDisplayEnabled() || anchorIdx < 0 || anchorIdx >= len(bars) {
 		return nil
@@ -18,23 +18,25 @@ func BuildKlinePatternThreeBarWindow(bars []any, patternHits []any, anchorIdx in
 	for _, spec := range []struct {
 		role string
 		idx  int
+		note string
 	}{
-		{"prev", anchorIdx - 1},
-		{"anchor", anchorIdx},
-		{"next", anchorIdx + 1},
+		{"prev2", anchorIdx - 2, "无前前一根 K 线"},
+		{"prev", anchorIdx - 1, "无前一根 K 线"},
+		{"anchor", anchorIdx, ""},
 	} {
 		ent := slots.KlinePatternBarWindowEntry{Role: spec.role}
 		if spec.idx < 0 {
 			ent.Omitted = true
 			ent.OmitReason = "before_series_start"
-			notes = append(notes, "无前一根 K 线")
+			if spec.note != "" {
+				notes = append(notes, spec.note)
+			}
 			win.Bars = append(win.Bars, ent)
 			continue
 		}
 		if spec.idx >= len(bars) {
 			ent.Omitted = true
 			ent.OmitReason = "after_series_end"
-			notes = append(notes, "无后一根 K 线")
 			win.Bars = append(win.Bars, ent)
 			continue
 		}

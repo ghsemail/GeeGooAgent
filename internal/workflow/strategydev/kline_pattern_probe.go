@@ -72,7 +72,7 @@ func BuildKlinePatternMTFBundle(
 		asOf = &end
 	}
 	chartMonths := CapMonthsBack(months)
-	for _, spec := range multiTimeframeSpecsForGate(signalFreq) {
+	for _, spec := range multiTimeframeSpecsForKlinePatternDisplay(signalFreq) {
 		m := chartMonths
 		if len(chartBars) > 0 {
 			m = monthsBackForPerSignalPriceFetch(chartMonths, chartBars, spec.Freq, windowEnd)
