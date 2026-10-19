@@ -20,21 +20,24 @@ func TestBuildKlinePatternThreeBarWindow_Boundaries(t *testing.T) {
 	if win == nil || len(win.Bars) != 3 {
 		t.Fatalf("win=%+v", win)
 	}
-	if !win.Bars[0].Omitted || win.Bars[0].Role != "prev" {
-		t.Fatalf("prev=%+v", win.Bars[0])
+	if !win.Bars[0].Omitted || win.Bars[0].Role != "prev2" {
+		t.Fatalf("prev2=%+v", win.Bars[0])
 	}
-	if win.Bars[1].Role != "anchor" || win.Bars[1].Close != 1.5 {
-		t.Fatalf("anchor=%+v", win.Bars[1])
+	if !win.Bars[1].Omitted || win.Bars[1].Role != "prev" {
+		t.Fatalf("prev=%+v", win.Bars[1])
 	}
-	if win.Bars[2].Omitted || win.Bars[2].Index != 1 {
-		t.Fatalf("next=%+v", win.Bars[2])
+	if win.Bars[2].Role != "anchor" || win.Bars[2].Close != 1.5 {
+		t.Fatalf("anchor=%+v", win.Bars[2])
 	}
 	if win.WindowNote == "" {
-		t.Fatal("expected window note for missing prev")
+		t.Fatal("expected window note for missing prev bars")
 	}
-	winLast := BuildKlinePatternThreeBarWindow(bars, hits, 1)
-	if winLast == nil || !winLast.Bars[2].Omitted {
-		t.Fatalf("last anchor next=%+v", winLast.Bars[2])
+	winMid := BuildKlinePatternThreeBarWindow(bars, hits, 1)
+	if winMid == nil || !winMid.Bars[0].Omitted || winMid.Bars[0].Role != "prev2" {
+		t.Fatalf("mid prev2=%+v", winMid.Bars[0])
+	}
+	if winMid.Bars[1].Role != "prev" || winMid.Bars[1].Index != 0 {
+		t.Fatalf("mid prev=%+v", winMid.Bars[1])
 	}
 }
 
@@ -60,8 +63,8 @@ func TestBuildKlinePatternThreeBarWindow_Scoring(t *testing.T) {
 	if win.WindowBias == nil || win.WindowBias.Score != 1 {
 		t.Fatalf("window bias=%+v want +1", win.WindowBias)
 	}
-	if !containsStr(win.Bars[1].KlinePatternSummary, "多空并存") {
-		t.Fatalf("summary=%q", win.Bars[1].KlinePatternSummary)
+	if !containsStr(win.Bars[2].KlinePatternSummary, "多空并存") {
+		t.Fatalf("summary=%q", win.Bars[2].KlinePatternSummary)
 	}
 }
 

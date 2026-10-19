@@ -91,7 +91,7 @@ func buildKlinePatternMTFContext(anchorIdx int, in KlinePatternDisplayInput) *sl
 		Note:            "大周期仅作背景对照，不参与拦截或硬结论",
 	}
 	sigFreq := NormalizeFrequency(in.SignalFreq)
-	for _, spec := range multiTimeframeSpecsForGate(in.SignalFreq) {
+	for _, spec := range multiTimeframeSpecsForKlinePatternDisplay(in.SignalFreq) {
 		entry := slots.KlinePatternMTFEntry{
 			Frequency:   spec.Freq,
 			Label:       spec.Label,
