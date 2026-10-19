@@ -61,6 +61,7 @@ type KlinePatternMTFEntry struct {
 type KlinePatternMTFContext struct {
 	SignalFrequency string                 `json:"signal_frequency"`
 	Note            string                 `json:"note,omitempty"`
+	WeightSchema    string                 `json:"weight_schema,omitempty"`
 	PrimaryBias     *KlinePatternBias      `json:"primary_bias,omitempty"`
 	Timeframes      []KlinePatternMTFEntry `json:"timeframes,omitempty"`
 }

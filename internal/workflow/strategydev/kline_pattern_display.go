@@ -48,15 +48,18 @@ func enrichTriggerKlineDisplay(rec *EpisodeTriggerRecord, in KlinePatternDisplay
 	}
 	EnrichEpisodeTriggerRecordPatterns(rec, in.PatternHits)
 	rec.KlinePatternThreeBar = BuildKlinePatternThreeBarWindow(in.Bars, in.PatternHits, rec.Index)
-	if rec.KlinePatternThreeBar != nil && rec.KlinePatternThreeBar.Bias != nil {
-		rec.KlinePatternBias = rec.KlinePatternThreeBar.Bias
-	} else if len(rec.KlinePatterns) > 0 {
-		b := slots.ScoreKlinePatternHits(rec.KlinePatterns)
-		rec.KlinePatternBias = &b
-	}
 	rec.KlinePatternMTF = buildKlinePatternMTFContext(rec.Index, in)
 	if rec.KlinePatternMTF != nil {
 		rec.HigherTFContext = rec.KlinePatternMTF
+		applyMTFWeightedKlineConclusion(rec.KlinePatternMTF, &rec.KlinePatternBias, &rec.KlinePatternSummary)
+	}
+	if rec.KlinePatternBias == nil {
+		if rec.KlinePatternThreeBar != nil && rec.KlinePatternThreeBar.Bias != nil {
+			rec.KlinePatternBias = rec.KlinePatternThreeBar.Bias
+		} else if len(rec.KlinePatterns) > 0 {
+			b := slots.ScoreKlinePatternHits(rec.KlinePatterns)
+			rec.KlinePatternBias = &b
+		}
 	}
 }
 
@@ -66,15 +69,36 @@ func enrichEpisodeKlineDisplay(ep *slots.SignalEpisodeDetail, in KlinePatternDis
 	}
 	attachPatternsToEpisode(ep, in.PatternHits)
 	ep.KlinePatternThreeBar = BuildKlinePatternThreeBarWindow(in.Bars, in.PatternHits, ep.StartIdx)
-	if ep.KlinePatternThreeBar != nil && ep.KlinePatternThreeBar.Bias != nil {
-		ep.KlinePatternBias = ep.KlinePatternThreeBar.Bias
-	} else if len(ep.KlinePatterns) > 0 {
-		b := slots.ScoreKlinePatternHits(ep.KlinePatterns)
-		ep.KlinePatternBias = &b
-	}
 	ep.KlinePatternMTF = buildKlinePatternMTFContext(ep.StartIdx, in)
 	if ep.KlinePatternMTF != nil {
 		ep.HigherTFContext = ep.KlinePatternMTF
+		applyMTFWeightedKlineConclusion(ep.KlinePatternMTF, &ep.KlinePatternBias, &ep.KlinePatternSummary)
+	}
+	if ep.KlinePatternBias == nil {
+		if ep.KlinePatternThreeBar != nil && ep.KlinePatternThreeBar.Bias != nil {
+			ep.KlinePatternBias = ep.KlinePatternThreeBar.Bias
+		} else if len(ep.KlinePatterns) > 0 {
+			b := slots.ScoreKlinePatternHits(ep.KlinePatterns)
+			ep.KlinePatternBias = &b
+		}
+	}
+}
+
+func applyMTFWeightedKlineConclusion(mtf *slots.KlinePatternMTFContext, bias **slots.KlinePatternBias, summary *string) {
+	if mtf == nil || len(mtf.Timeframes) == 0 {
+		return
+	}
+	b, sum, ok := ComputeKlinePatternMTFWeightedConclusion(mtf.Timeframes)
+	if !ok {
+		return
+	}
+	mtf.WeightSchema = KlinePatternMTFWeightSchema
+	mtf.PrimaryBias = &b
+	if bias != nil {
+		*bias = &b
+	}
+	if summary != nil && sum != "" {
+		*summary = sum
 	}
 }
 
@@ -97,7 +121,7 @@ func buildKlinePatternMTFContext(anchorIdx int, in KlinePatternDisplayInput) *sl
 			Label:       spec.Label,
 			DisplayOnly: true,
 		}
-		if NormalizeFrequency(spec.Freq) == sigFreq {
+		if klinePatternMTFTimeframeKey(spec.Freq) == klinePatternMTFTimeframeKey(sigFreq) {
 			entry.FetchOK = len(in.Bars) > 0
 			entry.AlignedIndex = anchorIdx
 			if anchorIdx >= 0 && anchorIdx < len(in.Bars) {
@@ -105,11 +129,10 @@ func buildKlinePatternMTFContext(anchorIdx int, in KlinePatternDisplayInput) *sl
 					entry.AlignedTime = formatBarTimeAsiaShanghai(row)
 				}
 				entry.ThreeBar = BuildKlinePatternThreeBarWindow(in.Bars, in.PatternHits, anchorIdx)
-				if entry.ThreeBar != nil && entry.ThreeBar.Bias != nil {
-					entry.Bias = entry.ThreeBar.Bias
-				}
 			}
 			entry.AlignNote = mtfAlignNote(spec.Freq, anchorIdx, entry.FetchOK)
+			b := biasFromThreeBarWindow(entry.ThreeBar)
+			entry.Bias = &b
 			ctxOut.Timeframes = append(ctxOut.Timeframes, entry)
 			continue
 		}
@@ -117,12 +140,16 @@ func buildKlinePatternMTFContext(anchorIdx int, in KlinePatternDisplayInput) *sl
 		if !ok {
 			entry.FetchOK = false
 			entry.AlignNote = mtfAlignNote(spec.Freq, -1, false)
+			nb := neutralKlinePatternBias()
+			entry.Bias = &nb
 			ctxOut.Timeframes = append(ctxOut.Timeframes, entry)
 			continue
 		}
 		entry.FetchOK = ser.FetchOK
 		if !ser.FetchOK {
 			entry.AlignNote = mtfAlignNote(spec.Freq, -1, false)
+			nb := neutralKlinePatternBias()
+			entry.Bias = &nb
 			ctxOut.Timeframes = append(ctxOut.Timeframes, entry)
 			continue
 		}
@@ -133,15 +160,11 @@ func buildKlinePatternMTFContext(anchorIdx int, in KlinePatternDisplayInput) *sl
 				entry.AlignedTime = formatBarTimeAsiaShanghai(row)
 			}
 			entry.ThreeBar = BuildKlinePatternThreeBarWindow(ser.Bars, ser.PatternHits, aligned)
-			if entry.ThreeBar != nil && entry.ThreeBar.Bias != nil {
-				entry.Bias = entry.ThreeBar.Bias
-			}
 		}
 		entry.AlignNote = mtfAlignNote(spec.Freq, aligned, true)
+		b := biasFromThreeBarWindow(entry.ThreeBar)
+		entry.Bias = &b
 		ctxOut.Timeframes = append(ctxOut.Timeframes, entry)
-	}
-	if win := BuildKlinePatternThreeBarWindow(in.Bars, in.PatternHits, anchorIdx); win != nil && win.Bias != nil {
-		ctxOut.PrimaryBias = win.Bias
 	}
 	return ctxOut
 }

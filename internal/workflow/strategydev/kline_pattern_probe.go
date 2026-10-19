@@ -77,7 +77,8 @@ func BuildKlinePatternMTFBundle(
 		if len(chartBars) > 0 {
 			m = monthsBackForPerSignalPriceFetch(chartMonths, chartBars, spec.Freq, windowEnd)
 		}
-		bars, hits, ok := fetchKlinePatternProbeSeries(ctx, run, code, spec.Freq, m, asOf)
+		probeFreq := klinePatternProbeFrequency(spec.Freq)
+		bars, hits, ok := fetchKlinePatternProbeSeries(ctx, run, code, probeFreq, m, asOf)
 		bundle.ByFreq[spec.Freq] = KlinePatternFreqSeries{
 			Label: spec.Label, Freq: spec.Freq, Bars: bars, PatternHits: hits, FetchOK: ok,
 		}

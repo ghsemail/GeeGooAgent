@@ -52,6 +52,19 @@ func minBarCalendarLookback(freq string) time.Duration {
 		// ~48 A-share 5m bars / session
 		days := (minBars / 48) + 3
 		return time.Duration(days) * 24 * time.Hour
+	case "15m", "30m":
+		barsPerDay := 240 / 15
+		if NormalizeFrequency(freq) == "30m" {
+			barsPerDay = 240 / 30
+		}
+		if barsPerDay < 1 {
+			barsPerDay = 1
+		}
+		days := (minBars / barsPerDay) + 3
+		return time.Duration(days) * 24 * time.Hour
+	case "4h":
+		days := (minBars / 1) + 5
+		return time.Duration(days) * 24 * time.Hour
 	case "60m":
 		days := (minBars / 4) + 5
 		return time.Duration(days) * 24 * time.Hour
