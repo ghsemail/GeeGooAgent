@@ -1,16 +1,20 @@
 package strategydev
 
-import "testing"
+import (
+	"testing"
 
-func TestMultiTimeframeSpecsForKlinePatternDisplay_FiveAndSixtyMinute(t *testing.T) {
+	"github.com/ghsemail/GeeGooAgent/internal/slots"
+)
+
+func TestMultiTimeframeSpecsForKlinePatternDisplay_Ladders(t *testing.T) {
 	cases := []struct {
 		sig  string
 		want []string
 	}{
-		{"5m", []string{"5m", "30m", "60m", "daily"}},
-		{"5分钟", []string{"5m", "30m", "60m", "daily"}},
-		{"60m", []string{"60m", "30m", "daily", "weekly"}},
-		{"1h", []string{"60m", "30m", "daily", "weekly"}},
+		{"5m", []string{"5m", "15m", "30m", "60m"}},
+		{"5分钟", []string{"5m", "15m", "30m", "60m"}},
+		{"60m", []string{"60m", "4h", "daily", "weekly"}},
+		{"1h", []string{"60m", "4h", "daily", "weekly"}},
 	}
 	for _, tc := range cases {
 		specs := multiTimeframeSpecsForKlinePatternDisplay(tc.sig)
@@ -22,6 +26,58 @@ func TestMultiTimeframeSpecsForKlinePatternDisplay_FiveAndSixtyMinute(t *testing
 				t.Fatalf("sig=%q i=%d got=%s want=%s", tc.sig, i, specs[i].Freq, w)
 			}
 		}
+	}
+}
+
+func TestKlinePatternMTFWeights_TableLocked(t *testing.T) {
+	if len(KlinePatternMTFWeights) != 4 {
+		t.Fatalf("weights len=%d", len(KlinePatternMTFWeights))
+	}
+	var sum float64
+	for i, w := range KlinePatternMTFWeights {
+		sum += w
+		switch i {
+		case 0:
+			if w != 0.4 {
+				t.Fatalf("w0=%v", w)
+			}
+		case 1:
+			if w != 0.3 {
+				t.Fatalf("w1=%v", w)
+			}
+		case 2:
+			if w != 0.2 {
+				t.Fatalf("w2=%v", w)
+			}
+		case 3:
+			if w != 0.1 {
+				t.Fatalf("w3=%v", w)
+			}
+		}
+	}
+	if sum < 0.999 || sum > 1.001 {
+		t.Fatalf("sum=%v", sum)
+	}
+}
+
+func TestKlinePatternProbeFrequency_FourHour(t *testing.T) {
+	if got := klinePatternProbeFrequency("4h"); got != "240m" {
+		t.Fatalf("4h probe=%q want 240m", got)
+	}
+	if got := klinePatternProbeFrequency("240m"); got != "240m" {
+		t.Fatalf("240m probe=%q want 240m", got)
+	}
+}
+
+func TestNormalizeFrequency_FourHourAndSixtyMinuteSlot(t *testing.T) {
+	if NormalizeFrequency("4hour") != "4h" {
+		t.Fatal("4hour")
+	}
+	if NormalizeFrequency("60m") != "60m" {
+		t.Fatal("60m")
+	}
+	if NormalizeFrequency("1h") != "60m" {
+		t.Fatal("1h -> 60m")
 	}
 }
 
@@ -39,9 +95,9 @@ func TestBuildKlinePatternMTFContext_AlwaysFourTimeframes(t *testing.T) {
 		MTF: &KlinePatternMTFBundle{
 			SignalFreq: "5m",
 			ByFreq: map[string]KlinePatternFreqSeries{
+				"15m":   {Freq: "15m", FetchOK: false},
 				"30m":   {Freq: "30m", FetchOK: false},
 				"60m":   {Freq: "60m", FetchOK: false},
-				"daily": {Freq: "daily", FetchOK: false},
 			},
 		},
 	}
@@ -49,10 +105,12 @@ func TestBuildKlinePatternMTFContext_AlwaysFourTimeframes(t *testing.T) {
 	if ctx == nil {
 		t.Fatal("nil context")
 	}
+	var bias *slots.KlinePatternBias
+	applyMTFWeightedKlineConclusion(ctx, &bias, nil)
 	if len(ctx.Timeframes) != 4 {
 		t.Fatalf("timeframes=%d want 4", len(ctx.Timeframes))
 	}
-	wantFreqs := []string{"5m", "30m", "60m", "daily"}
+	wantFreqs := []string{"5m", "15m", "30m", "60m"}
 	for i, w := range wantFreqs {
 		if ctx.Timeframes[i].Frequency != w {
 			t.Fatalf("i=%d freq=%s want=%s", i, ctx.Timeframes[i].Frequency, w)
@@ -72,7 +130,10 @@ func TestBuildKlinePatternMTFContext_AlwaysFourTimeframes(t *testing.T) {
 	if roles[0] != "prev2" || roles[1] != "prev" || roles[2] != "anchor" {
 		t.Fatalf("three_bar roles=%v", roles)
 	}
+	if ctx.WeightSchema != KlinePatternMTFWeightSchema {
+		t.Fatalf("weight_schema=%q", ctx.WeightSchema)
+	}
 	if ctx.PrimaryBias == nil {
-		t.Fatal("expected primary_bias from signal anchor")
+		t.Fatal("expected primary_bias from weighted conclusion")
 	}
 }

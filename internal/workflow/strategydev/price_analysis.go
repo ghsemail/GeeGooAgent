@@ -473,10 +473,14 @@ func timeframeDisplayLabel(freq string) string {
 	switch NormalizeFrequency(freq) {
 	case "5m":
 		return "5m"
+	case "15m":
+		return "15m"
 	case "30m":
 		return "30m"
 	case "60m":
 		return "60m"
+	case "4h":
+		return "4h"
 	case "daily":
 		return "日线"
 	case "weekly", "1wk":
