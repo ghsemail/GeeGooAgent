@@ -1,4 +1,4 @@
-package strategydev
+package klinepattern
 
 import (
 	"testing"
@@ -82,7 +82,6 @@ func TestNormalizeFrequency_FourHourAndSixtyMinuteSlot(t *testing.T) {
 }
 
 func TestBuildKlinePatternMTFContext_AlwaysFourTimeframes(t *testing.T) {
-	SetKlinePatternDisplayEnabledForTest(t, true)
 	bars := []any{
 		map[string]any{"time": "2024-01-01", "open": 1, "high": 2, "low": 0.5, "close": 1.5},
 		map[string]any{"time": "2024-01-02", "open": 1.5, "high": 2.5, "low": 1, "close": 2},
@@ -101,12 +100,12 @@ func TestBuildKlinePatternMTFContext_AlwaysFourTimeframes(t *testing.T) {
 			},
 		},
 	}
-	ctx := buildKlinePatternMTFContext(1, in)
+	ctx := BuildKlinePatternMTFContext(1, in)
 	if ctx == nil {
 		t.Fatal("nil context")
 	}
 	var bias *slots.KlinePatternBias
-	applyMTFWeightedKlineConclusion(ctx, &bias, nil)
+	ApplyMTFWeightedKlineConclusion(ctx, &bias, nil)
 	if len(ctx.Timeframes) != 4 {
 		t.Fatalf("timeframes=%d want 4", len(ctx.Timeframes))
 	}

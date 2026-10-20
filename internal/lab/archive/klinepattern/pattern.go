@@ -1,4 +1,4 @@
-package strategydev
+package klinepattern
 
 import (
 	"fmt"
@@ -31,7 +31,7 @@ var dojiPatternNames = map[string]struct{}{
 
 // PatternHitsSeriesFromProbe reads pattern_hits aligned with bars from probe/diagnose payload.
 func PatternHitsSeriesFromProbe(data map[string]any) []any {
-	if data == nil || !KlinePatternDisplayEnabled() {
+	if data == nil {
 		return nil
 	}
 	raw, ok := data["pattern_hits"].([]any)
@@ -43,7 +43,7 @@ func PatternHitsSeriesFromProbe(data map[string]any) []any {
 
 // FilteredKlinePatternsAtIndex returns whitelisted patterns for bar idx.
 func FilteredKlinePatternsAtIndex(series []any, idx int) []slots.KlinePatternHit {
-	if !KlinePatternDisplayEnabled() || len(series) == 0 || idx < 0 || idx >= len(series) {
+	if len(series) == 0 || idx < 0 || idx >= len(series) {
 		return nil
 	}
 	rawHits := parseBarPatternHits(series[idx])
@@ -240,18 +240,19 @@ func defaultDirectionForName(name string) int {
 
 // EnrichSignalEpisodeEvalPatterns attaches trigger-bar patterns to episode start indices.
 func EnrichSignalEpisodeEvalPatterns(eval *slots.SignalEpisodeEval, series []any) {
-	if eval == nil || !KlinePatternDisplayEnabled() || len(series) == 0 {
+	if eval == nil || len(series) == 0 {
 		return
 	}
 	for i := range eval.BuyDetails {
-		attachPatternsToEpisode(&eval.BuyDetails[i], series)
+		AttachPatternsToEpisode(&eval.BuyDetails[i], series)
 	}
 	for i := range eval.SellDetails {
-		attachPatternsToEpisode(&eval.SellDetails[i], series)
+		AttachPatternsToEpisode(&eval.SellDetails[i], series)
 	}
 }
 
-func attachPatternsToEpisode(ep *slots.SignalEpisodeDetail, series []any) {
+// AttachPatternsToEpisode fills pattern hits on one episode detail row.
+func AttachPatternsToEpisode(ep *slots.SignalEpisodeDetail, series []any) {
 	if ep == nil {
 		return
 	}
@@ -263,47 +264,4 @@ func attachPatternsToEpisode(ep *slots.SignalEpisodeDetail, series []any) {
 	}
 	ep.KlinePatterns = hits
 	ep.KlinePatternSummary = slots.KlinePatternSummary(hits)
-}
-
-// EnrichEpisodeTriggerRecordPatterns fills kline_patterns on one trigger record.
-func EnrichEpisodeTriggerRecordPatterns(rec *EpisodeTriggerRecord, series []any) {
-	if rec == nil || !KlinePatternDisplayEnabled() {
-		return
-	}
-	hits := FilteredKlinePatternsAtIndex(series, rec.Index)
-	if len(hits) == 0 {
-		rec.KlinePatterns = nil
-		rec.KlinePatternSummary = ""
-		return
-	}
-	rec.KlinePatterns = hits
-	rec.KlinePatternSummary = slots.KlinePatternSummary(hits)
-}
-
-// EnrichEpisodeTriggerFilterStatsPatterns annotates all trigger lists in stats.
-func EnrichEpisodeTriggerFilterStatsPatterns(stats *EpisodeTriggerFilterStats, series []any) {
-	if stats == nil || !KlinePatternDisplayEnabled() || len(series) == 0 {
-		return
-	}
-	enrichTriggerSlice := func(list []EpisodeTriggerRecord) {
-		for i := range list {
-			EnrichEpisodeTriggerRecordPatterns(&list[i], series)
-		}
-	}
-	enrichTriggerSlice(stats.BuyTriggers)
-	enrichTriggerSlice(stats.SellTriggers)
-	enrichTriggerSlice(stats.StrippedBuyTriggers)
-	enrichTriggerSlice(stats.StrippedSellTriggers)
-	enrichTriggerSlice(stats.KeptBuyTriggers)
-	enrichTriggerSlice(stats.KeptSellTriggers)
-}
-
-// AttachKlinePatternsToProbeTriggers enriches trigger records collected from merged signals.
-func AttachKlinePatternsToProbeTriggers(buy, sell []EpisodeTriggerRecord, series []any) {
-	for i := range buy {
-		EnrichEpisodeTriggerRecordPatterns(&buy[i], series)
-	}
-	for i := range sell {
-		EnrichEpisodeTriggerRecordPatterns(&sell[i], series)
-	}
 }

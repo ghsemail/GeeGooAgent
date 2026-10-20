@@ -10,7 +10,7 @@ import (
 var klinePatternDisplayEnabled atomic.Bool
 
 func init() {
-	klinePatternDisplayEnabled.Store(true)
+	klinePatternDisplayEnabled.Store(false)
 	if v := strings.TrimSpace(os.Getenv("GEEGOO_KLINE_PATTERN_DISPLAY")); v != "" {
 		klinePatternDisplayEnabled.Store(envTruthy(v))
 	}

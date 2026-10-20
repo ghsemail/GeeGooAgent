@@ -1,8 +1,6 @@
-package strategydev
+package klinepattern
 
 import (
-	"context"
-
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
@@ -28,51 +26,17 @@ func NewKlinePatternDisplayInput(signalFreq string, bars []any, probeRaw map[str
 	}
 }
 
-// BuildKlinePatternMTFForDiagnose fetches MTF series when runner is available.
-func BuildKlinePatternMTFForDiagnose(
-	ctx context.Context,
-	run ToolRunner,
-	code, signalFreq string,
-	months int,
-	bars []any,
-) *KlinePatternMTFBundle {
-	if !KlinePatternDisplayEnabled() || run == nil || len(bars) == 0 {
-		return nil
-	}
-	return BuildKlinePatternMTFBundle(ctx, run, code, signalFreq, months, bars)
-}
-
-func enrichTriggerKlineDisplay(rec *EpisodeTriggerRecord, in KlinePatternDisplayInput) {
-	if rec == nil || !KlinePatternDisplayEnabled() {
+// EnrichEpisodeDetailKlineDisplay attaches 3-bar window, MTF, and bias to one episode row.
+func EnrichEpisodeDetailKlineDisplay(ep *slots.SignalEpisodeDetail, in KlinePatternDisplayInput) {
+	if ep == nil {
 		return
 	}
-	EnrichEpisodeTriggerRecordPatterns(rec, in.PatternHits)
-	rec.KlinePatternThreeBar = BuildKlinePatternThreeBarWindow(in.Bars, in.PatternHits, rec.Index)
-	rec.KlinePatternMTF = buildKlinePatternMTFContext(rec.Index, in)
-	if rec.KlinePatternMTF != nil {
-		rec.HigherTFContext = rec.KlinePatternMTF
-		applyMTFWeightedKlineConclusion(rec.KlinePatternMTF, &rec.KlinePatternBias, &rec.KlinePatternSummary)
-	}
-	if rec.KlinePatternBias == nil {
-		if rec.KlinePatternThreeBar != nil && rec.KlinePatternThreeBar.Bias != nil {
-			rec.KlinePatternBias = rec.KlinePatternThreeBar.Bias
-		} else if len(rec.KlinePatterns) > 0 {
-			b := slots.ScoreKlinePatternHits(rec.KlinePatterns)
-			rec.KlinePatternBias = &b
-		}
-	}
-}
-
-func enrichEpisodeKlineDisplay(ep *slots.SignalEpisodeDetail, in KlinePatternDisplayInput) {
-	if ep == nil || !KlinePatternDisplayEnabled() {
-		return
-	}
-	attachPatternsToEpisode(ep, in.PatternHits)
+	AttachPatternsToEpisode(ep, in.PatternHits)
 	ep.KlinePatternThreeBar = BuildKlinePatternThreeBarWindow(in.Bars, in.PatternHits, ep.StartIdx)
-	ep.KlinePatternMTF = buildKlinePatternMTFContext(ep.StartIdx, in)
+	ep.KlinePatternMTF = BuildKlinePatternMTFContext(ep.StartIdx, in)
 	if ep.KlinePatternMTF != nil {
 		ep.HigherTFContext = ep.KlinePatternMTF
-		applyMTFWeightedKlineConclusion(ep.KlinePatternMTF, &ep.KlinePatternBias, &ep.KlinePatternSummary)
+		ApplyMTFWeightedKlineConclusion(ep.KlinePatternMTF, &ep.KlinePatternBias, &ep.KlinePatternSummary)
 	}
 	if ep.KlinePatternBias == nil {
 		if ep.KlinePatternThreeBar != nil && ep.KlinePatternThreeBar.Bias != nil {
@@ -84,7 +48,8 @@ func enrichEpisodeKlineDisplay(ep *slots.SignalEpisodeDetail, in KlinePatternDis
 	}
 }
 
-func applyMTFWeightedKlineConclusion(mtf *slots.KlinePatternMTFContext, bias **slots.KlinePatternBias, summary *string) {
+// ApplyMTFWeightedKlineConclusion sets primary_bias and optional trigger-level bias/summary.
+func ApplyMTFWeightedKlineConclusion(mtf *slots.KlinePatternMTFContext, bias **slots.KlinePatternBias, summary *string) {
 	if mtf == nil || len(mtf.Timeframes) == 0 {
 		return
 	}
@@ -102,7 +67,8 @@ func applyMTFWeightedKlineConclusion(mtf *slots.KlinePatternMTFContext, bias **s
 	}
 }
 
-func buildKlinePatternMTFContext(anchorIdx int, in KlinePatternDisplayInput) *slots.KlinePatternMTFContext {
+// BuildKlinePatternMTFContext assembles MTF JSON for one anchor index.
+func BuildKlinePatternMTFContext(anchorIdx int, in KlinePatternDisplayInput) *slots.KlinePatternMTFContext {
 	if in.MTF == nil || len(in.MTF.ByFreq) == 0 {
 		return nil
 	}
@@ -171,41 +137,13 @@ func buildKlinePatternMTFContext(anchorIdx int, in KlinePatternDisplayInput) *sl
 
 // EnrichSignalEpisodeEvalKlineDisplay attaches 3-bar window, MTF, and bias to episodes.
 func EnrichSignalEpisodeEvalKlineDisplay(eval *slots.SignalEpisodeEval, in KlinePatternDisplayInput) {
-	if eval == nil || !KlinePatternDisplayEnabled() {
+	if eval == nil {
 		return
 	}
 	for i := range eval.BuyDetails {
-		enrichEpisodeKlineDisplay(&eval.BuyDetails[i], in)
+		EnrichEpisodeDetailKlineDisplay(&eval.BuyDetails[i], in)
 	}
 	for i := range eval.SellDetails {
-		enrichEpisodeKlineDisplay(&eval.SellDetails[i], in)
-	}
-}
-
-// EnrichEpisodeTriggerFilterStatsKlineDisplay enriches all trigger lists.
-func EnrichEpisodeTriggerFilterStatsKlineDisplay(stats *EpisodeTriggerFilterStats, in KlinePatternDisplayInput) {
-	if stats == nil || !KlinePatternDisplayEnabled() {
-		return
-	}
-	apply := func(list *[]EpisodeTriggerRecord) {
-		for i := range *list {
-			enrichTriggerKlineDisplay(&(*list)[i], in)
-		}
-	}
-	apply(&stats.BuyTriggers)
-	apply(&stats.SellTriggers)
-	apply(&stats.StrippedBuyTriggers)
-	apply(&stats.StrippedSellTriggers)
-	apply(&stats.KeptBuyTriggers)
-	apply(&stats.KeptSellTriggers)
-}
-
-// AttachKlineDisplayToProbeTriggers enriches triggers with full display context.
-func AttachKlineDisplayToProbeTriggers(buy, sell []EpisodeTriggerRecord, in KlinePatternDisplayInput) {
-	for i := range buy {
-		enrichTriggerKlineDisplay(&buy[i], in)
-	}
-	for i := range sell {
-		enrichTriggerKlineDisplay(&sell[i], in)
+		EnrichEpisodeDetailKlineDisplay(&eval.SellDetails[i], in)
 	}
 }

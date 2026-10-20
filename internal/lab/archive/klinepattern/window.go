@@ -1,4 +1,4 @@
-package strategydev
+package klinepattern
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 
 // BuildKlinePatternThreeBarWindow builds prev2/prev/anchor OHLC + patterns around anchorIdx (trigger bar).
 func BuildKlinePatternThreeBarWindow(bars []any, patternHits []any, anchorIdx int) *slots.KlinePatternThreeBarWindow {
-	if !KlinePatternDisplayEnabled() || anchorIdx < 0 || anchorIdx >= len(bars) {
+	if anchorIdx < 0 || anchorIdx >= len(bars) {
 		return nil
 	}
 	win := &slots.KlinePatternThreeBarWindow{AnchorIndex: anchorIdx}

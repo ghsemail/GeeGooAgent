@@ -1,4 +1,4 @@
-package strategydev
+package klinepattern
 
 import (
 	"fmt"

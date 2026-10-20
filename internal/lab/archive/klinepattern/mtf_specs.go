@@ -1,4 +1,4 @@
-package strategydev
+package klinepattern
 
 // KlinePatternMTFWeightSchema documents the locked MTF weight table (§5.4).
 const KlinePatternMTFWeightSchema = "mtf_v1_0.4_0.3_0.2_0.1"
