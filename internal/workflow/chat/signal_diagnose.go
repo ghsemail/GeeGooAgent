@@ -415,23 +415,25 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 		} else {
 			flow.SignalEval = slots.EvaluateSignalEpisodesWithOptions(bars, buyMerged, sellMerged, signalDiagnoseEpisodeEvalOpts(flow))
 		}
-		var mtf *strategydev.KlinePatternMTFBundle
-		if r != nil && r.RunTool != nil {
-			run := func(c context.Context, name string, args map[string]any) tools.Result {
-				return r.runTool(c, toolCtx, name, args, recordTool)
+		if strategydev.KlinePatternDisplayEnabled() && len(bars) > 0 {
+			var mtf *strategydev.KlinePatternMTFBundle
+			if r != nil && r.RunTool != nil {
+				run := func(c context.Context, name string, args map[string]any) tools.Result {
+					return r.runTool(c, toolCtx, name, args, recordTool)
+				}
+				mtf = strategydev.BuildKlinePatternMTFForDiagnose(ctx, run, flow.StockCode, freq, months, bars)
 			}
-			mtf = strategydev.BuildKlinePatternMTFForDiagnose(ctx, run, flow.StockCode, freq, months, bars)
-		}
-		patIn := strategydev.NewKlinePatternDisplayInput(freq, bars, flow.ProbeRaw, mtf)
-		strategydev.EnrichSignalEpisodeEvalKlineDisplay(&flow.SignalEval, patIn)
-		if flow.PriceEpisodeFilterStats != nil {
-			strategydev.EnrichEpisodeTriggerFilterStatsKlineDisplay(flow.PriceEpisodeFilterStats, patIn)
-		} else if strategydev.KlinePatternDisplayEnabled() && len(bars) > 0 {
-			buyTr, sellTr := strategydev.CollectEpisodeTriggersFromMerged(bars, buyMerged, sellMerged)
-			strategydev.AttachKlineDisplayToProbeTriggers(buyTr, sellTr, patIn)
-			flow.PriceEpisodeFilterStats = &strategydev.EpisodeTriggerFilterStats{
-				BuyTriggers:  buyTr,
-				SellTriggers: sellTr,
+			patIn := strategydev.NewKlinePatternDisplayInput(freq, bars, flow.ProbeRaw, mtf)
+			strategydev.EnrichSignalEpisodeEvalKlineDisplay(&flow.SignalEval, patIn)
+			if flow.PriceEpisodeFilterStats != nil {
+				strategydev.EnrichEpisodeTriggerFilterStatsKlineDisplay(flow.PriceEpisodeFilterStats, patIn)
+			} else {
+				buyTr, sellTr := strategydev.CollectEpisodeTriggersFromMerged(bars, buyMerged, sellMerged)
+				strategydev.AttachKlineDisplayToProbeTriggers(buyTr, sellTr, patIn)
+				flow.PriceEpisodeFilterStats = &strategydev.EpisodeTriggerFilterStats{
+					BuyTriggers:  buyTr,
+					SellTriggers: sellTr,
+				}
 			}
 		}
 	}

@@ -19,6 +19,7 @@ import (
 )
 
 func main() {
+	strategydev.ConfigureKlinePatternDisplayEnabled(true)
 	key := strings.TrimSpace(os.Getenv("SIGNAL_API_KEY"))
 	if key == "" {
 		fmt.Fprintln(os.Stderr, "SIGNAL_API_KEY required")

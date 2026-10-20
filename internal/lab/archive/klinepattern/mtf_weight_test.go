@@ -1,4 +1,4 @@
-package strategydev
+package klinepattern
 
 import (
 	"testing"
@@ -103,47 +103,3 @@ func TestComputeKlinePatternMTFWeightedConclusion_NoHits(t *testing.T) {
 	}
 }
 
-func TestBuildKlinePatternMTFContext_WeightedTopLevelWhenMTFOnlyHits(t *testing.T) {
-	SetKlinePatternDisplayEnabledForTest(t, true)
-	bars := []any{
-		map[string]any{"time": "2024-01-01", "open": 1, "high": 2, "low": 0.5, "close": 1.5},
-		map[string]any{"time": "2024-01-02", "open": 1.5, "high": 2.5, "low": 1, "close": 2},
-	}
-	// No hits on signal anchor (idx 1)
-	hits := []any{nil, nil}
-	higherBars := []any{
-		map[string]any{"time": "2024-01-01", "close": 1},
-		map[string]any{"time": "2024-01-02", "close": 2},
-	}
-	higherHits := []any{
-		nil,
-		[]any{map[string]any{"name": "Engulfing", "direction": -1}},
-	}
-	in := KlinePatternDisplayInput{
-		SignalFreq:  "5m",
-		Bars:        bars,
-		PatternHits: hits,
-		MTF: &KlinePatternMTFBundle{
-			SignalFreq: "5m",
-			ByFreq: map[string]KlinePatternFreqSeries{
-				"15m": {Freq: "15m", Bars: higherBars, PatternHits: higherHits, FetchOK: true},
-				"30m": {Freq: "30m", FetchOK: false},
-				"60m": {Freq: "60m", FetchOK: false},
-			},
-		},
-	}
-	rec := &EpisodeTriggerRecord{Index: 1}
-	enrichTriggerKlineDisplay(rec, in)
-	if len(rec.KlinePatterns) != 0 {
-		t.Fatalf("expected empty top-level patterns, got %+v", rec.KlinePatterns)
-	}
-	if rec.KlinePatternSummary == "" {
-		t.Fatal("expected weighted summary when MTF has hits")
-	}
-	if rec.KlinePatternBias == nil || rec.KlinePatternBias.Score >= 0 {
-		t.Fatalf("expected bearish weighted bias, got %+v", rec.KlinePatternBias)
-	}
-	if rec.KlinePatternMTF == nil || rec.KlinePatternMTF.WeightSchema != KlinePatternMTFWeightSchema {
-		t.Fatalf("mtf=%+v", rec.KlinePatternMTF)
-	}
-}

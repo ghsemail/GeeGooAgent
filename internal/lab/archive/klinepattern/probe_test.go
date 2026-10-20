@@ -1,14 +1,15 @@
-package strategydev
+package klinepattern
 
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
 type stubKlineProbeRunner struct {
-	calls []string
+	calls  []string
 	fail4h bool
 }
 
@@ -29,8 +30,26 @@ func (s *stubKlineProbeRunner) Run(ctx context.Context, name string, args map[st
 	}
 }
 
+func testProbeHost(t *testing.T) {
+	t.Helper()
+	SetHost(Host{
+		ProbeArgsExtended: func(code, freq string, months int, asOf *time.Time) map[string]any {
+			args := map[string]any{
+				"code": code, "frequency": freq, "months_back": months,
+			}
+			if asOf != nil {
+				args["as_of"] = asOf.Format(time.RFC3339)
+			}
+			return args
+		},
+		MonthsBackForPerSignalFetch: func(chartMonths int, chartBars []any, freq string, windowEnd time.Time) int {
+			return CapMonthsBack(chartMonths)
+		},
+	})
+}
+
 func TestBuildKlinePatternMTFBundle_FourHourProbeAndFailure(t *testing.T) {
-	SetKlinePatternDisplayEnabledForTest(t, true)
+	testProbeHost(t)
 	runOK := &stubKlineProbeRunner{}
 	bundle := BuildKlinePatternMTFBundle(context.Background(), runOK.Run, "00700.HK", "60m", 3, nil)
 	if bundle == nil {

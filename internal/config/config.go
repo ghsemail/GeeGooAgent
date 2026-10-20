@@ -246,7 +246,7 @@ type AppConfig struct {
 	Advisor          AdvisorConfig     `json:"advisor,omitempty"`
 	// PriceAnalysisEnabledField master switch for multi-TF price analysis in workflows (default off).
 	PriceAnalysisEnabledField *bool `json:"price_analysis_enabled,omitempty"`
-	// KlinePatternDisplayField shows TA pattern hits on trigger bars (default on when unset).
+	// KlinePatternDisplayField shows TA pattern hits on trigger bars (default off when unset).
 	KlinePatternDisplayField *bool `json:"kline_pattern_display,omitempty"`
 	// LabEnabledField exposes /v1/lab/* experiment routes (default off).
 	LabEnabledField *bool  `json:"lab_enabled,omitempty"`

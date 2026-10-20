@@ -1,14 +1,12 @@
-package strategydev
+package klinepattern
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
 func TestFilteredKlinePatternsAtIndex_GeeGooPatternField(t *testing.T) {
-	SetKlinePatternDisplayEnabledForTest(t, true)
 	series := []any{
 		[]any{map[string]any{"name": "Engulfing", "name_chs": "吞没模式", "pattern": -1}},
 		[]any{map[string]any{"name": "Evening Star", "pattern": 1}},
@@ -31,7 +29,6 @@ func TestFilteredKlinePatternsAtIndex_GeeGooPatternField(t *testing.T) {
 }
 
 func TestFilteredKlinePatternsAtIndex_WhitelistAndDirection(t *testing.T) {
-	SetKlinePatternDisplayEnabledForTest(t, true)
 	series := []any{
 		[]any{map[string]any{"name": "Hammer", "direction": 1}},
 		[]any{
@@ -64,7 +61,6 @@ func TestKlinePatternSummary_MixedDirections(t *testing.T) {
 }
 
 func TestEnrichSignalEpisodeEvalPatterns_AttachesAtStartIdx(t *testing.T) {
-	SetKlinePatternDisplayEnabledForTest(t, true)
 	bars := []any{
 		map[string]any{"time": "2024-01-01", "close": 1},
 		map[string]any{"time": "2024-01-02", "close": 2},
@@ -95,32 +91,7 @@ func TestEnrichSignalEpisodeEvalPatterns_AttachesAtStartIdx(t *testing.T) {
 	}
 }
 
-func TestKlinePatternDisplayDisabled_OmitsFields(t *testing.T) {
-	SetKlinePatternDisplayEnabledForTest(t, false)
-	series := []any{[]any{map[string]any{"name": "Hammer", "direction": 1}}}
-	if FilteredKlinePatternsAtIndex(series, 0) != nil {
-		t.Fatal("expected nil when disabled")
-	}
-	rec := &EpisodeTriggerRecord{Index: 0}
-	EnrichEpisodeTriggerRecordPatterns(rec, series)
-	if len(rec.KlinePatterns) != 0 || rec.KlinePatternSummary != "" {
-		t.Fatalf("rec=%+v", rec)
-	}
-	raw, err := json.Marshal(rec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(raw) != "{}" && string(raw) != "{\"index\":0}" {
-		var m map[string]any
-		_ = json.Unmarshal(raw, &m)
-		if _, ok := m["kline_patterns"]; ok {
-			t.Fatalf("unexpected kline_patterns in %s", string(raw))
-		}
-	}
-}
-
 func TestEvaluateSignalEpisodes_UnchangedByPatternEnrichment(t *testing.T) {
-	SetKlinePatternDisplayEnabledForTest(t, true)
 	bars := []any{
 		map[string]any{"time": "2024-01-01", "open": 1, "high": 2, "low": 0.5, "close": 1.5},
 		map[string]any{"time": "2024-01-02", "open": 1.5, "high": 2.5, "low": 1, "close": 2},
@@ -144,22 +115,3 @@ func TestEvaluateSignalEpisodes_UnchangedByPatternEnrichment(t *testing.T) {
 	}
 }
 
-func TestClampProbeSeriesToMonthsBack_SlicesPatternHits(t *testing.T) {
-	data := map[string]any{
-		"bars": []any{
-			map[string]any{"time": "2023-10-01", "close": 1},
-			map[string]any{"time": "2024-01-01", "close": 2},
-			map[string]any{"time": "2024-02-01", "close": 3},
-		},
-		"buy_merged":    []any{0, 1, 0},
-		"sell_merged":   []any{0, 0, 0},
-		"pattern_hits":  []any{"a", "b", "c"},
-		"as_of":         "2024-02-01",
-	}
-	ClampProbeSeriesToMonthsBack(data, 3)
-	hits, _ := data["pattern_hits"].([]any)
-	bars, _ := data["bars"].([]any)
-	if len(hits) != len(bars) {
-		t.Fatalf("pattern_hits=%d bars=%d", len(hits), len(bars))
-	}
-}

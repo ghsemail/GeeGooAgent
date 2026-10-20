@@ -1,4 +1,4 @@
-package strategydev
+package klinepattern
 
 import (
 	"testing"
@@ -7,7 +7,6 @@ import (
 )
 
 func TestBuildKlinePatternThreeBarWindow_Boundaries(t *testing.T) {
-	SetKlinePatternDisplayEnabledForTest(t, true)
 	bars := []any{
 		map[string]any{"time": "2024-01-01", "open": 1, "high": 2, "low": 0.5, "close": 1.5},
 		map[string]any{"time": "2024-01-02", "open": 1.5, "high": 2.5, "low": 1, "close": 2},
@@ -42,7 +41,6 @@ func TestBuildKlinePatternThreeBarWindow_Boundaries(t *testing.T) {
 }
 
 func TestBuildKlinePatternThreeBarWindow_Scoring(t *testing.T) {
-	SetKlinePatternDisplayEnabledForTest(t, true)
 	bars := []any{
 		map[string]any{"time": "2024-01-01", "close": 1},
 		map[string]any{"time": "2024-01-02", "close": 2},

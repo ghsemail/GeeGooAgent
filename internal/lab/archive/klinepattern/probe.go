@@ -1,4 +1,4 @@
-package strategydev
+package klinepattern
 
 import (
 	"context"
@@ -29,12 +29,10 @@ func fetchKlinePatternProbeSeries(
 	months int,
 	asOf *time.Time,
 ) (bars, patternHits []any, ok bool) {
-	if !KlinePatternDisplayEnabled() || run == nil {
+	if run == nil || host.ProbeArgsExtended == nil {
 		return nil, nil, false
 	}
-	res := run(ctx, "probe_bot_signal_series", PriceAnalysisProbeArgsFrom(PriceAnalysisProbeParams{
-		Code: code, Freq: freq, Months: months, AsOf: asOf, ExtendedFetch: true,
-	}))
+	res := run(ctx, "probe_bot_signal_series", host.ProbeArgsExtended(code, freq, months, asOf))
 	if res.Status != tools.StatusOK {
 		return nil, nil, false
 	}
@@ -53,7 +51,7 @@ func BuildKlinePatternMTFBundle(
 	months int,
 	chartBars []any,
 ) *KlinePatternMTFBundle {
-	if !KlinePatternDisplayEnabled() || run == nil {
+	if run == nil {
 		return nil
 	}
 	signalFreq = NormalizeFrequency(signalFreq)
@@ -74,8 +72,8 @@ func BuildKlinePatternMTFBundle(
 	chartMonths := CapMonthsBack(months)
 	for _, spec := range multiTimeframeSpecsForKlinePatternDisplay(signalFreq) {
 		m := chartMonths
-		if len(chartBars) > 0 {
-			m = monthsBackForPerSignalPriceFetch(chartMonths, chartBars, spec.Freq, windowEnd)
+		if len(chartBars) > 0 && host.MonthsBackForPerSignalFetch != nil {
+			m = host.MonthsBackForPerSignalFetch(chartMonths, chartBars, spec.Freq, windowEnd)
 		}
 		probeFreq := klinePatternProbeFrequency(spec.Freq)
 		bars, hits, ok := fetchKlinePatternProbeSeries(ctx, run, code, probeFreq, m, asOf)
