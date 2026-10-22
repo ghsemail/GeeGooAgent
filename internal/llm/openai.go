@@ -67,12 +67,7 @@ func (p *OpenAIProvider) Chat(ctx context.Context, messages []Message, tools []T
 	if len(tools) > 0 {
 		body["tools"] = toOpenAITools(tools)
 	}
-	if p.thinkingEnabled && !CallMetaFrom(ctx).ThinkingOff {
-		body["thinking"] = map[string]any{"type": "enabled"}
-		if effort := strings.TrimSpace(p.reasoningEffort); effort != "" {
-			body["reasoning_effort"] = effort
-		}
-	}
+	applyThinkingRequestParams(body, p.model, ctx, p.thinkingEnabled, p.reasoningEffort)
 	raw, err := json.Marshal(body)
 	if err != nil {
 		return nil, err

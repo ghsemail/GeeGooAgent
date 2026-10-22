@@ -18,16 +18,7 @@ func (a *App) SignalDiagnoseComposeProvider() llm.Provider {
 	if a == nil {
 		return nil
 	}
-	if p := a.signalDiagnoseComposeFromEnv(); p != nil {
-		return p
-	}
-	if a.Agent != nil && a.Agent.Gateway != nil {
-		return llm.ClassifyProviderFromGateway(a.Agent.Gateway)
-	}
-	if a.Gateway != nil {
-		return llm.ClassifyProviderFromGateway(a.Gateway)
-	}
-	return a.classifyOpsFallbackProvider()
+	return a.cachedSignalDiagnoseComposeProvider()
 }
 
 func (a *App) signalDiagnoseComposeFromEnv() llm.Provider {
