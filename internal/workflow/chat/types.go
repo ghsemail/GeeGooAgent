@@ -106,8 +106,10 @@ type Flow struct {
 	DiagnoseVerdict     string         `json:"diagnose_verdict,omitempty"`
 	DiagnoseSummary     string         `json:"diagnose_summary,omitempty"`
 	DiagnoseRaw         map[string]any `json:"diagnose_raw,omitempty"`
-	// DiagnoseMergedAtProbe true when run_probe used diagnose_bot_signal_series (skip duplicate fetch in build_detail).
+	// DiagnoseMergedAtProbe true when run_probe stored diagnose_bot_signal_series payload (skip build_detail fetch).
 	DiagnoseMergedAtProbe bool `json:"diagnose_merged_at_probe,omitempty"`
+	BuildDetailSkipped    bool   `json:"build_detail_skipped,omitempty"`
+	BuildDetailSkipReason string `json:"build_detail_skip_reason,omitempty"`
 	CardStage             string `json:"card_stage,omitempty"`
 	ProbeRaw            map[string]any `json:"probe_raw,omitempty"`
 	SignalEval          slots.SignalEpisodeEval `json:"signal_eval,omitempty"`
