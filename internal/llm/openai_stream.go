@@ -61,7 +61,7 @@ func (p *OpenAIProvider) ChatStream(
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return nil, &HTTPError{StatusCode: resp.StatusCode, Body: string(respBody)}
 	}
-	return parseOpenAIStream(resp.Body, p.model, onDelta)
+	return parseOpenAIStream(ctx, resp.Body, p.model, onDelta)
 }
 
 type streamToolAcc struct {
@@ -107,7 +107,10 @@ func isCompleteJSONObject(s string) bool {
 	return json.Unmarshal([]byte(s), &v) == nil
 }
 
-func parseOpenAIStream(r io.Reader, model string, onDelta StreamHandler) (*Response, error) {
+func parseOpenAIStream(ctx context.Context, r io.Reader, model string, onDelta StreamHandler) (*Response, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	scanner := bufio.NewScanner(r)
 	// Tool argument fragments can be large; raise the token limit.
 	buf := make([]byte, 0, 64*1024)
@@ -123,6 +126,9 @@ func parseOpenAIStream(r io.Reader, model string, onDelta StreamHandler) (*Respo
 	usage.Model = model
 
 	for scanner.Scan() {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, ":") {
 			continue

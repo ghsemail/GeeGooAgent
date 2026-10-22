@@ -240,10 +240,12 @@ func (r *Runner) phaseSignalDiagnoseReadStrategy(
 		flow.touch()
 		return nil
 	}
+	catalogStart := time.Now()
 	match, err := matchIndex(ctx, flow.StrategyQuery, toolCtx, runTool)
 	if err != nil {
 		match, err = resolveStrategyCatalog(ctx, flow.StrategyQuery, toolCtx, runTool)
 	}
+	recordPhaseTiming(flow, "read_strategy:catalog_match", time.Since(catalogStart))
 	if err != nil {
 		return err
 	}

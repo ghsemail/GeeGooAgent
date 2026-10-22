@@ -36,6 +36,10 @@ func signalResolveCacheKey(flow *Flow) string {
 		"frequency":      flow.ProbeFrequencyOverride,
 		"months_back":    flow.MonthsBack,
 	}
+	if len(flow.CatalogRaw) > 0 {
+		payload["catalog_signal_id"] = catalogField(flow.CatalogRaw, "signal_id", "id")
+		payload["catalog_name"] = catalogField(flow.CatalogRaw, "name")
+	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return ""
@@ -92,13 +96,27 @@ func loadSignalDiagnoseResolveCacheFromChat(chat *chatsession.ChatSession, rt *r
 	if !ok || raw == nil {
 		return
 	}
+	out := map[string]json.RawMessage{}
 	switch v := raw.(type) {
 	case map[string]json.RawMessage:
-		rt.SignalDiagnoseResolveCache = map[string]json.RawMessage{}
 		for k, val := range v {
-			rt.SignalDiagnoseResolveCache[k] = val
+			out[k] = val
 		}
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return
+		}
+		var generic map[string]json.RawMessage
+		if err := json.Unmarshal(b, &generic); err != nil {
+			return
+		}
+		out = generic
 	}
+	if len(out) == 0 {
+		return
+	}
+	rt.SignalDiagnoseResolveCache = out
 }
 
 func storeSignalResolveToSession(session *runtime.Session, key string, sig slots.ResolvedSignal, source string) {
@@ -117,6 +135,11 @@ func storeSignalResolveToSession(session *runtime.Session, key string, sig slots
 		return
 	}
 	session.SignalDiagnoseResolveCache[key] = raw
+}
+
+func persistResolvedSignalCache(session *runtime.Session, key string, sig slots.ResolvedSignal, source string) {
+	storeSignalResolveGlobal(key, sig, source)
+	storeSignalResolveToSession(session, key, sig, source)
 }
 
 func applySignalResolveCacheEntry(flow *Flow, ent signalResolveCacheEntry) {

@@ -85,7 +85,13 @@ func signalDiagnoseKnowledgeTitle(strategy, stock string) string {
 	}
 }
 
+const signalDiagnoseComposeTimeout = 12 * time.Second
+
 func (r *Runner) synthesizeSignalDiagnoseJudgment(ctx context.Context, flow *Flow) (string, error) {
+	if flow != nil {
+		flow.ComposeTimeoutMs = signalDiagnoseComposeTimeout.Milliseconds()
+		flow.ComposeFallback = false
+	}
 	label := strategyDisplayLabel(flow)
 	freq := "-"
 	if len(flow.Strategies) > 0 && flow.Strategies[0].Frequency != "" {
@@ -110,12 +116,21 @@ Episode：%s`,
 			{Role: llm.RoleSystem, Content: signalDiagnoseJudgmentSystemPrompt()},
 			{Role: llm.RoleUser, Content: user},
 		}
-		composeCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
+		composeCtx, cancel := context.WithTimeout(ctx, signalDiagnoseComposeTimeout)
 		defer cancel()
 		composeCtx = llm.WithCallMeta(composeCtx, llm.CallMeta{Kind: llm.TaskClassify})
+		useFallback := func() (string, error) {
+			if flow != nil {
+				flow.ComposeFallback = true
+			}
+			return fallbackSignalDiagnoseJudgment(flow), nil
+		}
 		if streamer, ok := r.ComposeLLM.(llm.Streamer); ok {
 			var b strings.Builder
 			resp, err := streamer.ChatStream(composeCtx, msgs, nil, 0, 256, func(delta llm.StreamDelta) {
+				if composeCtx.Err() != nil {
+					return
+				}
 				chunk := llm.VisibleAssistantContent(delta.Content, delta.ReasoningContent)
 				if chunk == "" {
 					return
@@ -131,7 +146,7 @@ Episode：%s`,
 				}
 			})
 			if err != nil || composeCtx.Err() != nil {
-				return fallbackSignalDiagnoseJudgment(flow), nil
+				return useFallback()
 			}
 			if text := strings.TrimSpace(b.String()); text != "" {
 				return text, nil
@@ -141,16 +156,19 @@ Episode：%s`,
 					return text, nil
 				}
 			}
-			return fallbackSignalDiagnoseJudgment(flow), nil
+			return useFallback()
 		}
 		resp, err := r.ComposeLLM.Chat(composeCtx, msgs, nil, 0, 256)
 		if err != nil || composeCtx.Err() != nil {
-			return fallbackSignalDiagnoseJudgment(flow), nil
+			return useFallback()
 		}
 		if text := strings.TrimSpace(llm.VisibleAssistantContent(resp.Content, resp.ReasoningContent)); text != "" {
 			return text, nil
 		}
-		return fallbackSignalDiagnoseJudgment(flow), nil
+		return useFallback()
+	}
+	if flow != nil {
+		flow.ComposeFallback = true
 	}
 	return fallbackSignalDiagnoseJudgment(flow), nil
 }

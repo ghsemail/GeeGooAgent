@@ -13,6 +13,12 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
+const (
+	resolveCacheScopeMiss    int64 = 0
+	resolveCacheScopeSession int64 = 1
+	resolveCacheScopeGlobal  int64 = 2
+)
+
 // ensureDiagnoseSignalResolved resolves catalog/panel signal once per flow (read_strategy).
 func (r *Runner) ensureDiagnoseSignalResolved(
 	ctx context.Context,
@@ -26,22 +32,33 @@ func (r *Runner) ensureDiagnoseSignalResolved(
 		return nil
 	}
 	cacheKey := signalResolveCacheKey(flow)
+	flow.SignalResolveCacheKey = cacheKey
 	if ent, ok := loadSignalResolveFromSession(session, cacheKey); ok {
 		applySignalResolveCacheEntry(flow, ent)
-		if phaseTimingKey != "" {
-			recordPhaseTiming(flow, phaseTimingKey, 0)
-			recordPhaseGauge(flow, phaseTimingKey+":cache_hit", 1)
-		}
+		recordResolveCacheMetrics(flow, phaseTimingKey, resolveCacheScopeSession)
+		return nil
+	}
+	if ent, ok := loadSignalResolveGlobal(cacheKey); ok {
+		applySignalResolveCacheEntry(flow, ent)
+		persistResolvedSignalCache(session, cacheKey, slots.ResolvedSignal{
+			Buy: ent.Buy, Sell: ent.Sell, Frequency: ent.Frequency, StrategyLabel: ent.StrategyLabel,
+		}, ent.Source)
+		recordResolveCacheMetrics(flow, phaseTimingKey, resolveCacheScopeGlobal)
 		return nil
 	}
 	start := time.Now()
-	sig, src, err := r.resolveDiagnoseSignalUncached(ctx, flow, toolCtx, recordTool)
+	sig, src, resolvePath, err := r.resolveDiagnoseSignalUncached(ctx, flow, toolCtx, recordTool)
 	if err != nil {
 		return err
 	}
+	elapsed := time.Since(start)
 	if phaseTimingKey != "" {
-		recordPhaseTiming(flow, phaseTimingKey, time.Since(start))
+		recordPhaseTiming(flow, phaseTimingKey, elapsed)
 		recordPhaseGauge(flow, phaseTimingKey+":cache_hit", 0)
+		recordPhaseGauge(flow, phaseTimingKey+":cache_scope", resolveCacheScopeMiss)
+		if resolvePath != "" {
+			recordPhaseTiming(flow, phaseTimingKey+":"+resolvePath, elapsed)
+		}
 	}
 	flow.DiagnoseSignalCached = true
 	flow.DiagnoseSignalSource = src
@@ -50,8 +67,17 @@ func (r *Runner) ensureDiagnoseSignalResolved(
 	flow.ResolvedSignalFrequency = sig.Frequency
 	flow.ResolvedStrategyLabel = sig.StrategyLabel
 	flow.ProbeSignalFingerprint = fingerprintProbeSignalPlan(flow)
-	storeSignalResolveToSession(session, cacheKey, sig, src)
+	persistResolvedSignalCache(session, cacheKey, sig, src)
 	return nil
+}
+
+func recordResolveCacheMetrics(flow *Flow, phaseTimingKey string, scope int64) {
+	if phaseTimingKey == "" {
+		return
+	}
+	recordPhaseGauge(flow, phaseTimingKey+":cache_hit", 1)
+	recordPhaseGauge(flow, phaseTimingKey+":cache_scope", scope)
+	recordPhaseTiming(flow, phaseTimingKey+":cached", time.Millisecond)
 }
 
 func (r *Runner) diagnoseSignalFromFlow(
@@ -68,7 +94,7 @@ func (r *Runner) diagnoseSignalFromFlow(
 			StrategyLabel: flow.ResolvedStrategyLabel,
 		}, nil
 	}
-	sig, _, err := r.resolveDiagnoseSignalUncached(ctx, flow, toolCtx, recordTool)
+	sig, _, _, err := r.resolveDiagnoseSignalUncached(ctx, flow, toolCtx, recordTool)
 	return sig, err
 }
 
@@ -77,14 +103,14 @@ func (r *Runner) resolveDiagnoseSignalUncached(
 	flow *Flow,
 	toolCtx tools.Context,
 	recordTool func(name, status, summary string),
-) (slots.ResolvedSignal, string, error) {
+) (slots.ResolvedSignal, string, string, error) {
 	if flowHasProbePanelOverrides(flow) {
-		return resolvedSignalFromProbeOverrides(flow), "panel", nil
+		return resolvedSignalFromProbeOverrides(flow), "panel", "resolve_panel", nil
 	}
 	if len(flow.CatalogRaw) > 0 {
 		sig, err := slots.ResolvedSignalFromCatalog(flow.CatalogType, flow.CatalogRaw)
 		if err == nil && len(sig.Buy) > 0 {
-			return sig, "catalog_raw", nil
+			return sig, "catalog_raw", "resolve_catalog_raw", nil
 		}
 	}
 	kind := "combination"
@@ -96,11 +122,12 @@ func (r *Runner) resolveDiagnoseSignalUncached(
 		SignalQuery: coalesceStrings(flow.CatalogLabel, flow.StrategyQuery),
 		SignalKind:  kind,
 	}
-	sig, err := slots.ResolveSignal(ctx, toolCtx, r.runToolCall(recordTool), plan)
+	runTool := cachedCatalogToolRunner(r.runToolCall(recordTool))
+	sig, err := slots.ResolveSignal(ctx, toolCtx, runTool, plan)
 	if err != nil {
-		return slots.ResolvedSignal{}, "", err
+		return slots.ResolvedSignal{}, "", "resolve_mcp", err
 	}
-	return sig, "catalog", nil
+	return sig, "catalog", "resolve_mcp", nil
 }
 
 func fingerprintProbeSignalPlan(flow *Flow) string {
@@ -120,6 +147,9 @@ func fingerprintProbeSignalPlan(flow *Flow) string {
 		"strategy_query": flow.StrategyQuery,
 		"months_back":    flow.MonthsBack,
 	}
+	if len(flow.CatalogRaw) > 0 {
+		payload["catalog_signal_id"] = catalogField(flow.CatalogRaw, "signal_id", "id")
+	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return ""
@@ -136,6 +166,29 @@ func probeSignalPlanForCard(flow *Flow) map[string]any {
 		"fingerprint": flow.ProbeSignalFingerprint,
 		"source":      flow.DiagnoseSignalSource,
 		"frequency":   coalesceStrings(flow.ProbeFrequencyOverride, flow.ResolvedSignalFrequency),
+	}
+	if k := strings.TrimSpace(flow.SignalResolveCacheKey); k != "" {
+		out["resolve_cache_key"] = k
+	}
+	if len(flow.CatalogRaw) > 0 {
+		if id := catalogField(flow.CatalogRaw, "signal_id", "id"); id != "" {
+			out["catalog_signal_id"] = id
+		}
+		if name := catalogField(flow.CatalogRaw, "name"); name != "" {
+			out["catalog_name"] = name
+		}
+	}
+	if flowHasProbePanelOverrides(flow) {
+		out["rule_origin"] = "panel"
+	} else {
+		switch flow.DiagnoseSignalSource {
+		case "catalog_raw":
+			out["rule_origin"] = "catalog"
+		case "panel":
+			out["rule_origin"] = "panel"
+		default:
+			out["rule_origin"] = "catalog_mcp"
+		}
 	}
 	if len(flow.ProbeBuyOverride) > 0 {
 		out["buy_signal"] = flow.ProbeBuyOverride
