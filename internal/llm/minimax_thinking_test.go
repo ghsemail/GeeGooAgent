@@ -39,6 +39,29 @@ func TestThinkingOffMiniMaxM3SendsDisabledAndReasoningSplit(t *testing.T) {
 	}
 }
 
+func TestThinkingOffDeepSeekFlashSendsDisabled(t *testing.T) {
+	var captured map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &captured)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}]}`))
+	}))
+	defer srv.Close()
+
+	p := NewOpenAIProvider(OpenAIOptions{
+		Model: "deepseek-v4-flash", APIKey: "sk", BaseURL: srv.URL, ThinkingEnabled: true,
+	})
+	ctx := WithCallMeta(context.Background(), CallMeta{ThinkingOff: true})
+	if _, err := p.Chat(ctx, []Message{{Role: RoleUser, Content: "hi"}}, nil, 0, 64); err != nil {
+		t.Fatal(err)
+	}
+	th, _ := captured["thinking"].(map[string]any)
+	if th["type"] != "disabled" {
+		t.Fatalf("thinking=%v want disabled for compose flash", captured["thinking"])
+	}
+}
+
 func TestThinkingOffOmitsEnabledBlockForNonMiniMax(t *testing.T) {
 	var captured map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

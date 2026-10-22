@@ -35,6 +35,8 @@ func (p *OpenAIProvider) ChatStream(
 		body["tools"] = toOpenAITools(tools)
 	}
 	applyThinkingRequestParams(body, p.model, ctx, p.thinkingEnabled, p.reasoningEffort)
+	sysC, usrC := MessageCharCounts(messages)
+	fillComposeTraceFromBody(ctx, p.baseURL, p.model, body, sysC, usrC)
 	raw, err := json.Marshal(body)
 	if err != nil {
 		return nil, err

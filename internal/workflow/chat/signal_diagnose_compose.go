@@ -88,7 +88,7 @@ func signalDiagnoseKnowledgeTitle(strategy, stock string) string {
 }
 
 const (
-	defaultSignalDiagnoseComposeDeadline  = 120 * time.Second
+	defaultSignalDiagnoseComposeDeadline  = 300 * time.Second
 	defaultSignalDiagnoseComposeMaxTokens = 4096
 	maxComposeReasoningDebugRunes         = 2000
 )
@@ -150,50 +150,34 @@ func (r *Runner) synthesizeSignalDiagnoseJudgment(ctx context.Context, flow *Flo
 		}
 		composeCtx, cancel := context.WithTimeout(ctx, deadline)
 		defer cancel()
+		var reqTrace llm.ComposeRequestTrace
+		composeCtx = llm.WithComposeRequestTrace(composeCtx, &reqTrace)
 		composeCtx = llm.WithCallMeta(composeCtx, llm.CallMeta{
 			Kind:              llm.TaskClassify,
 			ThinkingOff:       true,
 			MaxTokensOverride: maxTok,
 		})
+		if flow != nil {
+			flow.ComposeRequestTrace = &reqTrace
+		}
 		appendReasoningDebug := func(reason string) {
 			if flow == nil || strings.TrimSpace(reason) == "" {
 				return
 			}
 			flow.ComposeReasoningDebug = truncateRunes(flow.ComposeReasoningDebug+reason, maxComposeReasoningDebugRunes)
 		}
-		emitAnswerChunk := func(chunk string) {
-			if flow == nil || chunk == "" {
-				return
-			}
-			flow.CardStage = "compose_stream"
-			r.emitCard(flow)
-			if r.OnProgress != nil {
-				r.OnProgress("eval_judgment_delta", map[string]any{
-					"run_id": flow.RunID, "text": chunk, "partial": flow.EvalJudgment,
-				})
-			}
-		}
 		if streamer, ok := r.ComposeLLM.(llm.Streamer); ok {
-			var acc llm.AnswerStreamAccumulator
-			var sections llm.ComposeSectionRenderer
-			sections.OnRendered = func(chunk string) {
-				flow.EvalJudgment = sections.Document()
-				emitAnswerChunk(chunk)
-			}
-			acc.OnVisible = func(chunk string) {
-				sections.PushModelText(chunk)
-			}
-			acc.OnThinking = appendReasoningDebug
+			state := newComposeStreamState()
+			state.acc.OnThinking = func(s string) { appendReasoningDebug(s) }
+			pub := startComposeStreamPublisher(composeCtx, r, flow, state)
 			resp, err := streamer.ChatStream(composeCtx, msgs, nil, 0, maxTok, func(delta llm.StreamDelta) {
-				if rc := strings.TrimSpace(delta.ReasoningContent); rc != "" {
-					appendReasoningDebug(rc)
-					return
-				}
-				if strings.TrimSpace(delta.Content) != "" {
-					acc.PushContent(delta.Content)
-				}
+				state.ingestDelta(delta, appendReasoningDebug)
 			})
-			if text, ok := finalizeLLMComposeAnswer(flow, sections.Document(), resp, err, composeCtx); ok {
+			if pub != nil {
+				pub.finish()
+			}
+			doc, _, _, _, _ := state.snapshot()
+			if text, ok := finalizeLLMComposeAnswer(flow, doc, resp, err, composeCtx); ok {
 				return text, nil
 			}
 			return r.composeFallbackJudgment(flow, fmt.Errorf("compose stream: %w", err))

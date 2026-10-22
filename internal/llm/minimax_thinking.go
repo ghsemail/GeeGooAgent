@@ -34,12 +34,25 @@ func ModelCatalogLikelyForcedReasoning(name string) bool {
 	return false
 }
 
+func deepSeekSupportsThinkingDisable(model string) bool {
+	m := strings.ToLower(strings.TrimSpace(model))
+	if !strings.Contains(m, "deepseek") {
+		return false
+	}
+	if strings.Contains(m, "reasoner") || strings.Contains(m, "r1") {
+		return false
+	}
+	return true
+}
+
 func applyThinkingRequestParams(body map[string]any, model string, ctx context.Context, providerThinkingOn bool, reasoningEffort string) {
 	meta := CallMetaFrom(ctx)
 	if meta.ThinkingOff {
 		if MiniMaxM3SupportsThinkingDisable(model) {
 			body["thinking"] = map[string]any{"type": "disabled"}
 			body["reasoning_split"] = true
+		} else if deepSeekSupportsThinkingDisable(model) {
+			body["thinking"] = map[string]any{"type": "disabled"}
 		}
 		return
 	}

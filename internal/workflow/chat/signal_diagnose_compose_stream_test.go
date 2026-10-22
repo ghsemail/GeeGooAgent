@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
@@ -50,5 +51,30 @@ func TestSignalDiagnoseComposeUsesChatStream(t *testing.T) {
 	}
 	if flow.ComposeTimeoutMs != defaultSignalDiagnoseComposeDeadline.Milliseconds() {
 		t.Fatalf("timeout_ms=%d", flow.ComposeTimeoutMs)
+	}
+}
+
+func TestComposeStreamPublisherThrottlesDuringSlowStream(t *testing.T) {
+	flow := &Flow{RunID: "r1", Template: SkillSignalDiagnose}
+	state := newComposeStreamState()
+	var n int32
+	r := &Runner{}
+	r.OnProgress = func(event string, _ map[string]any) {
+		if event == "eval_judgment_delta" {
+			atomic.AddInt32(&n, 1)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	pub := startComposeStreamPublisher(ctx, r, flow, state)
+	for i := 0; i < 50; i++ {
+		state.ingestDelta(llm.StreamDelta{Content: "x"}, func(string) {})
+	}
+	pub.finish()
+	cancel()
+	if atomic.LoadInt32(&n) < 1 {
+		t.Fatalf("progress=%d want >=1 final flush", n)
+	}
+	if state.chunks != 50 {
+		t.Fatalf("chunks=%d", state.chunks)
 	}
 }

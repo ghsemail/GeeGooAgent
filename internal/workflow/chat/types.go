@@ -3,6 +3,7 @@ package chat
 import (
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
@@ -137,6 +138,11 @@ type Flow struct {
 	ComposeModelSource     string         `json:"compose_model_source,omitempty"`
 	ComposeModelSourceDetail string       `json:"compose_model_source_detail,omitempty"`
 	ComposeReasoningDebug  string         `json:"compose_reasoning_debug,omitempty"`
+	ComposeReasoningChars  int64          `json:"compose_reasoning_chars,omitempty"`
+	ComposeFirstReasoningMs int64         `json:"compose_first_reasoning_ms,omitempty"`
+	ComposeFirstContentMs  int64          `json:"compose_first_content_ms,omitempty"`
+	ComposeChunks          int64          `json:"compose_chunks,omitempty"`
+	ComposeRequestTrace    *llm.ComposeRequestTrace `json:"compose_request_trace,omitempty"`
 	DiagnoseSignalCached   bool           `json:"diagnose_signal_cached,omitempty"`
 	DiagnoseSignalSource   string         `json:"diagnose_signal_source,omitempty"`
 	ResolvedBuySignal      []any          `json:"resolved_buy_signal,omitempty"`

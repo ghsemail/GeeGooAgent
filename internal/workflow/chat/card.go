@@ -77,6 +77,21 @@ func CardPayload(flow *Flow) map[string]any {
 		if s := strings.TrimSpace(flow.ComposeReasoningDebug); s != "" {
 			out["compose_reasoning_debug"] = s
 		}
+		if flow.ComposeReasoningChars > 0 {
+			out["compose_reasoning_chars"] = flow.ComposeReasoningChars
+		}
+		if flow.ComposeFirstReasoningMs > 0 {
+			out["compose_first_reasoning_ms"] = flow.ComposeFirstReasoningMs
+		}
+		if flow.ComposeFirstContentMs > 0 {
+			out["compose_first_content_ms"] = flow.ComposeFirstContentMs
+		}
+		if flow.ComposeChunks > 0 {
+			out["compose_chunks"] = flow.ComposeChunks
+		}
+		if flow.ComposeRequestTrace != nil {
+			out["compose_request_trace"] = flow.ComposeRequestTrace
+		}
 		out["probe_buy_hits"] = flow.ProbeBuyHits
 		out["probe_sell_hits"] = flow.ProbeSellHits
 		out["probe_buy_hits_signal_api"] = flow.ProbeBuyHitsSignalAPI
