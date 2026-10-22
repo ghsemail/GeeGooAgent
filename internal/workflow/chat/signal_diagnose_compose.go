@@ -2,8 +2,10 @@ package chat
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -85,11 +87,24 @@ func signalDiagnoseKnowledgeTitle(strategy, stock string) string {
 	}
 }
 
-const signalDiagnoseComposeTimeout = 12 * time.Second
+const defaultSignalDiagnoseComposeDeadline = 120 * time.Second
+
+func signalDiagnoseComposeDeadline() time.Duration {
+	raw := strings.TrimSpace(os.Getenv("SIGNAL_DIAGNOSE_COMPOSE_TIMEOUT_SEC"))
+	if raw == "" {
+		return defaultSignalDiagnoseComposeDeadline
+	}
+	sec, err := strconv.Atoi(raw)
+	if err != nil || sec < 30 {
+		return defaultSignalDiagnoseComposeDeadline
+	}
+	return time.Duration(sec) * time.Second
+}
 
 func (r *Runner) synthesizeSignalDiagnoseJudgment(ctx context.Context, flow *Flow) (string, error) {
+	deadline := signalDiagnoseComposeDeadline()
 	if flow != nil {
-		flow.ComposeTimeoutMs = signalDiagnoseComposeTimeout.Milliseconds()
+		flow.ComposeTimeoutMs = deadline.Milliseconds()
 		flow.ComposeFallback = false
 	}
 	label := strategyDisplayLabel(flow)
@@ -97,7 +112,7 @@ func (r *Runner) synthesizeSignalDiagnoseJudgment(ctx context.Context, flow *Flo
 	if len(flow.Strategies) > 0 && flow.Strategies[0].Frequency != "" {
 		freq = flow.Strategies[0].Frequency
 	}
-	user := fmt.Sprintf(`用 2–4 句中文总结信号诊断（勿编造数字）：
+	user := fmt.Sprintf(`用完整、连贯的中文写信号诊断评价（可多段，勿编造数字）：
 
 策略 %s（%s）· %s %s · %s / %d月
 probe 买%d/卖%d（%d根K）
@@ -116,21 +131,12 @@ Episode：%s`,
 			{Role: llm.RoleSystem, Content: signalDiagnoseJudgmentSystemPrompt()},
 			{Role: llm.RoleUser, Content: user},
 		}
-		composeCtx, cancel := context.WithTimeout(ctx, signalDiagnoseComposeTimeout)
+		composeCtx, cancel := context.WithTimeout(ctx, deadline)
 		defer cancel()
-		composeCtx = llm.WithCallMeta(composeCtx, llm.CallMeta{Kind: llm.TaskClassify})
-		useFallback := func() (string, error) {
-			if flow != nil {
-				flow.ComposeFallback = true
-			}
-			return fallbackSignalDiagnoseJudgment(flow), nil
-		}
+		composeCtx = llm.WithCallMeta(composeCtx, llm.CallMeta{Kind: llm.TaskSynthesis})
 		if streamer, ok := r.ComposeLLM.(llm.Streamer); ok {
 			var b strings.Builder
-			resp, err := streamer.ChatStream(composeCtx, msgs, nil, 0, 256, func(delta llm.StreamDelta) {
-				if composeCtx.Err() != nil {
-					return
-				}
+			resp, err := streamer.ChatStream(composeCtx, msgs, nil, 0, 0, func(delta llm.StreamDelta) {
 				chunk := llm.VisibleAssistantContent(delta.Content, delta.ReasoningContent)
 				if chunk == "" {
 					return
@@ -145,36 +151,57 @@ Episode：%s`,
 					})
 				}
 			})
-			if err != nil || composeCtx.Err() != nil {
-				return useFallback()
-			}
-			if text := strings.TrimSpace(b.String()); text != "" {
+			if text, ok := finalizeLLMComposeText(flow, b.String(), resp, err, composeCtx); ok {
 				return text, nil
 			}
-			if resp != nil {
-				if text := strings.TrimSpace(llm.VisibleAssistantContent(resp.Content, resp.ReasoningContent)); text != "" {
-					return text, nil
-				}
-			}
-			return useFallback()
+			return r.composeFallbackJudgment(flow, fmt.Errorf("compose stream: %w", err))
 		}
-		resp, err := r.ComposeLLM.Chat(composeCtx, msgs, nil, 0, 256)
-		if err != nil || composeCtx.Err() != nil {
-			return useFallback()
-		}
-		if text := strings.TrimSpace(llm.VisibleAssistantContent(resp.Content, resp.ReasoningContent)); text != "" {
+		resp, err := r.ComposeLLM.Chat(composeCtx, msgs, nil, 0, 0)
+		if text, ok := finalizeLLMComposeText(flow, "", resp, err, composeCtx); ok {
 			return text, nil
 		}
-		return useFallback()
+		return r.composeFallbackJudgment(flow, err)
 	}
+	return r.composeFallbackJudgment(flow, nil)
+}
+
+func (r *Runner) composeFallbackJudgment(flow *Flow, cause error) (string, error) {
 	if flow != nil {
 		flow.ComposeFallback = true
+	}
+	if cause != nil {
+		recordPhaseGauge(flow, "diag_compose:fallback", 1)
 	}
 	return fallbackSignalDiagnoseJudgment(flow), nil
 }
 
+// finalizeLLMComposeText returns streamed/response text when any LLM content exists (including partial on deadline).
+func finalizeLLMComposeText(flow *Flow, streamed string, resp *llm.Response, err error, composeCtx context.Context) (string, bool) {
+	streamed = strings.TrimSpace(streamed)
+	if streamed != "" {
+		if err != nil || composeCtx.Err() != nil {
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(composeCtx.Err(), context.DeadlineExceeded) {
+				recordPhaseGauge(flow, "diag_compose:deadline_hit", 1)
+			}
+		}
+		if flow != nil {
+			flow.ComposeFallback = false
+		}
+		return streamed, true
+	}
+	if resp != nil {
+		if text := strings.TrimSpace(llm.VisibleAssistantContent(resp.Content, resp.ReasoningContent)); text != "" {
+			if flow != nil {
+				flow.ComposeFallback = false
+			}
+			return text, true
+		}
+	}
+	return "", false
+}
+
 func signalDiagnoseJudgmentSystemPrompt() string {
-	return "你是 GeeGoo 量化策略诊断助手。根据结构化 probe/diagnose/Episode 指标写简短中文评价，不夸大、不编造数据。"
+	return "你是 GeeGoo 量化策略诊断助手。根据结构化 probe/diagnose/Episode 指标写完整中文评价，不夸大、不编造数据，可分段落。"
 }
 
 func fallbackSignalDiagnoseJudgment(flow *Flow) string {

@@ -44,4 +44,10 @@ func TestSignalDiagnoseComposeUsesChatStream(t *testing.T) {
 	if text != "流式评价" || mock.deltas != 2 {
 		t.Fatalf("text=%q deltas=%d", text, mock.deltas)
 	}
+	if flow.ComposeFallback {
+		t.Fatal("LLM stream should not set compose_fallback")
+	}
+	if flow.ComposeTimeoutMs != defaultSignalDiagnoseComposeDeadline.Milliseconds() {
+		t.Fatalf("timeout_ms=%d", flow.ComposeTimeoutMs)
+	}
 }

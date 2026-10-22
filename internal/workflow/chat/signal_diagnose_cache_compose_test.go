@@ -75,7 +75,7 @@ func TestComposeSetsFallbackFields(t *testing.T) {
 	if err != nil || text == "" {
 		t.Fatal(err)
 	}
-	if !flow.ComposeFallback || flow.ComposeTimeoutMs != signalDiagnoseComposeTimeout.Milliseconds() {
+	if !flow.ComposeFallback || flow.ComposeTimeoutMs != defaultSignalDiagnoseComposeDeadline.Milliseconds() {
 		t.Fatalf("fallback=%v timeout=%d", flow.ComposeFallback, flow.ComposeTimeoutMs)
 	}
 	card := CardPayload(flow)
