@@ -131,6 +131,7 @@ type CallMeta struct {
 	Kind            TaskKind
 	ToolSchemaCount int
 	ThinkingEnabled bool
+	ThinkingOff     bool // force-disable provider thinking for this call
 	Round           int
 	MaxRounds       int
 	MaxTokensOverride int

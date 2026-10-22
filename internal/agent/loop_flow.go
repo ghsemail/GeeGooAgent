@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 
-	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	workflowchat "github.com/ghsemail/GeeGooAgent/internal/workflow/chat"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -21,7 +20,7 @@ func (l *Loop) tryChatWorkflow(
 	runner := &workflowchat.Runner{
 		RunTool:    l.ExecuteTool,
 		OnProgress: l.onProgress,
-		ComposeLLM: llm.SynthesisProviderFromGateway(l.gateway),
+		ComposeLLM: l.effectiveSignalDiagnoseComposeLLM(),
 	}
 	if l.strategyDevJev != nil {
 		cfg := l.strategyDevJev()
