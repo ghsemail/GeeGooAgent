@@ -93,6 +93,9 @@ func CardPayload(flow *Flow) map[string]any {
 				out["lab_flow_price_summary"] = s
 			}
 		}
+		if len(flow.PhaseTimingsMs) > 0 {
+			out["phase_timings_ms"] = flow.PhaseTimingsMs
+		}
 		if flow.PriceEpisodeFilterStats != nil {
 			if strategydev.PriceAnalysisFeatureEnabled() {
 				out["price_episode_filter_stats"] = flow.PriceEpisodeFilterStats

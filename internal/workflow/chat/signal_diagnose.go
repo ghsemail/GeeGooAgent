@@ -385,7 +385,8 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 		if months <= 0 {
 			months = defaultMonthsBack
 		}
-		if strategydev.PriceAnalysisFeatureEnabled() {
+		// Lab mode must not alter episode evaluation (no per-trigger price gate / extra probes).
+		if strategydev.PriceAnalysisFeatureEnabled() && !flow.LabMode {
 			ctx = strategydev.ContextWithPriceProbeCache(ctx)
 			run := func(c context.Context, name string, args map[string]any) tools.Result {
 				return r.runTool(c, toolCtx, name, args, recordTool)
@@ -405,7 +406,7 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 			flow.PriceFilter = &cp
 			st := stats
 			flow.PriceEpisodeFilterStats = &st
-			if r != nil && r.ComposeLLM != nil {
+			if r != nil && r.ComposeLLM != nil && flow.UsePriceAnalysisEpisodeFilter {
 				strategydev.EnrichEpisodeStatsAIConclusions(ctx, r.ComposeLLM, flow.PriceEpisodeFilterStats)
 			}
 			flow.SignalEval = slots.EvaluateSignalEpisodesWithOptions(bars, buyMerged, sellMerged, signalDiagnoseEpisodeEvalOpts(flow))
@@ -421,17 +422,8 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 			flow.LabEpisodeSummaries = strategydev.BuildLabCardSummariesFromEval(flow.SignalEval, patIn.PatternHits, "")
 		}
 	}
-	if r != nil {
-		if flow.LabMode {
-			r.attachSignalDiagnoseLabPriceSummary(ctx, flow, toolCtx)
-		} else {
-			r.attachSignalDiagnosePriceAnalysis(ctx, flow, toolCtx, recordTool)
-		}
-	}
-	if flow.LabMode && flow.LabFlowPriceSummary != "" && len(flow.LabEpisodeSummaries) > 0 {
-		flow.LabEpisodeSummaries = strategydev.BuildLabCardSummariesFromEval(
-			flow.SignalEval, patternHitsFromProbe(flow.ProbeRaw), flow.LabFlowPriceSummary,
-		)
+	if r != nil && !flow.LabMode && strategydev.PriceAnalysisFeatureEnabled() {
+		r.attachSignalDiagnosePriceAnalysis(ctx, flow, toolCtx, recordTool)
 	}
 	flow.Phase = PhaseBuildDetail
 	flow.touch()
@@ -461,7 +453,9 @@ func (r *Runner) phaseSignalDiagnoseBuildDetail(
 	if f := strings.TrimSpace(flow.ProbeFrequencyOverride); f != "" {
 		frequency = f
 	}
-	r.attachSignalDiagnosePriceAnalysis(ctx, flow, toolCtx, recordTool)
+	if !flow.LabMode && strategydev.PriceAnalysisFeatureEnabled() {
+		r.attachSignalDiagnosePriceAnalysis(ctx, flow, toolCtx, recordTool)
+	}
 	diagArgs := map[string]any{
 		"code":        flow.StockCode,
 		"frequency":   frequency,
