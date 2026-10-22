@@ -67,7 +67,7 @@ func optionalComposeLLM() llm.Provider {
 		Temperature: llmCfg.Temperature,
 		MaxTokens:   llmCfg.EffectiveMaxTokens(thinkingOn),
 	})
-	return llm.SynthesisProviderFromGateway(gw)
+	return llm.ClassifyProviderFromGateway(gw)
 }
 
 func optionalComposeLLMFromEnv() llm.Provider {
@@ -87,5 +87,5 @@ func optionalComposeLLMFromEnv() llm.Provider {
 	gw := llm.NewGateway(provider, llm.GatewayConfig{
 		MaxRetries: 2, RetryWait: time.Second, Temperature: 0.3, MaxTokens: 2048,
 	})
-	return llm.SynthesisProviderFromGateway(gw)
+	return llm.ClassifyProviderFromGateway(gw)
 }

@@ -88,8 +88,8 @@ func signalDiagnoseKnowledgeTitle(strategy, stock string) string {
 }
 
 const (
-	defaultSignalDiagnoseComposeDeadline = 120 * time.Second
-	defaultSignalDiagnoseComposeMaxTokens = 2048
+	defaultSignalDiagnoseComposeDeadline  = 120 * time.Second
+	defaultSignalDiagnoseComposeMaxTokens = 4096
 	maxComposeReasoningDebugRunes         = 2000
 )
 
@@ -156,7 +156,8 @@ Episode：%s`,
 		composeCtx, cancel := context.WithTimeout(ctx, deadline)
 		defer cancel()
 		composeCtx = llm.WithCallMeta(composeCtx, llm.CallMeta{
-			Kind:              llm.TaskSynthesis,
+			Kind:              llm.TaskClassify,
+			ThinkingOff:       true,
 			MaxTokensOverride: maxTok,
 		})
 		appendReasoningDebug := func(reason string) {
@@ -178,28 +179,34 @@ Episode：%s`,
 			}
 		}
 		if streamer, ok := r.ComposeLLM.(llm.Streamer); ok {
-			var answer strings.Builder
+			var acc llm.AnswerStreamAccumulator
+			acc.OnVisible = func(chunk string) {
+				flow.EvalJudgment = acc.Visible()
+				emitAnswerChunk(chunk)
+			}
+			acc.OnThinking = appendReasoningDebug
 			resp, err := streamer.ChatStream(composeCtx, msgs, nil, 0, maxTok, func(delta llm.StreamDelta) {
 				if rc := strings.TrimSpace(delta.ReasoningContent); rc != "" {
 					appendReasoningDebug(rc)
 					return
 				}
-				chunk := llm.PublicAnswerContent(delta.Content)
-				if chunk == "" {
-					return
+				if strings.TrimSpace(delta.Content) != "" {
+					acc.PushContent(delta.Content)
 				}
-				answer.WriteString(chunk)
-				flow.EvalJudgment = answer.String()
-				emitAnswerChunk(chunk)
 			})
-			if text, ok := finalizeLLMComposeAnswer(flow, answer.String(), resp, err, composeCtx); ok {
+			if text, ok := finalizeLLMComposeAnswer(flow, acc.Visible(), resp, err, composeCtx); ok {
 				return text, nil
 			}
 			return r.composeFallbackJudgment(flow, fmt.Errorf("compose stream: %w", err))
 		}
 		resp, err := r.ComposeLLM.Chat(composeCtx, msgs, nil, 0, maxTok)
-		if resp != nil && strings.TrimSpace(resp.ReasoningContent) != "" {
-			appendReasoningDebug(resp.ReasoningContent)
+		if resp != nil {
+			if rc := strings.TrimSpace(resp.ReasoningContent); rc != "" {
+				appendReasoningDebug(rc)
+			}
+			if _, extracted := llm.SplitInlineThinking(resp.Content); extracted != "" {
+				appendReasoningDebug(extracted)
+			}
 		}
 		if text, ok := finalizeLLMComposeAnswer(flow, "", resp, err, composeCtx); ok {
 			return text, nil

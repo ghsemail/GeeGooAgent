@@ -168,6 +168,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	app.Agent = agent.New(app.Gateway, executor, registry)
 	app.Agent.Loop.SetStrategyDevJevConfig(app.StrategyDevJevConfig)
 	app.Agent.Loop.SetSignalDiagnoseLabConfig(app.SignalDiagnoseLabConfig)
+	app.Agent.Loop.SetSignalDiagnoseComposeLLM(app.SignalDiagnoseComposeProvider())
 	app.Agent.SetMaxToolRounds(cfg.EffectiveMaxSteps())
 	app.Agent.SetToolMaxParallel(cfg.EffectiveToolMaxParallel())
 	app.Agent.SetToolTimeout(cfg.EffectiveToolTimeout())
@@ -310,6 +311,7 @@ func (a *App) RebuildGateway() error {
 	a.SynthesisGateway = synthGW
 	if a.Agent != nil {
 		a.Agent.SetGateway(a.Gateway)
+		a.Agent.Loop.SetSignalDiagnoseComposeLLM(a.SignalDiagnoseComposeProvider())
 	}
 	a.RefreshOpsEmbedding(true)
 	a.RefreshOpsDecision(true)

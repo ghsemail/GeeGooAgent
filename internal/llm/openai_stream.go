@@ -34,7 +34,7 @@ func (p *OpenAIProvider) ChatStream(
 	if len(tools) > 0 {
 		body["tools"] = toOpenAITools(tools)
 	}
-	if p.thinkingEnabled {
+	if p.thinkingEnabled && !CallMetaFrom(ctx).ThinkingOff {
 		body["thinking"] = map[string]any{"type": "enabled"}
 		if effort := strings.TrimSpace(p.reasoningEffort); effort != "" {
 			body["reasoning_effort"] = effort

@@ -50,7 +50,8 @@ type Loop struct {
 	playbookRouter *playbookexec.Router
 	routingMode    string
 	strategyDevJev func() strategydev.JevConfig
-	signalDiagnoseLab func() workflowchat.LabConfig
+	signalDiagnoseLab        func() workflowchat.LabConfig
+	signalDiagnoseComposeLLM llm.Provider
 }
 
 // NewLoop creates an agent loop.
@@ -186,6 +187,27 @@ func (l *Loop) SetStrategyDevJevConfig(fn func() strategydev.JevConfig) {
 		return
 	}
 	l.strategyDevJev = fn
+}
+
+// SetSignalDiagnoseComposeLLM sets the LLM for signal_diagnose diag_compose (separate from synthesis).
+func (l *Loop) SetSignalDiagnoseComposeLLM(p llm.Provider) {
+	if l == nil {
+		return
+	}
+	l.signalDiagnoseComposeLLM = p
+}
+
+func (l *Loop) effectiveSignalDiagnoseComposeLLM() llm.Provider {
+	if l == nil {
+		return nil
+	}
+	if l.signalDiagnoseComposeLLM != nil {
+		return l.signalDiagnoseComposeLLM
+	}
+	if l.gateway != nil {
+		return llm.ClassifyProviderFromGateway(l.gateway)
+	}
+	return nil
 }
 
 // SetSignalDiagnoseLabConfig wires GeeGooSignal lab-api for signal-diagnose lab_mode cards.
