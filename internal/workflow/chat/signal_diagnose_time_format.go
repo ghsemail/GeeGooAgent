@@ -30,7 +30,19 @@ func normalizeDiagnoseDetailForCard(raw map[string]any) map[string]any {
 		}
 		b[key] = rules
 	}
+	if rng, ok := b["range"].(map[string]any); ok {
+		normalizeDiagnoseRangeTimes(rng)
+		b["range"] = rng
+	}
 	return b
+}
+
+func normalizeDiagnoseRangeTimes(rng map[string]any) {
+	for _, k := range []string{"start", "end", "from", "to"} {
+		if v, ok := rng[k]; ok {
+			rng[k] = formatDiagnoseTimeValue(v)
+		}
+	}
 }
 
 func normalizeDiagnoseRuleTimes(row map[string]any) {

@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -45,7 +46,7 @@ func TestParseOpenAIStreamResentToolArguments(t *testing.T) {
 		`data: [DONE]`,
 		"",
 	}, "\n")
-	resp, err := parseOpenAIStream(strings.NewReader(sse), "m", nil)
+	resp, err := parseOpenAIStream(context.Background(), strings.NewReader(sse), "m", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -21,7 +21,7 @@ func TestParseOpenAIStreamContentAndTools(t *testing.T) {
 
 	var parts []string
 	var toolParts []string
-	resp, err := parseOpenAIStream(strings.NewReader(sse), "m", func(d StreamDelta) {
+	resp, err := parseOpenAIStream(context.Background(), strings.NewReader(sse), "m", func(d StreamDelta) {
 		if d.Content != "" {
 			parts = append(parts, d.Content)
 		}

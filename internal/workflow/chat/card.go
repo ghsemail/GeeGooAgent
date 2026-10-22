@@ -61,6 +61,10 @@ func CardPayload(flow *Flow) map[string]any {
 		out["knowledge_id"] = flow.KnowledgeID
 		out["kb_draft_chars"] = len(flow.KBDraft)
 		out["eval_judgment"] = flow.EvalJudgment
+		if flow.ComposeTimeoutMs > 0 {
+			out["compose_timeout_ms"] = flow.ComposeTimeoutMs
+		}
+		out["compose_fallback"] = flow.ComposeFallback
 		out["probe_buy_hits"] = flow.ProbeBuyHits
 		out["probe_sell_hits"] = flow.ProbeSellHits
 		out["probe_buy_hits_signal_api"] = flow.ProbeBuyHitsSignalAPI

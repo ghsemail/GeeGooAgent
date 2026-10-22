@@ -130,6 +130,9 @@ type Flow struct {
 	ProbeFrequencyOverride string         `json:"probe_frequency_override,omitempty"`
 	ProbePanelLabel        string         `json:"probe_panel_label,omitempty"`
 	ProbeSignalFingerprint string         `json:"probe_signal_fingerprint,omitempty"`
+	SignalResolveCacheKey  string         `json:"signal_resolve_cache_key,omitempty"`
+	ComposeFallback        bool           `json:"compose_fallback,omitempty"`
+	ComposeTimeoutMs       int64          `json:"compose_timeout_ms,omitempty"`
 	DiagnoseSignalCached   bool           `json:"diagnose_signal_cached,omitempty"`
 	DiagnoseSignalSource   string         `json:"diagnose_signal_source,omitempty"`
 	ResolvedBuySignal      []any          `json:"resolved_buy_signal,omitempty"`
