@@ -56,3 +56,4 @@ scripts/**/run_*_out.txt
 .gocache/
 .gocache-review/
 .gomodcache-review/
+probe_vs_diagnose
