@@ -257,7 +257,9 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 	toolCtx tools.Context,
 	recordTool func(name, status, summary string),
 ) error {
+	resolveStart := time.Now()
 	sig, err := r.resolveDiagnoseSignal(ctx, flow, toolCtx, recordTool)
+	recordPhaseTiming(flow, "run_probe:resolve_signal", time.Since(resolveStart))
 	if err != nil {
 		return err
 	}
@@ -296,10 +298,12 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 	if probeRes.Status != tools.StatusOK {
 		return fmt.Errorf("probe 失败：%s", probeRes.Summary)
 	}
+	applyStart := time.Now()
 	applySignalDiagnoseSeriesData(flow, probeRes, months, sig.Buy, sig.Sell, false)
+	recordPhaseTiming(flow, "run_probe:apply_probe_series", time.Since(applyStart))
+	recordProbeHitsMeta(flow)
 
-	diagArgs := cloneProbeArgs(probeArgs)
-	diagArgs["side"] = "both"
+	diagArgs := probeArgsForDiagnoseTool(probeArgs)
 	diagStart := time.Now()
 	diagRes := r.runTool(ctx, toolCtx, "diagnose_bot_signal_series", diagArgs, recordTool)
 	recordPhaseTiming(flow, "run_probe:diagnose_bot_signal_series", time.Since(diagStart))
@@ -312,6 +316,7 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 		flow.DiagnoseMergedAtProbe = false
 	}
 	res := probeRes
+	klStart := time.Now()
 	if flow.Strategies == nil {
 		flow.Strategies = []StrategyItem{{}}
 	}
@@ -340,6 +345,7 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 			ResistCenter: sliceAt(flow.KeyLevelSeries.ResistCenter, i),
 		}
 	}
+	recordPhaseTiming(flow, "run_probe:key_levels_parse", time.Since(klStart))
 	if keyLevelSnapshotUsableForChart(flow.KeyLevels) || flow.KeyLevelSeries != nil {
 		flow.Phase = PhaseEvaluateAccuracy
 	} else {
@@ -431,7 +437,7 @@ func (r *Runner) phaseSignalDiagnoseBuildDetail(
 ) error {
 	flow.BuildDetailSkipped = false
 	flow.BuildDetailSkipReason = ""
-	if flow.DiagnoseMergedAtProbe && len(flow.DiagnoseRaw) > 0 {
+	if flow.DiagnoseMergedAtProbe && len(flow.DiagnoseRaw) > 0 && DiagnoseDetailPayloadUsable(flow.DiagnoseRaw) {
 		flow.BuildDetailSkipped = true
 		flow.BuildDetailSkipReason = "diagnose_merged_at_probe"
 		flow.Phase = PhaseDiagCompose
@@ -458,14 +464,13 @@ func (r *Runner) phaseSignalDiagnoseBuildDetail(
 	if !flow.LabMode && strategydev.PriceAnalysisFeatureEnabled() {
 		r.attachSignalDiagnosePriceAnalysis(ctx, flow, toolCtx, recordTool)
 	}
-	diagArgs := map[string]any{
+	diagArgs := probeArgsForDiagnoseTool(map[string]any{
 		"code":        flow.StockCode,
 		"frequency":   frequency,
 		"buy_signal":  sig.Buy,
 		"sell_signal": sig.Sell,
 		"months_back": months,
-		"side":        "both",
-	}
+	})
 	strategydev.EnrichProbeArgsForIndicatorWarmup(diagArgs, sig.Buy, sig.Sell)
 	res := r.runTool(ctx, toolCtx, "diagnose_bot_signal_series", diagArgs, recordTool)
 	if res.Status != tools.StatusOK {
