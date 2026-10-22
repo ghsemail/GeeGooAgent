@@ -19,7 +19,9 @@ type ToolRunner func(ctx context.Context, req tools.CallRequest, toolCtx tools.C
 type Runner struct {
 	RunTool         ToolRunner
 	OnProgress      runtime.ProgressFunc
-	ComposeLLM      llm.Provider // optional; strategy_dev cognition synthesis
+	ComposeLLM           llm.Provider // optional; signal_diagnose diag_compose
+	ComposeModelSource   string       // catalog_pref | env | gateway_fallback | ops_classify_fallback
+	ComposeModelDetail   string       // model name or failure reason
 	JevConfig       *strategydev.JevConfig
 	LabConfig       *LabConfig
 	retryFailedOnly bool

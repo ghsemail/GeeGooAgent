@@ -17,10 +17,17 @@ func (l *Loop) tryChatWorkflow(
 	if l == nil || session == nil {
 		return runtime.TurnResult{}, false
 	}
+	composeLLM := l.effectiveSignalDiagnoseComposeLLM()
+	composeSource, composeDetail := "", ""
+	if l.resolveComposeBundle != nil {
+		composeLLM, composeSource, composeDetail = l.resolveComposeBundle()
+	}
 	runner := &workflowchat.Runner{
-		RunTool:    l.ExecuteTool,
-		OnProgress: l.onProgress,
-		ComposeLLM: l.effectiveSignalDiagnoseComposeLLM(),
+		RunTool:              l.ExecuteTool,
+		OnProgress:           l.onProgress,
+		ComposeLLM:           composeLLM,
+		ComposeModelSource:   composeSource,
+		ComposeModelDetail:   composeDetail,
 	}
 	if l.strategyDevJev != nil {
 		cfg := l.strategyDevJev()

@@ -68,6 +68,12 @@ func CardPayload(flow *Flow) map[string]any {
 		if s := strings.TrimSpace(flow.ComposeModel); s != "" {
 			out["compose_model"] = s
 		}
+		if s := strings.TrimSpace(flow.ComposeModelSource); s != "" {
+			out["compose_model_source"] = s
+		}
+		if s := strings.TrimSpace(flow.ComposeModelSourceDetail); s != "" {
+			out["compose_model_source_detail"] = s
+		}
 		if s := strings.TrimSpace(flow.ComposeReasoningDebug); s != "" {
 			out["compose_reasoning_debug"] = s
 		}

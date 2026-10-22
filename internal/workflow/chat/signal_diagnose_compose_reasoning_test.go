@@ -22,9 +22,9 @@ func (m *reasoningThenAnswerStream) ChatStream(
 ) (*llm.Response, error) {
 	if onDelta != nil {
 		onDelta(llm.StreamDelta{ReasoningContent: "channel reasoning"})
-		onDelta(llm.StreamDelta{Content: "<think>inline plan</think>中文评价正文"})
+		onDelta(llm.StreamDelta{Content: "<think>inline plan</think>[[S1]]中文评价正文"})
 	}
-	full := "<think>inline plan</think>中文评价正文"
+	full := "<think>inline plan</think>[[S1]]中文评价正文"
 	return &llm.Response{Content: full, ReasoningContent: "channel reasoning"}, nil
 }
 
@@ -39,7 +39,7 @@ func TestComposeStreamExcludesReasoningFromEvalJudgment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if text != "中文评价正文" || flow.EvalJudgment != "中文评价正文" {
+	if !strings.Contains(text, "中文评价正文") || !strings.Contains(flow.EvalJudgment, "### 一、信号触发情况") {
 		t.Fatalf("judgment=%q eval=%q", text, flow.EvalJudgment)
 	}
 	if !strings.Contains(flow.ComposeReasoningDebug, "inline plan") || !strings.Contains(flow.ComposeReasoningDebug, "channel reasoning") {

@@ -134,6 +134,8 @@ type Flow struct {
 	ComposeFallback        bool           `json:"compose_fallback,omitempty"`
 	ComposeTimeoutMs       int64          `json:"compose_timeout_ms,omitempty"`
 	ComposeModel           string         `json:"compose_model,omitempty"`
+	ComposeModelSource     string         `json:"compose_model_source,omitempty"`
+	ComposeModelSourceDetail string       `json:"compose_model_source_detail,omitempty"`
 	ComposeReasoningDebug  string         `json:"compose_reasoning_debug,omitempty"`
 	DiagnoseSignalCached   bool           `json:"diagnose_signal_cached,omitempty"`
 	DiagnoseSignalSource   string         `json:"diagnose_signal_source,omitempty"`

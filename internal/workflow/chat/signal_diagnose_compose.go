@@ -124,8 +124,15 @@ func (r *Runner) synthesizeSignalDiagnoseJudgment(ctx context.Context, flow *Flo
 		flow.ComposeTimeoutMs = deadline.Milliseconds()
 		flow.ComposeFallback = false
 		flow.ComposeReasoningDebug = ""
-		if r != nil && r.ComposeLLM != nil {
-			flow.ComposeModel = strings.TrimSpace(r.ComposeLLM.Model())
+		if r != nil {
+			if r.ComposeLLM != nil {
+				flow.ComposeModel = strings.TrimSpace(r.ComposeLLM.Model())
+			}
+			flow.ComposeModelSource = strings.TrimSpace(r.ComposeModelSource)
+			flow.ComposeModelSourceDetail = strings.TrimSpace(r.ComposeModelDetail)
+		}
+		if flow.LabMode {
+			recordPhaseGauge(flow, "diag_compose:lab_mode", 1)
 		}
 		recordPhaseGauge(flow, "diag_compose:max_tokens", int64(maxTok))
 	}
@@ -168,9 +175,13 @@ func (r *Runner) synthesizeSignalDiagnoseJudgment(ctx context.Context, flow *Flo
 		}
 		if streamer, ok := r.ComposeLLM.(llm.Streamer); ok {
 			var acc llm.AnswerStreamAccumulator
-			acc.OnVisible = func(chunk string) {
-				flow.EvalJudgment = llm.NormalizeComposeSections(acc.Visible())
+			var sections llm.ComposeSectionRenderer
+			sections.OnRendered = func(chunk string) {
+				flow.EvalJudgment = sections.Document()
 				emitAnswerChunk(chunk)
+			}
+			acc.OnVisible = func(chunk string) {
+				sections.PushModelText(chunk)
 			}
 			acc.OnThinking = appendReasoningDebug
 			resp, err := streamer.ChatStream(composeCtx, msgs, nil, 0, maxTok, func(delta llm.StreamDelta) {
@@ -182,7 +193,7 @@ func (r *Runner) synthesizeSignalDiagnoseJudgment(ctx context.Context, flow *Flo
 					acc.PushContent(delta.Content)
 				}
 			})
-			if text, ok := finalizeLLMComposeAnswer(flow, acc.Visible(), resp, err, composeCtx); ok {
+			if text, ok := finalizeLLMComposeAnswer(flow, sections.Document(), resp, err, composeCtx); ok {
 				return text, nil
 			}
 			return r.composeFallbackJudgment(flow, fmt.Errorf("compose stream: %w", err))
@@ -196,7 +207,12 @@ func (r *Runner) synthesizeSignalDiagnoseJudgment(ctx context.Context, flow *Flo
 				appendReasoningDebug(extracted)
 			}
 		}
-		if text, ok := finalizeLLMComposeAnswer(flow, "", resp, err, composeCtx); ok {
+		var rendered string
+		if resp != nil {
+			raw := llm.PublicAnswerContent(resp.Content)
+			rendered = llm.RenderComposeSectionDocument(llm.ParseComposeSectionBodies(raw))
+		}
+		if text, ok := finalizeLLMComposeAnswer(flow, rendered, resp, err, composeCtx); ok {
 			return text, nil
 		}
 		return r.composeFallbackJudgment(flow, err)
@@ -246,7 +262,7 @@ func finalizeLLMComposeAnswer(flow *Flow, streamed string, resp *llm.Response, e
 }
 
 func polishComposeAnswerText(flow *Flow, text string, deadline bool) string {
-	text = llm.NormalizeComposeSections(text)
+	text = strings.TrimSpace(text)
 	if deadline && text != "" {
 		if trimmed := llm.TruncateToLastCompleteSentence(text); trimmed != "" && len([]rune(trimmed)) < len([]rune(text)) {
 			recordPhaseGauge(flow, "diag_compose:sentence_trim", 1)
@@ -265,14 +281,10 @@ func markComposeDeadline(flow *Flow, err error, composeCtx context.Context) bool
 }
 
 func signalDiagnoseJudgmentSystemPrompt() string {
-	return "你是 GeeGoo 量化策略诊断助手。只输出最终中文正文，不要英文推理或草稿。根据 probe/diagnose/Episode 写完整评价，不编造数字。\n\n" +
-		"必须按固定四节输出，节标题逐字使用（### 后有空格，标题独占一行，标题后必须空一行再写正文）：\n" +
-		strings.Join([]string{
-			"### 一、信号触发情况",
-			"### 二、probe 与命中率",
-			"### 三、Episode 与风险",
-			"### 四、综合评价",
-		}, "\n")
+	return "你是 GeeGoo 量化策略诊断助手。只输出中文正文，不要 Markdown 标题、不要英文推理。\n" +
+		"必须按四段输出，段与段之间用分隔符标记（分隔符独占一行）：\n" +
+		"[[S1]]\n（信号触发情况正文）\n[[S2]]\n（probe 与命中率正文）\n[[S3]]\n（Episode 与风险正文）\n[[S4]]\n（综合评价正文）\n" +
+		"不要输出 ### 标题；只写各段正文。段内单换行视为同一段，可多段空行。"
 }
 
 func fallbackSignalDiagnoseJudgment(flow *Flow) string {
