@@ -63,7 +63,12 @@ func CardPayload(flow *Flow) map[string]any {
 		out["eval_judgment"] = flow.EvalJudgment
 		out["probe_buy_hits"] = flow.ProbeBuyHits
 		out["probe_sell_hits"] = flow.ProbeSellHits
+		if flow.ProbeBuyHitsSignalAPI != flow.ProbeBuyHits || flow.ProbeSellHitsSignalAPI != flow.ProbeSellHits {
+			out["probe_buy_hits_signal_api"] = flow.ProbeBuyHitsSignalAPI
+			out["probe_sell_hits_signal_api"] = flow.ProbeSellHitsSignalAPI
+		}
 		out["probe_bar_count"] = flow.ProbeBarCount
+		out["probe_hits_scope"] = "in_window_after_warmup"
 		if td := strings.TrimSpace(string(flow.TradeDirection)); td != "" {
 			out["trade_direction"] = td
 		} else {

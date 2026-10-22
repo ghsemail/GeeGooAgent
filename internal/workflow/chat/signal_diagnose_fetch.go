@@ -24,11 +24,23 @@ func applySignalDiagnoseSeriesData(
 	data := res.Data
 	strategydev.StripSignalPriceAnalysisPayload(data)
 	months = strategydev.CapMonthsBack(months)
+	signalBuy := probeHitCount(data, "buy_hits", "buy_merged", 1)
+	signalSell := probeHitCount(data, "sell_hits", "sell_merged", -1)
+	if hits, ok := data["hits"].(map[string]any); ok {
+		if signalBuy == 0 {
+			signalBuy = intAny(hits["buy"])
+		}
+		if signalSell == 0 {
+			signalSell = intAny(hits["sell"])
+		}
+	}
 	meta = strategydev.FinalizeDiagnoseProbeSeries(data, months, buySignal, sellSignal)
 	if fromDiagnoseTool {
 		applyDiagnoseDetailMerge(flow, res, data)
 		return meta
 	}
+	flow.ProbeBuyHitsSignalAPI = signalBuy
+	flow.ProbeSellHitsSignalAPI = signalSell
 	applyProbeSeriesToFlow(flow, res, data, meta)
 	return meta
 }
@@ -92,6 +104,10 @@ func attachWarmupMetaToProbeRaw(probeRaw map[string]any, meta strategydev.Indica
 // applyDiagnoseDetailMerge stores diagnose rules/verdict for build_detail skip without replacing probe hits.
 func applyDiagnoseDetailMerge(flow *Flow, res tools.Result, data map[string]any) {
 	if flow == nil || data == nil {
+		return
+	}
+	if !DiagnoseDetailPayloadUsable(data) {
+		flow.DiagnoseMergedAtProbe = false
 		return
 	}
 	flow.DiagnoseRaw = data

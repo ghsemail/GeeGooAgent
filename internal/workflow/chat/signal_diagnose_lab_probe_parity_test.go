@@ -52,7 +52,9 @@ func probeSeriesFixture() (tools.Result, tools.Result) {
 			"buy_hits": 0, "sell_hits": 0,
 			"hits":     map[string]any{"buy": 0, "sell": 0},
 			"verdict":  "ok", "summary": "diagnose zero merged",
-			"buy_rules": []any{map[string]any{"index": "SAR"}},
+			"buy_rules": []any{map[string]any{
+				"index": "SAR", "last_bar": map[string]any{"signal": 0, "reason": "hold"},
+			}},
 		},
 	}
 	return probe, diagnose
@@ -86,7 +88,17 @@ func TestProbeHitsLabModeParityWithDiagnoseZeroMerged(t *testing.T) {
 		t.Fatalf("expected probe hits 12/12 got %d/%d", off.ProbeBuyHits, off.ProbeSellHits)
 	}
 	if !off.DiagnoseMergedAtProbe || len(off.DiagnoseRaw) == 0 {
-		t.Fatal("expected diagnose merged for build_detail skip")
+		t.Fatal("expected usable diagnose merged for build_detail skip")
+	}
+}
+
+func TestEmptyDiagnoseShellDoesNotSkipBuildDetail(t *testing.T) {
+	flow := &Flow{}
+	applyDiagnoseDetailMerge(flow, tools.Result{Status: tools.StatusOK, Summary: "ok"}, map[string]any{
+		"verdict": "ok", "summary": "shell", "range": map[string]any{"bar_count": 0},
+	})
+	if flow.DiagnoseMergedAtProbe {
+		t.Fatal("empty diagnose shell must not mark merged")
 	}
 }
 

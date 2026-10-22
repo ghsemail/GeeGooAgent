@@ -105,10 +105,41 @@ Episode：%s`,
 		slots.FormatEvalMetricsJSON(flow.SignalEval),
 	)
 	if r != nil && r.ComposeLLM != nil {
-		resp, err := r.ComposeLLM.Chat(ctx, []llm.Message{
+		msgs := []llm.Message{
 			{Role: llm.RoleSystem, Content: signalDiagnoseJudgmentSystemPrompt()},
 			{Role: llm.RoleUser, Content: user},
-		}, nil, 0, 0)
+		}
+		if streamer, ok := r.ComposeLLM.(llm.Streamer); ok {
+			var b strings.Builder
+			resp, err := streamer.ChatStream(ctx, msgs, nil, 0, 0, func(delta llm.StreamDelta) {
+				chunk := llm.VisibleAssistantContent(delta.Content, delta.ReasoningContent)
+				if chunk == "" {
+					return
+				}
+				b.WriteString(chunk)
+				flow.EvalJudgment = b.String()
+				flow.CardStage = "compose_stream"
+				r.emitCard(flow)
+				if r.OnProgress != nil {
+					r.OnProgress("eval_judgment_delta", map[string]any{
+						"run_id": flow.RunID, "text": chunk, "partial": flow.EvalJudgment,
+					})
+				}
+			})
+			if err != nil {
+				return "", err
+			}
+			if text := strings.TrimSpace(b.String()); text != "" {
+				return text, nil
+			}
+			if resp != nil {
+				if text := strings.TrimSpace(llm.VisibleAssistantContent(resp.Content, resp.ReasoningContent)); text != "" {
+					return text, nil
+				}
+			}
+			return "", fmt.Errorf("LLM 返回空内容")
+		}
+		resp, err := r.ComposeLLM.Chat(ctx, msgs, nil, 0, 0)
 		if err != nil {
 			return "", err
 		}

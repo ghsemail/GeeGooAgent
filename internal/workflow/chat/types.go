@@ -102,6 +102,9 @@ type Flow struct {
 	DevArchiveGenerated bool           `json:"dev_archive_generated,omitempty"`
 	ProbeBuyHits        int            `json:"probe_buy_hits,omitempty"`
 	ProbeSellHits       int            `json:"probe_sell_hits,omitempty"`
+	// ProbeBuyHitsSignalAPI is pre–in-window-clamp hits straight from Signal probe payload.
+	ProbeBuyHitsSignalAPI  int `json:"probe_buy_hits_signal_api,omitempty"`
+	ProbeSellHitsSignalAPI int `json:"probe_sell_hits_signal_api,omitempty"`
 	ProbeBarCount       int            `json:"probe_bar_count,omitempty"`
 	DiagnoseVerdict     string         `json:"diagnose_verdict,omitempty"`
 	DiagnoseSummary     string         `json:"diagnose_summary,omitempty"`

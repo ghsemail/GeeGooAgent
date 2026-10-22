@@ -12,6 +12,16 @@ func cloneProbeArgs(src map[string]any) map[string]any {
 	return out
 }
 
+// probeArgsForDiagnoseTool strips probe-only fields; diagnose ignores bars/key_levels extras.
+func probeArgsForDiagnoseTool(probeArgs map[string]any) map[string]any {
+	out := cloneProbeArgs(probeArgs)
+	delete(out, "include_key_levels")
+	delete(out, "key_levels_mode")
+	delete(out, "key_levels_align")
+	out["side"] = "both"
+	return out
+}
+
 func recordProbeToolMeta(flow *Flow, toolName string, res tools.Result) {
 	if flow == nil {
 		return
@@ -23,13 +33,19 @@ func recordProbeToolMeta(flow *Flow, toolName string, res tools.Result) {
 	}
 	recordPhaseGauge(flow, prefix+":ok", 1)
 	data := res.Data
-	barCount := int64(intAny(data["bar_count"]))
-	if barCount == 0 {
-		if bars, ok := data["bars"].([]any); ok {
-			barCount = int64(len(bars))
-		}
-	}
+	barCount := int64(diagnoseBarCount(data))
 	recordPhaseGauge(flow, prefix+":bar_count", barCount)
-	recordPhaseGauge(flow, prefix+":buy_hits", int64(probeHitCount(data, "buy_hits", "buy_merged", 1)))
-	recordPhaseGauge(flow, prefix+":sell_hits", int64(probeHitCount(data, "sell_hits", "sell_merged", -1)))
+	recordPhaseGauge(flow, prefix+":rule_count", int64(diagnoseRuleCount(data)))
+}
+
+// recordProbeHitsMeta records post-finalize (in-window) vs Signal-API raw hits on the flow.
+func recordProbeHitsMeta(flow *Flow) {
+	if flow == nil {
+		return
+	}
+	prefix := "run_probe:probe_bot_signal_series"
+	recordPhaseGauge(flow, prefix+":buy_hits_in_window", int64(flow.ProbeBuyHits))
+	recordPhaseGauge(flow, prefix+":sell_hits_in_window", int64(flow.ProbeSellHits))
+	recordPhaseGauge(flow, prefix+":buy_hits_signal_api", int64(flow.ProbeBuyHitsSignalAPI))
+	recordPhaseGauge(flow, prefix+":sell_hits_signal_api", int64(flow.ProbeSellHitsSignalAPI))
 }
