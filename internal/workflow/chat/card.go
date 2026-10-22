@@ -98,6 +98,8 @@ func CardPayload(flow *Flow) map[string]any {
 		}
 		if flow.LabMode {
 			out["lab_mode"] = true
+			ensureLabFlowDetailRef(flow)
+			out["lab_default_detail_ref"] = strategydev.LabFlowDetailRef
 			if len(flow.LabEpisodeSummaries) > 0 {
 				out["lab_episode_summaries"] = flow.LabEpisodeSummaries
 			}

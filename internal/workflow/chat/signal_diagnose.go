@@ -192,7 +192,7 @@ func (r *Runner) advanceSignalDiagnose(
 		flow.touch()
 		return nil
 	case PhaseReadStrategy:
-		return r.phaseSignalDiagnoseReadStrategy(ctx, flow, toolCtx, recordTool)
+		return r.phaseSignalDiagnoseReadStrategy(ctx, session, flow, toolCtx, recordTool)
 	case PhaseResolveSymbol:
 		if err := r.phaseResolveSymbol(ctx, session, flow, toolCtx, recordTool); err != nil {
 			return err
@@ -224,21 +224,22 @@ func (r *Runner) advanceSignalDiagnose(
 
 func (r *Runner) phaseSignalDiagnoseReadStrategy(
 	ctx context.Context,
+	session *runtime.Session,
 	flow *Flow,
 	toolCtx tools.Context,
 	recordTool func(name, status, summary string),
 ) error {
+	runTool := cachedCatalogToolRunner(r.runToolCall(recordTool))
 	if flowHasProbePanelOverrides(flow) {
 		flow.CatalogType = "panel"
 		flow.CatalogLabel = probePanelDisplayLabel(flow)
-		if err := r.ensureDiagnoseSignalResolved(ctx, flow, toolCtx, recordTool, "read_strategy:resolve_signal"); err != nil {
+		if err := r.ensureDiagnoseSignalResolved(ctx, session, flow, toolCtx, recordTool, "read_strategy:resolve_signal"); err != nil {
 			return err
 		}
 		flow.Phase = PhaseResolveSymbol
 		flow.touch()
 		return nil
 	}
-	runTool := r.runToolCall(recordTool)
 	match, err := matchIndex(ctx, flow.StrategyQuery, toolCtx, runTool)
 	if err != nil {
 		match, err = resolveStrategyCatalog(ctx, flow.StrategyQuery, toolCtx, runTool)
@@ -249,7 +250,7 @@ func (r *Runner) phaseSignalDiagnoseReadStrategy(
 	flow.CatalogType = match.Type
 	flow.CatalogLabel = match.Label
 	flow.CatalogRaw = match.Raw
-	if err := r.ensureDiagnoseSignalResolved(ctx, flow, toolCtx, recordTool, "read_strategy:resolve_signal"); err != nil {
+	if err := r.ensureDiagnoseSignalResolved(ctx, session, flow, toolCtx, recordTool, "read_strategy:resolve_signal"); err != nil {
 		return err
 	}
 	flow.Phase = PhaseResolveSymbol
@@ -424,6 +425,7 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 			fromEval := strategydev.BuildLabCardSummariesFromEval(flow.SignalEval, patIn.PatternHits, "")
 			fromMerged := strategydev.BuildLabCardSummariesFromMerged(bars, buyMerged, sellMerged, patIn.PatternHits, "")
 			flow.LabEpisodeSummaries = strategydev.MergeLabCardSummaries(fromEval, fromMerged)
+			ensureLabFlowDetailRef(flow)
 		}
 	}
 	if r != nil && !flow.LabMode && strategydev.PriceAnalysisFeatureEnabled() {

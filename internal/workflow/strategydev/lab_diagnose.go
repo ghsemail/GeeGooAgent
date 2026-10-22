@@ -58,6 +58,9 @@ func LabCardSummaryLine(kind, text string) string {
 	}
 }
 
+// LabFlowDetailRef opens run-level lab detail when there are no trigger rows.
+const LabFlowDetailRef = "flow:0"
+
 // LabDetailRef builds stable ref ids (buy:3 / sell:1).
 func LabDetailRef(side string, barIndex int) string {
 	side = strings.ToLower(strings.TrimSpace(side))
@@ -70,11 +73,17 @@ func LabDetailRef(side string, barIndex int) string {
 // ParseLabDetailRef parses side and bar index from detail ref.
 func ParseLabDetailRef(ref string) (side string, barIndex int, ok bool) {
 	ref = strings.TrimSpace(ref)
+	if ref == LabFlowDetailRef {
+		return "flow", 0, true
+	}
 	parts := strings.SplitN(ref, ":", 2)
 	if len(parts) != 2 {
 		return "", 0, false
 	}
 	side = strings.ToLower(strings.TrimSpace(parts[0]))
+	if side == "flow" && strings.TrimSpace(parts[1]) == "0" {
+		return "flow", 0, true
+	}
 	if side != "buy" && side != "sell" {
 		return "", 0, false
 	}

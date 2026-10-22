@@ -25,7 +25,7 @@ func TestPhaseReadStrategySkipsCatalogWhenPanelOverrides(t *testing.T) {
 			return tools.Result{}
 		},
 	}
-	if err := r.phaseSignalDiagnoseReadStrategy(context.Background(), flow, tools.Context{}, nil); err != nil {
+	if err := r.phaseSignalDiagnoseReadStrategy(context.Background(), nil, flow, tools.Context{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if flow.Phase != PhaseResolveSymbol {

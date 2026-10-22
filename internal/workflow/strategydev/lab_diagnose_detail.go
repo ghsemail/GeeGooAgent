@@ -33,6 +33,9 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 	if !ok {
 		return LabEpisodeDetail{}, errBadLabRef("invalid detail ref")
 	}
+	if side == "flow" {
+		return buildLabFlowDetail(ctx, in, ref)
+	}
 	out := LabEpisodeDetail{Ref: ref, Side: side, BarIndex: idx}
 	if len(in.Bars) == 0 || idx >= len(in.Bars) {
 		return out, errBadLabRef("bar index out of range")
@@ -96,6 +99,53 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		}
 	} else {
 		out.Degraded = append(out.Degraded, "lab_price_fetch_unavailable")
+	}
+	return out, nil
+}
+
+func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (LabEpisodeDetail, error) {
+	out := LabEpisodeDetail{Ref: ref, Side: "flow", BarIndex: 0}
+	if len(in.Bars) == 0 {
+		return out, nil
+	}
+	idx := len(in.Bars) - 1
+	ent := triggerRecordEntry(in.Bars, idx)
+	out.Time = ent.Time
+	out.Close = ent.Close
+
+	ctx = ContextWithPriceProbeCache(ctx)
+	if in.DetailTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, in.DetailTimeout)
+		defer cancel()
+	}
+	if in.Run != nil {
+		var mtf *KlinePatternMTFBundle
+		if in.CachedMTF != nil && *in.CachedMTF != nil {
+			mtf = *in.CachedMTF
+		} else if b := CachedLabKlineMTF(in.SessionID, in.RunID); b != nil {
+			mtf = b
+			if in.CachedMTF != nil {
+				*in.CachedMTF = mtf
+			}
+		} else {
+			mtf = BuildKlinePatternMTFForDiagnoseRequest(true, ctx, in.Run, in.Code, in.SignalFreq, in.Months, in.Bars)
+			if in.CachedMTF != nil {
+				*in.CachedMTF = mtf
+			}
+			StoreCachedLabKlineMTF(in.SessionID, in.RunID, mtf)
+		}
+		patIn := NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, in.Bars, in.ProbeRaw, mtf)
+		out.KlinePattern = buildLabKlineDetail(idx, patIn)
+	}
+	if in.LabFetcher != nil && strings.TrimSpace(in.Code) != "" {
+		pa := priceanalysis.Run(ctx, in.LabFetcher, priceanalysis.RunRequest{
+			Code: in.Code, Months: CapMonthsBack(in.Months), SignalFreq: in.SignalFreq,
+			SpotPrice: ent.Close, KeyLevels: keyLevelsToLab(in.KeyLevels),
+		})
+		pa = priceanalysis.RoundPriceAnalysisForOutput(pa)
+		converted := priceAnalysisFromLab(pa)
+		out.PriceAnalysis = &converted
 	}
 	return out, nil
 }

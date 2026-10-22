@@ -65,9 +65,16 @@ func applyRunProbeSeriesLike(flow *Flow, probe, diagnose tools.Result) {
 		flow.Strategies = []StrategyItem{{}}
 	}
 	// Parity invariant: probe hits come from probe payload only; diagnose merge must not rewrite them.
-	applyProbeSeriesToFlow(flow, probe, probe.Data, strategydev.IndicatorWarmupMeta{
-		RequiredWarmupBars: 100, PrefixBarsBeforeWindow: 105,
-	})
+	applyProbeSeriesToFlow(flow, probe, probe.Data, strategydev.IndicatorWarmupMeta{})
+	flow.ProbeBuyHitsSignalAPI = intAny(probe.Data["buy_hits"])
+	flow.ProbeSellHitsSignalAPI = intAny(probe.Data["sell_hits"])
+	if flow.ProbeBuyHitsSignalAPI == 0 {
+		flow.ProbeBuyHitsSignalAPI = 12
+	}
+	if flow.ProbeSellHitsSignalAPI == 0 {
+		flow.ProbeSellHitsSignalAPI = 12
+	}
+	recordProbeHitsMeta(flow)
 	if diagnose.Status == tools.StatusOK && diagnose.Data != nil {
 		applyDiagnoseDetailMerge(flow, diagnose, diagnose.Data)
 	}
@@ -87,8 +94,8 @@ func TestProbeHitsLabModeParityWithDiagnoseZeroMerged(t *testing.T) {
 	if off.ProbeBuyHits != 12 || off.ProbeSellHits != 12 {
 		t.Fatalf("expected probe hits 12/12 got %d/%d", off.ProbeBuyHits, off.ProbeSellHits)
 	}
-	if !off.DiagnoseMergedAtProbe || len(off.DiagnoseRaw) == 0 {
-		t.Fatal("expected usable diagnose merged for build_detail skip")
+	if off.DiagnoseMergedAtProbe || on.DiagnoseMergedAtProbe {
+		t.Fatal("zero-merged diagnose shell must not merge when probe has API hits")
 	}
 }
 
@@ -127,8 +134,23 @@ func TestEvaluateDoesNotChangeProbeHitsLabOnOff(t *testing.T) {
 }
 
 func TestBuildDetailSkipsWhenDiagnoseMergedAtProbe(t *testing.T) {
-	probe, diagnose := probeSeriesFixture()
-	flow := &Flow{DiagnoseMergedAtProbe: true}
+	probe, _ := probeSeriesFixture()
+	diagnose := tools.Result{
+		Status: tools.StatusOK,
+		Data: map[string]any{
+			"verdict": "ok", "summary": "aligned", "range": map[string]any{"bar_count": 8},
+			"buy_hits": 12, "sell_hits": 12, "hits": map[string]any{"buy": 12, "sell": 12},
+			"buy_rules": []any{map[string]any{"index": "SAR", "last_bar": map[string]any{"signal": 1}}},
+		},
+	}
+	flow := &Flow{
+		CatalogType: catalogTypeCombination,
+		CatalogRaw: map[string]any{
+			"name": "x", "frequency": "60m",
+			"buy_signal": []any{map[string]any{"index": "SAR", "type": "signal"}},
+			"sell_signal": []any{map[string]any{"index": "SAR", "type": "signal"}},
+		},
+	}
 	applyRunProbeSeriesLike(flow, probe, diagnose)
 	called := false
 	r := &Runner{RunTool: func(context.Context, tools.CallRequest, tools.Context) tools.Result {

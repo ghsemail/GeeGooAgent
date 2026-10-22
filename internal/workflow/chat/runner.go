@@ -174,6 +174,18 @@ func (r *Runner) runTemplateTurn(
 				flow.touch()
 				SaveToSession(session, flow)
 				r.emitCard(flow)
+				if flow.LabMode && flow.CardStage == "eval_done" && len(flow.ProbeRaw) > 0 {
+					bars, _ := flow.ProbeRaw["bars"].([]any)
+					freq := "60m"
+					if len(flow.Strategies) > 0 && strings.TrimSpace(flow.Strategies[0].Frequency) != "" {
+						freq = flow.Strategies[0].Frequency
+					}
+					months := flow.MonthsBack
+					if months <= 0 {
+						months = defaultMonthsBack
+					}
+					r.prewarmLabKlineMTF(ctx, flow, toolCtx, recordTool, freq, months, bars)
+				}
 			}
 		}
 	}

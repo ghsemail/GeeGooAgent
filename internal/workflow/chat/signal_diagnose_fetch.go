@@ -110,6 +110,10 @@ func applyDiagnoseDetailMerge(flow *Flow, res tools.Result, data map[string]any)
 		flow.DiagnoseMergedAtProbe = false
 		return
 	}
+	if !diagnosePayloadConsistentWithProbe(flow, data) {
+		flow.DiagnoseMergedAtProbe = false
+		return
+	}
 	flow.DiagnoseRaw = data
 	flow.DiagnoseVerdict = strings.TrimSpace(fmt.Sprint(data["verdict"]))
 	flow.DiagnoseSummary = strings.TrimSpace(fmt.Sprint(data["summary"]))

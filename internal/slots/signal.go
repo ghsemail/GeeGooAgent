@@ -150,6 +150,32 @@ func indexRowToRules(row map[string]any) (buy, sell []any, frequency, label stri
 	return buy, sell, frequency, label, nil
 }
 
+// ResolvedSignalFromCatalog builds probe rules from a catalog row already matched in read_strategy.
+func ResolvedSignalFromCatalog(catalogType string, row map[string]any) (ResolvedSignal, error) {
+	if len(row) == 0 {
+		return ResolvedSignal{}, fmt.Errorf("catalog row empty")
+	}
+	switch strings.TrimSpace(catalogType) {
+	case "combination", "custom":
+		return rowToResolved(row)
+	case "index", "definition":
+		buy, sell, frequency, label, err := indexRowToRules(row)
+		if err != nil {
+			return ResolvedSignal{}, err
+		}
+		return ResolvedSignal{Buy: buy, Sell: sell, Frequency: frequency, StrategyLabel: label}, nil
+	default:
+		if rawBuy, ok := row["buy_signal"].([]any); ok && len(rawBuy) > 0 {
+			return rowToResolved(row)
+		}
+		buy, sell, frequency, label, err := indexRowToRules(row)
+		if err != nil {
+			return ResolvedSignal{}, err
+		}
+		return ResolvedSignal{Buy: buy, Sell: sell, Frequency: frequency, StrategyLabel: label}, nil
+	}
+}
+
 func rowToResolved(row map[string]any) (ResolvedSignal, error) {
 	buy, _ := row["buy_signal"].([]any)
 	sell, _ := row["sell_signal"].([]any)
