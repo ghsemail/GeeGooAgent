@@ -21,6 +21,10 @@ type LabDetailInput struct {
 	LookbackBars  []any
 	LabFetcher    priceanalysis.BarsFetcher
 	DetailTimeout time.Duration
+	// CachedMTF when set, reuses MTF bundle across lab-detail calls for one diagnose run.
+	CachedMTF **KlinePatternMTFBundle
+	SessionID string
+	RunID     string
 }
 
 // BuildLabEpisodeDetail loads MTF kline context and anchored price analysis for one ref.
@@ -46,7 +50,21 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 
 	var patIn KlinePatternDisplayInput
 	if in.Run != nil {
-		mtf := BuildKlinePatternMTFForDiagnoseRequest(true, ctx, in.Run, in.Code, in.SignalFreq, in.Months, in.Bars)
+		var mtf *KlinePatternMTFBundle
+		if in.CachedMTF != nil && *in.CachedMTF != nil {
+			mtf = *in.CachedMTF
+		} else if b := CachedLabKlineMTF(in.SessionID, in.RunID); b != nil {
+			mtf = b
+			if in.CachedMTF != nil {
+				*in.CachedMTF = mtf
+			}
+		} else {
+			mtf = BuildKlinePatternMTFForDiagnoseRequest(true, ctx, in.Run, in.Code, in.SignalFreq, in.Months, in.Bars)
+			if in.CachedMTF != nil {
+				*in.CachedMTF = mtf
+			}
+			StoreCachedLabKlineMTF(in.SessionID, in.RunID, mtf)
+		}
 		patIn = NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, in.Bars, in.ProbeRaw, mtf)
 	} else {
 		patIn = NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, in.Bars, in.ProbeRaw, nil)

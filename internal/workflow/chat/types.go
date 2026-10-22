@@ -106,6 +106,9 @@ type Flow struct {
 	DiagnoseVerdict     string         `json:"diagnose_verdict,omitempty"`
 	DiagnoseSummary     string         `json:"diagnose_summary,omitempty"`
 	DiagnoseRaw         map[string]any `json:"diagnose_raw,omitempty"`
+	// DiagnoseMergedAtProbe true when run_probe used diagnose_bot_signal_series (skip duplicate fetch in build_detail).
+	DiagnoseMergedAtProbe bool `json:"diagnose_merged_at_probe,omitempty"`
+	CardStage             string `json:"card_stage,omitempty"`
 	ProbeRaw            map[string]any `json:"probe_raw,omitempty"`
 	SignalEval          slots.SignalEpisodeEval `json:"signal_eval,omitempty"`
 	UsePriceAnalysisEpisodeFilter bool    `json:"use_price_analysis_episode_filter,omitempty"`
@@ -125,6 +128,8 @@ type Flow struct {
 	LabMode                bool `json:"lab_mode,omitempty"`
 	LabFlowPriceSummary    string `json:"lab_flow_price_summary,omitempty"`
 	LabEpisodeSummaries    strategydev.LabCardEpisodeSummaries `json:"lab_episode_summaries,omitempty"`
+	// LabKlineMTF caches MTF kline probes for lazy lab-detail (same run, multiple detail_ref).
+	LabKlineMTF *strategydev.KlinePatternMTFBundle `json:"-"`
 	KeyLevels              KeyLevelSnapshot   `json:"key_levels,omitempty"`
 	KeyLevelSeries         *KeyLevelBarSeries `json:"key_level_series,omitempty"`
 	EvalJudgment        string         `json:"eval_judgment,omitempty"`

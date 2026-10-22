@@ -287,19 +287,36 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 	probeArgs["key_levels_mode"] = "series"
 	probeArgs["key_levels_align"] = "daily"
 	strategydev.EnrichProbeArgsForIndicatorWarmup(probeArgs, sig.Buy, sig.Sell)
-	res := r.runTool(ctx, toolCtx, "probe_bot_signal_series", probeArgs, recordTool)
-	if res.Status != tools.StatusOK {
-		return fmt.Errorf("probe 失败：%s", res.Summary)
+	probeArgs["side"] = "both"
+	res := r.runTool(ctx, toolCtx, "diagnose_bot_signal_series", probeArgs, recordTool)
+	fromDiagnose := res.Status == tools.StatusOK
+	if !fromDiagnose {
+		delete(probeArgs, "side")
+		res = r.runTool(ctx, toolCtx, "probe_bot_signal_series", probeArgs, recordTool)
+		if res.Status != tools.StatusOK {
+			return fmt.Errorf("probe 失败：%s", res.Summary)
+		}
 	}
-	strategydev.StripSignalPriceAnalysisPayload(res.Data)
 	months = strategydev.CapMonthsBack(months)
-	warmupMeta := strategydev.FinalizeDiagnoseProbeSeries(res.Data, months, sig.Buy, sig.Sell)
-	flow.ProbeBuyHits = probeHitCount(res.Data, "buy_hits", "buy_merged", 1)
-	flow.ProbeSellHits = probeHitCount(res.Data, "sell_hits", "sell_merged", -1)
-	flow.ProbeBarCount = intAny(res.Data["bar_count"])
-	if flow.ProbeBarCount == 0 {
-		if bars, ok := res.Data["bars"].([]any); ok {
-			flow.ProbeBarCount = len(bars)
+	applySignalDiagnoseSeriesData(flow, res, months, sig.Buy, sig.Sell, fromDiagnose)
+	if fromDiagnose {
+		if bars, _ := res.Data["bars"].([]any); len(bars) == 0 {
+			delete(probeArgs, "side")
+			fallback := r.runTool(ctx, toolCtx, "probe_bot_signal_series", probeArgs, recordTool)
+			if fallback.Status == tools.StatusOK {
+				applySignalDiagnoseSeriesData(flow, fallback, months, sig.Buy, sig.Sell, false)
+				flow.DiagnoseMergedAtProbe = false
+				if flow.DiagnoseRaw != nil {
+					for k, v := range fallback.Data {
+						if flow.DiagnoseRaw[k] == nil {
+							flow.DiagnoseRaw[k] = v
+						}
+					}
+				} else {
+					flow.DiagnoseRaw = fallback.Data
+				}
+				res = fallback
+			}
 		}
 	}
 	if flow.Strategies == nil {
@@ -314,27 +331,7 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 	item.SellHits = flow.ProbeSellHits
 	item.Summary = strings.TrimSpace(res.Summary)
 	item.Status = StepDone
-	flow.ProbeRaw = map[string]any{
-		"bars":          res.Data["bars"],
-		"buy_merged":    res.Data["buy_merged"],
-		"sell_merged":   res.Data["sell_merged"],
-		"bars_lookback": res.Data["bars_lookback"],
-	}
-	if v := res.Data["pattern_hits"]; v != nil {
-		flow.ProbeRaw["pattern_hits"] = v
-	}
-	if warmupMeta.Note != "" {
-		flow.ProbeRaw["indicator_warmup_note"] = warmupMeta.Note
-	}
-	if warmupMeta.RequiredWarmupBars > 0 {
-		flow.ProbeRaw["indicator_warmup_bars"] = warmupMeta.RequiredWarmupBars
-	}
-	if warmupMeta.PrefixBarsBeforeWindow > 0 {
-		flow.ProbeRaw["indicator_warmup_prefix_bars"] = warmupMeta.PrefixBarsBeforeWindow
-	}
-	if warmupMeta.SuppressedInWindowBars > 0 {
-		flow.ProbeRaw["indicator_warmup_suppressed_bars"] = warmupMeta.SuppressedInWindowBars
-	}
+	flow.CardStage = "probe_done"
 	if serRaw := res.Data["key_levels_series"]; serRaw != nil {
 		flow.KeyLevelSeries = keyLevelBarSeriesFromProbeData(serRaw)
 	}
@@ -419,12 +416,15 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 		if flow.LabMode && len(bars) > 0 {
 			patIn := strategydev.NewKlinePatternDisplayInputForDiagnose(true, freq, bars, flow.ProbeRaw, nil)
 			strategydev.EnrichSignalEpisodeEvalKlineDisplayLight(&flow.SignalEval, patIn)
-			flow.LabEpisodeSummaries = strategydev.BuildLabCardSummariesFromEval(flow.SignalEval, patIn.PatternHits, "")
+			fromEval := strategydev.BuildLabCardSummariesFromEval(flow.SignalEval, patIn.PatternHits, "")
+			fromMerged := strategydev.BuildLabCardSummariesFromMerged(bars, buyMerged, sellMerged, patIn.PatternHits, "")
+			flow.LabEpisodeSummaries = strategydev.MergeLabCardSummaries(fromEval, fromMerged)
 		}
 	}
 	if r != nil && !flow.LabMode && strategydev.PriceAnalysisFeatureEnabled() {
 		r.attachSignalDiagnosePriceAnalysis(ctx, flow, toolCtx, recordTool)
 	}
+	flow.CardStage = "eval_done"
 	flow.Phase = PhaseBuildDetail
 	flow.touch()
 	return nil
@@ -436,6 +436,11 @@ func (r *Runner) phaseSignalDiagnoseBuildDetail(
 	toolCtx tools.Context,
 	recordTool func(name, status, summary string),
 ) error {
+	if flow.DiagnoseMergedAtProbe && len(flow.DiagnoseRaw) > 0 {
+		flow.Phase = PhaseDiagCompose
+		flow.touch()
+		return nil
+	}
 	sig, err := r.resolveDiagnoseSignal(ctx, flow, toolCtx, recordTool)
 	if err != nil {
 		return err

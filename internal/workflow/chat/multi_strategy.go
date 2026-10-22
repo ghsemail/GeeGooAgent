@@ -401,5 +401,9 @@ func intAny(v any) int {
 }
 
 func newRunID() string {
-	return "flow-" + time.Now().UTC().Format("20060102T150405")
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		loc = time.FixedZone("CST", 8*3600)
+	}
+	return "flow-" + time.Now().In(loc).Format("20060102T150405")
 }

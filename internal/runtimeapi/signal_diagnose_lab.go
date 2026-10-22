@@ -102,6 +102,7 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		Run: strategydev.ToolRunner(runner), Code: flow.StockCode, SignalFreq: freq, Months: months,
 		KeyLevels: keyLevelBandsFromFlowSnapshot(flow), ProbeRaw: flow.ProbeRaw, Bars: bars,
 		LookbackBars: lookback, LabFetcher: fetcher, DetailTimeout: 8 * time.Second,
+		CachedMTF: &flow.LabKlineMTF, SessionID: sessionID, RunID: flow.RunID,
 	}, ref)
 	if err != nil {
 		if strategydev.IsBadLabRef(err) {
