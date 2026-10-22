@@ -311,6 +311,7 @@ func (a *App) RebuildGateway() error {
 	a.SynthesisGateway = synthGW
 	if a.Agent != nil {
 		a.Agent.SetGateway(a.Gateway)
+		a.invalidateComposeProviderCache()
 		a.Agent.Loop.SetSignalDiagnoseComposeLLM(a.SignalDiagnoseComposeProvider())
 	}
 	a.RefreshOpsEmbedding(true)

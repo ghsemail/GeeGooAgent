@@ -134,19 +134,7 @@ func (r *Runner) synthesizeSignalDiagnoseJudgment(ctx context.Context, flow *Flo
 	if len(flow.Strategies) > 0 && flow.Strategies[0].Frequency != "" {
 		freq = flow.Strategies[0].Frequency
 	}
-	user := fmt.Sprintf(`请用完整、正式的中文写信号诊断评价（可分段落，勿编造数字；不要输出英文推理或草稿，只输出最终中文正文）：
-
-策略 %s（%s）· %s %s · %s / %d月
-probe 买%d/卖%d（%d根K）
-diagnose：%s — %s
-Episode：%s`,
-		label, flow.CatalogType,
-		flow.StockName, flow.StockCode,
-		freq, flow.MonthsBack,
-		flow.ProbeBuyHits, flow.ProbeSellHits, flow.ProbeBarCount,
-		flow.DiagnoseVerdict, flow.DiagnoseSummary,
-		slots.FormatEvalMetricsJSON(flow.SignalEval),
-	)
+	user := buildSignalDiagnoseComposeUserPrompt(flow, label, freq)
 	recordPhaseGauge(flow, "diag_compose:prompt_chars", int64(len(user)))
 	if r != nil && r.ComposeLLM != nil {
 		msgs := []llm.Message{
@@ -237,7 +225,8 @@ func (r *Runner) composeFallbackJudgment(flow *Flow, cause error) (string, error
 func finalizeLLMComposeAnswer(flow *Flow, streamed string, resp *llm.Response, err error, composeCtx context.Context) (string, bool) {
 	streamed = strings.TrimSpace(llm.PublicAnswerContent(streamed))
 	if streamed != "" {
-		markComposeDeadline(flow, err, composeCtx)
+		deadline := markComposeDeadline(flow, err, composeCtx)
+		streamed = polishComposeAnswerText(flow, streamed, deadline)
 		if flow != nil {
 			flow.ComposeFallback = false
 		}
@@ -245,6 +234,8 @@ func finalizeLLMComposeAnswer(flow *Flow, streamed string, resp *llm.Response, e
 	}
 	if resp != nil {
 		if text := strings.TrimSpace(llm.PublicAnswerContent(resp.Content)); text != "" {
+			deadline := markComposeDeadline(flow, err, composeCtx)
+			text = polishComposeAnswerText(flow, text, deadline)
 			if flow != nil {
 				flow.ComposeFallback = false
 			}
@@ -254,16 +245,27 @@ func finalizeLLMComposeAnswer(flow *Flow, streamed string, resp *llm.Response, e
 	return "", false
 }
 
-func markComposeDeadline(flow *Flow, err error, composeCtx context.Context) {
-	if err != nil || composeCtx.Err() != nil {
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(composeCtx.Err(), context.DeadlineExceeded) {
-			recordPhaseGauge(flow, "diag_compose:deadline_hit", 1)
+func polishComposeAnswerText(flow *Flow, text string, deadline bool) string {
+	text = llm.NormalizeComposeMarkdown(text)
+	if deadline && text != "" {
+		if trimmed := llm.TruncateToLastCompleteSentence(text); trimmed != "" && len([]rune(trimmed)) < len([]rune(text)) {
+			recordPhaseGauge(flow, "diag_compose:sentence_trim", 1)
+			text = trimmed
 		}
 	}
+	return text
+}
+
+func markComposeDeadline(flow *Flow, err error, composeCtx context.Context) bool {
+	hit := errors.Is(err, context.DeadlineExceeded) || errors.Is(composeCtx.Err(), context.DeadlineExceeded)
+	if hit {
+		recordPhaseGauge(flow, "diag_compose:deadline_hit", 1)
+	}
+	return hit
 }
 
 func signalDiagnoseJudgmentSystemPrompt() string {
-	return "你是 GeeGoo 量化策略诊断助手。只输出最终中文正文（可分段），不要输出英文推理、计划或草稿。根据 probe/diagnose/Episode 指标写完整评价，不夸大、不编造数据。"
+	return "你是 GeeGoo 量化策略诊断助手。只输出最终中文正文（可分段），不要输出英文推理、计划或草稿。根据 probe/diagnose/Episode 指标写完整评价，不夸大、不编造数据。若使用 Markdown 小标题，格式必须为「### 标题」且标题后空一行再写正文。"
 }
 
 func fallbackSignalDiagnoseJudgment(flow *Flow) string {

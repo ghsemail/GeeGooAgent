@@ -17,6 +17,7 @@ func TestSignalDiagnoseComposeProviderUsesChatNotSynthesis(t *testing.T) {
 	synthGW := llm.NewGateway(synthProv, llm.GatewayConfig{MaxRetries: 1})
 	cfg := &config.AppConfig{LLM: config.LLMConfig{Provider: "openai", Model: "chat-model", TokenKey: "sk-test"}}
 	a := &App{Config: cfg, Gateway: chatGW, SynthesisGateway: synthGW}
+	a.invalidateComposeProviderCache()
 	a.Agent = agent.New(chatGW, runtime.NewExecutor(tools.NewRegistry()), tools.NewRegistry())
 	p := a.SignalDiagnoseComposeProvider()
 	if p == nil {
