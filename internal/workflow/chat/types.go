@@ -133,6 +133,8 @@ type Flow struct {
 	SignalResolveCacheKey  string         `json:"signal_resolve_cache_key,omitempty"`
 	ComposeFallback        bool           `json:"compose_fallback,omitempty"`
 	ComposeTimeoutMs       int64          `json:"compose_timeout_ms,omitempty"`
+	ComposeModel           string         `json:"compose_model,omitempty"`
+	ComposeReasoningDebug  string         `json:"compose_reasoning_debug,omitempty"`
 	DiagnoseSignalCached   bool           `json:"diagnose_signal_cached,omitempty"`
 	DiagnoseSignalSource   string         `json:"diagnose_signal_source,omitempty"`
 	ResolvedBuySignal      []any          `json:"resolved_buy_signal,omitempty"`

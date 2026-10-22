@@ -14,7 +14,7 @@ func TestFinalizeLLMComposeTextKeepsPartialOnDeadline(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	defer cancel()
 	<-ctx.Done()
-	text, ok := finalizeLLMComposeText(flow, "已写一半", nil, context.DeadlineExceeded, ctx)
+	text, ok := finalizeLLMComposeAnswer(flow, "已写一半", nil, context.DeadlineExceeded, ctx)
 	if !ok || text != "已写一半" {
 		t.Fatalf("ok=%v text=%q", ok, text)
 	}
@@ -28,7 +28,7 @@ func TestFinalizeLLMComposeTextKeepsPartialOnDeadline(t *testing.T) {
 
 func TestFinalizeLLMComposeTextPreferStreamOverEmptyResponse(t *testing.T) {
 	flow := &Flow{}
-	text, ok := finalizeLLMComposeText(flow, "流式正文", &llm.Response{Content: ""}, nil, context.Background())
+	text, ok := finalizeLLMComposeAnswer(flow, "流式正文", &llm.Response{Content: ""}, nil, context.Background())
 	if !ok || text != "流式正文" || flow.ComposeFallback {
 		t.Fatalf("ok=%v text=%q fallback=%v", ok, text, flow.ComposeFallback)
 	}

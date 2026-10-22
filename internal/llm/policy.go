@@ -133,6 +133,7 @@ type CallMeta struct {
 	ThinkingEnabled bool
 	Round           int
 	MaxRounds       int
+	MaxTokensOverride int
 }
 
 // WithCallMeta attaches model-policy metadata to ctx.
