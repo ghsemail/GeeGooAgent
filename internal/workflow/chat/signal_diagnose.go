@@ -241,10 +241,7 @@ func (r *Runner) phaseSignalDiagnoseReadStrategy(
 		return nil
 	}
 	catalogStart := time.Now()
-	match, err := matchIndex(ctx, flow.StrategyQuery, toolCtx, runTool)
-	if err != nil {
-		match, err = resolveStrategyCatalog(ctx, flow.StrategyQuery, toolCtx, runTool)
-	}
+	match, err := resolveStrategyCatalog(ctx, flow.StrategyQuery, toolCtx, runTool)
 	recordPhaseTiming(flow, "read_strategy:catalog_match", time.Since(catalogStart))
 	if err != nil {
 		return err
@@ -252,6 +249,9 @@ func (r *Runner) phaseSignalDiagnoseReadStrategy(
 	flow.CatalogType = match.Type
 	flow.CatalogLabel = match.Label
 	flow.CatalogRaw = match.Raw
+	if id := catalogField(match.Raw, "signal_id", "id"); id != "" {
+		recordPhaseGauge(flow, "read_strategy:catalog_signal_id_len", int64(len(id)))
+	}
 	if err := r.ensureDiagnoseSignalResolved(ctx, session, flow, toolCtx, recordTool, "read_strategy:resolve_signal"); err != nil {
 		return err
 	}

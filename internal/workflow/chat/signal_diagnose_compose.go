@@ -87,7 +87,11 @@ func signalDiagnoseKnowledgeTitle(strategy, stock string) string {
 	}
 }
 
-const defaultSignalDiagnoseComposeDeadline = 120 * time.Second
+const (
+	defaultSignalDiagnoseComposeDeadline = 120 * time.Second
+	defaultSignalDiagnoseComposeMaxTokens = 2048
+	maxComposeReasoningDebugRunes         = 2000
+)
 
 func signalDiagnoseComposeDeadline() time.Duration {
 	raw := strings.TrimSpace(os.Getenv("SIGNAL_DIAGNOSE_COMPOSE_TIMEOUT_SEC"))
@@ -101,18 +105,36 @@ func signalDiagnoseComposeDeadline() time.Duration {
 	return time.Duration(sec) * time.Second
 }
 
+func signalDiagnoseComposeMaxTokens() int {
+	raw := strings.TrimSpace(os.Getenv("SIGNAL_DIAGNOSE_COMPOSE_MAX_TOKENS"))
+	if raw == "" {
+		return defaultSignalDiagnoseComposeMaxTokens
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 256 {
+		return defaultSignalDiagnoseComposeMaxTokens
+	}
+	return n
+}
+
 func (r *Runner) synthesizeSignalDiagnoseJudgment(ctx context.Context, flow *Flow) (string, error) {
 	deadline := signalDiagnoseComposeDeadline()
+	maxTok := signalDiagnoseComposeMaxTokens()
 	if flow != nil {
 		flow.ComposeTimeoutMs = deadline.Milliseconds()
 		flow.ComposeFallback = false
+		flow.ComposeReasoningDebug = ""
+		if r != nil && r.ComposeLLM != nil {
+			flow.ComposeModel = strings.TrimSpace(r.ComposeLLM.Model())
+		}
+		recordPhaseGauge(flow, "diag_compose:max_tokens", int64(maxTok))
 	}
 	label := strategyDisplayLabel(flow)
 	freq := "-"
 	if len(flow.Strategies) > 0 && flow.Strategies[0].Frequency != "" {
 		freq = flow.Strategies[0].Frequency
 	}
-	user := fmt.Sprintf(`用完整、连贯的中文写信号诊断评价（可多段，勿编造数字）：
+	user := fmt.Sprintf(`请用完整、正式的中文写信号诊断评价（可分段落，勿编造数字；不要输出英文推理或草稿，只输出最终中文正文）：
 
 策略 %s（%s）· %s %s · %s / %d月
 probe 买%d/卖%d（%d根K）
@@ -133,36 +155,66 @@ Episode：%s`,
 		}
 		composeCtx, cancel := context.WithTimeout(ctx, deadline)
 		defer cancel()
-		composeCtx = llm.WithCallMeta(composeCtx, llm.CallMeta{Kind: llm.TaskSynthesis})
+		composeCtx = llm.WithCallMeta(composeCtx, llm.CallMeta{
+			Kind:              llm.TaskSynthesis,
+			MaxTokensOverride: maxTok,
+		})
+		appendReasoningDebug := func(reason string) {
+			if flow == nil || strings.TrimSpace(reason) == "" {
+				return
+			}
+			flow.ComposeReasoningDebug = truncateRunes(flow.ComposeReasoningDebug+reason, maxComposeReasoningDebugRunes)
+		}
+		emitAnswerChunk := func(chunk string) {
+			if flow == nil || chunk == "" {
+				return
+			}
+			flow.CardStage = "compose_stream"
+			r.emitCard(flow)
+			if r.OnProgress != nil {
+				r.OnProgress("eval_judgment_delta", map[string]any{
+					"run_id": flow.RunID, "text": chunk, "partial": flow.EvalJudgment,
+				})
+			}
+		}
 		if streamer, ok := r.ComposeLLM.(llm.Streamer); ok {
-			var b strings.Builder
-			resp, err := streamer.ChatStream(composeCtx, msgs, nil, 0, 0, func(delta llm.StreamDelta) {
-				chunk := llm.VisibleAssistantContent(delta.Content, delta.ReasoningContent)
+			var answer strings.Builder
+			resp, err := streamer.ChatStream(composeCtx, msgs, nil, 0, maxTok, func(delta llm.StreamDelta) {
+				if rc := strings.TrimSpace(delta.ReasoningContent); rc != "" {
+					appendReasoningDebug(rc)
+					return
+				}
+				chunk := llm.PublicAnswerContent(delta.Content)
 				if chunk == "" {
 					return
 				}
-				b.WriteString(chunk)
-				flow.EvalJudgment = b.String()
-				flow.CardStage = "compose_stream"
-				r.emitCard(flow)
-				if r.OnProgress != nil {
-					r.OnProgress("eval_judgment_delta", map[string]any{
-						"run_id": flow.RunID, "text": chunk, "partial": flow.EvalJudgment,
-					})
-				}
+				answer.WriteString(chunk)
+				flow.EvalJudgment = answer.String()
+				emitAnswerChunk(chunk)
 			})
-			if text, ok := finalizeLLMComposeText(flow, b.String(), resp, err, composeCtx); ok {
+			if text, ok := finalizeLLMComposeAnswer(flow, answer.String(), resp, err, composeCtx); ok {
 				return text, nil
 			}
 			return r.composeFallbackJudgment(flow, fmt.Errorf("compose stream: %w", err))
 		}
-		resp, err := r.ComposeLLM.Chat(composeCtx, msgs, nil, 0, 0)
-		if text, ok := finalizeLLMComposeText(flow, "", resp, err, composeCtx); ok {
+		resp, err := r.ComposeLLM.Chat(composeCtx, msgs, nil, 0, maxTok)
+		if resp != nil && strings.TrimSpace(resp.ReasoningContent) != "" {
+			appendReasoningDebug(resp.ReasoningContent)
+		}
+		if text, ok := finalizeLLMComposeAnswer(flow, "", resp, err, composeCtx); ok {
 			return text, nil
 		}
 		return r.composeFallbackJudgment(flow, err)
 	}
 	return r.composeFallbackJudgment(flow, nil)
+}
+
+func truncateRunes(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return string(r[:max])
 }
 
 func (r *Runner) composeFallbackJudgment(flow *Flow, cause error) (string, error) {
@@ -175,22 +227,17 @@ func (r *Runner) composeFallbackJudgment(flow *Flow, cause error) (string, error
 	return fallbackSignalDiagnoseJudgment(flow), nil
 }
 
-// finalizeLLMComposeText returns streamed/response text when any LLM content exists (including partial on deadline).
-func finalizeLLMComposeText(flow *Flow, streamed string, resp *llm.Response, err error, composeCtx context.Context) (string, bool) {
-	streamed = strings.TrimSpace(streamed)
+func finalizeLLMComposeAnswer(flow *Flow, streamed string, resp *llm.Response, err error, composeCtx context.Context) (string, bool) {
+	streamed = strings.TrimSpace(llm.PublicAnswerContent(streamed))
 	if streamed != "" {
-		if err != nil || composeCtx.Err() != nil {
-			if errors.Is(err, context.DeadlineExceeded) || errors.Is(composeCtx.Err(), context.DeadlineExceeded) {
-				recordPhaseGauge(flow, "diag_compose:deadline_hit", 1)
-			}
-		}
+		markComposeDeadline(flow, err, composeCtx)
 		if flow != nil {
 			flow.ComposeFallback = false
 		}
 		return streamed, true
 	}
 	if resp != nil {
-		if text := strings.TrimSpace(llm.VisibleAssistantContent(resp.Content, resp.ReasoningContent)); text != "" {
+		if text := strings.TrimSpace(llm.PublicAnswerContent(resp.Content)); text != "" {
 			if flow != nil {
 				flow.ComposeFallback = false
 			}
@@ -200,8 +247,16 @@ func finalizeLLMComposeText(flow *Flow, streamed string, resp *llm.Response, err
 	return "", false
 }
 
+func markComposeDeadline(flow *Flow, err error, composeCtx context.Context) {
+	if err != nil || composeCtx.Err() != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(composeCtx.Err(), context.DeadlineExceeded) {
+			recordPhaseGauge(flow, "diag_compose:deadline_hit", 1)
+		}
+	}
+}
+
 func signalDiagnoseJudgmentSystemPrompt() string {
-	return "你是 GeeGoo 量化策略诊断助手。根据结构化 probe/diagnose/Episode 指标写完整中文评价，不夸大、不编造数据，可分段落。"
+	return "你是 GeeGoo 量化策略诊断助手。只输出最终中文正文（可分段），不要输出英文推理、计划或草稿。根据 probe/diagnose/Episode 指标写完整评价，不夸大、不编造数据。"
 }
 
 func fallbackSignalDiagnoseJudgment(flow *Flow) string {

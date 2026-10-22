@@ -59,7 +59,11 @@ func (p *gatewayProvider) Chat(
 	if kind == "" {
 		kind = TaskCompress
 	}
-	ctx = WithCallMeta(ctx, CallMeta{Kind: kind})
+	meta := CallMetaFrom(ctx)
+	if meta.Kind == "" {
+		meta.Kind = kind
+	}
+	ctx = WithCallMeta(ctx, meta)
 	return p.gw.Chat(ctx, messages, tools, "", 0)
 }
 
@@ -78,6 +82,10 @@ func (p *gatewayProvider) ChatStream(
 	if kind == "" {
 		kind = TaskCompress
 	}
-	ctx = WithCallMeta(ctx, CallMeta{Kind: kind})
+	meta := CallMetaFrom(ctx)
+	if meta.Kind == "" {
+		meta.Kind = kind
+	}
+	ctx = WithCallMeta(ctx, meta)
 	return p.gw.ChatStream(ctx, messages, tools, "", 0, onDelta)
 }

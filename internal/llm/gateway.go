@@ -263,6 +263,9 @@ func (g *Gateway) resolveCallParams(ctx context.Context) (temperature float64, m
 	if d.MaxTokens > 0 {
 		maxTokens = d.MaxTokens
 	}
+	if meta := CallMetaFrom(ctx); meta.MaxTokensOverride > 0 {
+		maxTokens = meta.MaxTokensOverride
+	}
 	return temperature, maxTokens
 }
 

@@ -12,10 +12,15 @@ var (
 
 // VisibleAssistantContent returns user-facing text from an LLM response, stripping inline thinking tags.
 func VisibleAssistantContent(content, reasoning string) string {
-	visible := strings.TrimSpace(thinkBlockRE.ReplaceAllString(content, ""))
-	visible = strings.TrimSpace(unclosedThinkRE.ReplaceAllString(visible, ""))
+	visible := PublicAnswerContent(content)
 	if visible != "" {
 		return visible
 	}
 	return strings.TrimSpace(reasoning)
+}
+
+// PublicAnswerContent is the assistant answer channel only (never reasoning_content).
+func PublicAnswerContent(content string) string {
+	visible := strings.TrimSpace(thinkBlockRE.ReplaceAllString(content, ""))
+	return strings.TrimSpace(unclosedThinkRE.ReplaceAllString(visible, ""))
 }

@@ -65,6 +65,12 @@ func CardPayload(flow *Flow) map[string]any {
 			out["compose_timeout_ms"] = flow.ComposeTimeoutMs
 		}
 		out["compose_fallback"] = flow.ComposeFallback
+		if s := strings.TrimSpace(flow.ComposeModel); s != "" {
+			out["compose_model"] = s
+		}
+		if s := strings.TrimSpace(flow.ComposeReasoningDebug); s != "" {
+			out["compose_reasoning_debug"] = s
+		}
 		out["probe_buy_hits"] = flow.ProbeBuyHits
 		out["probe_sell_hits"] = flow.ProbeSellHits
 		out["probe_buy_hits_signal_api"] = flow.ProbeBuyHitsSignalAPI

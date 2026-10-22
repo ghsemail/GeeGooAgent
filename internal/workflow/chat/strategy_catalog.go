@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
@@ -152,15 +153,18 @@ func rowMatchesTokens(row map[string]any, tokens []string, fields ...string) boo
 }
 
 func bestCatalogMatch(matches []map[string]any, tokens []string, fields ...string) map[string]any {
-	best := matches[0]
-	bestScore := scoreCatalogRow(best, tokens, fields...)
-	for _, row := range matches[1:] {
-		if score := scoreCatalogRow(row, tokens, fields...); score > bestScore {
-			best = row
-			bestScore = score
-		}
+	if len(matches) == 0 {
+		return nil
 	}
-	return best
+	sort.SliceStable(matches, func(i, j int) bool {
+		si := scoreCatalogRow(matches[i], tokens, fields...)
+		sj := scoreCatalogRow(matches[j], tokens, fields...)
+		if si != sj {
+			return si > sj
+		}
+		return slots.CatalogRowStableID(matches[i]) < slots.CatalogRowStableID(matches[j])
+	})
+	return matches[0]
 }
 
 func scoreCatalogRow(row map[string]any, tokens []string, fields ...string) int {

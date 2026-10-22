@@ -3,6 +3,7 @@ package slots
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -234,19 +235,39 @@ func pickCombination(items []map[string]any, query string) (map[string]any, erro
 	if len(matches) == 0 {
 		return nil, fmt.Errorf("未找到匹配「%s」的组合信号", query)
 	}
-	return bestCombinationMatch(matches, tokens), nil
+	return pickBestCombinationMatch(matches, tokens), nil
 }
 
-func bestCombinationMatch(matches []map[string]any, tokens []string) map[string]any {
-	best := matches[0]
-	bestScore := scoreCombinationMatch(fmt.Sprint(best["name"]), tokens)
-	for _, row := range matches[1:] {
-		if score := scoreCombinationMatch(fmt.Sprint(row["name"]), tokens); score > bestScore {
-			best = row
-			bestScore = score
-		}
+func pickBestCombinationMatch(matches []map[string]any, tokens []string) map[string]any {
+	if len(matches) == 0 {
+		return nil
 	}
-	return best
+	sort.SliceStable(matches, func(i, j int) bool {
+		si := scoreCombinationMatch(fmt.Sprint(matches[i]["name"]), tokens)
+		sj := scoreCombinationMatch(fmt.Sprint(matches[j]["name"]), tokens)
+		if si != sj {
+			return si > sj
+		}
+		return catalogRowStableID(matches[i]) < catalogRowStableID(matches[j])
+	})
+	return matches[0]
+}
+
+// CatalogRowStableID is the deterministic tie-break key for catalog rows (signal_id, then name).
+func CatalogRowStableID(row map[string]any) string {
+	return catalogRowStableID(row)
+}
+
+func catalogRowStableID(row map[string]any) string {
+	if row == nil {
+		return ""
+	}
+	id := strings.TrimSpace(fmt.Sprint(row["signal_id"]))
+	if id == "" || id == "<nil>" {
+		id = strings.TrimSpace(fmt.Sprint(row["id"]))
+	}
+	name := strings.TrimSpace(fmt.Sprint(row["name"]))
+	return strings.ToUpper(id + "\x00" + name)
 }
 
 func scoreCombinationMatch(name string, tokens []string) int {
