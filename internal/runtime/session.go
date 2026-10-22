@@ -3,6 +3,7 @@ package runtime
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatprompt"
@@ -52,6 +53,8 @@ type Session struct {
 	LastExecutionProfile string
 	// ActiveFlowJSON holds opaque chat workflow state (see internal/workflow/chat).
 	ActiveFlowJSON []byte
+	// LabDiagnoseSnapshots maps run_id → archived signal_diagnose flow (lab_mode lazy detail).
+	LabDiagnoseSnapshots map[string]json.RawMessage `json:"-"`
 	// PendingSignalDiagnoseOpts applies to the next new signal_diagnose flow only (not persisted).
 	PendingSignalDiagnoseOpts *SignalDiagnoseOpts
 	// PendingStrategyDevOpts applies to the next strategy_dev_pipeline flow only (not persisted).

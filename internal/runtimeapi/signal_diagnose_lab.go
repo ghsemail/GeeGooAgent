@@ -53,6 +53,11 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "detail_ref required")
 		return
 	}
+	runID := strings.TrimSpace(body.RunID)
+	if runID == "" {
+		writeError(w, http.StatusBadRequest, "run_id required")
+		return
+	}
 	chat, err := store.Load(sessionID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -66,17 +71,13 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 	if !enforceSessionAccess(w, chat, userID) {
 		return
 	}
-	flow := workflowchat.FlowFromChat(chat)
+	flow := workflowchat.ResolveFlowForLabDetail(chat, runID)
 	if flow == nil {
-		writeError(w, http.StatusConflict, "no active flow")
+		writeError(w, http.StatusNotFound, "lab diagnose snapshot not found or expired")
 		return
 	}
 	if !flow.LabMode {
 		writeError(w, http.StatusBadRequest, "lab_mode is off for this diagnose run")
-		return
-	}
-	if runID := strings.TrimSpace(body.RunID); runID != "" && runID != flow.RunID {
-		writeError(w, http.StatusConflict, "run_id mismatch")
 		return
 	}
 	bars, _ := flow.ProbeRaw["bars"].([]any)

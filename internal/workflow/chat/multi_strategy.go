@@ -401,5 +401,5 @@ func intAny(v any) int {
 }
 
 func newRunID() string {
-	return "flow-" + time.Now().UTC().Format("20060102T%H%M%S")
+	return "flow-" + time.Now().UTC().Format("20060102T150405")
 }

@@ -129,6 +129,8 @@ type Flow struct {
 	KeyLevelSeries         *KeyLevelBarSeries `json:"key_level_series,omitempty"`
 	EvalJudgment        string         `json:"eval_judgment,omitempty"`
 	StrategyDevPipelineResult *strategydev.Result `json:"strategy_dev_pipeline_result,omitempty"`
+	WorkflowStartedAt  time.Time         `json:"workflow_started_at,omitempty"`
+	PhaseTimingsMs     map[string]int64  `json:"phase_timings_ms,omitempty"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 }

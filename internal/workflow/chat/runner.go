@@ -135,13 +135,20 @@ func (r *Runner) runTemplateTurn(
 		}
 	}
 	r.emitCard(flow)
+	wfStart := time.Now()
+	if flow.WorkflowStartedAt.IsZero() {
+		flow.WorkflowStartedAt = wfStart
+	}
 	for flow.Phase != PhaseSummarize && flow.Phase != PhaseDone {
 		if err := ctx.Err(); err != nil {
 			flow.Status = StatusInterrupted
 			SaveToSession(session, flow)
 			return runtime.TurnResult{Failed: true, Error: err.Error(), StepRecords: records}, true
 		}
+		phase := flow.Phase
+		phaseStart := time.Now()
 		if err := advance(ctx, session, flow, toolCtx, recordTool); err != nil {
+			recordPhaseTiming(flow, phase, time.Since(phaseStart))
 			msg := fmt.Sprintf("Workflow 已暂停：%v", err)
 			flow.Status = StatusPausedFailed
 			flow.PartialReport = partial(flow)
@@ -159,6 +166,7 @@ func (r *Runner) runTemplateTurn(
 				StepRecords:   records,
 			}, true
 		}
+		recordPhaseTiming(flow, phase, time.Since(phaseStart))
 	}
 	if flow.Phase == PhaseSummarize {
 		reply := final(flow)
@@ -166,6 +174,10 @@ func (r *Runner) runTemplateTurn(
 		flow.Status = StatusCompleted
 		flow.PartialReport = reply
 		flow.touch()
+		if canonicalSkill(flow.Template) == SkillSignalDiagnose && flow.LabMode {
+			ArchiveLabDiagnoseFlow(session, flow)
+		}
+		recordWorkflowTimingTotal(flow)
 		SaveToSession(session, nil)
 		session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: reply})
 		records = append(records, runtime.StepRecord{
