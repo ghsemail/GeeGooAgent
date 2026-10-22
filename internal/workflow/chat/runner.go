@@ -167,6 +167,15 @@ func (r *Runner) runTemplateTurn(
 			}, true
 		}
 		recordPhaseTiming(flow, phase, time.Since(phaseStart))
+		if canonicalSkill(flow.Template) == SkillSignalDiagnose {
+			switch flow.CardStage {
+			case "probe_done", "eval_done":
+				flow.PartialReport = partial(flow)
+				flow.touch()
+				SaveToSession(session, flow)
+				r.emitCard(flow)
+			}
+		}
 	}
 	if flow.Phase == PhaseSummarize {
 		reply := final(flow)

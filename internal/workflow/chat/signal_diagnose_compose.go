@@ -91,22 +91,12 @@ func (r *Runner) synthesizeSignalDiagnoseJudgment(ctx context.Context, flow *Flo
 	if len(flow.Strategies) > 0 && flow.Strategies[0].Frequency != "" {
 		freq = flow.Strategies[0].Frequency
 	}
-	user := fmt.Sprintf(`请根据以下信号诊断与 Episode 评价指标，用 3–5 句中文给出总结判断：
+	user := fmt.Sprintf(`用 3–5 句中文总结信号诊断（勿编造数字）：
 
-策略：%s（%s）
-标的：%s %s
-周期 / 回溯：%s / %d 月
-probe：买 %d 次 / 卖 %d 次（%d 根 K 线）
+策略 %s（%s）· %s %s · %s / %d月
+probe 买%d/卖%d（%d根K）
 diagnose：%s — %s
-
-Episode 评价（strict=至反向信号；path=无反向则至下一同向或样本末，含 peak/maxDD）：
-%s
-
-要求：
-1. 判断买卖信号整体趋势是否与策略逻辑一致
-2. 指出买/卖哪一侧更可靠（若有）
-3. 说明样本是否充足、未闭合段是否影响结论
-4. 禁止编造未提供的数字；百分比与次数必须与上文一致`,
+Episode：%s`,
 		label, flow.CatalogType,
 		flow.StockName, flow.StockCode,
 		freq, flow.MonthsBack,

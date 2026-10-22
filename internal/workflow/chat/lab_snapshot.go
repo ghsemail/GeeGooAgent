@@ -126,6 +126,28 @@ func loadLabDiagnoseSnapshotsIntoSession(chat *chatsession.ChatSession, rt *runt
 	}
 }
 
+// UpsertLabDiagnoseSnapshot writes or refreshes one archived lab flow (e.g. after lazy MTF cache).
+func UpsertLabDiagnoseSnapshot(chat *chatsession.ChatSession, flow *Flow) {
+	if chat == nil || flow == nil || !flow.LabMode || flow.RunID == "" {
+		return
+	}
+	if chat.Metadata == nil {
+		chat.Metadata = map[string]any{}
+	}
+	merged := loadLabSnapshotMap(chat.Metadata)
+	ent := labDiagnoseSnapshotEntry{
+		ExpiresAt: time.Now().UTC().Add(labDiagnoseSnapshotTTL),
+		Flow:      *flow,
+	}
+	raw, err := json.Marshal(ent)
+	if err != nil {
+		return
+	}
+	merged[flow.RunID] = raw
+	pruneLabDiagnoseSnapshots(merged)
+	chat.Metadata[MetaKeyLabDiagnoseSnapshots] = merged
+}
+
 // ResolveFlowForLabDetail returns active or archived flow for lab-detail.
 func ResolveFlowForLabDetail(chat *chatsession.ChatSession, runID string) *Flow {
 	runID = strings.TrimSpace(runID)

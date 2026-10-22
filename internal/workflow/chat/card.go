@@ -84,6 +84,9 @@ func CardPayload(flow *Flow) map[string]any {
 				out["price_analysis"] = flow.PriceAnalysis
 			}
 		}
+		if stage := strings.TrimSpace(flow.CardStage); stage != "" {
+			out["card_stage"] = stage
+		}
 		if flow.LabMode {
 			out["lab_mode"] = true
 			if len(flow.LabEpisodeSummaries) > 0 {
