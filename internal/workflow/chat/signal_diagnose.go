@@ -231,6 +231,9 @@ func (r *Runner) phaseSignalDiagnoseReadStrategy(
 	if flowHasProbePanelOverrides(flow) {
 		flow.CatalogType = "panel"
 		flow.CatalogLabel = probePanelDisplayLabel(flow)
+		if err := r.ensureDiagnoseSignalResolved(ctx, flow, toolCtx, recordTool, "read_strategy:resolve_signal"); err != nil {
+			return err
+		}
 		flow.Phase = PhaseResolveSymbol
 		flow.touch()
 		return nil
@@ -246,6 +249,9 @@ func (r *Runner) phaseSignalDiagnoseReadStrategy(
 	flow.CatalogType = match.Type
 	flow.CatalogLabel = match.Label
 	flow.CatalogRaw = match.Raw
+	if err := r.ensureDiagnoseSignalResolved(ctx, flow, toolCtx, recordTool, "read_strategy:resolve_signal"); err != nil {
+		return err
+	}
 	flow.Phase = PhaseResolveSymbol
 	flow.touch()
 	return nil
@@ -258,7 +264,7 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 	recordTool func(name, status, summary string),
 ) error {
 	resolveStart := time.Now()
-	sig, err := r.resolveDiagnoseSignal(ctx, flow, toolCtx, recordTool)
+	sig, err := r.diagnoseSignalFromFlow(ctx, flow, toolCtx, recordTool)
 	recordPhaseTiming(flow, "run_probe:resolve_signal", time.Since(resolveStart))
 	if err != nil {
 		return err
@@ -444,7 +450,7 @@ func (r *Runner) phaseSignalDiagnoseBuildDetail(
 		flow.touch()
 		return nil
 	}
-	sig, err := r.resolveDiagnoseSignal(ctx, flow, toolCtx, recordTool)
+	sig, err := r.diagnoseSignalFromFlow(ctx, flow, toolCtx, recordTool)
 	if err != nil {
 		return err
 	}
@@ -499,19 +505,7 @@ func (r *Runner) resolveDiagnoseSignal(
 	toolCtx tools.Context,
 	recordTool func(name, status, summary string),
 ) (slots.ResolvedSignal, error) {
-	if flowHasProbePanelOverrides(flow) {
-		return resolvedSignalFromProbeOverrides(flow), nil
-	}
-	kind := "combination"
-	switch flow.CatalogType {
-	case catalogTypeIndex, catalogTypeDefinition:
-		kind = "indicator"
-	}
-	plan := slots.SignalPlan{
-		SignalQuery: coalesceStrings(flow.CatalogLabel, flow.StrategyQuery),
-		SignalKind:  kind,
-	}
-	return slots.ResolveSignal(ctx, toolCtx, r.runToolCall(recordTool), plan)
+	return r.diagnoseSignalFromFlow(ctx, flow, toolCtx, recordTool)
 }
 
 func probeHitCount(data map[string]any, compactKey, mergedKey string, target int) int {

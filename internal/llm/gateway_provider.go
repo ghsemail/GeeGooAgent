@@ -62,3 +62,22 @@ func (p *gatewayProvider) Chat(
 	ctx = WithCallMeta(ctx, CallMeta{Kind: kind})
 	return p.gw.Chat(ctx, messages, tools, "", 0)
 }
+
+func (p *gatewayProvider) ChatStream(
+	ctx context.Context,
+	messages []Message,
+	tools []ToolSchema,
+	temperature float64,
+	maxTokens int,
+	onDelta StreamHandler,
+) (*Response, error) {
+	if p == nil || p.gw == nil {
+		return nil, fmt.Errorf("gateway provider not configured")
+	}
+	kind := p.kind
+	if kind == "" {
+		kind = TaskCompress
+	}
+	ctx = WithCallMeta(ctx, CallMeta{Kind: kind})
+	return p.gw.ChatStream(ctx, messages, tools, "", 0, onDelta)
+}

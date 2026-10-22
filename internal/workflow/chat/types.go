@@ -129,6 +129,13 @@ type Flow struct {
 	ProbeBuyMerge          string         `json:"probe_buy_merge,omitempty"`
 	ProbeFrequencyOverride string         `json:"probe_frequency_override,omitempty"`
 	ProbePanelLabel        string         `json:"probe_panel_label,omitempty"`
+	ProbeSignalFingerprint string         `json:"probe_signal_fingerprint,omitempty"`
+	DiagnoseSignalCached   bool           `json:"diagnose_signal_cached,omitempty"`
+	DiagnoseSignalSource   string         `json:"diagnose_signal_source,omitempty"`
+	ResolvedBuySignal      []any          `json:"resolved_buy_signal,omitempty"`
+	ResolvedSellSignal     []any          `json:"resolved_sell_signal,omitempty"`
+	ResolvedSignalFrequency string        `json:"resolved_signal_frequency,omitempty"`
+	ResolvedStrategyLabel  string         `json:"resolved_strategy_label,omitempty"`
 	TradeDirection         runtime.TradeDirection `json:"trade_direction,omitempty"`
 	LabMode                bool `json:"lab_mode,omitempty"`
 	LabFlowPriceSummary    string `json:"lab_flow_price_summary,omitempty"`
