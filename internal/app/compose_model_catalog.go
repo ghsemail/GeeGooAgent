@@ -21,15 +21,22 @@ func catalogModelNames(m admin.ConfiguredModel) (name, display string) {
 }
 
 func catalogNameEquals(m admin.ConfiguredModel, want string) bool {
-	want = strings.ToLower(strings.TrimSpace(want))
+	wantNorm := normalizeCatalogModelName(want)
 	name, display := catalogModelNames(m)
-	if strings.EqualFold(name, want) {
+	if normalizeCatalogModelName(name) == wantNorm {
 		return true
 	}
-	if display != "" && strings.EqualFold(display, want) {
+	if display != "" && normalizeCatalogModelName(display) == wantNorm {
 		return true
 	}
 	return false
+}
+
+func normalizeCatalogModelName(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.ReplaceAll(s, "_", "-")
+	s = strings.ReplaceAll(s, " ", "")
+	return s
 }
 
 func isComposeCatalogExcluded(m admin.ConfiguredModel) bool {
@@ -46,7 +53,8 @@ func isComposeCatalogExcluded(m admin.ConfiguredModel) bool {
 		return true
 	}
 	typ := strings.ToLower(strings.TrimSpace(m.Type))
-	if typ != "" && typ != "chat" && typ != "llm" && typ != "text" {
+	switch typ {
+	case "embedding", "decision", "jev", "classify":
 		return true
 	}
 	lowerName := strings.ToLower(name)

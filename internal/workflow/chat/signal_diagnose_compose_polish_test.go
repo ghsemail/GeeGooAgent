@@ -2,9 +2,11 @@ package chat
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
 func TestFinalizeComposeTrimsOnDeadline(t *testing.T) {
@@ -21,14 +23,14 @@ func TestFinalizeComposeTrimsOnDeadline(t *testing.T) {
 	}
 }
 
-func TestFinalizeComposeNormalizesSectionHeading(t *testing.T) {
+func TestFinalizeComposeRendersSectionMarkers(t *testing.T) {
 	flow := &Flow{}
-	in := "### 一、信号触发情况在腾讯上 probe 多次触发。"
+	in := llm.RenderComposeSectionDocument(llm.ParseComposeSectionBodies("[[S1]]在腾讯上 probe 多次触发。"))
 	text, ok := finalizeLLMComposeAnswer(flow, in, nil, nil, context.Background())
 	if !ok {
 		t.Fatal("expected ok")
 	}
-	if text == in {
-		t.Fatalf("expected section split, got %q", text)
+	if !strings.Contains(text, "### 一、信号触发情况") {
+		t.Fatalf("got %q", text)
 	}
 }

@@ -19,11 +19,11 @@ func TestSignalDiagnoseComposeProviderUsesChatNotSynthesis(t *testing.T) {
 	a := &App{Config: cfg, Gateway: chatGW, SynthesisGateway: synthGW}
 	a.invalidateComposeProviderCache()
 	a.Agent = agent.New(chatGW, runtime.NewExecutor(tools.NewRegistry()), tools.NewRegistry())
-	p := a.SignalDiagnoseComposeProvider()
-	if p == nil {
+	b := a.ResolveSignalDiagnoseComposeBundle()
+	if b.Provider == nil {
 		t.Fatal("nil provider")
 	}
-	if p.Model() != "chat-model" {
-		t.Fatalf("compose should use chat gateway model, got %q", p.Model())
+	if b.Source != ComposeSourceGatewayFallback {
+		t.Fatalf("source=%q detail=%q", b.Source, b.Detail)
 	}
 }

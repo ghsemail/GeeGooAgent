@@ -168,7 +168,10 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	app.Agent = agent.New(app.Gateway, executor, registry)
 	app.Agent.Loop.SetStrategyDevJevConfig(app.StrategyDevJevConfig)
 	app.Agent.Loop.SetSignalDiagnoseLabConfig(app.SignalDiagnoseLabConfig)
-	app.Agent.Loop.SetSignalDiagnoseComposeLLM(app.SignalDiagnoseComposeProvider())
+	app.Agent.Loop.SetSignalDiagnoseComposeResolver(func() (llm.Provider, string, string) {
+		b := app.ResolveSignalDiagnoseComposeBundle()
+		return b.Provider, b.Source, b.Detail
+	})
 	app.Agent.SetMaxToolRounds(cfg.EffectiveMaxSteps())
 	app.Agent.SetToolMaxParallel(cfg.EffectiveToolMaxParallel())
 	app.Agent.SetToolTimeout(cfg.EffectiveToolTimeout())
@@ -312,7 +315,10 @@ func (a *App) RebuildGateway() error {
 	if a.Agent != nil {
 		a.Agent.SetGateway(a.Gateway)
 		a.invalidateComposeProviderCache()
-		a.Agent.Loop.SetSignalDiagnoseComposeLLM(a.SignalDiagnoseComposeProvider())
+		a.Agent.Loop.SetSignalDiagnoseComposeResolver(func() (llm.Provider, string, string) {
+			b := a.ResolveSignalDiagnoseComposeBundle()
+			return b.Provider, b.Source, b.Detail
+		})
 	}
 	a.RefreshOpsEmbedding(true)
 	a.RefreshOpsDecision(true)

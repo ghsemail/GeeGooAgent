@@ -52,6 +52,7 @@ type Loop struct {
 	strategyDevJev func() strategydev.JevConfig
 	signalDiagnoseLab        func() workflowchat.LabConfig
 	signalDiagnoseComposeLLM llm.Provider
+	resolveComposeBundle   func() (provider llm.Provider, source, detail string)
 }
 
 // NewLoop creates an agent loop.
@@ -195,6 +196,14 @@ func (l *Loop) SetSignalDiagnoseComposeLLM(p llm.Provider) {
 		return
 	}
 	l.signalDiagnoseComposeLLM = p
+}
+
+// SetSignalDiagnoseComposeResolver resolves compose model each workflow turn (catalog/env/fallback + meta).
+func (l *Loop) SetSignalDiagnoseComposeResolver(fn func() (llm.Provider, string, string)) {
+	if l == nil {
+		return
+	}
+	l.resolveComposeBundle = fn
 }
 
 func (l *Loop) effectiveSignalDiagnoseComposeLLM() llm.Provider {

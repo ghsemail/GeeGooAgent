@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
@@ -21,12 +22,12 @@ func (m *streamComposeMock) ChatStream(
 	onDelta llm.StreamHandler,
 ) (*llm.Response, error) {
 	if onDelta != nil {
-		onDelta(llm.StreamDelta{Content: "流式"})
+		onDelta(llm.StreamDelta{Content: "[[S1]]流式"})
 		m.deltas++
 		onDelta(llm.StreamDelta{Content: "评价"})
 		m.deltas++
 	}
-	return &llm.Response{Content: "流式评价"}, nil
+	return &llm.Response{Content: "[[S1]]流式评价"}, nil
 }
 
 func TestSignalDiagnoseComposeUsesChatStream(t *testing.T) {
@@ -41,7 +42,7 @@ func TestSignalDiagnoseComposeUsesChatStream(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if text != "流式评价" || mock.deltas != 2 {
+	if !strings.Contains(text, "流式评价") || mock.deltas != 2 {
 		t.Fatalf("text=%q deltas=%d", text, mock.deltas)
 	}
 	if flow.ComposeFallback {

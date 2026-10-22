@@ -3,81 +3,17 @@ package app
 import (
 	"context"
 	"fmt"
-	"os"
-	"strings"
-	"sync"
-	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/clients/admin"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
-var (
-	composeProviderMu sync.Mutex
-	cachedComposeLLM  llm.Provider
-)
-
-func (a *App) cachedSignalDiagnoseComposeProvider() llm.Provider {
-	composeProviderMu.Lock()
-	defer composeProviderMu.Unlock()
-	if cachedComposeLLM != nil {
-		return cachedComposeLLM
-	}
-	cachedComposeLLM = a.buildSignalDiagnoseComposeProvider()
-	return cachedComposeLLM
-}
-
-func (a *App) invalidateComposeProviderCache() {
-	composeProviderMu.Lock()
-	cachedComposeLLM = nil
-	composeProviderMu.Unlock()
-}
-
-func (a *App) buildSignalDiagnoseComposeProvider() llm.Provider {
-	if p := a.signalDiagnoseComposeFromEnv(); p != nil {
-		return p
-	}
-	if p := a.signalDiagnoseComposeFromCatalogPrefs(); p != nil {
-		return p
-	}
-	if a.Agent != nil && a.Agent.Gateway != nil {
-		return llm.ClassifyProviderFromGateway(a.Agent.Gateway)
-	}
-	if a.Gateway != nil {
-		return llm.ClassifyProviderFromGateway(a.Gateway)
-	}
-	return a.classifyOpsFallbackProvider()
-}
-
-func (a *App) signalDiagnoseComposeFromCatalogPrefs() llm.Provider {
-	if a == nil || a.Config == nil {
+// SignalDiagnoseComposeProvider returns the LLM for signal_diagnose diag_compose only.
+func (a *App) SignalDiagnoseComposeProvider() llm.Provider {
+	if a == nil {
 		return nil
 	}
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("SIGNAL_DIAGNOSE_COMPOSE_USE_CHAT_MODEL")), "1") ||
-		strings.EqualFold(strings.TrimSpace(os.Getenv("SIGNAL_DIAGNOSE_COMPOSE_USE_CHAT_MODEL")), "true") {
-		return nil
-	}
-	targets := a.adminQueryTargets()
-	if len(targets) == 0 {
-		return nil
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	models, _, err := admin.ListModelsFromTargets(ctx, targets)
-	if err != nil || len(models) == 0 {
-		return nil
-	}
-	doc := pickCatalogComposeModel(models, signalDiagnoseComposeCatalogPrefs)
-	if doc.Name == "" && doc.Token == "" {
-		return nil
-	}
-	p, err := a.composeProviderFromCatalogDoc(doc)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "警告: compose catalog 模型 %q: %v\n", doc.Name, err)
-		return nil
-	}
-	fmt.Fprintf(os.Stderr, "signal_diagnose compose: 使用 catalog 模型 %q（非聊天主模型）\n", doc.Name)
-	return p
+	return a.cachedSignalDiagnoseComposeProvider()
 }
 
 // ComposeBenchmarkProvider builds a classify-policy provider for one catalog row (benchmarks only).
