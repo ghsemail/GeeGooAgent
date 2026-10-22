@@ -99,6 +99,13 @@ func CardPayload(flow *Flow) map[string]any {
 		if len(flow.PhaseTimingsMs) > 0 {
 			out["phase_timings_ms"] = flow.PhaseTimingsMs
 		}
+		out["diagnose_merged_at_probe"] = flow.DiagnoseMergedAtProbe
+		if flow.BuildDetailSkipped {
+			out["build_detail_skipped"] = true
+			if s := strings.TrimSpace(flow.BuildDetailSkipReason); s != "" {
+				out["build_detail_skip_reason"] = s
+			}
+		}
 		if flow.PriceEpisodeFilterStats != nil {
 			if strategydev.PriceAnalysisFeatureEnabled() {
 				out["price_episode_filter_stats"] = flow.PriceEpisodeFilterStats

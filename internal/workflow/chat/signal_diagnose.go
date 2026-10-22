@@ -287,38 +287,31 @@ func (r *Runner) phaseSignalDiagnoseRunProbe(
 	probeArgs["key_levels_mode"] = "series"
 	probeArgs["key_levels_align"] = "daily"
 	strategydev.EnrichProbeArgsForIndicatorWarmup(probeArgs, sig.Buy, sig.Sell)
-	probeArgs["side"] = "both"
-	res := r.runTool(ctx, toolCtx, "diagnose_bot_signal_series", probeArgs, recordTool)
-	fromDiagnose := res.Status == tools.StatusOK
-	if !fromDiagnose {
-		delete(probeArgs, "side")
-		res = r.runTool(ctx, toolCtx, "probe_bot_signal_series", probeArgs, recordTool)
-		if res.Status != tools.StatusOK {
-			return fmt.Errorf("probe 失败：%s", res.Summary)
-		}
-	}
 	months = strategydev.CapMonthsBack(months)
-	applySignalDiagnoseSeriesData(flow, res, months, sig.Buy, sig.Sell, fromDiagnose)
-	if fromDiagnose {
-		if bars, _ := res.Data["bars"].([]any); len(bars) == 0 {
-			delete(probeArgs, "side")
-			fallback := r.runTool(ctx, toolCtx, "probe_bot_signal_series", probeArgs, recordTool)
-			if fallback.Status == tools.StatusOK {
-				applySignalDiagnoseSeriesData(flow, fallback, months, sig.Buy, sig.Sell, false)
-				flow.DiagnoseMergedAtProbe = false
-				if flow.DiagnoseRaw != nil {
-					for k, v := range fallback.Data {
-						if flow.DiagnoseRaw[k] == nil {
-							flow.DiagnoseRaw[k] = v
-						}
-					}
-				} else {
-					flow.DiagnoseRaw = fallback.Data
-				}
-				res = fallback
-			}
-		}
+
+	probeStart := time.Now()
+	probeRes := r.runTool(ctx, toolCtx, "probe_bot_signal_series", probeArgs, recordTool)
+	recordPhaseTiming(flow, "run_probe:probe_bot_signal_series", time.Since(probeStart))
+	recordProbeToolMeta(flow, "probe_bot_signal_series", probeRes)
+	if probeRes.Status != tools.StatusOK {
+		return fmt.Errorf("probe 失败：%s", probeRes.Summary)
 	}
+	applySignalDiagnoseSeriesData(flow, probeRes, months, sig.Buy, sig.Sell, false)
+
+	diagArgs := cloneProbeArgs(probeArgs)
+	diagArgs["side"] = "both"
+	diagStart := time.Now()
+	diagRes := r.runTool(ctx, toolCtx, "diagnose_bot_signal_series", diagArgs, recordTool)
+	recordPhaseTiming(flow, "run_probe:diagnose_bot_signal_series", time.Since(diagStart))
+	recordProbeToolMeta(flow, "diagnose_bot_signal_series", diagRes)
+	if diagRes.Status == tools.StatusOK && diagRes.Data != nil {
+		diagData := diagRes.Data
+		strategydev.StripSignalPriceAnalysisPayload(diagData)
+		applyDiagnoseDetailMerge(flow, diagRes, diagData)
+	} else {
+		flow.DiagnoseMergedAtProbe = false
+	}
+	res := probeRes
 	if flow.Strategies == nil {
 		flow.Strategies = []StrategyItem{{}}
 	}
@@ -436,7 +429,11 @@ func (r *Runner) phaseSignalDiagnoseBuildDetail(
 	toolCtx tools.Context,
 	recordTool func(name, status, summary string),
 ) error {
+	flow.BuildDetailSkipped = false
+	flow.BuildDetailSkipReason = ""
 	if flow.DiagnoseMergedAtProbe && len(flow.DiagnoseRaw) > 0 {
+		flow.BuildDetailSkipped = true
+		flow.BuildDetailSkipReason = "diagnose_merged_at_probe"
 		flow.Phase = PhaseDiagCompose
 		flow.touch()
 		return nil
