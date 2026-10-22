@@ -29,6 +29,8 @@ type row struct {
 	TotalMS        int64  `json:"total_ms"`
 	Chars          int    `json:"chars"`
 	Error          string `json:"error,omitempty"`
+	ProductionPath bool   `json:"production_path,omitempty"`
+	Trace          *llm.ComposeRequestTrace `json:"request_trace,omitempty"`
 }
 
 func main() {
@@ -52,8 +54,9 @@ func main() {
 	msgs := workflowchat.BuildSignalDiagnoseComposeMessages(workflowchat.BenchmarkComposeFlow())
 	fmt.Fprintf(os.Stderr, "catalog compose candidates: %d\n", len(candidates))
 	var out []row
+	prodPath := strings.TrimSpace(os.Getenv("COMPOSE_BENCH_PRODUCTION_PATH")) == "1"
 	for _, doc := range candidates {
-		r := benchmarkOne(ctx, application, doc, msgs)
+		r := benchmarkOne(ctx, application, doc, msgs, prodPath)
 		out = append(out, r)
 		b, _ := json.Marshal(r)
 		fmt.Println(string(b))
@@ -61,7 +64,7 @@ func main() {
 	_ = os.WriteFile("/opt/cursor/artifacts/compose_model_benchmark.json", mustJSON(out), 0o644)
 }
 
-func benchmarkOne(ctx context.Context, a *app.App, doc admin.ConfiguredModel, msgs []llm.Message) row {
+func benchmarkOne(ctx context.Context, a *app.App, doc admin.ConfiguredModel, msgs []llm.Message, productionPath bool) row {
 	r := row{
 		Model:   strings.TrimSpace(doc.Name),
 		Display: strings.TrimSpace(doc.DisplayName),
@@ -79,15 +82,23 @@ func benchmarkOne(ctx context.Context, a *app.App, doc admin.ConfiguredModel, ms
 	}
 	callCtx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
+	var trace llm.ComposeRequestTrace
+	callCtx = llm.WithComposeRequestTrace(callCtx, &trace)
 	callCtx = llm.WithCallMeta(callCtx, llm.CallMeta{
 		Kind: llm.TaskClassify, ThinkingOff: true, MaxTokensOverride: 4096,
 	})
+	r.Trace = &trace
+	r.ProductionPath = productionPath
 	start := time.Now()
 	var firstVisible time.Time
 	var acc llm.AnswerStreamAccumulator
-	acc.OnVisible = func(string) {
+	var sections llm.ComposeSectionRenderer
+	acc.OnVisible = func(chunk string) {
 		if firstVisible.IsZero() {
 			firstVisible = time.Now()
+		}
+		if productionPath {
+			sections.PushModelText(chunk)
 		}
 	}
 	_, err = streamer.ChatStream(callCtx, msgs, nil, 0, 4096, func(delta llm.StreamDelta) {
@@ -99,7 +110,12 @@ func benchmarkOne(ctx context.Context, a *app.App, doc admin.ConfiguredModel, ms
 	if !firstVisible.IsZero() {
 		r.FirstVisibleMS = firstVisible.Sub(start).Milliseconds()
 	}
-	text := llm.NormalizeComposeMarkdown(acc.Visible())
+	var text string
+	if productionPath {
+		text = sections.Document()
+	} else {
+		text = llm.NormalizeComposeMarkdown(acc.Visible())
+	}
 	r.Chars = len([]rune(text))
 	if err != nil {
 		r.Error = err.Error()
