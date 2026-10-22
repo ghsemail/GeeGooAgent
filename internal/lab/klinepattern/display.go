@@ -147,3 +147,16 @@ func EnrichSignalEpisodeEvalKlineDisplay(eval *slots.SignalEpisodeEval, in Kline
 		EnrichEpisodeDetailKlineDisplay(&eval.SellDetails[i], in)
 	}
 }
+
+// EnrichSignalEpisodeEvalKlineDisplayLight attaches signal-TF pattern summary only (no MTF probes).
+func EnrichSignalEpisodeEvalKlineDisplayLight(eval *slots.SignalEpisodeEval, in KlinePatternDisplayInput) {
+	if eval == nil {
+		return
+	}
+	for i := range eval.BuyDetails {
+		AttachPatternsToEpisode(&eval.BuyDetails[i], in.PatternHits)
+	}
+	for i := range eval.SellDetails {
+		AttachPatternsToEpisode(&eval.SellDetails[i], in.PatternHits)
+	}
+}

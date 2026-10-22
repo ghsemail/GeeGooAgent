@@ -90,6 +90,8 @@ type SignalDiagnoseOpts struct {
 	PanelStrategyLabel string `json:"panel_strategy_label,omitempty"`
 	// TradeDirection both (default) | long_only — skip short-side episode eval when long_only.
 	TradeDirection *TradeDirection `json:"trade_direction,omitempty"`
+	// LabMode enables per-card K-line / lab price-analysis summaries (signal-diagnose panel).
+	LabMode *bool `json:"lab_mode,omitempty"`
 }
 
 // PendingPlan is a held mutating-tool batch from one LLM round.

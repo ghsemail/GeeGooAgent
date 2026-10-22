@@ -1,0 +1,171 @@
+package strategydev
+
+import (
+	"context"
+	"strings"
+	"time"
+
+	kp "github.com/ghsemail/GeeGooAgent/internal/lab/klinepattern"
+	"github.com/ghsemail/GeeGooAgent/internal/lab/priceanalysis"
+)
+
+// LabDetailInput configures lazy lab drill-down for one trigger/episode anchor.
+type LabDetailInput struct {
+	Run           ToolRunner
+	Code          string
+	SignalFreq    string
+	Months        int
+	KeyLevels     KeyLevelBands
+	ProbeRaw      map[string]any
+	Bars          []any
+	LookbackBars  []any
+	LabFetcher    priceanalysis.BarsFetcher
+	DetailTimeout time.Duration
+}
+
+// BuildLabEpisodeDetail loads MTF kline context and anchored price analysis for one ref.
+func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (LabEpisodeDetail, error) {
+	side, idx, ok := ParseLabDetailRef(ref)
+	if !ok {
+		return LabEpisodeDetail{}, errBadLabRef("invalid detail ref")
+	}
+	out := LabEpisodeDetail{Ref: ref, Side: side, BarIndex: idx}
+	if len(in.Bars) == 0 || idx >= len(in.Bars) {
+		return out, errBadLabRef("bar index out of range")
+	}
+	ent := triggerRecordEntry(in.Bars, idx)
+	out.Time = ent.Time
+	out.Close = ent.Close
+
+	ctx = ContextWithPriceProbeCache(ctx)
+	if in.DetailTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, in.DetailTimeout)
+		defer cancel()
+	}
+
+	var patIn KlinePatternDisplayInput
+	if in.Run != nil {
+		mtf := BuildKlinePatternMTFForDiagnoseRequest(true, ctx, in.Run, in.Code, in.SignalFreq, in.Months, in.Bars)
+		patIn = NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, in.Bars, in.ProbeRaw, mtf)
+	} else {
+		patIn = NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, in.Bars, in.ProbeRaw, nil)
+		out.Degraded = append(out.Degraded, "kline_mtf_probe_unavailable")
+	}
+	out.KlinePattern = buildLabKlineDetail(idx, patIn)
+
+	if in.LabFetcher != nil && strings.TrimSpace(in.Code) != "" {
+		row := barRowAt(in.Bars, idx)
+		anchorTime, _, anchorOK := anchorForSignalBar(row, dailyBarsForLabAnchor(ctx, in))
+		var asOf *time.Time
+		if anchorOK {
+			t := anchorTime
+			asOf = &t
+		}
+		pa := priceanalysis.Run(ctx, in.LabFetcher, priceanalysis.RunRequest{
+			Code:       in.Code,
+			Months:     CapMonthsBack(in.Months),
+			SignalFreq: in.SignalFreq,
+			AsOf:       asOf,
+			SpotPrice:  ent.Close,
+			KeyLevels:  keyLevelsToLab(in.KeyLevels),
+		})
+		pa = priceanalysis.RoundPriceAnalysisForOutput(pa)
+		converted := priceAnalysisFromLab(pa)
+		out.PriceAnalysis = &converted
+		if !anchorOK {
+			out.Degraded = append(out.Degraded, "price_anchor_missing")
+		}
+	} else {
+		out.Degraded = append(out.Degraded, "lab_price_fetch_unavailable")
+	}
+	return out, nil
+}
+
+func buildLabKlineDetail(idx int, in KlinePatternDisplayInput) *LabKlinePatternDetail {
+	rec := EpisodeTriggerRecord{Index: idx}
+	enrichTriggerKlineDisplayForDiagnose(true, &rec, in)
+	detail := &LabKlinePatternDetail{
+		Summary:  strings.TrimSpace(rec.KlinePatternSummary),
+		Bias:     rec.KlinePatternBias,
+		Patterns: rec.KlinePatterns,
+		ThreeBar: rec.KlinePatternThreeBar,
+		MTF:      rec.KlinePatternMTF,
+	}
+	if detail.MTF == nil && len(in.PatternHits) > 0 {
+		detail.Patterns = kp.FilteredKlinePatternsAtIndex(in.PatternHits, idx)
+		if detail.Summary == "" {
+			detail.Summary = LightKlineSummaryAtIndex(in.PatternHits, idx)
+		}
+	}
+	return detail
+}
+
+func dailyBarsForLabAnchor(ctx context.Context, in LabDetailInput) []any {
+	if in.LabFetcher == nil {
+		return nil
+	}
+	bars, ok := in.LabFetcher.FetchBars(ctx, in.Code, "daily", CapMonthsBack(in.Months), nil)
+	if !ok {
+		return nil
+	}
+	return bars
+}
+
+func coalesceLookback(lookback, bars []any) []any {
+	if len(lookback) > 0 {
+		return lookback
+	}
+	return bars
+}
+
+func keyLevelsToLab(kl KeyLevelBands) priceanalysis.KeyLevelBands {
+	return priceanalysis.KeyLevelBands{
+		SupportLow: kl.SupportLow, SupportHigh: kl.SupportHigh,
+		ResistLow: kl.ResistLow, ResistHigh: kl.ResistHigh,
+	}
+}
+
+func tfScoresFromLab(in map[string]priceanalysis.TFScoreBreakdown) map[string]TFScoreBreakdown {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]TFScoreBreakdown, len(in))
+	for k, v := range in {
+		out[k] = TFScoreBreakdown{
+			Subscore: v.Subscore, Conclusion: v.Conclusion, Position: v.Position,
+			BosChoch: v.BosChoch, Missing: v.Missing,
+		}
+	}
+	return out
+}
+
+func priceAnalysisFromLab(pa priceanalysis.PriceAnalysis) PriceAnalysis {
+	out := PriceAnalysis{
+		Code: pa.Code, SpotPrice: pa.SpotPrice, SpotLabel: pa.SpotLabel,
+		SupportResistance: pa.SupportResistance, Summary: pa.Summary,
+		FilterTimeframe: pa.FilterTimeframe, FilterTimeframeNote: pa.FilterTimeframeNote,
+		AnchorTime: pa.AnchorTime, AnchorClose: pa.AnchorClose,
+		PriceScore: pa.PriceScore, TFScores: tfScoresFromLab(pa.TFScores), ScoreReason: pa.ScoreReason,
+	}
+	for _, row := range pa.Rows {
+		out.Rows = append(out.Rows, PriceAnalysisRow{
+			Timeframe: row.Timeframe, Conclusion: row.Conclusion, Structure: row.Structure,
+			BosChoch: row.BosChoch, Position: row.Position, ER: row.ER, RVOL: row.RVOL,
+			VolumeNote: row.VolumeNote,
+		})
+	}
+	return out
+}
+
+type badLabRefError string
+
+func (e badLabRefError) Error() string { return string(e) }
+
+func errBadLabRef(msg string) error { return badLabRefError(msg) }
+
+// IsBadLabRef reports invalid ref / range errors for HTTP mapping.
+func IsBadLabRef(err error) bool {
+	_, ok := err.(badLabRefError)
+	return ok
+}

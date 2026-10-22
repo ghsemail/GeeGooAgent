@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	kp "github.com/ghsemail/GeeGooAgent/internal/lab/archive/klinepattern"
+	kp "github.com/ghsemail/GeeGooAgent/internal/lab/klinepattern"
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
@@ -36,6 +36,14 @@ func NewKlinePatternDisplayInput(signalFreq string, bars []any, probeRaw map[str
 	return kp.NewKlinePatternDisplayInput(signalFreq, bars, probeRaw, mtf)
 }
 
+// NewKlinePatternDisplayInputForDiagnose builds probe context when signal-diagnose lab_mode is on.
+func NewKlinePatternDisplayInputForDiagnose(labMode bool, signalFreq string, bars []any, probeRaw map[string]any, mtf *KlinePatternMTFBundle) KlinePatternDisplayInput {
+	if !DiagnoseLabMode(labMode) {
+		return kp.KlinePatternDisplayInput{}
+	}
+	return kp.NewKlinePatternDisplayInput(signalFreq, bars, probeRaw, mtf)
+}
+
 // BuildKlinePatternMTFForDiagnose fetches MTF probes for diagnose when display is enabled.
 func BuildKlinePatternMTFForDiagnose(
 	ctx context.Context,
@@ -48,6 +56,21 @@ func BuildKlinePatternMTFForDiagnose(
 		return nil
 	}
 	return kp.BuildKlinePatternMTFBundle(ctx, kp.ToolRunner(run), code, signalFreq, months, bars)
+}
+
+// BuildKlinePatternMTFForDiagnoseRequest fetches MTF probes when signal-diagnose lab_mode is on.
+func BuildKlinePatternMTFForDiagnoseRequest(
+	labMode bool,
+	ctx context.Context,
+	run ToolRunner,
+	code, signalFreq string,
+	months int,
+	bars []any,
+) *KlinePatternMTFBundle {
+	if !DiagnoseLabMode(labMode) || run == nil || len(bars) == 0 {
+		return nil
+	}
+	return kp.BuildKlinePatternMTFBundleParallel(ctx, kp.ToolRunner(run), code, signalFreq, months, bars)
 }
 
 // BuildKlinePatternMTFBundle probes higher timeframes (lab archive; opt-in only).
@@ -67,6 +90,14 @@ func EnrichSignalEpisodeEvalKlineDisplay(eval *slots.SignalEpisodeEval, in Kline
 		return
 	}
 	kp.EnrichSignalEpisodeEvalKlineDisplay(eval, in)
+}
+
+// EnrichSignalEpisodeEvalKlineDisplayLight attaches signal-TF summaries only (lab_mode first screen).
+func EnrichSignalEpisodeEvalKlineDisplayLight(eval *slots.SignalEpisodeEval, in KlinePatternDisplayInput) {
+	if eval == nil || len(in.PatternHits) == 0 && in.MTF == nil {
+		return
+	}
+	kp.EnrichSignalEpisodeEvalKlineDisplayLight(eval, in)
 }
 
 // EnrichEpisodeTriggerFilterStatsKlineDisplay enriches trigger lists when display is enabled.
@@ -100,11 +131,32 @@ func AttachKlineDisplayToProbeTriggers(buy, sell []EpisodeTriggerRecord, in Klin
 	}
 }
 
+func enrichTriggerKlineDisplayForDiagnose(labMode bool, rec *EpisodeTriggerRecord, in KlinePatternDisplayInput) {
+	if rec == nil || !DiagnoseLabMode(labMode) {
+		return
+	}
+	enrichEpisodeTriggerRecordPatterns(rec, in.PatternHits)
+	rec.KlinePatternThreeBar = kp.BuildKlinePatternThreeBarWindow(in.Bars, in.PatternHits, rec.Index)
+	rec.KlinePatternMTF = kp.BuildKlinePatternMTFContext(rec.Index, in)
+	if rec.KlinePatternMTF != nil {
+		rec.HigherTFContext = rec.KlinePatternMTF
+		kp.ApplyMTFWeightedKlineConclusion(rec.KlinePatternMTF, &rec.KlinePatternBias, &rec.KlinePatternSummary)
+	}
+	if rec.KlinePatternBias == nil {
+		if rec.KlinePatternThreeBar != nil && rec.KlinePatternThreeBar.Bias != nil {
+			rec.KlinePatternBias = rec.KlinePatternThreeBar.Bias
+		} else if len(rec.KlinePatterns) > 0 {
+			b := slots.ScoreKlinePatternHits(rec.KlinePatterns)
+			rec.KlinePatternBias = &b
+		}
+	}
+}
+
 func enrichTriggerKlineDisplay(rec *EpisodeTriggerRecord, in KlinePatternDisplayInput) {
 	if rec == nil {
 		return
 	}
-	EnrichEpisodeTriggerRecordPatterns(rec, in.PatternHits)
+	enrichEpisodeTriggerRecordPatterns(rec, in.PatternHits)
 	rec.KlinePatternThreeBar = kp.BuildKlinePatternThreeBarWindow(in.Bars, in.PatternHits, rec.Index)
 	rec.KlinePatternMTF = kp.BuildKlinePatternMTFContext(rec.Index, in)
 	if rec.KlinePatternMTF != nil {
@@ -124,6 +176,13 @@ func enrichTriggerKlineDisplay(rec *EpisodeTriggerRecord, in KlinePatternDisplay
 // EnrichEpisodeTriggerRecordPatterns fills kline_patterns on one trigger record.
 func EnrichEpisodeTriggerRecordPatterns(rec *EpisodeTriggerRecord, series []any) {
 	if rec == nil || !KlinePatternDisplayEnabled() {
+		return
+	}
+	enrichEpisodeTriggerRecordPatterns(rec, series)
+}
+
+func enrichEpisodeTriggerRecordPatterns(rec *EpisodeTriggerRecord, series []any) {
+	if rec == nil {
 		return
 	}
 	hits := kp.FilteredKlinePatternsAtIndex(series, rec.Index)

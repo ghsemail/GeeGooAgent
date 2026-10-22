@@ -415,30 +415,23 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 		} else {
 			flow.SignalEval = slots.EvaluateSignalEpisodesWithOptions(bars, buyMerged, sellMerged, signalDiagnoseEpisodeEvalOpts(flow))
 		}
-		if strategydev.KlinePatternDisplayEnabled() && len(bars) > 0 {
-			var mtf *strategydev.KlinePatternMTFBundle
-			if r != nil && r.RunTool != nil {
-				run := func(c context.Context, name string, args map[string]any) tools.Result {
-					return r.runTool(c, toolCtx, name, args, recordTool)
-				}
-				mtf = strategydev.BuildKlinePatternMTFForDiagnose(ctx, run, flow.StockCode, freq, months, bars)
-			}
-			patIn := strategydev.NewKlinePatternDisplayInput(freq, bars, flow.ProbeRaw, mtf)
-			strategydev.EnrichSignalEpisodeEvalKlineDisplay(&flow.SignalEval, patIn)
-			if flow.PriceEpisodeFilterStats != nil {
-				strategydev.EnrichEpisodeTriggerFilterStatsKlineDisplay(flow.PriceEpisodeFilterStats, patIn)
-			} else {
-				buyTr, sellTr := strategydev.CollectEpisodeTriggersFromMerged(bars, buyMerged, sellMerged)
-				strategydev.AttachKlineDisplayToProbeTriggers(buyTr, sellTr, patIn)
-				flow.PriceEpisodeFilterStats = &strategydev.EpisodeTriggerFilterStats{
-					BuyTriggers:  buyTr,
-					SellTriggers: sellTr,
-				}
-			}
+		if flow.LabMode && len(bars) > 0 {
+			patIn := strategydev.NewKlinePatternDisplayInputForDiagnose(true, freq, bars, flow.ProbeRaw, nil)
+			strategydev.EnrichSignalEpisodeEvalKlineDisplayLight(&flow.SignalEval, patIn)
+			flow.LabEpisodeSummaries = strategydev.BuildLabCardSummariesFromEval(flow.SignalEval, patIn.PatternHits, "")
 		}
 	}
 	if r != nil {
-		r.attachSignalDiagnosePriceAnalysis(ctx, flow, toolCtx, recordTool)
+		if flow.LabMode {
+			r.attachSignalDiagnoseLabPriceSummary(ctx, flow, toolCtx)
+		} else {
+			r.attachSignalDiagnosePriceAnalysis(ctx, flow, toolCtx, recordTool)
+		}
+	}
+	if flow.LabMode && flow.LabFlowPriceSummary != "" && len(flow.LabEpisodeSummaries) > 0 {
+		flow.LabEpisodeSummaries = strategydev.BuildLabCardSummariesFromEval(
+			flow.SignalEval, patternHitsFromProbe(flow.ProbeRaw), flow.LabFlowPriceSummary,
+		)
 	}
 	flow.Phase = PhaseBuildDetail
 	flow.touch()

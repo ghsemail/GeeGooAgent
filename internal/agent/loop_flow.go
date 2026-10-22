@@ -27,6 +27,10 @@ func (l *Loop) tryChatWorkflow(
 		cfg := l.strategyDevJev()
 		runner.JevConfig = &cfg
 	}
+	if l.signalDiagnoseLab != nil {
+		cfg := l.signalDiagnoseLab()
+		runner.LabConfig = &cfg
+	}
 	step := session.StepCounter + 1
 	return runner.RunTurn(ctx, session, userText, toolCtx, step)
 }

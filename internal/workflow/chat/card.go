@@ -84,6 +84,15 @@ func CardPayload(flow *Flow) map[string]any {
 				out["price_analysis"] = flow.PriceAnalysis
 			}
 		}
+		if flow.LabMode {
+			out["lab_mode"] = true
+			if len(flow.LabEpisodeSummaries) > 0 {
+				out["lab_episode_summaries"] = flow.LabEpisodeSummaries
+			}
+			if s := strings.TrimSpace(flow.LabFlowPriceSummary); s != "" {
+				out["lab_flow_price_summary"] = s
+			}
+		}
 		if flow.PriceEpisodeFilterStats != nil {
 			if strategydev.PriceAnalysisFeatureEnabled() {
 				out["price_episode_filter_stats"] = flow.PriceEpisodeFilterStats

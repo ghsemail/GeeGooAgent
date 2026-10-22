@@ -167,6 +167,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	app.Hooks = buildHooks(cfg.Hooks)
 	app.Agent = agent.New(app.Gateway, executor, registry)
 	app.Agent.Loop.SetStrategyDevJevConfig(app.StrategyDevJevConfig)
+	app.Agent.Loop.SetSignalDiagnoseLabConfig(app.SignalDiagnoseLabConfig)
 	app.Agent.SetMaxToolRounds(cfg.EffectiveMaxSteps())
 	app.Agent.SetToolMaxParallel(cfg.EffectiveToolMaxParallel())
 	app.Agent.SetToolTimeout(cfg.EffectiveToolTimeout())

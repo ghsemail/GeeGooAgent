@@ -17,6 +17,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/sessiontask"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
+	workflowchat "github.com/ghsemail/GeeGooAgent/internal/workflow/chat"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
@@ -49,6 +50,7 @@ type Loop struct {
 	playbookRouter *playbookexec.Router
 	routingMode    string
 	strategyDevJev func() strategydev.JevConfig
+	signalDiagnoseLab func() workflowchat.LabConfig
 }
 
 // NewLoop creates an agent loop.
@@ -184,6 +186,14 @@ func (l *Loop) SetStrategyDevJevConfig(fn func() strategydev.JevConfig) {
 		return
 	}
 	l.strategyDevJev = fn
+}
+
+// SetSignalDiagnoseLabConfig wires GeeGooSignal lab-api for signal-diagnose lab_mode cards.
+func (l *Loop) SetSignalDiagnoseLabConfig(fn func() workflowchat.LabConfig) {
+	if l == nil {
+		return
+	}
+	l.signalDiagnoseLab = fn
 }
 
 // SetApproval wires interactive confirmation for mutating tools.

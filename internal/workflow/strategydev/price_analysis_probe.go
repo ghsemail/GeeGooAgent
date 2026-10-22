@@ -65,39 +65,5 @@ type MultiTimeframePriceBarsInput struct {
 
 // FetchMultiTimeframePriceAnalysisBars probes each upward standard TF once and caches by frequency code.
 func FetchMultiTimeframePriceAnalysisBars(ctx context.Context, in MultiTimeframePriceBarsInput) (barsByFreq map[string][]any, fetchOKByFreq map[string]bool) {
-	barsByFreq = map[string][]any{}
-	fetchOKByFreq = map[string]bool{}
-	if !PriceAnalysisFeatureEnabled() {
-		return barsByFreq, fetchOKByFreq
-	}
-	ctx = ContextWithPriceProbeCache(ctx)
-	if in.Run == nil || strings.TrimSpace(in.Code) == "" {
-		return barsByFreq, fetchOKByFreq
-	}
-	chartMonths := CapMonthsBack(in.Months)
-	var windowEnd time.Time
-	if in.AsOf != nil {
-		windowEnd = *in.AsOf
-	}
-	if len(in.ChartBars) > 0 {
-		_, latest := barSeriesTimeExtent(in.ChartBars)
-		if !latest.IsZero() && (windowEnd.IsZero() || latest.After(windowEnd)) {
-			windowEnd = latest
-		}
-	}
-	var asOfPtr *time.Time
-	if !windowEnd.IsZero() {
-		end := windowEnd
-		asOfPtr = &end
-	}
-	for _, spec := range multiTimeframeSpecsForGate(in.GateFreq) {
-		months := chartMonths
-		if len(in.ChartBars) > 0 {
-			months = monthsBackForPerSignalPriceFetch(chartMonths, in.ChartBars, spec.Freq, windowEnd)
-		}
-		bars, ok := fetchPriceAnalysisBarsWithAsOf(ctx, in.Run, in.Code, spec.Freq, months, asOfPtr)
-		barsByFreq[spec.Freq] = bars
-		fetchOKByFreq[spec.Freq] = ok
-	}
-	return barsByFreq, fetchOKByFreq
+	return FetchMultiTimeframePriceAnalysisBarsParallel(ctx, in)
 }
