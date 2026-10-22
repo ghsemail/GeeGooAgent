@@ -8,51 +8,20 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
-// ApplyPendingSignalDiagnoseOpts copies session pending opts onto a new flow and clears pending.
+const MetaKeySignalDiagnoseStickyOpts = "signal_diagnose_sticky_opts"
+
+// ApplyPendingSignalDiagnoseOpts merges sticky + pending panel opts onto a new flow.
+// Sticky survives across turns so toggling lab_mode alone cannot drop buy/sell overrides.
 func ApplyPendingSignalDiagnoseOpts(session *runtime.Session, flow *Flow) {
-	if session == nil || flow == nil || session.PendingSignalDiagnoseOpts == nil {
+	if session == nil || flow == nil {
 		return
 	}
-	o := session.PendingSignalDiagnoseOpts
-	if o.UsePriceAnalysisEpisodeFilter != nil {
-		flow.UsePriceAnalysisEpisodeFilter = *o.UsePriceAnalysisEpisodeFilter
+	merged := MergeSignalDiagnoseOpts(session.SignalDiagnoseStickyOpts, session.PendingSignalDiagnoseOpts)
+	if merged == nil {
+		return
 	}
-	if o.PriceAnalysisScoreThreshold != nil {
-		flow.PriceAnalysisScoreThreshold = *o.PriceAnalysisScoreThreshold
-	}
-	if strings.TrimSpace(o.PriceAnalysisBuyScoreDirection) != "" {
-		flow.PriceAnalysisBuyScoreDirection = strategydev.ParseBuyScoreDirection(o.PriceAnalysisBuyScoreDirection)
-	}
-	if strings.TrimSpace(o.PriceAnalysisGateScoreMode) != "" {
-		flow.PriceAnalysisGateScoreMode = strategydev.ParsePriceAnalysisGateScoreMode(o.PriceAnalysisGateScoreMode)
-	}
-	if len(o.BuySignal) > 0 {
-		flow.ProbeBuyOverride = o.BuySignal
-	}
-	if len(o.SellSignal) > 0 {
-		flow.ProbeSellOverride = o.SellSignal
-	}
-	if s := strings.TrimSpace(o.SellMerge); s != "" {
-		flow.ProbeSellMerge = s
-	}
-	if s := strings.TrimSpace(o.BuyMerge); s != "" {
-		flow.ProbeBuyMerge = s
-	}
-	if strings.TrimSpace(o.Frequency) != "" {
-		flow.ProbeFrequencyOverride = strings.TrimSpace(o.Frequency)
-	}
-	if o.MonthsBack > 0 {
-		flow.MonthsBack = o.MonthsBack
-	}
-	if strings.TrimSpace(o.PanelStrategyLabel) != "" {
-		flow.ProbePanelLabel = strings.TrimSpace(o.PanelStrategyLabel)
-	}
-	if o.TradeDirection != nil {
-		flow.TradeDirection = *o.TradeDirection
-	}
-	if o.LabMode != nil {
-		flow.LabMode = *o.LabMode
-	}
+	session.SignalDiagnoseStickyOpts = cloneSignalDiagnoseOpts(merged)
+	applySignalDiagnoseOptsToFlow(merged, flow)
 	session.PendingSignalDiagnoseOpts = nil
 }
 
