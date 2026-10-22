@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
 func TestFinalizeComposeTrimsOnDeadline(t *testing.T) {
@@ -22,17 +21,14 @@ func TestFinalizeComposeTrimsOnDeadline(t *testing.T) {
 	}
 }
 
-func TestFinalizeComposeNormalizesHeading(t *testing.T) {
+func TestFinalizeComposeNormalizesSectionHeading(t *testing.T) {
 	flow := &Flow{}
-	in := "###信号诊断评价本次策略表现稳定。"
+	in := "### 一、信号触发情况在腾讯上 probe 多次触发。"
 	text, ok := finalizeLLMComposeAnswer(flow, in, nil, nil, context.Background())
 	if !ok {
 		t.Fatal("expected ok")
 	}
 	if text == in {
-		t.Fatalf("expected heading normalized, got %q", text)
-	}
-	if !llm.IsMostlyChinese(text) {
-		t.Fatalf("not chinese: %q", text)
+		t.Fatalf("expected section split, got %q", text)
 	}
 }

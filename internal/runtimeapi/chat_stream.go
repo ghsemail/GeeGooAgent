@@ -83,7 +83,9 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	queueWaitStart := time.Now()
 	h.chatMu.Lock()
+	inboundQueueWait := time.Since(queueWaitStart)
 	defer h.chatMu.Unlock()
 
 	chat, created, code, msg := h.loadOrCreateChatSession(store, strings.TrimSpace(req.SessionID), resolveUserID(r), resolveClientSource(r))
@@ -134,6 +136,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 
 	chat.SyncChatSystemPrompt()
 	rtSession := agent.RuntimeSessionFromChat(chat)
+	rtSession.InboundQueueWait = inboundQueueWait
 	if opts := workflowchat.ParseSignalDiagnoseOptsFromWorkflowOptions(req.WorkflowOptions); opts != nil {
 		rtSession.PendingSignalDiagnoseOpts = opts
 	}

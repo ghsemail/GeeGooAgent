@@ -29,5 +29,9 @@ func recordWorkflowTimingTotal(flow *Flow) {
 	if flow.PhaseTimingsMs == nil {
 		flow.PhaseTimingsMs = map[string]int64{}
 	}
-	flow.PhaseTimingsMs["_total"] = time.Since(flow.WorkflowStartedAt).Milliseconds()
+	exec := time.Since(flow.WorkflowStartedAt).Milliseconds()
+	if q := flow.PhaseTimingsMs["_queue_wait"]; q > 0 {
+		exec += q
+	}
+	flow.PhaseTimingsMs["_total"] = exec
 }

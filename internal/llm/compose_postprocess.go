@@ -29,11 +29,9 @@ func TruncateToLastCompleteSentence(s string) string {
 		return ""
 	}
 	runes := []rune(s)
-	last := -1
-	for i, r := range runes {
-		if isSentenceEndRune(r) {
-			last = i
-		}
+	last := lastChineseSentenceEnd(runes)
+	if last < 0 {
+		last = lastASCIISentenceEnd(runes)
 	}
 	if last < 0 {
 		return s
@@ -45,13 +43,54 @@ func TruncateToLastCompleteSentence(s string) string {
 	return out
 }
 
-func isSentenceEndRune(r rune) bool {
-	switch r {
-	case '。', '！', '？', '；', '.', '!', '?':
-		return true
-	default:
+func lastChineseSentenceEnd(runes []rune) int {
+	last := -1
+	for i, r := range runes {
+		switch r {
+		case '。', '！', '？', '；':
+			last = i
+		}
+	}
+	return last
+}
+
+func lastASCIISentenceEnd(runes []rune) int {
+	last := -1
+	for i, r := range runes {
+		switch r {
+		case '!', '?':
+			last = i
+		case '.':
+			if asciiPeriodEndsSentence(runes, i) {
+				last = i
+			}
+		}
+	}
+	return last
+}
+
+func asciiPeriodEndsSentence(runes []rune, i int) bool {
+	if i <= 0 {
 		return false
 	}
+	prev := runes[i-1]
+	if prev >= 'A' && prev <= 'Z' {
+		// Ticker suffix AAPL. before more Chinese — not a sentence end.
+		if i+1 < len(runes) && unicode.Is(unicode.Han, runes[i+1]) {
+			return false
+		}
+		if i+1 < len(runes) && ((runes[i+1] >= 'a' && runes[i+1] <= 'z') || (runes[i+1] >= 'A' && runes[i+1] <= 'Z')) {
+			return false
+		}
+	}
+	if unicode.Is(unicode.Han, prev) {
+		return true
+	}
+	if i+1 >= len(runes) {
+		return true
+	}
+	next := runes[i+1]
+	return next == '\n' || next == ' ' || unicode.Is(unicode.Han, next)
 }
 
 // IsMostlyChinese reports whether runes are predominantly CJK (visible answer quality check).

@@ -63,6 +63,8 @@ type Session struct {
 	SignalDiagnoseResolveCache map[string]json.RawMessage `json:"-"`
 	// PendingStrategyDevOpts applies to the next strategy_dev_pipeline flow only (not persisted).
 	PendingStrategyDevOpts *StrategyDevOpts
+	// InboundQueueWait is time spent waiting on chatMu before this turn started (not persisted).
+	InboundQueueWait time.Duration
 }
 
 // StrategyDevOpts configures strategy_dev_pipeline for one chat turn.

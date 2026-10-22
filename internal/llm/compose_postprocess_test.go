@@ -27,3 +27,11 @@ func TestTruncateToLastCompleteSentenceKeepsFull(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestTruncateSkipsTickerPeriodBeforeChinese(t *testing.T) {
+	in := "综合评价该策略在AAPL.后续还有中文但没有完"
+	got := TruncateToLastCompleteSentence(in)
+	if got == "综合评价该策略在AAPL." {
+		t.Fatalf("should not cut at ticker dot, got %q", got)
+	}
+}
