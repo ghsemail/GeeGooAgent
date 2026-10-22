@@ -122,6 +122,9 @@ type Flow struct {
 	ProbeFrequencyOverride string         `json:"probe_frequency_override,omitempty"`
 	ProbePanelLabel        string         `json:"probe_panel_label,omitempty"`
 	TradeDirection         runtime.TradeDirection `json:"trade_direction,omitempty"`
+	LabMode                bool `json:"lab_mode,omitempty"`
+	LabFlowPriceSummary    string `json:"lab_flow_price_summary,omitempty"`
+	LabEpisodeSummaries    strategydev.LabCardEpisodeSummaries `json:"lab_episode_summaries,omitempty"`
 	KeyLevels              KeyLevelSnapshot   `json:"key_levels,omitempty"`
 	KeyLevelSeries         *KeyLevelBarSeries `json:"key_level_series,omitempty"`
 	EvalJudgment        string         `json:"eval_judgment,omitempty"`

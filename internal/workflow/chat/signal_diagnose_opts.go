@@ -50,6 +50,9 @@ func ApplyPendingSignalDiagnoseOpts(session *runtime.Session, flow *Flow) {
 	if o.TradeDirection != nil {
 		flow.TradeDirection = *o.TradeDirection
 	}
+	if o.LabMode != nil {
+		flow.LabMode = *o.LabMode
+	}
 	session.PendingSignalDiagnoseOpts = nil
 }
 
@@ -119,6 +122,9 @@ func ParseSignalDiagnoseOptsFromWorkflowOptions(raw map[string]any) *runtime.Sig
 		s, _ := block["trade_direction"].(string)
 		td := runtime.ParseTradeDirection(s)
 		out.TradeDirection = &td
+	}
+	if v, ok := block["lab_mode"].(bool); ok {
+		out.LabMode = &v
 	}
 	return out
 }

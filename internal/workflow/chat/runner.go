@@ -21,6 +21,7 @@ type Runner struct {
 	OnProgress      runtime.ProgressFunc
 	ComposeLLM      llm.Provider // optional; strategy_dev cognition synthesis
 	JevConfig       *strategydev.JevConfig
+	LabConfig       *LabConfig
 	retryFailedOnly bool
 }
 

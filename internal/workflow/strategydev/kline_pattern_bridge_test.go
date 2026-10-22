@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	kp "github.com/ghsemail/GeeGooAgent/internal/lab/archive/klinepattern"
+	kp "github.com/ghsemail/GeeGooAgent/internal/lab/klinepattern"
 )
 
 func TestKlinePatternDisplayDisabled_OmitsTriggerFields(t *testing.T) {

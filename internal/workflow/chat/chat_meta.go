@@ -67,6 +67,37 @@ func RawFromChat(chat *chatsession.ChatSession) any {
 	return chat.Metadata[MetaKeyActiveFlow]
 }
 
+// FlowFromChat unmarshals the active signal/workflow state from chat metadata.
+func FlowFromChat(chat *chatsession.ChatSession) *Flow {
+	if chat == nil || chat.Metadata == nil {
+		return nil
+	}
+	raw, ok := chat.Metadata[MetaKeyActiveFlow]
+	if !ok || raw == nil {
+		return nil
+	}
+	var flow Flow
+	switch v := raw.(type) {
+	case json.RawMessage:
+		if err := json.Unmarshal(v, &flow); err != nil {
+			return nil
+		}
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return nil
+		}
+		if err := json.Unmarshal(b, &flow); err != nil {
+			return nil
+		}
+	}
+	if flow.RunID == "" {
+		return nil
+	}
+	normalizeOnLoad(&flow)
+	return &flow
+}
+
 func normalizeOnLoad(flow *Flow) {
 	if flow == nil {
 		return

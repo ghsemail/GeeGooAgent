@@ -51,6 +51,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	h.registerDataRoutes(mux)
 	h.registerKnowledgeRoutes(mux)
 	h.registerLabRoutes(mux)
+	h.registerSignalDiagnoseLabRoutes(mux)
 }
 
 type chatRequest struct {
