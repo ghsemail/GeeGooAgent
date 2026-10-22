@@ -139,6 +139,10 @@ func (r *Runner) runTemplateTurn(
 	if flow.WorkflowStartedAt.IsZero() {
 		flow.WorkflowStartedAt = wfStart
 	}
+	if session != nil && session.InboundQueueWait > 0 {
+		recordPhaseTiming(flow, "_queue_wait", session.InboundQueueWait)
+		session.InboundQueueWait = 0
+	}
 	for flow.Phase != PhaseSummarize && flow.Phase != PhaseDone {
 		if err := ctx.Err(); err != nil {
 			flow.Status = StatusInterrupted

@@ -169,7 +169,7 @@ func (r *Runner) synthesizeSignalDiagnoseJudgment(ctx context.Context, flow *Flo
 		if streamer, ok := r.ComposeLLM.(llm.Streamer); ok {
 			var acc llm.AnswerStreamAccumulator
 			acc.OnVisible = func(chunk string) {
-				flow.EvalJudgment = acc.Visible()
+				flow.EvalJudgment = llm.NormalizeComposeSections(acc.Visible())
 				emitAnswerChunk(chunk)
 			}
 			acc.OnThinking = appendReasoningDebug
@@ -246,7 +246,7 @@ func finalizeLLMComposeAnswer(flow *Flow, streamed string, resp *llm.Response, e
 }
 
 func polishComposeAnswerText(flow *Flow, text string, deadline bool) string {
-	text = llm.NormalizeComposeMarkdown(text)
+	text = llm.NormalizeComposeSections(text)
 	if deadline && text != "" {
 		if trimmed := llm.TruncateToLastCompleteSentence(text); trimmed != "" && len([]rune(trimmed)) < len([]rune(text)) {
 			recordPhaseGauge(flow, "diag_compose:sentence_trim", 1)
@@ -265,7 +265,14 @@ func markComposeDeadline(flow *Flow, err error, composeCtx context.Context) bool
 }
 
 func signalDiagnoseJudgmentSystemPrompt() string {
-	return "你是 GeeGoo 量化策略诊断助手。只输出最终中文正文（可分段），不要输出英文推理、计划或草稿。根据 probe/diagnose/Episode 指标写完整评价，不夸大、不编造数据。若使用 Markdown 小标题，格式必须为「### 标题」且标题后空一行再写正文。"
+	return "你是 GeeGoo 量化策略诊断助手。只输出最终中文正文，不要英文推理或草稿。根据 probe/diagnose/Episode 写完整评价，不编造数字。\n\n" +
+		"必须按固定四节输出，节标题逐字使用（### 后有空格，标题独占一行，标题后必须空一行再写正文）：\n" +
+		strings.Join([]string{
+			"### 一、信号触发情况",
+			"### 二、probe 与命中率",
+			"### 三、Episode 与风险",
+			"### 四、综合评价",
+		}, "\n")
 }
 
 func fallbackSignalDiagnoseJudgment(flow *Flow) string {

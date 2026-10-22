@@ -52,18 +52,25 @@ func (a *AnswerStreamAccumulator) PushContent(delta string) {
 		}
 		a.thinkingPrev = thinking
 	}
-	if len(visible) > len(a.visiblePrev) && strings.HasPrefix(visible, a.visiblePrev) {
+	if visible == a.visiblePrev {
+		return
+	}
+	if len(visible) < len(a.visiblePrev) && !strings.HasPrefix(a.visiblePrev, visible) {
+		// Transient think-tag parse shrink; keep monotonic visible for streaming/card.
+		return
+	}
+	if strings.HasPrefix(visible, a.visiblePrev) {
 		chunk := visible[len(a.visiblePrev):]
 		a.visiblePrev = visible
 		if chunk != "" && a.OnVisible != nil {
 			a.OnVisible(chunk)
 		}
-	} else if visible != a.visiblePrev {
-		// Model rewrote prefix; emit full visible once.
-		a.visiblePrev = visible
-		if visible != "" && a.OnVisible != nil {
-			a.OnVisible(visible)
-		}
+		return
+	}
+	// Model rewrote prefix; emit full visible once.
+	a.visiblePrev = visible
+	if visible != "" && a.OnVisible != nil {
+		a.OnVisible(visible)
 	}
 }
 
