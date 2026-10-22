@@ -91,7 +91,7 @@ func (r *Runner) synthesizeSignalDiagnoseJudgment(ctx context.Context, flow *Flo
 	if len(flow.Strategies) > 0 && flow.Strategies[0].Frequency != "" {
 		freq = flow.Strategies[0].Frequency
 	}
-	user := fmt.Sprintf(`用 3–5 句中文总结信号诊断（勿编造数字）：
+	user := fmt.Sprintf(`用 2–4 句中文总结信号诊断（勿编造数字）：
 
 策略 %s（%s）· %s %s · %s / %d月
 probe 买%d/卖%d（%d根K）
@@ -104,14 +104,18 @@ Episode：%s`,
 		flow.DiagnoseVerdict, flow.DiagnoseSummary,
 		slots.FormatEvalMetricsJSON(flow.SignalEval),
 	)
+	recordPhaseGauge(flow, "diag_compose:prompt_chars", int64(len(user)))
 	if r != nil && r.ComposeLLM != nil {
 		msgs := []llm.Message{
 			{Role: llm.RoleSystem, Content: signalDiagnoseJudgmentSystemPrompt()},
 			{Role: llm.RoleUser, Content: user},
 		}
+		composeCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
+		defer cancel()
+		composeCtx = llm.WithCallMeta(composeCtx, llm.CallMeta{Kind: llm.TaskClassify})
 		if streamer, ok := r.ComposeLLM.(llm.Streamer); ok {
 			var b strings.Builder
-			resp, err := streamer.ChatStream(ctx, msgs, nil, 0, 0, func(delta llm.StreamDelta) {
+			resp, err := streamer.ChatStream(composeCtx, msgs, nil, 0, 256, func(delta llm.StreamDelta) {
 				chunk := llm.VisibleAssistantContent(delta.Content, delta.ReasoningContent)
 				if chunk == "" {
 					return
@@ -126,8 +130,8 @@ Episode：%s`,
 					})
 				}
 			})
-			if err != nil {
-				return "", err
+			if err != nil || composeCtx.Err() != nil {
+				return fallbackSignalDiagnoseJudgment(flow), nil
 			}
 			if text := strings.TrimSpace(b.String()); text != "" {
 				return text, nil
@@ -137,16 +141,16 @@ Episode：%s`,
 					return text, nil
 				}
 			}
-			return "", fmt.Errorf("LLM 返回空内容")
+			return fallbackSignalDiagnoseJudgment(flow), nil
 		}
-		resp, err := r.ComposeLLM.Chat(ctx, msgs, nil, 0, 0)
-		if err != nil {
-			return "", err
+		resp, err := r.ComposeLLM.Chat(composeCtx, msgs, nil, 0, 256)
+		if err != nil || composeCtx.Err() != nil {
+			return fallbackSignalDiagnoseJudgment(flow), nil
 		}
 		if text := strings.TrimSpace(llm.VisibleAssistantContent(resp.Content, resp.ReasoningContent)); text != "" {
 			return text, nil
 		}
-		return "", fmt.Errorf("LLM 返回空内容")
+		return fallbackSignalDiagnoseJudgment(flow), nil
 	}
 	return fallbackSignalDiagnoseJudgment(flow), nil
 }

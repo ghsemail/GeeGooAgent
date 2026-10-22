@@ -7,6 +7,10 @@ func TestParseLabDetailRef(t *testing.T) {
 	if !ok || side != "buy" || idx != 3 {
 		t.Fatalf("got %s %d %v", side, idx, ok)
 	}
+	side, idx, ok = ParseLabDetailRef(LabFlowDetailRef)
+	if !ok || side != "flow" || idx != 0 {
+		t.Fatalf("flow ref got %s %d %v", side, idx, ok)
+	}
 	if _, _, ok := ParseLabDetailRef("nope"); ok {
 		t.Fatal("expected invalid ref")
 	}

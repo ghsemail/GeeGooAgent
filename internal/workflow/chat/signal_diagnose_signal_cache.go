@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
@@ -15,12 +16,22 @@ import (
 // ensureDiagnoseSignalResolved resolves catalog/panel signal once per flow (read_strategy).
 func (r *Runner) ensureDiagnoseSignalResolved(
 	ctx context.Context,
+	session *runtime.Session,
 	flow *Flow,
 	toolCtx tools.Context,
 	recordTool func(name, status, summary string),
 	phaseTimingKey string,
 ) error {
 	if flow == nil || flow.DiagnoseSignalCached {
+		return nil
+	}
+	cacheKey := signalResolveCacheKey(flow)
+	if ent, ok := loadSignalResolveFromSession(session, cacheKey); ok {
+		applySignalResolveCacheEntry(flow, ent)
+		if phaseTimingKey != "" {
+			recordPhaseTiming(flow, phaseTimingKey, 0)
+			recordPhaseGauge(flow, phaseTimingKey+":cache_hit", 1)
+		}
 		return nil
 	}
 	start := time.Now()
@@ -30,6 +41,7 @@ func (r *Runner) ensureDiagnoseSignalResolved(
 	}
 	if phaseTimingKey != "" {
 		recordPhaseTiming(flow, phaseTimingKey, time.Since(start))
+		recordPhaseGauge(flow, phaseTimingKey+":cache_hit", 0)
 	}
 	flow.DiagnoseSignalCached = true
 	flow.DiagnoseSignalSource = src
@@ -38,6 +50,7 @@ func (r *Runner) ensureDiagnoseSignalResolved(
 	flow.ResolvedSignalFrequency = sig.Frequency
 	flow.ResolvedStrategyLabel = sig.StrategyLabel
 	flow.ProbeSignalFingerprint = fingerprintProbeSignalPlan(flow)
+	storeSignalResolveToSession(session, cacheKey, sig, src)
 	return nil
 }
 
@@ -68,6 +81,12 @@ func (r *Runner) resolveDiagnoseSignalUncached(
 	if flowHasProbePanelOverrides(flow) {
 		return resolvedSignalFromProbeOverrides(flow), "panel", nil
 	}
+	if len(flow.CatalogRaw) > 0 {
+		sig, err := slots.ResolvedSignalFromCatalog(flow.CatalogType, flow.CatalogRaw)
+		if err == nil && len(sig.Buy) > 0 {
+			return sig, "catalog_raw", nil
+		}
+	}
 	kind := "combination"
 	switch flow.CatalogType {
 	case catalogTypeIndex, catalogTypeDefinition:
@@ -89,13 +108,17 @@ func fingerprintProbeSignalPlan(flow *Flow) string {
 		return ""
 	}
 	payload := map[string]any{
-		"buy":  flow.ProbeBuyOverride,
-		"sell": flow.ProbeSellOverride,
-		"buy_merge":  flow.ProbeBuyMerge,
-		"sell_merge": flow.ProbeSellMerge,
-		"frequency":  coalesceStrings(flow.ProbeFrequencyOverride, flow.ResolvedSignalFrequency),
-		"catalog":    flow.CatalogLabel,
-		"catalog_type": flow.CatalogType,
+		"buy":            flow.ProbeBuyOverride,
+		"sell":           flow.ProbeSellOverride,
+		"buy_merge":      flow.ProbeBuyMerge,
+		"sell_merge":     flow.ProbeSellMerge,
+		"frequency":      coalesceStrings(flow.ProbeFrequencyOverride, flow.ResolvedSignalFrequency),
+		"catalog":        flow.CatalogLabel,
+		"catalog_type":   flow.CatalogType,
+		"resolved_buy":   flow.ResolvedBuySignal,
+		"resolved_sell":  flow.ResolvedSellSignal,
+		"strategy_query": flow.StrategyQuery,
+		"months_back":    flow.MonthsBack,
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {

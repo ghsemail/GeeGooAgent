@@ -5,6 +5,7 @@ func diagnoseStructuredForCard(raw map[string]any) map[string]any {
 	if raw == nil || !DiagnoseDetailPayloadUsable(raw) {
 		return nil
 	}
+	raw = normalizeDiagnoseDetailForCard(raw)
 	out := map[string]any{}
 	if v := raw["verdict"]; v != nil {
 		out["verdict"] = v

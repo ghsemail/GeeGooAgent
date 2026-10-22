@@ -59,6 +59,8 @@ type Session struct {
 	PendingSignalDiagnoseOpts *SignalDiagnoseOpts
 	// SignalDiagnoseStickyOpts retains last merged panel opts (buy/sell/freq) across turns.
 	SignalDiagnoseStickyOpts *SignalDiagnoseOpts
+	// SignalDiagnoseResolveCache maps signalResolveCacheKey → resolved buy/sell (cross-turn lab parity).
+	SignalDiagnoseResolveCache map[string]json.RawMessage `json:"-"`
 	// PendingStrategyDevOpts applies to the next strategy_dev_pipeline flow only (not persisted).
 	PendingStrategyDevOpts *StrategyDevOpts
 }
