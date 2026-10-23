@@ -44,6 +44,31 @@ func TestMalformedToolCallResponse(t *testing.T) {
 	}
 }
 
+func TestGatewayChatSynthesisRetriesOnEmptyContent(t *testing.T) {
+	t.Parallel()
+	provider := &llm.MockProvider{
+		ModelName: "primary-model",
+		Responses: []*llm.Response{
+			{Content: ""},
+			{Content: `{"ok":true}`},
+		},
+	}
+	gw := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 3, RetryWait: time.Millisecond})
+	gw.SetSleep(func(time.Duration) {})
+	resp, err := gw.ChatSynthesis(context.Background(), nil, func(r *llm.Response) error {
+		if strings.TrimSpace(r.Content) == "" {
+			return fmt.Errorf("empty content")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Content != `{"ok":true}` {
+		t.Fatalf("got %q", resp.Content)
+	}
+}
+
 func TestGatewayChatSynthesisFailoverOnParseError(t *testing.T) {
 	t.Parallel()
 	primary := &llm.MockProvider{

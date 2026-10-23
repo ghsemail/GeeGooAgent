@@ -171,6 +171,19 @@ func buildStockReportDraft(w *memory.PreMarketWorking, code string, view reportV
 
 func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, code string) (StockReportBundle, error) {
 	ws := w.Stocks[code]
+	if ws.StockPremarketSynthesized && strings.TrimSpace(ws.StockPremarketReportBody) != "" {
+		levels := extractKeyLevels(ctx, ws)
+		return StockReportBundle{
+			Report:     ws.StockPremarketReportBody,
+			Result:     ws.PreMarketResult,
+			Confidence: ws.PreMarketConfidence,
+			Reason:     ws.PreMarketReason,
+			Suggestion: ws.PreMarketSuggestion,
+			Summary:    ws.ReportSummary,
+			Support:    levels.Support,
+			Resistance: levels.Resistance,
+		}, nil
+	}
 	evidence := collectReportEvidence(w, code)
 	levels := extractKeyLevels(ctx, ws)
 	view := buildReportView(ws, evidence, levels, w.MarketReportResult)
@@ -239,6 +252,14 @@ func ensureStockReportBundle(ctx context.Context, w *memory.PreMarketWorking, co
 	bundle.Summary = stockfmt.StripEvidenceRefs(bundle.Summary)
 	bundle.Report = stockfmt.PolishStockNewsInReport(bundle.Report, ws.StockName)
 	bundle.Report = stockfmt.PolishStockPremarketMarkdown(bundle.Report)
+	ws.StockPremarketSynthesized = true
+	ws.StockPremarketReportBody = bundle.Report
+	ws.PreMarketResult = bundle.Result
+	ws.PreMarketConfidence = bundle.Confidence
+	ws.PreMarketReason = bundle.Reason
+	ws.PreMarketSuggestion = bundle.Suggestion
+	ws.ReportSummary = bundle.Summary
+	w.Stocks[code] = ws
 	return bundle, nil
 }
 

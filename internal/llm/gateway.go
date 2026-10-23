@@ -157,28 +157,44 @@ func (g *Gateway) ChatSynthesis(ctx context.Context, messages []Message, accept 
 	var attempts []string
 	for i, provider := range providers {
 		providerCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), synthesisProviderTimeout(i))
-		resp, err := g.chatSynthesisOnce(providerCtx, provider, messages)
-		cancel()
-		if err != nil {
-			attempts = append(attempts, fmt.Sprintf("%s: %v", provider.Model(), err))
-			if i < len(providers)-1 {
-				continue
-			}
-			break
-		}
-		if accept != nil {
-			if err := accept(resp); err != nil {
+		var resp *Response
+		for attempt := 0; attempt < g.config.MaxRetries; attempt++ {
+			if err := providerCtx.Err(); err != nil {
 				attempts = append(attempts, fmt.Sprintf("%s: %v", provider.Model(), err))
-				if i < len(providers)-1 {
+				break
+			}
+			r, err := g.chatSynthesisOnce(providerCtx, provider, messages)
+			if err != nil {
+				attempts = append(attempts, fmt.Sprintf("%s: %v", provider.Model(), err))
+				if attempt < g.config.MaxRetries-1 && !FailoverEligible(err) {
+					g.sleep(g.config.RetryWait)
 					continue
 				}
-				return nil, fmt.Errorf("synthesis validation failed: %w", err)
+				break
 			}
+			if accept != nil {
+				if err := accept(r); err != nil {
+					attempts = append(attempts, fmt.Sprintf("%s: %v", provider.Model(), err))
+					if attempt < g.config.MaxRetries-1 {
+						g.sleep(g.config.RetryWait)
+						continue
+					}
+					break
+				}
+			}
+			resp = r
+			break
 		}
-		if resp != nil && strings.TrimSpace(resp.Usage.Model) == "" {
-			resp.Usage.Model = provider.Model()
+		cancel()
+		if resp != nil {
+			if strings.TrimSpace(resp.Usage.Model) == "" {
+				resp.Usage.Model = provider.Model()
+			}
+			return resp, nil
 		}
-		return resp, nil
+		if i < len(providers)-1 {
+			continue
+		}
 	}
 	return nil, fmt.Errorf("synthesis failed after %d provider(s): %s", len(providers), strings.Join(attempts, "; "))
 }
