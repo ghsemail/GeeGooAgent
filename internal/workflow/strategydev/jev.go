@@ -119,6 +119,79 @@ func (j *JevClient) Verdict(ctx context.Context, in jevVerdictRequest) (string, 
 	return verdict, parsed.Reason, nil
 }
 
+type jevChoiceAnswer struct {
+	Type          string             `json:"type"`
+	Choice        string             `json:"choice"`
+	Probabilities map[string]float64 `json:"probabilities"`
+	Confidence    float64            `json:"confidence"`
+}
+
+// Choice calls System One choice primitive (state + typed questions).
+func (j *JevClient) Choice(
+	ctx context.Context,
+	state string,
+	questionID, instructions string,
+	criteria map[string]string,
+) (choice string, probabilities map[string]float64, confidence float64, model string, err error) {
+	if j == nil || strings.TrimSpace(j.cfg.APIKey) == "" {
+		return "", nil, 0, "", fmt.Errorf("jev not configured")
+	}
+	qid := strings.TrimSpace(questionID)
+	if qid == "" {
+		qid = "direction"
+	}
+	body := map[string]any{
+		"model": j.cfg.Model,
+		"state": strings.TrimSpace(state),
+		"questions": map[string]any{
+			qid: map[string]any{
+				"type":         "choice",
+				"instructions": strings.TrimSpace(instructions),
+				"criteria":     criteria,
+			},
+		},
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return "", nil, 0, "", err
+	}
+	url := j.cfg.BaseURL + "/systemone"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(raw))
+	if err != nil {
+		return "", nil, 0, "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+j.cfg.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := j.client.Do(req)
+	if err != nil {
+		return "", nil, 0, "", err
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", nil, 0, "", err
+	}
+	if resp.StatusCode >= 400 {
+		return "", nil, 0, "", fmt.Errorf("systemone http %d", resp.StatusCode)
+	}
+	var envelope struct {
+		Model   string                     `json:"model"`
+		Answers map[string]jevChoiceAnswer `json:"answers"`
+	}
+	if err := json.Unmarshal(b, &envelope); err != nil {
+		return "", nil, 0, "", err
+	}
+	ans, ok := envelope.Answers[qid]
+	if !ok {
+		return "", nil, 0, "", fmt.Errorf("systemone missing answer %q", qid)
+	}
+	model = strings.TrimSpace(envelope.Model)
+	if model == "" {
+		model = j.cfg.Model
+	}
+	return strings.TrimSpace(ans.Choice), ans.Probabilities, ans.Confidence, model, nil
+}
+
 func (j *JevClient) systemOne(ctx context.Context, system, user string) (string, error) {
 	url := j.cfg.BaseURL + "/systemone"
 	body := map[string]any{
