@@ -29,6 +29,12 @@ type LabEpisodeDetail struct {
 	Time          string                 `json:"time,omitempty"`
 	Close         float64                `json:"close,omitempty"`
 	KlinePattern  *LabKlinePatternDetail `json:"kline_pattern,omitempty"`
+	// Top-level kline_pattern_* mirrors episode/chart fields for FE Plan B.
+	KlinePatterns        []slots.KlinePatternHit           `json:"kline_patterns,omitempty"`
+	KlinePatternSummary  string                            `json:"kline_pattern_summary,omitempty"`
+	KlinePatternThreeBar *slots.KlinePatternThreeBarWindow `json:"kline_pattern_three_bar,omitempty"`
+	KlinePatternBias     *slots.KlinePatternBias           `json:"kline_pattern_bias,omitempty"`
+	KlinePatternMTF      *slots.KlinePatternMTFContext     `json:"kline_pattern_mtf,omitempty"`
 	PriceAnalysis *PriceAnalysis         `json:"price_analysis,omitempty"`
 	Degraded      []string               `json:"degraded,omitempty"`
 }

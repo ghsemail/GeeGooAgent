@@ -74,6 +74,7 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		out.Degraded = append(out.Degraded, "kline_mtf_probe_unavailable")
 	}
 	out.KlinePattern = buildLabKlineDetail(idx, patIn)
+	applyLabKlinePatternTopLevel(&out)
 
 	if in.LabFetcher != nil && strings.TrimSpace(in.Code) != "" {
 		row := barRowAt(in.Bars, idx)
@@ -137,6 +138,7 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 		}
 		patIn := NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, in.Bars, in.ProbeRaw, mtf)
 		out.KlinePattern = buildLabKlineDetail(idx, patIn)
+		applyLabKlinePatternTopLevel(&out)
 	}
 	if in.LabFetcher != nil && strings.TrimSpace(in.Code) != "" {
 		pa := priceanalysis.Run(ctx, in.LabFetcher, priceanalysis.RunRequest{
@@ -148,6 +150,18 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 		out.PriceAnalysis = &converted
 	}
 	return out, nil
+}
+
+func applyLabKlinePatternTopLevel(out *LabEpisodeDetail) {
+	if out == nil || out.KlinePattern == nil {
+		return
+	}
+	kp := out.KlinePattern
+	out.KlinePatterns = kp.Patterns
+	out.KlinePatternSummary = kp.Summary
+	out.KlinePatternThreeBar = kp.ThreeBar
+	out.KlinePatternBias = kp.Bias
+	out.KlinePatternMTF = kp.MTF
 }
 
 func buildLabKlineDetail(idx int, in KlinePatternDisplayInput) *LabKlinePatternDetail {

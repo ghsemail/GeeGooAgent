@@ -67,9 +67,17 @@ func ApplyMTFWeightedKlineConclusion(mtf *slots.KlinePatternMTFContext, bias **s
 	}
 }
 
+// SignalOnlyKlinePatternMTFBundle is an empty MTF probe bundle for light enrich (signal TF row only).
+func SignalOnlyKlinePatternMTFBundle(signalFreq string) *KlinePatternMTFBundle {
+	return &KlinePatternMTFBundle{
+		SignalFreq: NormalizeFrequency(signalFreq),
+		ByFreq:     map[string]KlinePatternFreqSeries{},
+	}
+}
+
 // BuildKlinePatternMTFContext assembles MTF JSON for one anchor index.
 func BuildKlinePatternMTFContext(anchorIdx int, in KlinePatternDisplayInput) *slots.KlinePatternMTFContext {
-	if in.MTF == nil || len(in.MTF.ByFreq) == 0 {
+	if in.MTF == nil {
 		return nil
 	}
 	trigger := triggerTimeFromBars(in.Bars, anchorIdx)
@@ -148,15 +156,39 @@ func EnrichSignalEpisodeEvalKlineDisplay(eval *slots.SignalEpisodeEval, in Kline
 	}
 }
 
-// EnrichSignalEpisodeEvalKlineDisplayLight attaches signal-TF pattern summary only (no MTF probes).
+// EnrichEpisodeDetailKlineDisplayLight attaches signal-TF patterns, three-bar window, and MTF shell (no higher-TF probes).
+func EnrichEpisodeDetailKlineDisplayLight(ep *slots.SignalEpisodeDetail, in KlinePatternDisplayInput) {
+	if ep == nil {
+		return
+	}
+	AttachPatternsToEpisode(ep, in.PatternHits)
+	ep.KlinePatternThreeBar = BuildKlinePatternThreeBarWindow(in.Bars, in.PatternHits, ep.StartIdx)
+	shellIn := in
+	if shellIn.MTF == nil && len(in.Bars) > 0 {
+		shellIn.MTF = SignalOnlyKlinePatternMTFBundle(in.SignalFreq)
+	}
+	if shellIn.MTF != nil {
+		ep.KlinePatternMTF = BuildKlinePatternMTFContext(ep.StartIdx, shellIn)
+	}
+	if ep.KlinePatternBias == nil {
+		if ep.KlinePatternThreeBar != nil && ep.KlinePatternThreeBar.Bias != nil {
+			ep.KlinePatternBias = ep.KlinePatternThreeBar.Bias
+		} else if len(ep.KlinePatterns) > 0 {
+			b := slots.ScoreKlinePatternHits(ep.KlinePatterns)
+			ep.KlinePatternBias = &b
+		}
+	}
+}
+
+// EnrichSignalEpisodeEvalKlineDisplayLight attaches signal-TF display fields without MTF probes.
 func EnrichSignalEpisodeEvalKlineDisplayLight(eval *slots.SignalEpisodeEval, in KlinePatternDisplayInput) {
 	if eval == nil {
 		return
 	}
 	for i := range eval.BuyDetails {
-		AttachPatternsToEpisode(&eval.BuyDetails[i], in.PatternHits)
+		EnrichEpisodeDetailKlineDisplayLight(&eval.BuyDetails[i], in)
 	}
 	for i := range eval.SellDetails {
-		AttachPatternsToEpisode(&eval.SellDetails[i], in.PatternHits)
+		EnrichEpisodeDetailKlineDisplayLight(&eval.SellDetails[i], in)
 	}
 }
