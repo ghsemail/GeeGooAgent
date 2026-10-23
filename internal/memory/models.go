@@ -66,6 +66,8 @@ type StockWorkspace struct {
 	PreMarketReason            string  `json:"premarket_market_reason,omitempty"`
 	PreMarketSuggestion        string  `json:"premarket_market_suggestion,omitempty"`
 	PreMarketReportID          string  `json:"stock_premarket_report_id,omitempty"`
+	StockPremarketSynthesized  bool    `json:"stock_premarket_synthesized,omitempty"`
+	StockPremarketReportBody   string  `json:"stock_premarket_report_body,omitempty"`
 	ReportSummary              string  `json:"report_summary,omitempty"`
 	ReportMarketSummary        string  `json:"report_market_summary,omitempty"`
 	ReportTradeSummary         string  `json:"report_trade_summary,omitempty"`
