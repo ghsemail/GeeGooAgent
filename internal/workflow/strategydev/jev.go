@@ -13,14 +13,14 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 )
 
-// JevConfig holds System One credentials (token from catalog, never logged).
+// JevConfig holds GeeGooData Decision API credentials (data-api Bearer, never logged).
 type JevConfig struct {
 	BaseURL string
 	APIKey  string
 	Model   string
 }
 
-// JevClient calls TypeSafe System One (/v1/systemone).
+// JevClient calls GeeGooData Decision API (/v1/decision/chat, /v1/decision/choice).
 type JevClient struct {
 	cfg    JevConfig
 	client *http.Client
@@ -29,7 +29,7 @@ type JevClient struct {
 func NewJevClient(cfg JevConfig) *JevClient {
 	base := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
 	if base == "" {
-		base = config.DefaultDecisionBaseURL
+		base = config.DefaultDataHTTPURL
 	}
 	model := strings.TrimSpace(cfg.Model)
 	if model == "" {
@@ -69,6 +69,36 @@ type jevVerdictResponse struct {
 	Reason  string `json:"reason"`
 }
 
+type decisionEnvelope[T any] struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    T      `json:"data"`
+}
+
+type decisionChatData struct {
+	Model   string `json:"model"`
+	Content string `json:"content"`
+}
+
+type decisionChoiceData struct {
+	Model   string                     `json:"model"`
+	Answers map[string]jevChoiceAnswer `json:"answers"`
+}
+
+func decisionAPIError(httpStatus, code int, message string) error {
+	msg := strings.TrimSpace(message)
+	if msg == "" {
+		if code != 0 {
+			return fmt.Errorf("decision api http %d code %d", httpStatus, code)
+		}
+		return fmt.Errorf("decision api http %d", httpStatus)
+	}
+	if code != 0 {
+		return fmt.Errorf("decision api: %s (code=%d)", msg, code)
+	}
+	return fmt.Errorf("decision api http %d: %s", httpStatus, msg)
+}
+
 func (j *JevClient) PickStrategies(ctx context.Context, regime, side, freq string, buy, sell []Candidate) (buyID, sellID, reason string, err error) {
 	if j == nil || j.cfg.APIKey == "" {
 		return heuristicPick(regime, buy, sell)
@@ -80,7 +110,7 @@ func (j *JevClient) PickStrategies(ctx context.Context, regime, side, freq strin
 	sys := `你是 GeeGoo 策略开发编排器（System-1）。只在给定候选中各选一个买入和一个卖出策略。
 输出 JSON：{"buy_signal_id":"...","sell_signal_id":"...","reason":"一句中文"}
 禁止选择 id 为空或 nosignal 的买入；下跌行情买入只能用于平空。`
-	content, err := j.systemOne(ctx, sys, string(payload))
+	content, err := j.decisionChat(ctx, sys, string(payload))
 	if err != nil {
 		return heuristicPick(regime, buy, sell)
 	}
@@ -101,7 +131,7 @@ func (j *JevClient) Verdict(ctx context.Context, in jevVerdictRequest) (string, 
 	sys := `你是 GeeGoo 策略开发编排器（System-1）。根据诊断数字给出第六步结论。
 只能输出 JSON：{"verdict":"通过"|"换一对"|"拉长窗口","reason":"一句中文"}
 硬约束：complete_segments<3 或 avg_direction_return<=0 时 verdict 不能是「通过」。`
-	content, err := j.systemOne(ctx, sys, string(payload))
+	content, err := j.decisionChat(ctx, sys, string(payload))
 	if err != nil {
 		return ApplyHardVerdictRules(in.Diagnose), "Jev 不可用，使用规则判定", nil
 	}
@@ -126,7 +156,7 @@ type jevChoiceAnswer struct {
 	Confidence    float64            `json:"confidence"`
 }
 
-// Choice calls System One choice primitive (state + typed questions).
+// Choice calls Decision API choice primitive (state + typed questions).
 func (j *JevClient) Choice(
 	ctx context.Context,
 	state string,
@@ -155,7 +185,7 @@ func (j *JevClient) Choice(
 	if err != nil {
 		return "", nil, 0, "", err
 	}
-	url := j.cfg.BaseURL + "/systemone"
+	url := j.cfg.BaseURL + "/v1/decision/choice"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(raw))
 	if err != nil {
 		return "", nil, 0, "", err
@@ -172,28 +202,28 @@ func (j *JevClient) Choice(
 		return "", nil, 0, "", err
 	}
 	if resp.StatusCode >= 400 {
-		return "", nil, 0, "", fmt.Errorf("systemone http %d", resp.StatusCode)
+		return "", nil, 0, "", decisionAPIError(resp.StatusCode, 0, "")
 	}
-	var envelope struct {
-		Model   string                     `json:"model"`
-		Answers map[string]jevChoiceAnswer `json:"answers"`
-	}
+	var envelope decisionEnvelope[decisionChoiceData]
 	if err := json.Unmarshal(b, &envelope); err != nil {
 		return "", nil, 0, "", err
 	}
-	ans, ok := envelope.Answers[qid]
-	if !ok {
-		return "", nil, 0, "", fmt.Errorf("systemone missing answer %q", qid)
+	if envelope.Code != 0 {
+		return "", nil, 0, "", decisionAPIError(resp.StatusCode, envelope.Code, envelope.Message)
 	}
-	model = strings.TrimSpace(envelope.Model)
+	ans, ok := envelope.Data.Answers[qid]
+	if !ok {
+		return "", nil, 0, "", fmt.Errorf("decision choice missing answer %q", qid)
+	}
+	model = strings.TrimSpace(envelope.Data.Model)
 	if model == "" {
 		model = j.cfg.Model
 	}
 	return strings.TrimSpace(ans.Choice), ans.Probabilities, ans.Confidence, model, nil
 }
 
-func (j *JevClient) systemOne(ctx context.Context, system, user string) (string, error) {
-	url := j.cfg.BaseURL + "/systemone"
+func (j *JevClient) decisionChat(ctx context.Context, system, user string) (string, error) {
+	url := j.cfg.BaseURL + "/v1/decision/chat"
 	body := map[string]any{
 		"model": j.cfg.Model,
 		"messages": []map[string]any{
@@ -223,27 +253,20 @@ func (j *JevClient) systemOne(ctx context.Context, system, user string) (string,
 		return "", err
 	}
 	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("systemone http %d", resp.StatusCode)
+		return "", decisionAPIError(resp.StatusCode, 0, "")
 	}
-	modelHeader := resp.Header.Get("X-Model")
-	if modelHeader != "" && !strings.Contains(modelHeader, "jev") {
-		// response should be signed jev-1.13.0; non-fatal if header absent
-	}
-	var envelope struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-		Model string `json:"model"`
-	}
+	var envelope decisionEnvelope[decisionChatData]
 	if err := json.Unmarshal(b, &envelope); err != nil {
 		return "", err
 	}
-	if len(envelope.Choices) == 0 {
-		return "", fmt.Errorf("empty systemone response")
+	if envelope.Code != 0 {
+		return "", decisionAPIError(resp.StatusCode, envelope.Code, envelope.Message)
 	}
-	return envelope.Choices[0].Message.Content, nil
+	content := strings.TrimSpace(envelope.Data.Content)
+	if content == "" {
+		return "", fmt.Errorf("empty decision chat response")
+	}
+	return content, nil
 }
 
 func slimCandidates(in []Candidate) []Candidate {

@@ -17,6 +17,19 @@ func TestResolvedDataNodesDefault(t *testing.T) {
 	}
 }
 
+func TestResolvedDecisionDataNodePrefersHK(t *testing.T) {
+	cfg := &config.AppConfig{
+		DataNodes: []config.DataNodeConfig{
+			{ID: "us", BaseURL: "http://us:3300", Regions: []string{"US"}},
+			{ID: "hk", BaseURL: "http://hk:3300", Regions: []string{"HK"}},
+		},
+	}
+	node := cfg.ResolvedDecisionDataNode()
+	if node.ID != "hk" || node.BaseURL != "http://hk:3300" {
+		t.Fatalf("node=%+v", node)
+	}
+}
+
 func TestResolvedDataNodesExplicit(t *testing.T) {
 	cfg := &config.AppConfig{
 		DataNodes: []config.DataNodeConfig{

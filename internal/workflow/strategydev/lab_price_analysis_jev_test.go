@@ -27,9 +27,20 @@ func TestBuildPriceAnalysisJEVStateIncludesRows(t *testing.T) {
 	}
 }
 
+func mockDecisionChoiceResponse(w http.ResponseWriter, answers map[string]any) {
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"code":    0,
+		"message": "ok",
+		"data": map[string]any{
+			"model":   "jev-1.13.0",
+			"answers": answers,
+		},
+	})
+}
+
 func TestResolvePriceAnalysisJEVSuccess(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/systemone" {
+		if r.URL.Path != "/v1/decision/choice" {
 			t.Fatalf("path=%s", r.URL.Path)
 		}
 		var req map[string]any
@@ -39,17 +50,14 @@ func TestResolvePriceAnalysisJEVSuccess(t *testing.T) {
 		if req["state"] == nil {
 			t.Fatal("expected state in request")
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"model": "jev-1.13.0",
-			"answers": map[string]any{
-				"direction": map[string]any{
-					"type":   "choice",
-					"choice": "看多",
-					"probabilities": map[string]float64{
-						"看多": 0.62, "看空": 0.18, "不明确": 0.20,
-					},
-					"confidence": 0.71,
+		mockDecisionChoiceResponse(w, map[string]any{
+			"direction": map[string]any{
+				"type":   "choice",
+				"choice": "看多",
+				"probabilities": map[string]float64{
+					"看多": 0.62, "看空": 0.18, "不明确": 0.20,
 				},
+				"confidence": 0.71,
 			},
 		})
 	}))
@@ -105,14 +113,11 @@ func TestResolvePriceAnalysisJEVNotConfigured(t *testing.T) {
 
 func TestApplyPriceAnalysisJEVDualWrite(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"model": "jev-1.13.0",
-			"answers": map[string]any{
-				"direction": map[string]any{
-					"type": "choice", "choice": "不明确",
-					"probabilities": map[string]float64{"看多": 0.2, "看空": 0.2, "不明确": 0.6},
-					"confidence":    0.5,
-				},
+		mockDecisionChoiceResponse(w, map[string]any{
+			"direction": map[string]any{
+				"type": "choice", "choice": "不明确",
+				"probabilities": map[string]float64{"看多": 0.2, "看空": 0.2, "不明确": 0.6},
+				"confidence":    0.5,
 			},
 		})
 	}))

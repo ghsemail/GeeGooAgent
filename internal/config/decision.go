@@ -2,7 +2,7 @@ package config
 
 import "strings"
 
-// DecisionConfig holds TypeSafe Jev (System One) credentials from ops catalog.
+// DecisionConfig holds ops catalog Jev model metadata (runtime calls use GeeGooData Decision API + data service token).
 type DecisionConfig struct {
 	TokenKey string `json:"token_key"`
 	Model    string `json:"model"`
