@@ -98,11 +98,12 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 	}
 	cfg := h.App.Config
 	fetcher := lab.SignalBarsFetcher{Client: signalclient.NewHTTPClient(cfg.LabAPIURL(), cfg.LabAPIKey())}
+	jev := strategydev.NewJevClient(h.App.StrategyDevJevConfig())
 	detail, err := strategydev.BuildLabEpisodeDetail(r.Context(), strategydev.LabDetailInput{
 		Run: strategydev.ToolRunner(runner), Code: flow.StockCode, SignalFreq: freq, Months: months,
 		KeyLevels: keyLevelBandsFromFlowSnapshot(flow), ProbeRaw: flow.ProbeRaw, Bars: bars,
 		LookbackBars: lookback, LabFetcher: fetcher, DetailTimeout: 8 * time.Second,
-		CachedMTF: &flow.LabKlineMTF, SessionID: sessionID, RunID: flow.RunID,
+		CachedMTF: &flow.LabKlineMTF, SessionID: sessionID, RunID: flow.RunID, Jev: jev,
 	}, ref)
 	if err != nil {
 		if strategydev.IsBadLabRef(err) {

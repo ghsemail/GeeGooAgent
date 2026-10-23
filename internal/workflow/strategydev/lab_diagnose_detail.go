@@ -25,6 +25,8 @@ type LabDetailInput struct {
 	CachedMTF **KlinePatternMTFBundle
 	SessionID string
 	RunID     string
+	// Jev optional System One client for lazy price-analysis JEV (lab-detail only).
+	Jev *JevClient
 }
 
 // BuildLabEpisodeDetail loads MTF kline context and anchored price analysis for one ref.
@@ -95,6 +97,7 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		pa = priceanalysis.RoundPriceAnalysisForOutput(pa)
 		converted := priceAnalysisFromLab(pa)
 		out.PriceAnalysis = &converted
+		applyPriceAnalysisJEV(ctx, &out, side, in.Jev)
 		if !anchorOK {
 			out.Degraded = append(out.Degraded, "price_anchor_missing")
 		}
@@ -148,6 +151,7 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 		pa = priceanalysis.RoundPriceAnalysisForOutput(pa)
 		converted := priceAnalysisFromLab(pa)
 		out.PriceAnalysis = &converted
+		applyPriceAnalysisJEV(ctx, &out, "flow", in.Jev)
 	}
 	return out, nil
 }

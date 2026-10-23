@@ -25,6 +25,7 @@ type PriceAnalysis struct {
 	PriceScore          float64             `json:"price_score"`
 	TFScores            map[string]TFScoreBreakdown `json:"tf_scores,omitempty"`
 	ScoreReason         string              `json:"score_reason,omitempty"`
+	PriceAnalysisJEV    *PriceAnalysisJEV   `json:"price_analysis_jev,omitempty"`
 }
 
 // PriceAnalysisRow is one row (周期) in the multi-TF table.
