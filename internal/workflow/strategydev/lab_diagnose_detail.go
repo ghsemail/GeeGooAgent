@@ -9,6 +9,13 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/lab/priceanalysis"
 )
 
+const (
+	// DefaultLabDetailPhaseTimeout bounds kline MTF probe + price-analysis fetch for one lab-detail call.
+	DefaultLabDetailPhaseTimeout = 8 * time.Second
+	// DefaultLabDetailJEVTimeout is the dedicated System One budget after PA completes (matches JevClient HTTP timeout).
+	DefaultLabDetailJEVTimeout = 45 * time.Second
+)
+
 // LabDetailInput configures lazy lab drill-down for one trigger/episode anchor.
 type LabDetailInput struct {
 	Run           ToolRunner
@@ -20,7 +27,10 @@ type LabDetailInput struct {
 	Bars          []any
 	LookbackBars  []any
 	LabFetcher    priceanalysis.BarsFetcher
+	// DetailTimeout caps kline + price-analysis phases only (not JEV).
 	DetailTimeout time.Duration
+	// JEVTimeout is a separate budget for System One price-analysis JEV after PA finishes.
+	JEVTimeout time.Duration
 	// CachedMTF when set, reuses MTF bundle across lab-detail calls for one diagnose run.
 	CachedMTF **KlinePatternMTFBundle
 	SessionID string
@@ -46,12 +56,10 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 	out.Time = ent.Time
 	out.Close = ent.Close
 
+	baseCtx := ctx
 	ctx = ContextWithPriceProbeCache(ctx)
-	if in.DetailTimeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, in.DetailTimeout)
-		defer cancel()
-	}
+	phaseCtx, phaseCancel := labDetailPhaseContext(baseCtx, in.DetailTimeout)
+	defer phaseCancel()
 
 	var patIn KlinePatternDisplayInput
 	if in.Run != nil {
@@ -64,7 +72,7 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 				*in.CachedMTF = mtf
 			}
 		} else {
-			mtf = BuildKlinePatternMTFForDiagnoseRequest(true, ctx, in.Run, in.Code, in.SignalFreq, in.Months, in.Bars)
+			mtf = BuildKlinePatternMTFForDiagnoseRequest(true, phaseCtx, in.Run, in.Code, in.SignalFreq, in.Months, in.Bars)
 			if in.CachedMTF != nil {
 				*in.CachedMTF = mtf
 			}
@@ -80,13 +88,13 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 
 	if in.LabFetcher != nil && strings.TrimSpace(in.Code) != "" {
 		row := barRowAt(in.Bars, idx)
-		anchorTime, _, anchorOK := anchorForSignalBar(row, dailyBarsForLabAnchor(ctx, in))
+		anchorTime, _, anchorOK := anchorForSignalBar(row, dailyBarsForLabAnchor(phaseCtx, in))
 		var asOf *time.Time
 		if anchorOK {
 			t := anchorTime
 			asOf = &t
 		}
-		pa := priceanalysis.Run(ctx, in.LabFetcher, priceanalysis.RunRequest{
+		pa := priceanalysis.Run(phaseCtx, in.LabFetcher, priceanalysis.RunRequest{
 			Code:       in.Code,
 			Months:     CapMonthsBack(in.Months),
 			SignalFreq: in.SignalFreq,
@@ -97,7 +105,9 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		pa = priceanalysis.RoundPriceAnalysisForOutput(pa)
 		converted := priceAnalysisFromLab(pa)
 		out.PriceAnalysis = &converted
-		applyPriceAnalysisJEV(ctx, &out, side, in.Jev)
+		jevCtx, jevCancel := labDetailJEVContext(baseCtx, in.JEVTimeout)
+		defer jevCancel()
+		applyPriceAnalysisJEV(jevCtx, &out, side, in.Jev)
 		if !anchorOK {
 			out.Degraded = append(out.Degraded, "price_anchor_missing")
 		}
@@ -117,12 +127,10 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 	out.Time = ent.Time
 	out.Close = ent.Close
 
+	baseCtx := ctx
 	ctx = ContextWithPriceProbeCache(ctx)
-	if in.DetailTimeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, in.DetailTimeout)
-		defer cancel()
-	}
+	phaseCtx, phaseCancel := labDetailPhaseContext(baseCtx, in.DetailTimeout)
+	defer phaseCancel()
 	if in.Run != nil {
 		var mtf *KlinePatternMTFBundle
 		if in.CachedMTF != nil && *in.CachedMTF != nil {
@@ -133,7 +141,7 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 				*in.CachedMTF = mtf
 			}
 		} else {
-			mtf = BuildKlinePatternMTFForDiagnoseRequest(true, ctx, in.Run, in.Code, in.SignalFreq, in.Months, in.Bars)
+			mtf = BuildKlinePatternMTFForDiagnoseRequest(true, phaseCtx, in.Run, in.Code, in.SignalFreq, in.Months, in.Bars)
 			if in.CachedMTF != nil {
 				*in.CachedMTF = mtf
 			}
@@ -144,14 +152,16 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 		applyLabKlinePatternTopLevel(&out)
 	}
 	if in.LabFetcher != nil && strings.TrimSpace(in.Code) != "" {
-		pa := priceanalysis.Run(ctx, in.LabFetcher, priceanalysis.RunRequest{
+		pa := priceanalysis.Run(phaseCtx, in.LabFetcher, priceanalysis.RunRequest{
 			Code: in.Code, Months: CapMonthsBack(in.Months), SignalFreq: in.SignalFreq,
 			SpotPrice: ent.Close, KeyLevels: keyLevelsToLab(in.KeyLevels),
 		})
 		pa = priceanalysis.RoundPriceAnalysisForOutput(pa)
 		converted := priceAnalysisFromLab(pa)
 		out.PriceAnalysis = &converted
-		applyPriceAnalysisJEV(ctx, &out, "flow", in.Jev)
+		jevCtx, jevCancel := labDetailJEVContext(baseCtx, in.JEVTimeout)
+		defer jevCancel()
+		applyPriceAnalysisJEV(jevCtx, &out, "flow", in.Jev)
 	}
 	return out, nil
 }
@@ -249,6 +259,21 @@ type badLabRefError string
 func (e badLabRefError) Error() string { return string(e) }
 
 func errBadLabRef(msg string) error { return badLabRefError(msg) }
+
+func labDetailPhaseContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, timeout)
+}
+
+// labDetailJEVContext uses WithoutCancel so an expired phase deadline does not abort System One.
+func labDetailJEVContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		timeout = DefaultLabDetailJEVTimeout
+	}
+	return context.WithTimeout(context.WithoutCancel(ctx), timeout)
+}
 
 // IsBadLabRef reports invalid ref / range errors for HTTP mapping.
 func IsBadLabRef(err error) bool {

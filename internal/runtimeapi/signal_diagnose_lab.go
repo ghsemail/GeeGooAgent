@@ -102,7 +102,9 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 	detail, err := strategydev.BuildLabEpisodeDetail(r.Context(), strategydev.LabDetailInput{
 		Run: strategydev.ToolRunner(runner), Code: flow.StockCode, SignalFreq: freq, Months: months,
 		KeyLevels: keyLevelBandsFromFlowSnapshot(flow), ProbeRaw: flow.ProbeRaw, Bars: bars,
-		LookbackBars: lookback, LabFetcher: fetcher, DetailTimeout: 8 * time.Second,
+		LookbackBars: lookback, LabFetcher: fetcher,
+		DetailTimeout: strategydev.DefaultLabDetailPhaseTimeout,
+		JEVTimeout:    strategydev.DefaultLabDetailJEVTimeout,
 		CachedMTF: &flow.LabKlineMTF, SessionID: sessionID, RunID: flow.RunID, Jev: jev,
 	}, ref)
 	if err != nil {
