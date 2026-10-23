@@ -56,9 +56,8 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 	out.Time = ent.Time
 	out.Close = ent.Close
 
-	baseCtx := ctx
-	ctx = ContextWithPriceProbeCache(ctx)
-	phaseCtx, phaseCancel := labDetailPhaseContext(baseCtx, in.DetailTimeout)
+	cacheCtx := ContextWithPriceProbeCache(ctx)
+	phaseCtx, phaseCancel := labDetailPhaseContext(cacheCtx, in.DetailTimeout)
 	defer phaseCancel()
 
 	var patIn KlinePatternDisplayInput
@@ -105,7 +104,7 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		pa = priceanalysis.RoundPriceAnalysisForOutput(pa)
 		converted := priceAnalysisFromLab(pa)
 		out.PriceAnalysis = &converted
-		jevCtx, jevCancel := labDetailJEVContext(baseCtx, in.JEVTimeout)
+		jevCtx, jevCancel := labDetailJEVContext(cacheCtx, in.JEVTimeout)
 		defer jevCancel()
 		applyPriceAnalysisJEV(jevCtx, &out, side, in.Jev)
 		if !anchorOK {
@@ -127,9 +126,8 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 	out.Time = ent.Time
 	out.Close = ent.Close
 
-	baseCtx := ctx
-	ctx = ContextWithPriceProbeCache(ctx)
-	phaseCtx, phaseCancel := labDetailPhaseContext(baseCtx, in.DetailTimeout)
+	cacheCtx := ContextWithPriceProbeCache(ctx)
+	phaseCtx, phaseCancel := labDetailPhaseContext(cacheCtx, in.DetailTimeout)
 	defer phaseCancel()
 	if in.Run != nil {
 		var mtf *KlinePatternMTFBundle
@@ -159,7 +157,7 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 		pa = priceanalysis.RoundPriceAnalysisForOutput(pa)
 		converted := priceAnalysisFromLab(pa)
 		out.PriceAnalysis = &converted
-		jevCtx, jevCancel := labDetailJEVContext(baseCtx, in.JEVTimeout)
+		jevCtx, jevCancel := labDetailJEVContext(cacheCtx, in.JEVTimeout)
 		defer jevCancel()
 		applyPriceAnalysisJEV(jevCtx, &out, "flow", in.Jev)
 	}
