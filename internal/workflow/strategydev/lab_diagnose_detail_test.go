@@ -35,12 +35,15 @@ func TestLabDetailJEVContextSurvivesPhaseDeadline(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		jevCalled.Store(true)
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"model": "jev-1.13.0",
-			"answers": map[string]any{
-				"direction": map[string]any{
-					"type": "choice", "choice": "看多",
-					"probabilities": map[string]float64{"看多": 0.7, "看空": 0.2, "不明确": 0.1},
-					"confidence": 0.7,
+			"code": 0, "message": "ok",
+			"data": map[string]any{
+				"model": "jev-1.13.0",
+				"answers": map[string]any{
+					"direction": map[string]any{
+						"type": "choice", "choice": "看多",
+						"probabilities": map[string]float64{"看多": 0.7, "看空": 0.2, "不明确": 0.1},
+						"confidence": 0.7,
+					},
 				},
 			},
 		})
@@ -80,12 +83,15 @@ func TestBuildLabEpisodeDetailJEVAfterSlowPhase(t *testing.T) {
 		jevCalled.Store(true)
 		time.Sleep(80 * time.Millisecond)
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"model": "jev-1.13.0",
-			"answers": map[string]any{
-				"direction": map[string]any{
-					"type": "choice", "choice": "看空",
-					"probabilities": map[string]float64{"看多": 0.1, "看空": 0.8, "不明确": 0.1},
-					"confidence": 0.8,
+			"code": 0, "message": "ok",
+			"data": map[string]any{
+				"model": "jev-1.13.0",
+				"answers": map[string]any{
+					"direction": map[string]any{
+						"type": "choice", "choice": "看空",
+						"probabilities": map[string]float64{"看多": 0.1, "看空": 0.8, "不明确": 0.1},
+						"confidence": 0.8,
+					},
 				},
 			},
 		})

@@ -80,6 +80,27 @@ func (c *AppConfig) DataNodeByID(id string) (ResolvedDataNode, bool) {
 	return ResolvedDataNode{}, false
 }
 
+// ResolvedDecisionDataNode is the GeeGooData node that hosts Decision API (prefers HK region).
+func (c *AppConfig) ResolvedDecisionDataNode() ResolvedDataNode {
+	nodes := c.ResolvedDataNodes()
+	for _, n := range nodes {
+		for _, r := range n.Regions {
+			if r == "HK" {
+				return n
+			}
+		}
+	}
+	if len(nodes) > 0 {
+		return nodes[0]
+	}
+	return ResolvedDataNode{
+		ID:      "default",
+		Label:   "GeeGooData",
+		BaseURL: DefaultDataHTTPURL,
+		Bearer:  resolveDataNodeBearer(""),
+	}
+}
+
 func resolveDataNodeBearer(envKey string) string {
 	if k := strings.TrimSpace(envKey); k != "" {
 		if v := strings.TrimSpace(os.Getenv(k)); v != "" {
