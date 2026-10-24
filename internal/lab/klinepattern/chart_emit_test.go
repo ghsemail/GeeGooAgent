@@ -35,6 +35,30 @@ func TestThreeBarWindowForChartEmit_KeepsAnchorHitsOnly(t *testing.T) {
 	}
 }
 
+func TestThreeBarWindowForChartEmit_PromotesPrevHitsSummaryToAnchor(t *testing.T) {
+	win := &slots.KlinePatternThreeBarWindow{
+		AnchorIndex: 2,
+		Bars: []slots.KlinePatternBarWindowEntry{
+			{Role: "prev2", Index: 0},
+			{Role: "prev", Index: 1, KlinePatterns: []slots.KlinePatternHit{
+				{Name: "Hammer", Direction: 1, LabelCN: "锤头线"},
+			}},
+			{Role: "anchor", Index: 2},
+		},
+	}
+	emit := ThreeBarWindowForChartEmit(win)
+	anchor := emit.Bars[2]
+	if len(anchor.KlinePatterns) != 0 {
+		t.Fatalf("anchor patterns should stay empty for chart markers, got %+v", anchor.KlinePatterns)
+	}
+	if anchor.KlinePatternSummary != "锤头线(看多)" {
+		t.Fatalf("summary=%q", anchor.KlinePatternSummary)
+	}
+	if anchor.KlinePatternBias == nil || anchor.KlinePatternBias.Bias != "看多" {
+		t.Fatalf("bias=%+v", anchor.KlinePatternBias)
+	}
+}
+
 func TestMTFContextForChartEmit_StripsNestedThreeBarMarkers(t *testing.T) {
 	ctx := &slots.KlinePatternMTFContext{
 		Timeframes: []slots.KlinePatternMTFEntry{{
