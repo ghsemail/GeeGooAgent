@@ -76,6 +76,9 @@ type HTTPClient struct {
 	HTTP       *http.Client
 	PollEvery  time.Duration
 	PollBudget time.Duration
+	// FetchAttempts is whole fetch retries (new job) after retryable errors; default 3.
+	FetchAttempts int
+	RetryBase     time.Duration
 }
 
 // NewHTTPClient returns a client with sensible poll defaults.
@@ -148,7 +151,30 @@ func (c *HTTPClient) Health(ctx context.Context) error {
 }
 
 // FetchBars creates a kline job and polls GET /v1/lab/jobs/{id} until completed or failed.
+// Retryable errors (5xx, poll timeout, transient job failure) trigger a fresh job with backoff.
 func (c *HTTPClient) FetchBars(ctx context.Context, req KlineJobRequest) ([]any, error) {
+	attempts := c.fetchAttempts()
+	var lastErr error
+	for attempt := 0; attempt < attempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		bars, err := c.fetchBarsOnce(ctx, req)
+		if err == nil {
+			return bars, nil
+		}
+		lastErr = err
+		if !IsRetryableFetchError(err) || attempt+1 >= attempts {
+			return nil, err
+		}
+		if err := sleepFetchBackoff(ctx, attempt, c.retryBase()); err != nil {
+			return nil, err
+		}
+	}
+	return nil, lastErr
+}
+
+func (c *HTTPClient) fetchBarsOnce(ctx context.Context, req KlineJobRequest) ([]any, error) {
 	jobID, err := c.CreateKlineJob(ctx, req)
 	if err != nil {
 		return nil, err
@@ -164,7 +190,6 @@ func (c *HTTPClient) FetchBars(ctx context.Context, req KlineJobRequest) ([]any,
 			if job.Result == nil {
 				return nil, fmt.Errorf("lab-api: job %s completed without result", jobID)
 			}
-			// result.bars must be present per contract (nil slice treated as missing).
 			if job.Result.Bars == nil {
 				return nil, fmt.Errorf("lab-api: job %s completed without result.bars", jobID)
 			}

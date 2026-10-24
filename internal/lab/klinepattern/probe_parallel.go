@@ -60,7 +60,7 @@ func BuildKlinePatternMTFBundleParallel(
 				m = host.MonthsBackForPerSignalFetch(chartMonths, chartBars, j.spec.Freq, windowEnd)
 			}
 			probeFreq := klinePatternProbeFrequency(j.spec.Freq)
-			bars, hits, ok, unsup := fetchKlinePatternProbeSeries(ctx, run, code, probeFreq, m, nil)
+			bars, hits, ok, unsup := fetchKlinePatternProbeSeriesWithRetry(ctx, run, code, probeFreq, m, nil)
 			ser := KlinePatternFreqSeries{
 				Label: j.spec.Label, Freq: j.spec.Freq, Bars: bars, PatternHits: hits,
 				FetchOK: ok, Unsupported: unsup,

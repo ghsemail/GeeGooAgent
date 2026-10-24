@@ -79,7 +79,7 @@ func BuildKlinePatternMTFBundle(
 		}
 		probeFreq := klinePatternProbeFrequency(spec.Freq)
 		// Full probe window; per-episode alignment truncates locally in BuildKlinePatternMTFContext.
-		bars, hits, ok, unsup := fetchKlinePatternProbeSeries(ctx, run, code, probeFreq, m, nil)
+		bars, hits, ok, unsup := fetchKlinePatternProbeSeriesWithRetry(ctx, run, code, probeFreq, m, nil)
 		bundle.ByFreq[klinePatternMTFTimeframeKey(spec.Freq)] = KlinePatternFreqSeries{
 			Label: spec.Label, Freq: spec.Freq, Bars: bars, PatternHits: hits,
 			FetchOK: ok, Unsupported: unsup,
