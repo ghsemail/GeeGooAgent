@@ -37,6 +37,15 @@ func multiTimeframeSpecsForKlinePatternDisplay(signalFreq string) []klinePattern
 			{"60m", "60m"},
 			{"日线", "daily"},
 		}
+	case "daily":
+		return []klinePatternMTFSpec{
+			{"日线", "daily"},
+			{"周线", "weekly"},
+		}
+	case "weekly", "1wk":
+		return []klinePatternMTFSpec{
+			{"周线", "weekly"},
+		}
 	default:
 		return klinePatternDisplaySpecsFillFour(gate)
 	}
@@ -73,10 +82,22 @@ func klinePatternDisplaySpecsFillFour(gate string) []klinePatternMTFSpec {
 	for i := start + 1; i < len(klinePatternDisplayLadder) && len(out) < 4; i++ {
 		out = append(out, klinePatternDisplayLadder[i])
 	}
-	for i := start - 1; i >= 0 && len(out) < 4; i-- {
-		out = append(out, klinePatternDisplayLadder[i])
+	// 日线及以上信号：只向更粗周期扩展，不回填 4h/60m 等 intraday（避免无意义 probe + 拉数失败噪音）。
+	if !klinePatternMTFCoarserOnly(gate) {
+		for i := start - 1; i >= 0 && len(out) < 4; i-- {
+			out = append(out, klinePatternDisplayLadder[i])
+		}
 	}
 	return out
+}
+
+func klinePatternMTFCoarserOnly(gate string) bool {
+	switch NormalizeFrequency(gate) {
+	case "daily", "weekly", "1wk":
+		return true
+	default:
+		return false
+	}
 }
 
 // klinePatternProbeFrequency maps MTF ladder freq to probe_bot_signal_series tokens.
