@@ -21,6 +21,33 @@ func (f *countingBarsFetcher) FetchBars(_ context.Context, _, _ string, _ int, a
 	return []any{map[string]any{"time": "2026-10-10 00:00:00", "close": 420.0}}, true
 }
 
+type failOnceThenCountingFetcher struct {
+	inner   *countingBarsFetcher
+	failed  atomic.Bool
+}
+
+func (f *failOnceThenCountingFetcher) FetchBars(ctx context.Context, code, freq string, months int, asOf *time.Time) ([]any, bool) {
+	if !f.failed.Swap(true) {
+		return nil, false
+	}
+	return f.inner.FetchBars(ctx, code, freq, months, asOf)
+}
+
+func TestCachedLabBarsFetcherDoesNotStoreFailedFetch(t *testing.T) {
+	inner := &countingBarsFetcher{}
+	failInner := &failOnceThenCountingFetcher{inner: inner}
+	cached := WrapCachedLabBarsFetcher("sess", "run-fail", failInner)
+	ctx := context.Background()
+	_, ok1 := cached.FetchBars(ctx, "AAPL.US", "daily", 10, nil)
+	if ok1 {
+		t.Fatal("first fetch should fail")
+	}
+	_, ok2 := cached.FetchBars(ctx, "AAPL.US", "daily", 10, nil)
+	if !ok2 {
+		t.Fatal("second fetch must retry inner after failed miss (no negative cache)")
+	}
+}
+
 func TestCachedLabBarsFetcherReusesSameRunKey(t *testing.T) {
 	inner := &countingBarsFetcher{}
 	cached := WrapCachedLabBarsFetcher("sess", "run-1", inner).(CachedLabBarsFetcher)
