@@ -137,6 +137,33 @@ internal/config/lab.go
 
 Lab 诊断主流程（`workflow_completed`）仍只下发卡片摘要 `lab_episode_summaries`（含 `detail_ref`）。完整 **价格分析 + System One JEV** 仅在 `POST /v1/signal-diagnose/lab-detail` 按需（或 FE prefetch）计算。
 
+### `detail_ref` 契约（FE / 测试落盘必读）
+
+| 字段 | 含义 |
+| --- | --- |
+| 格式 | `{side}:{bar_index}`，例如 `sell:190`、`buy:7` |
+| `bar_index` | **图表 K 线索引**，与 `signal_eval.*_details[].start_idx` 相同 |
+| **不是** | `buy_details` / `sell_details` 数组下标（episode 列表序号） |
+
+示例：`sell_details[7]`（第 8 条卖 episode）若 `start_idx=190`，则 Agent 下发的 `detail_ref` 为 **`sell:190`**，**不是** `sell:7`。`lab_episode_summaries` 每条现含 `start_idx` 与 `episode_index`（列表序号），FE 打开详情时必须使用卡片/摘要里的 `detail_ref` 或 `start_idx` 拼 ref，禁止用 UI 行号直接拼 `sell:{row}`。
+
+`POST /v1/signal-diagnose/lab-detail` 响应 `detail.bar_index` 与 ref 后缀一致。错误 ref（越界）返回 400，文案会提示 start_idx 语义。
+
+**常见误用 `sell:7`（episode 列表序号 7）**：只要图表 `len(bars) > 7`，Agent 仍返回 **HTTP 200** 和完整 `detail`，但锚在 **bar 7**（与 `sell:190` 不同时间/形态/PA），**不是空响应**。弹窗若仍显示「拉数失败」，优先查 FE 是否用错 ref、是否把 `ref_hint` / `price_analysis.rows[].structure` / `align_note` 统一映射成同一文案。此时响应可能带可选字段 **`ref_hint`**（当 ref 不在 `lab_episode_summaries` 且疑似 episode 序号误用时）。
+
+### 实验室弹窗：Agent 可能带「失败」文案的 JSON 路径
+
+| 路径 | 典型值 | 含义 |
+| --- | --- | --- |
+| `detail.kline_pattern.mtf.timeframes[].align_note` / `detail.kline_pattern_mtf…` | `日线 拉数失败（仅展示信号周期）` | MTF probe 真失败 |
+| 同上 | `日线 大周期未加载（请打开 lab 详情）` | bundle 缺序列（非「拉数失败」） |
+| 同上 | `4h 周期暂不支持（已跳过）` | unsupported |
+| `detail.price_analysis.rows[].structure` | `拉数失败` | lab-api 取 bars 失败 |
+| 同上 | `取数超时或已取消` | `DefaultLabDetailPhaseTimeout`（8s）内 MTF+PA 共享 phase ctx 被取消 |
+| `detail.degraded[]` | `kline_mtf_probe_unavailable` / `price_anchor_missing` | 降级标记，非 structure 文案 |
+
+lab-detail **不**走卡片 light enrich；MTF 来自 run 级 probe + `BuildKlinePatternMTFContext`。生产 flow 在正确 ref + 成功取数时不应出现上表「拉数失败」行（与 fe7574e 整机日志一致）。
+
 ### 行为
 
 | 场景 | Agent 行为 |

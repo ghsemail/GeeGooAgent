@@ -18,6 +18,10 @@ type LabEpisodeCardSummary struct {
 	KlinePattern  string   `json:"kline_pattern,omitempty"`
 	PriceAnalysis string   `json:"price_analysis,omitempty"`
 	DetailRef     string   `json:"detail_ref,omitempty"`
+	// StartIdx is the chart bar index (same integer as the detail_ref suffix). Not episode list ordinal.
+	StartIdx int `json:"start_idx,omitempty"`
+	// EpisodeIndex is 0-based position in signal_eval buy_details / sell_details (UI row order).
+	EpisodeIndex int `json:"episode_index,omitempty"`
 	Degraded      []string `json:"degraded,omitempty"`
 }
 
@@ -69,7 +73,7 @@ func LabCardSummaryLine(kind, text string) string {
 // LabFlowDetailRef opens run-level lab detail when there are no trigger rows.
 const LabFlowDetailRef = "flow:0"
 
-// LabDetailRef builds stable ref ids (buy:3 / sell:1).
+// LabDetailRef builds stable ref ids (buy:3 / sell:190). The suffix is chart bar start_idx, not episode list index.
 func LabDetailRef(side string, barIndex int) string {
 	side = strings.ToLower(strings.TrimSpace(side))
 	if side == "" {
@@ -78,7 +82,7 @@ func LabDetailRef(side string, barIndex int) string {
 	return fmt.Sprintf("%s:%d", side, barIndex)
 }
 
-// ParseLabDetailRef parses side and bar index from detail ref.
+// ParseLabDetailRef parses side and chart bar index (start_idx) from detail ref.
 func ParseLabDetailRef(ref string) (side string, barIndex int, ok bool) {
 	ref = strings.TrimSpace(ref)
 	if ref == LabFlowDetailRef {

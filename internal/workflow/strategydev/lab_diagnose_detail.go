@@ -50,7 +50,7 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 	}
 	out := LabEpisodeDetail{Ref: ref, Side: side, BarIndex: idx}
 	if len(in.Bars) == 0 || idx >= len(in.Bars) {
-		return out, errBadLabRef("bar index out of range")
+		return out, errBadLabRef("bar index out of range: detail_ref suffix is chart start_idx (see lab_episode_summaries.start_idx), not episode list index")
 	}
 	ent := triggerRecordEntry(in.Bars, idx)
 	out.Time = ent.Time

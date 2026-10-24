@@ -26,6 +26,31 @@ func TestBuildLabCardSummariesFromMergedTriggers(t *testing.T) {
 	}
 }
 
+func TestBuildLabCardSummariesFromEval_RefUsesStartIdxNotEpisodeIndex(t *testing.T) {
+	eval := slots.SignalEpisodeEval{
+		SellDetails: make([]slots.SignalEpisodeDetail, 8),
+	}
+	for i := range eval.SellDetails {
+		eval.SellDetails[i].StartIdx = 100 + i*10
+	}
+	eval.SellDetails[7].StartIdx = 190
+	out := BuildLabCardSummariesFromEval(eval, nil, "")
+	ref := LabDetailRef("sell", 190)
+	sum, ok := out[ref]
+	if !ok {
+		t.Fatalf("missing %q keys=%v", ref, out)
+	}
+	if sum.EpisodeIndex != 7 {
+		t.Fatalf("episode_index=%d want 7", sum.EpisodeIndex)
+	}
+	if sum.StartIdx != 190 {
+		t.Fatalf("start_idx=%d", sum.StartIdx)
+	}
+	if _, ok := out[LabDetailRef("sell", 7)]; ok {
+		t.Fatal("sell:7 must not exist when episode 7 starts at bar 190")
+	}
+}
+
 func TestMergeLabCardSummariesEvalWins(t *testing.T) {
 	eval := slots.SignalEpisodeEval{
 		BuyDetails: []slots.SignalEpisodeDetail{{StartIdx: 1}},
