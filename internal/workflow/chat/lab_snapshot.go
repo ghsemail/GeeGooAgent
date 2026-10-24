@@ -148,6 +148,16 @@ func UpsertLabDiagnoseSnapshot(chat *chatsession.ChatSession, flow *Flow) {
 	chat.Metadata[MetaKeyLabDiagnoseSnapshots] = merged
 }
 
+// MustLabDiagnoseSnapshotJSON marshals a non-expired lab snapshot entry (tests and fixtures).
+func MustLabDiagnoseSnapshotJSON(flow Flow) json.RawMessage {
+	ent := labDiagnoseSnapshotEntry{
+		ExpiresAt: time.Now().UTC().Add(labDiagnoseSnapshotTTL),
+		Flow:      flow,
+	}
+	raw, _ := json.Marshal(ent)
+	return raw
+}
+
 // ResolveFlowForLabDetail returns active or archived flow for lab-detail.
 func ResolveFlowForLabDetail(chat *chatsession.ChatSession, runID string) *Flow {
 	runID = strings.TrimSpace(runID)

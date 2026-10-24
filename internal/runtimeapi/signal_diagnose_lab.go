@@ -79,6 +79,15 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "lab_mode is off for this diagnose run")
 		return
 	}
+	if cached, ok := workflowchat.CachedLabEpisodeDetail(chat, runID, ref); ok {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"run_id": flow.RunID,
+			"detail": cached,
+			"cached": true,
+		})
+		return
+	}
 	bars, _ := flow.ProbeRaw["bars"].([]any)
 	lookback, _ := flow.ProbeRaw["bars_lookback"].([]any)
 	freq := "60m"
@@ -114,10 +123,16 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	workflowchat.StoreLabEpisodeDetail(chat, nil, flow.RunID, ref, detail)
+	if err := store.Save(chat); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"run_id": flow.RunID,
 		"detail": detail,
+		"cached": false,
 	})
 }
 
