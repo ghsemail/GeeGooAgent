@@ -48,6 +48,8 @@ func analysisBarsLimit(freq string) int {
 		return 330 // ~1 week (~5 HK trading days × ~66 bars/day)
 	case "60m", "15m":
 		return 130 // ~1 month (~22 trading days × ~6 bars/day)
+	case "4h", "240m":
+		return 80 // ~2–3 months (~1 bar/session day)
 	case "daily":
 		return 60 // ~2–3 months
 	case "weekly", "1wk":

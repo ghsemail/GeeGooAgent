@@ -62,7 +62,9 @@ func FetchMultiTimeframeBars(ctx context.Context, in MultiTFBarsInput) (barsByFr
 				results[i] = tfResult{freq: spec.Freq, err: err, ok: false}
 				return
 			}
-			bars, ok := in.Fetch.FetchBars(ctx, in.Code, spec.Freq, monthsBack, nil)
+			bars, ok := in.Fetch.FetchBars(
+				ctx, in.Code, LabKlineFetchFrequency(spec.Freq), monthsBack, nil,
+			)
 			results[i] = tfResult{freq: spec.Freq, bars: bars, ok: ok}
 		}()
 	}

@@ -54,6 +54,7 @@ var multiTimeframeSpecs = []struct {
 }{
 	{"5m", "5m"},
 	{"60m", "60m"},
+	{"4h", "4h"},
 	{"日线", "daily"},
 	{"周线", "weekly"},
 }

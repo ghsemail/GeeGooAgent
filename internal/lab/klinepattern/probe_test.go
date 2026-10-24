@@ -48,22 +48,29 @@ func testProbeHost(t *testing.T) {
 	})
 }
 
-func TestBuildKlinePatternMTFBundle_SixtyMinuteSkips240mLadder(t *testing.T) {
+func TestBuildKlinePatternMTFBundle_SixtyMinuteIncludesFourHour(t *testing.T) {
 	testProbeHost(t)
 	runOK := &stubKlineProbeRunner{}
 	bundle := BuildKlinePatternMTFBundle(context.Background(), runOK.Run, "00700.HK", "60m", 3, nil)
 	if bundle == nil {
 		t.Fatal("nil bundle")
 	}
-	for _, f := range runOK.calls {
-		if f == "240m" {
-			t.Fatalf("60m ladder must not probe 240m, calls=%v", runOK.calls)
-		}
+	if !probeCallsContain(runOK.calls, "240m") {
+		t.Fatalf("60m ladder must probe 240m for 4h slot, calls=%v", runOK.calls)
 	}
-	for _, want := range []string{"60m", "daily", "weekly"} {
+	for _, want := range []string{"60m", "4h", "daily", "weekly"} {
 		if _, ok := bundle.ByFreq[want]; !ok {
 			t.Fatalf("missing ByFreq[%s] keys=%v", want, bundle.ByFreq)
 		}
 	}
+}
+
+func probeCallsContain(ss []string, want string) bool {
+	for _, s := range ss {
+		if s == want {
+			return true
+		}
+	}
+	return false
 }
 

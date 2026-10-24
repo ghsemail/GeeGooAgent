@@ -10,12 +10,12 @@ func TestMultiTimeframeSpecsForGateUpwardOnly(t *testing.T) {
 		gate string
 		want []string
 	}{
-		{"5m", []string{"5m", "60m", "daily", "weekly"}},
-		{"60m", []string{"60m", "daily", "weekly"}},
-		{"15m", []string{"60m", "daily", "weekly"}},
+		{"5m", []string{"5m", "60m", "4h", "daily", "weekly"}},
+		{"60m", []string{"60m", "4h", "daily", "weekly"}},
+		{"15m", []string{"60m", "4h", "daily", "weekly"}},
 		{"daily", []string{"daily", "weekly"}},
 		{"weekly", []string{"weekly"}},
-		{"", []string{"5m", "60m", "daily", "weekly"}},
+		{"", []string{"5m", "60m", "4h", "daily", "weekly"}},
 	}
 	for _, tc := range cases {
 		specs := multiTimeframeSpecsForGate(tc.gate)
@@ -34,12 +34,13 @@ func TestBuildPriceAnalysisFromBars60mGateOmits5mRow(t *testing.T) {
 	bars := map[string][]any{
 		"5m":     buildTrendBars(90, "up"),
 		"60m":    buildTrendBars(90, "up"),
+		"4h":     buildTrendBars(60, "up"),
 		"daily":  buildTrendBars(50, "up"),
 		"weekly": buildTrendBars(25, "down"),
 	}
 	pa := BuildPriceAnalysisFromBars(bars, 10, KeyLevelBands{}, "60m")
-	if len(pa.Rows) != 3 {
-		t.Fatalf("rows=%d want 3", len(pa.Rows))
+	if len(pa.Rows) != 4 {
+		t.Fatalf("rows=%d want 4", len(pa.Rows))
 	}
 	for _, r := range pa.Rows {
 		if r.Timeframe == "5m" {

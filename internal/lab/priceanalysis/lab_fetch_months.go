@@ -56,6 +56,8 @@ func analysisWindowCalendarMonths(freq string) int {
 		return 1 // ~330 bars ≈ 1 week; fetch calendar uses 1mo buffer
 	case "60m", "15m":
 		return 1 // ~130 bars ≈ 1 month
+	case "4h", "240m":
+		return 2 // ~80 bars ≈ 2–3 months
 	case "daily":
 		return 3 // ~60 bars ≈ 2–3 months
 	case "weekly", "1wk":
@@ -84,6 +86,8 @@ func EstimateFetchBars(freq string, monthsBack int) int {
 		return monthsBack * 22 * 48
 	case "60m", "15m":
 		return monthsBack * 22 * 6
+	case "4h", "240m":
+		return monthsBack * 22
 	case "daily":
 		return monthsBack * 22
 	case "weekly", "1wk":
