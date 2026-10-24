@@ -55,6 +55,8 @@ type Session struct {
 	ActiveFlowJSON []byte
 	// LabDiagnoseSnapshots maps run_id → archived signal_diagnose flow (lab_mode lazy detail).
 	LabDiagnoseSnapshots map[string]json.RawMessage `json:"-"`
+	// LabDiagnoseEpisodeDetails maps run_id → cached lab-detail JSON (detail_ref → LabEpisodeDetail).
+	LabDiagnoseEpisodeDetails map[string]json.RawMessage `json:"-"`
 	// PendingSignalDiagnoseOpts applies to the next new signal_diagnose flow only (not persisted).
 	PendingSignalDiagnoseOpts *SignalDiagnoseOpts
 	// SignalDiagnoseStickyOpts retains last merged panel opts (buy/sell/freq) across turns.

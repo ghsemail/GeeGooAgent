@@ -132,3 +132,75 @@ internal/config/lab.go
 3. 在 `lab.Service` 增加方法，于 `runtimeapi/lab.go` 注册 `POST /v1/lab/experiments/<name>`。
 4. 在 `GET /v1/lab/experiments` 列表中登记元数据。
 5. 为 client 与 HTTP handler 编写 mock 单测。
+
+## Signal 诊断 Lab 模式：lazy lab-detail 持久化
+
+Lab 诊断主流程（`workflow_completed`）仍只下发卡片摘要 `lab_episode_summaries`（含 `detail_ref`）。完整 **价格分析 + System One JEV** 仅在 `POST /v1/signal-diagnose/lab-detail` 按需（或 FE prefetch）计算。
+
+### 行为
+
+| 场景 | Agent 行为 |
+| --- | --- |
+| 首次 `lab-detail`（某 `run_id` + `detail_ref`） | 执行 `BuildLabEpisodeDetail`（lab-api PA + JEV），成功后写入会话 metadata 缓存 |
+| 同一会话再次请求相同 `run_id` + `detail_ref` | **直接返回缓存**，不重新调用 lab-api / System One |
+| 无效 `detail_ref` | 400，与原先一致；**不写入缓存** |
+| TTL | 与 `lab_diagnose_snapshots` 相同：**48h**，最多保留 **12** 个 `run_id` 条目 |
+
+响应体在原有字段上增加 `cached`（bool）：命中缓存为 `true`，新算为 `false`。
+
+### Chat metadata（Agent 侧）
+
+键名：`lab_diagnose_episode_details`（`MetaKeyLabDiagnoseEpisodeDetails`）
+
+```json
+{
+  "flow-20261024T120000": {
+    "expires_at": "2026-10-26T12:00:00Z",
+    "details": {
+      "buy:3": { "...": "LabEpisodeDetail，与 lab-detail 响应 detail 同形" },
+      "sell:1": { "...": "..." },
+      "flow:0": { "...": "..." }
+    }
+  }
+}
+```
+
+`details` 内每个 value 的 JSON 字段与 **`POST /v1/signal-diagnose/lab-detail` 响应里的 `detail`** 完全一致（含 `price_analysis`、`price_analysis_jev`、顶层 `kline_pattern_*`、`kline_pattern` 嵌套对象、`degraded` 等）。FE 可将某次 diagnose 的整段 `details`（或按 ref 合并）复制进 Signal 测试记录 Mongo 的 `run` 对象，历史打开时本地渲染，**无需再调 lab-detail**。
+
+### 建议 FE / Mongo `run` 字段（Monday 落库）
+
+在 diagnose log 的 `run` map 中增加（字段名与 Agent 对齐，便于 merge）：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `lab_episode_details` | `map<string, LabEpisodeDetail>` | key = `detail_ref`（如 `buy:3`）；value = 与 lab-detail `detail` 相同 |
+| `lab_episode_summaries` | 已有 | 卡片一行摘要；可选在 JEV 就绪后把 `price_analysis` 摘要行补全（非必须，详情以 `lab_episode_details` 为准） |
+
+历史记录打开流程建议：
+
+1. 若 `run.lab_episode_details[detail_ref]` 存在 → 直接展示，不调 Agent。
+2. 否则若仍在 48h 内且会话在 Agent → 可调 `lab-detail`（会写缓存并返回 `cached: false/true`）。
+3. 用户触发 prefetch / 点击详情且 lab-detail 成功返回后 → FE 将响应 `detail` 合并进 `run.lab_episode_details[detail_ref]` 再 `saveSignalDiagnoseLog`。
+
+### HTTP：`POST /v1/signal-diagnose/lab-detail`
+
+请求体不变：`session_id`、`run_id`、`detail_ref`、`mcp_token`（或 `X-MCP-Token`）。
+
+成功响应示例：
+
+```json
+{
+  "run_id": "flow-20261024T120000",
+  "cached": false,
+  "detail": {
+    "ref": "buy:3",
+    "side": "buy",
+    "bar_index": 3,
+    "price_analysis": { },
+    "price_analysis_jev": { },
+    "kline_pattern_summary": "..."
+  }
+}
+```
+
+非 lab 诊断路径、workflow 硬拦截、JEV 进 `workflow_completed` 等行为 **未改**；JEV 仍为 lazy。
