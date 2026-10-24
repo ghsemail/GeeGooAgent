@@ -7,26 +7,47 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
+// allowedKlinePatternNames mirrors GeeGooSignal talib_lib pattern_list (28 TA-Lib CDL names).
 var allowedKlinePatternNames = map[string]string{
-	"Doji":                "十字星",
-	"DragonflyDoji":       "蜻蜓十字",
-	"GravestoneDoji":      "墓碑十字",
-	"Hammer":              "锤头线",
-	"ShootingStar":        "射击之星",
-	"Engulfing":           "吞没形态",
-	"Piercing":            "刺透形态",
-	"DarkCloudCover":      "乌云盖顶",
-	"Harami":              "孕线",
-	"MorningStar":         "早晨之星",
-	"EveningStar":         "傍晚之星",
-	"ThreeWhiteSoldiers":  "三白兵",
-	"ThreeCrows":          "三只乌鸦",
+	"Doji":               "十字线",
+	"DragonflyDoji":      "蜻蜓十字线",
+	"GravestoneDoji":     "墓碑十字线",
+	"DojiStar":           "十字星",
+	"Hammer":             "锤子线",
+	"HangingMan":         "上吊线",
+	"InvertedHammer":     "倒锤线",
+	"HighWave":           "风高浪大线",
+	"Marubozu":           "烛台线",
+	"ShootingStar":       "流星线",
+	"Belthold":           "捉腰带线",
+	"Engulfing":          "吞没模式",
+	"Piercing":           "刺透模式",
+	"Harami":             "母子线",
+	"HaramiCross":        "十字孕线",
+	"DarkCloudCover":     "乌云压顶",
+	"HomingPigeon":       "家鸽",
+	"MatchingLow":        "相同低价",
+	"ThreeInside":        "三内部上涨和下跌",
+	"ThreeOutside":       "三外部上涨和下跌",
+	"EveningDojiStar":    "十字暮星",
+	"EveningStar":        "暮星",
+	"MorningStar":        "晨星",
+	"MorningDojiStar":    "十字晨星",
+	"Tristar":            "三星",
+	"ThreeCrows":         "三只乌鸦",
+	"ThreeWhiteSoldiers": "三个白兵",
+	"TwoCrows":           "两只乌鸦",
 }
 
 var dojiPatternNames = map[string]struct{}{
-	"Doji":           {},
-	"DragonflyDoji":  {},
-	"GravestoneDoji": {},
+	"Doji":            {},
+	"DragonflyDoji":   {},
+	"GravestoneDoji":  {},
+	"DojiStar":        {},
+	"HaramiCross":     {},
+	"MorningDojiStar": {},
+	"EveningDojiStar": {},
+	"Tristar":         {},
 }
 
 // PatternHitsSeriesFromProbe reads pattern_hits aligned with bars from probe/diagnose payload.
@@ -55,10 +76,14 @@ func FilteredKlinePatternsAtIndex(series []any, idx int) []slots.KlinePatternHit
 		if _, ok := allowedKlinePatternNames[h.name]; !ok {
 			continue
 		}
+		labelCN := strings.TrimSpace(h.labelCN)
+		if labelCN == "" {
+			labelCN = allowedKlinePatternNames[h.name]
+		}
 		out = append(out, slots.KlinePatternHit{
 			Name:      h.name,
 			Direction: h.direction,
-			LabelCN:   allowedKlinePatternNames[h.name],
+			LabelCN:   labelCN,
 		})
 	}
 	return out
@@ -67,6 +92,7 @@ func FilteredKlinePatternsAtIndex(series []any, idx int) []slots.KlinePatternHit
 type parsedPatternHit struct {
 	name      string
 	direction int
+	labelCN   string
 }
 
 func parseBarPatternHits(raw any) []parsedPatternHit {
@@ -98,13 +124,20 @@ func parsePatternHitList(items []any) []parsedPatternHit {
 				continue
 			}
 			dir := normalizePatternDirection(name, patternDirectionValue(row))
-			out = append(out, parsedPatternHit{name: name, direction: dir})
+			out = append(out, parsedPatternHit{
+				name:      name,
+				direction: dir,
+				labelCN:   firstString(row, "name_chs", "label_cn"),
+			})
 		case string:
 			name := canonicalPatternName(row)
 			if name == "" {
 				continue
 			}
-			out = append(out, parsedPatternHit{name: name, direction: defaultDirectionForName(name)})
+			out = append(out, parsedPatternHit{
+				name:      name,
+				direction: defaultDirectionForName(name),
+			})
 		}
 	}
 	return out

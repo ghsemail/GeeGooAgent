@@ -28,6 +28,18 @@ func TestFilteredKlinePatternsAtIndex_GeeGooPatternField(t *testing.T) {
 	}
 }
 
+func TestAllowedKlinePatternNames_MatchesSignalTalibList(t *testing.T) {
+	if len(allowedKlinePatternNames) != 28 {
+		t.Fatalf("allowed count=%d want 28 (GeeGooSignal pattern_list)", len(allowedKlinePatternNames))
+	}
+	h := FilteredKlinePatternsAtIndex([]any{
+		[]any{map[string]any{"name": "HangingMan", "name_chs": "上吊线", "pattern": -1}},
+	}, 0)
+	if len(h) != 1 || h[0].Name != "HangingMan" || h[0].LabelCN != "上吊线" {
+		t.Fatalf("hanging man=%+v", h)
+	}
+}
+
 func TestFilteredKlinePatternsAtIndex_WhitelistAndDirection(t *testing.T) {
 	series := []any{
 		[]any{map[string]any{"name": "Hammer", "direction": 1}},
