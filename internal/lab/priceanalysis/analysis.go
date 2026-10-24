@@ -58,6 +58,7 @@ var multiTimeframeSpecs = []struct {
 
 const (
 	structureFetchFailed              = "拉数失败"
+	structureFetchPhaseCancelled      = "取数超时或已取消"
 	structureNoBarsBeforeAnchor       = "锚点前无 K 线"
 	structureInsufficientBars         = "根数不足"
 	structurePriorTradingDayUnavailable = "前一交易日锚点不可用"
@@ -104,6 +105,8 @@ func Run(ctx context.Context, fetch BarsFetcher, req RunRequest) PriceAnalysis {
 				reason := structureFetchFailed
 				if fetchOK && len(bars) == 0 {
 					reason = structureInsufficientBars
+				} else if ctx.Err() != nil {
+					reason = structureFetchPhaseCancelled
 				}
 				out.Rows = append(out.Rows, emptyPriceAnalysisRow(spec.Label, reason))
 				continue

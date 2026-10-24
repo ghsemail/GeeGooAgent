@@ -27,6 +27,27 @@ func (f SignalBarsFetcher) FetchBars(ctx context.Context, code, freq string, mon
 		}
 		return bars, true
 	}
+	const attempts = 3
+	var lastOK bool
+	for attempt := 0; attempt < attempts; attempt++ {
+		if ctx.Err() != nil {
+			return nil, false
+		}
+		bars, ok := f.fetchBarsViaJobAPI(ctx, req)
+		if ok {
+			return bars, true
+		}
+		lastOK = ok
+		if attempt+1 >= attempts {
+			break
+		}
+		time.Sleep(time.Duration(attempt+1) * 200 * time.Millisecond)
+	}
+	_ = lastOK
+	return nil, false
+}
+
+func (f SignalBarsFetcher) fetchBarsViaJobAPI(ctx context.Context, req signalclient.KlineJobRequest) ([]any, bool) {
 	jobID, err := f.Client.CreateKlineJob(ctx, req)
 	if err != nil {
 		return nil, false
