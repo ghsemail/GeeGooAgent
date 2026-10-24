@@ -201,9 +201,26 @@ func dailyBarsForLabAnchor(ctx context.Context, in LabDetailInput) []any {
 	if in.LabFetcher == nil {
 		return nil
 	}
-	bars, ok := in.LabFetcher.FetchBars(ctx, in.Code, "daily", CapMonthsBack(in.Months), nil)
+	chart := coalesceLookback(in.LookbackBars, in.Bars)
+	chartMonths := CapMonthsBack(in.Months)
+	months := chartMonths
+	var windowEnd time.Time
+	if len(chart) > 0 {
+		_, latest := barSeriesTimeExtent(chart)
+		windowEnd = latest
+		months = monthsBackForPerSignalPriceFetch(chartMonths, chart, "daily", windowEnd)
+	}
+	var asOf *time.Time
+	if !windowEnd.IsZero() {
+		end := windowEnd
+		asOf = &end
+	}
+	bars, ok := in.LabFetcher.FetchBars(ctx, in.Code, "daily", months, asOf)
 	if !ok {
-		return nil
+		bars = nil
+	}
+	if len(bars) == 0 && NormalizeFrequency(in.SignalFreq) == "daily" && len(chart) > 0 {
+		bars = chart
 	}
 	return bars
 }
