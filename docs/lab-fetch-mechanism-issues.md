@@ -16,6 +16,10 @@
 | MTF probe 无重试 | 瞬时 market fetch failed | probe 最多 3 次退避（unsupported 不重试） |
 | phase ctx 已取消 | 与真失败混为「拉数失败」 | PA 行「取数超时或已取消」 |
 
+## 生产复验（flow-20261024T151342 @ fe7574e）
+
+整机日志无「拉数失败」/ MTF align 失败 / phase 超时；卡片 light enrich 无 MTF 壳。残余「拉数失败」反馈需先核对 FE 是否用 **episode 列表序号** 拼 `detail_ref`（应为 `start_idx`，见 `docs/lab.md` §detail_ref）。
+
 ## 仍存在的机制风险（未靠抬超时糊弄）
 
 1. **`DefaultLabDetailPhaseTimeout=8s` 包住整段 MTF probe + 多 TF PA**  

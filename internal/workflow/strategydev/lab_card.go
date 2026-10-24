@@ -11,10 +11,12 @@ type LabCardEpisodeSummaries map[string]LabEpisodeCardSummary
 func BuildLabCardSummariesFromEval(eval slots.SignalEpisodeEval, patternHits []any, flowPriceSummary string) LabCardEpisodeSummaries {
 	out := LabCardEpisodeSummaries{}
 	appendSide := func(side string, details []slots.SignalEpisodeDetail) {
-		for _, d := range details {
+		for epIdx, d := range details {
 			ref := LabDetailRef(side, d.StartIdx)
 			sum := LabEpisodeCardSummary{
-				DetailRef: ref,
+				DetailRef:    ref,
+				StartIdx:     d.StartIdx,
+				EpisodeIndex: epIdx,
 				KlinePattern: LightKlineSummaryAtIndex(patternHits, d.StartIdx),
 			}
 			if flowPriceSummary != "" {
@@ -43,6 +45,7 @@ func BuildLabCardSummariesFromMerged(bars, buyMerged, sellMerged, patternHits []
 			ref := LabDetailRef(side, i)
 			out[ref] = LabEpisodeCardSummary{
 				DetailRef:     ref,
+				StartIdx:      i,
 				KlinePattern:  LightKlineSummaryAtIndex(patternHits, i),
 				PriceAnalysis: flowPriceSummary,
 			}

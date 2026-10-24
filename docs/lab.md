@@ -137,6 +137,18 @@ internal/config/lab.go
 
 Lab 诊断主流程（`workflow_completed`）仍只下发卡片摘要 `lab_episode_summaries`（含 `detail_ref`）。完整 **价格分析 + System One JEV** 仅在 `POST /v1/signal-diagnose/lab-detail` 按需（或 FE prefetch）计算。
 
+### `detail_ref` 契约（FE / 测试落盘必读）
+
+| 字段 | 含义 |
+| --- | --- |
+| 格式 | `{side}:{bar_index}`，例如 `sell:190`、`buy:7` |
+| `bar_index` | **图表 K 线索引**，与 `signal_eval.*_details[].start_idx` 相同 |
+| **不是** | `buy_details` / `sell_details` 数组下标（episode 列表序号） |
+
+示例：`sell_details[7]`（第 8 条卖 episode）若 `start_idx=190`，则 Agent 下发的 `detail_ref` 为 **`sell:190`**，**不是** `sell:7`。`lab_episode_summaries` 每条现含 `start_idx` 与 `episode_index`（列表序号），FE 打开详情时必须使用卡片/摘要里的 `detail_ref` 或 `start_idx` 拼 ref，禁止用 UI 行号直接拼 `sell:{row}`。
+
+`POST /v1/signal-diagnose/lab-detail` 响应 `detail.bar_index` 与 ref 后缀一致。错误 ref（越界）返回 400，文案会提示 start_idx 语义。
+
 ### 行为
 
 | 场景 | Agent 行为 |
