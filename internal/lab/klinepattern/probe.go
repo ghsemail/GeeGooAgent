@@ -2,6 +2,7 @@ package klinepattern
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -9,11 +10,12 @@ import (
 
 // KlinePatternFreqSeries is OHLCV + pattern_hits for one timeframe probe.
 type KlinePatternFreqSeries struct {
-	Label       string
-	Freq        string
-	Bars        []any
-	PatternHits []any
-	FetchOK     bool
+	Label        string
+	Freq         string
+	Bars         []any
+	PatternHits  []any
+	FetchOK      bool
+	Unsupported  bool // probe/Data rejected frequency (e.g. 240m)
 }
 
 // KlinePatternMTFBundle holds upward timeframes for display-only MTF pattern context.
@@ -28,19 +30,24 @@ func fetchKlinePatternProbeSeries(
 	code, freq string,
 	months int,
 	asOf *time.Time,
-) (bars, patternHits []any, ok bool) {
+) (bars, patternHits []any, ok, unsupported bool) {
 	if run == nil || host.ProbeArgsExtended == nil {
-		return nil, nil, false
+		return nil, nil, false, false
 	}
 	res := run(ctx, "probe_bot_signal_series", host.ProbeArgsExtended(code, freq, months, asOf))
 	if res.Status != tools.StatusOK {
-		return nil, nil, false
+		return nil, nil, false, toolsResultUnsupportedFrequency(res)
 	}
 	bars, _ = res.Data["bars"].([]any)
 	if ph, ok := res.Data["pattern_hits"].([]any); ok {
 		patternHits = ph
 	}
-	return bars, patternHits, len(bars) > 0
+	return bars, patternHits, len(bars) > 0, false
+}
+
+func toolsResultUnsupportedFrequency(res tools.Result) bool {
+	msg := strings.ToLower(strings.TrimSpace(res.Summary))
+	return strings.Contains(msg, "unsupported frequency") || strings.Contains(msg, "unsupported")
 }
 
 // BuildKlinePatternMTFBundle probes signal + higher TFs once (display-only background).
@@ -64,11 +71,6 @@ func BuildKlinePatternMTFBundle(
 		_, latest := barSeriesTimeExtent(chartBars)
 		windowEnd = latest
 	}
-	var asOf *time.Time
-	if !windowEnd.IsZero() {
-		end := windowEnd
-		asOf = &end
-	}
 	chartMonths := CapMonthsBack(months)
 	for _, spec := range multiTimeframeSpecsForKlinePatternDisplay(signalFreq) {
 		m := chartMonths
@@ -76,9 +78,11 @@ func BuildKlinePatternMTFBundle(
 			m = host.MonthsBackForPerSignalFetch(chartMonths, chartBars, spec.Freq, windowEnd)
 		}
 		probeFreq := klinePatternProbeFrequency(spec.Freq)
-		bars, hits, ok := fetchKlinePatternProbeSeries(ctx, run, code, probeFreq, m, asOf)
-		bundle.ByFreq[spec.Freq] = KlinePatternFreqSeries{
-			Label: spec.Label, Freq: spec.Freq, Bars: bars, PatternHits: hits, FetchOK: ok,
+		// Full probe window; per-episode alignment truncates locally in BuildKlinePatternMTFContext.
+		bars, hits, ok, unsup := fetchKlinePatternProbeSeries(ctx, run, code, probeFreq, m, nil)
+		bundle.ByFreq[klinePatternMTFTimeframeKey(spec.Freq)] = KlinePatternFreqSeries{
+			Label: spec.Label, Freq: spec.Freq, Bars: bars, PatternHits: hits,
+			FetchOK: ok, Unsupported: unsup,
 		}
 	}
 	return bundle

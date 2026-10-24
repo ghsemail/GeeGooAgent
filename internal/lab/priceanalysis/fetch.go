@@ -28,11 +28,6 @@ func FetchMultiTimeframeBars(ctx context.Context, in MultiTFBarsInput) (barsByFr
 	if in.Fetch == nil || strings.TrimSpace(in.Code) == "" {
 		return barsByFreq, fetchOKByFreq, fetchErrByFreq
 	}
-	var asOfPtr *time.Time
-	if in.AsOf != nil && !in.AsOf.IsZero() {
-		end := *in.AsOf
-		asOfPtr = &end
-	}
 	for _, spec := range multiTimeframeSpecsForGate(in.GateFreq) {
 		monthsBack, err := MonthsBackForLabFetch(in.Months, spec.Freq)
 		if err != nil {
@@ -40,7 +35,8 @@ func FetchMultiTimeframeBars(ctx context.Context, in MultiTFBarsInput) (barsByFr
 			fetchOKByFreq[spec.Freq] = false
 			continue
 		}
-		bars, ok := in.Fetch.FetchBars(ctx, in.Code, spec.Freq, monthsBack, asOfPtr)
+		// Full lab fetch window to latest; Run truncates at req.AsOf locally per episode.
+		bars, ok := in.Fetch.FetchBars(ctx, in.Code, spec.Freq, monthsBack, nil)
 		barsByFreq[spec.Freq] = bars
 		fetchOKByFreq[spec.Freq] = ok
 	}

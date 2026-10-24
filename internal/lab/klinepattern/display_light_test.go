@@ -36,14 +36,13 @@ func TestEnrichSignalEpisodeEvalKlineDisplayLight_ThreeBarMatchesPatterns(t *tes
 	if ep.KlinePatternThreeBar.Bias == nil || ep.KlinePatternThreeBar.Bias.Score <= 0 {
 		t.Fatalf("three_bar bias=%+v", ep.KlinePatternThreeBar.Bias)
 	}
-	if ep.KlinePatternMTF == nil || len(ep.KlinePatternMTF.Timeframes) != 4 {
-		t.Fatalf("mtf=%+v", ep.KlinePatternMTF)
+	if ep.KlinePatternMTF != nil {
+		t.Fatalf("light enrich must not attach MTF on cards, got %+v", ep.KlinePatternMTF)
 	}
-	sigTF := ep.KlinePatternMTF.Timeframes[0]
-	if sigTF.ThreeBar == nil || len(sigTF.ThreeBar.Bars) != 3 {
-		t.Fatalf("signal tf three_bar=%+v", sigTF.ThreeBar)
+	if ep.KlinePatternThreeBar == nil || len(ep.KlinePatternThreeBar.Bars) != 3 {
+		t.Fatalf("three_bar=%+v", ep.KlinePatternThreeBar)
 	}
-	anchor := sigTF.ThreeBar.Bars[2]
+	anchor := ep.KlinePatternThreeBar.Bars[2]
 	if anchor.Omitted || len(anchor.KlinePatterns) != 1 {
 		t.Fatalf("anchor bar=%+v", anchor)
 	}

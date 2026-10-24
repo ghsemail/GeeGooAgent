@@ -29,7 +29,6 @@ func BuildKlinePatternMTFBundleParallel(
 		ByFreq:     map[string]KlinePatternFreqSeries{},
 	}
 	var windowEnd = chartWindowEnd(chartBars)
-	var asOf = asOfFromWindowEnd(windowEnd)
 	chartMonths := CapMonthsBack(months)
 
 	type job struct {
@@ -61,12 +60,13 @@ func BuildKlinePatternMTFBundleParallel(
 				m = host.MonthsBackForPerSignalFetch(chartMonths, chartBars, j.spec.Freq, windowEnd)
 			}
 			probeFreq := klinePatternProbeFrequency(j.spec.Freq)
-			bars, hits, ok := fetchKlinePatternProbeSeries(ctx, run, code, probeFreq, m, asOf)
+			bars, hits, ok, unsup := fetchKlinePatternProbeSeries(ctx, run, code, probeFreq, m, nil)
 			ser := KlinePatternFreqSeries{
-				Label: j.spec.Label, Freq: j.spec.Freq, Bars: bars, PatternHits: hits, FetchOK: ok,
+				Label: j.spec.Label, Freq: j.spec.Freq, Bars: bars, PatternHits: hits,
+				FetchOK: ok, Unsupported: unsup,
 			}
 			mu.Lock()
-			bundle.ByFreq[j.spec.Freq] = ser
+			bundle.ByFreq[klinePatternMTFTimeframeKey(j.spec.Freq)] = ser
 			mu.Unlock()
 		}()
 	}

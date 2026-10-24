@@ -49,4 +49,7 @@ func TestLabModeLightEnrichPopulatesThreeBarOnEpisodes(t *testing.T) {
 	if eps[0]["kline_pattern_three_bar"] == nil {
 		t.Fatal("chart episode overlay missing kline_pattern_three_bar")
 	}
+	if eps[0]["kline_pattern_mtf"] != nil {
+		t.Fatalf("chart episode must not expose MTF shell on lab cards, got %v", eps[0]["kline_pattern_mtf"])
+	}
 }
