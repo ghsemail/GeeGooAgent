@@ -33,19 +33,31 @@ func TestSynthesizeLabJEVUnifiedOppositeStillBearWithConflict(t *testing.T) {
 	}
 }
 
-func TestSynthesizeLabJEVUnifiedOppositeNearCancelUnclear(t *testing.T) {
+func TestSynthesizeLabJEVUnifiedSmallScoreStillDirected(t *testing.T) {
 	structure := jevUnifiedLeg{dir: LabJEVUnifiedBear, confidence: 0.4, summary: "结构偏空", present: true}
 	pattern := jevUnifiedLeg{dir: LabJEVUnifiedBull, confidence: 0.5, summary: "形态偏多", present: true}
 	got := synthesizeLabJEVUnified(structure, pattern)
-	score := math.Abs(-0.7*0.4 + 0.3*0.5)
-	if score >= jevUnifiedScoreThreshold {
-		t.Fatalf("test setup: score=%v should be below threshold", score)
+	score := -0.7*0.4 + 0.3*0.5
+	if math.Abs(score-(-0.13)) > 1e-9 {
+		t.Fatalf("score=%v", score)
 	}
+	if got.Direction != LabJEVUnifiedBear || !got.Conflict {
+		t.Fatalf("expected weak bear with conflict, got %+v", got)
+	}
+	if math.Abs(got.Confidence-0.13) > 1e-9 {
+		t.Fatalf("confidence=%v want 0.13", got.Confidence)
+	}
+}
+
+func TestSynthesizeLabJEVUnifiedExactCancelUnclear(t *testing.T) {
+	structure := jevUnifiedLeg{dir: LabJEVUnifiedBear, confidence: 0.3, summary: "结构偏空", present: true}
+	pattern := jevUnifiedLeg{dir: LabJEVUnifiedBull, confidence: 0.7, summary: "形态偏多", present: true}
+	got := synthesizeLabJEVUnified(structure, pattern)
 	if got.Direction != LabJEVUnifiedUnclear || !got.Conflict {
 		t.Fatalf("got %+v", got)
 	}
-	if math.Abs(got.Confidence-score) > 1e-9 {
-		t.Fatalf("confidence=%v want %v", got.Confidence, score)
+	if got.Confidence != 0 {
+		t.Fatalf("confidence=%v want 0", got.Confidence)
 	}
 }
 
@@ -116,13 +128,17 @@ func TestPatternConfidenceFromHitsRatio(t *testing.T) {
 	}
 }
 
-func TestDirectionConfidenceFromScoreThreshold(t *testing.T) {
+func TestDirectionConfidenceFromScoreSignOnly(t *testing.T) {
 	dir, conf := directionConfidenceFromScore(0.14)
-	if dir != LabJEVUnifiedUnclear || conf != 0.14 {
+	if dir != LabJEVUnifiedBull || conf != 0.14 {
 		t.Fatalf("got %v %v", dir, conf)
 	}
 	dir, conf = directionConfidenceFromScore(-0.2)
 	if dir != LabJEVUnifiedBear || conf != 0.2 {
+		t.Fatalf("got %v %v", dir, conf)
+	}
+	dir, conf = directionConfidenceFromScore(0)
+	if dir != LabJEVUnifiedUnclear || conf != 0 {
 		t.Fatalf("got %v %v", dir, conf)
 	}
 }
