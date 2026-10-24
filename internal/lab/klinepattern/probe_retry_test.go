@@ -41,11 +41,24 @@ func TestFetchKlinePatternProbeSeriesWithRetry(t *testing.T) {
 	}
 }
 
+type stubUnsupportedProbeRunner struct {
+	calls []string
+}
+
+func (s *stubUnsupportedProbeRunner) Run(ctx context.Context, name string, args map[string]any) tools.Result {
+	if name != "probe_bot_signal_series" {
+		return tools.Result{Status: tools.StatusError}
+	}
+	freq, _ := args["frequency"].(string)
+	s.calls = append(s.calls, freq)
+	return tools.Result{Status: tools.StatusError, Summary: "unsupported frequency"}
+}
+
 func TestFetchKlinePatternProbeSeriesWithRetry_NoRetryUnsupported(t *testing.T) {
 	testProbeHost(t)
-	run := &stubKlineProbeRunner{fail4h: true}
+	run := &stubUnsupportedProbeRunner{}
 	_, _, ok, unsup := fetchKlinePatternProbeSeriesWithRetry(
-		context.Background(), run.Run, "00700.HK", "240m", 3, nil,
+		context.Background(), run.Run, "00700.HK", "daily", 3, nil,
 	)
 	if ok || !unsup {
 		t.Fatalf("ok=%v unsup=%v", ok, unsup)

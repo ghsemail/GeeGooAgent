@@ -86,7 +86,7 @@ func TestFormatLabPriceNoScientificNotation(t *testing.T) {
 	if strings.Contains(label, "e") {
 		t.Fatalf("spot label=%q", label)
 	}
-	row := BuildPriceAnalysisRow(buildTrendBars(90, "up"), "60m", "60m")
+	row := BuildPriceAnalysisRow(buildTrendBars(90, "up"), "1小时", "60m")
 	if strings.Contains(row.Structure, "e+") || strings.Contains(row.Structure, "e-") {
 		t.Fatalf("structure=%q", row.Structure)
 	}

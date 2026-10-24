@@ -13,8 +13,8 @@ func TestMultiTimeframeSpecsForKlinePatternDisplay_Ladders(t *testing.T) {
 	}{
 		{"5m", []string{"5m", "15m", "30m", "60m"}},
 		{"5分钟", []string{"5m", "15m", "30m", "60m"}},
-		{"60m", []string{"60m", "4h", "daily", "weekly"}},
-		{"1h", []string{"60m", "4h", "daily", "weekly"}},
+		{"60m", []string{"60m", "daily", "weekly"}}, // freq keys; display labels use 1小时
+		{"1h", []string{"60m", "daily", "weekly"}},
 		{"daily", []string{"daily", "weekly"}},
 		{"日线", []string{"daily", "weekly"}},
 	}
@@ -63,18 +63,9 @@ func TestKlinePatternMTFWeights_TableLocked(t *testing.T) {
 	}
 }
 
-func TestKlinePatternProbeFrequency_FourHour(t *testing.T) {
-	if got := klinePatternProbeFrequency("4h"); got != "240m" {
-		t.Fatalf("4h probe=%q want 240m", got)
-	}
-	if got := klinePatternProbeFrequency("240m"); got != "240m" {
-		t.Fatalf("240m probe=%q want 240m", got)
-	}
-}
-
-func TestNormalizeFrequency_FourHourAndSixtyMinuteSlot(t *testing.T) {
-	if NormalizeFrequency("4hour") != "4h" {
-		t.Fatal("4hour")
+func TestKlinePatternProbeFrequency_MatchesNormalize(t *testing.T) {
+	if got := klinePatternProbeFrequency("daily"); got != "daily" {
+		t.Fatalf("daily probe=%q", got)
 	}
 	if NormalizeFrequency("60m") != "60m" {
 		t.Fatal("60m")

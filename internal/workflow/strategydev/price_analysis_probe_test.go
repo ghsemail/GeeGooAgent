@@ -67,13 +67,13 @@ func TestEpisodeFilterOneProbePerFrequencyWithAsOf(t *testing.T) {
 	ApplyPerSignalPriceAnalysisEpisodeFilter(context.Background(), PerSignalPriceFilterInput{
 		Run: run, Code: "00700.HK", Months: 3,
 	}, bars, "60m", buyM, nil)
-	if paProbeCount != 4 {
-		t.Fatalf("PA probe calls=%d want 4 (60m upward set incl 4h)", paProbeCount)
+	if paProbeCount != 3 {
+		t.Fatalf("PA probe calls=%d want 3 (60m, daily, weekly)", paProbeCount)
 	}
 	if emaProbeCount != 3 {
 		t.Fatalf("EMA probe calls=%d want 3 (weekly/daily/60m EMA stack)", emaProbeCount)
 	}
-	if len(asOfSeen) != 4 {
+	if len(asOfSeen) != 3 {
 		t.Fatalf("expected as_of on all probes, got %v", asOfSeen)
 	}
 	if _, ok := asOfSeen["5m"]; ok {
@@ -189,8 +189,8 @@ func TestBuildRunPriceAnalysisAsOfUsesProbeAsOf(t *testing.T) {
 	if !sawAsOf {
 		t.Fatal("expected as_of on single-point probes")
 	}
-	if len(pa.Rows) != 4 {
-		t.Fatalf("rows=%d want 4 for 60m filter", len(pa.Rows))
+	if len(pa.Rows) != 3 {
+		t.Fatalf("rows=%d want 3 for 60m filter", len(pa.Rows))
 	}
 	if pa.AnchorTime == "" {
 		t.Fatal("expected anchor_time set for as_of run")

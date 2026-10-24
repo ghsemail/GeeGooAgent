@@ -9,8 +9,7 @@ import (
 )
 
 type stubKlineProbeRunner struct {
-	calls  []string
-	fail4h bool
+	calls []string
 }
 
 func (s *stubKlineProbeRunner) Run(ctx context.Context, name string, args map[string]any) tools.Result {
@@ -19,9 +18,6 @@ func (s *stubKlineProbeRunner) Run(ctx context.Context, name string, args map[st
 	}
 	freq, _ := args["frequency"].(string)
 	s.calls = append(s.calls, freq)
-	if freq == "240m" && s.fail4h {
-		return tools.Result{Status: tools.StatusError, Summary: "unsupported frequency"}
-	}
 	return tools.Result{
 		Status: tools.StatusOK,
 		Data: map[string]any{
@@ -48,17 +44,17 @@ func testProbeHost(t *testing.T) {
 	})
 }
 
-func TestBuildKlinePatternMTFBundle_SixtyMinuteIncludesFourHour(t *testing.T) {
+func TestBuildKlinePatternMTFBundle_SixtyMinuteLadder(t *testing.T) {
 	testProbeHost(t)
 	runOK := &stubKlineProbeRunner{}
 	bundle := BuildKlinePatternMTFBundle(context.Background(), runOK.Run, "00700.HK", "60m", 3, nil)
 	if bundle == nil {
 		t.Fatal("nil bundle")
 	}
-	if !probeCallsContain(runOK.calls, "240m") {
-		t.Fatalf("60m ladder must probe 240m for 4h slot, calls=%v", runOK.calls)
+	if probeCallsContain(runOK.calls, "240m") {
+		t.Fatalf("60m ladder must not probe 240m, calls=%v", runOK.calls)
 	}
-	for _, want := range []string{"60m", "4h", "daily", "weekly"} {
+	for _, want := range []string{"60m", "daily", "weekly"} {
 		if _, ok := bundle.ByFreq[want]; !ok {
 			t.Fatalf("missing ByFreq[%s] keys=%v", want, bundle.ByFreq)
 		}
@@ -73,4 +69,3 @@ func probeCallsContain(ss []string, want string) bool {
 	}
 	return false
 }
-

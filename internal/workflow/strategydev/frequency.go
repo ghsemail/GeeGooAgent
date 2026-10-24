@@ -16,10 +16,6 @@ func NormalizeFrequency(raw string) string {
 		return "15m"
 	case "30m", "30min", "30分钟":
 		return "30m"
-	case "4h", "4hour":
-		return "4h"
-	case "240m", "240min":
-		return "240m"
 	case "60", "60m", "60min", "60分钟", "1h", "1hour":
 		return "60m"
 	case "daily", "day", "1d", "d", "日线", "日":
@@ -38,8 +34,6 @@ func BarLimitForFrequency(freq string) int {
 		return 200
 	case "15m", "30m":
 		return 200
-	case "4h":
-		return 120
 	case "60m":
 		return 200
 	case "daily":

@@ -25,8 +25,7 @@ func multiTimeframeSpecsForKlinePatternDisplay(signalFreq string) []klinePattern
 		}
 	case "60m":
 		return []klinePatternMTFSpec{
-			{"1h", "60m"},
-			{"4h", "4h"},
+			{"1小时", "60m"},
 			{"日线", "daily"},
 			{"周线", "weekly"},
 		}
@@ -56,7 +55,6 @@ var klinePatternDisplayLadder = []klinePatternMTFSpec{
 	{"15m", "15m"},
 	{"30m", "30m"},
 	{"60m", "60m"},
-	{"4h", "4h"},
 	{"日线", "daily"},
 	{"周线", "weekly"},
 }
@@ -82,7 +80,7 @@ func klinePatternDisplaySpecsFillFour(gate string) []klinePatternMTFSpec {
 	for i := start + 1; i < len(klinePatternDisplayLadder) && len(out) < 4; i++ {
 		out = append(out, klinePatternDisplayLadder[i])
 	}
-	// 日线及以上信号：只向更粗周期扩展，不回填 4h/60m 等 intraday（避免无意义 probe + 拉数失败噪音）。
+	// 日线及以上信号：只向更粗周期扩展，不回填更细 intraday。
 	if !klinePatternMTFCoarserOnly(gate) {
 		for i := start - 1; i >= 0 && len(out) < 4; i-- {
 			out = append(out, klinePatternDisplayLadder[i])
@@ -102,22 +100,10 @@ func klinePatternMTFCoarserOnly(gate string) bool {
 
 // klinePatternProbeFrequency maps MTF ladder freq to probe_bot_signal_series tokens.
 func klinePatternProbeFrequency(freq string) string {
-	switch NormalizeFrequency(freq) {
-	case "4h":
-		return "240m"
-	case "240m":
-		return "240m"
-	default:
-		return NormalizeFrequency(freq)
-	}
+	return NormalizeFrequency(freq)
 }
 
-// klinePatternMTFTimeframeKey canonicalizes ladder slot ids (4h and 240m share a slot).
+// klinePatternMTFTimeframeKey canonicalizes ladder slot ids.
 func klinePatternMTFTimeframeKey(freq string) string {
-	switch NormalizeFrequency(freq) {
-	case "240m":
-		return "4h"
-	default:
-		return NormalizeFrequency(freq)
-	}
+	return NormalizeFrequency(freq)
 }

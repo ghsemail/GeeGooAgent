@@ -12,10 +12,6 @@ func NormalizeFrequency(raw string) string {
 		return "15m"
 	case "30m", "30min", "30分钟":
 		return "30m"
-	case "4h", "4hour":
-		return "4h"
-	case "240m", "240min":
-		return "240m"
 	case "60", "60m", "60min", "60分钟", "1h", "1hour":
 		return "60m"
 	case "daily", "day", "1d", "d", "日线", "日":
@@ -48,8 +44,6 @@ func timeframeDisplayLabel(freq string) string {
 		return "30m"
 	case "60m":
 		return "60m"
-	case "4h":
-		return "4h"
 	case "daily":
 		return "日线"
 	case "weekly", "1wk":

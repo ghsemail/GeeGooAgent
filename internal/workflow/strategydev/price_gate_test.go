@@ -7,7 +7,7 @@ import (
 
 func TestHardGateParticipatingFrequencies60mExcludes5m(t *testing.T) {
 	got := hardGateParticipatingFrequencies("60m")
-	want := []string{"60m", "4h", "daily", "weekly"}
+	want := []string{"60m", "daily", "weekly"}
 	if len(got) != len(want) {
 		t.Fatalf("got=%v want=%v", got, want)
 	}
@@ -55,8 +55,7 @@ func TestPriceFilterForGate60mIgnores5mRowForBuyAllowLong(t *testing.T) {
 	pa := PriceAnalysis{
 		Rows: []PriceAnalysisRow{
 			{Timeframe: "5m", Conclusion: RegimeDown},
-			{Timeframe: "60m", Conclusion: RegimeUp},
-			{Timeframe: "4h", Conclusion: RegimeUp},
+			{Timeframe: "1小时", Conclusion: RegimeUp},
 			{Timeframe: "日线", Conclusion: RegimeUp},
 			{Timeframe: "周线", Conclusion: RegimeUp},
 		},
@@ -80,8 +79,7 @@ func TestPriceFilterForGate60mComposedAllowLongLegacyOnly(t *testing.T) {
 	pa := PriceAnalysis{
 		Rows: []PriceAnalysisRow{
 			{Timeframe: "5m", Conclusion: RegimeDown},
-			{Timeframe: "60m", Conclusion: RegimeUp},
-			{Timeframe: "4h", Conclusion: RegimeUp},
+			{Timeframe: "1小时", Conclusion: RegimeUp},
 			{Timeframe: "日线", Conclusion: RegimeUnclear},
 			{Timeframe: "周线", Conclusion: RegimeUp},
 		},

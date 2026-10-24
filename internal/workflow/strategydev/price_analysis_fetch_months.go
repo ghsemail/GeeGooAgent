@@ -62,9 +62,6 @@ func minBarCalendarLookback(freq string) time.Duration {
 		}
 		days := (minBars / barsPerDay) + 3
 		return time.Duration(days) * 24 * time.Hour
-	case "4h":
-		days := (minBars / 1) + 5
-		return time.Duration(days) * 24 * time.Hour
 	case "60m":
 		days := (minBars / 4) + 5
 		return time.Duration(days) * 24 * time.Hour

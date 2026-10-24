@@ -19,7 +19,7 @@ func rowSubscoreMinusOnePointFive(tf string) PriceAnalysisRow {
 
 func TestComputeHTFGatePriceScoreAAPLReference(t *testing.T) {
 	allWeakDown := PriceAnalysis{
-		Rows: []PriceAnalysisRow{rowWeakDown("周线"), rowWeakDown("日线"), rowWeakDown("60m")},
+		Rows: []PriceAnalysisRow{rowWeakDown("周线"), rowWeakDown("日线"), rowWeakDown("1小时")},
 	}
 	gate := ComputeHTFGatePriceScore(allWeakDown, "60m")
 	if gate.Score != -25 {
@@ -34,7 +34,7 @@ func TestComputeHTFGatePriceScoreAAPLReference(t *testing.T) {
 		Rows: []PriceAnalysisRow{
 			rowWeakDown("周线"),
 			rowWeakUp("日线"),
-			rowSubscoreMinusOnePointFive("60m"),
+			rowSubscoreMinusOnePointFive("1小时"),
 		},
 	}
 	display = ComputeMultiTFPriceScore(mixed, "60m")
@@ -52,16 +52,16 @@ func TestHTFGateDisplayStillIncludesEntryTF(t *testing.T) {
 		Rows: []PriceAnalysisRow{
 			rowWeakDown("周线"),
 			rowWeakUp("日线"),
-			rowSubscoreMinusOnePointFive("60m"),
+			rowSubscoreMinusOnePointFive("1小时"),
 		},
 	}
 	display := ComputeMultiTFPriceScore(pa, "60m")
-	if _, ok := display.TFScores["60m"]; !ok {
-		t.Fatal("display tf_scores must include 60m")
+	if _, ok := display.TFScores["1小时"]; !ok {
+		t.Fatal("display tf_scores must include 1小时")
 	}
 	gate := ComputeHTFGatePriceScore(pa, "60m")
-	if _, ok := gate.TFScores["60m"]; ok {
-		t.Fatal("gate tf_scores must not include entry 60m")
+	if _, ok := gate.TFScores["1小时"]; ok {
+		t.Fatal("gate tf_scores must not include entry 1小时")
 	}
 	if display.Score == gate.Score {
 		t.Fatal("expected display and gate to differ on this fixture")
@@ -87,7 +87,7 @@ func TestFullGateScoreModeMatchesDisplayIntercept(t *testing.T) {
 		Rows: []PriceAnalysisRow{
 			rowWeakDown("周线"),
 			rowWeakUp("日线"),
-			rowSubscoreMinusOnePointFive("60m"),
+			rowSubscoreMinusOnePointFive("1小时"),
 		},
 	}
 	display := ComputeMultiTFPriceScore(pa, "60m")

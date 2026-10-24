@@ -11,8 +11,6 @@ func gateFrequencyRank(freq string) int {
 		return 20
 	case "60m":
 		return 30
-	case "4h", "240m":
-		return 35
 	case "daily":
 		return 40
 	case "weekly", "1wk":
@@ -58,7 +56,7 @@ func multiTimeframeSpecsForGate(gateFreq string) []struct {
 }
 
 // hardGateParticipatingFrequencies lists TFs at or above the diagnose (gate) frequency.
-// Example: gate 60m → 60m, 4h, daily, weekly (5m is display-only).
+// Example: gate 60m → 60m, daily, weekly (5m is display-only).
 func hardGateParticipatingFrequencies(gateFreq string) []string {
 	specs := multiTimeframeSpecsForGate(gateFreq)
 	out := make([]string, len(specs))

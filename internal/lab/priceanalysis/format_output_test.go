@@ -18,10 +18,10 @@ func TestRoundPriceAnalysisForOutputRowsAndTFScores(t *testing.T) {
 	pa := PriceAnalysis{
 		PriceScore: 12.3456,
 		Rows: []PriceAnalysisRow{
-			{Timeframe: "60m", ER: 0.28571428571428864, RVOL: 1.23456789},
+			{Timeframe: "1小时", ER: 0.28571428571428864, RVOL: 1.23456789},
 		},
 		TFScores: map[string]TFScoreBreakdown{
-			"60m": {Subscore: 1.1111111, Conclusion: 0.5555555, Position: 0.3333333, BosChoch: 0.2222222},
+			"1小时": {Subscore: 1.1111111, Conclusion: 0.5555555, Position: 0.3333333, BosChoch: 0.2222222},
 		},
 		SpotPrice: 123.456789,
 	}
@@ -32,7 +32,7 @@ func TestRoundPriceAnalysisForOutputRowsAndTFScores(t *testing.T) {
 	if out.SpotPrice != pa.SpotPrice {
 		t.Fatal("spot price must not be rounded in output helper")
 	}
-	br := out.TFScores["60m"]
+	br := out.TFScores["1小时"]
 	if br.Subscore != 1.111 || br.Conclusion != 0.556 {
 		t.Fatalf("tf breakdown=%+v", br)
 	}

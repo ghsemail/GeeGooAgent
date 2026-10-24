@@ -8,8 +8,8 @@ import (
 
 func TestBuildPriceAnalysisRowShape(t *testing.T) {
 	bars := buildTrendBars(90, "up")
-	row := BuildPriceAnalysisRow(bars, "60m", "60m")
-	if row.Timeframe != "60m" {
+	row := BuildPriceAnalysisRow(bars, "1小时", "60m")
+	if row.Timeframe != "1小时" {
 		t.Fatalf("timeframe=%s", row.Timeframe)
 	}
 	if row.Conclusion == "" {
@@ -30,14 +30,13 @@ func TestBuildPriceAnalysisFromBarsPayload(t *testing.T) {
 	bars := map[string][]any{
 		"5m":     buildTrendBars(90, "up"),
 		"60m":    buildTrendBars(90, "up"),
-		"4h":     buildTrendBars(60, "up"),
 		"daily":  buildTrendBars(50, "up"),
 		"weekly": buildTrendBars(25, "down"),
 	}
 	pa := BuildPriceAnalysisFromBars(bars, 20.84, KeyLevelBands{
 		SupportLow: 17.77, SupportHigh: 18.23, ResistLow: 22.76, ResistHigh: 23.32,
 	}, "")
-	if len(pa.Rows) != 5 {
+	if len(pa.Rows) != 4 {
 		t.Fatalf("rows=%d", len(pa.Rows))
 	}
 	if !strings.Contains(pa.SupportResistance, "17.77") || !strings.Contains(pa.SupportResistance, "23.32") {
@@ -54,7 +53,7 @@ func TestBuildPriceAnalysisFromBarsPayload(t *testing.T) {
 func TestSummarizeMultiTimeframeRowsShortBullWeeklyBear(t *testing.T) {
 	rows := []PriceAnalysisRow{
 		{Timeframe: "5m", Conclusion: RegimeUp},
-		{Timeframe: "60m", Conclusion: RegimeUp},
+		{Timeframe: "1小时", Conclusion: RegimeUp},
 		{Timeframe: "日线", Conclusion: RegimeUp},
 		{Timeframe: "周线", Conclusion: RegimeDown},
 	}
@@ -67,7 +66,6 @@ func TestSummarizeMultiTimeframeRowsShortBullWeeklyBear(t *testing.T) {
 func TestPriceAnalysisJSONPayloadShape(t *testing.T) {
 	pa := BuildPriceAnalysisFromBars(map[string][]any{
 		"5m": buildTrendBars(90, "up"), "60m": buildTrendBars(90, "up"),
-		"4h": buildTrendBars(60, "up"),
 		"daily": buildTrendBars(50, "up"), "weekly": buildTrendBars(25, "down"),
 	}, 20.84, KeyLevelBands{SupportLow: 1, ResistHigh: 2}, "")
 	raw, err := json.Marshal(pa)
@@ -79,7 +77,7 @@ func TestPriceAnalysisJSONPayloadShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	rows, ok := m["rows"].([]any)
-	if !ok || len(rows) != 5 {
+	if !ok || len(rows) != 4 {
 		t.Fatalf("rows=%v", m["rows"])
 	}
 	row0, _ := rows[0].(map[string]any)
@@ -93,7 +91,6 @@ func TestPriceAnalysisJSONPayloadShape(t *testing.T) {
 func TestAppendPriceAnalysisMarkdownTableHeaders(t *testing.T) {
 	pa := BuildPriceAnalysisFromBars(map[string][]any{
 		"5m": buildTrendBars(90, "up"), "60m": buildTrendBars(90, "up"),
-		"4h": buildTrendBars(60, "up"),
 		"daily": buildTrendBars(50, "up"), "weekly": buildTrendBars(25, "down"),
 	}, 10, KeyLevelBands{}, "")
 	var b strings.Builder

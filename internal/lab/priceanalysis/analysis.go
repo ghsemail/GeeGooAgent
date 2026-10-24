@@ -51,8 +51,7 @@ var multiTimeframeSpecs = []struct {
 	Freq  string
 }{
 	{"5m", "5m"},
-	{"60m", "60m"},
-	{"4h", "4h"},
+	{"1小时", "60m"},
 	{"日线", "daily"},
 	{"周线", "weekly"},
 }
@@ -412,7 +411,7 @@ func timeframeDisplayLabel(freq string) string {
 	case "5m":
 		return "5m"
 	case "60m":
-		return "60m"
+		return "1小时"
 	case "daily":
 		return "日线"
 	case "weekly", "1wk":
@@ -431,8 +430,8 @@ func SummarizeMultiTimeframeRows(rows []PriceAnalysisRow) string {
 	for _, r := range rows {
 		byTF[r.Timeframe] = r.Conclusion
 	}
-	shortBull := bullishCount(byTF["5m"], byTF["60m"], byTF["日线"])
-	shortBear := bearishCount(byTF["5m"], byTF["60m"], byTF["日线"])
+	shortBull := bullishCount(byTF["5m"], byTF["1小时"], byTF["日线"])
+	shortBear := bearishCount(byTF["5m"], byTF["1小时"], byTF["日线"])
 	wk := byTF["周线"]
 	switch {
 	case shortBull >= 2 && (wk == RegimeDown || wk == RegimeWeakDown):
@@ -443,7 +442,7 @@ func SummarizeMultiTimeframeRows(rows []PriceAnalysisRow) string {
 		return "多周期共振偏多。"
 	case shortBear >= 2 && wk == RegimeDown:
 		return "多周期共振偏空。"
-	case byTF["日线"] == RegimeRange || byTF["60m"] == RegimeRange:
+	case byTF["日线"] == RegimeRange || byTF["1小时"] == RegimeRange:
 		return "短中线震荡，等待结构突破。"
 	case byTF["日线"] == RegimeUnclear:
 		return "日线结构不明确，谨慎对待信号。"

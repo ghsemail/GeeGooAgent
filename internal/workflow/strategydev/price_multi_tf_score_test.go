@@ -9,7 +9,7 @@ import (
 func TestComputeMultiTFPriceScoreBullish60mGate(t *testing.T) {
 	pa := PriceAnalysis{
 		Rows: []PriceAnalysisRow{
-			{Timeframe: "60m", Conclusion: RegimeUp, Position: "靠近下沿", BosChoch: "BOS 放量"},
+			{Timeframe: "1小时", Conclusion: RegimeUp, Position: "靠近下沿", BosChoch: "BOS 放量"},
 			{Timeframe: "日线", Conclusion: RegimeUp, Position: "中部", BosChoch: "无"},
 			{Timeframe: "周线", Conclusion: RegimeUp, Position: "中部", BosChoch: "无"},
 		},
@@ -18,15 +18,15 @@ func TestComputeMultiTFPriceScoreBullish60mGate(t *testing.T) {
 	if sc.Score <= 0 {
 		t.Fatalf("expected positive score, got %.2f", sc.Score)
 	}
-	if sc.TFScores["60m"].Subscore <= 0 {
-		t.Fatalf("60m subscore=%v", sc.TFScores["60m"])
+	if sc.TFScores["1小时"].Subscore <= 0 {
+		t.Fatalf("60m subscore=%v", sc.TFScores["1小时"])
 	}
 }
 
 func TestScoreGateDoesNotBlockBuyWhen60mUpButDailyUnclear(t *testing.T) {
 	pa := PriceAnalysis{
 		Rows: []PriceAnalysisRow{
-			{Timeframe: "60m", Conclusion: RegimeUp, Position: "中部", BosChoch: "无"},
+			{Timeframe: "1小时", Conclusion: RegimeUp, Position: "中部", BosChoch: "无"},
 			{Timeframe: "日线", Conclusion: RegimeUnclear, Position: "中部", BosChoch: "无"},
 			{Timeframe: "周线", Conclusion: RegimeUp, Position: "中部", BosChoch: "无"},
 		},
@@ -50,7 +50,7 @@ func TestScoreGateDoesNotBlockBuyWhen60mUpButDailyUnclear(t *testing.T) {
 func TestComputeMultiTFPriceScoreMissingTF(t *testing.T) {
 	pa := PriceAnalysis{
 		Rows: []PriceAnalysisRow{
-			{Timeframe: "60m", Conclusion: RegimeUnclear, Structure: structurePriorTradingDayUnavailable},
+			{Timeframe: "1小时", Conclusion: RegimeUnclear, Structure: structurePriorTradingDayUnavailable},
 		},
 	}
 	sc := ComputeMultiTFPriceScore(pa, "60m")

@@ -200,7 +200,7 @@ func TestPerSignal60mUsesLookbackWhenFirstTriggerNearChartStart(t *testing.T) {
 		t.Fatal("missing price analysis")
 	}
 	for _, row := range pa.Rows {
-		if row.Timeframe != "60m" {
+		if row.Timeframe != "1小时" {
 			continue
 		}
 		if row.Structure == structureInsufficientBars {
@@ -292,7 +292,7 @@ func TestPerSignalFetchNotCappedAtSixWhenChartNeedsLookback(t *testing.T) {
 			t.Fatalf("missing price analysis idx=%d", tr.Index)
 		}
 		for _, row := range pa.Rows {
-			if row.Timeframe == "60m" || row.Timeframe == "日线" {
+			if row.Timeframe == "1小时" || row.Timeframe == "日线" {
 				if row.Structure == structureInsufficientBars {
 					t.Fatalf("trigger idx=%d %s structure=%q", tr.Index, row.Timeframe, row.Structure)
 				}

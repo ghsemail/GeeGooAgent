@@ -10,10 +10,6 @@ func NormalizeFrequency(raw string) string {
 		return "5m"
 	case "15m", "15min", "15分钟":
 		return "15m"
-	case "4h", "4hour":
-		return "4h"
-	case "240m", "240min":
-		return "240m"
 	case "60", "60m", "60min", "60分钟", "1h", "1hour":
 		return "60m"
 	case "daily", "day", "1d", "d", "日线", "日":
@@ -27,14 +23,7 @@ func NormalizeFrequency(raw string) string {
 
 // LabKlineFetchFrequency maps ladder slots to GeeGooSignal lab-api / probe tokens.
 func LabKlineFetchFrequency(freq string) string {
-	switch NormalizeFrequency(freq) {
-	case "4h":
-		return "240m"
-	case "240m":
-		return "240m"
-	default:
-		return NormalizeFrequency(freq)
-	}
+	return NormalizeFrequency(freq)
 }
 
 // BarLimitForFrequency returns fixed bar counts for step 1 (includes warmup).
@@ -44,8 +33,6 @@ func BarLimitForFrequency(freq string) int {
 		return 200
 	case "60m":
 		return 200
-	case "4h", "240m":
-		return 120
 	case "daily":
 		return 120
 	case "weekly", "1wk":

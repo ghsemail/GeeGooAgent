@@ -74,7 +74,7 @@ func compositeScoreWantSpecs(gateFreq string) []struct {
 		}{
 			{"weekly", "周线"},
 			{"daily", "日线"},
-			{"60m", "60m"},
+			{"60m", "1小时"},
 		}
 	}
 }

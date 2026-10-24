@@ -92,7 +92,7 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch body.Frequency {
-	case "5m", "60m", "240m", "4h", "daily", "weekly":
+	case "5m", "60m", "daily", "weekly":
 	default:
 		writeErr(w, http.StatusBadRequest, "unsupported frequency")
 		return
