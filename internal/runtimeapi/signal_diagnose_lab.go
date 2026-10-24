@@ -80,6 +80,7 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if cached, ok := workflowchat.CachedLabEpisodeDetail(chat, runID, ref); ok {
+		strategydev.PrepareLabEpisodeDetailForEmit(&cached)
 		w.Header().Set("Content-Type", "application/json")
 		payload := map[string]any{
 			"run_id": flow.RunID,

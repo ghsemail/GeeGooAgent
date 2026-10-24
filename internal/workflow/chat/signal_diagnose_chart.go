@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 
+	kp "github.com/ghsemail/GeeGooAgent/internal/lab/klinepattern"
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
@@ -48,10 +49,10 @@ func chartProbePayload(flow *Flow) map[string]any {
 			out["price_episode_filter_stats"] = st
 		}
 		if len(st.BuyTriggers) > 0 && (strategydev.PriceAnalysisFeatureEnabled() || strategydev.KlinePatternDisplayEnabled()) {
-			out["buy_triggers"] = st.BuyTriggers
+			out["buy_triggers"] = strategydev.EpisodeTriggerRecordsForChartEmit(st.BuyTriggers)
 		}
 		if len(st.SellTriggers) > 0 && (strategydev.PriceAnalysisFeatureEnabled() || strategydev.KlinePatternDisplayEnabled()) {
-			out["sell_triggers"] = st.SellTriggers
+			out["sell_triggers"] = strategydev.EpisodeTriggerRecordsForChartEmit(st.SellTriggers)
 		}
 	}
 	if strategydev.PriceAnalysisFeatureEnabled() && flow.PriceAnalysis != nil {
@@ -122,13 +123,13 @@ func episodeOverlayRow(side string, idx int, ep slots.SignalEpisodeDetail) map[s
 		row["kline_pattern_summary"] = ep.KlinePatternSummary
 	}
 	if ep.KlinePatternThreeBar != nil {
-		row["kline_pattern_three_bar"] = ep.KlinePatternThreeBar
+		row["kline_pattern_three_bar"] = kp.ThreeBarWindowForChartEmit(ep.KlinePatternThreeBar)
 	}
 	if ep.KlinePatternBias != nil {
 		row["kline_pattern_bias"] = ep.KlinePatternBias
 	}
 	if ep.KlinePatternMTF != nil {
-		row["kline_pattern_mtf"] = ep.KlinePatternMTF
+		row["kline_pattern_mtf"] = kp.MTFContextForChartEmit(ep.KlinePatternMTF)
 	}
 	return row
 }

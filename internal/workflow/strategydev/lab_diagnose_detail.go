@@ -132,6 +132,7 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		out.Degraded = append(out.Degraded, "lab_price_fetch_unavailable")
 	}
 	ApplyLabJEVUnified(&out)
+	PrepareLabEpisodeDetailForEmit(&out)
 	return out, nil
 }
 
@@ -182,6 +183,7 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 		applyPriceAnalysisJEV(jevCtx, &out, "flow", in.Jev)
 	}
 	ApplyLabJEVUnified(&out)
+	PrepareLabEpisodeDetailForEmit(&out)
 	return out, nil
 }
 
