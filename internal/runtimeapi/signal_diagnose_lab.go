@@ -81,11 +81,15 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 	}
 	if cached, ok := workflowchat.CachedLabEpisodeDetail(chat, runID, ref); ok {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		payload := map[string]any{
 			"run_id": flow.RunID,
 			"detail": cached,
 			"cached": true,
-		})
+		}
+		if hint := strategydev.LabDetailRefMismatchHint(flow.LabEpisodeSummaries, ref); hint != "" {
+			payload["ref_hint"] = hint
+		}
+		_ = json.NewEncoder(w).Encode(payload)
 		return
 	}
 	bars, _ := flow.ProbeRaw["bars"].([]any)
@@ -129,11 +133,15 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	payload := map[string]any{
 		"run_id": flow.RunID,
 		"detail": detail,
 		"cached": false,
-	})
+	}
+	if hint := strategydev.LabDetailRefMismatchHint(flow.LabEpisodeSummaries, ref); hint != "" {
+		payload["ref_hint"] = hint
+	}
+	_ = json.NewEncoder(w).Encode(payload)
 }
 
 func keyLevelBandsFromFlowSnapshot(flow *workflowchat.Flow) strategydev.KeyLevelBands {
