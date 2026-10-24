@@ -61,11 +61,15 @@ func (c CachedLabBarsFetcher) FetchBars(ctx context.Context, code, freq string, 
 		labBarsFetchCache.Delete(key)
 	}
 	bars, ok := c.Inner.FetchBars(ctx, code, freq, months, nil)
-	labBarsFetchCache.Store(key, labBarsCacheEntry{
-		bars:      cloneLabBarsSlice(bars),
-		ok:        ok,
-		expiresAt: time.Now().UTC().Add(labBarsFetchCacheTTL),
-	})
+	// Do not negative-cache failures: anchor daily and PA daily often share months_back;
+	// a phase-timeout miss must not poison the whole diagnose run.
+	if ok && len(bars) > 0 {
+		labBarsFetchCache.Store(key, labBarsCacheEntry{
+			bars:      cloneLabBarsSlice(bars),
+			ok:        true,
+			expiresAt: time.Now().UTC().Add(labBarsFetchCacheTTL),
+		})
+	}
 	return bars, ok
 }
 

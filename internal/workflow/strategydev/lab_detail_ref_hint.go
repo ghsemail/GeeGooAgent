@@ -16,7 +16,7 @@ func LabDetailRefMismatchHint(summaries LabCardEpisodeSummaries, ref string) str
 		return ""
 	}
 	for _, sum := range summaries {
-		if sum.EpisodeIndex != idx {
+		if sum.EpisodeIndex == nil || *sum.EpisodeIndex != idx {
 			continue
 		}
 		sumSide, _, sumOK := ParseLabDetailRef(sum.DetailRef)

@@ -10,8 +10,10 @@ import (
 )
 
 const (
-	// DefaultLabDetailPhaseTimeout bounds kline MTF probe + price-analysis fetch for one lab-detail call.
+	// DefaultLabDetailPhaseTimeout bounds kline MTF probe for one lab-detail call.
 	DefaultLabDetailPhaseTimeout = 8 * time.Second
+	// DefaultLabDetailPATimeout is a separate budget for lab-api multi-TF price analysis (after MTF probe).
+	DefaultLabDetailPATimeout = 45 * time.Second
 	// DefaultLabDetailJEVTimeout is the dedicated System One budget after PA completes (matches JevClient HTTP timeout).
 	DefaultLabDetailJEVTimeout = 45 * time.Second
 )
@@ -27,8 +29,10 @@ type LabDetailInput struct {
 	Bars          []any
 	LookbackBars  []any
 	LabFetcher    priceanalysis.BarsFetcher
-	// DetailTimeout caps kline + price-analysis phases only (not JEV).
+	// DetailTimeout caps kline MTF probe only (not PA / JEV).
 	DetailTimeout time.Duration
+	// PATimeout caps lab-api price-analysis fetch (separate from MTF probe).
+	PATimeout time.Duration
 	// JEVTimeout is a separate budget for System One price-analysis JEV after PA finishes.
 	JEVTimeout time.Duration
 	// CachedMTF when set, reuses MTF bundle across lab-detail calls for one diagnose run.
@@ -60,45 +64,54 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 	phaseCtx, phaseCancel := labDetailPhaseContext(cacheCtx, in.DetailTimeout)
 	defer phaseCancel()
 
+	var mtf *KlinePatternMTFBundle
+	if in.CachedMTF != nil && *in.CachedMTF != nil {
+		mtf = *in.CachedMTF
+	} else if b := CachedLabKlineMTF(in.SessionID, in.RunID); b != nil {
+		mtf = b
+		if in.CachedMTF != nil {
+			*in.CachedMTF = mtf
+		}
+	}
+	if in.Run != nil && mtf == nil {
+		mtf = BuildKlinePatternMTFForDiagnoseRequest(true, phaseCtx, in.Run, in.Code, in.SignalFreq, in.Months, in.Bars)
+		if in.CachedMTF != nil {
+			*in.CachedMTF = mtf
+		}
+		StoreCachedLabKlineMTF(in.SessionID, in.RunID, mtf)
+	}
 	var patIn KlinePatternDisplayInput
 	if in.Run != nil {
-		var mtf *KlinePatternMTFBundle
-		if in.CachedMTF != nil && *in.CachedMTF != nil {
-			mtf = *in.CachedMTF
-		} else if b := CachedLabKlineMTF(in.SessionID, in.RunID); b != nil {
-			mtf = b
-			if in.CachedMTF != nil {
-				*in.CachedMTF = mtf
-			}
-		} else {
-			mtf = BuildKlinePatternMTFForDiagnoseRequest(true, phaseCtx, in.Run, in.Code, in.SignalFreq, in.Months, in.Bars)
-			if in.CachedMTF != nil {
-				*in.CachedMTF = mtf
-			}
-			StoreCachedLabKlineMTF(in.SessionID, in.RunID, mtf)
-		}
 		patIn = NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, in.Bars, in.ProbeRaw, mtf)
 	} else {
-		patIn = NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, in.Bars, in.ProbeRaw, nil)
-		out.Degraded = append(out.Degraded, "kline_mtf_probe_unavailable")
+		patIn = NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, in.Bars, in.ProbeRaw, mtf)
+		if mtf == nil {
+			out.Degraded = append(out.Degraded, "kline_mtf_probe_unavailable")
+		}
 	}
 	out.KlinePattern = buildLabKlineDetail(idx, patIn)
 	applyLabKlinePatternTopLevel(&out)
 
-	labFetcher := WrapCachedLabBarsFetcher(in.SessionID, in.RunID, in.LabFetcher)
+	labFetcher := WrapCachedLabBarsFetcher(in.SessionID, in.RunID, wrapMTFFallbackBarsFetcher(in.LabFetcher, mtf))
+	paCtx, paCancel := labDetailPAContext(cacheCtx, in.PATimeout)
+	defer paCancel()
 	if labFetcher != nil && strings.TrimSpace(in.Code) != "" {
 		row := barRowAt(in.Bars, idx)
-		anchorTime, _, anchorOK := anchorForSignalBar(row, dailyBarsForLabAnchor(phaseCtx, LabDetailInput{
-			Run: in.Run, Code: in.Code, SignalFreq: in.SignalFreq, Months: in.Months,
-			KeyLevels: in.KeyLevels, ProbeRaw: in.ProbeRaw, Bars: in.Bars, LookbackBars: in.LookbackBars,
-			LabFetcher: labFetcher, SessionID: in.SessionID, RunID: in.RunID,
-		}))
+		dailyForAnchor := dailyBarsForLabAnchorFromMTF(mtf)
+		if len(dailyForAnchor) == 0 {
+			dailyForAnchor = dailyBarsForLabAnchor(phaseCtx, LabDetailInput{
+				Run: in.Run, Code: in.Code, SignalFreq: in.SignalFreq, Months: in.Months,
+				KeyLevels: in.KeyLevels, ProbeRaw: in.ProbeRaw, Bars: in.Bars, LookbackBars: in.LookbackBars,
+				LabFetcher: labFetcher, SessionID: in.SessionID, RunID: in.RunID,
+			})
+		}
+		anchorTime, _, anchorOK := anchorForSignalBar(row, dailyForAnchor)
 		var asOf *time.Time
 		if anchorOK {
 			t := anchorTime
 			asOf = &t
 		}
-		pa := priceanalysis.Run(phaseCtx, labFetcher, priceanalysis.RunRequest{
+		pa := priceanalysis.Run(paCtx, labFetcher, priceanalysis.RunRequest{
 			Code:       in.Code,
 			Months:     CapMonthsBack(in.Months),
 			SignalFreq: in.SignalFreq,
@@ -286,6 +299,13 @@ func errBadLabRef(msg string) error { return badLabRefError(msg) }
 func labDetailPhaseContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	if timeout <= 0 {
 		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, timeout)
+}
+
+func labDetailPAContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		timeout = DefaultLabDetailPATimeout
 	}
 	return context.WithTimeout(ctx, timeout)
 }

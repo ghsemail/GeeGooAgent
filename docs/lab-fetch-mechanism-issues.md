@@ -8,13 +8,14 @@
 - 60m 阶梯去掉 4h/240m；align_note 区分未加载/不支持/真失败
 - lab PA：`CachedLabBarsFetcher` + 长窗本地截断
 
-## 本 PR 新增
+## 本 PR 新增（#87 retry）与本 PR（lab PA 日/周）
 
 | 问题 | 表现 | 处理 |
 | --- | --- | --- |
 | lab-api 无重试 | 一次 poll timeout/5xx → PA「拉数失败」 | `HTTPClient.FetchBars` 最多 3 次退避新 job |
 | MTF probe 无重试 | 瞬时 market fetch failed | probe 最多 3 次退避（unsupported 不重试） |
 | phase ctx 已取消 | 与真失败混为「拉数失败」 | PA 行「取数超时或已取消」 |
+| **CachedLabBarsFetcher 负缓存** | 锚点 daily lab 失败后 PA 同 key 直接「拉数失败」；MTF 日/周已有 probe 数据 | 仅缓存 ok 且非空；PA 独立 `DefaultLabDetailPATimeout`；MTF probe 回退；PA 多 TF 并行 |
 
 ## 生产复验（flow-20261024T151342 @ fe7574e）
 
@@ -22,9 +23,7 @@
 
 ## 仍存在的机制风险（未靠抬超时糊弄）
 
-1. **`DefaultLabDetailPhaseTimeout=8s` 包住整段 MTF probe + 多 TF PA**  
-   单次 5m lab-api 冷取数生产实测 ~17s；8s 父 ctx 取消时 PA 行显示「取数超时或已取消」而非重试失败。  
-   **建议**：phase 只包 MTF 或拆分 PA 独立 budget / 首取数后走缓存；另 PR 小步调整，不单靠 60s+。
+1. **`DefaultLabDetailPhaseTimeout=8s` 仅包 MTF probe**（PA 已拆到 45s budget）。冷 lab-api 仍可能单 TF 慢；依赖 run 级正缓存 + MTF 回退。
 
 2. **`BarsFetcher` 仅 `(bars, ok)`**  
    上层无法区分 unsupported / 4xx / 超时 / 空 bars，PA 只能粗分「拉数失败」与「取数超时或已取消」。  

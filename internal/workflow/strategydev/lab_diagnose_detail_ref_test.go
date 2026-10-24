@@ -66,9 +66,10 @@ func TestBuildLabEpisodeDetail_WrongRefInRangeNot400(t *testing.T) {
 }
 
 func TestLabDetailRefMismatchHint_EpisodeIndexVsStartIdx(t *testing.T) {
+	ep7, ep3 := 7, 3
 	sums := LabCardEpisodeSummaries{
-		"sell:190": {DetailRef: "sell:190", StartIdx: 190, EpisodeIndex: 7},
-		"buy:7":    {DetailRef: "buy:7", StartIdx: 7, EpisodeIndex: 3},
+		"sell:190": {DetailRef: "sell:190", StartIdx: 190, EpisodeIndex: &ep7},
+		"buy:7":    {DetailRef: "buy:7", StartIdx: 7, EpisodeIndex: &ep3},
 	}
 	hint := LabDetailRefMismatchHint(sums, "sell:7")
 	if hint == "" || !strings.Contains(hint, "sell:190") {

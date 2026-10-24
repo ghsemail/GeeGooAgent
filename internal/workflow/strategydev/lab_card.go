@@ -13,10 +13,11 @@ func BuildLabCardSummariesFromEval(eval slots.SignalEpisodeEval, patternHits []a
 	appendSide := func(side string, details []slots.SignalEpisodeDetail) {
 		for epIdx, d := range details {
 			ref := LabDetailRef(side, d.StartIdx)
+			epIdxCopy := epIdx
 			sum := LabEpisodeCardSummary{
 				DetailRef:    ref,
 				StartIdx:     d.StartIdx,
-				EpisodeIndex: epIdx,
+				EpisodeIndex: &epIdxCopy,
 				KlinePattern: LightKlineSummaryAtIndex(patternHits, d.StartIdx),
 			}
 			if flowPriceSummary != "" {

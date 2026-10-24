@@ -21,7 +21,8 @@ type LabEpisodeCardSummary struct {
 	// StartIdx is the chart bar index (same integer as the detail_ref suffix). Not episode list ordinal.
 	StartIdx int `json:"start_idx,omitempty"`
 	// EpisodeIndex is 0-based position in signal_eval buy_details / sell_details (UI row order).
-	EpisodeIndex int `json:"episode_index,omitempty"`
+	// Pointer so episode 0 serializes as 0 (encoding/json omits int zero values).
+	EpisodeIndex *int `json:"episode_index,omitempty"`
 	Degraded      []string `json:"degraded,omitempty"`
 }
 
