@@ -1,23 +1,18 @@
 package strategydev
 
 import (
-	"fmt"
-	"math"
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
-// LabJEVUnifiedDirection is the display-only composite read from PA-JEV + local kline patterns.
+// LabJEVUnifiedDirection is the display mirror of price_analysis_jev (no local weighted fuse).
 type LabJEVUnifiedDirection string
 
 const (
 	LabJEVUnifiedBull    LabJEVUnifiedDirection = "bull"
 	LabJEVUnifiedBear    LabJEVUnifiedDirection = "bear"
 	LabJEVUnifiedUnclear LabJEVUnifiedDirection = "unclear"
-
-	// jevUnifiedScoreEpsilon: only treats floating noise as zero; not a product threshold.
-	jevUnifiedScoreEpsilon = 1e-12
 )
 
 // LabJEVUnifiedBreakdown holds human-readable snippets for traders / FE.
@@ -26,7 +21,7 @@ type LabJEVUnifiedBreakdown struct {
 	Pattern   string `json:"pattern"`
 }
 
-// LabJEVUnified is a display-only synthesis of structure (price_analysis_jev) and kline pattern bias.
+// LabJEVUnified mirrors the single PA+pattern JEV read for legacy FE fields (no 0.7/0.3 synthesis).
 type LabJEVUnified struct {
 	Direction  LabJEVUnifiedDirection `json:"direction"`
 	Confidence float64                `json:"confidence"`
@@ -34,49 +29,28 @@ type LabJEVUnified struct {
 	Breakdown  LabJEVUnifiedBreakdown `json:"breakdown"`
 }
 
-type jevUnifiedLeg struct {
-	dir        LabJEVUnifiedDirection
-	confidence float64
-	summary    string
-	present    bool
-}
-
-// ApplyLabJEVUnified computes jev_unified after PA-JEV and kline pattern fields are populated.
+// ApplyLabJEVUnified sets jev_unified from price_analysis_jev only (deprecated weighted path removed).
 func ApplyLabJEVUnified(out *LabEpisodeDetail) {
-	if out == nil {
+	if out == nil || out.PriceAnalysisJEV == nil || !out.PriceAnalysisJEV.OK {
 		return
 	}
-	structure := structureLegFromPAJEV(out.PriceAnalysisJEV)
-	pattern := patternLegFromKline(out)
-	out.JEVUnified = synthesizeLabJEVUnified(structure, pattern)
-}
-
-func structureLegFromPAJEV(jev *PriceAnalysisJEV) jevUnifiedLeg {
-	if jev == nil || !jev.OK {
-		sum := "结构 JEV 不可用"
-		if jev != nil && strings.TrimSpace(jev.Error) != "" {
-			sum = "结构 JEV 不可用：" + strings.TrimSpace(jev.Error)
-		}
-		return jevUnifiedLeg{dir: LabJEVUnifiedUnclear, confidence: 0, summary: sum, present: false}
-	}
+	jev := out.PriceAnalysisJEV
 	dir := paJEVLabelToDirection(jev.RecommendedChoice)
-	conf := structureConfidenceFromPAJEV(jev)
-	sum := strings.TrimSpace(jev.RecommendedReason)
-	if sum == "" {
-		sum = fmt.Sprintf("结构倾向%s", jev.RecommendedChoice)
+	conf := jevChoiceConfidence(jev)
+	structSum := strings.TrimSpace(jev.RecommendedReason)
+	if structSum == "" {
+		structSum = "结构+形态 JEV：" + jev.RecommendedChoice
 	}
-	return jevUnifiedLeg{dir: dir, confidence: conf, summary: sum, present: true}
-}
-
-func structureConfidenceFromPAJEV(jev *PriceAnalysisJEV) float64 {
-	if jev == nil || len(jev.Choices) == 0 {
-		return 0
+	patSum := patternSummaryText(out)
+	out.JEVUnified = &LabJEVUnified{
+		Direction:  dir,
+		Confidence: conf,
+		Conflict:   labJEVDisplayConflict(out, jev.RecommendedChoice),
+		Breakdown: LabJEVUnifiedBreakdown{
+			Structure: structSum,
+			Pattern:   patSum,
+		},
 	}
-	idx := jev.RecommendedIndex
-	if idx < 0 || idx >= len(jev.Choices) {
-		idx = 0
-	}
-	return clampUnitInterval(jev.Choices[idx].Probability)
 }
 
 func paJEVLabelToDirection(label string) LabJEVUnifiedDirection {
@@ -90,28 +64,15 @@ func paJEVLabelToDirection(label string) LabJEVUnifiedDirection {
 	}
 }
 
-func patternLegFromKline(out *LabEpisodeDetail) jevUnifiedLeg {
-	if out == nil {
-		return jevUnifiedLeg{present: false, summary: "无本地形态数据"}
+func jevChoiceConfidence(jev *PriceAnalysisJEV) float64 {
+	if jev == nil || len(jev.Choices) == 0 {
+		return 0
 	}
-	summary := patternSummaryText(out)
-	bias := patternBiasForUnified(out)
-	hasData := bias != nil || summary != "" || len(out.KlinePatterns) > 0
-	if !hasData {
-		return jevUnifiedLeg{present: false, summary: "无本地形态数据"}
+	idx := jev.RecommendedIndex
+	if idx < 0 || idx >= len(jev.Choices) {
+		idx = 0
 	}
-	dir := klineBiasToDirection(bias)
-	conf := patternConfidenceFromBias(bias, out.KlinePatterns)
-	if summary == "" && bias != nil {
-		summary = strings.TrimSpace(bias.Bias)
-		if bias.Score != 0 {
-			summary = fmt.Sprintf("%s（得分 %.2f）", summary, bias.Score)
-		}
-	}
-	if summary == "" {
-		summary = "无明显形态"
-	}
-	return jevUnifiedLeg{dir: dir, confidence: conf, summary: summary, present: true}
+	return clampUnitInterval(jev.Choices[idx].Probability)
 }
 
 func patternSummaryText(out *LabEpisodeDetail) string {
@@ -121,7 +82,7 @@ func patternSummaryText(out *LabEpisodeDetail) string {
 	return strings.TrimSpace(out.KlinePatternSummary)
 }
 
-func patternBiasForUnified(out *LabEpisodeDetail) *slots.KlinePatternBias {
+func patternBiasForDetail(out *LabEpisodeDetail) *slots.KlinePatternBias {
 	if out.KlinePatternBias != nil {
 		return out.KlinePatternBias
 	}
@@ -131,109 +92,17 @@ func patternBiasForUnified(out *LabEpisodeDetail) *slots.KlinePatternBias {
 	return nil
 }
 
-func klineBiasToDirection(b *slots.KlinePatternBias) LabJEVUnifiedDirection {
-	if b == nil {
-		return LabJEVUnifiedUnclear
-	}
-	switch strings.TrimSpace(b.Bias) {
-	case "看多":
-		return LabJEVUnifiedBull
-	case "看空":
-		return LabJEVUnifiedBear
-	default:
-		return LabJEVUnifiedUnclear
-	}
-}
-
-func patternConfidenceFromBias(b *slots.KlinePatternBias, hits []slots.KlinePatternHit) float64 {
-	bull, bear := countDirectionalPatternHits(hits)
-	if bull+bear == 0 && b != nil {
-		absScore := math.Abs(b.Score)
-		if absScore == 0 {
-			return 0
-		}
-		return clampUnitInterval(math.Min(1, absScore/3))
-	}
-	if bull+bear == 0 {
-		return 0
-	}
-	major := math.Max(float64(bull), float64(bear))
-	return clampUnitInterval(major / float64(bull+bear))
-}
-
-func countDirectionalPatternHits(hits []slots.KlinePatternHit) (bull, bear int) {
-	for _, h := range hits {
-		switch h.Direction {
-		case 1:
-			bull++
-		case -1:
-			bear++
-		}
-	}
-	return bull, bear
-}
-
-func synthesizeLabJEVUnified(structure, pattern jevUnifiedLeg) *LabJEVUnified {
-	out := &LabJEVUnified{
-		Breakdown: LabJEVUnifiedBreakdown{
-			Structure: structure.summary,
-			Pattern:   pattern.summary,
-		},
-	}
-
-	if !structure.present {
-		out.Direction = LabJEVUnifiedUnclear
-		out.Confidence = 0
-		out.Conflict = true
-		if out.Breakdown.Pattern == "" {
-			out.Breakdown.Pattern = pattern.summary
-		}
-		return out
-	}
-
-	var patternSigned float64
-	if pattern.present {
-		patternSigned = signedUnifiedLeg(pattern)
-	}
-	score := 0.7*signedUnifiedLeg(structure) + 0.3*patternSigned
-	out.Direction, out.Confidence = directionConfidenceFromScore(score)
-
-	if !pattern.present {
-		out.Conflict = false
-		return out
-	}
-	out.Conflict = jevUnifiedLegsConflict(structure, pattern)
-	return out
-}
-
-func signedUnifiedLeg(leg jevUnifiedLeg) float64 {
-	c := clampUnitInterval(leg.confidence)
-	switch leg.dir {
-	case LabJEVUnifiedBull:
-		return c
-	case LabJEVUnifiedBear:
-		return -c
-	default:
-		return 0
-	}
-}
-
-func directionConfidenceFromScore(score float64) (LabJEVUnifiedDirection, float64) {
-	conf := clampUnitInterval(math.Abs(score))
-	if math.Abs(score) <= jevUnifiedScoreEpsilon {
-		return LabJEVUnifiedUnclear, conf
-	}
-	if score > 0 {
-		return LabJEVUnifiedBull, conf
-	}
-	return LabJEVUnifiedBear, conf
-}
-
-func jevUnifiedLegsConflict(structure, pattern jevUnifiedLeg) bool {
-	if !structure.present || !pattern.present {
+// labJEVDisplayConflict is informational for FE only; decision is solely price_analysis_jev.
+func labJEVDisplayConflict(out *LabEpisodeDetail, jevChoice string) bool {
+	bias := patternBiasForDetail(out)
+	if bias == nil {
 		return false
 	}
-	return structure.dir != pattern.dir
+	b := strings.TrimSpace(bias.Bias)
+	if b == "" || b == "中性" {
+		return false
+	}
+	return b != strings.TrimSpace(jevChoice) && strings.TrimSpace(jevChoice) != "不明确"
 }
 
 func clampUnitInterval(v float64) float64 {

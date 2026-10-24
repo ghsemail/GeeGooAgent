@@ -194,62 +194,28 @@ lab-detail **不**走卡片 light enrich；MTF 来自 run 级 probe + `BuildKlin
 
 `details` 内每个 value 的 JSON 字段与 **`POST /v1/signal-diagnose/lab-detail` 响应里的 `detail`** 完全一致（含 `price_analysis`、`price_analysis_jev`、`jev_unified`、顶层 `kline_pattern_*`、`kline_pattern` 嵌套对象、`degraded` 等）。FE 可将某次 diagnose 的整段 `details`（或按 ref 合并）复制进 Signal 测试记录 Mongo 的 `run` 对象，历史打开时本地渲染，**无需再调 lab-detail**。
 
-### `jev_unified`（综合 JEV，仅展示）
+### `price_analysis_jev`（唯一方向决策）
 
-在 lab-detail 内 **PA-JEV（`price_analysis_jev`）与本地 K 线形态汇总** 都算完后，由 Agent 做后处理写入 `jev_unified`。**不**改 Typesafe / JevClient 上游；**不**参与买卖门控或信号拦截。
+lab-detail 在 **K 线形态已写入 detail** 后，将 **多周期价格结构 + 锚点 K 线形态** 一并送入 **单次** System One Choice（`direction`：`看多` / `看空` / `不明确`）。**无**本地 0.7/0.3 加权，**无**第二次 JEV；JEV 失败时 `ok=false`，不伪造方向。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `direction` | `"bull"` \| `"bear"` \| `"unclear"` | 综合方向 |
-| `confidence` | number | 0～1 |
-| `conflict` | bool | 结构与形态是否冲突 |
-| `breakdown.structure` | string | PA-JEV 摘要（通常来自 `recommended_reason`） |
-| `breakdown.pattern` | string | 本地形态摘要（`kline_pattern_summary` 或 bias 行） |
+### `jev_unified`（兼容镜像，仅展示）
 
-合成规则（硬性，signed 加权）：
+`jev_unified` **不再**独立合成方向，仅镜像 `price_analysis_jev` 的推荐项（`direction` / `confidence` 来自 JEV `choices` 概率）。`breakdown.pattern` 仍为本地形态摘要；`conflict` 仅表示 **展示用** 形态 bias 与 JEV 推荐是否不一致，**不参与**决策。FE 应逐步改读 `price_analysis_jev.recommended_choice` 为主文案，可移除「0.7 结构 + 0.3 形态」说明。
 
-```
-signed(dir, c): bull → +c, bear → −c, unclear → 0
-score = 0.7 × signed(结构) + 0.3 × signed(形态)
-score > 0 → bull；score < 0 → bear；score = 0（浮点比较用 ε≈1e-12 防噪，**无** 0.15 等产品阈）
-confidence = |score|（始终）
-```
-
-| `conflict` | 条件 |
-| --- | --- |
-| `false` | 缺形态（仅结构 leg 参与 score）；或结构+形态 **方向相同**（含均为 `unclear`） |
-| `true` | 结构+形态均 present 且 **方向不一致**（含一侧 `unclear`、另一侧 bull/bear）；或 **缺结构**（JEV 不可用 → `direction=unclear`, `confidence=0`） |
-
-- **结构置信**：PA-JEV 推荐项在 `choices` 中的 `probability`（0～1）。
-- **形态置信**：信号 bar 上形态 hits 的看多/看空条数占比（多数侧 / 总方向条数）；无 hits 时用 `|bias.score|` 粗估并截断到 1。
-- **形态缺失**：无 summary、bias、hits → `score = 0.7 × signed(结构)`，`conflict=false`。
-- **结构缺失**：JEV 未 OK → 不参与 score，`unclear` + `conflict=true`。
-- **与 PR#83 差异**：已移除 \|score\| < 0.15 → `unclear` 的硬阈；\|score\|=0.14 等弱信号仍输出 bull/bear。仅 **score 精确对消为 0**（含结构/形态反向同强度）时方向为 `unclear`。
-- **历史（PR#82）**：曾在一版中对「反向」一律输出 `unclear`（已由 PR#83 signed 加权取代）。
-
-示例（同向）：
+示例：
 
 ```json
+"price_analysis_jev": {
+  "ok": true,
+  "recommended_choice": "看多",
+  "recommended_reason": "结构+形态 JEV 倾向看多（置信 71%）"
+},
 "jev_unified": {
   "direction": "bull",
-  "confidence": 0.71,
+  "confidence": 0.62,
   "conflict": false,
   "breakdown": {
-    "structure": "多周期结构倾向看多（置信 70%）",
-    "pattern": "锤子(看多)"
-  }
-}
-```
-
-示例（反向但未对消：结构看空 0.9、形态看多 0.3 → score≈−0.54）：
-
-```json
-"jev_unified": {
-  "direction": "bear",
-  "confidence": 0.54,
-  "conflict": true,
-  "breakdown": {
-    "structure": "多周期结构倾向看空（置信 90%）",
+    "structure": "结构+形态 JEV 倾向看多（置信 71%）",
     "pattern": "锤子(看多)"
   }
 }
