@@ -165,7 +165,48 @@ Lab 诊断主流程（`workflow_completed`）仍只下发卡片摘要 `lab_episo
 }
 ```
 
-`details` 内每个 value 的 JSON 字段与 **`POST /v1/signal-diagnose/lab-detail` 响应里的 `detail`** 完全一致（含 `price_analysis`、`price_analysis_jev`、顶层 `kline_pattern_*`、`kline_pattern` 嵌套对象、`degraded` 等）。FE 可将某次 diagnose 的整段 `details`（或按 ref 合并）复制进 Signal 测试记录 Mongo 的 `run` 对象，历史打开时本地渲染，**无需再调 lab-detail**。
+`details` 内每个 value 的 JSON 字段与 **`POST /v1/signal-diagnose/lab-detail` 响应里的 `detail`** 完全一致（含 `price_analysis`、`price_analysis_jev`、`jev_unified`、顶层 `kline_pattern_*`、`kline_pattern` 嵌套对象、`degraded` 等）。FE 可将某次 diagnose 的整段 `details`（或按 ref 合并）复制进 Signal 测试记录 Mongo 的 `run` 对象，历史打开时本地渲染，**无需再调 lab-detail**。
+
+### `jev_unified`（综合 JEV，仅展示）
+
+在 lab-detail 内 **PA-JEV（`price_analysis_jev`）与本地 K 线形态汇总** 都算完后，由 Agent 做后处理写入 `jev_unified`。**不**改 Typesafe / JevClient 上游；**不**参与买卖门控或信号拦截。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `direction` | `"bull"` \| `"bear"` \| `"unclear"` | 综合方向 |
+| `confidence` | number | 0～1 |
+| `conflict` | bool | 结构与形态是否冲突 |
+| `breakdown.structure` | string | PA-JEV 摘要（通常来自 `recommended_reason`） |
+| `breakdown.pattern` | string | 本地形态摘要（`kline_pattern_summary` 或 bias 行） |
+
+合成规则（硬性）：
+
+| 结构（PA-JEV） | 形态（本地 bias / hits） | `direction` | `confidence` | `conflict` |
+| --- | --- | --- | --- | --- |
+| 看多 / 看空 | **同向** | 结构方向 | `0.7 × 结构置信 + 0.3 × 形态置信` | `false` |
+| 看多 / 看空 | **反向** | `unclear` | 仍按上式加权（仅作展示强度，**不**输出折中方向） | `true` |
+| 不明确 | 任意 | `unclear` | 加权 | `true` |
+| 有 JEV | **无形态数据** | 结构方向 | 结构置信 | `false`（结构为不明确时 `conflict=true`） |
+| **无 JEV** | 任意 | `unclear` | `0` | `true` |
+
+- **结构置信**：PA-JEV 推荐项在 `choices` 中的 `probability`（0～1）。
+- **形态置信**：信号 bar 上形态 hits 的看多/看空条数占比（多数侧 / 总方向条数）；无 hits 时用 `|bias.score|` 粗估并截断到 1。
+- **形态缺失**：无 summary、bias、hits → 等同 **仅结构**，`conflict=false`。
+- **结构缺失**：JEV 未 OK → `unclear` + `conflict=true`。
+
+示例：
+
+```json
+"jev_unified": {
+  "direction": "bull",
+  "confidence": 0.67,
+  "conflict": false,
+  "breakdown": {
+    "structure": "多周期结构倾向看多（置信 70%）",
+    "pattern": "锤子(看多)"
+  }
+}
+```
 
 ### 建议 FE / Mongo `run` 字段（Monday 落库）
 
@@ -198,6 +239,15 @@ Lab 诊断主流程（`workflow_completed`）仍只下发卡片摘要 `lab_episo
     "bar_index": 3,
     "price_analysis": { },
     "price_analysis_jev": { },
+    "jev_unified": {
+      "direction": "bull",
+      "confidence": 0.67,
+      "conflict": false,
+      "breakdown": {
+        "structure": "多周期结构倾向看多（置信 70%）",
+        "pattern": "锤子(看多)"
+      }
+    },
     "kline_pattern_summary": "..."
   }
 }

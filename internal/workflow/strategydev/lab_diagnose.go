@@ -37,6 +37,7 @@ type LabEpisodeDetail struct {
 	KlinePatternMTF      *slots.KlinePatternMTFContext     `json:"kline_pattern_mtf,omitempty"`
 	PriceAnalysis     *PriceAnalysis     `json:"price_analysis,omitempty"`
 	PriceAnalysisJEV  *PriceAnalysisJEV  `json:"price_analysis_jev,omitempty"`
+	JEVUnified        *LabJEVUnified     `json:"jev_unified,omitempty"`
 	Degraded          []string           `json:"degraded,omitempty"`
 }
 
