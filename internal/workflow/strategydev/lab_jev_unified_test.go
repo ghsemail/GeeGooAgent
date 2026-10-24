@@ -14,39 +14,64 @@ func TestSynthesizeLabJEVUnifiedAlignedBull(t *testing.T) {
 	if got.Direction != LabJEVUnifiedBull || got.Conflict {
 		t.Fatalf("got %+v", got)
 	}
-	want := 0.7*0.8 + 0.3*0.5
+	wantScore := 0.7*0.8 + 0.3*0.5
+	if math.Abs(got.Confidence-wantScore) > 1e-9 {
+		t.Fatalf("confidence=%v want |score|=%v", got.Confidence, wantScore)
+	}
+}
+
+func TestSynthesizeLabJEVUnifiedOppositeStillBearWithConflict(t *testing.T) {
+	structure := jevUnifiedLeg{dir: LabJEVUnifiedBear, confidence: 0.9, summary: "结构看空", present: true}
+	pattern := jevUnifiedLeg{dir: LabJEVUnifiedBull, confidence: 0.3, summary: "弱反弹(看多)", present: true}
+	got := synthesizeLabJEVUnified(structure, pattern)
+	if got.Direction != LabJEVUnifiedBear || !got.Conflict {
+		t.Fatalf("expected bear with conflict, got %+v", got)
+	}
+	want := math.Abs(-0.7*0.9 + 0.3*0.3)
 	if math.Abs(got.Confidence-want) > 1e-9 {
 		t.Fatalf("confidence=%v want %v", got.Confidence, want)
 	}
 }
 
-func TestSynthesizeLabJEVUnifiedOppositeConflict(t *testing.T) {
-	structure := jevUnifiedLeg{dir: LabJEVUnifiedBull, confidence: 0.9, summary: "结构看多", present: true}
-	pattern := jevUnifiedLeg{dir: LabJEVUnifiedBear, confidence: 0.6, summary: "黄昏星(看空)", present: true}
+func TestSynthesizeLabJEVUnifiedOppositeNearCancelUnclear(t *testing.T) {
+	structure := jevUnifiedLeg{dir: LabJEVUnifiedBear, confidence: 0.4, summary: "结构偏空", present: true}
+	pattern := jevUnifiedLeg{dir: LabJEVUnifiedBull, confidence: 0.5, summary: "形态偏多", present: true}
 	got := synthesizeLabJEVUnified(structure, pattern)
+	score := math.Abs(-0.7*0.4 + 0.3*0.5)
+	if score >= jevUnifiedScoreThreshold {
+		t.Fatalf("test setup: score=%v should be below threshold", score)
+	}
 	if got.Direction != LabJEVUnifiedUnclear || !got.Conflict {
 		t.Fatalf("got %+v", got)
 	}
+	if math.Abs(got.Confidence-score) > 1e-9 {
+		t.Fatalf("confidence=%v want %v", got.Confidence, score)
+	}
 }
 
-func TestSynthesizeLabJEVUnifiedStructureUnclear(t *testing.T) {
+func TestSynthesizeLabJEVUnifiedStructureUnclearWithPatternConflict(t *testing.T) {
 	structure := jevUnifiedLeg{dir: LabJEVUnifiedUnclear, confidence: 0.6, summary: "结构不明确", present: true}
 	pattern := jevUnifiedLeg{dir: LabJEVUnifiedBull, confidence: 0.7, summary: "形态偏多", present: true}
 	got := synthesizeLabJEVUnified(structure, pattern)
-	if got.Direction != LabJEVUnifiedUnclear || !got.Conflict {
+	if got.Direction != LabJEVUnifiedBull || !got.Conflict {
 		t.Fatalf("got %+v", got)
+	}
+	want := 0.3 * 0.7
+	if math.Abs(got.Confidence-want) > 1e-9 {
+		t.Fatalf("confidence=%v want %v", got.Confidence, want)
 	}
 }
 
-func TestSynthesizeLabJEVUnifiedMissingPatternUsesStructure(t *testing.T) {
+func TestSynthesizeLabJEVUnifiedMissingPatternUsesStructureScore(t *testing.T) {
 	structure := jevUnifiedLeg{dir: LabJEVUnifiedBear, confidence: 0.75, summary: "结构看空", present: true}
 	pattern := jevUnifiedLeg{present: false, summary: "无本地形态数据"}
 	got := synthesizeLabJEVUnified(structure, pattern)
-	if got.Direction != LabJEVUnifiedBear || got.Conflict || got.Confidence != 0.75 {
+	want := 0.7 * 0.75
+	if got.Direction != LabJEVUnifiedBear || got.Conflict {
 		t.Fatalf("got %+v", got)
 	}
-	if got.Breakdown.Pattern != "无本地形态数据" {
-		t.Fatalf("pattern breakdown=%q", got.Breakdown.Pattern)
+	if math.Abs(got.Confidence-want) > 1e-9 {
+		t.Fatalf("confidence=%v want %v", got.Confidence, want)
 	}
 }
 
@@ -88,5 +113,16 @@ func TestPatternConfidenceFromHitsRatio(t *testing.T) {
 	conf := patternConfidenceFromBias(nil, hits)
 	if math.Abs(conf-2.0/3.0) > 1e-9 {
 		t.Fatalf("conf=%v", conf)
+	}
+}
+
+func TestDirectionConfidenceFromScoreThreshold(t *testing.T) {
+	dir, conf := directionConfidenceFromScore(0.14)
+	if dir != LabJEVUnifiedUnclear || conf != 0.14 {
+		t.Fatalf("got %v %v", dir, conf)
+	}
+	dir, conf = directionConfidenceFromScore(-0.2)
+	if dir != LabJEVUnifiedBear || conf != 0.2 {
+		t.Fatalf("got %v %v", dir, conf)
 	}
 }

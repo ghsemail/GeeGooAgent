@@ -15,6 +15,9 @@ const (
 	LabJEVUnifiedBull    LabJEVUnifiedDirection = "bull"
 	LabJEVUnifiedBear    LabJEVUnifiedDirection = "bear"
 	LabJEVUnifiedUnclear LabJEVUnifiedDirection = "unclear"
+
+	// jevUnifiedScoreThreshold: |score| below this yields direction=unclear (near-cancelled opposing legs).
+	jevUnifiedScoreThreshold = 0.15
 )
 
 // LabJEVUnifiedBreakdown holds human-readable snippets for traders / FE.
@@ -188,27 +191,53 @@ func synthesizeLabJEVUnified(structure, pattern jevUnifiedLeg) *LabJEVUnified {
 		return out
 	}
 
+	var patternSigned float64
+	if pattern.present {
+		patternSigned = signedUnifiedLeg(pattern)
+	}
+	score := 0.7*signedUnifiedLeg(structure) + 0.3*patternSigned
+	out.Direction, out.Confidence = directionConfidenceFromScore(score)
+
 	if !pattern.present {
-		out.Direction = structure.dir
-		out.Confidence = clampUnitInterval(structure.confidence)
 		out.Conflict = false
-		if structure.dir == LabJEVUnifiedUnclear {
-			out.Conflict = true
-		}
 		return out
 	}
-
-	if structure.dir == LabJEVUnifiedUnclear || structure.dir != pattern.dir {
-		out.Direction = LabJEVUnifiedUnclear
-		out.Confidence = clampUnitInterval(0.7*structure.confidence + 0.3*pattern.confidence)
-		out.Conflict = true
-		return out
-	}
-
-	out.Direction = structure.dir
-	out.Confidence = clampUnitInterval(0.7*structure.confidence + 0.3*pattern.confidence)
-	out.Conflict = false
+	out.Conflict = jevUnifiedLegsConflict(structure, pattern)
 	return out
+}
+
+func signedUnifiedLeg(leg jevUnifiedLeg) float64 {
+	c := clampUnitInterval(leg.confidence)
+	switch leg.dir {
+	case LabJEVUnifiedBull:
+		return c
+	case LabJEVUnifiedBear:
+		return -c
+	default:
+		return 0
+	}
+}
+
+func directionConfidenceFromScore(score float64) (LabJEVUnifiedDirection, float64) {
+	abs := math.Abs(score)
+	conf := clampUnitInterval(abs)
+	if abs < jevUnifiedScoreThreshold {
+		return LabJEVUnifiedUnclear, conf
+	}
+	if score > 0 {
+		return LabJEVUnifiedBull, conf
+	}
+	if score < 0 {
+		return LabJEVUnifiedBear, conf
+	}
+	return LabJEVUnifiedUnclear, conf
+}
+
+func jevUnifiedLegsConflict(structure, pattern jevUnifiedLeg) bool {
+	if !structure.present || !pattern.present {
+		return false
+	}
+	return structure.dir != pattern.dir
 }
 
 func clampUnitInterval(v float64) float64 {

@@ -179,30 +179,49 @@ Lab 诊断主流程（`workflow_completed`）仍只下发卡片摘要 `lab_episo
 | `breakdown.structure` | string | PA-JEV 摘要（通常来自 `recommended_reason`） |
 | `breakdown.pattern` | string | 本地形态摘要（`kline_pattern_summary` 或 bias 行） |
 
-合成规则（硬性）：
+合成规则（硬性，signed 加权）：
 
-| 结构（PA-JEV） | 形态（本地 bias / hits） | `direction` | `confidence` | `conflict` |
-| --- | --- | --- | --- | --- |
-| 看多 / 看空 | **同向** | 结构方向 | `0.7 × 结构置信 + 0.3 × 形态置信` | `false` |
-| 看多 / 看空 | **反向** | `unclear` | 仍按上式加权（仅作展示强度，**不**输出折中方向） | `true` |
-| 不明确 | 任意 | `unclear` | 加权 | `true` |
-| 有 JEV | **无形态数据** | 结构方向 | 结构置信 | `false`（结构为不明确时 `conflict=true`） |
-| **无 JEV** | 任意 | `unclear` | `0` | `true` |
+```
+signed(dir, c): bull → +c, bear → −c, unclear → 0
+score = 0.7 × signed(结构) + 0.3 × signed(形态)
+|score| ≥ 0.15 → direction = sign(score)（正=bull，负=bear）, confidence = |score|
+|score| < 0.15 → direction = unclear, confidence = |score|
+```
+
+| `conflict` | 条件 |
+| --- | --- |
+| `false` | 缺形态（仅结构 leg 参与 score）；或结构+形态 **方向相同**（含均为 `unclear`） |
+| `true` | 结构+形态均 present 且 **方向不一致**（含一侧 `unclear`、另一侧 bull/bear）；或 **缺结构**（JEV 不可用 → `direction=unclear`, `confidence=0`） |
 
 - **结构置信**：PA-JEV 推荐项在 `choices` 中的 `probability`（0～1）。
 - **形态置信**：信号 bar 上形态 hits 的看多/看空条数占比（多数侧 / 总方向条数）；无 hits 时用 `|bias.score|` 粗估并截断到 1。
-- **形态缺失**：无 summary、bias、hits → 等同 **仅结构**，`conflict=false`。
-- **结构缺失**：JEV 未 OK → `unclear` + `conflict=true`。
+- **形态缺失**：无 summary、bias、hits → `score = 0.7 × signed(结构)`，`conflict=false`。
+- **结构缺失**：JEV 未 OK → 不参与 score，`unclear` + `conflict=true`。
+- **与旧版差异（PR#82）**：反向不再一律 `unclear`；结构强、形态弱反向时仍可输出 bull/bear，但 `conflict=true`。仅当 \|score\| < 0.15（近对消）时方向为 `unclear`。
 
-示例：
+示例（同向）：
 
 ```json
 "jev_unified": {
   "direction": "bull",
-  "confidence": 0.67,
+  "confidence": 0.71,
   "conflict": false,
   "breakdown": {
     "structure": "多周期结构倾向看多（置信 70%）",
+    "pattern": "锤子(看多)"
+  }
+}
+```
+
+示例（反向但未对消：结构看空 0.9、形态看多 0.3 → score≈−0.54）：
+
+```json
+"jev_unified": {
+  "direction": "bear",
+  "confidence": 0.54,
+  "conflict": true,
+  "breakdown": {
+    "structure": "多周期结构倾向看空（置信 90%）",
     "pattern": "锤子(看多)"
   }
 }
@@ -241,7 +260,7 @@ Lab 诊断主流程（`workflow_completed`）仍只下发卡片摘要 `lab_episo
     "price_analysis_jev": { },
     "jev_unified": {
       "direction": "bull",
-      "confidence": 0.67,
+      "confidence": 0.71,
       "conflict": false,
       "breakdown": {
         "structure": "多周期结构倾向看多（置信 70%）",
