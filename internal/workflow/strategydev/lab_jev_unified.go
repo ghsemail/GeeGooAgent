@@ -16,8 +16,8 @@ const (
 	LabJEVUnifiedBear    LabJEVUnifiedDirection = "bear"
 	LabJEVUnifiedUnclear LabJEVUnifiedDirection = "unclear"
 
-	// jevUnifiedScoreThreshold: |score| below this yields direction=unclear (near-cancelled opposing legs).
-	jevUnifiedScoreThreshold = 0.15
+	// jevUnifiedScoreEpsilon: only treats floating noise as zero; not a product threshold.
+	jevUnifiedScoreEpsilon = 1e-12
 )
 
 // LabJEVUnifiedBreakdown holds human-readable snippets for traders / FE.
@@ -219,18 +219,14 @@ func signedUnifiedLeg(leg jevUnifiedLeg) float64 {
 }
 
 func directionConfidenceFromScore(score float64) (LabJEVUnifiedDirection, float64) {
-	abs := math.Abs(score)
-	conf := clampUnitInterval(abs)
-	if abs < jevUnifiedScoreThreshold {
+	conf := clampUnitInterval(math.Abs(score))
+	if math.Abs(score) <= jevUnifiedScoreEpsilon {
 		return LabJEVUnifiedUnclear, conf
 	}
 	if score > 0 {
 		return LabJEVUnifiedBull, conf
 	}
-	if score < 0 {
-		return LabJEVUnifiedBear, conf
-	}
-	return LabJEVUnifiedUnclear, conf
+	return LabJEVUnifiedBear, conf
 }
 
 func jevUnifiedLegsConflict(structure, pattern jevUnifiedLeg) bool {

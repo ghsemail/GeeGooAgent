@@ -184,8 +184,8 @@ Lab 诊断主流程（`workflow_completed`）仍只下发卡片摘要 `lab_episo
 ```
 signed(dir, c): bull → +c, bear → −c, unclear → 0
 score = 0.7 × signed(结构) + 0.3 × signed(形态)
-|score| ≥ 0.15 → direction = sign(score)（正=bull，负=bear）, confidence = |score|
-|score| < 0.15 → direction = unclear, confidence = |score|
+score > 0 → bull；score < 0 → bear；score = 0（浮点比较用 ε≈1e-12 防噪，**无** 0.15 等产品阈）
+confidence = |score|（始终）
 ```
 
 | `conflict` | 条件 |
@@ -197,7 +197,8 @@ score = 0.7 × signed(结构) + 0.3 × signed(形态)
 - **形态置信**：信号 bar 上形态 hits 的看多/看空条数占比（多数侧 / 总方向条数）；无 hits 时用 `|bias.score|` 粗估并截断到 1。
 - **形态缺失**：无 summary、bias、hits → `score = 0.7 × signed(结构)`，`conflict=false`。
 - **结构缺失**：JEV 未 OK → 不参与 score，`unclear` + `conflict=true`。
-- **与旧版差异（PR#82）**：反向不再一律 `unclear`；结构强、形态弱反向时仍可输出 bull/bear，但 `conflict=true`。仅当 \|score\| < 0.15（近对消）时方向为 `unclear`。
+- **与 PR#83 差异**：已移除 \|score\| < 0.15 → `unclear` 的硬阈；\|score\|=0.14 等弱信号仍输出 bull/bear。仅 **score 精确对消为 0**（含结构/形态反向同强度）时方向为 `unclear`。
+- **历史（PR#82）**：曾在一版中对「反向」一律输出 `unclear`（已由 PR#83 signed 加权取代）。
 
 示例（同向）：
 
