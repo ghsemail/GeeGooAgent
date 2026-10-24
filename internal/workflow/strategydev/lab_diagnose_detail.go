@@ -85,15 +85,20 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 	out.KlinePattern = buildLabKlineDetail(idx, patIn)
 	applyLabKlinePatternTopLevel(&out)
 
-	if in.LabFetcher != nil && strings.TrimSpace(in.Code) != "" {
+	labFetcher := WrapCachedLabBarsFetcher(in.SessionID, in.RunID, in.LabFetcher)
+	if labFetcher != nil && strings.TrimSpace(in.Code) != "" {
 		row := barRowAt(in.Bars, idx)
-		anchorTime, _, anchorOK := anchorForSignalBar(row, dailyBarsForLabAnchor(phaseCtx, in))
+		anchorTime, _, anchorOK := anchorForSignalBar(row, dailyBarsForLabAnchor(phaseCtx, LabDetailInput{
+			Run: in.Run, Code: in.Code, SignalFreq: in.SignalFreq, Months: in.Months,
+			KeyLevels: in.KeyLevels, ProbeRaw: in.ProbeRaw, Bars: in.Bars, LookbackBars: in.LookbackBars,
+			LabFetcher: labFetcher, SessionID: in.SessionID, RunID: in.RunID,
+		}))
 		var asOf *time.Time
 		if anchorOK {
 			t := anchorTime
 			asOf = &t
 		}
-		pa := priceanalysis.Run(phaseCtx, in.LabFetcher, priceanalysis.RunRequest{
+		pa := priceanalysis.Run(phaseCtx, labFetcher, priceanalysis.RunRequest{
 			Code:       in.Code,
 			Months:     CapMonthsBack(in.Months),
 			SignalFreq: in.SignalFreq,
@@ -150,8 +155,9 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 		out.KlinePattern = buildLabKlineDetail(idx, patIn)
 		applyLabKlinePatternTopLevel(&out)
 	}
-	if in.LabFetcher != nil && strings.TrimSpace(in.Code) != "" {
-		pa := priceanalysis.Run(phaseCtx, in.LabFetcher, priceanalysis.RunRequest{
+	labFetcher := WrapCachedLabBarsFetcher(in.SessionID, in.RunID, in.LabFetcher)
+	if labFetcher != nil && strings.TrimSpace(in.Code) != "" {
+		pa := priceanalysis.Run(phaseCtx, labFetcher, priceanalysis.RunRequest{
 			Code: in.Code, Months: CapMonthsBack(in.Months), SignalFreq: in.SignalFreq,
 			SpotPrice: ent.Close, KeyLevels: keyLevelsToLab(in.KeyLevels),
 		})

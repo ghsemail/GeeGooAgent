@@ -24,9 +24,9 @@ func multiTimeframeSpecsForKlinePatternDisplay(signalFreq string) []klinePattern
 			{"60m", "60m"},
 		}
 	case "60m":
+		// Align with lab price-analysis upward set; skip 4h/240m (Data unsupported on prod).
 		return []klinePatternMTFSpec{
 			{"1h", "60m"},
-			{"4h", "4h"},
 			{"日线", "daily"},
 			{"周线", "weekly"},
 		}

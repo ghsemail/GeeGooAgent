@@ -117,12 +117,28 @@ func triggerTimeFromBars(bars []any, idx int) time.Time {
 	return barTimeUnix(row)
 }
 
-func mtfAlignNote(freq string, alignedIdx int, fetchOK bool) string {
-	if !fetchOK {
-		return fmt.Sprintf("%s 拉数失败（仅展示信号周期）", timeframeDisplayLabel(freq))
-	}
-	if alignedIdx < 0 {
-		return fmt.Sprintf("%s 未找到对齐 bar", timeframeDisplayLabel(freq))
+type mtfAlignStatus int
+
+const (
+	mtfAlignOK mtfAlignStatus = iota
+	mtfAlignFetchFailed
+	mtfAlignMissingSeries
+	mtfAlignUnsupportedFreq
+)
+
+func mtfAlignNote(freq string, alignedIdx int, status mtfAlignStatus) string {
+	label := timeframeDisplayLabel(freq)
+	switch status {
+	case mtfAlignFetchFailed:
+		return fmt.Sprintf("%s 拉数失败（仅展示信号周期）", label)
+	case mtfAlignMissingSeries:
+		return fmt.Sprintf("%s 大周期未加载（请打开 lab 详情）", label)
+	case mtfAlignUnsupportedFreq:
+		return fmt.Sprintf("%s 周期暂不支持（已跳过）", label)
+	case mtfAlignOK:
+		if alignedIdx < 0 {
+			return fmt.Sprintf("%s 未找到对齐 bar", label)
+		}
 	}
 	return ""
 }

@@ -48,34 +48,22 @@ func testProbeHost(t *testing.T) {
 	})
 }
 
-func TestBuildKlinePatternMTFBundle_FourHourProbeAndFailure(t *testing.T) {
+func TestBuildKlinePatternMTFBundle_SixtyMinuteSkips240mLadder(t *testing.T) {
 	testProbeHost(t)
 	runOK := &stubKlineProbeRunner{}
 	bundle := BuildKlinePatternMTFBundle(context.Background(), runOK.Run, "00700.HK", "60m", 3, nil)
 	if bundle == nil {
 		t.Fatal("nil bundle")
 	}
-	var saw240m bool
 	for _, f := range runOK.calls {
 		if f == "240m" {
-			saw240m = true
+			t.Fatalf("60m ladder must not probe 240m, calls=%v", runOK.calls)
 		}
 	}
-	if !saw240m {
-		t.Fatalf("expected 240m probe for 4h ladder, calls=%v", runOK.calls)
-	}
-	ser, ok := bundle.ByFreq["4h"]
-	if !ok {
-		t.Fatalf("ByFreq keys=%v", bundle.ByFreq)
-	}
-	if !ser.FetchOK {
-		t.Fatal("expected 4h fetch ok")
-	}
-
-	runFail := &stubKlineProbeRunner{fail4h: true}
-	bundle2 := BuildKlinePatternMTFBundle(context.Background(), runFail.Run, "00700.HK", "1h", 3, nil)
-	ser2 := bundle2.ByFreq["4h"]
-	if ser2.FetchOK {
-		t.Fatal("expected 4h fetch failure")
+	for _, want := range []string{"60m", "daily", "weekly"} {
+		if _, ok := bundle.ByFreq[want]; !ok {
+			t.Fatalf("missing ByFreq[%s] keys=%v", want, bundle.ByFreq)
+		}
 	}
 }
+

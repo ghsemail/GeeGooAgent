@@ -13,13 +13,17 @@ func TestMultiTimeframeSpecsForKlinePatternDisplay_Ladders(t *testing.T) {
 	}{
 		{"5m", []string{"5m", "15m", "30m", "60m"}},
 		{"5分钟", []string{"5m", "15m", "30m", "60m"}},
-		{"60m", []string{"60m", "4h", "daily", "weekly"}},
-		{"1h", []string{"60m", "4h", "daily", "weekly"}},
+		{"60m", []string{"60m", "daily", "weekly"}},
+		{"1h", []string{"60m", "daily", "weekly"}},
 	}
 	for _, tc := range cases {
 		specs := multiTimeframeSpecsForKlinePatternDisplay(tc.sig)
-		if len(specs) != 4 {
-			t.Fatalf("sig=%q got %d specs want 4", tc.sig, len(specs))
+		wantLen := 4
+		if tc.sig == "60m" || tc.sig == "1h" {
+			wantLen = 3
+		}
+		if len(specs) != wantLen {
+			t.Fatalf("sig=%q got %d specs want %d", tc.sig, len(specs), wantLen)
 		}
 		for i, w := range tc.want {
 			if specs[i].Freq != w {

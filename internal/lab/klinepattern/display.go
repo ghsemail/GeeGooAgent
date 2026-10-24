@@ -104,16 +104,20 @@ func BuildKlinePatternMTFContext(anchorIdx int, in KlinePatternDisplayInput) *sl
 				}
 				entry.ThreeBar = BuildKlinePatternThreeBarWindow(in.Bars, in.PatternHits, anchorIdx)
 			}
-			entry.AlignNote = mtfAlignNote(spec.Freq, anchorIdx, entry.FetchOK)
+			st := mtfAlignOK
+			if !entry.FetchOK {
+				st = mtfAlignFetchFailed
+			}
+			entry.AlignNote = mtfAlignNote(spec.Freq, anchorIdx, st)
 			b := biasFromThreeBarWindow(entry.ThreeBar)
 			entry.Bias = &b
 			ctxOut.Timeframes = append(ctxOut.Timeframes, entry)
 			continue
 		}
-		ser, ok := in.MTF.ByFreq[spec.Freq]
+		ser, ok := mtfBundleSeries(in.MTF, spec.Freq)
 		if !ok {
 			entry.FetchOK = false
-			entry.AlignNote = mtfAlignNote(spec.Freq, -1, false)
+			entry.AlignNote = mtfAlignNote(spec.Freq, -1, mtfAlignMissingSeries)
 			nb := neutralKlinePatternBias()
 			entry.Bias = &nb
 			ctxOut.Timeframes = append(ctxOut.Timeframes, entry)
@@ -121,7 +125,11 @@ func BuildKlinePatternMTFContext(anchorIdx int, in KlinePatternDisplayInput) *sl
 		}
 		entry.FetchOK = ser.FetchOK
 		if !ser.FetchOK {
-			entry.AlignNote = mtfAlignNote(spec.Freq, -1, false)
+			st := mtfAlignFetchFailed
+			if ser.Unsupported {
+				st = mtfAlignUnsupportedFreq
+			}
+			entry.AlignNote = mtfAlignNote(spec.Freq, -1, st)
 			nb := neutralKlinePatternBias()
 			entry.Bias = &nb
 			ctxOut.Timeframes = append(ctxOut.Timeframes, entry)
@@ -135,7 +143,7 @@ func BuildKlinePatternMTFContext(anchorIdx int, in KlinePatternDisplayInput) *sl
 			}
 			entry.ThreeBar = BuildKlinePatternThreeBarWindow(ser.Bars, ser.PatternHits, aligned)
 		}
-		entry.AlignNote = mtfAlignNote(spec.Freq, aligned, true)
+		entry.AlignNote = mtfAlignNote(spec.Freq, aligned, mtfAlignOK)
 		b := biasFromThreeBarWindow(entry.ThreeBar)
 		entry.Bias = &b
 		ctxOut.Timeframes = append(ctxOut.Timeframes, entry)
@@ -156,20 +164,14 @@ func EnrichSignalEpisodeEvalKlineDisplay(eval *slots.SignalEpisodeEval, in Kline
 	}
 }
 
-// EnrichEpisodeDetailKlineDisplayLight attaches signal-TF patterns, three-bar window, and MTF shell (no higher-TF probes).
+// EnrichEpisodeDetailKlineDisplayLight attaches signal-TF patterns and three-bar window only.
+// Multi-TF kline context is lab-detail lazy output (see BuildLabEpisodeDetail), not workflow cards.
 func EnrichEpisodeDetailKlineDisplayLight(ep *slots.SignalEpisodeDetail, in KlinePatternDisplayInput) {
 	if ep == nil {
 		return
 	}
 	AttachPatternsToEpisode(ep, in.PatternHits)
 	ep.KlinePatternThreeBar = BuildKlinePatternThreeBarWindow(in.Bars, in.PatternHits, ep.StartIdx)
-	shellIn := in
-	if shellIn.MTF == nil && len(in.Bars) > 0 {
-		shellIn.MTF = SignalOnlyKlinePatternMTFBundle(in.SignalFreq)
-	}
-	if shellIn.MTF != nil {
-		ep.KlinePatternMTF = BuildKlinePatternMTFContext(ep.StartIdx, shellIn)
-	}
 	if ep.KlinePatternBias == nil {
 		if ep.KlinePatternThreeBar != nil && ep.KlinePatternThreeBar.Bias != nil {
 			ep.KlinePatternBias = ep.KlinePatternThreeBar.Bias
