@@ -81,10 +81,3 @@ func chartWindowEnd(chartBars []any) (windowEnd time.Time) {
 	return windowEnd
 }
 
-func asOfFromWindowEnd(windowEnd time.Time) *time.Time {
-	if windowEnd.IsZero() {
-		return nil
-	}
-	end := windowEnd
-	return &end
-}
