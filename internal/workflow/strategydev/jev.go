@@ -20,10 +20,21 @@ type JevConfig struct {
 	Model   string
 }
 
+// ReasonChatFunc generates free-form JEV reason text (Typesafe Choice cannot emit prose).
+type ReasonChatFunc func(ctx context.Context, system, user string) (string, error)
+
 // JevClient calls GeeGooData Decision API (/v1/decision/chat, /v1/decision/choice).
 type JevClient struct {
-	cfg    JevConfig
-	client *http.Client
+	cfg        JevConfig
+	client     *http.Client
+	reasonChat ReasonChatFunc
+}
+
+// SetReasonChat wires LLM synthesis for SummarizePriceAnalysisJEVReason (optional).
+func (j *JevClient) SetReasonChat(fn ReasonChatFunc) {
+	if j != nil {
+		j.reasonChat = fn
+	}
 }
 
 func NewJevClient(cfg JevConfig) *JevClient {

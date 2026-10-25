@@ -111,7 +111,7 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 	}
 	cfg := h.App.Config
 	fetcher := lab.SignalBarsFetcher{Client: signalclient.NewHTTPClient(cfg.LabAPIURL(), cfg.LabAPIKey())}
-	jev := strategydev.NewJevClient(h.App.StrategyDevJevConfig())
+	jev := h.App.NewStrategyDevJevClient()
 	detail, err := strategydev.BuildLabEpisodeDetail(r.Context(), strategydev.LabDetailInput{
 		Run: strategydev.ToolRunner(runner), Code: flow.StockCode, SignalFreq: freq, Months: months,
 		KeyLevels: keyLevelBandsFromFlowSnapshot(flow), ProbeRaw: flow.ProbeRaw, Bars: bars,
