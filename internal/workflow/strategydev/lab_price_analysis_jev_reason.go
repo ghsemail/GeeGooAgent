@@ -48,7 +48,7 @@ func (j *JevClient) SummarizePriceAnalysisJEVReason(
 	if err != nil {
 		return "", err
 	}
-	reason := strings.TrimSpace(content)
+	reason := sanitizeLabJEVReasonSummary(content)
 	if reason == "" {
 		return "", fmt.Errorf("empty reason summary")
 	}
