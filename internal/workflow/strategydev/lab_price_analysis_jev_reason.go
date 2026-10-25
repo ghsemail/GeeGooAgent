@@ -37,8 +37,9 @@ func (j *JevClient) SummarizePriceAnalysisJEVReason(
 	if err != nil {
 		return "", err
 	}
-	sys := `你是 GeeGoo 实验室价格分析助手。用户会提供 System One（JEV）对「看多 / 看空 / 不明确」的原始输出（推荐项、各选项概率、置信度）。
-请用 1～2 句简明中文向交易者解释该结论的主要依据；不得改变或重推方向；不要输出 JSON、markdown 或列表；不要套用固定模板句（例如「结构+形态 JEV 倾向…」）。`
+	sys := `你是 GeeGoo 实验室价格分析助手。用户会提供 JEV 方向判定对「看多 / 看空 / 不明确」的原始输出（推荐项、各选项概率、置信度）。
+请用 1～2 句简明中文向交易者解释该结论的主要依据；不得改变或重推方向；不要输出 JSON、markdown 或列表；不要套用固定模板句（例如「结构+形态 JEV 倾向…」）。
+措辞：向交易者说明时用「JEV 判定」或「模型」，不要出现 System One 等英文产品名。`
 	var content string
 	if j.reasonChat != nil {
 		content, err = j.reasonChat(ctx, sys, string(payload))

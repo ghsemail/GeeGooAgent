@@ -140,10 +140,23 @@ func labJEVReasonTrim(s string) string {
 	if s == "" {
 		return ""
 	}
+	s = labJEVReasonReplaceProductNames(s)
 	const maxRunes = 280
 	runes := []rune(s)
 	if len(runes) <= maxRunes {
 		return s
 	}
 	return strings.TrimSpace(string(runes[:maxRunes]) + "…")
+}
+
+// labJEVReasonReplaceProductNames maps vendor labels to trader-facing Chinese.
+func labJEVReasonReplaceProductNames(s string) string {
+	repl := strings.NewReplacer(
+		"System One 给出", "JEV 判定为",
+		"system one 给出", "JEV 判定为",
+		"System One", "JEV",
+		"system one", "JEV",
+		"SystemOne", "JEV",
+	)
+	return repl.Replace(s)
 }
