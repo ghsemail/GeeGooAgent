@@ -1,9 +1,10 @@
 package klinepattern
 
-// KlinePatternMTFWeightSchema documents the locked MTF weight table (§5.4).
-const KlinePatternMTFWeightSchema = "mtf_v1_0.4_0.3_0.2_0.1"
+// KlinePatternMTFWeightSchema documents the base MTF weight table (§5.4); shorter ladders renormalize these.
+const KlinePatternMTFWeightSchema = "mtf_v1_0.4_0.3_0.2_0.1_renorm"
 
-// KlinePatternMTFWeights are ladder index weights (signal TF heaviest); sum = 1.
+// KlinePatternMTFWeights are base ladder index weights for a full four-TF row set (signal heaviest).
+// Shorter ladders use the first n entries renormalized to sum 1 (see klinePatternMTFWeightsForLadder).
 var KlinePatternMTFWeights = []float64{0.4, 0.3, 0.2, 0.1}
 
 type klinePatternMTFSpec struct {
@@ -11,91 +12,80 @@ type klinePatternMTFSpec struct {
 	Freq  string
 }
 
-// multiTimeframeSpecsForKlinePatternDisplay returns exactly four timeframe rows for
-// diagnose K-line MTF JSON. Independent of price-analysis hard gates (§4).
-func multiTimeframeSpecsForKlinePatternDisplay(signalFreq string) []klinePatternMTFSpec {
-	gate := NormalizeFrequency(signalFreq)
-	switch gate {
-	case "5m":
-		return []klinePatternMTFSpec{
-			{"5m", "5m"},
-			{"15m", "15m"},
-			{"30m", "30m"},
-			{"60m", "60m"},
-		}
-	case "60m":
-		return []klinePatternMTFSpec{
-			{"1小时", "60m"},
-			{"日线", "daily"},
-			{"周线", "weekly"},
-		}
-	case "15m":
-		return []klinePatternMTFSpec{
-			{"15m", "15m"},
-			{"30m", "30m"},
-			{"60m", "60m"},
-			{"日线", "daily"},
-		}
-	case "daily":
-		return []klinePatternMTFSpec{
-			{"日线", "daily"},
-			{"周线", "weekly"},
-		}
-	case "weekly", "1wk":
-		return []klinePatternMTFSpec{
-			{"周线", "weekly"},
-		}
-	default:
-		return klinePatternDisplaySpecsFillFour(gate)
-	}
-}
-
-var klinePatternDisplayLadder = []klinePatternMTFSpec{
+// klinePatternMultiTimeframeSpecs matches internal/lab/priceanalysis multiTimeframeSpecs (5m / 1小时 / 日线 / 周线).
+var klinePatternMultiTimeframeSpecs = []klinePatternMTFSpec{
 	{"5m", "5m"},
-	{"15m", "15m"},
-	{"30m", "30m"},
-	{"60m", "60m"},
+	{"1小时", "60m"},
 	{"日线", "daily"},
 	{"周线", "weekly"},
 }
 
-func klinePatternDisplaySpecsFillFour(gate string) []klinePatternMTFSpec {
+// klinePatternGateFrequencyRank orders timeframes for MTF ladder filtering (higher = coarser).
+func klinePatternGateFrequencyRank(freq string) int {
+	switch NormalizeFrequency(freq) {
+	case "5m":
+		return 10
+	case "15m":
+		return 20
+	case "60m":
+		return 30
+	case "daily":
+		return 40
+	case "weekly", "1wk":
+		return 50
+	default:
+		return 30
+	}
+}
+
+// klinePatternMinRankForGate mirrors priceanalysis priceAnalysisMinRank (15m → 60m floor).
+func klinePatternMinRankForGate(gateFreq string) int {
+	gate := NormalizeFrequency(gateFreq)
+	switch gate {
+	case "15m":
+		return klinePatternGateFrequencyRank("60m")
+	default:
+		return klinePatternGateFrequencyRank(gate)
+	}
+}
+
+// multiTimeframeSpecsForKlinePatternDisplay returns signal period plus coarser TFs only,
+// aligned with priceanalysis multiTimeframeSpecsForGate (never finer than signal frequency).
+func multiTimeframeSpecsForKlinePatternDisplay(signalFreq string) []klinePatternMTFSpec {
+	gate := NormalizeFrequency(signalFreq)
 	if gate == "" {
-		return multiTimeframeSpecsForKlinePatternDisplay("5m")
+		return append([]klinePatternMTFSpec(nil), klinePatternMultiTimeframeSpecs...)
 	}
-	start := -1
-	for i, spec := range klinePatternDisplayLadder {
-		if spec.Freq == gate {
-			start = i
-			break
-		}
-	}
+	minRank := klinePatternMinRankForGate(signalFreq)
 	var out []klinePatternMTFSpec
-	if start < 0 {
-		out = append(out, klinePatternMTFSpec{Label: timeframeDisplayLabel(gate), Freq: gate})
-		start = 0
-	} else {
-		out = append(out, klinePatternDisplayLadder[start])
-	}
-	for i := start + 1; i < len(klinePatternDisplayLadder) && len(out) < 4; i++ {
-		out = append(out, klinePatternDisplayLadder[i])
-	}
-	// 日线及以上信号：只向更粗周期扩展，不回填更细 intraday。
-	if !klinePatternMTFCoarserOnly(gate) {
-		for i := start - 1; i >= 0 && len(out) < 4; i-- {
-			out = append(out, klinePatternDisplayLadder[i])
+	for _, spec := range klinePatternMultiTimeframeSpecs {
+		if klinePatternGateFrequencyRank(spec.Freq) >= minRank {
+			out = append(out, spec)
 		}
 	}
 	return out
 }
 
-func klinePatternMTFCoarserOnly(gate string) bool {
-	switch NormalizeFrequency(gate) {
-	case "daily", "weekly", "1wk":
-		return true
-	default:
-		return false
+func klinePatternMTFWeightsForLadder(n int) []float64 {
+	if n <= 0 {
+		return nil
 	}
+	if n > len(KlinePatternMTFWeights) {
+		n = len(KlinePatternMTFWeights)
+	}
+	sub := KlinePatternMTFWeights[:n]
+	var sum float64
+	for _, w := range sub {
+		sum += w
+	}
+	if sum <= 0 {
+		return nil
+	}
+	out := make([]float64, n)
+	for i, w := range sub {
+		out[i] = w / sum
+	}
+	return out
 }
 
 // klinePatternProbeFrequency maps MTF ladder freq to probe_bot_signal_series tokens.

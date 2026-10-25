@@ -51,18 +51,22 @@ func biasFromWeightedScore(score float64) slots.KlinePatternBias {
 	return b
 }
 
-// ComputeKlinePatternMTFWeightedConclusion aggregates four ladder TF scores (§5.4).
+// ComputeKlinePatternMTFWeightedConclusion aggregates ladder TF scores (§5.4).
 // ok is true when any TF has pattern hits or |S_final| > 0.
 func ComputeKlinePatternMTFWeightedConclusion(entries []slots.KlinePatternMTFEntry) (bias slots.KlinePatternBias, summary string, ok bool) {
 	if len(entries) == 0 {
+		return neutralKlinePatternBias(), "", false
+	}
+	weights := klinePatternMTFWeightsForLadder(len(entries))
+	if len(weights) == 0 {
 		return neutralKlinePatternBias(), "", false
 	}
 	var weighted float64
 	anyHits := false
 	nonZeroTF := 0
 	var bullTF, bearTF []string
-	for i := 0; i < 4 && i < len(entries); i++ {
-		w := KlinePatternMTFWeights[i]
+	for i := 0; i < len(entries) && i < len(weights); i++ {
+		w := weights[i]
 		e := entries[i]
 		score := 0.0
 		if e.Bias != nil {

@@ -49,9 +49,9 @@ func TestEnrichTriggerKlineDisplay_WeightedTopLevelWhenMTFOnlyHits(t *testing.T)
 	in := NewKlinePatternDisplayInput("5m", bars, nil, &KlinePatternMTFBundle{
 		SignalFreq: "5m",
 		ByFreq: map[string]KlinePatternFreqSeries{
-			"15m": {Freq: "15m", Bars: higherBars, PatternHits: higherHits, FetchOK: true},
-			"30m": {Freq: "30m", FetchOK: false},
-			"60m": {Freq: "60m", FetchOK: false},
+			"60m":   {Freq: "60m", Bars: higherBars, PatternHits: higherHits, FetchOK: true},
+			"daily": {Freq: "daily", FetchOK: false},
+			"weekly": {Freq: "weekly", FetchOK: false},
 		},
 	})
 	in.PatternHits = hits

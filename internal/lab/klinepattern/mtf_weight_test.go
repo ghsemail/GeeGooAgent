@@ -34,9 +34,9 @@ func TestComputeKlinePatternMTFWeightedConclusion_ScoreAndBias(t *testing.T) {
 	// 0.4*1 + 0.3*(-1) + 0.2*0 + 0.1*1 = 0.2
 	entries := []slots.KlinePatternMTFEntry{
 		mtfEntry("5m", 1, true),
-		mtfEntry("15m", -1, true),
-		mtfEntry("30m", 0, false),
-		mtfEntry("60m", 1, true),
+		mtfEntry("60m", -1, true),
+		mtfEntry("daily", 0, false),
+		mtfEntry("weekly", 1, true),
 	}
 	bias, summary, ok := ComputeKlinePatternMTFWeightedConclusion(entries)
 	if !ok || summary == "" {
@@ -50,9 +50,9 @@ func TestComputeKlinePatternMTFWeightedConclusion_ScoreAndBias(t *testing.T) {
 func TestComputeKlinePatternMTFWeightedConclusion_TieZero(t *testing.T) {
 	entries := []slots.KlinePatternMTFEntry{
 		mtfEntry("5m", 1, true),
-		mtfEntry("15m", -1, true),
-		mtfEntry("30m", 0, false),
-		mtfEntry("60m", 0, false),
+		mtfEntry("60m", -1, true),
+		mtfEntry("daily", 0, false),
+		mtfEntry("weekly", 0, false),
 	}
 	// 0.4 - 0.3 = 0.1
 	bias, _, ok := ComputeKlinePatternMTFWeightedConclusion(entries)
@@ -62,9 +62,9 @@ func TestComputeKlinePatternMTFWeightedConclusion_TieZero(t *testing.T) {
 
 	entries2 := []slots.KlinePatternMTFEntry{
 		mtfEntry("5m", 1, true),
-		mtfEntry("15m", -1, true),
-		mtfEntry("30m", -1, true),
-		mtfEntry("60m", 2, true), // only +1 counts per hit scoring; use -1 for zero
+		mtfEntry("60m", -1, true),
+		mtfEntry("daily", -1, true),
+		mtfEntry("weekly", 2, true), // only +1 counts per hit scoring; use -1 for zero
 	}
 	entries2[3].Bias = &slots.KlinePatternBias{Score: -1, Bias: "看空", BiasColor: "red"}
 	// 0.4 -0.3 -0.2 -0.1 = -0.2
@@ -77,9 +77,9 @@ func TestComputeKlinePatternMTFWeightedConclusion_TieZero(t *testing.T) {
 func TestComputeKlinePatternMTFWeightedConclusion_SingleTFNonZero(t *testing.T) {
 	entries := []slots.KlinePatternMTFEntry{
 		mtfEntry("5m", 0, false),
-		mtfEntry("15m", 0, false),
-		mtfEntry("30m", -1, true),
 		mtfEntry("60m", 0, false),
+		mtfEntry("daily", -1, true),
+		mtfEntry("weekly", 0, false),
 	}
 	bias, summary, ok := ComputeKlinePatternMTFWeightedConclusion(entries)
 	if !ok || summary == "" {
@@ -93,9 +93,9 @@ func TestComputeKlinePatternMTFWeightedConclusion_SingleTFNonZero(t *testing.T) 
 func TestComputeKlinePatternMTFWeightedConclusion_NoHits(t *testing.T) {
 	entries := []slots.KlinePatternMTFEntry{
 		mtfEntry("5m", 0, false),
-		mtfEntry("15m", 0, false),
-		mtfEntry("30m", 0, false),
 		mtfEntry("60m", 0, false),
+		mtfEntry("daily", 0, false),
+		mtfEntry("weekly", 0, false),
 	}
 	_, _, ok := ComputeKlinePatternMTFWeightedConclusion(entries)
 	if ok {
