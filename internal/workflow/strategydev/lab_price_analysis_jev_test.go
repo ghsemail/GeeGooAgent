@@ -27,6 +27,38 @@ func TestBuildPriceAnalysisJEVStateIncludesRows(t *testing.T) {
 	if !strings.Contains(state, "买入触发") {
 		t.Fatal("expected buy side in state")
 	}
+	if pa.PriceScore != 12.5 {
+		t.Fatal("PA object must retain price_score for UI JSON")
+	}
+	for _, forbidden := range []string{"综合分", "分项[", "price_score", "tf_scores", "子分="} {
+		if strings.Contains(state, forbidden) {
+			t.Fatalf("JEV state must omit composite scores, found %q in:\n%s", forbidden, state)
+		}
+	}
+}
+
+func TestBuildPriceAnalysisJEVStateOmitsTFScoreBreakdown(t *testing.T) {
+	pa := &PriceAnalysis{
+		Code:       "X",
+		PriceScore: 42.5,
+		ScoreReason: "周线日线同向",
+		Rows:        []PriceAnalysisRow{{Timeframe: "60m", Conclusion: "偏多", Structure: "HL", BosChoch: "-", Position: "中"}},
+		TFScores: map[string]TFScoreBreakdown{
+			"周线": {Subscore: 0.8, Conclusion: 0.5, Position: 0.3, BosChoch: 0.2},
+		},
+	}
+	state := BuildPriceAnalysisJEVState(pa, "sell", nil)
+	if !strings.Contains(state, "[60m]") {
+		t.Fatalf("expected structure row: %q", state)
+	}
+	for _, forbidden := range []string{"综合分", "42.50", "42.5", "分项[", "子分="} {
+		if strings.Contains(state, forbidden) {
+			t.Fatalf("forbidden %q in state:\n%s", forbidden, state)
+		}
+	}
+	if len(pa.TFScores) != 1 || pa.PriceScore != 42.5 {
+		t.Fatal("PA JSON fields must remain on struct")
+	}
 }
 
 func TestBuildPriceAnalysisJEVStateIncludesKlinePatterns(t *testing.T) {

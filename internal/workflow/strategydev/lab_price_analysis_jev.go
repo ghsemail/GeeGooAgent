@@ -67,13 +67,6 @@ func BuildPriceAnalysisJEVState(pa *PriceAnalysis, signalSide string, kline *Lab
 		} else if pa.SpotPrice != 0 {
 			fmt.Fprintf(&b, "现价 %.4g\n", pa.SpotPrice)
 		}
-		if pa.PriceScore != 0 || strings.TrimSpace(pa.ScoreReason) != "" {
-			fmt.Fprintf(&b, "综合分 %.2f", pa.PriceScore)
-			if sr := strings.TrimSpace(pa.ScoreReason); sr != "" {
-				fmt.Fprintf(&b, " · %s", sr)
-			}
-			b.WriteByte('\n')
-		}
 		if s := strings.TrimSpace(pa.Summary); s != "" {
 			fmt.Fprintf(&b, "摘要：%s\n", s)
 		}
@@ -98,13 +91,6 @@ func BuildPriceAnalysisJEVState(pa *PriceAnalysis, signalSide string, kline *Lab
 				fmt.Fprintf(&b, " 量=%s", vn)
 			}
 			b.WriteByte('\n')
-		}
-		for label, br := range pa.TFScores {
-			if br.Missing {
-				continue
-			}
-			fmt.Fprintf(&b, "分项[%s] 子分=%.3f 结论=%.3f 位置=%.3f BOS=%.3f\n",
-				label, br.Subscore, br.Conclusion, br.Position, br.BosChoch)
 		}
 	}
 	side := strings.TrimSpace(signalSide)
@@ -314,13 +300,7 @@ func labPAInformative(pa *PriceAnalysis) bool {
 	if pa == nil {
 		return false
 	}
-	if strings.TrimSpace(pa.Summary) != "" || len(pa.Rows) > 0 {
-		return true
-	}
-	if pa.PriceScore != 0 || strings.TrimSpace(pa.ScoreReason) != "" {
-		return true
-	}
-	return false
+	return strings.TrimSpace(pa.Summary) != "" || len(pa.Rows) > 0
 }
 
 // ResolvePriceAnalysisJEV calls System One choice primitive; never falls back to local PA/pattern rules.
@@ -343,7 +323,7 @@ func ResolvePriceAnalysisJEV(ctx context.Context, jev *JevClient, pa *PriceAnaly
 		base.Error = "jev not configured"
 		return base
 	}
-	instructions := "基于 state 中的多周期价格结构（结论、摆动结构、BOS/CHOCH、区间位置、ER、RVOL、综合分）" +
+	instructions := "基于 state 中的多周期价格结构（结论、摆动结构、BOS/CHOCH、区间位置、ER、RVOL）" +
 		"与锚点 K 线形态命中/倾向，对该信号上下文应如何判断价格方向？只能从给定选项中选一项。" +
 		"规则：①结构与形态同向则选该方向；②冲突时须权衡后选看多或看空，不得仅因冲突选不明确；" +
 		"③仅结构或仅形态一方有信息则跟随有信息的一方；④两方均不足或确实无法判断时才选不明确。"
