@@ -8,7 +8,12 @@ from pathlib import Path
 
 import paramiko
 
-DEPLOY = Path(r"C:\Users\ghsemail\.cursor\skills\remote-deploy\deploy.json")
+SKILL_SCRIPTS = Path.home() / ".cursor" / "skills" / "remote-deploy" / "scripts"
+if str(SKILL_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SKILL_SCRIPTS))
+from credentials import resolve_ssh_cfg  # noqa: E402
+
+DEPLOY = Path.home() / ".cursor" / "skills" / "remote-deploy" / "deploy.json"
 INSTALL_DIR = "/home/ubuntu/.geegoo/geegoo-agent"
 BIN_DIR = "/home/ubuntu/.geegoo/bin"
 
@@ -28,7 +33,15 @@ def run(client: paramiko.SSHClient, cmd: str, timeout: int = 600) -> tuple[int, 
 
 def main() -> int:
     cfg = json.loads(DEPLOY.read_text(encoding="utf-8"))
-    ssh_cfg = cfg["targets"]["geegoo-agent"]["ssh"]
+    ssh_cfg = resolve_ssh_cfg(cfg["targets"]["geegoo-agent"]["ssh"], "geegoo-agent")
+    if not ssh_cfg.get("password") and not ssh_cfg.get("key_file"):
+        print(
+            "missing SSH credentials for geegoo-agent; set "
+            "~/.cursor/credentials/remote-deploy.json or "
+            "GEEGOO_SSH_PASSWORD_82_157_97_76",
+            file=sys.stderr,
+        )
+        return 2
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.connect(
@@ -36,6 +49,7 @@ def main() -> int:
         port=int(ssh_cfg.get("port", 22)),
         username=ssh_cfg["user"],
         password=ssh_cfg.get("password"),
+        key_filename=ssh_cfg.get("key_file"),
         timeout=30,
     )
 

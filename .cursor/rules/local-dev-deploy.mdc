@@ -1,0 +1,11 @@
+---
+description: 本地开发：后端 push 后自动部署，前端等用户命令（与 D:\Geegoo\.cursor\rules 同步）
+alwaysApply: true
+---
+
+# 本地开发 · 部署分工
+
+见 monorepo 规则 `D:\Geegoo\.cursor\rules\local-dev-deploy.mdc`（内容一致）。
+
+- **GeeGooAgent（本仓库）**：`git push` 后自动跑 `python scripts/ops/deploy/deploy_geegoo_agent.py`
+- **trading_operation Web**：仅用户明确要求时 `flutter build web` + `deploy_trading_operation_web.py`
