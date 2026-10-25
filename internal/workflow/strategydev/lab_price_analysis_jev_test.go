@@ -35,10 +35,70 @@ func TestBuildPriceAnalysisJEVStateIncludesKlinePatterns(t *testing.T) {
 		Summary: "锤子(看多)",
 		Bias:    &slots.KlinePatternBias{Bias: "看多", Score: 1},
 		Hits:    []slots.KlinePatternHit{{LabelCN: "锤子", Direction: 1}},
+		SignalFreq: "5m",
 	}
 	state := BuildPriceAnalysisJEVState(pa, "buy", kline)
 	if !strings.Contains(state, "锤子") || !strings.Contains(state, "形态摘要") {
 		t.Fatalf("state missing kline: %q", state)
+	}
+	if !strings.Contains(state, "5m 锚点命中") {
+		t.Fatalf("expected signal anchor tag: %q", state)
+	}
+}
+
+func TestBuildPriceAnalysisJEVStateIncludesMTFTaggedHits(t *testing.T) {
+	pa := &PriceAnalysis{Code: "00700.HK", Rows: []PriceAnalysisRow{{Timeframe: "60m", Conclusion: "偏多"}}}
+	detail := &LabEpisodeDetail{
+		KlinePatternMTF: &slots.KlinePatternMTFContext{
+			SignalFrequency: "5m",
+			WeightSchema:    "mtf_v1",
+			Timeframes: []slots.KlinePatternMTFEntry{
+				{
+					Frequency: "5m",
+					Label:     "5m",
+					ThreeBar: &slots.KlinePatternThreeBarWindow{
+						Bars: []slots.KlinePatternBarWindowEntry{
+							{Role: "anchor", KlinePatterns: []slots.KlinePatternHit{{LabelCN: "锤子", Direction: 1}}},
+						},
+					},
+				},
+				{
+					Frequency: "60m",
+					Label:     "1小时",
+					ThreeBar: &slots.KlinePatternThreeBarWindow{
+						Bars: []slots.KlinePatternBarWindowEntry{
+							{Role: "anchor", KlinePatterns: []slots.KlinePatternHit{{LabelCN: "射击之星", Direction: -1}}},
+						},
+					},
+				},
+				{
+					Frequency: "daily",
+					Label:     "日线",
+					ThreeBar: &slots.KlinePatternThreeBarWindow{
+						Bars: []slots.KlinePatternBarWindowEntry{
+							{Role: "anchor", KlinePatterns: []slots.KlinePatternHit{{LabelCN: "十字星", Direction: 2}}},
+						},
+					},
+				},
+			},
+		},
+		KlinePatternSummary: "多周期加权看多（0.20）",
+		KlinePatternBias:    &slots.KlinePatternBias{Bias: "看多", Score: 0.2},
+	}
+	kline := labJEVKlineFromDetail(detail)
+	if kline == nil || len(kline.TaggedHits) != 3 {
+		t.Fatalf("tagged=%+v", kline)
+	}
+	state := BuildPriceAnalysisJEVState(pa, "buy", kline)
+	for _, want := range []string{
+		"5m 锚点命中：锤子 方向=看多",
+		"1小时 命中：射击之星 方向=看空",
+		"日线 命中：十字星 方向=中性",
+		"形态展示摘要（多周期加权，仅供参考）",
+	} {
+		if !strings.Contains(state, want) {
+			t.Fatalf("missing %q in state:\n%s", want, state)
+		}
 	}
 }
 
