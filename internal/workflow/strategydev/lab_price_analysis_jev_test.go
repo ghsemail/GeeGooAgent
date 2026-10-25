@@ -145,29 +145,51 @@ func mockDecisionChoiceResponse(w http.ResponseWriter, answers map[string]any) {
 	})
 }
 
+func mockDecisionChatResponse(w http.ResponseWriter, content string) {
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"code":    0,
+		"message": "ok",
+		"data": map[string]any{
+			"model":   "jev-1.13.0",
+			"content": content,
+		},
+	})
+}
+
+const testLabJEVReasonSummary = "多周期结构与锚点形态同向，短线偏多。"
+
 func jevTestServer(t *testing.T, choice string) *httptest.Server {
 	t.Helper()
+	return jevTestServerWithReason(t, choice, testLabJEVReasonSummary)
+}
+
+func jevTestServerWithReason(t *testing.T, choice, reasonSummary string) *httptest.Server {
+	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/decision/choice" {
+		switch r.URL.Path {
+		case "/v1/decision/choice":
+			var req map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatal(err)
+			}
+			if req["state"] == nil {
+				t.Fatal("expected state in request")
+			}
+			mockDecisionChoiceResponse(w, map[string]any{
+				"direction": map[string]any{
+					"type":   "choice",
+					"choice": choice,
+					"probabilities": map[string]float64{
+						"看多": 0.62, "看空": 0.18, "不明确": 0.20,
+					},
+					"confidence": 0.71,
+				},
+			})
+		case "/v1/decision/chat":
+			mockDecisionChatResponse(w, reasonSummary)
+		default:
 			t.Fatalf("path=%s", r.URL.Path)
 		}
-		var req map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			t.Fatal(err)
-		}
-		if req["state"] == nil {
-			t.Fatal("expected state in request")
-		}
-		mockDecisionChoiceResponse(w, map[string]any{
-			"direction": map[string]any{
-				"type":   "choice",
-				"choice": choice,
-				"probabilities": map[string]float64{
-					"看多": 0.62, "看空": 0.18, "不明确": 0.20,
-				},
-				"confidence": 0.71,
-			},
-		})
 	}))
 }
 
@@ -190,8 +212,40 @@ func TestResolvePriceAnalysisJEVSuccess(t *testing.T) {
 	if len(out.Choices) != 3 || out.Choices[0].Probability != 0.62 {
 		t.Fatalf("choices=%+v", out.Choices)
 	}
-	if out.RecommendedReason == "" {
-		t.Fatal("expected reason")
+	if out.RecommendedReason != testLabJEVReasonSummary {
+		t.Fatalf("reason=%q want LLM summary", out.RecommendedReason)
+	}
+	if strings.Contains(out.RecommendedReason, "结构+形态 JEV 倾向") {
+		t.Fatal("must not use template recommended_reason")
+	}
+}
+
+func TestResolvePriceAnalysisJEVReasonSummaryFailureKeepsChoice(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/decision/choice":
+			mockDecisionChoiceResponse(w, map[string]any{
+				"direction": map[string]any{
+					"type": "choice", "choice": "看空",
+					"probabilities": map[string]float64{"看多": 0.2, "看空": 0.7, "不明确": 0.1},
+					"confidence": 0.7,
+				},
+			})
+		case "/v1/decision/chat":
+			w.WriteHeader(http.StatusBadGateway)
+		default:
+			t.Fatalf("path=%s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"})
+	pa := &PriceAnalysis{Rows: []PriceAnalysisRow{{Timeframe: "日线", Conclusion: "偏空"}}}
+	out := ResolvePriceAnalysisJEV(context.Background(), jev, pa, "sell", nil)
+	if !out.OK || out.RecommendedChoice != "看空" {
+		t.Fatalf("choice must stay from JEV: %+v", out)
+	}
+	if !strings.HasPrefix(out.RecommendedReason, labJEVReasonSummaryFailedPrefix) {
+		t.Fatalf("reason=%q", out.RecommendedReason)
 	}
 }
 
@@ -294,14 +348,21 @@ func TestResolvePriceAnalysisJEVNotConfigured(t *testing.T) {
 }
 
 func TestApplyPriceAnalysisJEVDualWrite(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		mockDecisionChoiceResponse(w, map[string]any{
-			"direction": map[string]any{
-				"type": "choice", "choice": "不明确",
-				"probabilities": map[string]float64{"看多": 0.2, "看空": 0.2, "不明确": 0.6},
-				"confidence":    0.5,
-			},
-		})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/decision/choice":
+			mockDecisionChoiceResponse(w, map[string]any{
+				"direction": map[string]any{
+					"type": "choice", "choice": "不明确",
+					"probabilities": map[string]float64{"看多": 0.2, "看空": 0.2, "不明确": 0.6},
+					"confidence":    0.5,
+				},
+			})
+		case "/v1/decision/chat":
+			mockDecisionChatResponse(w, "结构与形态信息均不足，暂无法给出可靠方向。")
+		default:
+			t.Fatalf("path=%s", r.URL.Path)
+		}
 	}))
 	defer srv.Close()
 	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"})

@@ -345,13 +345,7 @@ func ResolvePriceAnalysisJEV(ctx context.Context, jev *JevClient, pa *PriceAnaly
 	base.RecommendedChoice = choice
 	base.RecommendedIndex = idx
 	base.Choices = priceAnalysisJEVChoicesFromProbs(probs)
-	if confidence > 0 {
-		base.RecommendedReason = fmt.Sprintf("结构+形态 JEV 倾向%s（置信 %.0f%%）", choice, confidence*100)
-	} else if p := base.Choices[idx].Probability; p > 0 {
-		base.RecommendedReason = fmt.Sprintf("结构+形态 JEV 倾向%s（%.0f%%）", choice, p*100)
-	} else {
-		base.RecommendedReason = fmt.Sprintf("结构+形态 JEV 倾向%s", choice)
-	}
+	base.RecommendedReason = labJEVReasonFromSummary(ctx, jev, choice, idx, base.Choices, confidence)
 	return base
 }
 
