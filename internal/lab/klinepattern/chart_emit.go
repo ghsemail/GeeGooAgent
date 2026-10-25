@@ -24,27 +24,8 @@ func ThreeBarWindowForChartEmit(win *slots.KlinePatternThreeBarWindow) *slots.Kl
 	}
 	bars := make([]slots.KlinePatternBarWindowEntry, len(win.Bars))
 	copy(bars, win.Bars)
-	var windowHits []slots.KlinePatternHit
-	for i := range bars {
-		if bars[i].Omitted {
-			continue
-		}
-		windowHits = append(windowHits, bars[i].KlinePatterns...)
-	}
 	for i := range bars {
 		clearNonAnchorBarPatternMarkers(&bars[i])
-	}
-	// Lab 弹窗只读 anchor 列：形态若落在 prev/prev2，仍把摘要挂到 anchor 供 FE 展示名称。
-	for i := range bars {
-		if bars[i].Role != "anchor" || bars[i].Omitted {
-			continue
-		}
-		if len(bars[i].KlinePatterns) == 0 && len(windowHits) > 0 {
-			bars[i].KlinePatternSummary = slots.KlinePatternSummary(windowHits)
-			b := slots.ScoreKlinePatternHits(windowHits)
-			bars[i].KlinePatternBias = &b
-		}
-		break
 	}
 	out.Bars = bars
 	return &out

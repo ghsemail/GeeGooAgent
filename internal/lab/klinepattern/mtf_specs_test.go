@@ -11,12 +11,16 @@ func TestMultiTimeframeSpecsForKlinePatternDisplay_Ladders(t *testing.T) {
 		sig  string
 		want []string
 	}{
-		{"5m", []string{"5m", "15m", "30m", "60m"}},
-		{"5分钟", []string{"5m", "15m", "30m", "60m"}},
-		{"60m", []string{"60m", "daily", "weekly"}}, // freq keys; display labels use 1小时
+		{"5m", []string{"5m", "60m", "daily", "weekly"}},
+		{"5分钟", []string{"5m", "60m", "daily", "weekly"}},
+		{"60m", []string{"60m", "daily", "weekly"}},
 		{"1h", []string{"60m", "daily", "weekly"}},
 		{"daily", []string{"daily", "weekly"}},
 		{"日线", []string{"daily", "weekly"}},
+		{"weekly", []string{"weekly"}},
+		{"1wk", []string{"weekly"}},
+		{"15m", []string{"60m", "daily", "weekly"}},
+		{"", []string{"5m", "60m", "daily", "weekly"}},
 	}
 	for _, tc := range cases {
 		specs := multiTimeframeSpecsForKlinePatternDisplay(tc.sig)
@@ -63,6 +67,28 @@ func TestKlinePatternMTFWeights_TableLocked(t *testing.T) {
 	}
 }
 
+func TestKlinePatternMTFWeights_RenormalizedForShorterLadder(t *testing.T) {
+	w3 := klinePatternMTFWeightsForLadder(3)
+	if len(w3) != 3 {
+		t.Fatalf("len=%d", len(w3))
+	}
+	var sum float64
+	for _, w := range w3 {
+		sum += w
+	}
+	if sum < 0.999 || sum > 1.001 {
+		t.Fatalf("sum=%v", sum)
+	}
+	if w3[0] <= w3[1] || w3[1] <= w3[2] {
+		t.Fatalf("signal should stay heaviest: %v", w3)
+	}
+
+	w1 := klinePatternMTFWeightsForLadder(1)
+	if len(w1) != 1 || w1[0] != 1 {
+		t.Fatalf("single TF weight=%v", w1)
+	}
+}
+
 func TestKlinePatternProbeFrequency_MatchesNormalize(t *testing.T) {
 	if got := klinePatternProbeFrequency("daily"); got != "daily" {
 		t.Fatalf("daily probe=%q", got)
@@ -75,7 +101,7 @@ func TestKlinePatternProbeFrequency_MatchesNormalize(t *testing.T) {
 	}
 }
 
-func TestBuildKlinePatternMTFContext_AlwaysFourTimeframes(t *testing.T) {
+func TestBuildKlinePatternMTFContext_FiveMinuteLadder(t *testing.T) {
 	bars := []any{
 		map[string]any{"time": "2024-01-01", "open": 1, "high": 2, "low": 0.5, "close": 1.5},
 		map[string]any{"time": "2024-01-02", "open": 1.5, "high": 2.5, "low": 1, "close": 2},
@@ -88,9 +114,9 @@ func TestBuildKlinePatternMTFContext_AlwaysFourTimeframes(t *testing.T) {
 		MTF: &KlinePatternMTFBundle{
 			SignalFreq: "5m",
 			ByFreq: map[string]KlinePatternFreqSeries{
-				"15m":   {Freq: "15m", FetchOK: false},
-				"30m":   {Freq: "30m", FetchOK: false},
-				"60m":   {Freq: "60m", FetchOK: false},
+				"60m":    {Freq: "60m", FetchOK: false},
+				"daily":  {Freq: "daily", FetchOK: false},
+				"weekly": {Freq: "weekly", FetchOK: false},
 			},
 		},
 	}
@@ -100,10 +126,10 @@ func TestBuildKlinePatternMTFContext_AlwaysFourTimeframes(t *testing.T) {
 	}
 	var bias *slots.KlinePatternBias
 	ApplyMTFWeightedKlineConclusion(ctx, &bias, nil)
-	if len(ctx.Timeframes) != 4 {
-		t.Fatalf("timeframes=%d want 4", len(ctx.Timeframes))
+	wantFreqs := []string{"5m", "60m", "daily", "weekly"}
+	if len(ctx.Timeframes) != len(wantFreqs) {
+		t.Fatalf("timeframes=%d want %d", len(ctx.Timeframes), len(wantFreqs))
 	}
-	wantFreqs := []string{"5m", "15m", "30m", "60m"}
 	for i, w := range wantFreqs {
 		if ctx.Timeframes[i].Frequency != w {
 			t.Fatalf("i=%d freq=%s want=%s", i, ctx.Timeframes[i].Frequency, w)
@@ -128,5 +154,19 @@ func TestBuildKlinePatternMTFContext_AlwaysFourTimeframes(t *testing.T) {
 	}
 	if ctx.PrimaryBias == nil {
 		t.Fatal("expected primary_bias from weighted conclusion")
+	}
+}
+
+func TestBuildKlinePatternMTFContext_WeeklySingleRow(t *testing.T) {
+	bars := []any{map[string]any{"time": "2024-01-01", "close": 1}}
+	in := KlinePatternDisplayInput{
+		SignalFreq:  "weekly",
+		Bars:        bars,
+		PatternHits: []any{nil},
+		MTF:         &KlinePatternMTFBundle{SignalFreq: "weekly", ByFreq: map[string]KlinePatternFreqSeries{}},
+	}
+	ctx := BuildKlinePatternMTFContext(0, in)
+	if ctx == nil || len(ctx.Timeframes) != 1 || ctx.Timeframes[0].Frequency != "weekly" {
+		t.Fatalf("ctx=%+v", ctx)
 	}
 }

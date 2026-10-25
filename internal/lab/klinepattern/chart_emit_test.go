@@ -35,14 +35,14 @@ func TestThreeBarWindowForChartEmit_KeepsAnchorHitsOnly(t *testing.T) {
 	}
 }
 
-func TestThreeBarWindowForChartEmit_PromotesPrevHitsSummaryToAnchor(t *testing.T) {
+func TestThreeBarWindowForChartEmit_AnchorEmptyWhenOnlyPrevHits(t *testing.T) {
 	win := &slots.KlinePatternThreeBarWindow{
 		AnchorIndex: 2,
 		Bars: []slots.KlinePatternBarWindowEntry{
 			{Role: "prev2", Index: 0},
 			{Role: "prev", Index: 1, KlinePatterns: []slots.KlinePatternHit{
 				{Name: "Hammer", Direction: 1, LabelCN: "锤头线"},
-			}},
+			}, KlinePatternSummary: "锤头线(看多)", KlinePatternBias: &slots.KlinePatternBias{Bias: "看多", Score: 1}},
 			{Role: "anchor", Index: 2},
 		},
 	}
@@ -51,11 +51,14 @@ func TestThreeBarWindowForChartEmit_PromotesPrevHitsSummaryToAnchor(t *testing.T
 	if len(anchor.KlinePatterns) != 0 {
 		t.Fatalf("anchor patterns should stay empty for chart markers, got %+v", anchor.KlinePatterns)
 	}
-	if anchor.KlinePatternSummary != "锤头线(看多)" {
-		t.Fatalf("summary=%q", anchor.KlinePatternSummary)
+	if anchor.KlinePatternSummary != "" {
+		t.Fatalf("summary=%q want empty", anchor.KlinePatternSummary)
 	}
-	if anchor.KlinePatternBias == nil || anchor.KlinePatternBias.Bias != "看多" {
-		t.Fatalf("bias=%+v", anchor.KlinePatternBias)
+	if anchor.KlinePatternBias != nil {
+		t.Fatalf("bias=%+v want nil", anchor.KlinePatternBias)
+	}
+	if len(emit.Bars[1].KlinePatterns) != 0 {
+		t.Fatalf("prev markers must be cleared: %+v", emit.Bars[1].KlinePatterns)
 	}
 }
 

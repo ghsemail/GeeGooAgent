@@ -35,11 +35,24 @@ var priceAnalysisJEVCriteria = map[string]string{
 	"不明确": "结构与形态均信息不足，或经权衡仍无法给出可靠方向（非仅因两方冲突就默认此项）",
 }
 
+// LabJEVKlineTaggedHit is one timeframe's pattern hits at the aligned anchor bar for JEV state.
+type LabJEVKlineTaggedHit struct {
+	Timeframe string
+	Anchor    bool
+	Hits      []slots.KlinePatternHit
+}
+
 // LabJEVKlineInput is kline pattern context for the single lab JEV decision at one anchor bar.
 type LabJEVKlineInput struct {
-	Summary string
-	Bias    *slots.KlinePatternBias
-	Hits    []slots.KlinePatternHit
+	SignalFreq string
+	TaggedHits []LabJEVKlineTaggedHit
+	// DisplaySummary / DisplayBias may reflect MTF-weighted card fields (not a substitute for TaggedHits).
+	DisplaySummary      string
+	DisplayBias         *slots.KlinePatternBias
+	MTFWeightedDisplay  bool
+	Summary             string
+	Bias                *slots.KlinePatternBias
+	Hits                []slots.KlinePatternHit
 }
 
 // BuildPriceAnalysisJEVState compresses multi-TF PA and anchor-bar kline patterns into state for System One.
@@ -53,13 +66,6 @@ func BuildPriceAnalysisJEVState(pa *PriceAnalysis, signalSide string, kline *Lab
 			fmt.Fprintf(&b, "锚点 %s 收盘 %.4g\n", t, pa.AnchorClose)
 		} else if pa.SpotPrice != 0 {
 			fmt.Fprintf(&b, "现价 %.4g\n", pa.SpotPrice)
-		}
-		if pa.PriceScore != 0 || strings.TrimSpace(pa.ScoreReason) != "" {
-			fmt.Fprintf(&b, "综合分 %.2f", pa.PriceScore)
-			if sr := strings.TrimSpace(pa.ScoreReason); sr != "" {
-				fmt.Fprintf(&b, " · %s", sr)
-			}
-			b.WriteByte('\n')
 		}
 		if s := strings.TrimSpace(pa.Summary); s != "" {
 			fmt.Fprintf(&b, "摘要：%s\n", s)
@@ -86,13 +92,6 @@ func BuildPriceAnalysisJEVState(pa *PriceAnalysis, signalSide string, kline *Lab
 			}
 			b.WriteByte('\n')
 		}
-		for label, br := range pa.TFScores {
-			if br.Missing {
-				continue
-			}
-			fmt.Fprintf(&b, "分项[%s] 子分=%.3f 结论=%.3f 位置=%.3f BOS=%.3f\n",
-				label, br.Subscore, br.Conclusion, br.Position, br.BosChoch)
-		}
 	}
 	side := strings.TrimSpace(signalSide)
 	if side == "buy" {
@@ -108,71 +107,200 @@ func appendKlinePatternJEVState(b *strings.Builder, kline *LabJEVKlineInput) {
 	if kline == nil {
 		return
 	}
-	summary := strings.TrimSpace(kline.Summary)
-	hasHits := len(kline.Hits) > 0
-	if summary == "" && !hasHits && kline.Bias == nil {
+	summary := strings.TrimSpace(kline.DisplaySummary)
+	if summary == "" {
+		summary = strings.TrimSpace(kline.Summary)
+	}
+	bias := kline.DisplayBias
+	if bias == nil {
+		bias = kline.Bias
+	}
+	tagged := kline.TaggedHits
+	hasLegacyHits := len(kline.Hits) > 0
+	if summary == "" && bias == nil && len(tagged) == 0 && !hasLegacyHits {
 		return
 	}
-	b.WriteString("\n--- 锚点 K 线形态（本地规则命中，供与结构一并判断）---\n")
+	b.WriteString("\n--- 锚点 K 线形态（按周期标注，供与结构一并判断）---\n")
 	if summary != "" {
-		fmt.Fprintf(b, "形态摘要：%s\n", summary)
+		if kline.MTFWeightedDisplay {
+			fmt.Fprintf(b, "形态展示摘要（多周期加权，仅供参考）：%s\n", summary)
+		} else {
+			fmt.Fprintf(b, "形态摘要：%s\n", summary)
+		}
 	}
-	if kline.Bias != nil {
-		fmt.Fprintf(b, "形态倾向：%s", strings.TrimSpace(kline.Bias.Bias))
-		if kline.Bias.Score != 0 {
-			fmt.Fprintf(b, "（得分 %.2f）", kline.Bias.Score)
+	if bias != nil {
+		if kline.MTFWeightedDisplay {
+			fmt.Fprintf(b, "形态展示倾向（多周期加权，仅供参考）：%s", strings.TrimSpace(bias.Bias))
+		} else {
+			fmt.Fprintf(b, "形态倾向：%s", strings.TrimSpace(bias.Bias))
+		}
+		if bias.Score != 0 {
+			fmt.Fprintf(b, "（得分 %.2f）", bias.Score)
 		}
 		b.WriteByte('\n')
 	}
-	for _, h := range kline.Hits {
-		dir := "中性"
-		switch h.Direction {
-		case 1:
-			dir = "看多"
-		case -1:
-			dir = "看空"
+	for _, block := range tagged {
+		for _, h := range block.Hits {
+			appendLabJEVKlineHitLine(b, block.Timeframe, block.Anchor, h)
 		}
-		label := strings.TrimSpace(h.LabelCN)
-		if label == "" {
-			label = strings.TrimSpace(h.Name)
-		}
-		if label == "" {
-			continue
-		}
-		fmt.Fprintf(b, "命中：%s 方向=%s\n", label, dir)
 	}
+	if len(tagged) == 0 {
+		for _, h := range kline.Hits {
+			appendLabJEVKlineHitLine(b, labJEVTimeframeTag("", kline.SignalFreq), true, h)
+		}
+	}
+}
+
+func appendLabJEVKlineHitLine(b *strings.Builder, tfTag string, anchor bool, h slots.KlinePatternHit) {
+	label := strings.TrimSpace(h.LabelCN)
+	if label == "" {
+		label = strings.TrimSpace(h.Name)
+	}
+	if label == "" {
+		return
+	}
+	tfTag = strings.TrimSpace(tfTag)
+	if tfTag == "" {
+		tfTag = "信号"
+	}
+	prefix := tfTag + " 命中"
+	if anchor {
+		prefix = tfTag + " 锚点命中"
+	}
+	dir := klinePatternHitDirectionLabel(h.Direction)
+	fmt.Fprintf(b, "%s：%s 方向=%s\n", prefix, label, dir)
+}
+
+func klinePatternHitDirectionLabel(direction int) string {
+	switch direction {
+	case 1:
+		return "看多"
+	case -1:
+		return "看空"
+	default:
+		return "中性"
+	}
+}
+
+func labJEVTimeframeTag(entryLabel, freq string) string {
+	if l := strings.TrimSpace(entryLabel); l != "" {
+		return l
+	}
+	switch NormalizeFrequency(freq) {
+	case "5m":
+		return "5m"
+	case "60m":
+		return "60m"
+	case "daily":
+		return "日线"
+	case "weekly", "1wk":
+		return "周线"
+	default:
+		if f := strings.TrimSpace(freq); f != "" {
+			return f
+		}
+		return ""
+	}
+}
+
+func labJEVHitsFromThreeBarAnchor(win *slots.KlinePatternThreeBarWindow) []slots.KlinePatternHit {
+	if win == nil {
+		return nil
+	}
+	for _, bar := range win.Bars {
+		if bar.Role == "anchor" && !bar.Omitted && len(bar.KlinePatterns) > 0 {
+			return bar.KlinePatterns
+		}
+	}
+	return nil
+}
+
+func labJEVKlineTaggedHitsFromDetail(out *LabEpisodeDetail, signalFreq string) []LabJEVKlineTaggedHit {
+	if out == nil {
+		return nil
+	}
+	sigN := NormalizeFrequency(signalFreq)
+	if mtf := out.KlinePatternMTF; mtf != nil {
+		if sigN == "" {
+			sigN = NormalizeFrequency(mtf.SignalFrequency)
+		}
+		var tagged []LabJEVKlineTaggedHit
+		for _, tf := range mtf.Timeframes {
+			hits := labJEVHitsFromThreeBarAnchor(tf.ThreeBar)
+			if len(hits) == 0 {
+				continue
+			}
+			isAnchor := NormalizeFrequency(tf.Frequency) == sigN
+			tag := labJEVTimeframeTag(tf.Label, tf.Frequency)
+			tagged = append(tagged, LabJEVKlineTaggedHit{
+				Timeframe: tag,
+				Anchor:    isAnchor,
+				Hits:      hits,
+			})
+		}
+		return tagged
+	}
+	if win := out.KlinePatternThreeBar; win != nil {
+		if hits := labJEVHitsFromThreeBarAnchor(win); len(hits) > 0 {
+			tag := labJEVTimeframeTag("", sigN)
+			if tag == "" {
+				tag = "信号"
+			}
+			return []LabJEVKlineTaggedHit{{Timeframe: tag, Anchor: true, Hits: hits}}
+		}
+	}
+	if len(out.KlinePatterns) > 0 {
+		tag := labJEVTimeframeTag("", sigN)
+		if tag == "" {
+			tag = "信号"
+		}
+		return []LabJEVKlineTaggedHit{{Timeframe: tag, Anchor: true, Hits: out.KlinePatterns}}
+	}
+	return nil
 }
 
 func labJEVKlineFromDetail(out *LabEpisodeDetail) *LabJEVKlineInput {
 	if out == nil {
 		return nil
 	}
-	in := &LabJEVKlineInput{
-		Summary: patternSummaryText(out),
-		Bias:    patternBiasForDetail(out),
-		Hits:    out.KlinePatterns,
+	sigFreq := ""
+	if out.KlinePatternMTF != nil {
+		sigFreq = out.KlinePatternMTF.SignalFrequency
 	}
-	if in.Summary == "" && in.Bias == nil && len(in.Hits) == 0 {
+	in := &LabJEVKlineInput{
+		SignalFreq:         sigFreq,
+		DisplaySummary:     patternSummaryText(out),
+		DisplayBias:        patternBiasForDetail(out),
+		MTFWeightedDisplay: out.KlinePatternMTF != nil && strings.TrimSpace(out.KlinePatternMTF.WeightSchema) != "",
+		TaggedHits:         labJEVKlineTaggedHitsFromDetail(out, sigFreq),
+	}
+	if in.DisplaySummary == "" && in.DisplayBias == nil && len(in.TaggedHits) == 0 {
 		return nil
 	}
 	return in
 }
 
 func labJEVKlineInputEmpty(kline *LabJEVKlineInput) bool {
-	return kline == nil
+	if kline == nil {
+		return true
+	}
+	if len(kline.TaggedHits) > 0 || len(kline.Hits) > 0 {
+		return false
+	}
+	if strings.TrimSpace(kline.Summary) != "" || strings.TrimSpace(kline.DisplaySummary) != "" {
+		return false
+	}
+	if kline.Bias != nil || kline.DisplayBias != nil {
+		return false
+	}
+	return true
 }
 
 func labPAInformative(pa *PriceAnalysis) bool {
 	if pa == nil {
 		return false
 	}
-	if strings.TrimSpace(pa.Summary) != "" || len(pa.Rows) > 0 {
-		return true
-	}
-	if pa.PriceScore != 0 || strings.TrimSpace(pa.ScoreReason) != "" {
-		return true
-	}
-	return false
+	return strings.TrimSpace(pa.Summary) != "" || len(pa.Rows) > 0
 }
 
 // ResolvePriceAnalysisJEV calls System One choice primitive; never falls back to local PA/pattern rules.
@@ -195,7 +323,7 @@ func ResolvePriceAnalysisJEV(ctx context.Context, jev *JevClient, pa *PriceAnaly
 		base.Error = "jev not configured"
 		return base
 	}
-	instructions := "基于 state 中的多周期价格结构（结论、摆动结构、BOS/CHOCH、区间位置、ER、RVOL、综合分）" +
+	instructions := "基于 state 中的多周期价格结构（结论、摆动结构、BOS/CHOCH、区间位置、ER、RVOL）" +
 		"与锚点 K 线形态命中/倾向，对该信号上下文应如何判断价格方向？只能从给定选项中选一项。" +
 		"规则：①结构与形态同向则选该方向；②冲突时须权衡后选看多或看空，不得仅因冲突选不明确；" +
 		"③仅结构或仅形态一方有信息则跟随有信息的一方；④两方均不足或确实无法判断时才选不明确。"
@@ -217,13 +345,7 @@ func ResolvePriceAnalysisJEV(ctx context.Context, jev *JevClient, pa *PriceAnaly
 	base.RecommendedChoice = choice
 	base.RecommendedIndex = idx
 	base.Choices = priceAnalysisJEVChoicesFromProbs(probs)
-	if confidence > 0 {
-		base.RecommendedReason = fmt.Sprintf("结构+形态 JEV 倾向%s（置信 %.0f%%）", choice, confidence*100)
-	} else if p := base.Choices[idx].Probability; p > 0 {
-		base.RecommendedReason = fmt.Sprintf("结构+形态 JEV 倾向%s（%.0f%%）", choice, p*100)
-	} else {
-		base.RecommendedReason = fmt.Sprintf("结构+形态 JEV 倾向%s", choice)
-	}
+	base.RecommendedReason = labJEVReasonFromSummary(ctx, jev, choice, idx, base.Choices, confidence)
 	return base
 }
 

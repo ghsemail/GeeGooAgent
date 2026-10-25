@@ -27,6 +27,38 @@ func TestBuildPriceAnalysisJEVStateIncludesRows(t *testing.T) {
 	if !strings.Contains(state, "买入触发") {
 		t.Fatal("expected buy side in state")
 	}
+	if pa.PriceScore != 12.5 {
+		t.Fatal("PA object must retain price_score for UI JSON")
+	}
+	for _, forbidden := range []string{"综合分", "分项[", "price_score", "tf_scores", "子分="} {
+		if strings.Contains(state, forbidden) {
+			t.Fatalf("JEV state must omit composite scores, found %q in:\n%s", forbidden, state)
+		}
+	}
+}
+
+func TestBuildPriceAnalysisJEVStateOmitsTFScoreBreakdown(t *testing.T) {
+	pa := &PriceAnalysis{
+		Code:       "X",
+		PriceScore: 42.5,
+		ScoreReason: "周线日线同向",
+		Rows:        []PriceAnalysisRow{{Timeframe: "60m", Conclusion: "偏多", Structure: "HL", BosChoch: "-", Position: "中"}},
+		TFScores: map[string]TFScoreBreakdown{
+			"周线": {Subscore: 0.8, Conclusion: 0.5, Position: 0.3, BosChoch: 0.2},
+		},
+	}
+	state := BuildPriceAnalysisJEVState(pa, "sell", nil)
+	if !strings.Contains(state, "[60m]") {
+		t.Fatalf("expected structure row: %q", state)
+	}
+	for _, forbidden := range []string{"综合分", "42.50", "42.5", "分项[", "子分="} {
+		if strings.Contains(state, forbidden) {
+			t.Fatalf("forbidden %q in state:\n%s", forbidden, state)
+		}
+	}
+	if len(pa.TFScores) != 1 || pa.PriceScore != 42.5 {
+		t.Fatal("PA JSON fields must remain on struct")
+	}
 }
 
 func TestBuildPriceAnalysisJEVStateIncludesKlinePatterns(t *testing.T) {
@@ -35,10 +67,70 @@ func TestBuildPriceAnalysisJEVStateIncludesKlinePatterns(t *testing.T) {
 		Summary: "锤子(看多)",
 		Bias:    &slots.KlinePatternBias{Bias: "看多", Score: 1},
 		Hits:    []slots.KlinePatternHit{{LabelCN: "锤子", Direction: 1}},
+		SignalFreq: "5m",
 	}
 	state := BuildPriceAnalysisJEVState(pa, "buy", kline)
 	if !strings.Contains(state, "锤子") || !strings.Contains(state, "形态摘要") {
 		t.Fatalf("state missing kline: %q", state)
+	}
+	if !strings.Contains(state, "5m 锚点命中") {
+		t.Fatalf("expected signal anchor tag: %q", state)
+	}
+}
+
+func TestBuildPriceAnalysisJEVStateIncludesMTFTaggedHits(t *testing.T) {
+	pa := &PriceAnalysis{Code: "00700.HK", Rows: []PriceAnalysisRow{{Timeframe: "60m", Conclusion: "偏多"}}}
+	detail := &LabEpisodeDetail{
+		KlinePatternMTF: &slots.KlinePatternMTFContext{
+			SignalFrequency: "5m",
+			WeightSchema:    "mtf_v1",
+			Timeframes: []slots.KlinePatternMTFEntry{
+				{
+					Frequency: "5m",
+					Label:     "5m",
+					ThreeBar: &slots.KlinePatternThreeBarWindow{
+						Bars: []slots.KlinePatternBarWindowEntry{
+							{Role: "anchor", KlinePatterns: []slots.KlinePatternHit{{LabelCN: "锤子", Direction: 1}}},
+						},
+					},
+				},
+				{
+					Frequency: "60m",
+					Label:     "1小时",
+					ThreeBar: &slots.KlinePatternThreeBarWindow{
+						Bars: []slots.KlinePatternBarWindowEntry{
+							{Role: "anchor", KlinePatterns: []slots.KlinePatternHit{{LabelCN: "射击之星", Direction: -1}}},
+						},
+					},
+				},
+				{
+					Frequency: "daily",
+					Label:     "日线",
+					ThreeBar: &slots.KlinePatternThreeBarWindow{
+						Bars: []slots.KlinePatternBarWindowEntry{
+							{Role: "anchor", KlinePatterns: []slots.KlinePatternHit{{LabelCN: "十字星", Direction: 2}}},
+						},
+					},
+				},
+			},
+		},
+		KlinePatternSummary: "多周期加权看多（0.20）",
+		KlinePatternBias:    &slots.KlinePatternBias{Bias: "看多", Score: 0.2},
+	}
+	kline := labJEVKlineFromDetail(detail)
+	if kline == nil || len(kline.TaggedHits) != 3 {
+		t.Fatalf("tagged=%+v", kline)
+	}
+	state := BuildPriceAnalysisJEVState(pa, "buy", kline)
+	for _, want := range []string{
+		"5m 锚点命中：锤子 方向=看多",
+		"1小时 命中：射击之星 方向=看空",
+		"日线 命中：十字星 方向=中性",
+		"形态展示摘要（多周期加权，仅供参考）",
+	} {
+		if !strings.Contains(state, want) {
+			t.Fatalf("missing %q in state:\n%s", want, state)
+		}
 	}
 }
 
@@ -53,29 +145,51 @@ func mockDecisionChoiceResponse(w http.ResponseWriter, answers map[string]any) {
 	})
 }
 
+func mockDecisionChatResponse(w http.ResponseWriter, content string) {
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"code":    0,
+		"message": "ok",
+		"data": map[string]any{
+			"model":   "jev-1.13.0",
+			"content": content,
+		},
+	})
+}
+
+const testLabJEVReasonSummary = "多周期结构与锚点形态同向，短线偏多。"
+
 func jevTestServer(t *testing.T, choice string) *httptest.Server {
 	t.Helper()
+	return jevTestServerWithReason(t, choice, testLabJEVReasonSummary)
+}
+
+func jevTestServerWithReason(t *testing.T, choice, reasonSummary string) *httptest.Server {
+	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/decision/choice" {
+		switch r.URL.Path {
+		case "/v1/decision/choice":
+			var req map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatal(err)
+			}
+			if req["state"] == nil {
+				t.Fatal("expected state in request")
+			}
+			mockDecisionChoiceResponse(w, map[string]any{
+				"direction": map[string]any{
+					"type":   "choice",
+					"choice": choice,
+					"probabilities": map[string]float64{
+						"看多": 0.62, "看空": 0.18, "不明确": 0.20,
+					},
+					"confidence": 0.71,
+				},
+			})
+		case "/v1/decision/chat":
+			mockDecisionChatResponse(w, reasonSummary)
+		default:
 			t.Fatalf("path=%s", r.URL.Path)
 		}
-		var req map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			t.Fatal(err)
-		}
-		if req["state"] == nil {
-			t.Fatal("expected state in request")
-		}
-		mockDecisionChoiceResponse(w, map[string]any{
-			"direction": map[string]any{
-				"type":   "choice",
-				"choice": choice,
-				"probabilities": map[string]float64{
-					"看多": 0.62, "看空": 0.18, "不明确": 0.20,
-				},
-				"confidence": 0.71,
-			},
-		})
 	}))
 }
 
@@ -98,8 +212,40 @@ func TestResolvePriceAnalysisJEVSuccess(t *testing.T) {
 	if len(out.Choices) != 3 || out.Choices[0].Probability != 0.62 {
 		t.Fatalf("choices=%+v", out.Choices)
 	}
-	if out.RecommendedReason == "" {
-		t.Fatal("expected reason")
+	if out.RecommendedReason != testLabJEVReasonSummary {
+		t.Fatalf("reason=%q want LLM summary", out.RecommendedReason)
+	}
+	if strings.Contains(out.RecommendedReason, "结构+形态 JEV 倾向") {
+		t.Fatal("must not use template recommended_reason")
+	}
+}
+
+func TestResolvePriceAnalysisJEVReasonSummaryFailureKeepsChoice(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/decision/choice":
+			mockDecisionChoiceResponse(w, map[string]any{
+				"direction": map[string]any{
+					"type": "choice", "choice": "看空",
+					"probabilities": map[string]float64{"看多": 0.2, "看空": 0.7, "不明确": 0.1},
+					"confidence": 0.7,
+				},
+			})
+		case "/v1/decision/chat":
+			w.WriteHeader(http.StatusBadGateway)
+		default:
+			t.Fatalf("path=%s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"})
+	pa := &PriceAnalysis{Rows: []PriceAnalysisRow{{Timeframe: "日线", Conclusion: "偏空"}}}
+	out := ResolvePriceAnalysisJEV(context.Background(), jev, pa, "sell", nil)
+	if !out.OK || out.RecommendedChoice != "看空" {
+		t.Fatalf("choice must stay from JEV: %+v", out)
+	}
+	if !strings.HasPrefix(out.RecommendedReason, labJEVReasonSummaryFailedPrefix) {
+		t.Fatalf("reason=%q", out.RecommendedReason)
 	}
 }
 
@@ -202,14 +348,21 @@ func TestResolvePriceAnalysisJEVNotConfigured(t *testing.T) {
 }
 
 func TestApplyPriceAnalysisJEVDualWrite(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		mockDecisionChoiceResponse(w, map[string]any{
-			"direction": map[string]any{
-				"type": "choice", "choice": "不明确",
-				"probabilities": map[string]float64{"看多": 0.2, "看空": 0.2, "不明确": 0.6},
-				"confidence":    0.5,
-			},
-		})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/decision/choice":
+			mockDecisionChoiceResponse(w, map[string]any{
+				"direction": map[string]any{
+					"type": "choice", "choice": "不明确",
+					"probabilities": map[string]float64{"看多": 0.2, "看空": 0.2, "不明确": 0.6},
+					"confidence":    0.5,
+				},
+			})
+		case "/v1/decision/chat":
+			mockDecisionChatResponse(w, "结构与形态信息均不足，暂无法给出可靠方向。")
+		default:
+			t.Fatalf("path=%s", r.URL.Path)
+		}
 	}))
 	defer srv.Close()
 	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"})

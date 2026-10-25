@@ -32,21 +32,31 @@ func TestLabDetailJEVContextSurvivesPhaseDeadline(t *testing.T) {
 	}
 
 	var jevCalled atomic.Bool
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jevCalled.Store(true)
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"code": 0, "message": "ok",
-			"data": map[string]any{
-				"model": "jev-1.13.0",
-				"answers": map[string]any{
-					"direction": map[string]any{
-						"type": "choice", "choice": "看多",
-						"probabilities": map[string]float64{"看多": 0.7, "看空": 0.2, "不明确": 0.1},
-						"confidence": 0.7,
+		switch r.URL.Path {
+		case "/v1/decision/choice":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"code": 0, "message": "ok",
+				"data": map[string]any{
+					"model": "jev-1.13.0",
+					"answers": map[string]any{
+						"direction": map[string]any{
+							"type": "choice", "choice": "看多",
+							"probabilities": map[string]float64{"看多": 0.7, "看空": 0.2, "不明确": 0.1},
+							"confidence": 0.7,
+						},
 					},
 				},
-			},
-		})
+			})
+		case "/v1/decision/chat":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"code": 0, "message": "ok",
+				"data": map[string]any{"model": "jev-1.13.0", "content": "60m 结构偏多。"},
+			})
+		default:
+			http.NotFound(w, r)
+		}
 	}))
 	defer srv.Close()
 
@@ -79,22 +89,32 @@ func TestLabDetailJEVContextSurvivesPhaseDeadline(t *testing.T) {
 
 func TestBuildLabEpisodeDetailJEVAfterSlowPhase(t *testing.T) {
 	var jevCalled atomic.Bool
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jevCalled.Store(true)
 		time.Sleep(80 * time.Millisecond)
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"code": 0, "message": "ok",
-			"data": map[string]any{
-				"model": "jev-1.13.0",
-				"answers": map[string]any{
-					"direction": map[string]any{
-						"type": "choice", "choice": "看空",
-						"probabilities": map[string]float64{"看多": 0.1, "看空": 0.8, "不明确": 0.1},
-						"confidence": 0.8,
+		switch r.URL.Path {
+		case "/v1/decision/choice":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"code": 0, "message": "ok",
+				"data": map[string]any{
+					"model": "jev-1.13.0",
+					"answers": map[string]any{
+						"direction": map[string]any{
+							"type": "choice", "choice": "看空",
+							"probabilities": map[string]float64{"看多": 0.1, "看空": 0.8, "不明确": 0.1},
+							"confidence": 0.8,
+						},
 					},
 				},
-			},
-		})
+			})
+		case "/v1/decision/chat":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"code": 0, "message": "ok",
+				"data": map[string]any{"model": "jev-1.13.0", "content": "更大周期偏空。"},
+			})
+		default:
+			http.NotFound(w, r)
+		}
 	}))
 	defer srv.Close()
 
