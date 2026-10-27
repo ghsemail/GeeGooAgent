@@ -126,22 +126,28 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		pa = priceanalysis.RoundPriceAnalysisForOutput(pa)
 		converted := priceAnalysisFromLab(pa)
 		out.PriceAnalysis = &converted
+		var ta *LabTechnicalAnalysis
+		if in.TAClient != nil {
+			taCtx, taCancel := labDetailTAContext(cacheCtx, in.TATimeout)
+			ta = fetchLabTechnicalAnalysis(taCtx, in.TAClient, in, asOf)
+			taCancel()
+			out.TechnicalAnalysis = ta
+		}
 		jevCtx, jevCancel := labDetailJEVContext(cacheCtx, in.JEVTimeout)
 		defer jevCancel()
 		applyPriceAnalysisJEV(jevCtx, &out, side, in.Jev)
-		if in.TAClient != nil {
-			taCtx, taCancel := labDetailTAContext(cacheCtx, in.TATimeout)
-			ta := fetchLabTechnicalAnalysis(taCtx, in.TAClient, in, asOf)
-			taCancel()
-			applyLabTechnicalAnalysis(&out, ta, jevCtx, side, in)
+		applyKlineJEV(jevCtx, &out, side, in.Jev)
+		if ta != nil {
+			rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, side, in.SignalFreq)
+			out.TechnicalAnalysisJEV = &rec
 		}
+		applyLabJEVUnified(jevCtx, &out, side, in)
 		if !anchorOK {
 			out.Degraded = append(out.Degraded, "price_anchor_missing")
 		}
 	} else {
 		out.Degraded = append(out.Degraded, "lab_price_fetch_unavailable")
 	}
-	ApplyLabJEVUnified(&out)
 	PrepareLabEpisodeDetailForEmit(&out)
 	return out, nil
 }
@@ -188,17 +194,23 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 		pa = priceanalysis.RoundPriceAnalysisForOutput(pa)
 		converted := priceAnalysisFromLab(pa)
 		out.PriceAnalysis = &converted
+		var ta *LabTechnicalAnalysis
+		if in.TAClient != nil {
+			taCtx, taCancel := labDetailTAContext(cacheCtx, in.TATimeout)
+			ta = fetchLabTechnicalAnalysis(taCtx, in.TAClient, in, nil)
+			taCancel()
+			out.TechnicalAnalysis = ta
+		}
 		jevCtx, jevCancel := labDetailJEVContext(cacheCtx, in.JEVTimeout)
 		defer jevCancel()
 		applyPriceAnalysisJEV(jevCtx, &out, "flow", in.Jev)
-		if in.TAClient != nil {
-			taCtx, taCancel := labDetailTAContext(cacheCtx, in.TATimeout)
-			ta := fetchLabTechnicalAnalysis(taCtx, in.TAClient, in, nil)
-			taCancel()
-			applyLabTechnicalAnalysis(&out, ta, jevCtx, "flow", in)
+		applyKlineJEV(jevCtx, &out, "flow", in.Jev)
+		if ta != nil {
+			rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, "flow", in.SignalFreq)
+			out.TechnicalAnalysisJEV = &rec
 		}
+		applyLabJEVUnified(jevCtx, &out, "flow", in)
 	}
-	ApplyLabJEVUnified(&out)
 	PrepareLabEpisodeDetailForEmit(&out)
 	return out, nil
 }
@@ -328,7 +340,7 @@ func labDetailPAContext(ctx context.Context, timeout time.Duration) (context.Con
 	return context.WithTimeout(ctx, timeout)
 }
 
-// labDetailJEVContext uses WithoutCancel so an expired phase deadline does not abort System One.
+// labDetailJEVContext uses WithoutCancel so an expired phase deadline does not abort JEV 决策.
 func labDetailJEVContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	if timeout <= 0 {
 		timeout = DefaultLabDetailJEVTimeout

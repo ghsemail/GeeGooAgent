@@ -42,6 +42,7 @@ type LabEpisodeDetail struct {
 	KlinePatternMTF      *slots.KlinePatternMTFContext     `json:"kline_pattern_mtf,omitempty"`
 	PriceAnalysis         *PriceAnalysis         `json:"price_analysis,omitempty"`
 	PriceAnalysisJEV      *PriceAnalysisJEV      `json:"price_analysis_jev,omitempty"`
+	KlineJEV              *KlineJEV              `json:"kline_jev,omitempty"`
 	TechnicalAnalysis     *LabTechnicalAnalysis  `json:"technical_analysis,omitempty"`
 	TechnicalAnalysisJEV  *TechnicalAnalysisJEV  `json:"technical_analysis_jev,omitempty"`
 	JEVUnified            *LabJEVUnified         `json:"jev_unified,omitempty"`

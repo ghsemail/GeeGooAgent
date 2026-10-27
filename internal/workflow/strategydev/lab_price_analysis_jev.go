@@ -15,7 +15,7 @@ type PriceAnalysisJEVChoice struct {
 	Probability float64 `json:"probability"`
 }
 
-// PriceAnalysisJEV is the System One (JEV) directional read for lab price analysis.
+// PriceAnalysisJEV is the JEV 决策 directional read for lab price analysis.
 type PriceAnalysisJEV struct {
 	Source            string                   `json:"source"`
 	Model             string                   `json:"model"`
@@ -30,9 +30,9 @@ type PriceAnalysisJEV struct {
 var priceAnalysisJEVLabels = []string{"看多", "看空", "不明确"}
 
 var priceAnalysisJEVCriteria = map[string]string{
-	"看多": "多周期价格结构与锚点 K 线形态整体偏多，或仅有一方明确偏多且另一方中性/缺失",
-	"看空": "多周期价格结构与锚点 K 线形态整体偏空，或仅有一方明确偏空且另一方中性/缺失",
-	"不明确": "结构与形态均信息不足，或经权衡仍无法给出可靠方向（非仅因两方冲突就默认此项）",
+	"看多": "多周期价格结构整体偏多，或关键周期结论一致指向多头",
+	"看空": "多周期价格结构整体偏空，或关键周期结论一致指向空头",
+	"不明确": "结构信息不足，或经权衡仍无法给出可靠方向（非仅因周期冲突就默认此项）",
 }
 
 // LabJEVKlineTaggedHit is one timeframe's pattern hits at the aligned anchor bar for JEV state.
@@ -55,8 +55,8 @@ type LabJEVKlineInput struct {
 	Hits                []slots.KlinePatternHit
 }
 
-// BuildPriceAnalysisJEVState compresses multi-TF PA and anchor-bar kline patterns into state for System One.
-func BuildPriceAnalysisJEVState(pa *PriceAnalysis, signalSide string, kline *LabJEVKlineInput) string {
+// BuildPriceAnalysisJEVState compresses multi-TF PA into state for JEV 决策 (no kline patterns).
+func BuildPriceAnalysisJEVState(pa *PriceAnalysis, signalSide string) string {
 	var b strings.Builder
 	if pa != nil {
 		if c := strings.TrimSpace(pa.Code); c != "" {
@@ -99,7 +99,6 @@ func BuildPriceAnalysisJEVState(pa *PriceAnalysis, signalSide string, kline *Lab
 	} else if side == "sell" {
 		b.WriteString("信号侧：卖出触发\n")
 	}
-	appendKlinePatternJEVState(&b, kline)
 	return strings.TrimSpace(b.String())
 }
 
@@ -303,18 +302,18 @@ func labPAInformative(pa *PriceAnalysis) bool {
 	return strings.TrimSpace(pa.Summary) != "" || len(pa.Rows) > 0
 }
 
-// ResolvePriceAnalysisJEV calls System One choice primitive; never falls back to local PA/pattern rules.
-func ResolvePriceAnalysisJEV(ctx context.Context, jev *JevClient, pa *PriceAnalysis, signalSide string, kline *LabJEVKlineInput) PriceAnalysisJEV {
+// ResolvePriceAnalysisJEV calls JEV Choice once; never falls back to local PA rules.
+func ResolvePriceAnalysisJEV(ctx context.Context, jev *JevClient, pa *PriceAnalysis, signalSide string) PriceAnalysisJEV {
 	model := config.DefaultDecisionModel
 	if jev != nil && strings.TrimSpace(jev.cfg.Model) != "" {
 		model = strings.TrimSpace(jev.cfg.Model)
 	}
 	base := emptyPriceAnalysisJEV(model)
-	if !labPAInformative(pa) && labJEVKlineInputEmpty(kline) {
+	if !labPAInformative(pa) {
 		base.Error = "lab decision state empty"
 		return base
 	}
-	state := BuildPriceAnalysisJEVState(pa, signalSide, kline)
+	state := BuildPriceAnalysisJEVState(pa, signalSide)
 	if state == "" {
 		base.Error = "lab decision state empty"
 		return base
@@ -323,10 +322,10 @@ func ResolvePriceAnalysisJEV(ctx context.Context, jev *JevClient, pa *PriceAnaly
 		base.Error = "jev not configured"
 		return base
 	}
-	instructions := "基于 state 中的多周期价格结构（结论、摆动结构、BOS/CHOCH、区间位置、ER、RVOL）" +
-		"与锚点 K 线形态命中/倾向，对该信号上下文应如何判断价格方向？只能从给定选项中选一项。" +
-		"规则：①结构与形态同向则选该方向；②冲突时须权衡后选看多或看空，不得仅因冲突选不明确；" +
-		"③仅结构或仅形态一方有信息则跟随有信息的一方；④两方均不足或确实无法判断时才选不明确。"
+	instructions := "基于 state 中的多周期价格结构（结论、摆动结构、BOS/CHOCH、区间位置、ER、RVOL），" +
+		"对该信号上下文应如何判断价格方向？只能从给定选项中选一项。" +
+		"规则：①多周期结构同向则选该方向；②冲突时须权衡后选看多或看空，不得仅因冲突选不明确；" +
+		"③仅部分周期有信息则跟随有信息的一方；④信息均不足或确实无法判断时才选不明确。"
 	choice, probs, confidence, respModel, err := jev.Choice(ctx, state, "direction", instructions, priceAnalysisJEVCriteria)
 	if err != nil {
 		base.Error = err.Error()
@@ -381,14 +380,10 @@ func indexPriceAnalysisJEVLabel(label string) (int, bool) {
 }
 
 func applyPriceAnalysisJEV(ctx context.Context, out *LabEpisodeDetail, side string, jev *JevClient) {
-	if out == nil {
+	if out == nil || out.PriceAnalysis == nil || !labPAInformative(out.PriceAnalysis) {
 		return
 	}
-	kline := labJEVKlineFromDetail(out)
-	if out.PriceAnalysis == nil && labJEVKlineInputEmpty(kline) {
-		return
-	}
-	rec := ResolvePriceAnalysisJEV(ctx, jev, out.PriceAnalysis, side, kline)
+	rec := ResolvePriceAnalysisJEV(ctx, jev, out.PriceAnalysis, side)
 	out.PriceAnalysisJEV = &rec
 	if out.PriceAnalysis != nil {
 		out.PriceAnalysis.PriceAnalysisJEV = &rec

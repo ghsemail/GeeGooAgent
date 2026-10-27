@@ -194,13 +194,20 @@ lab-detail **不**走卡片 light enrich；MTF 来自 run 级 probe + `BuildKlin
 
 `details` 内每个 value 的 JSON 字段与 **`POST /v1/signal-diagnose/lab-detail` 响应里的 `detail`** 完全一致（含 `price_analysis`、`price_analysis_jev`、`jev_unified`、顶层 `kline_pattern_*`、`kline_pattern` 嵌套对象、`degraded` 等）。FE 可将某次 diagnose 的整段 `details`（或按 ref 合并）复制进 Signal 测试记录 Mongo 的 `run` 对象，历史打开时本地渲染，**无需再调 lab-detail**。
 
-### `price_analysis_jev`（唯一方向决策）
+### 四路 JEV 决策（lab-detail）
 
-lab-detail 在 **K 线形态已写入 detail** 后，将 **多周期价格结构 + 锚点 K 线形态** 一并送入 **单次** System One Choice（`direction`：`看多` / `看空` / `不明确`）。**无**本地 0.7/0.3 加权，**无**第二次 JEV；JEV 失败时 `ok=false`，不伪造方向。
+编排顺序：**三路原始**（`price_analysis`、K 线形态、`technical_analysis`）→ **三路 JEV**（`price_analysis_jev`、`kline_jev`、`technical_analysis_jev`）→ **总 JEV**（`jev_unified`）。
 
-### `jev_unified`（兼容镜像，仅展示）
+- `price_analysis_jev`：仅多周期价格结构，不含 K 线。
+- `kline_jev`：仅锚点/多周期 K 线形态命中与倾向。
+- `technical_analysis_jev`：仅 Elder 指标（`strategy_version` 请求用英文 `alpha`）。
+- `jev_unified`：只吃上述三路 JEV 的 `recommended_choice` / `choices` / `recommended_reason`，再经一次 JEV Choice 合成最终 `direction`；**不**再镜像单路 JEV。
 
-`jev_unified` **不再**独立合成方向，仅镜像 `price_analysis_jev` 的推荐项（`direction` / `confidence` 来自 JEV `choices` 概率）。`breakdown.pattern` 仍为本地形态摘要；`conflict` 仅表示 **展示用** 形态 bias 与 JEV 推荐是否不一致，**不参与**决策。FE 应逐步改读 `price_analysis_jev.recommended_choice` 为主文案，可移除「0.7 结构 + 0.3 形态」说明。
+任一路 JEV 失败时 `ok=false` 且带 `error`，不本地捏方向；参与 unified 的任一路失败则不下发 `jev_unified`。冲突时 JEV 不得仅因矛盾默认「不明确」（与单路 JEV 口径一致）。对外文案用「JEV 决策」，不写 System One。
+
+### `jev_unified`（总决策）
+
+`direction` / `confidence` 来自 unified JEV Choice 的推荐项与概率。`breakdown.structure` / `breakdown.pattern` 分别摘录价格结构 JEV 与 K 线 JEV 的理由摘要；`conflict` 表示三路 JEV 结论之间或与 unified 推荐不一致（展示用）。
 
 示例：
 

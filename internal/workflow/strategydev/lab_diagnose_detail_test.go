@@ -67,18 +67,18 @@ func TestLabDetailJEVContextSurvivesPhaseDeadline(t *testing.T) {
 	}
 	jevCtx, jevCancel := labDetailJEVContext(parent, 2*time.Second)
 	defer jevCancel()
-	out := ResolvePriceAnalysisJEV(jevCtx, jev, pa, "buy", nil)
+	out := ResolvePriceAnalysisJEV(jevCtx, jev, pa, "buy")
 	if !out.OK {
 		t.Fatalf("expected JEV ok after phase expiry, err=%q", out.Error)
 	}
 	if !jevCalled.Load() {
-		t.Fatal("expected System One call")
+		t.Fatal("expected JEV call")
 	}
 
 	staleCtx, staleCancel := context.WithTimeout(parent, 30*time.Millisecond)
 	defer staleCancel()
 	time.Sleep(50 * time.Millisecond)
-	staleOut := ResolvePriceAnalysisJEV(staleCtx, jev, pa, "buy", nil)
+	staleOut := ResolvePriceAnalysisJEV(staleCtx, jev, pa, "buy")
 	if staleOut.OK {
 		t.Fatal("shared short deadline should fail JEV")
 	}
@@ -137,7 +137,7 @@ func TestBuildLabEpisodeDetailJEVAfterSlowPhase(t *testing.T) {
 		t.Fatalf("expected JEV ok despite slow PA phase, err=%q", detail.PriceAnalysisJEV.Error)
 	}
 	if !jevCalled.Load() {
-		t.Fatal("expected System One invoked after PA")
+		t.Fatal("expected JEV invoked after PA")
 	}
 	if detail.PriceAnalysisJEV.RecommendedChoice != "看空" {
 		t.Fatalf("unexpected choice %+v", detail.PriceAnalysisJEV)
