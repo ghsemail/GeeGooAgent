@@ -20,7 +20,7 @@ func TestBuildPriceAnalysisJEVStateIncludesRows(t *testing.T) {
 		PriceScore:  12.5,
 		ScoreReason: "周线日线同向",
 	}
-	state := BuildPriceAnalysisJEVState(pa, "buy", nil)
+	state := BuildPriceAnalysisJEVState(pa, "buy")
 	if !strings.Contains(state, "00700.HK") || !strings.Contains(state, "日线") || !strings.Contains(state, "BOS↑") {
 		t.Fatalf("state missing PA fields: %q", state)
 	}
@@ -47,7 +47,7 @@ func TestBuildPriceAnalysisJEVStateOmitsTFScoreBreakdown(t *testing.T) {
 			"周线": {Subscore: 0.8, Conclusion: 0.5, Position: 0.3, BosChoch: 0.2},
 		},
 	}
-	state := BuildPriceAnalysisJEVState(pa, "sell", nil)
+	state := BuildPriceAnalysisJEVState(pa, "sell")
 	if !strings.Contains(state, "[60m]") {
 		t.Fatalf("expected structure row: %q", state)
 	}
@@ -61,7 +61,7 @@ func TestBuildPriceAnalysisJEVStateOmitsTFScoreBreakdown(t *testing.T) {
 	}
 }
 
-func TestBuildPriceAnalysisJEVStateIncludesKlinePatterns(t *testing.T) {
+func TestBuildPriceAnalysisJEVStateExcludesKlinePatterns(t *testing.T) {
 	pa := &PriceAnalysis{Code: "X", Rows: []PriceAnalysisRow{{Timeframe: "60m", Conclusion: "偏多"}}}
 	kline := &LabJEVKlineInput{
 		Summary: "锤子(看多)",
@@ -69,17 +69,14 @@ func TestBuildPriceAnalysisJEVStateIncludesKlinePatterns(t *testing.T) {
 		Hits:    []slots.KlinePatternHit{{LabelCN: "锤子", Direction: 1}},
 		SignalFreq: "5m",
 	}
-	state := BuildPriceAnalysisJEVState(pa, "buy", kline)
-	if !strings.Contains(state, "锤子") || !strings.Contains(state, "形态摘要") {
-		t.Fatalf("state missing kline: %q", state)
+	state := BuildPriceAnalysisJEVState(pa, "buy")
+	if strings.Contains(state, "锤子") || strings.Contains(state, "形态摘要") {
+		t.Fatalf("PA state must not include kline: %q", state)
 	}
-	if !strings.Contains(state, "5m 锚点命中") {
-		t.Fatalf("expected signal anchor tag: %q", state)
-	}
+	_ = kline
 }
 
-func TestBuildPriceAnalysisJEVStateIncludesMTFTaggedHits(t *testing.T) {
-	pa := &PriceAnalysis{Code: "00700.HK", Rows: []PriceAnalysisRow{{Timeframe: "60m", Conclusion: "偏多"}}}
+func TestBuildKlineJEVStateIncludesMTFTaggedHits(t *testing.T) {
 	detail := &LabEpisodeDetail{
 		KlinePatternMTF: &slots.KlinePatternMTFContext{
 			SignalFrequency: "5m",
@@ -121,7 +118,7 @@ func TestBuildPriceAnalysisJEVStateIncludesMTFTaggedHits(t *testing.T) {
 	if kline == nil || len(kline.TaggedHits) != 3 {
 		t.Fatalf("tagged=%+v", kline)
 	}
-	state := BuildPriceAnalysisJEVState(pa, "buy", kline)
+	state := BuildKlineJEVState(kline, "buy")
 	for _, want := range []string{
 		"5m 锚点命中：锤子 方向=看多",
 		"1小时 命中：射击之星 方向=看空",
@@ -202,7 +199,7 @@ func TestResolvePriceAnalysisJEVSuccess(t *testing.T) {
 		Code: "00700.HK",
 		Rows: []PriceAnalysisRow{{Timeframe: "60m", Conclusion: "偏多", Structure: "HL", BosChoch: "-", Position: "中"}},
 	}
-	out := ResolvePriceAnalysisJEV(context.Background(), jev, pa, "buy", nil)
+	out := ResolvePriceAnalysisJEV(context.Background(), jev, pa, "buy")
 	if !out.OK {
 		t.Fatalf("ok=false err=%q", out.Error)
 	}
@@ -240,7 +237,7 @@ func TestResolvePriceAnalysisJEVReasonSummaryFailureKeepsChoice(t *testing.T) {
 	defer srv.Close()
 	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"})
 	pa := &PriceAnalysis{Rows: []PriceAnalysisRow{{Timeframe: "日线", Conclusion: "偏空"}}}
-	out := ResolvePriceAnalysisJEV(context.Background(), jev, pa, "sell", nil)
+	out := ResolvePriceAnalysisJEV(context.Background(), jev, pa, "sell")
 	if !out.OK || out.RecommendedChoice != "看空" {
 		t.Fatalf("choice must stay from JEV: %+v", out)
 	}
@@ -249,58 +246,12 @@ func TestResolvePriceAnalysisJEVReasonSummaryFailureKeepsChoice(t *testing.T) {
 	}
 }
 
-func TestResolvePriceAnalysisJEVBothLegsSameDirection(t *testing.T) {
-	srv := jevTestServer(t, "看多")
-	defer srv.Close()
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "test-key", Model: "jev-1.13.0"})
-	pa := &PriceAnalysis{Rows: []PriceAnalysisRow{{Timeframe: "日线", Conclusion: "偏多"}}}
-	kline := &LabJEVKlineInput{
-		Summary: "吞没(看多)",
-		Bias:    &slots.KlinePatternBias{Bias: "看多"},
-		Hits:    []slots.KlinePatternHit{{LabelCN: "吞没", Direction: 1}},
-	}
-	out := ResolvePriceAnalysisJEV(context.Background(), jev, pa, "buy", kline)
-	if !out.OK || out.RecommendedChoice != "看多" {
-		t.Fatalf("got %+v", out)
-	}
-}
-
-func TestResolvePriceAnalysisJEVConflictPicksSideNotUnclear(t *testing.T) {
-	srv := jevTestServer(t, "看空")
-	defer srv.Close()
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "test-key", Model: "jev-1.13.0"})
-	pa := &PriceAnalysis{Rows: []PriceAnalysisRow{{Timeframe: "日线", Conclusion: "偏多"}}}
-	kline := &LabJEVKlineInput{
-		Bias: &slots.KlinePatternBias{Bias: "看空"},
-		Hits: []slots.KlinePatternHit{{LabelCN: "射击之星", Direction: -1}},
-	}
-	out := ResolvePriceAnalysisJEV(context.Background(), jev, pa, "buy", kline)
-	if !out.OK || out.RecommendedChoice != "看空" {
-		t.Fatalf("conflict mock should pick 看空, got %+v", out)
-	}
-}
-
-func TestResolvePriceAnalysisJEVPatternOnly(t *testing.T) {
-	srv := jevTestServer(t, "看多")
-	defer srv.Close()
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "test-key", Model: "jev-1.13.0"})
-	kline := &LabJEVKlineInput{
-		Summary: "锤子",
-		Bias:    &slots.KlinePatternBias{Bias: "看多"},
-		Hits:    []slots.KlinePatternHit{{LabelCN: "锤子", Direction: 1}},
-	}
-	out := ResolvePriceAnalysisJEV(context.Background(), jev, nil, "sell", kline)
-	if !out.OK || out.RecommendedChoice != "看多" {
-		t.Fatalf("pattern-only: %+v", out)
-	}
-}
-
 func TestResolvePriceAnalysisJEVPAOnly(t *testing.T) {
 	srv := jevTestServer(t, "看空")
 	defer srv.Close()
 	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "test-key", Model: "jev-1.13.0"})
 	pa := &PriceAnalysis{Rows: []PriceAnalysisRow{{Timeframe: "周线", Conclusion: "偏空"}}}
-	out := ResolvePriceAnalysisJEV(context.Background(), jev, pa, "buy", nil)
+	out := ResolvePriceAnalysisJEV(context.Background(), jev, pa, "buy")
 	if !out.OK || out.RecommendedChoice != "看空" {
 		t.Fatalf("pa-only: %+v", out)
 	}
@@ -308,12 +259,12 @@ func TestResolvePriceAnalysisJEVPAOnly(t *testing.T) {
 
 func TestResolvePriceAnalysisJEVInsufficientState(t *testing.T) {
 	jev := NewJevClient(JevConfig{BaseURL: "http://unused", APIKey: "k", Model: "jev-1.13.0"})
-	out := ResolvePriceAnalysisJEV(context.Background(), jev, nil, "buy", nil)
+	out := ResolvePriceAnalysisJEV(context.Background(), jev, nil, "buy")
 	if out.OK || !strings.Contains(out.Error, "empty") {
 		t.Fatalf("got %+v", out)
 	}
 	paEmpty := &PriceAnalysis{Code: "only-code"}
-	out2 := ResolvePriceAnalysisJEV(context.Background(), jev, paEmpty, "buy", nil)
+	out2 := ResolvePriceAnalysisJEV(context.Background(), jev, paEmpty, "buy")
 	if out2.OK || !strings.Contains(out2.Error, "empty") {
 		t.Fatalf("non-informative PA: %+v", out2)
 	}
@@ -327,7 +278,7 @@ func TestResolvePriceAnalysisJEVFailureNoFallback(t *testing.T) {
 
 	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "test-key", Model: "jev-1.13.0"})
 	pa := &PriceAnalysis{Code: "X", Rows: []PriceAnalysisRow{{Timeframe: "日线", Conclusion: "偏多"}}}
-	out := ResolvePriceAnalysisJEV(context.Background(), jev, pa, "sell", nil)
+	out := ResolvePriceAnalysisJEV(context.Background(), jev, pa, "sell")
 	if out.OK {
 		t.Fatal("expected ok=false on http error")
 	}
@@ -341,7 +292,7 @@ func TestResolvePriceAnalysisJEVFailureNoFallback(t *testing.T) {
 
 func TestResolvePriceAnalysisJEVNotConfigured(t *testing.T) {
 	pa := &PriceAnalysis{Code: "X", Rows: []PriceAnalysisRow{{Timeframe: "日线"}}}
-	out := ResolvePriceAnalysisJEV(context.Background(), NewJevClient(JevConfig{}), pa, "buy", nil)
+	out := ResolvePriceAnalysisJEV(context.Background(), NewJevClient(JevConfig{}), pa, "buy")
 	if out.OK || !strings.Contains(out.Error, "jev not configured") {
 		t.Fatalf("got %+v", out)
 	}
@@ -379,17 +330,3 @@ func TestApplyPriceAnalysisJEVDualWrite(t *testing.T) {
 	}
 }
 
-func TestApplyPriceAnalysisJEVPatternOnlyOnDetail(t *testing.T) {
-	srv := jevTestServer(t, "看多")
-	defer srv.Close()
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"})
-	detail := LabEpisodeDetail{
-		KlinePatternSummary: "锤子(看多)",
-		KlinePatternBias:    &slots.KlinePatternBias{Bias: "看多"},
-		KlinePatterns:       []slots.KlinePatternHit{{LabelCN: "锤子", Direction: 1}},
-	}
-	applyPriceAnalysisJEV(context.Background(), &detail, "buy", jev)
-	if detail.PriceAnalysisJEV == nil || !detail.PriceAnalysisJEV.OK {
-		t.Fatalf("pattern-only detail JEV: %+v", detail.PriceAnalysisJEV)
-	}
-}

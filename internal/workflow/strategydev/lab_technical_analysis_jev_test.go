@@ -212,10 +212,13 @@ func TestBuildLabEpisodeDetailIncludesTechnicalAnalysisJEV(t *testing.T) {
 	if detail.TechnicalAnalysisJEV == nil || !detail.TechnicalAnalysisJEV.OK {
 		t.Fatalf("technical_analysis_jev=%+v", detail.TechnicalAnalysisJEV)
 	}
-	if jevCalls < 2 {
-		t.Fatalf("expected separate JEV calls for PA and TA, got %d", jevCalls)
+	if jevCalls < 3 {
+		t.Fatalf("expected PA + TA + unified JEV calls (kline optional), got %d", jevCalls)
 	}
-	if detail.JEVUnified == nil || detail.JEVUnified.Direction != LabJEVUnifiedBull {
-		t.Fatalf("jev_unified must still mirror PA JEV only, got %+v", detail.JEVUnified)
+	if detail.PriceAnalysisJEV == nil || !detail.PriceAnalysisJEV.OK {
+		t.Fatalf("price_analysis_jev=%+v", detail.PriceAnalysisJEV)
+	}
+	if detail.JEVUnified == nil {
+		t.Fatal("expected jev_unified from unified JEV pass")
 	}
 }
