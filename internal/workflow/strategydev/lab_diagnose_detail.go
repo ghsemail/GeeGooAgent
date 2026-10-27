@@ -14,7 +14,7 @@ const (
 	DefaultLabDetailPhaseTimeout = 8 * time.Second
 	// DefaultLabDetailPATimeout is a separate budget for lab-api multi-TF price analysis (after MTF probe).
 	DefaultLabDetailPATimeout = 45 * time.Second
-	// DefaultLabDetailJEVTimeout is the dedicated System One budget after PA completes (matches JevClient HTTP timeout).
+	// DefaultLabDetailJEVTimeout is the dedicated JEV 决策 budget after PA / TA (matches JevClient HTTP timeout).
 	DefaultLabDetailJEVTimeout = 45 * time.Second
 )
 
@@ -33,14 +33,18 @@ type LabDetailInput struct {
 	DetailTimeout time.Duration
 	// PATimeout caps lab-api price-analysis fetch (separate from MTF probe).
 	PATimeout time.Duration
-	// JEVTimeout is a separate budget for System One price-analysis JEV after PA finishes.
+	// TATimeout caps lab-api technical-analysis fetch (daily + signal TF).
+	TATimeout time.Duration
+	// JEVTimeout is a separate budget for JEV 决策 after PA / TA completes.
 	JEVTimeout time.Duration
 	// CachedMTF when set, reuses MTF bundle across lab-detail calls for one diagnose run.
 	CachedMTF **KlinePatternMTFBundle
 	SessionID string
 	RunID     string
-	// Jev optional System One client for lazy price-analysis JEV (lab-detail only).
+	// Jev optional JEV client for lazy lab-detail decisions (PA + TA parallel paths).
 	Jev *JevClient
+	// TAClient optional lab-api client for POST /v1/lab/technical-analysis (same base URL/key as kline jobs).
+	TAClient LabTechnicalAnalysisClient
 }
 
 // BuildLabEpisodeDetail loads MTF kline context and anchored price analysis for one ref.
@@ -125,6 +129,12 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		jevCtx, jevCancel := labDetailJEVContext(cacheCtx, in.JEVTimeout)
 		defer jevCancel()
 		applyPriceAnalysisJEV(jevCtx, &out, side, in.Jev)
+		if in.TAClient != nil {
+			taCtx, taCancel := labDetailTAContext(cacheCtx, in.TATimeout)
+			ta := fetchLabTechnicalAnalysis(taCtx, in.TAClient, in, asOf)
+			taCancel()
+			applyLabTechnicalAnalysis(&out, ta, jevCtx, side, in)
+		}
 		if !anchorOK {
 			out.Degraded = append(out.Degraded, "price_anchor_missing")
 		}
@@ -181,6 +191,12 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 		jevCtx, jevCancel := labDetailJEVContext(cacheCtx, in.JEVTimeout)
 		defer jevCancel()
 		applyPriceAnalysisJEV(jevCtx, &out, "flow", in.Jev)
+		if in.TAClient != nil {
+			taCtx, taCancel := labDetailTAContext(cacheCtx, in.TATimeout)
+			ta := fetchLabTechnicalAnalysis(taCtx, in.TAClient, in, nil)
+			taCancel()
+			applyLabTechnicalAnalysis(&out, ta, jevCtx, "flow", in)
+		}
 	}
 	ApplyLabJEVUnified(&out)
 	PrepareLabEpisodeDetailForEmit(&out)

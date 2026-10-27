@@ -40,9 +40,11 @@ type LabEpisodeDetail struct {
 	KlinePatternThreeBar *slots.KlinePatternThreeBarWindow `json:"kline_pattern_three_bar,omitempty"`
 	KlinePatternBias     *slots.KlinePatternBias           `json:"kline_pattern_bias,omitempty"`
 	KlinePatternMTF      *slots.KlinePatternMTFContext     `json:"kline_pattern_mtf,omitempty"`
-	PriceAnalysis     *PriceAnalysis     `json:"price_analysis,omitempty"`
-	PriceAnalysisJEV  *PriceAnalysisJEV  `json:"price_analysis_jev,omitempty"`
-	JEVUnified        *LabJEVUnified     `json:"jev_unified,omitempty"`
+	PriceAnalysis         *PriceAnalysis         `json:"price_analysis,omitempty"`
+	PriceAnalysisJEV      *PriceAnalysisJEV      `json:"price_analysis_jev,omitempty"`
+	TechnicalAnalysis     *LabTechnicalAnalysis  `json:"technical_analysis,omitempty"`
+	TechnicalAnalysisJEV  *TechnicalAnalysisJEV  `json:"technical_analysis_jev,omitempty"`
+	JEVUnified            *LabJEVUnified         `json:"jev_unified,omitempty"`
 	Degraded          []string           `json:"degraded,omitempty"`
 }
 
