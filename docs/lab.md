@@ -201,13 +201,13 @@ lab-detail **不**走卡片 light enrich；MTF 来自 run 级 probe + `BuildKlin
 - `price_analysis_jev`：仅多周期价格结构，不含 K 线。
 - `kline_jev`：仅锚点/多周期 K 线形态命中与倾向。
 - `technical_analysis_jev`：仅 Elder 指标（`strategy_version` 请求用英文 `alpha`）。
-- `jev_unified`：只吃上述三路 JEV 的 `recommended_choice` / `choices` / `recommended_reason`，再经一次 JEV Choice 合成最终 `direction`；**不**再镜像单路 JEV。
+- `jev_unified`：总 JEV Choice 的 state = 各路**基础事实摘要**（与单路 JEV 同源压缩）+ 各路 **JEV 结论**（`recommended_choice` / `choices` / `recommended_reason`）；未参与的路在 state 中写明「未参与」。禁止只喂结论、禁止固定权重机械合成方向；**不**再镜像单路 JEV。
 
-任一路 JEV 失败时 `ok=false` 且带 `error`，不本地捏方向；参与 unified 的任一路失败则不下发 `jev_unified`。冲突时 JEV 不得仅因矛盾默认「不明确」（与单路 JEV 口径一致）。对外文案用「JEV 决策」，不写 System One。
+任一路 JEV 失败时 `ok=false` 且带 `error`，不本地捏方向；参与 unified 的任一路失败则不下发 `jev_unified`。总 JEV 自身 Choice/理由 Chat 失败时下发 `jev_unified.ok=false` 与 `error`，不本地捏 `direction`。冲突时 JEV 不得仅因矛盾默认「不明确」（与单路 JEV 口径一致）。对外文案用「JEV 决策」，不写 System One。
 
 ### `jev_unified`（总决策）
 
-`direction` / `confidence` 来自 unified JEV Choice 的推荐项与概率。`breakdown.structure` / `breakdown.pattern` 分别摘录价格结构 JEV 与 K 线 JEV 的理由摘要；`conflict` 表示三路 JEV 结论之间或与 unified 推荐不一致（展示用）。
+字段与单路 JEV 对齐：`ok` / `error` / `recommended_choice` / `choices` / `recommended_reason`，并保留 `direction`（bull/bear/unclear，由推荐项映射）、`confidence`（推荐项概率；`conflict=true` 时本地 cap ≤0.75）、`conflict`（参与路 JEV 结论互不一致或与总推荐不一致）。`breakdown.structure` / `breakdown.pattern` / `breakdown.technical` 分别摘录三路 JEV 的 `recommended_reason`（或等价摘要）。
 
 示例：
 
@@ -218,12 +218,16 @@ lab-detail **不**走卡片 light enrich；MTF 来自 run 级 probe + `BuildKlin
   "recommended_reason": "结构+形态 JEV 倾向看多（置信 71%）"
 },
 "jev_unified": {
+  "ok": true,
+  "recommended_choice": "看多",
+  "recommended_reason": "价格结构与指标同向偏多，形态中性。",
   "direction": "bull",
   "confidence": 0.62,
   "conflict": false,
   "breakdown": {
-    "structure": "结构+形态 JEV 倾向看多（置信 71%）",
-    "pattern": "锤子(看多)"
+    "structure": "多周期结构倾向看多（置信 71%）",
+    "pattern": "锚点锤子偏多",
+    "technical": "日线 Impulse 绿区，过滤周期同向"
   }
 }
 ```
@@ -260,12 +264,16 @@ lab-detail **不**走卡片 light enrich；MTF 来自 run 级 probe + `BuildKlin
     "price_analysis": { },
     "price_analysis_jev": { },
     "jev_unified": {
+      "ok": true,
+      "recommended_choice": "看多",
+      "recommended_reason": "结构与 K 线同向，指标过滤通过。",
       "direction": "bull",
       "confidence": 0.71,
       "conflict": false,
       "breakdown": {
         "structure": "多周期结构倾向看多（置信 70%）",
-        "pattern": "锤子(看多)"
+        "pattern": "锤子(看多)",
+        "technical": "三重滤网偏多"
       }
     },
     "kline_pattern_summary": "..."

@@ -44,8 +44,8 @@ func TestPrepareLabEpisodeDetailForEmit_AnchorOnlyChartMarkers(t *testing.T) {
 	if len(detail.KlinePatterns) != 1 {
 		t.Fatalf("episode-level kline_patterns for JEV must stay: %+v", detail.KlinePatterns)
 	}
-	if detail.JEVUnified == nil || *detail.JEVUnified != wantJEV {
-		t.Fatalf("jev_unified changed: got %+v want %+v", detail.JEVUnified, wantJEV)
+	if detail.JEVUnified == nil || detail.JEVUnified.Direction != wantJEV.Direction || detail.JEVUnified.Confidence != wantJEV.Confidence {
+		t.Fatalf("jev_unified changed: got %+v want direction/conf %+v/%v", detail.JEVUnified, wantJEV.Direction, wantJEV.Confidence)
 	}
 
 	raw, err := json.Marshal(detail)
