@@ -60,7 +60,7 @@ func TestLabDetailJEVPipelineFourChoiceCalls(t *testing.T) {
 		"price_analysis_jev":     detail.PriceAnalysisJEV != nil && detail.PriceAnalysisJEV.OK,
 		"kline_jev":              detail.KlineJEV != nil && detail.KlineJEV.OK,
 		"technical_analysis_jev": detail.TechnicalAnalysisJEV != nil && detail.TechnicalAnalysisJEV.OK,
-		"jev_unified":            detail.JEVUnified != nil,
+		"jev_unified":            detail.JEVUnified != nil && detail.JEVUnified.OK,
 	} {
 		if !ok {
 			t.Fatalf("missing or failed %s", name)
