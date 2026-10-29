@@ -205,6 +205,8 @@ lab-detail **不**走卡片 light enrich；MTF 来自 run 级 probe + `BuildKlin
 
 任一路 JEV 失败时 `ok=false` 且带 `error`，不本地捏方向；参与 unified 的任一路失败则不下发 `jev_unified`。总 JEV 自身 Choice/理由 Chat 失败时下发 `jev_unified.ok=false` 与 `error`，不本地捏 `direction`。冲突时 JEV 不得仅因矛盾默认「不明确」（与单路 JEV 口径一致）。对外文案用「JEV 决策」，不写 System One。
 
+单路与各 leg 的 **`recommended_reason`** 由独立 Decision Chat 生成：payload 除 JEV Choice 输出外，还携带与 Choice **同源** 的 `facts` 摘要（PA / K 线 / TA 的 `Build*JEVState`）；总 JEV 理由 Chat 的 `leg_conclusions` 同样含各路 `facts`。方向仍只来自 Choice，理由 Chat 只解释依据、不重推方向。
+
 ### `jev_unified`（总决策）
 
 字段与单路 JEV 对齐：`ok` / `error` / `recommended_choice` / `choices` / `recommended_reason`，并保留 `direction`（bull/bear/unclear，由推荐项映射）、`confidence`（推荐项概率；`conflict=true` 时本地 cap ≤0.75）、`conflict`（参与路 JEV 结论互不一致或与总推荐不一致）。`breakdown.structure` / `breakdown.pattern` / `breakdown.technical` 分别摘录三路 JEV 的 `recommended_reason`（或等价摘要）。

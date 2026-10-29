@@ -344,7 +344,7 @@ func ResolvePriceAnalysisJEV(ctx context.Context, jev *JevClient, pa *PriceAnaly
 	base.RecommendedChoice = choice
 	base.RecommendedIndex = idx
 	base.Choices = priceAnalysisJEVChoicesFromProbs(probs)
-	base.RecommendedReason = labJEVReasonFromSummary(ctx, jev, choice, idx, base.Choices, confidence)
+	base.RecommendedReason = labJEVReasonFromSummary(ctx, jev, choice, idx, base.Choices, confidence, state)
 	return base
 }
 

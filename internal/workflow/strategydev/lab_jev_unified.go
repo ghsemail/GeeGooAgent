@@ -223,6 +223,7 @@ func labJEVUnifiedLegReasonInputs(plan labJEVUnifiedPlan, legs []labJEVLegSnapsh
 			if leg, ok := legByName[s.name]; ok {
 				in.RecommendedChoice = strings.TrimSpace(leg.choice)
 				in.RecommendedReason = strings.TrimSpace(leg.reason)
+				in.Facts = strings.TrimSpace(leg.facts)
 			}
 		}
 		out = append(out, in)

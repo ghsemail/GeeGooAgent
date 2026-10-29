@@ -11,6 +11,7 @@ type labJEVUnifiedLegReasonInput struct {
 	Name              string `json:"name"`
 	RecommendedChoice string `json:"recommended_choice,omitempty"`
 	RecommendedReason string `json:"recommended_reason,omitempty"`
+	Facts             string `json:"facts,omitempty"`
 	Participated      bool   `json:"participated"`
 }
 
@@ -44,8 +45,8 @@ func (j *JevClient) SummarizeLabJEVUnifiedReason(
 	if err != nil {
 		return "", err
 	}
-	sys := `你是 GeeGoo 实验室综合决策助手。用户会提供总 JEV 方向判定（推荐项、各选项概率、置信度），以及参与合成的各路 JEV 结论摘要（价格结构 / K 线形态 / 技术指标；未参与的路会标明 participated=false）。
-请用 1～3 句简明中文向交易者解释总方向的主要依据；须引用已参与各路结论中的要点，不得声称「未提供指标」；不得改变或重推总方向；不要输出 JSON、markdown 或列表；不要用固定权重模板句。
+	sys := `你是 GeeGoo 实验室综合决策助手。用户 JSON 含：总 JEV 方向判定（recommended_choice、choices、confidence），以及 leg_conclusions（各路 name、participated、recommended_choice、recommended_reason、facts 分析摘要；未参与的路 participated=false）。
+请用 1～3 句简明中文向交易者解释总方向的主要依据；优先引用各路 facts 与结论中的分析要点，不要堆砌三路概率句；不得声称「未提供指标」或在 facts 非空时声称缺失读数；不得改变或重推总方向；不要输出 JSON、markdown 或列表；不要用固定权重模板句。
 措辞：向交易者说明时用「JEV 决策」或「模型」，不要出现 System One 等英文产品名。`
 	var content string
 	if j.reasonChat != nil {

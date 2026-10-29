@@ -14,6 +14,7 @@ func (j *JevClient) SummarizeTechnicalAnalysisJEVReason(
 	choiceIndex int,
 	choices []PriceAnalysisJEVChoice,
 	confidence float64,
+	facts string,
 ) (string, error) {
 	if j == nil || strings.TrimSpace(j.cfg.APIKey) == "" {
 		return "", fmt.Errorf("jev not configured")
@@ -23,12 +24,13 @@ func (j *JevClient) SummarizeTechnicalAnalysisJEVReason(
 		RecommendedIndex:  choiceIndex,
 		Confidence:        confidence,
 		Choices:           choices,
+		Facts:             strings.TrimSpace(facts),
 	})
 	if err != nil {
 		return "", err
 	}
-	sys := `你是 GeeGoo 实验室技术分析助手。用户会提供 JEV 决策对「看多 / 看空 / 不明确」的原始输出（推荐项、各选项概率、置信度）。
-请用 1～2 句简明中文向交易者解释该结论的主要依据（价值区、Impulse、MACD、Stochastic、RSI、Force Index、三重滤网）；不得改变或重推方向；不要输出 JSON、markdown 或列表。
+	sys := `你是 GeeGoo 实验室技术分析助手。用户 JSON 含：facts（Elder 指标与三重滤网摘要，与 JEV Choice 同源）、以及 JEV 方向判定（recommended_choice、choices 概率、confidence）。
+请用 1～2 句简明中文向交易者解释该结论的主要依据，须引用 facts 中的指标读数（价值区、Impulse、MACD、Stochastic、RSI、Force Index、三重滤网等）；可轻提置信度，但不得只复述概率数字；不得臆造 facts 中不存在的内容，也不得在 facts 非空时声称「未提供指标」或「未提供…」；不得改变或重推方向；不要输出 JSON、markdown 或列表。
 措辞：向交易者说明时用「JEV 决策」或「模型」，不要出现 System One 等英文产品名。`
 	var content string
 	if j.reasonChat != nil {

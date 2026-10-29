@@ -131,7 +131,7 @@ func ResolveTechnicalAnalysisJEV(ctx context.Context, jev *JevClient, ta *LabTec
 	base.RecommendedChoice = choice
 	base.RecommendedIndex = idx
 	base.Choices = priceAnalysisJEVChoicesFromProbs(probs)
-	base.RecommendedReason = labTAJEVReasonFromSummary(ctx, jev, choice, idx, base.Choices, confidence)
+	base.RecommendedReason = labTAJEVReasonFromSummary(ctx, jev, choice, idx, base.Choices, confidence, state)
 	return base
 }
 
@@ -144,11 +144,11 @@ func emptyTechnicalAnalysisJEV(model string) TechnicalAnalysisJEV {
 	}
 }
 
-func labTAJEVReasonFromSummary(ctx context.Context, jev *JevClient, choice string, idx int, choices []PriceAnalysisJEVChoice, confidence float64) string {
+func labTAJEVReasonFromSummary(ctx context.Context, jev *JevClient, choice string, idx int, choices []PriceAnalysisJEVChoice, confidence float64, facts string) string {
 	if jev == nil {
 		return labJEVReasonSummaryFailed("jev not configured")
 	}
-	reason, err := jev.SummarizeTechnicalAnalysisJEVReason(ctx, choice, idx, choices, confidence)
+	reason, err := jev.SummarizeTechnicalAnalysisJEVReason(ctx, choice, idx, choices, confidence, facts)
 	if err != nil {
 		return labJEVReasonSummaryFailed(err.Error())
 	}
