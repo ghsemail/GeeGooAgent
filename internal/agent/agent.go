@@ -12,6 +12,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/agent/decision"
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
@@ -157,31 +158,17 @@ func (a *Agent) SetEvalMaxRetries(n int) {
 	}
 }
 
-// SetExecutionProfileMaxRetries caps execution-profile tool retries per turn.
-func (a *Agent) SetExecutionProfileMaxRetries(n int) {
-	if a != nil && a.Loop != nil {
-		a.Loop.SetExecutionProfileMaxRetries(n)
-	}
-}
-
-// SetPlanner wires the TurnPlan classifier (LLM-first IntentPlanner).
-func (a *Agent) SetPlanner(p cognition.Planner) {
-	if a != nil && a.Loop != nil {
-		a.Loop.SetPlanner(p)
-	}
-}
-
-// SetRoutingMode selects agent_context (TurnPlan observability only) or legacy routing.
-func (a *Agent) SetRoutingMode(mode string) {
-	if a != nil && a.Loop != nil {
-		a.Loop.SetRoutingMode(mode)
-	}
-}
-
 // SetCognition wires Ranker / Evaluator / PlanPolicy into the owned loop.
 func (a *Agent) SetCognition(b cognition.Bundle) {
 	if a != nil && a.Loop != nil {
 		a.Loop.SetCognition(b)
+	}
+}
+
+// SetDecisionCoordinator wires the in-loop Jev decision hook (shadow / replace).
+func (a *Agent) SetDecisionCoordinator(c *decision.Coordinator) {
+	if a != nil && a.Loop != nil {
+		a.Loop.SetDecisionCoordinator(c)
 	}
 }
 

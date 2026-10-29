@@ -12,7 +12,7 @@ GeeGooAgent 执行层已对齐 Cursor/Codex（ReAct + Skill + 子 Agent + clarif
 
 - `deterministicPreLLMPlan` / `sanitizeLLMPlan` / `applyStickySessionPlan` / `applyActiveTaskGuard`
 - `mapClarifyChoice`（clarify 答案 token 映射）
-- `tryPresetClarify`（classify 定 clarify 后直接阻塞 UI，跳过 Agent）
+- ~~`tryPresetClarify`~~（已删除；澄清走 ReAct `clarify` 工具）
 - `applyTurnToolSchemas` / `FilterSchemas`（按 domain 裁工具）
 - `ProbeExecutionProfile` + slot（`ShouldResolveNewSymbolForProbe`）选 execution profile
 - `tryExecutionProfileRetry`（验工具链并打回）

@@ -15,6 +15,14 @@ const (
 	DefaultDecisionProvider = "typesafe"
 )
 
+// Decision hook modes (in-loop Jev consult; default off).
+const (
+	DecisionHookModeOff     = "off"
+	DecisionHookModeShadow  = "shadow"
+	DecisionHookModeReplace = "replace"
+	DecisionHookModePaper   = "paper"
+)
+
 // ResolvedDecision is EffectiveDecision output.
 type ResolvedDecision struct {
 	Provider   string
@@ -22,6 +30,19 @@ type ResolvedDecision struct {
 	Model      string
 	BaseURL    string
 	Configured bool
+}
+
+// EffectiveDecisionHookMode returns in-loop Jev consult mode (default off).
+func (c *AppConfig) EffectiveDecisionHookMode() string {
+	if c == nil {
+		return DecisionHookModeOff
+	}
+	switch strings.ToLower(strings.TrimSpace(c.DecisionHookMode)) {
+	case DecisionHookModeShadow, DecisionHookModeReplace, DecisionHookModePaper:
+		return strings.ToLower(strings.TrimSpace(c.DecisionHookMode))
+	default:
+		return DecisionHookModeOff
+	}
 }
 
 // ResolvedDecision returns decision settings from config.

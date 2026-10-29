@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
-	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -26,7 +25,6 @@ func TestTurnPlanMultiStockUsesDelegateTasks(t *testing.T) {
 		}, llm.GatewayConfig{MaxRetries: 1}),
 		Executor:      runtime.NewExecutor(registry),
 		Registry:      registry,
-		Planner:       cognition.IntentPlanner{LLM: cognition.SubAgentClassifyFixture()},
 		MaxSteps:      5,
 		MaxParallel:   2,
 		ChatToolNames: func() []string { return []string{"search_code", "get_current_price"} },
@@ -51,9 +49,6 @@ func TestTurnPlanMultiStockUsesDelegateTasks(t *testing.T) {
 	gateway := llm.NewGateway(provider, llm.GatewayConfig{MaxRetries: 1})
 	gateway.SetSleep(func(time.Duration) {})
 	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
-	withClassifyPlanner(loop, classifyFixture(map[string]string{
-		"请帮我分析下腾讯和阿里巴巴最近的股价": cognition.FormatClassifyJSON("stock_analysis", "gather", "multi_symbol_delegate", "test"),
-	}))
 
 	schemas := registry.Schemas([]string{
 		"search_code", "get_current_price", "get_mcp_analysis", "delegate_task", "delegate_tasks", "clarify",

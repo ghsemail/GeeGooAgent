@@ -163,25 +163,3 @@ func recentSessionContext(session *runtime.Session, maxMessages int) string {
 	return strings.TrimSpace(b.String())
 }
 
-// FilterLegacyBacktestTools removes DCA/grid loopback tools when SmartTrade backtest is intended.
-func FilterLegacyBacktestTools(schemas []llm.ToolSchema, userText string, session *runtime.Session) []llm.ToolSchema {
-	if !procedural.ShouldBlockLegacyBacktestTools(userText) {
-		return schemas
-	}
-	if procedural.BacktestContinueIntent(userText) && !sessionHasBacktestContext(session) {
-		return schemas
-	}
-	blocked := map[string]struct{}{
-		"generate_dca_strategy":  {},
-		"loopback_strategy":      {},
-		"generate_grid_strategy": {},
-	}
-	out := make([]llm.ToolSchema, 0, len(schemas))
-	for _, s := range schemas {
-		if _, ok := blocked[s.Name]; ok {
-			continue
-		}
-		out = append(out, s)
-	}
-	return out
-}

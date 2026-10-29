@@ -34,6 +34,8 @@ type Deps struct {
 	WeKnora          *weknora.Client
 	// Delegate runs delegate_task sub-agent turns (optional; wired by app).
 	Delegate TaskDelegator
+	// ChatWorkflowTurn runs chat workflow templates (signal_diagnose, etc.).
+	ChatWorkflowTurn ChatWorkflowTurn
 }
 
 // TaskDelegator is implemented by agent.SubAgent for delegate_task registration.

@@ -25,8 +25,8 @@ func TestRegisterAllToolCount(t *testing.T) {
 	r := tools.NewRegistry()
 	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: t.TempDir()})
 	names := r.Names()
-	if len(names) != 118 {
-		t.Fatalf("expected 118 tools, got %d", len(names))
+	if len(names) != 119 {
+		t.Fatalf("expected 119 tools, got %d", len(names))
 	}
 }
 

@@ -171,18 +171,6 @@ func TestCurrentStockOverridesSessionAndReusesConfirmedStrategy(t *testing.T) {
 	}
 }
 
-func TestFilterLegacyBacktestTools(t *testing.T) {
-	schemas := []llm.ToolSchema{
-		{Name: "run_strategy_backtest"},
-		{Name: "generate_dca_strategy"},
-		{Name: "loopback_strategy"},
-	}
-	out := FilterLegacyBacktestTools(schemas, "帮我回测一下", nil)
-	if len(out) != 1 || out[0].Name != "run_strategy_backtest" {
-		t.Fatalf("filtered=%v", out)
-	}
-}
-
 func TestPickCombination(t *testing.T) {
 	items := []map[string]any{
 		{"name": "SAR信号配套MACD直方图趋势", "signal_id": "a", "buy_signal": []any{map[string]any{"index": "SAR"}}},

@@ -127,8 +127,9 @@ var (
 		"update_preference": {},
 		"create_skill":      {},
 		"clarify":           {},
-		"delegate_task":     {},
-		"delegate_tasks":    {},
+		"delegate_task":          {},
+		"delegate_tasks":         {},
+		"run_chat_workflow_turn": {},
 	}
 	strategyTools = map[string]struct{}{
 		"get_index_signals":              {},
