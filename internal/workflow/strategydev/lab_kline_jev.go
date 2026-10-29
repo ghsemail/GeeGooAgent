@@ -83,7 +83,7 @@ func ResolveKlineJEV(ctx context.Context, jev *JevClient, kline *LabJEVKlineInpu
 	base.RecommendedChoice = choice
 	base.RecommendedIndex = idx
 	base.Choices = priceAnalysisJEVChoicesFromProbs(probs)
-	base.RecommendedReason = labKlineJEVReasonFromSummary(ctx, jev, choice, idx, base.Choices, confidence)
+	base.RecommendedReason = labKlineJEVReasonFromSummary(ctx, jev, choice, idx, base.Choices, confidence, state)
 	return base
 }
 
@@ -108,11 +108,11 @@ func applyKlineJEV(ctx context.Context, out *LabEpisodeDetail, side string, jev 
 	out.KlineJEV = &rec
 }
 
-func labKlineJEVReasonFromSummary(ctx context.Context, jev *JevClient, choice string, idx int, choices []PriceAnalysisJEVChoice, confidence float64) string {
+func labKlineJEVReasonFromSummary(ctx context.Context, jev *JevClient, choice string, idx int, choices []PriceAnalysisJEVChoice, confidence float64, facts string) string {
 	if jev == nil {
 		return labJEVReasonSummaryFailed("jev not configured")
 	}
-	reason, err := jev.SummarizeKlineJEVReason(ctx, choice, idx, choices, confidence)
+	reason, err := jev.SummarizeKlineJEVReason(ctx, choice, idx, choices, confidence, facts)
 	if err != nil {
 		return labJEVReasonSummaryFailed(err.Error())
 	}
