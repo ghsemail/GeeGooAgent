@@ -68,7 +68,7 @@ func (h *Handler) clarifyRecommenders() eval.ClarifyRecommender {
 	}
 	var chain eval.ClarifyRecommenderChain
 	if provider := h.App.DecisionClarifyProvider(); provider != nil {
-		chain = append(chain, eval.NewJEVClarifyRecommender(provider, 2500*time.Millisecond))
+		chain = append(chain, eval.NewJEVClarifyRecommender(provider, eval.JEVClarifyRecommendTimeout))
 	}
 	if provider := h.App.OpsBackgroundProvider(); provider != nil {
 		chain = append(chain, &eval.LLMClarifyRecommender{
@@ -175,7 +175,7 @@ func (h *Handler) waitClarifyWithAutoPick(
 			return answer, true
 		case <-waitCtx.Done():
 			return answer, true
-		case <-time.After(2 * time.Second):
+		case <-time.After(time.Duration(eval.ClarifyAutoPickGraceSeconds) * time.Second):
 			return answer, true
 		}
 	case <-ctx.Done():

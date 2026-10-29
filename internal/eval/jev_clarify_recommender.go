@@ -27,7 +27,7 @@ type JEVClarifyRecommender struct {
 // NewJEVClarifyRecommender wraps a decision LLM with a hard timeout.
 func NewJEVClarifyRecommender(provider llm.Provider, timeout time.Duration) *JEVClarifyRecommender {
 	if timeout <= 0 {
-		timeout = 2500 * time.Millisecond
+		timeout = JEVClarifyRecommendTimeout
 	}
 	return &JEVClarifyRecommender{Provider: provider, Timeout: timeout}
 }
