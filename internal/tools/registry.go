@@ -49,6 +49,8 @@ type Context struct {
 	FullCatalogPayload bool
 	// Hooks runs optional audit scripts around tool execution.
 	Hooks *HookRunner
+	// RuntimeSession is the live chat turn *runtime.Session (Loop sets during RunTurn).
+	RuntimeSession any
 }
 
 // ProgressFunc is the chat progress callback signature.

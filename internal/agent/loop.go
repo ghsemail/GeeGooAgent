@@ -12,13 +12,12 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
-	"github.com/ghsemail/GeeGooAgent/internal/playbookexec"
 	"github.com/ghsemail/GeeGooAgent/internal/prompt"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/sessiontask"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
-	workflowchat "github.com/ghsemail/GeeGooAgent/internal/workflow/chat"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
+	workflowchat "github.com/ghsemail/GeeGooAgent/internal/workflow/chat"
 )
 
 const (
@@ -41,14 +40,10 @@ type Loop struct {
 	ranker         cognition.Ranker
 	evaluator      cognition.Evaluator
 	planPolicy     cognition.PlanPolicy
-	planner        cognition.Planner
 	evalMaxRetries int
-	executionProfileMaxRetries int
 	gateProvider   llm.Provider
 	gatePolicy     llm.Policy
 	retrievalTopK  int
-	playbookRouter *playbookexec.Router
-	routingMode    string
 	strategyDevJev func() strategydev.JevConfig
 	signalDiagnoseLab        func() workflowchat.LabConfig
 	signalDiagnoseComposeLLM llm.Provider
@@ -65,23 +60,8 @@ func NewLoop(gateway *llm.Gateway, executor *runtime.Executor) *Loop {
 		ranker:        d.Ranker,
 		evaluator:     d.Evaluator,
 		planPolicy:    d.PlanPolicy,
-		planner:       d.Planner,
 		mem:           memport.Noop(),
-		executionProfileMaxRetries: 0,
-		routingMode:                cognition.RoutingModeAgentContext,
 	}
-}
-
-// SetRoutingMode selects agent_context (TurnPlan observability only) or legacy routing.
-func (l *Loop) SetRoutingMode(mode string) {
-	if l == nil {
-		return
-	}
-	l.routingMode = cognition.NormalizeRoutingMode(mode)
-}
-
-func (l *Loop) agentContextRouting() bool {
-	return true
 }
 
 // ToolExec returns the shared tool dispatcher (also used by workflow).
@@ -267,20 +247,6 @@ func (l *Loop) SetEvalMaxRetries(n int) {
 	l.evalMaxRetries = n
 }
 
-// SetExecutionProfileMaxRetries caps execution-profile driven tool retries per turn (default 0, max 2).
-func (l *Loop) SetExecutionProfileMaxRetries(n int) {
-	if l == nil {
-		return
-	}
-	if n < 0 {
-		n = 0
-	}
-	if n > 2 {
-		n = 2
-	}
-	l.executionProfileMaxRetries = n
-}
-
 // SetCognition replaces Ranker / Evaluator / PlanPolicy. Nil fields keep current values.
 func (l *Loop) SetCognition(b cognition.Bundle) {
 	if l == nil {
@@ -295,30 +261,6 @@ func (l *Loop) SetCognition(b cognition.Bundle) {
 	if b.PlanPolicy != nil {
 		l.planPolicy = b.PlanPolicy
 	}
-	if b.Planner != nil {
-		l.planner = b.Planner
-	}
-}
-
-func (l *Loop) EffectivePlanner() cognition.Planner {
-	return l.effectivePlanner()
-}
-
-func (l *Loop) SetPlanner(p cognition.Planner) {
-	if l == nil {
-		return
-	}
-	l.planner = p
-}
-
-func (l *Loop) effectivePlanner() cognition.Planner {
-	if l != nil && l.planner != nil {
-		return l.planner
-	}
-	if l != nil && l.gateProvider != nil {
-		return cognition.IntentPlanner{LLM: l.gateProvider}
-	}
-	return cognition.IntentPlanner{}
 }
 
 func (l *Loop) effectivePlanPolicy() cognition.PlanPolicy {
@@ -432,18 +374,10 @@ func (l *Loop) RunTurn(
 	if toolCtx.EventBus == nil && l.eventBus != nil {
 		toolCtx.EventBus = l.eventBus
 	}
-	if toolCtx.Interactive {
-		schemas = filterInteractiveSchemas(schemas)
-	}
+	toolCtx.RuntimeSession = session
 
 	session.AppendMessage(llm.Message{Role: llm.RoleUser, Content: userText})
 	records := []runtime.StepRecord{}
-
-	if result, handled := l.tryChatWorkflow(ctx, session, userText, toolCtx); handled {
-		result.StepRecords = append(records, result.StepRecords...)
-		l.evaluateTurn(ctx, session, result)
-		return result
-	}
 
 	l.emit("turn_start", map[string]any{"user_text": userText})
 	l.emitBus("TurnStarted", map[string]any{
@@ -461,18 +395,7 @@ func (l *Loop) runPreparedTurn(
 	schemas []llm.ToolSchema,
 	records []runtime.StepRecord,
 ) runtime.TurnResult {
-	return l.runPreparedTurnWithPlan(ctx, session, userText, nil, toolCtx, schemas, records)
-}
-
-func (l *Loop) runPreparedTurnWithPlan(
-	ctx context.Context,
-	session *runtime.Session,
-	userText string,
-	presetPlan *cognition.TurnPlan,
-	toolCtx tools.Context,
-	schemas []llm.ToolSchema,
-	records []runtime.StepRecord,
-) runtime.TurnResult {
+	toolCtx.RuntimeSession = session
 	messages := session.LLMMessages()
 
 	policy := l.effectivePlanPolicy()
@@ -492,12 +415,7 @@ func (l *Loop) runPreparedTurnWithPlan(
 		session.PendingPlan = nil
 	}
 
-	var turnPlan cognition.TurnPlan
-	if presetPlan != nil {
-		turnPlan = *presetPlan
-	} else {
-		turnPlan = cognition.AgentRoutedTurnPlan()
-	}
+	turnPlan := cognition.AgentRoutedTurnPlan()
 	if turnPlan.Domain != "" {
 		session.LastTurnDomain = string(turnPlan.Domain)
 		session.LastTurnMode = string(turnPlan.Mode)
@@ -507,9 +425,8 @@ func (l *Loop) runPreparedTurnWithPlan(
 	}
 	session.LastExecutionProfile = ""
 	l.emit("turn_plan", map[string]any{
-		"plan_style":   "agent_routes",
-		"reason":       turnPlan.Reason,
-		"preset_plan":  presetPlan != nil,
+		"plan_style": "agent_routes",
+		"reason":     turnPlan.Reason,
 	})
 
 	procFrag, matchedSkills := l.loadPlanSkills(turnPlan, userText, &records)
@@ -532,11 +449,10 @@ func (l *Loop) runPreparedTurnWithPlan(
 	} else {
 		gateFrag = l.runRetrievalGate(ctx, session, userText, &records)
 	}
-	dynFrags := []ctxfrag.Fragment{ctxfrag.ClockFragment(clockNow()), agentRoutingFragment(userText)}
-	if presetPlan != nil {
-		if frag := turnPlanFragment(turnPlan, userText, true); strings.TrimSpace(frag.Render()) != "" {
-			dynFrags = append(dynFrags, frag)
-		}
+	dynFrags := []ctxfrag.Fragment{
+		ctxfrag.ClockFragment(clockNow()),
+		agentRoutingFragment(userText),
+		activeWorkflowFragment(session),
 	}
 	if taskMD := sessiontask.BuildState(session, session.LastTurnDomain).RenderMarkdown(); taskMD != "" {
 		dynFrags = append(dynFrags, ctxfrag.WorkingStateFragment(taskMD))
@@ -551,7 +467,10 @@ func (l *Loop) runPreparedTurnWithPlan(
 	if extra := l.expandSkillSchemas(matchedSkills); len(extra) > 0 {
 		schemas = mergeToolSchemas(schemas, extra)
 	}
-	schemas = playbookexec.FilterLegacyBacktestTools(schemas, userText, session)
+	if needsChatWorkflowTool(matchedSkills, session) {
+		schemas = mergeToolSchemas(schemas, []llm.ToolSchema{chatWorkflowToolSchema()})
+	}
+	schemas = procedural.FilterSchemasForMatchedSkills(schemas, matchedSkills, userText, session.LLMMessages())
 
 	messages = session.LLMMessages()
 	l.emitStatus("hygiene", "整理会话上下文…")

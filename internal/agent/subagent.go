@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatprompt"
-	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
@@ -29,7 +28,6 @@ type SubAgent struct {
 	compressor    *prompt.Compressor
 	mem           memport.Port
 	eventBus      tools.EventEmitter
-	planner       cognition.Planner
 	maxSteps      int
 	maxParallel   int
 	approvalFn    runtime.ApprovalFunc
@@ -41,7 +39,6 @@ type SubAgentConfig struct {
 	Gateway       *llm.Gateway
 	Executor      *runtime.Executor
 	Registry      *tools.Registry
-	Planner       cognition.Planner
 	MaxSteps      int
 	MaxParallel   int
 	ChatToolNames func() []string
@@ -67,17 +64,9 @@ func NewSubAgent(cfg SubAgentConfig) *SubAgent {
 		gateway:       cfg.Gateway,
 		executor:      cfg.Executor,
 		registry:      cfg.Registry,
-		planner:       cfg.Planner,
 		maxSteps:      maxSteps,
 		maxParallel:   par,
 		chatToolNames: cfg.ChatToolNames,
-	}
-}
-
-// SetPlanner wires the TurnPlan classifier for delegated sub-turns.
-func (s *SubAgent) SetPlanner(p cognition.Planner) {
-	if s != nil {
-		s.planner = p
 	}
 }
 
@@ -234,11 +223,6 @@ func (s *SubAgent) Run(parent tools.Context, task, background string, maxSteps i
 	session.Messages[0] = llm.Message{Role: llm.RoleSystem, Content: chatprompt.SubAgentSystem()}
 
 	loop := NewLoop(s.gateway, s.executor)
-	if s.planner != nil {
-		loop.SetPlanner(s.planner)
-	} else {
-		loop.SetPlanner(cognition.SubAgentPlanner{})
-	}
 	loop.SetMaxToolRounds(maxSteps)
 	if s.mem != nil {
 		loop.SetMemory(s.mem)

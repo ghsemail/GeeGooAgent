@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
-	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
@@ -29,7 +28,6 @@ func TestDelegateTaskIsolatesSession(t *testing.T) {
 	})
 	sub := agent.NewSubAgent(agent.SubAgentConfig{
 		Gateway: gateway, Executor: runtime.NewExecutor(registry), Registry: registry,
-		Planner: cognition.IntentPlanner{LLM: cognition.SubAgentClassifyFixture()},
 		MaxSteps: 5, ChatToolNames: func() []string { return []string{"search_code"} },
 	})
 	agent.RegisterDelegateTask(registry, sub)
@@ -82,7 +80,6 @@ func TestDelegateTaskEmitsProgress(t *testing.T) {
 	registry := tools.NewRegistry()
 	sub := agent.NewSubAgent(agent.SubAgentConfig{
 		Gateway: gateway, Executor: runtime.NewExecutor(registry), Registry: registry,
-		Planner: cognition.IntentPlanner{LLM: cognition.SubAgentClassifyFixture()},
 		MaxSteps: 5,
 	})
 	agent.RegisterDelegateTask(registry, sub)
@@ -115,7 +112,6 @@ func TestDelegateTasksRunsInParallel(t *testing.T) {
 	registry := tools.NewRegistry()
 	sub := agent.NewSubAgent(agent.SubAgentConfig{
 		Gateway: gateway, Executor: runtime.NewExecutor(registry), Registry: registry,
-		Planner: cognition.IntentPlanner{LLM: cognition.SubAgentClassifyFixture()},
 		MaxSteps: 5, MaxParallel: 2,
 	})
 	agent.RegisterDelegateTasks(registry, sub)

@@ -18,17 +18,6 @@ func (l *Loop) executeToolCalls(
 	pendingIdx := make([]int, 0, len(calls))
 
 	for i, call := range calls {
-		if res, ok := l.interceptToolCall(call, toolCtx); ok {
-			results[i] = res
-			l.emit("tool_intercepted", map[string]any{
-				"step": step, "name": call.Name, "status": string(res.Status), "summary": res.Summary,
-			})
-			l.emit("tool_done", map[string]any{
-				"step": step, "name": call.Name, "status": string(res.Status),
-				"summary": res.Summary, "arguments": call.Arguments,
-			})
-			continue
-		}
 		pendingIdx = append(pendingIdx, i)
 		pending = append(pending, call)
 	}

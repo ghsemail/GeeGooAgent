@@ -51,9 +51,9 @@ Live verify（`VerifyTurnPlanLiveFull`）依次检查：
 4. **must_cover** — 关键词命中
 5. **llm_judge** — 辅助模型按 rubric 打分（默认 ≥ 0.7）
 
-股票分析 Live 用例按意图分流：`price_snapshot`（查现价 → `get_current_price`）与 `technical_full`（分析走势 → MCP）。灰区话术由 classify 输出 `ambiguous/clarify` + `clarify=stock_quote`，用户选择「只要当前价」或「分析价格走势」。
+股票分析 Live 用例按意图分流：`price_snapshot`（查现价 → `get_current_price`）与 `technical_full`（分析走势 → MCP）。灰区由 ReAct + **clarify 工具** 处理，不再由 Loop 预设 clarify 短路。
 
-TurnPlan 对 `stock_analysis` 会细化 `act`（`quote_price` / `technical_analysis` / `context_followup` / `symbol_resolve`），由 **LLM IntentPlanner** 在 classify JSON 中输出。Loop 按 act 注入 execution profile 契约，并在违反时触发 `execution_retry`（默认每轮最多 1 次）。LLM 不可用时仅做保守 fallback（沿用 sticky domain 或 chat/talk），不再使用关键词 RulePlanner。
+**Plan-only** 仍用 **IntentPlanner** 测 classify；**Dock Chat / RunTurn** 仅走标准 ReAct（`plan_style=agent_routes`），TurnPlan telemetry 来自 agent 路由而非 classify 驱动 Loop。
 
 ## 数据与 API
 
@@ -102,6 +102,7 @@ POST /v1/chat/stream                           # live 对话
 
 ## 设计原则（当前版本）
 
-- **LLM-only 路由**：`IntentPlanner` 为唯一生产 Planner；结构化澄清选项与 `sanitizeLLMPlan` 硬规则兜底
-- **无 SOP 短路**：`ShouldRunDomainSOP()` 恒 false，Loop 不 `TryRunFromPlan`
+- **RunTurn 单控制面**：标准 ReAct Loop；Skill / ToolRouting / clarify / delegate 为软约束
+- **Plan-only eval**：`IntentPlanner` 仅用于 `run-turn-plan` 与期望建议，不接入 RunTurn
+- **Chat 工作流**：`run_chat_workflow_turn` 工具（非 RunTurn 短路）
 - **口语化对话**：eval 用户话术完整自然，避免「可以」「这边呢」等半句话

@@ -38,7 +38,7 @@ func testCockpitHandlerWithConfig(t *testing.T, cfg *config.AppConfig) http.Hand
 		Gateway:  gateway,
 		Agent:    agent.New(gateway, runtime.NewExecutor(registry), registry),
 	}
-	application.Agent.SetPlanner(eval.DefaultTurnPlanPlanner())
+	application.SetEvalPlanner(eval.DefaultTurnPlanPlanner())
 	mux := httpserver.NewMux("agent-runtime")
 	runtimeapi.NewHandler(application, "").Register(mux)
 	return auth.SkipPaths(map[string]struct{}{"/health": {}}, auth.BearerAPIKey("test-runtime-key"))(mux)

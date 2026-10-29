@@ -6,7 +6,6 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	ctxfrag "github.com/ghsemail/GeeGooAgent/internal/context"
-	"github.com/ghsemail/GeeGooAgent/internal/domaincatalog"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 )
@@ -17,146 +16,9 @@ func agentRoutingFragment(userText string) ctxfrag.Fragment {
 	b.WriteString("- Read session context and pick tools; no separate intent classifier runs in this turn.\n")
 	b.WriteString("- If the user intent is ambiguous (e.g. quote vs analysis, which signal/strategy, analyze vs backtest), call the clarify tool with a clear question and up to 4 choices before irreversible tools.\n")
 	b.WriteString("- After clarify returns user_response, continue in the same turn with that choice.\n")
+	b.WriteString("- Chat workflow skills (信号诊断、策略开发、多策略对比、生成策略档案): call run_chat_workflow_turn with user_message set to the user's words (or 继续 / 重试失败 when resuming).\n")
 	b.WriteString(subagentOrchestratorPlanBlock())
 	return ctxfrag.StaticFragment{K: ctxfrag.KindSystemRules, Text: b.String(), Prio: 22}
-}
-
-func turnPlanFragment(plan cognition.TurnPlan, userText string, agentContext bool) ctxfrag.Fragment {
-	var b strings.Builder
-	if agentContext {
-		b.WriteString("Turn plan (soft guidance — follow numbered steps and preferred tools when they fit; full tool schema stays available):\n")
-	} else {
-		b.WriteString("Turn plan (classify intent, then execute via ReAct tools — no deterministic SOP shortcut):\n")
-	}
-	fmt.Fprintf(&b, "- domain: %s\n- act: %s\n- mode: %s\n- reason: %s\n",
-		plan.Domain, plan.Act, plan.Mode, plan.Reason)
-	if err := strings.TrimSpace(plan.ClassifyError); err != "" && agentContext {
-		b.WriteString("- note: intent classify was unavailable; if the user request is ambiguous, call the clarify tool (question + choices) before irreversible tools\n")
-	}
-
-	profileID := domaincatalog.ProbeExecutionProfile(domaincatalog.Domain(plan.Domain), plan.Act, userText)
-	if profileID != "" {
-		fmt.Fprintf(&b, "- execution profile: %s\n", profileID)
-		if hint := domaincatalog.ProfileExecutionHint(profileID); hint != "" {
-			fmt.Fprintf(&b, "- execution contract: %s\n", hint)
-		}
-	}
-
-	if steps := cursorPlanSteps(plan); len(steps) > 0 {
-		b.WriteString("- plan steps:\n")
-		for i, step := range steps {
-			fmt.Fprintf(&b, "  %d. %s\n", i+1, step)
-		}
-	}
-
-	if domaincatalog.NormalizeStockAct(plan.Act) == domaincatalog.StockActMultiSymbol {
-		b.WriteString(subagentOrchestratorPlanBlock())
-	}
-	if len(plan.Skills) > 0 {
-		fmt.Fprintf(&b, "- skills: %s\n", strings.Join(plan.Skills, ", "))
-	}
-	if len(plan.ToolsAllow) > 0 {
-		label := "preferred tools"
-		if !agentContext {
-			label = "allowed tools"
-		}
-		fmt.Fprintf(&b, "- %s: %s\n", label, strings.Join(plan.ToolsAllow, ", "))
-	}
-	if plan.Mode == cognition.ModeClarify && plan.ClarifyQuestion != "" {
-		if agentContext {
-			fmt.Fprintf(&b, "- if still ambiguous after reading session context, call clarify with: %s\n", plan.ClarifyQuestion)
-		} else {
-			fmt.Fprintf(&b, "- ask via clarify: %s\n", plan.ClarifyQuestion)
-		}
-		if len(plan.ClarifyChoices) > 0 {
-			fmt.Fprintf(&b, "- choices: %s\n", strings.Join(plan.ClarifyChoices, " / "))
-		}
-	}
-	if agentContext {
-		b.WriteString("- execute the plan above; deviate only when session context or user text clearly requires it\n")
-	} else {
-		b.WriteString("- choose tools from the exposed schema to fulfill this turn; for multi-symbol parallel work, strongly prefer delegate_tasks over serial per-symbol calls")
-	}
-	return ctxfrag.StaticFragment{K: ctxfrag.KindSystemRules, Text: b.String(), Prio: 22}
-}
-
-// cursorPlanSteps returns human-readable steps for the TurnPlan fragment and SSE.
-func cursorPlanSteps(plan cognition.TurnPlan) []string {
-	switch plan.Domain {
-	case cognition.DomainSignalProbe:
-		return []string{
-			"Confirm symbol and strategy/signal (clarify if missing)",
-			"resolve_signal → probe_bot_signal_series",
-			"Summarize buy/sell hits for the user",
-		}
-	case cognition.DomainBacktestRun:
-		return []string{
-			"Playbook: strategy-backtest-run (only backtest playbook; 回测 ≠ generate)",
-			"Confirm symbol and signal (clarify if missing)",
-			"run_strategy_backtest with resolved parameters",
-			"Summarize PnL / log highlights",
-		}
-	case cognition.DomainBacktestHistory:
-		return []string{"Query prior backtest logs", "Summarize relevant metrics"}
-	case cognition.DomainStockAnalysis:
-		switch domaincatalog.NormalizeStockAct(plan.Act) {
-		case domaincatalog.StockActQuotePrice:
-			return []string{"search_code (if needed)", "get_current_price", "Reply with quote snapshot"}
-		case domaincatalog.StockActTechnicalAnalysis:
-			return []string{"search_code (if needed)", "get_mcp_analysis", "Summarize trend/technicals"}
-		case domaincatalog.StockActMultiSymbol:
-			return []string{"delegate_tasks once with one task per symbol", "Merge results into a comparative reply"}
-		case domaincatalog.StockActContextFollowup:
-			return []string{"Reuse session symbol from WorkingState", "Continue analysis with appropriate stock tools"}
-		case domaincatalog.StockActSymbolResolve:
-			return []string{"search_code for the new symbol", "Continue the prior analysis intent on the new symbol"}
-		default:
-			return []string{"search_code (if needed)", "get_mcp_analysis or get_current_price as fit", "Answer the user's stock question"}
-		}
-	case cognition.DomainDCAGrid:
-		if plan.Mode == cognition.ModeGather {
-			return []string{"get_signal_combinations or list strategies", "Help user pick a strategy"}
-		}
-		return []string{
-			"User asked to generate/design a DCA or Grid plan (not ordinary 回测)",
-			"get_signal_combinations → pick signal_id if needed",
-			"generate_dca_strategy or generate_grid_strategy",
-			"Optional loopback_strategy to validate the generated plan",
-		}
-	case cognition.DomainBotManage:
-		return []string{"List or mutate bots/reminders via trading_bot tools", "Confirm outcome to user"}
-	case cognition.DomainReportLookup:
-		return []string{"Query report APIs", "Summarize report content"}
-	case cognition.DomainKnowledge:
-		return []string{"Search knowledge base", "Answer with citations"}
-	case cognition.DomainAmbiguous:
-		if plan.Mode == cognition.ModeClarify {
-			return []string{"Call clarify to disambiguate intent before heavy tools", "Wait for user choice, then execute"}
-		}
-		return nil
-	default:
-		return nil
-	}
-}
-
-func clarifyHintFragment(plan cognition.TurnPlan) ctxfrag.Fragment {
-	if plan.Mode != cognition.ModeClarify {
-		return ctxfrag.StaticFragment{}
-	}
-	question := strings.TrimSpace(plan.ClarifyQuestion)
-	if question == "" {
-		return ctxfrag.StaticFragment{}
-	}
-	var b strings.Builder
-	b.WriteString("## 分类器建议（缺槽位时优先 clarify，再执行工具）\n")
-	fmt.Fprintf(&b, "- suggested_question: %s\n", question)
-	if len(plan.ClarifyChoices) > 0 {
-		fmt.Fprintf(&b, "- suggested_choices: %s\n", strings.Join(plan.ClarifyChoices, " / "))
-	}
-	if r := strings.TrimSpace(plan.Reason); r != "" {
-		fmt.Fprintf(&b, "- reason: %s\n", r)
-	}
-	return ctxfrag.StaticFragment{K: ctxfrag.KindSystemRules, Text: b.String(), Prio: 24}
 }
 
 func subagentOrchestratorPlanBlock() string {

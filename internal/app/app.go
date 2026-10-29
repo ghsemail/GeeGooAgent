@@ -28,7 +28,6 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/memory/facts"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/scoped"
-	"github.com/ghsemail/GeeGooAgent/internal/playbookexec"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/semantic"
 	"github.com/ghsemail/GeeGooAgent/internal/memport"
 	"github.com/ghsemail/GeeGooAgent/internal/opslog"
@@ -94,6 +93,8 @@ type App struct {
 	localEmbedding       *config.EmbeddingConfig
 	// UserLLM loads per-user gateway model prefs from GeeGooBot DB (service-api or Mongo).
 	UserLLM *userllmstore.Backend
+	// evalPlanner overrides IntentPlanner() for dashboard plan-only eval (tests / offline fixtures).
+	evalPlanner cognition.Planner
 }
 
 // LoadFromConfigPath builds an App from config.json.
@@ -177,8 +178,6 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	app.Agent.SetToolTimeout(cfg.EffectiveToolTimeout())
 	app.Agent.SetPlanGate(cfg.EffectivePlanGate())
 	app.Agent.SetEvalMaxRetries(cfg.EffectiveEvalMaxRetries())
-	app.Agent.SetRoutingMode(cfg.EffectiveRoutingMode())
-	app.Agent.SetExecutionProfileMaxRetries(cfg.EffectiveExecutionProfileMaxRetries())
 	app.Agent.SetDelegateMaxParallel(cfg.EffectiveDelegateMaxParallel())
 	app.Agent.SetEventBus(eventBus)
 	sub := agent.NewSubAgent(agent.SubAgentConfig{
@@ -190,14 +189,14 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	sub.SetEventBus(eventBus)
 	app.wireChatMemory()
 	app.wireCognition()
-	app.wireIntentPlanner()
-	sub.SetPlanner(cognition.SubAgentPlanner{})
 	app.wireRecallRanker()
 	tools.RegisterAll(registry, tools.Deps{
 		HTTP: httpBackends, WorkspaceRoot: workspace, ProjectRoot: findProjectRoot(),
 		Working: workingLoader, Search: cfg.EffectiveSearch(),
 		FeishuWebhookURL: cfg.EffectiveFeishuWebhookURL(),
-		Delegate:         sub, Memory: app.ChatMemory,
+		Delegate:         sub,
+		ChatWorkflowTurn: app.chatWorkflowTurn,
+		Memory:           app.ChatMemory,
 		Facts: app.Facts, Episodic: app.Episodic, Home: config.Home(),
 		Preferences: app.Preferences,
 		SkillLoader: app.SkillLoader,
@@ -594,29 +593,63 @@ func (a *App) classifyOpsFallbackProvider() llm.Provider {
 	return a.opsBackgroundProvider()
 }
 
-// IntentPlanner returns the production LLM-first planner wired on the agent loop.
-func (a *App) IntentPlanner() cognition.Planner {
-	if a != nil && a.Agent != nil && a.Agent.Loop != nil {
-		return a.Agent.Loop.EffectivePlanner()
+// SetEvalPlanner wires plan-only eval classify (does not affect RunTurn).
+func (a *App) SetEvalPlanner(p cognition.Planner) {
+	if a != nil {
+		a.evalPlanner = p
 	}
+}
+
+// IntentPlanner returns the LLM-first planner for eval/dashboard plan-only paths (not RunTurn).
+func (a *App) IntentPlanner() cognition.Planner {
 	if a == nil {
 		return cognition.IntentPlanner{}
 	}
-	return cognition.IntentPlanner{LLM: a.classifyProvider()}
-}
-
-func (a *App) wireIntentPlanner() {
-	if a == nil || a.Agent == nil {
-		return
+	if a.evalPlanner != nil {
+		return a.evalPlanner
 	}
-	a.Agent.SetPlanner(cognition.IntentPlanner{
+	return cognition.IntentPlanner{
+		LLM: a.classifyProvider(),
 		LLMResolver: func() llm.Provider {
 			if a.Agent != nil && a.Agent.Gateway != nil {
 				return llm.ClassifyProviderFromGateway(a.Agent.Gateway)
 			}
 			return a.classifyOpsFallbackProvider()
 		},
-	})
+	}
+}
+
+func (a *App) chatWorkflowTurn(ctx tools.Context, userMessage string) tools.Result {
+	if a == nil || a.Agent == nil || a.Agent.Loop == nil {
+		return tools.Result{Status: tools.StatusError, Summary: "agent not configured"}
+	}
+	session, _ := ctx.RuntimeSession.(*runtime.Session)
+	if session == nil {
+		return tools.Result{Status: tools.StatusError, Summary: "missing runtime session for workflow turn"}
+	}
+	result, handled := a.Agent.Loop.RunChatWorkflowTurn(ctx.GoContext(), session, userMessage, ctx)
+	if !handled {
+		return tools.Result{
+			Status:  tools.StatusSkip,
+			Summary: "no chat workflow matched this message",
+			Data:    map[string]any{"handled": false},
+		}
+	}
+	status := tools.StatusOK
+	if result.Failed {
+		status = tools.StatusError
+	}
+	return tools.Result{
+		Status:  status,
+		Summary: result.AssistantText,
+		Data: map[string]any{
+			"handled":      true,
+			"failed":       result.Failed,
+			"error":        result.Error,
+			"plan_pending": result.PlanPending,
+			"step_count":   len(result.StepRecords),
+		},
+	}
 }
 
 // OpsBackgroundProvider returns the auxiliary/ops LLM provider for eval judge and similar tasks.
@@ -772,17 +805,6 @@ func (a *App) wireProceduralMemory() {
 	}
 	a.Agent.SetSkillLoader(a.SkillLoader, 2)
 	a.Agent.SetSkillToolExpander(a.expandSkillTools)
-	a.wirePlaybookExecutor()
-}
-
-func (a *App) wirePlaybookExecutor() {
-	if a == nil || a.Agent == nil || a.Agent.Loop == nil {
-		return
-	}
-	a.Agent.Loop.SetPlaybookRouter(&playbookexec.Router{
-		Gateway: a.Gateway,
-		RunTool: a.Agent.Loop.ExecuteTool,
-	})
 }
 
 func (a *App) expandSkillTools(names []string) []llm.ToolSchema {
