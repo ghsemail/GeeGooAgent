@@ -4,13 +4,15 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
 var (
-	labJEVQuotedChineseRE = regexp.MustCompile(`["「]([^"」\n]{6,}?)["」]`)
-	labJEVUnclosedThinkRE = regexp.MustCompile(`(?is)<(?:redacted_thinking|think)>(.*)$`)
+	labJEVQuotedChineseRE     = regexp.MustCompile(`["「]([^"」\n]{6,}?)["」]`)
+	labJEVUnclosedThinkRE     = regexp.MustCompile(`(?is)<(?:redacted_thinking|think)>(.*)$`)
+	labJEVDanglingReasonStartRE = regexp.MustCompile(`^[\d.\s]+[）)]`)
 )
 
 // sanitizeLabJEVReasonSummary strips inline thinking / English planning from synthesis LLM output.
@@ -32,7 +34,14 @@ func sanitizeLabJEVReasonSummary(raw string) string {
 	if v := llm.PublicAnswerContent(mixed); labJEVReasonLooksValid(v) {
 		return labJEVReasonTrim(v)
 	}
-	return labJEVReasonTrim(llm.PublicAnswerContent(raw))
+	fallback := labJEVReasonTrim(llm.PublicAnswerContent(raw))
+	if labJEVReasonLooksValid(fallback) {
+		return fallback
+	}
+	if c := labJEVExtractChineseSentences(mixed); c != "" {
+		return labJEVReasonTrim(c)
+	}
+	return fallback
 }
 
 func labJEVExtractThinkBody(s string) string {
@@ -56,8 +65,8 @@ func labJEVExtractQuotedChinese(s string) string {
 		if len(m) < 2 {
 			continue
 		}
-		candidate := strings.TrimSpace(m[1])
-		if !llm.IsMostlyChinese(candidate) {
+		candidate := labJEVReasonReplaceProductNames(strings.TrimSpace(m[1]))
+		if !labJEVReasonQuotedCandidateOK(candidate) {
 			continue
 		}
 		if len([]rune(candidate)) > len([]rune(best)) {
@@ -84,8 +93,54 @@ func labJEVTrimToReasonStart(s string) string {
 }
 
 func labJEVReasonRuneAllowedInChineseSpan(r rune) bool {
+	if r == '−' || r == '–' || r == '+' {
+		return true
+	}
 	return unicode.Is(unicode.Han, r) || unicode.IsPunct(r) || unicode.IsNumber(r) ||
 		r == ' ' || r == '%' || r == '.' || unicode.IsLetter(r)
+}
+
+func labJEVReasonSummaryStartOK(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	if labJEVDanglingReasonStartRE.MatchString(s) {
+		return false
+	}
+	if strings.HasPrefix(s, "JEV") {
+		return true
+	}
+	r0, _ := utf8.DecodeRuneInString(s)
+	return unicode.Is(unicode.Han, r0)
+}
+
+func labJEVReasonSubstantialChinese(s string) bool {
+	s = strings.TrimSpace(s)
+	var cjk, latin int
+	for _, r := range s {
+		if unicode.Is(unicode.Han, r) {
+			cjk++
+		}
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+			latin++
+		}
+	}
+	if cjk < 8 {
+		return false
+	}
+	if strings.HasPrefix(s, "JEV") {
+		return true
+	}
+	return cjk >= latin
+}
+
+func labJEVReasonQuotedCandidateOK(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" || !labJEVReasonSummaryStartOK(s) {
+		return false
+	}
+	return llm.IsMostlyChinese(s) || labJEVReasonSubstantialChinese(s)
 }
 
 func labJEVExtractChineseSentences(s string) string {
@@ -99,7 +154,7 @@ func labJEVExtractChineseSentences(s string) string {
 		if line == "" || labJEVReasonLooksLikePlanning(line) {
 			continue
 		}
-		if llm.IsMostlyChinese(line) {
+		if labJEVReasonLooksValid(line) {
 			parts = append(parts, line)
 		}
 	}
@@ -111,7 +166,7 @@ func labJEVExtractChineseSentences(s string) string {
 	var buf strings.Builder
 	var best strings.Builder
 	flush := func() {
-		if llm.IsMostlyChinese(buf.String()) && buf.Len() > best.Len() {
+		if labJEVReasonLooksValid(buf.String()) && buf.Len() > best.Len() {
 			best.Reset()
 			best.WriteString(buf.String())
 		}
@@ -139,7 +194,10 @@ func labJEVReasonLooksValid(s string) bool {
 	if labJEVReasonLooksLikePlanning(s) {
 		return false
 	}
-	return llm.IsMostlyChinese(s)
+	if !labJEVReasonSummaryStartOK(s) {
+		return false
+	}
+	return llm.IsMostlyChinese(s) || labJEVReasonSubstantialChinese(s)
 }
 
 func labJEVReasonLooksLikePlanning(s string) bool {
@@ -159,6 +217,9 @@ func labJEVReasonLooksLikePlanning(s string) bool {
 func labJEVReasonTrim(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
+		return ""
+	}
+	if !labJEVReasonSummaryStartOK(s) {
 		return ""
 	}
 	s = labJEVReasonReplaceProductNames(s)
