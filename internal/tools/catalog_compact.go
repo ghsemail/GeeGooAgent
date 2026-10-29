@@ -11,7 +11,7 @@ func compactHTTPPayload(ctx Context, toolName string, payload any) any {
 		return payload
 	}
 	switch toolName {
-	case "get_signal_combinations", "get_index_signals", "get_custom_signal_for_skill":
+	case "get_signal_combinations", "get_index_signals", "get_custom_signal_for_skill", "search_signals":
 		if items, ok := payload.([]any); ok {
 			return compactCatalogItems(toolName, items)
 		}

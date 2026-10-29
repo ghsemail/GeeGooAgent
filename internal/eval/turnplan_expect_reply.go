@@ -71,7 +71,7 @@ func defaultExpectReplyForTurnID(turnID string) ExpectReplySpec {
 		}
 	case "ambiguous_bare_macd":
 		return ExpectReplySpec{
-			Rubric:  "同 session 已问过腾讯近期价格；第二句触发澄清后，应按自动选定的 MACD/信号策略组合，结合腾讯语境说明策略用法或适用场景，不要跳过澄清或直接 probe/回测。",
+			Rubric:  "同 session 已问过腾讯近期价格；第二句应先搜索并列出 MACD 相关信号候选，若需选定具体策略则 clarify 后按自动选项继续；结合腾讯语境说明策略用法或适用场景，不要未搜索就空泛澄清或直接 probe/回测。",
 			MustCover: []string{"腾讯", "MACD"},
 			MustNot:   []string{"回测已完成", "开始回测"},
 		}

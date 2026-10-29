@@ -37,6 +37,9 @@ func TestHTTPBackendsForTool(t *testing.T) {
 	if b.ForTool("get_signal_combinations") != mcpC {
 		t.Fatal("get_signal_combinations should use mcp-api")
 	}
+	if b.ForTool("search_signals") != mcpC {
+		t.Fatal("search_signals should use mcp-api")
+	}
 	if b.ForTool("add_index_signal") != mcpC {
 		t.Fatal("add_index_signal should use mcp-api")
 	}

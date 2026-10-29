@@ -40,7 +40,7 @@ func cursorPlanSteps(plan cognition.TurnPlan) []string {
 		}
 	case cognition.DomainDCAGrid:
 		if plan.Mode == cognition.ModeGather {
-			return []string{"get_signal_combinations or list strategies", "Help user pick a strategy"}
+			return []string{"search_signals when user names a vague indicator (MACD/RSI)", "Present matches and clarify if 2+", "Help user pick a strategy"}
 		}
 		return []string{
 			"User asked to generate/design a DCA or Grid plan (not ordinary 回测)",

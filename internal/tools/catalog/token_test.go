@@ -19,7 +19,7 @@ func TestNeedsMCPTokenDefaults(t *testing.T) {
 			t.Fatalf("%s should not require mcp_token", name)
 		}
 	}
-	for _, name := range []string{"add_index_signal", "get_custom_signal_for_skill", "add_custom_signal"} {
+	for _, name := range []string{"add_index_signal", "get_custom_signal_for_skill", "add_custom_signal", "search_signals"} {
 		if !catalog.NeedsMCPToken(name) {
 			t.Fatalf("%s should require mcp_token", name)
 		}
@@ -28,6 +28,9 @@ func TestNeedsMCPTokenDefaults(t *testing.T) {
 
 func TestUsesBotMCPProxy(t *testing.T) {
 	t.Parallel()
+	if !catalog.UsesBotMCPProxy("search_signals") {
+		t.Fatal("search_signals should use mcp-api proxy")
+	}
 	if !catalog.UsesBotMCPProxy("get_custom_signal_for_skill") {
 		t.Fatal("custom skill read should use mcp-api proxy")
 	}

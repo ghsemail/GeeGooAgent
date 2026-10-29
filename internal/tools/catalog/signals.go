@@ -1,5 +1,17 @@
 package catalog
 
+func searchSignalsParameters() map[string]any {
+	return map[string]any{
+		"type":     "object",
+		"required": []string{"q"},
+		"properties": map[string]any{
+			"q":     stringProp("搜索关键词，如 MACD、RSI、SAR"),
+			"kind":  stringProp("可选：index（单指标）或 combination（组合）；省略则搜索全部"),
+			"limit": map[string]any{"type": "integer", "description": "最多返回条数"},
+		},
+	}
+}
+
 // IndexSignalHTTPSpecs are single-indicator signal catalog tools (platform signal_index_db).
 func IndexSignalHTTPSpecs() []HTTPSpec {
 	return []HTTPSpec{
@@ -106,7 +118,7 @@ func CombinationSignalHTTPSpecs() []HTTPSpec {
 // is resolved to user_id before catalog-api (:3210).
 func UsesBotMCPProxy(name string) bool {
 	switch name {
-	case "get_index_signals", "get_signal_combinations",
+	case "get_index_signals", "get_signal_combinations", "search_signals",
 		"get_index_signal", "get_all_index_signal_id",
 		"add_index_signal", "edit_index_signal", "delete_index_signal",
 		"get_signal_combination", "get_agent_signal_combination",
