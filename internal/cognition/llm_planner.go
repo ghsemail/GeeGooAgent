@@ -51,6 +51,7 @@ analyze, quote_price, technical_analysis, context_followup, symbol_resolve, mult
 - context_followup: pronoun or short follow-up continuing the same symbol in session
   Example (last turn stock_analysis): "它最近走势怎么样" → stock_analysis/gather act=context_followup
 - symbol_resolve: user explicitly switches to a different stock symbol
+  Example (last turn stock_analysis): "再帮我分析一下贵州茅台" → symbol_resolve (new symbol vs prior turn; NOT generic analyze)
 When domain is stock_analysis, set symbol_count to the number of distinct stocks/companies the user wants analyzed or quoted in this turn (0 if none named).
 If symbol_count >= 2 and mode is gather, act MUST be multi_symbol_delegate (overrides technical_analysis/analyze).
 If unsure whether the user wants a price snapshot (quote_price) or price/trend analysis (technical_analysis),
@@ -266,6 +267,7 @@ func classifyOnce(in PlanInput, provider llm.Provider, retry bool) (TurnPlan, st
 				plan = applyStockSymbolCountAct(plan, count)
 			}
 		}
+		plan = applyStockSymbolSwitchAct(in, plan)
 	}
 	return plan, ""
 }
