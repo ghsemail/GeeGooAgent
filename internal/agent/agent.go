@@ -12,6 +12,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/agent/decision"
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
@@ -161,6 +162,13 @@ func (a *Agent) SetEvalMaxRetries(n int) {
 func (a *Agent) SetCognition(b cognition.Bundle) {
 	if a != nil && a.Loop != nil {
 		a.Loop.SetCognition(b)
+	}
+}
+
+// SetDecisionCoordinator wires the in-loop Jev decision hook (shadow / replace).
+func (a *Agent) SetDecisionCoordinator(c *decision.Coordinator) {
+	if a != nil && a.Loop != nil {
+		a.Loop.SetDecisionCoordinator(c)
 	}
 }
 

@@ -100,11 +100,11 @@ Loop.RunTurn
   │       applyCompression（~50%）→ withBudgetWarning          │
   │       SanitizeMessages → callLLM                         │
   │         Gateway.ChatStream（L1）← stream_delta / cache     │
+  │       consultDecision（可选 Jev shadow：end_turn / tool_plan / plan_gate / clarify）
   │       ├─ 无 tool_calls → finalizeReply ──→ 回合结束        │
   │       └─ 有 tool_calls → applyToolRound                  │
   │             partition mutating / readonly                │
   │             plan_gate? → PendingPlan + plan_proposed（挂起）│
-  │             tool_intercept（Chat 工具兜底）               │
   │             ToolExec.ExecuteBatch ───────────────────────┤
   │               timeout · tool_max_parallel · delegate_sem │
   │               ApprovalGate（mutating + Interactive）       │
@@ -209,6 +209,23 @@ flowchart TB
 ### 2.3 ToolExec 双路径复用
 
 `ToolExec` 同时服务 ReAct Loop 与 Workflow Runner，共用超时、并行、Approval、Plan Gate。
+
+### 2.3.1 Decision Hook（Jev 进环，非第二条状态机）
+
+可选 **`internal/agent/decision`** 协议点：在每轮 `callLLM` 之后、执行 Tool / Plan Gate 之前，对 **typed 选择题** 咨询 Jev（或 stub），与主 ReAct 共用同一条 `RunTurn` 状态机。
+
+| 决策点 `kind` | 时机 | shadow 行为 |
+|---------------|------|-------------|
+| `end_turn` | 主 LLM 无 `tool_calls` | 仅 SSE `decision`，仍 `finalizeReply` |
+| `tool_plan` | 主 LLM 返回 tool_calls | 仅观测，不替换 tool 列表 |
+| `plan_gate` | 存在 mutating tools | **永不**静默跳过 Plan Gate / 审批 |
+| `clarify` | 主 LLM 调用 `clarify` 工具 | 仅观测选项，UI 仍走 `ClarifyFn` |
+
+配置：`config.json` → **`decision_hook_mode`**：`off`（默认）| `shadow` | `replace`（预留；`plan_gate`/`clarify` 仍不接管）| `paper`。需同时配置 **`decision`**（ops Jev 模型）才会装配 Hook。
+
+SSE：`decision` 事件字段 — `question_id`、`kind`、`who`（`jev`|`llm`|`fallback`）、`answer`、`confidence`、`mode`、`takeover`（shadow 恒 false）。
+
+Jev **不得**写最终用户回复或自由文本 tool 参数；失败或低置信一律 **fallback 主 LLM 路径**。
 
 ### 2.4 Session 与回合状态
 
@@ -412,6 +429,8 @@ go test ./internal/agent/... ./internal/verify/...
 | `delegate_max_parallel` | 3 | 并行 delegate |
 | `tool_timeout_sec` | 120 | 单次 tool 超时 |
 | `plan_gate` | true | mutating 先确认 |
+| `decision_hook_mode` | off | Jev 环内决策：`shadow` 只打 `decision` SSE，不接管 |
+| `decision` | — | ops Jev 模型（`shadow` 装配 Hook 的前置条件） |
 | `eval_max_retries` | 0 | Evaluator 重试（最大 1） |
 | `profiles` | — | 情景补丁 |
 

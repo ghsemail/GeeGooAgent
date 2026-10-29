@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/agent/decision"
 	"github.com/ghsemail/GeeGooAgent/internal/cognition"
 	ctxfrag "github.com/ghsemail/GeeGooAgent/internal/context"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
@@ -48,6 +49,7 @@ type Loop struct {
 	signalDiagnoseLab        func() workflowchat.LabConfig
 	signalDiagnoseComposeLLM llm.Provider
 	resolveComposeBundle   func() (provider llm.Provider, source, detail string)
+	decision               *decision.Coordinator
 }
 
 // NewLoop creates an agent loop.

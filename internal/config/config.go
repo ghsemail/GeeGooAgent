@@ -230,6 +230,7 @@ type AppConfig struct {
 	LLM              LLMConfig         `json:"llm"`
 	Embedding        EmbeddingConfig   `json:"embedding,omitempty"`
 	Decision         DecisionConfig    `json:"decision,omitempty"`
+	DecisionHookMode string            `json:"decision_hook_mode,omitempty"`
 	Search           SearchConfig      `json:"search"`
 	Sandbox          SandboxConfig     `json:"sandbox"`
 	Compression      CompressionConfig `json:"compression"`

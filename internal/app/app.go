@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/agent"
+	"github.com/ghsemail/GeeGooAgent/internal/agent/decision"
 	"github.com/ghsemail/GeeGooAgent/internal/chatprompt"
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/clients/admin"
@@ -189,6 +190,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 	sub.SetEventBus(eventBus)
 	app.wireChatMemory()
 	app.wireCognition()
+	app.wireDecisionHook()
 	app.wireRecallRanker()
 	tools.RegisterAll(registry, tools.Deps{
 		HTTP: httpBackends, WorkspaceRoot: workspace, ProjectRoot: findProjectRoot(),
@@ -846,6 +848,24 @@ func (a *App) setMemory(m memport.Port) {
 	if a.Agent != nil {
 		a.Agent.SetMemory(m)
 	}
+}
+
+func (a *App) wireDecisionHook() {
+	if a == nil || a.Agent == nil || a.Config == nil {
+		return
+	}
+	mode := decision.Mode(a.Config.EffectiveDecisionHookMode())
+	if mode == decision.ModeOff {
+		return
+	}
+	provider := a.DecisionClarifyProvider()
+	if provider == nil {
+		return
+	}
+	a.Agent.SetDecisionCoordinator(&decision.Coordinator{
+		Mode: mode,
+		Hook: decision.NewJEVChoiceHook(provider, 0),
+	})
 }
 
 func (a *App) wireCognition() {

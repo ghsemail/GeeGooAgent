@@ -76,6 +76,9 @@ func (l *Loop) runRound(
 		"model":              planModel,
 	})
 
+	mutating, _ := partitionToolCalls(resp.ToolCalls)
+	l.consultAfterLLMPlan(ctx, session.ID, step, resp, toolNames, mutating)
+
 	if len(resp.ToolCalls) == 0 {
 		l.emitStepComplete(step, round, false, nil)
 		return true, l.finalizeReply(session, resp, step, records)
