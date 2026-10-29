@@ -41,14 +41,14 @@ func TestVerifyIntentUsesJudgedTurnPlanForMultiTurnClarify(t *testing.T) {
 		Metadata: map[string]any{
 			"turn_plan_trace": []chatsession.TurnPlanTraceEntry{
 				{Turn: 1, Plan: chatsession.TurnPlanSnapshot{Domain: "stock_analysis", Mode: "gather", SOP: false}},
-				{Turn: 2, Plan: chatsession.TurnPlanSnapshot{Domain: "ambiguous", Mode: "clarify", SOP: false}},
+				{Turn: 2, Plan: chatsession.TurnPlanSnapshot{Domain: "dca_grid", Mode: "gather", SOP: false}},
 				{Turn: 3, Plan: chatsession.TurnPlanSnapshot{Domain: "chat", Mode: "talk", SOP: false}},
 			},
 			"last_turn_plan": map[string]any{"domain": "chat", "mode": "talk", "sop": false},
 		},
 	}
 	opts := TurnPlanCaseOptions{
-		TurnID: "ambiguous_bare_macd", ExpectDomain: "ambiguous", ExpectMode: "clarify",
+		TurnID: "ambiguous_bare_macd", ExpectDomain: "dca_grid", ExpectMode: "gather",
 		Dialogue: []EvalDialogueTurn{
 			{Role: "user", Text: "腾讯股票最近的价格如何"},
 			{Role: "user", Text: "有没有适合腾讯股价的MACD信号策略", Judge: true},

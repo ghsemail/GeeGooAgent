@@ -13,8 +13,8 @@ import (
 
 func TestCatalogHTTPCount(t *testing.T) {
 	specs := catalog.AllHTTP()
-	if len(specs) != 90 {
-		t.Fatalf("expected 90 HTTP specs, got %d", len(specs))
+	if len(specs) != 91 {
+		t.Fatalf("expected 91 HTTP specs, got %d", len(specs))
 	}
 }
 
@@ -25,8 +25,8 @@ func TestRegisterAllToolCount(t *testing.T) {
 	r := tools.NewRegistry()
 	tools.RegisterAll(r, tools.Deps{HTTP: tools.TestHTTPBackends(client), WorkspaceRoot: t.TempDir()})
 	names := r.Names()
-	if len(names) != 119 {
-		t.Fatalf("expected 119 tools, got %d", len(names))
+	if len(names) != 120 {
+		t.Fatalf("expected 120 tools, got %d", len(names))
 	}
 }
 
@@ -47,7 +47,7 @@ func TestAllToolsDryRun(t *testing.T) {
 		}
 		result := r.Execute(tools.CallRequest{Name: name, Arguments: map[string]any{
 			"code": "00700.HK", "name": "腾讯控股", "stock_name": "腾讯控股", "regex": "00700", "query": "SpaceX IPO", "period": "daily",
-			"task": "dry-run probe", "botname": "dry-run-bot",
+			"task": "dry-run probe", "botname": "dry-run-bot", "q": "MACD",
 		}}, ctx)
 		if result.Status == tools.StatusError {
 			if strings.Contains(result.Summary, "参数校验失败") {

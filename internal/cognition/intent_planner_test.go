@@ -196,6 +196,9 @@ func TestIntentPlannerSignalUsageClarifyTemplate(t *testing.T) {
 	if len(got.ClarifyChoices) != 2 || got.ClarifyChoices[0] != "SAR信号搭配MACD直方图趋势" {
 		t.Fatalf("choices=%v", got.ClarifyChoices)
 	}
+	if !containsStr(got.ToolsAllow, "search_signals") {
+		t.Fatalf("signal_usage must allow search_signals before clarify, got %v", got.ToolsAllow)
+	}
 }
 
 func TestIntentPlannerCompoundStepsClarifyTemplate(t *testing.T) {

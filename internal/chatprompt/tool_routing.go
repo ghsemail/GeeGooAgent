@@ -36,7 +36,8 @@ func ToolRouting() string {
 - 用户追问 **为什么没信号 / 怎么算的 / 阈值有没有碰到 / 解释零信号原因**（已有 probe 或会话里已知 code+规则）→ **diagnose_bot_signal_series**（沿用同一 code、frequency、buy_signal、months_back）；**禁止**为此再调 probe_bot_signal_series 或 run_strategy_backtest
 - 本轮 TurnPlan domain 已是 signal_probe / backtest_run（含沿用上一轮任务）时：**按该 domain 执行**，缺的是槽位（策略名 / 标的）就 clarify 槽位；**禁止**再问「要分析、测点还是回测」
 - 买卖规则来源：单指标 get_index_signals、组合 get_signal_combinations、定制 get_custom_signal_for_skill（index=custom.index）
-- 用户只说「RSI」做信号/回测：默认 catalog **RSI阈值信号**（type=signal）；说金死叉→RSI金死叉；仍 2+ 匹配→**clarify(choices=各 name)**，禁止正文-only 提问
+- 用户只提到指标名或模糊信号名（如「MACD」「RSI」「有没有 MACD 信号策略」）且未指定具体 catalog 名称：**必须先 search_signals(q=关键词)**，向用户展示命中列表；若 2+ 条→**clarify(choices=各 name，最多 4 个)**，禁止未搜索就直接 clarify 或猜 signal_id；禁止正文-only 提问
+- 用户只说「RSI」做信号/回测：先 **search_signals(q=RSI)**；默认倾向 **RSI阈值信号**（type=signal）；说金死叉→RSI金死叉；仍 2+ 匹配→**clarify(choices=各 name)**，禁止正文-only 提问
 - 动态止盈止损需指标序列时 → get_indicator_series（role=sl 或 tp）
 - 用户要 **历史回测 / 上次回测结果** → list_strategy_backtest_logs（可按 code、strategy_label、日期筛选）→ get_strategy_backtest_log
 - **禁止**把 probe 的买卖次数说成收益率；DCA/Grid 老路径回测仍走 generate_* + loopback_strategy

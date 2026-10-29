@@ -132,6 +132,7 @@ var (
 		"run_chat_workflow_turn": {},
 	}
 	strategyTools = map[string]struct{}{
+		"search_signals":                 {},
 		"get_index_signals":              {},
 		"get_index_signal":               {},
 		"get_all_index_signal_id":        {},

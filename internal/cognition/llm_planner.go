@@ -67,7 +67,7 @@ Domain + mode guidance:
 - stock_analysis/gather: analyze a stock, quote, technicals, trends.
 - signal_probe/execute: probe buy/sell points (买卖点 / 测信号 / 有没有买卖), not full PnL backtest.
 - backtest_run/execute: user wants to 回测 / 跑回测 / 看收益 / 验证策略 (PnL on catalog signals). There is ONE backtest playbook: strategy-backtest-run. Tool chain: run_strategy_backtest only. 回测 means run existing signals against history — it is NOT strategy generation. Route here even if the user also says 策略/定投 in colloquial speech (e.g. "DCA策略回测" still means backtest_run unless they explicitly ask to 生成/设计/出方案).
-- dca_grid/gather: list or browse available signal strategies/combinations (有哪些信号/策略/组合).
+- dca_grid/gather: list or browse available signal strategies/combinations (有哪些信号/策略/组合), OR user names a vague indicator/signal keyword (MACD/RSI/SAR) and asks which signal strategy fits / 有没有 XX 信号策略 — route here (NOT ambiguous/clarify). Agent should search_signals first, then clarify if multiple matches.
 - dca_grid/execute: user explicitly asks to 生成 / 设计 / 出方案 / 做一个方案 for a DCA or Grid bot (generate_dca_strategy / generate_grid_strategy); optional loopback_strategy only to validate that generated plan. Do NOT use dca_grid/execute when the user only says 回测.
 - bot_manage/gather: list/query bots, reminders, SmartTrade, grid PnL.
 - bot_manage/execute: create/update/delete bots.
@@ -78,8 +78,9 @@ Domain + mode guidance:
 - knowledge/gather: ONLY when the user explicitly asks to use/search the knowledge base or internal docs
   (e.g. "按知识库", "知识库里", "查知识库", "根据文档").
   Do NOT route "X是什么意思" to knowledge just because X is a trading term.
-- ambiguous/clarify: bare strategy words (MACD/SAR) without clear action, or compound analyze+backtest in one sentence.
-  "这个MACD信号平时该怎么用" → ambiguous/clarify signal_usage (NOT chat/talk, NOT knowledge).
+- ambiguous/clarify: bare strategy words without clear action, or compound analyze+backtest in one sentence.
+  "有没有适合腾讯股价的MACD信号策略" → dca_grid/gather (search catalog signals, NOT ambiguous).
+  "这个MACD信号平时该怎么用" → ambiguous/clarify signal_usage (NOT chat/talk, NOT knowledge); agent must search_signals before clarify.
 - Read Session summary and Recent session dialogue like a coding assistant: short follow-ups continue the active task.
 - Use last turn domain + session dialogue for follow-ups; do not re-classify the task from scratch.
 - If recent dialogue shows signal_probe/backtest_run/stock_analysis work and this turn only swaps strategy,
@@ -503,7 +504,7 @@ func applyClarifyTemplate(plan TurnPlan, template string) TurnPlan {
 	case "signal_usage":
 		plan.ClarifyQuestion = domaincatalog.SignalUsageClarifyQuestion
 		plan.ClarifyChoices = append([]string(nil), domaincatalog.SignalUsageClarifyChoices...)
-		plan.ToolsAllow = []string{"clarify"}
+		plan.ToolsAllow = []string{"search_signals", "clarify"}
 		return plan
 	case "compound_steps":
 		plan.ClarifyQuestion = domaincatalog.CompoundStepClarifyQuestion
