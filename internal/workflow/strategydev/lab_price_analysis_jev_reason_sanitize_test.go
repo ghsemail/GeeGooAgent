@@ -31,3 +31,12 @@ func TestSanitizeLabJEVReasonSummaryVisibleAfterThink(t *testing.T) {
 		t.Fatalf("got=%q", got)
 	}
 }
+
+func TestSanitizeLabJEVReasonSummaryTAForceIndexMixedLine(t *testing.T) {
+	raw := `<think>We need 1-2 sentences without changing direction. JEV 决策看空，Force Index 为蓝，显示下跌动能尚未扭转，模型置信度 0.89.</think>`
+	got := sanitizeLabJEVReasonSummary(raw)
+	want := "JEV 决策看空，Force Index 为蓝，显示下跌动能尚未扭转，模型置信度 0.89."
+	if got != want {
+		t.Fatalf("got=%q want=%q", got, want)
+	}
+}

@@ -67,6 +67,27 @@ func labJEVExtractQuotedChinese(s string) string {
 	return best
 }
 
+func labJEVTrimToReasonStart(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return s
+	}
+	if i := strings.Index(s, "JEV"); i >= 0 {
+		return strings.TrimSpace(s[i:])
+	}
+	for i, r := range s {
+		if unicode.Is(unicode.Han, r) {
+			return strings.TrimSpace(s[i:])
+		}
+	}
+	return s
+}
+
+func labJEVReasonRuneAllowedInChineseSpan(r rune) bool {
+	return unicode.Is(unicode.Han, r) || unicode.IsPunct(r) || unicode.IsNumber(r) ||
+		r == ' ' || r == '%' || r == '.' || unicode.IsLetter(r)
+}
+
 func labJEVExtractChineseSentences(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -74,7 +95,7 @@ func labJEVExtractChineseSentences(s string) string {
 	}
 	var parts []string
 	for _, line := range strings.Split(s, "\n") {
-		line = strings.TrimSpace(line)
+		line = labJEVTrimToReasonStart(strings.TrimSpace(line))
 		if line == "" || labJEVReasonLooksLikePlanning(line) {
 			continue
 		}
@@ -85,7 +106,8 @@ func labJEVExtractChineseSentences(s string) string {
 	if len(parts) > 0 {
 		return strings.Join(parts, "")
 	}
-	// Fallback: longest mostly-Chinese substring between punctuation.
+	// Fallback: longest mostly-Chinese span; keep Latin indicator tokens (e.g. Force Index).
+	s = labJEVTrimToReasonStart(s)
 	var buf strings.Builder
 	var best strings.Builder
 	flush := func() {
@@ -96,8 +118,7 @@ func labJEVExtractChineseSentences(s string) string {
 		buf.Reset()
 	}
 	for _, r := range s {
-		if unicode.Is(unicode.Han, r) || unicode.IsPunct(r) || unicode.IsNumber(r) ||
-			r == ' ' || r == '%' || r == '.' {
+		if labJEVReasonRuneAllowedInChineseSpan(r) {
 			buf.WriteRune(r)
 			continue
 		}
