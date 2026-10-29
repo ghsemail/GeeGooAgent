@@ -5,13 +5,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ghsemail/GeeGooAgent/internal/clarifycontext"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
-const DefaultClarifyAutoPickSeconds = 10
+const DefaultClarifyAutoPickSeconds = 20
+
+// ClarifyAutoPickGraceSeconds is extra wait after auto-pick before unblocking the agent turn.
+const ClarifyAutoPickGraceSeconds = 3
+
+// JEVClarifyRecommendTimeout is the hard cap for JEV clarify recommendation calls.
+const JEVClarifyRecommendTimeout = 2500 * time.Millisecond
+
+// EvalClarifyWaitBudgetSec is per-clarify UI wait budget (JEV + auto-pick + grace) for eval timeouts.
+const EvalClarifyWaitBudgetSec = DefaultClarifyAutoPickSeconds + 3 + ClarifyAutoPickGraceSeconds
 
 // ClarifyRecommendContext supplies optional dialogue / script hints for auto-answer.
 type ClarifyRecommendContext struct {
@@ -124,6 +134,9 @@ func formatClarifyRecommendPrompt(question string, choices []string, hint Clarif
 			fmt.Fprintf(&b, "\n## 验收标准\n%s\n", rubric)
 		}
 	}
+	if pref := strings.TrimSpace(hint.ClarifyPreference); pref != "" {
+		fmt.Fprintf(&b, "\n## Eval 软偏好（clarify_reply）\n%s\n", pref)
+	}
 	if hint.Bundle != nil {
 		if s := strings.TrimSpace(hint.Bundle.SessionSummary); s != "" {
 			fmt.Fprintf(&b, "\n## 会话摘要\n%s\n", s)
@@ -171,7 +184,8 @@ func parseClarifyRecommendJSON(raw string, choices []string) (ClarifyRecommendat
 	}, nil
 }
 
-// RecommendClarifyChoice picks a recommended option: script → LLM → heuristic.
+// RecommendClarifyChoice picks a recommended option: JEV/LLM chain → heuristic.
+// ClarifyDefaults and ClarifyPreference are soft hints for recommenders, not script-first picks.
 func RecommendClarifyChoice(
 	ctx context.Context,
 	question string,
@@ -179,17 +193,7 @@ func RecommendClarifyChoice(
 	hint ClarifyRecommendContext,
 	recommender ClarifyRecommender,
 ) ClarifyRecommendation {
-	defaults := nonEmptyStrings(hint.ClarifyDefaults)
-	if answer, ok := PickClarifyAnswer(question, choices, defaults); ok {
-		idx := indexOfChoice(choices, answer)
-		return ClarifyRecommendation{
-			Index:           idx,
-			Choice:          answer,
-			Reason:          "匹配剧本澄清默认",
-			Source:          "script",
-			AutoPickSeconds: DefaultClarifyAutoPickSeconds,
-		}
-	}
+	hint = enrichClarifyRecommendHint(hint)
 	if recommender != nil && len(choices) > 0 {
 		if rec, err := recommender.Recommend(ctx, question, choices, hint); err == nil && rec.valid(choices) {
 			if rec.AutoPickSeconds <= 0 {
@@ -209,6 +213,51 @@ func RecommendClarifyChoice(
 		}
 	}
 	return ClarifyRecommendation{AutoPickSeconds: DefaultClarifyAutoPickSeconds}
+}
+
+func enrichClarifyRecommendHint(hint ClarifyRecommendContext) ClarifyRecommendContext {
+	if strings.TrimSpace(hint.ClarifyPreference) == "" {
+		defaults := nonEmptyStrings(hint.ClarifyDefaults)
+		if len(defaults) > 0 {
+			hint.ClarifyPreference = defaults[0]
+		}
+	}
+	for _, def := range nonEmptyStrings(hint.ClarifyDefaults) {
+		seen := false
+		for _, turn := range hint.Dialogue {
+			if turn.OnClarify && strings.TrimSpace(turn.Text) == def {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			hint.Dialogue = append(hint.Dialogue, EvalDialogueTurn{
+				Role:      "user",
+				Text:      def,
+				OnClarify: true,
+			})
+		}
+	}
+	return hint
+}
+
+// ClarifyTurnWaitPadding returns extra seconds eval runners should allow per turn that may clarify.
+func ClarifyTurnWaitPadding(opts TurnPlanCaseOptions) int {
+	opts = opts.Normalize()
+	if opts.AutoClarifyOnly {
+		return EvalClarifyWaitBudgetSec
+	}
+	if strings.TrimSpace(opts.ClarifyReply) != "" {
+		return EvalClarifyWaitBudgetSec
+	}
+	_, clarify := DialogueExecutionPlan(opts)
+	if len(clarify) > 0 {
+		return EvalClarifyWaitBudgetSec * len(clarify)
+	}
+	if strings.EqualFold(opts.intent().Mode, "clarify") {
+		return EvalClarifyWaitBudgetSec
+	}
+	return 0
 }
 
 func (r ClarifyRecommendation) valid(choices []string) bool {

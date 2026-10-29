@@ -244,10 +244,14 @@ func (h *Handler) runEvalJobItem(ctx context.Context, db *sql.DB, auth evalJobAu
 }
 
 func evalChatTimeout(opts eval.TurnPlanCaseOptions) time.Duration {
+	base := 10 * time.Minute
 	if opts.WaitTimeoutSec > 0 {
-		return time.Duration(opts.WaitTimeoutSec) * time.Second
+		base = time.Duration(opts.WaitTimeoutSec) * time.Second
 	}
-	return 10 * time.Minute
+	if pad := eval.ClarifyTurnWaitPadding(opts); pad > 0 {
+		base += time.Duration(pad) * time.Second
+	}
+	return base
 }
 
 func (h *Handler) resolveEvalCaseOptions(ctx context.Context, opts eval.TurnPlanCaseOptions, mcpToken string) (eval.TurnPlanCaseOptions, string, error) {

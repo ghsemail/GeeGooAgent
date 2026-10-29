@@ -1,8 +1,24 @@
 package eval
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
-func TestRecommendClarifyChoiceScriptMatch(t *testing.T) {
+type stubClarifyRecommender struct {
+	rec ClarifyRecommendation
+}
+
+func (s stubClarifyRecommender) Recommend(
+	_ context.Context,
+	_ string,
+	_ []string,
+	_ ClarifyRecommendContext,
+) (ClarifyRecommendation, error) {
+	return s.rec, nil
+}
+
+func TestRecommendClarifyChoiceJEVBeforeScriptDefaults(t *testing.T) {
 	rec := RecommendClarifyChoice(
 		t.Context(),
 		"为腾讯选哪个组合信号？",
@@ -10,12 +26,19 @@ func TestRecommendClarifyChoiceScriptMatch(t *testing.T) {
 		ClarifyRecommendContext{
 			ClarifyDefaults: []string{"SAR+MACD 组合"},
 		},
-		nil,
+		stubClarifyRecommender{
+			rec: ClarifyRecommendation{
+				Index:  2,
+				Choice: "EMA 趋势型",
+				Reason: "jev pick",
+				Source: "jev",
+			},
+		},
 	)
-	if rec.Source != "script" {
-		t.Fatalf("source=%q", rec.Source)
+	if rec.Source != "jev" {
+		t.Fatalf("source=%q want jev", rec.Source)
 	}
-	if rec.Index != 0 {
+	if rec.Index != 2 {
 		t.Fatalf("index=%d choice=%q", rec.Index, rec.Choice)
 	}
 	if rec.AutoPickSeconds != DefaultClarifyAutoPickSeconds {
@@ -37,6 +60,22 @@ func TestRecommendClarifyChoiceHeuristic(t *testing.T) {
 	}
 	if rec.Source != "heuristic" {
 		t.Fatalf("source=%q", rec.Source)
+	}
+}
+
+func TestDefaultClarifyAutoPickSeconds(t *testing.T) {
+	if DefaultClarifyAutoPickSeconds != 20 {
+		t.Fatalf("DefaultClarifyAutoPickSeconds=%d want 20", DefaultClarifyAutoPickSeconds)
+	}
+}
+
+func TestClarifyTurnWaitPadding(t *testing.T) {
+	opts := TurnPlanCaseOptions{
+		ExpectMode:   "clarify",
+		ClarifyReply: "先问答",
+	}.Normalize()
+	if got := ClarifyTurnWaitPadding(opts); got != EvalClarifyWaitBudgetSec {
+		t.Fatalf("padding=%d want %d", got, EvalClarifyWaitBudgetSec)
 	}
 }
 
