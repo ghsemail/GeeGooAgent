@@ -48,9 +48,10 @@ func ToolRouting() string {
 - 创建前 list_*_bots 查重名；103=未绑交易账号，105=Bot 配额不足
 - **提醒 Bot**：create_grid_reminder / create_dca_reminder，参数类似但不实盘下单
 
-### Chat 工作流（信号诊断 / 策略开发 / 多策略对比 / 生成策略档案）
-- 触发词见各 workflow 的 SKILL.md；会话已有 active workflow 或用户说「继续」「重试失败」时 → **run_chat_workflow_turn**（user_message=用户原话）
-- 不要用普通 ReAct 工具链代替已匹配的 workflow 技能终态
+### Chat 技能（信号诊断 / 策略开发 / 多策略对比 / 生成策略档案）
+- 从注入的 **Skills catalog** 选 skill id → **skill_view** 加载 SKILL.md → 按步骤调用普通工具（probe_bot_signal_series、diagnose_bot_signal_series、save_strategy_knowledge 等）
+- 需要 Monday 诊断/策略卡片时 → **emit_workflow_card**（payload 见 signal_diagnose SKILL.md）
+- 仅当运维开启 config chat_open_flow_tool 时才可用已废弃的 **run_chat_workflow_turn**
 
 ### 概念释义 vs 知识库
 - 用户问 **「X 是什么意思 / 什么是 X / X 指标是什么」**（通用概念、指标定义）→ **直接用文字解释**，走 chat/talk；**不要** search_knowledge，也不要让用户自己去知识库找

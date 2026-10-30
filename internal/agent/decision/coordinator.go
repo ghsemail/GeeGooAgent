@@ -63,7 +63,7 @@ func (c *Coordinator) takeoverAllowed(q Question, ans Answer, hookErr error) boo
 		return false
 	}
 	// Plan Gate and clarify must stay on main LLM + existing approval UX until explicitly designed.
-	if q.Kind == KindPlanGate || q.Kind == KindClarify {
+	if q.Kind == KindPlanGate || q.Kind == KindClarify || q.Kind == KindCapabilityRoute {
 		return false
 	}
 	return q.Kind == KindEndTurn || q.Kind == KindToolPlan

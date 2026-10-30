@@ -11,9 +11,8 @@ func registerChatWorkflowTool(r *Registry, deps Deps) {
 	}
 	r.Register(Tool{
 		Name: "run_chat_workflow_turn",
-		Description: "推进或启动 Chat 工作流技能（信号诊断、策略开发、多策略对比、生成策略档案等）。" +
-			"用户消息匹配 workflow SKILL 的触发词、会话里已有 active workflow、或用户说「继续/重试失败」时调用。" +
-			"将 user_message 设为用户的原话（或「继续」「重试失败」）。返回工作流本步报告；若无可处理的工作流则 status=skipped。",
+		Description: "[Deprecated — prefer skill_view + ordinary tools.] 推进或启动 Chat 工作流技能（信号诊断、策略开发等）。" +
+			"仅当 chat_open_flow_tool 启用时注册。将 user_message 设为用户的原话（或「继续」「重试失败」）。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

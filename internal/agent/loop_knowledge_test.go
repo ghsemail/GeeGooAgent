@@ -52,6 +52,7 @@ func TestRunTurnExpandsKnowledgeToolOnSkillMatch(t *testing.T) {
 	gateway.SetSleep(func(time.Duration) {})
 	loop := agent.NewLoop(gateway, runtime.NewExecutor(registry))
 	loop.SetSkillLoader(loader, 2)
+	loop.SetSkillInjection(procedural.SkillInjectionKeyword)
 	loop.SetSkillToolExpander(func(names []string) []llm.ToolSchema {
 		for _, n := range names {
 			if n == "knowledge-base" {

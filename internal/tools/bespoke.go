@@ -826,7 +826,10 @@ func registerReportTools(r *Registry, deps Deps) {
 
 func registerMetaTools(r *Registry, deps Deps) {
 	registerMemoryTools(r, deps)
-	registerChatWorkflowTool(r, deps)
+	registerSkillViewTools(r, deps)
+	if deps.ChatOpenFlowTool && deps.ChatWorkflowTurn != nil {
+		registerChatWorkflowTool(r, deps)
+	}
 	r.Register(Tool{
 		Name: "write_execution_log", Description: "Append workflow step to execution log.",
 		Handle: func(ctx Context, args map[string]any) Result {

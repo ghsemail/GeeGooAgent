@@ -6,10 +6,11 @@ import "context"
 type Kind string
 
 const (
-	KindEndTurn  Kind = "end_turn"
-	KindToolPlan Kind = "tool_plan"
-	KindPlanGate Kind = "plan_gate"
-	KindClarify  Kind = "clarify"
+	KindEndTurn         Kind = "end_turn"
+	KindToolPlan        Kind = "tool_plan"
+	KindPlanGate        Kind = "plan_gate"
+	KindClarify         Kind = "clarify"
+	KindCapabilityRoute Kind = "capability_route"
 )
 
 // Mode controls whether the hook may take over control from the main LLM path.

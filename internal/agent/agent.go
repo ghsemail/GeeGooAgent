@@ -71,6 +71,20 @@ func (a *Agent) SetSkillLoader(loader *procedural.Loader, maxSkills int) {
 	}
 }
 
+// SetSkillInjection sets Chat procedural injection mode (keyword | catalog | off).
+func (a *Agent) SetSkillInjection(mode procedural.SkillInjectionMode) {
+	if a != nil && a.Loop != nil {
+		a.Loop.SetSkillInjection(mode)
+	}
+}
+
+// SetChatOpenFlowTool enables legacy run_chat_workflow_turn injection on the loop path.
+func (a *Agent) SetChatOpenFlowTool(enabled bool) {
+	if a != nil && a.Loop != nil {
+		a.Loop.SetChatOpenFlowTool(enabled)
+	}
+}
+
 // SetSkillToolExpander wires opt-in tool schemas after a skill match.
 func (a *Agent) SetSkillToolExpander(fn SkillToolExpander) {
 	if a != nil && a.Loop != nil {

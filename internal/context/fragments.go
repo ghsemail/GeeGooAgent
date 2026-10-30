@@ -61,6 +61,19 @@ func ProceduralSkillFragment(block string) Fragment {
 	}
 }
 
+// SkillsCatalogFragment injects the short skill catalog (id + description).
+func SkillsCatalogFragment(block string) Fragment {
+	block = strings.TrimSpace(block)
+	if block == "" {
+		return StaticFragment{}
+	}
+	return StaticFragment{
+		K:    KindProcedural,
+		Text: "## Skills catalog\n" + block + "\nUse **skill_view** to load one skill's SKILL.md, then call ordinary tools per that skill.",
+		Prio: 24,
+	}
+}
+
 // RoundBudgetFragment is an ephemeral per-round budget nudge (not persisted).
 func RoundBudgetFragment(text string) Fragment {
 	text = strings.TrimSpace(text)
