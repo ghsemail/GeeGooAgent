@@ -34,9 +34,11 @@ type Loop struct {
 	maxToolRounds  int
 	onProgress     runtime.ProgressFunc
 	mem            memport.Port
-	skillLoader    *procedural.Loader
-	maxSkills      int
-	skillTools     SkillToolExpander
+	skillLoader        *procedural.Loader
+	maxSkills          int
+	skillInjection     procedural.SkillInjectionMode
+	chatOpenFlowTool   bool
+	skillTools         SkillToolExpander
 	eventBus       tools.EventEmitter
 	ranker         cognition.Ranker
 	evaluator      cognition.Evaluator
@@ -122,6 +124,27 @@ func (l *Loop) SetSkillLoader(loader *procedural.Loader, maxSkills int) {
 		maxSkills = 2
 	}
 	l.maxSkills = maxSkills
+	if l.skillInjection == "" {
+		l.skillInjection = procedural.SkillInjectionCatalog
+	}
+}
+
+// SetSkillInjection configures keyword Match inject vs catalog vs off.
+func (l *Loop) SetSkillInjection(mode procedural.SkillInjectionMode) {
+	if l == nil {
+		return
+	}
+	if mode == "" {
+		mode = procedural.SkillInjectionCatalog
+	}
+	l.skillInjection = mode
+}
+
+// SetChatOpenFlowTool toggles legacy run_chat_workflow_turn schema injection.
+func (l *Loop) SetChatOpenFlowTool(enabled bool) {
+	if l != nil {
+		l.chatOpenFlowTool = enabled
+	}
 }
 
 // SkillToolExpander adds opt-in tool schemas after a skill match (e.g. knowledge-base).
@@ -469,9 +492,10 @@ func (l *Loop) runPreparedTurn(
 	if extra := l.expandSkillSchemas(matchedSkills); len(extra) > 0 {
 		schemas = mergeToolSchemas(schemas, extra)
 	}
-	if needsChatWorkflowTool(matchedSkills, session) {
+	if l.chatOpenFlowTool && needsChatWorkflowTool(matchedSkills, session) {
 		schemas = mergeToolSchemas(schemas, []llm.ToolSchema{chatWorkflowToolSchema()})
 	}
+	l.consultCapabilityRoute(ctx, session, userText, &records)
 	schemas = procedural.FilterSchemasForMatchedSkills(schemas, matchedSkills, userText, session.LLMMessages())
 
 	messages = session.LLMMessages()

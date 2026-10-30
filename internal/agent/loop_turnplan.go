@@ -16,7 +16,7 @@ func agentRoutingFragment(userText string) ctxfrag.Fragment {
 	b.WriteString("- Read session context and pick tools; no separate intent classifier runs in this turn.\n")
 	b.WriteString("- If the user intent is ambiguous (e.g. quote vs analysis, which signal/strategy, analyze vs backtest), call the clarify tool with a clear question and up to 4 choices before irreversible tools.\n")
 	b.WriteString("- After clarify returns user_response, continue in the same turn with that choice.\n")
-	b.WriteString("- Chat workflow skills (信号诊断、策略开发、多策略对比、生成策略档案): call run_chat_workflow_turn with user_message set to the user's words (or 继续 / 重试失败 when resuming).\n")
+	b.WriteString("- Guided skills (信号诊断、策略开发、多策略对比、生成策略档案): pick the skill id from the **Skills catalog**, call **skill_view**, then follow SKILL.md using ordinary tools (probe_bot_signal_series, diagnose_bot_signal_series, save_strategy_knowledge, …). Call **emit_workflow_card** when the skill asks for Monday UI cards.\n")
 	b.WriteString(subagentOrchestratorPlanBlock())
 	return ctxfrag.StaticFragment{K: ctxfrag.KindSystemRules, Text: b.String(), Prio: 22}
 }
@@ -38,6 +38,42 @@ func (l *Loop) loadPlanSkills(plan cognition.TurnPlan, userText string, records 
 	if l == nil || l.skillLoader == nil {
 		return nil, nil
 	}
+	mode := l.effectiveSkillInjection()
+	switch mode {
+	case procedural.SkillInjectionOff:
+		return l.loadExplicitPlanSkillsOnly(plan, records)
+	case procedural.SkillInjectionCatalog:
+		return l.loadCatalogSkills(plan, records)
+	default:
+		return l.loadKeywordMatchedSkills(plan, userText, records)
+	}
+}
+
+func (l *Loop) loadExplicitPlanSkillsOnly(plan cognition.TurnPlan, records *[]runtime.StepRecord) (ctxfrag.Fragment, []string) {
+	matched := l.skillsFromPlan(plan)
+	if len(matched) == 0 {
+		return nil, nil
+	}
+	return l.formatMatchedSkills(matched, "turn_plan", records)
+}
+
+func (l *Loop) loadCatalogSkills(plan cognition.TurnPlan, records *[]runtime.StepRecord) (ctxfrag.Fragment, []string) {
+	catalog := l.skillLoader.ChatCatalog()
+	var frag ctxfrag.Fragment
+	if block := procedural.FormatCatalog(catalog); block != "" {
+		l.emitStatus("plan", fmt.Sprintf("注入 %d 个技能 catalog 条目", len(catalog)))
+		l.emit("memory.procedural", map[string]any{
+			"skills": len(catalog),
+			"source": "catalog",
+		})
+		l.recordInjectionStep(records, "context_inject", fmt.Sprintf("skills catalog: %d entries", len(catalog)))
+		frag = ctxfrag.SkillsCatalogFragment(block)
+	}
+	names := skillNames(l.skillsFromPlan(plan))
+	return frag, names
+}
+
+func (l *Loop) loadKeywordMatchedSkills(plan cognition.TurnPlan, userText string, records *[]runtime.StepRecord) (ctxfrag.Fragment, []string) {
 	seen := map[string]struct{}{}
 	matched := make([]procedural.Skill, 0, l.maxSkills+len(plan.Skills))
 	appendSkill := func(sk procedural.Skill) {
@@ -53,11 +89,7 @@ func (l *Loop) loadPlanSkills(plan cognition.TurnPlan, userText string, records 
 	for _, sk := range l.skillLoader.Match(userText, l.maxSkills) {
 		appendSkill(sk)
 	}
-	for _, name := range plan.Skills {
-		sk, ok := l.skillLoader.FindByName(name)
-		if !ok {
-			continue
-		}
+	for _, sk := range l.skillsFromPlan(plan) {
 		appendSkill(sk)
 	}
 	if len(matched) > l.maxSkills && l.maxSkills > 0 {
@@ -66,6 +98,22 @@ func (l *Loop) loadPlanSkills(plan cognition.TurnPlan, userText string, records 
 	if len(matched) == 0 {
 		return nil, nil
 	}
+	return l.formatMatchedSkills(matched, "context_match", records)
+}
+
+func (l *Loop) skillsFromPlan(plan cognition.TurnPlan) []procedural.Skill {
+	var matched []procedural.Skill
+	for _, name := range plan.Skills {
+		sk, ok := l.skillLoader.FindByName(name)
+		if !ok {
+			continue
+		}
+		matched = append(matched, sk)
+	}
+	return matched
+}
+
+func (l *Loop) formatMatchedSkills(matched []procedural.Skill, source string, records *[]runtime.StepRecord) (ctxfrag.Fragment, []string) {
 	block := procedural.Format(matched)
 	names := skillNames(matched)
 	if block == "" {
@@ -75,8 +123,9 @@ func (l *Loop) loadPlanSkills(plan cognition.TurnPlan, userText string, records 
 	l.emit("memory.procedural", map[string]any{
 		"skills": len(matched),
 		"names":  names,
-		"source": "context_match",
+		"source": source,
 	})
 	l.recordInjectionStep(records, "context_inject", fmt.Sprintf("skills: %s", strings.Join(names, ", ")))
 	return ctxfrag.ProceduralSkillFragment(block), names
 }
+

@@ -103,7 +103,8 @@ func buildWorkflowExclusiveTools() map[string]struct{} {
 
 // chatExcludedTools are in ChatDefault toolsets but omitted from default interactive chat.
 var chatExcludedTools = map[string]struct{}{
-	"recall": {},
+	"recall":                   {},
+	"run_chat_workflow_turn":   {}, // opt-in via config chat_open_flow_tool
 }
 
 // AllToolsets returns the built-in toolset catalog.
@@ -201,6 +202,22 @@ func ChatToolNamesForToolsets(ids []string) []string {
 	for name := range chat {
 		names = append(names, name)
 	}
+	sort.Strings(names)
+	return names
+}
+
+// AppendChatToolName adds one tool to a sorted chat allowlist if missing.
+func AppendChatToolName(names []string, tool string) []string {
+	tool = strings.TrimSpace(tool)
+	if tool == "" {
+		return names
+	}
+	for _, n := range names {
+		if n == tool {
+			return names
+		}
+	}
+	names = append(names, tool)
 	sort.Strings(names)
 	return names
 }

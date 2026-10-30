@@ -36,6 +36,8 @@ type Deps struct {
 	Delegate TaskDelegator
 	// ChatWorkflowTurn runs chat workflow templates (signal_diagnose, etc.).
 	ChatWorkflowTurn ChatWorkflowTurn
+	// ChatOpenFlowTool registers deprecated run_chat_workflow_turn on the Chat allowlist.
+	ChatOpenFlowTool bool
 }
 
 // TaskDelegator is implemented by agent.SubAgent for delegate_task registration.

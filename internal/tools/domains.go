@@ -129,6 +129,8 @@ var (
 		"clarify":           {},
 		"delegate_task":          {},
 		"delegate_tasks":         {},
+		"skill_view":             {},
+		"emit_workflow_card":     {},
 		"run_chat_workflow_turn": {},
 	}
 	strategyTools = map[string]struct{}{

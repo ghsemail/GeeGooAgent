@@ -198,6 +198,7 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 		FeishuWebhookURL: cfg.EffectiveFeishuWebhookURL(),
 		Delegate:         sub,
 		ChatWorkflowTurn: app.chatWorkflowTurn,
+		ChatOpenFlowTool: cfg.EffectiveChatOpenFlowTool(),
 		Memory:           app.ChatMemory,
 		Facts: app.Facts, Episodic: app.Episodic, Home: config.Home(),
 		Preferences: app.Preferences,
@@ -807,6 +808,10 @@ func (a *App) wireProceduralMemory() {
 	}
 	a.Agent.SetSkillLoader(a.SkillLoader, 2)
 	a.Agent.SetSkillToolExpander(a.expandSkillTools)
+	if a.Config != nil {
+		a.Agent.SetSkillInjection(procedural.ParseSkillInjectionMode(a.Config.EffectiveSkillInjection()))
+		a.Agent.SetChatOpenFlowTool(a.Config.EffectiveChatOpenFlowTool())
+	}
 }
 
 func (a *App) expandSkillTools(names []string) []llm.ToolSchema {
@@ -1186,10 +1191,18 @@ func (a *App) ChatToolNames() []string {
 		return nil
 	}
 	var ids []string
+	openFlow := false
 	if a.Config != nil {
 		ids = a.Config.EffectiveChatToolsets()
+		openFlow = a.Config.EffectiveChatOpenFlowTool()
 	}
-	return tools.RegisteredChatToolNamesFor(a.Registry, ids)
+	names := tools.RegisteredChatToolNamesFor(a.Registry, ids)
+	if openFlow && a.Registry != nil {
+		if _, ok := a.Registry.Get("run_chat_workflow_turn"); ok {
+			names = tools.AppendChatToolName(names, "run_chat_workflow_turn")
+		}
+	}
+	return names
 }
 
 // EndpointSummary prints GeeGoo service endpoints.

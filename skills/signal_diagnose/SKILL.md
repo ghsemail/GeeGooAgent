@@ -1,44 +1,50 @@
 ---
 name: signal_diagnose
-description: 信号诊断 Workflow：读取策略 → probe → Episode 评价 → diagnose → LLM 总结 → 写入知识库（不回测）。
+description: 信号诊断：读策略 → probe → Episode 评价 → diagnose → LLM 总结 → 写入知识库（不回测）。Chat 用 skill_view 加载后按步调普通工具。
 trigger_modes: chat
 ---
 
-# 信号诊断 Workflow
+# 信号诊断（Chat · skill + 工具）
 
-## 触发示例
+## 何时使用
 
-- 「**诊断 SAR 策略 · 腾讯**」
-- 「信号诊断 Macd4H · 00700」
+- 「**诊断 SAR 策略 · 腾讯**」「信号诊断 Macd4H · 00700」
+- Monday 面板拼好的诊断文案（含策略摘要与标的）
 
-## 阶段
+## Chat 执行顺序（不要用 run_chat_workflow_turn）
 
-| Phase | 说明 |
+1. **解析意图**：从用户话里提取 `strategy_query`（策略/catalog 名）与 `stock_query`（公司/代码）。缺一项 → **clarify**。
+2. **读策略**：`search_signals` / catalog 工具解析出 `buy_signal`、`sell_signal`、`frequency`（与 Web 策略库一致）。
+3. **resolve_symbol**：**search_code** → 标准 `code`。
+4. **run_probe**：**probe_bot_signal_series**（`include_key_levels` / `key_levels_mode=series` 默认；`months_back` 按诊断窗，通常 3）。
+5. **（可选）fetch_key_levels**：probe 未带回关键价位时 **get_key_levels**。
+6. **evaluate_accuracy**：在 probe 结果上按 SKILL 内 Episode 规则理解 Strict/Path（展示用；Go 工具已算好字段）。
+7. **build_detail**：**diagnose_bot_signal_series**（同一 code、frequency、buy_signal、months_back）。
+8. **diag_compose**：用主模型根据 probe + diagnose + price_analysis 写综合判断 Markdown（勿编造 probe 未返回的数据）。
+9. **diag_save_kb**：**save_strategy_knowledge** → 信号诊断目录；记录返回的 knowledge id。
+10. **summarize**：向用户输出 Markdown 诊断报告（含知识库 id）。
+11. **UI 卡片**：probe/diagnose 有结果后调用 **emit_workflow_card**，`card.skill=signal_diagnose`，填入 `stock_code`、`strategy_query`、`phase=done`、`diagnose_detail` / probe 命中等（与旧 workflow_card 字段对齐）。
+
+## 工具参数要点
+
+| 步骤 | 工具 |
 | --- | --- |
-| `diag_pick` | 解析策略名与标的 |
-| `read_strategy` | `resolveStrategyCatalog` 读策略库 rules |
-| `resolve_symbol` | `search_code` → 标准 code |
-| `run_probe` | `probe_bot_signal_series`（默认附带 `include_key_levels` / series，供 K 线参考线） |
-| `fetch_key_levels` | （可选）probe 未带回关键价位时 `get_key_levels` |
-| `evaluate_accuracy` | Episode：Strict（至反向信号）+ Path（至下一同向/样本末，含 peak/maxDD） |
-| `build_detail` | `diagnose_bot_signal_series` |
-| `diag_compose` | LLM 综合判断 |
-| `diag_save_kb` | `save_strategy_knowledge` → 信号诊断目录 |
-| `summarize` | Markdown 诊断报告（含知识库 id） |
+| 标的 | search_code |
+| 买卖点序列 | probe_bot_signal_series |
+| 零信号/阈值解释 | diagnose_bot_signal_series |
+| 持久化 | save_strategy_knowledge |
+| Monday 卡 | emit_workflow_card |
 
 ## K 线关键价位参考线
 
-- probe 传 `key_levels_mode=series`（默认 `key_levels_align=daily`），六档与 bars 等长；策略开发页 K 线展示买段 `support_high` / 卖段 `resist_low` 阶梯线（与 Episode 评价解耦，不再做结构熔断截断）。
+- probe 传 `key_levels_mode=series`（默认 `key_levels_align=daily`），六档与 bars 等长；策略开发页 K 线展示买段 `support_high` / 卖段 `resist_low` 阶梯线。
 
 ## 价格分析 Episode 门控（默认关 / 软标注）
 
-- **Chat API**：`use_price_analysis_episode_filter` 默认 **false**；false 时仍逐条计算四周期 `price_analysis` 与 `would_intercept` / `ai_intercept_conclusion`（本会拦截），**不**掩码剔除触发；true 时恢复硬掩码（与旧行为一致）。
-- **门控综合分模式（实验）**：`price_analysis_gate_score_mode` 默认 **`full`**（门控分=展示 `price_score`，含进场周期）；设为 **`htf_only`** 时展示分不变，买点 `would_intercept` 仅用更大周期（如 60m 信号仅周+日，权重 0.45/0.35 归一）；触发记录带 `gate_price_score`。
-- **workflow_card / 诊断 Markdown**：`price_analysis`（5m/60m/日线/周线表 + 支撑阻力 + 综合句）；`price_episode_filter_stats.buy_triggers` / `sell_triggers` 列出全部买/卖触发（`would_intercept=true` 为按规则本会硬拦），与 `stripped_*_triggers` 并存。
-- **取 K 编排（Agent）**：打开 Episode 过滤时，四周期各 **一次** `probe_bot_signal_series`（`months_back` 按诊断窗扩展，`as_of`=图表最晚 bar）；每条触发在本地按「前一交易日 16:00」锚点截断后再分析。**依赖 GeeGooSignal `as_of`/`end`**；未合入前 probe 仍可能只返回「从现在往前 ≤800 根」导致早期 5m「锚点前无 K」。
-- **单点四周期表**：代码入口 `strategydev.BuildRunPriceAnalysisAsOf(ctx, run, code, asOf, months, …)`；probe 传 `as_of` + `months_back`（默认 3），不传 `as_of` 时 `BuildRunPriceAnalysis` 保持旧「最新窗」行为。
+- **Chat API**：`use_price_analysis_episode_filter` 默认 **false**；false 时仍逐条计算四周期 `price_analysis` 与 `would_intercept` / `ai_intercept_conclusion`，**不**掩码剔除触发。
+- **workflow_card / 诊断 Markdown**：`price_analysis`（5m/60m/日线/周线表 + 支撑阻力 + 综合句）；`price_episode_filter_stats.buy_triggers` / `sell_triggers` 列出全部买/卖触发。
 
-## 与 playbook 区别
+## 与回测区别
 
-- 本 workflow **串行固定步骤**，不经过 ReAct。
-- **不调用** `run_strategy_backtest`。
+- 本 skill **不调用** `run_strategy_backtest`。
+- 用户只要 PnL 回测 → **strategy-backtest-run** + `run_strategy_backtest`。

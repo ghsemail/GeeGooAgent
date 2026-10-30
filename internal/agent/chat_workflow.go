@@ -57,7 +57,7 @@ func activeWorkflowFragment(session *runtime.Session) ctxfrag.Fragment {
 	var b strings.Builder
 	b.WriteString("## Active chat workflow\n")
 	fmt.Fprintf(&b, "- skill: %s\n- run_id: %s\n- phase: %s\n", flow.Template, flow.RunID, flow.Phase)
-	b.WriteString("- Call run_chat_workflow_turn with user_message set to the user's latest message (or 继续 / 重试失败) before other tools this turn.\n")
+	b.WriteString("- Legacy path: run_chat_workflow_turn (only when chat_open_flow_tool is enabled). Prefer skill_view + ordinary tools for new sessions.\n")
 	b.WriteString("- Pass through the workflow tool report as the user-facing answer when it contains the final summary.\n")
 	return ctxfrag.StaticFragment{K: ctxfrag.KindSystemRules, Text: b.String(), Prio: 21}
 }
@@ -77,12 +77,8 @@ func needsChatWorkflowTool(matchedSkillNames []string, session *runtime.Session)
 			return true
 		}
 	}
-	for _, name := range matchedSkillNames {
-		name = strings.TrimSpace(name)
-		if _, ok := chatWorkflowSkillNames[name]; ok {
-			return true
-		}
-	}
+	// Keyword/catalog injection no longer auto-adds the open-flow tool for matched workflow skills.
+	_ = matchedSkillNames
 	return false
 }
 
