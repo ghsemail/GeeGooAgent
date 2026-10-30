@@ -63,6 +63,23 @@ func TestReplacePlanGateNeverTakeoverEvenHighConfidence(t *testing.T) {
 	}
 }
 
+func TestReplaceCapabilityRouteNeverTakeover(t *testing.T) {
+	t.Parallel()
+	c := &decision.Coordinator{
+		Mode:          decision.ModeReplace,
+		MinConfidence: 0.5,
+		Hook:          decision.StubHook{ChoiceID: "signal_diagnose", Confidence: 1},
+	}
+	q := decision.Question{
+		ID: "cr1", Kind: decision.KindCapabilityRoute,
+		Choices: []decision.Choice{{ID: "signal_diagnose"}, {ID: "_none"}},
+	}
+	_, takeover := c.Consult(context.Background(), q, nil)
+	if takeover {
+		t.Fatal("capability_route must never takeover")
+	}
+}
+
 func TestReplaceEndTurnCanTakeoverWhenConfident(t *testing.T) {
 	t.Parallel()
 	c := &decision.Coordinator{
