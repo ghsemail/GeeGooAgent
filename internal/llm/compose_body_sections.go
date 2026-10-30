@@ -14,6 +14,13 @@ var composeFixedHeadings = []string{
 	"四、综合评价",
 }
 
+// ComposeSectionHeadings returns the fixed ### titles for signal diagnose compose cards.
+func ComposeSectionHeadings() []string {
+	out := make([]string, len(composeFixedHeadings))
+	copy(out, composeFixedHeadings)
+	return out
+}
+
 var composeDelimiterRE = regexp.MustCompile(`\[\[S([1-4])\]\]`)
 
 // ParseComposeSectionBodies splits model output by [[S1]]..[[S4]] markers.
@@ -128,4 +135,54 @@ func (r *ComposeSectionRenderer) PushModelText(delta string) {
 
 func (r *ComposeSectionRenderer) Document() string {
 	return RenderComposeSectionDocument(ParseComposeSectionBodies(r.raw.String()))
+}
+
+// ParseRenderedComposeSectionDocument splits a rendered ### heading document into section bodies.
+func ParseRenderedComposeSectionDocument(doc string) ([4]string, bool) {
+	doc = strings.TrimSpace(doc)
+	if doc == "" {
+		return [4]string{}, false
+	}
+	if strings.HasPrefix(doc, "### Agent 评价") {
+		doc = strings.TrimSpace(strings.TrimPrefix(doc, "### Agent 评价"))
+	}
+	var bodies [4]string
+	found := false
+	for i, heading := range composeFixedHeadings {
+		marker := "### " + heading
+		idx := strings.Index(doc, marker)
+		if idx < 0 {
+			continue
+		}
+		found = true
+		start := idx + len(marker)
+		rest := strings.TrimSpace(doc[start:])
+		end := len(rest)
+		for j := i + 1; j < len(composeFixedHeadings); j++ {
+			next := "### " + composeFixedHeadings[j]
+			if pos := strings.Index(rest, next); pos >= 0 {
+				end = pos
+				break
+			}
+		}
+		bodies[i] = strings.TrimSpace(rest[:end])
+	}
+	return bodies, found
+}
+
+// RenderComposeSectionDocumentAll renders all four card headings; empty bodies stay blank under the title.
+func RenderComposeSectionDocumentAll(bodies [4]string) string {
+	var b strings.Builder
+	for i, heading := range composeFixedHeadings {
+		if i > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString("### ")
+		b.WriteString(heading)
+		b.WriteString("\n\n")
+		if body := strings.TrimSpace(bodies[i]); body != "" {
+			b.WriteString(body)
+		}
+	}
+	return strings.TrimSpace(b.String())
 }

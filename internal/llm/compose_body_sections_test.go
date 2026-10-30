@@ -27,6 +27,14 @@ func TestRenderComposeNoMarkersFallsBackSection1(t *testing.T) {
 	}
 }
 
+func TestParseRenderedComposeSectionDocument(t *testing.T) {
+	doc := RenderComposeSectionDocument(ParseComposeSectionBodies("[[S1]]A\n[[S2]]B\n[[S3]]C\n[[S4]]D"))
+	bodies, ok := ParseRenderedComposeSectionDocument(doc)
+	if !ok || bodies[0] != "A" || bodies[3] != "D" {
+		t.Fatalf("bodies=%v ok=%v", bodies, ok)
+	}
+}
+
 func TestComposeSectionRendererStreaming(t *testing.T) {
 	var out string
 	r := ComposeSectionRenderer{OnRendered: func(c string) { out += c }}

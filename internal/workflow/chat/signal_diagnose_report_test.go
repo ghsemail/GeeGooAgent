@@ -23,19 +23,46 @@ func TestRenderSignalDiagnoseReportCompactNotKBDraft(t *testing.T) {
 		"持有K线",
 		"买入规则",
 		"样例触发",
+		"买入 Episode 明细",
 	} {
 		if strings.Contains(report, forbidden) {
 			t.Fatalf("chat report must omit %q:\n%s", forbidden, report)
 		}
 	}
-	if !strings.Contains(report, "Agent 评价") || !strings.Contains(report, "结论：样本内买点有效") {
-		t.Fatalf("missing judgment:\n%s", report)
+	for _, heading := range []string{
+		"### 一、信号触发情况",
+		"### 二、probe 与命中率",
+		"### 三、Episode 与风险",
+		"### 四、综合评价",
+	} {
+		if !strings.Contains(report, heading) {
+			t.Fatalf("chat report missing compose card %s:\n%s", heading, report)
+		}
+	}
+	if !strings.Contains(report, "结论：样本内买点有效") {
+		t.Fatalf("missing judgment in 四、综合评价:\n%s", report)
+	}
+	if !strings.Contains(report, "Strict / Path 命中率（摘要") {
+		t.Fatalf("missing hit-rate summary:\n%s", report)
 	}
 	if !strings.Contains(report, "kb-1") {
 		t.Fatalf("missing knowledge id:\n%s", report)
 	}
 	if len(report) >= len(flow.KBDraft) {
 		t.Fatalf("expected compact report (%d) << kb draft (%d)", len(report), len(flow.KBDraft))
+	}
+}
+
+func TestRenderSignalDiagnoseReportKeepsLLMComposeSections(t *testing.T) {
+	flow := flowWithFullEval()
+	flow.EvalJudgment = "### 一、信号触发情况\n\n触发密集。\n\n### 二、probe 与命中率\n\n买15卖16。\n\n### 三、Episode 与风险\n\n未闭合1段。\n\n### 四、综合评价\n\n可用。"
+	flow.KBDraft = assembleSignalDiagnoseDoc(flow, flow.EvalJudgment)
+	report := renderSignalDiagnoseReport(flow)
+	if strings.Contains(report, "### Agent 评价") {
+		t.Fatalf("should not wrap structured judgment:\n%s", report)
+	}
+	if !strings.Contains(report, "触发密集") || !strings.Contains(report, "买15卖16") {
+		t.Fatalf("missing LLM section bodies:\n%s", report)
 	}
 }
 
