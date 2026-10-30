@@ -331,6 +331,15 @@ func assembleSignalDiagnoseDoc(flow *Flow, judgment string) string {
 }
 
 func renderSignalDiagnoseFacts(flow *Flow) string {
+	return renderSignalDiagnoseFactsEx(flow, false)
+}
+
+// renderSignalDiagnoseFactsCompact is the chat/SSE summary table only (no price-analysis ledgers).
+func renderSignalDiagnoseFactsCompact(flow *Flow) string {
+	return renderSignalDiagnoseFactsEx(flow, true)
+}
+
+func renderSignalDiagnoseFactsEx(flow *Flow, compact bool) string {
 	label := strategyDisplayLabel(flow)
 	var b strings.Builder
 	fmt.Fprintf(&b, "| 步骤 | 结果 |\n| --- | --- |\n")
@@ -364,11 +373,13 @@ func renderSignalDiagnoseFacts(flow *Flow) string {
 	} else {
 		fmt.Fprintf(&b, "| 价格分析 Episode 过滤 | 关闭 |\n")
 	}
-	if st := flow.PriceEpisodeFilterStats; flow.UsePriceAnalysisEpisodeFilter ||
-		(st != nil && (st.StrippedBuy > 0 || st.StrippedSell > 0 || len(st.BuyTriggers) > 0 || len(st.SellTriggers) > 0)) {
-		strategydev.AppendPriceEpisodeFilterMarkdown(&b, flow.PriceFilter, flow.PriceEpisodeFilterStats)
+	if !compact {
+		if st := flow.PriceEpisodeFilterStats; flow.UsePriceAnalysisEpisodeFilter ||
+			(st != nil && (st.StrippedBuy > 0 || st.StrippedSell > 0 || len(st.BuyTriggers) > 0 || len(st.SellTriggers) > 0)) {
+			strategydev.AppendPriceEpisodeFilterMarkdown(&b, flow.PriceFilter, flow.PriceEpisodeFilterStats)
+		}
+		strategydev.AppendPriceAnalysisMarkdown(&b, flow.PriceAnalysis)
 	}
-	strategydev.AppendPriceAnalysisMarkdown(&b, flow.PriceAnalysis)
 	if flow.DiagnoseVerdict != "" {
 		fmt.Fprintf(&b, "| 诊断结论 | %s |\n", flow.DiagnoseVerdict)
 	}

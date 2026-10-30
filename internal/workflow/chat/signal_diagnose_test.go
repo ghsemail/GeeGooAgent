@@ -184,8 +184,8 @@ func TestEvalWorkflowSignalDiagnoseComposedPanelNoClarify(t *testing.T) {
 			t.Fatalf("clarify tool called during workflow")
 		}
 	}
-	if !contains(result.AssistantText, "Episode") && !contains(result.AssistantText, "命中率") {
-		t.Fatalf("missing eval report: %q", result.AssistantText)
+	if !contains(result.AssistantText, "Agent 评价") && !contains(result.AssistantText, "信号测试 probe") {
+		t.Fatalf("missing compact diagnose report: %q", result.AssistantText)
 	}
 }
 
@@ -221,11 +221,11 @@ func TestSignalDiagnoseFlowCompletes(t *testing.T) {
 	if !contains(result.AssistantText, "15") || !contains(result.AssistantText, "SAR") {
 		t.Fatalf("missing probe/diagnose details: %q", result.AssistantText)
 	}
-	if !contains(result.AssistantText, "Episode") && !contains(result.AssistantText, "命中率") {
-		t.Fatalf("missing eval section: %q", result.AssistantText)
+	if !contains(result.AssistantText, "Agent 评价") {
+		t.Fatalf("missing agent judgment in compact report: %q", result.AssistantText)
 	}
-	if !contains(result.AssistantText, "持有K线") {
-		t.Fatalf("missing episode detail: %q", result.AssistantText)
+	if contains(result.AssistantText, "命中率与有效性怎么算") || contains(result.AssistantText, "持有K线") {
+		t.Fatalf("chat must not include full KB sections: %q", result.AssistantText)
 	}
 	if LoadFromSession(session) != nil {
 		t.Fatal("expected flow cleared after completion")
