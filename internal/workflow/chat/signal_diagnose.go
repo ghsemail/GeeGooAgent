@@ -552,28 +552,17 @@ func renderSignalDiagnosePartial(flow *Flow) string {
 }
 
 func renderSignalDiagnoseReport(flow *Flow) string {
-	if draft := strings.TrimSpace(flow.KBDraft); draft != "" {
-		var b strings.Builder
-		b.WriteString(draft)
-		if flow.KnowledgeID != "" {
-			fmt.Fprintf(&b, "\n\n---\n\n**知识库**：已写入 `%s`（id: `%s`）", flow.KnowledgeTitle, flow.KnowledgeID)
-		}
-		return strings.TrimSpace(b.String())
-	}
 	label := strategyDisplayLabel(flow)
 	title := FormatSignalDiagnoseMessage(label, coalesceStrings(flow.StockName, flow.StockQuery))
 	var b strings.Builder
-	fmt.Fprintf(&b, "## %s · 信号诊断\n\n", title)
-	b.WriteString(renderSignalDiagnoseFacts(flow))
-	appendSignalEvalMethodology(&b)
-	appendKlineOverviewSection(&b, flow)
-	appendSignalEvalSection(&b, flow.SignalEval)
-	appendEpisodeDetailSections(&b, flow.SignalEval)
+	fmt.Fprintf(&b, "## %s\n\n", title)
+	b.WriteString(renderSignalDiagnoseFactsCompact(flow))
 	if j := strings.TrimSpace(flow.EvalJudgment); j != "" {
 		fmt.Fprintf(&b, "\n### Agent 评价\n\n%s\n", j)
 	}
-	appendDiagnoseRuleDetails(&b, flow.DiagnoseRaw)
-	fmt.Fprintf(&b, "\n> 由 workflow 执行：read_strategy → probe → evaluate_accuracy → diagnose → 写入知识库。")
+	if flow.KnowledgeID != "" {
+		fmt.Fprintf(&b, "\n\n---\n\n**知识库**：已写入 `%s`（id: `%s`）", flow.KnowledgeTitle, flow.KnowledgeID)
+	}
 	return strings.TrimSpace(b.String())
 }
 
