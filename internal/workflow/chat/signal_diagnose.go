@@ -557,9 +557,7 @@ func renderSignalDiagnoseReport(flow *Flow) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "## %s\n\n", title)
 	b.WriteString(renderSignalDiagnoseFactsCompact(flow))
-	if j := strings.TrimSpace(flow.EvalJudgment); j != "" {
-		fmt.Fprintf(&b, "\n### Agent 评价\n\n%s\n", j)
-	}
+	appendSignalDiagnoseChatBody(&b, flow)
 	if flow.KnowledgeID != "" {
 		fmt.Fprintf(&b, "\n\n---\n\n**知识库**：已写入 `%s`（id: `%s`）", flow.KnowledgeTitle, flow.KnowledgeID)
 	}

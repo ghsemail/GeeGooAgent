@@ -221,8 +221,8 @@ func TestSignalDiagnoseFlowCompletes(t *testing.T) {
 	if !contains(result.AssistantText, "15") || !contains(result.AssistantText, "SAR") {
 		t.Fatalf("missing probe/diagnose details: %q", result.AssistantText)
 	}
-	if !contains(result.AssistantText, "Agent 评价") {
-		t.Fatalf("missing agent judgment in compact report: %q", result.AssistantText)
+	if !contains(result.AssistantText, "### 四、综合评价") {
+		t.Fatalf("missing compose judgment cards in compact report: %q", result.AssistantText)
 	}
 	if contains(result.AssistantText, "命中率与有效性怎么算") || contains(result.AssistantText, "持有K线") {
 		t.Fatalf("chat must not include full KB sections: %q", result.AssistantText)
