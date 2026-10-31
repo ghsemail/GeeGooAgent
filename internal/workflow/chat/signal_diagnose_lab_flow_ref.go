@@ -9,9 +9,9 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
-// populateFlowLabSummariesFromProbe builds lab_episode_summaries from probe bars when LabMode is on.
+// populateFlowLabSummariesFromProbe builds lab_episode_summaries from probe bars (Persist / runner when invoked).
 func populateFlowLabSummariesFromProbe(flow *Flow) {
-	if flow == nil || !flow.LabMode || flow.ProbeRaw == nil {
+	if flow == nil || flow.ProbeRaw == nil {
 		return
 	}
 	bars, _ := flow.ProbeRaw["bars"].([]any)
@@ -39,7 +39,7 @@ func populateFlowLabSummariesFromProbe(flow *Flow) {
 }
 
 func ensureLabFlowDetailRef(flow *Flow) {
-	if flow == nil || !flow.LabMode {
+	if flow == nil {
 		return
 	}
 	if flow.LabEpisodeSummaries == nil {

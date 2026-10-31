@@ -2,7 +2,7 @@
 
 SSOT：Chat 会话 metadata 内的 `SignalDiagnoseResult`（probe/diagnose 工具成功后服务端自动 Persist；runner 路径在 turn 结束时 Finalize）。
 
-Skill stepwise 在 probe 成功后会 Persist `chart_probe` / `signal_eval`；当会话 sticky 或当轮 inbound 的 `skill_options.signal_diagnose.lab_mode`（或 legacy `workflow_options` 同路径）为 `true` 时，同一次 Persist 也会带上 **`lab`**（`lab_episode_summaries` 与 `lab_default_detail_ref` 壳，与 runner lab 行为对齐）。`lab_mode` 为 false 或未设置时不写 `lab`。
+Skill stepwise 在 probe 成功后会 Persist `chart_probe` / `signal_eval`，并在 probe 含 bars 时 **始终** 带上 **`lab`**（`lab_episode_summaries` 与/或 `lab_default_detail_ref` 壳，与 runner lab 摘要逻辑对齐）。**不再** 依赖 `skill_options.signal_diagnose.lab_mode` / sticky / inbound 的 `lab_mode` 决定是否写 `Result.lab`（Monday 侧 lab 面板 UX 仍由客户端自行控制；JEV 条读 `Result.lab`）。
 
 ## 请求
 
