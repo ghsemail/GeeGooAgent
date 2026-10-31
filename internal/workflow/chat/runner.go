@@ -49,7 +49,7 @@ func (r *Runner) RunTurn(
 	}
 	if ShouldStartSignalDiagnoseFlow(userText, flow) {
 		flow = newSignalDiagnoseFlow(userText)
-		ApplyPendingSignalDiagnoseOpts(session, flow)
+		ApplyInboundPanelOpsToFlow(session, flow)
 		finalizeSignalDiagnoseFromPanel(flow)
 		SaveToSession(session, flow)
 		r.emitCard(session, flow)

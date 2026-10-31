@@ -8,21 +8,24 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
-const MetaKeySignalDiagnoseStickyOpts = "signal_diagnose_sticky_opts"
+const (
+	MetaKeyStickyPanelOps        = "sticky_panel_ops"
+	metaKeyLegacyStickyPanelOps  = "signal_diagnose_sticky_opts"
+)
 
-// ApplyPendingSignalDiagnoseOpts merges sticky + pending panel opts onto a new flow.
+// ApplyInboundPanelOpsToFlow merges sticky + inbound panel ops onto a new signal_diagnose flow.
 // Sticky survives across turns so toggling lab_mode alone cannot drop buy/sell overrides.
-func ApplyPendingSignalDiagnoseOpts(session *runtime.Session, flow *Flow) {
+func ApplyInboundPanelOpsToFlow(session *runtime.Session, flow *Flow) {
 	if session == nil || flow == nil {
 		return
 	}
-	merged := MergeSignalDiagnoseOpts(session.SignalDiagnoseStickyOpts, session.PendingSignalDiagnoseOpts)
+	merged := MergeSignalDiagnoseOpts(session.StickyPanelOps, session.InboundPanelOps)
 	if merged == nil {
 		return
 	}
-	session.SignalDiagnoseStickyOpts = cloneSignalDiagnoseOpts(merged)
+	session.StickyPanelOps = runtime.CloneSignalDiagnoseOpts(merged)
 	applySignalDiagnoseOptsToFlow(merged, flow)
-	session.PendingSignalDiagnoseOpts = nil
+	session.InboundPanelOps = nil
 }
 
 func signalDiagnoseEpisodeEvalOpts(flow *Flow) slots.EvaluateSignalEpisodesOptions {

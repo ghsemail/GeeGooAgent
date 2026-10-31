@@ -7,27 +7,30 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 )
 
-func syncSignalDiagnoseStickyOptsToChat(chat *chatsession.ChatSession, rt *runtime.Session) {
-	if chat == nil || rt == nil || rt.SignalDiagnoseStickyOpts == nil {
+func syncStickyPanelOpsToChat(chat *chatsession.ChatSession, rt *runtime.Session) {
+	if chat == nil || rt == nil || rt.StickyPanelOps == nil {
 		return
 	}
 	if chat.Metadata == nil {
 		chat.Metadata = map[string]any{}
 	}
-	raw, err := json.Marshal(rt.SignalDiagnoseStickyOpts)
+	raw, err := json.Marshal(rt.StickyPanelOps)
 	if err != nil {
 		return
 	}
-	chat.Metadata[MetaKeySignalDiagnoseStickyOpts] = json.RawMessage(raw)
+	chat.Metadata[MetaKeyStickyPanelOps] = json.RawMessage(raw)
 }
 
-func loadSignalDiagnoseStickyOptsFromChat(chat *chatsession.ChatSession, rt *runtime.Session) {
+func loadStickyPanelOpsFromChat(chat *chatsession.ChatSession, rt *runtime.Session) {
 	if chat == nil || rt == nil || chat.Metadata == nil {
 		return
 	}
-	raw, ok := chat.Metadata[MetaKeySignalDiagnoseStickyOpts]
+	raw, ok := chat.Metadata[MetaKeyStickyPanelOps]
 	if !ok || raw == nil {
-		return
+		raw, ok = chat.Metadata[metaKeyLegacyStickyPanelOps]
+		if !ok || raw == nil {
+			return
+		}
 	}
 	var o runtime.SignalDiagnoseOpts
 	switch v := raw.(type) {
@@ -44,5 +47,5 @@ func loadSignalDiagnoseStickyOptsFromChat(chat *chatsession.ChatSession, rt *run
 			return
 		}
 	}
-	rt.SignalDiagnoseStickyOpts = &o
+	rt.StickyPanelOps = &o
 }

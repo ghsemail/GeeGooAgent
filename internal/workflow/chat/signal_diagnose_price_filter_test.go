@@ -193,9 +193,9 @@ func TestParsePriceAnalysisEpisodeFilterOpt(t *testing.T) {
 		t.Fatal("expected explicit false")
 	}
 	session := runtime.NewSession()
-	session.PendingSignalDiagnoseOpts = o
+	session.InboundPanelOps = o
 	flow := newSignalDiagnoseFlow("诊断 SAR · 00700.HK")
-	ApplyPendingSignalDiagnoseOpts(session, flow)
+	ApplyInboundPanelOpsToFlow(session, flow)
 	if flow.UsePriceAnalysisEpisodeFilter {
 		t.Fatal("pending opts should disable filter")
 	}

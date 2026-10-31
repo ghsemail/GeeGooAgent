@@ -16,16 +16,21 @@ trigger_modes: chat
 **推荐首步（非硬性）**：从注入的 **Skills catalog** 选中 `signal_diagnose` 后，先 **skill_view**(`skill=signal_diagnose`) 加载本 SKILL.md，再按下列步骤调用普通工具（Eval Live 不强制本步）。
 
 1. **解析意图**：从用户话里提取 `strategy_query`（策略/catalog 名）与 `stock_query`（公司/代码）。缺一项 → **clarify**。
-2. **读策略**：用户只给指标/模糊名 → 先 **search_signals** 列候选，2+ 命中 → **clarify**；已有明确 catalog 名时按序解析（与 Workflow Runner 一致）：**get_signal_combinations** → **get_index_signals** → **get_custom_signal_for_skill** → **get_custom_strategy_definitions**，得到 `buy_signal`、`sell_signal`、`frequency`（与 Web 策略库一致）。
-3. **resolve_symbol**：**search_code** → 标准 `code`。
-4. **run_probe**：**probe_bot_signal_series**（`include_key_levels` / `key_levels_mode=series` 默认；`months_back` 按诊断窗，通常 3）。
-5. **（可选）fetch_key_levels**：probe 未带回关键价位时 **get_key_levels**。
-6. **evaluate_accuracy**：在 probe 结果上按 SKILL 内 Episode 规则理解 Strict/Path（展示用；Go 工具已算好字段）。
-7. **build_detail**：**diagnose_bot_signal_series**（同一 code、frequency、buy_signal、months_back）。
-8. **diag_compose**：用主模型根据 probe + diagnose + price_analysis 写综合判断 Markdown（勿编造 probe 未返回的数据）。
-9. **diag_save_kb**：**save_strategy_knowledge** → 信号诊断目录；记录返回的 knowledge id。
-10. **summarize**：向用户输出 Markdown 诊断报告（含知识库 id）。
-11. **UI 卡片**：probe/diagnose 有结果后调用 **emit_workflow_card**，`card.skill=signal_diagnose`，`status=completed`，`phase=done`，`card_stage=eval_done`（或与 runner 一致的阶段）。只填**摘要字段**（`stock_code`、`strategy_query`、`diagnose_detail`、probe 命中、`probe_bar_count` 等）；**不要**在 card 里粘贴 `chart_probe.bars` 或完整 `signal_eval`。服务端会在存储完整 K 线 + Episode 后自动写入 **`diagnose_ui_key`**；Monday 用该 key 调 Agent `GET /v1/signal-diagnose/ui-payload` 拉取重数据。
+2. **读策略**：用户只给指标/模糊名 → 先 **search_signals** 列候选，2+ 命中 → **clarify**；已有明确 catalog 名时按序解析（与 Workflow Runner 一致）：**get_signal_combinations** → **get_index_signals** → **get_custom_signal_for_skill** → **get_custom_strategy_definitions**，得到 `buy_signal`、`sell_signal`；catalog 返回的 **frequency 只是候选**，勿直接当作最终 probe 周期。
+3. **确认 frequency**（在 **run_probe** 之前必须完成）：
+   - ① 用户**当句**已写明周期（60m / 15m / 5m / daily 等）→ 直接采用；
+   - ② 否则若会话记忆或用户偏好里有常用周期 → 采用，并在 probe 前用一句话告知（例：「按你常用的 60m 诊断」）；
+   - ③ 否则 **必须 clarify**，选项建议 `60m` / `daily`（必要时加 15m / 5m）；**禁止**未确认就按 catalog 默认或 daily 调用 probe / diagnose。
+   - 若本轮请求带有 **Monday 面板参数**（`workflow_options.signal_diagnose`，含 frequency / months_back 等），**优先于** catalog 与用户自填工具实参；服务端会在 probe / diagnose 前自动注入，你仍应在回复里与用户对齐周期表述。
+4. **resolve_symbol**：**search_code** → 标准 `code`。
+5. **run_probe**：**probe_bot_signal_series**（使用**已确认的 frequency**；`include_key_levels` / `key_levels_mode=series` 默认；`months_back` 按诊断窗，通常 3，或面板指定值）。
+6. **（可选）fetch_key_levels**：probe 未带回关键价位时 **get_key_levels**。
+7. **evaluate_accuracy**：在 probe 结果上按 SKILL 内 Episode 规则理解 Strict/Path（展示用；Go 工具已算好字段）。
+8. **build_detail**：**diagnose_bot_signal_series**（同一 code、**已确认的 frequency**、buy_signal、months_back）。
+9. **diag_compose**：用主模型根据 probe + diagnose + price_analysis 写综合判断 Markdown（勿编造 probe 未返回的数据）。
+10. **diag_save_kb**：**save_strategy_knowledge** → 信号诊断目录；记录返回的 knowledge id。
+11. **summarize**：向用户输出 Markdown 诊断报告（含知识库 id）。
+12. **UI 卡片**：probe/diagnose 有结果后调用 **emit_workflow_card**，`card.skill=signal_diagnose`，`status=completed`，`phase=done`，`card_stage=eval_done`（或与 runner 一致的阶段）。只填**摘要字段**（`stock_code`、`strategy_query`、`diagnose_detail`、probe 命中、`probe_bar_count` 等）；**不要**在 card 里粘贴 `chart_probe.bars` 或完整 `signal_eval`。服务端会在存储完整 K 线 + Episode 后自动写入 **`diagnose_ui_key`**；Monday 用该 key 调 Agent `GET /v1/signal-diagnose/ui-payload` 拉取重数据。
 
 ## 工具参数要点
 

@@ -13,16 +13,16 @@ func TestLabTogglePreservesPanelBuySellOverrides(t *testing.T) {
 	labOn := true
 
 	session := &runtime.Session{}
-	session.PendingSignalDiagnoseOpts = &runtime.SignalDiagnoseOpts{
+	session.InboundPanelOps = &runtime.SignalDiagnoseOpts{
 		BuySignal: buy, SellSignal: sell, Frequency: "60m", MonthsBack: 3,
 		PanelStrategyLabel: "买:SAR · 卖:MACD", LabMode: &labOff,
 	}
 	flowA := &Flow{Template: SkillSignalDiagnose}
-	ApplyPendingSignalDiagnoseOpts(session, flowA)
+	ApplyInboundPanelOpsToFlow(session, flowA)
 
-	session.PendingSignalDiagnoseOpts = &runtime.SignalDiagnoseOpts{LabMode: &labOn}
+	session.InboundPanelOps = &runtime.SignalDiagnoseOpts{LabMode: &labOn}
 	flowB := &Flow{Template: SkillSignalDiagnose}
-	ApplyPendingSignalDiagnoseOpts(session, flowB)
+	ApplyInboundPanelOpsToFlow(session, flowB)
 
 	if len(flowB.ProbeBuyOverride) != 1 || len(flowB.ProbeSellOverride) != 1 {
 		t.Fatalf("lab toggle dropped overrides: buy=%d sell=%d", len(flowB.ProbeBuyOverride), len(flowB.ProbeSellOverride))

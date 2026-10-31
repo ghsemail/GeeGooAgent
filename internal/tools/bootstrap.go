@@ -43,6 +43,8 @@ type Deps struct {
 	ChatSessionPersist func(ctx Context, fn func(chat *chatsession.ChatSession, runtimeSession any) error) error
 	// RememberProbeForDiagnoseUI archives full probe payloads for signal_diagnose UI keys (wired by app).
 	RememberProbeForDiagnoseUI func(runtimeSession any, probe map[string]any)
+	// ApplyPanelOpsToSignalProbeTool overrides probe/diagnose args from Monday panel ops (wired by app).
+	ApplyPanelOpsToSignalProbeTool func(runtimeSession any, body map[string]any)
 	// PrepareWorkflowCardEmit lightens signal_diagnose cards and persists rich UI payloads (wired by app).
 	PrepareWorkflowCardEmit func(ctx Context, card map[string]any) map[string]any
 }
@@ -90,6 +92,9 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 				}
 				if spec.Name == "probe_bot_signal_series" || spec.Name == "probe_bot_signal" || spec.Name == "diagnose_bot_signal_series" {
 					catalog.ApplyProbeDefaults(body)
+					if deps.ApplyPanelOpsToSignalProbeTool != nil && ctx.RuntimeSession != nil {
+						deps.ApplyPanelOpsToSignalProbeTool(ctx.RuntimeSession, body)
+					}
 				}
 				if uid := strings.TrimSpace(ctx.UserID); uid != "" {
 					switch spec.Name {

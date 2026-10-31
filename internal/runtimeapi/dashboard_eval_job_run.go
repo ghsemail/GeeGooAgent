@@ -327,7 +327,7 @@ func (h *Handler) runEvalChatTurn(ctx context.Context, auth evalJobAuth, session
 	rtSession := agent.RuntimeSessionFromChat(chat)
 	if len(workflowOptions) > 0 {
 		if o := workflowchat.ParseSignalDiagnoseOptsFromWorkflowOptions(workflowOptions); o != nil {
-			rtSession.PendingSignalDiagnoseOpts = o
+			rtSession.InboundPanelOps = o
 		}
 	}
 	toolCtx := h.App.ToolContextWithContext(turnCtx, chat.ID)
