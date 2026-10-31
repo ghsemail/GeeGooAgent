@@ -169,6 +169,7 @@ lab-detail **不**走卡片 light enrich；MTF 来自 run 级 probe + `BuildKlin
 | 场景 | Agent 行为 |
 | --- | --- |
 | 首次 `lab-detail`（某 `run_id` + `detail_ref`） | 执行 `BuildLabEpisodeDetail`（lab-api PA + JEV），成功后写入会话 metadata 缓存 |
+| Skill stepwise / 无 `lab_diagnose_snapshots` | 从已 Persist 的 `SignalDiagnoseResult`（`chart_probe.bars` + `lab` 摘要）重建 flow；probe Persist 时同步写入 snapshot（48h）。**不**再要求面板 `lab_mode` 或 Runner 归档 alone |
 | 同一会话再次请求相同 `run_id` + `detail_ref` | **直接返回缓存**，不重新调用 lab-api / System One |
 | 无效 `detail_ref` | 400，与原先一致；**不写入缓存** |
 | TTL | 与 `lab_diagnose_snapshots` 相同：**48h**，最多保留 **12** 个 `run_id` 条目 |
