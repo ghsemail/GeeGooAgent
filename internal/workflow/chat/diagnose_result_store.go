@@ -177,7 +177,7 @@ func MondayAPIResponse(ent *SignalDiagnoseResult) SignalDiagnoseResultMondayResp
 	}
 	if len(ent.LabEpisodeSummaries) > 0 {
 		out.Lab = ent.LabEpisodeSummaries
-	} else if ent.LabMode || strings.TrimSpace(ent.LabFlowPriceSummary) != "" || strings.TrimSpace(ent.LabDefaultDetailRef) != "" {
+	} else if strings.TrimSpace(ent.LabFlowPriceSummary) != "" || strings.TrimSpace(ent.LabDefaultDetailRef) != "" {
 		lab := map[string]any{}
 		if len(ent.LabEpisodeSummaries) > 0 {
 			lab["lab_episode_summaries"] = ent.LabEpisodeSummaries
@@ -356,15 +356,21 @@ func resultFromFlow(rt *runtime.Session, chat *chatsession.ChatSession, flow *Fl
 		ent.EvalJudgment = s
 	}
 	ent.LabMode = flow.LabMode
-	if len(flow.LabEpisodeSummaries) > 0 {
-		ent.LabEpisodeSummaries = flow.LabEpisodeSummaries
-	}
 	if s := strings.TrimSpace(flow.LabFlowPriceSummary); s != "" {
 		ent.LabFlowPriceSummary = s
 	}
-	if flow.LabMode {
-		ensureLabFlowDetailRef(flow)
+	if flow.ProbeRaw != nil {
+		if len(flow.LabEpisodeSummaries) == 0 {
+			populateFlowLabSummariesFromProbe(flow)
+		} else {
+			ensureLabFlowDetailRef(flow)
+		}
+		if len(flow.LabEpisodeSummaries) > 0 {
+			ent.LabEpisodeSummaries = flow.LabEpisodeSummaries
+		}
 		ent.LabDefaultDetailRef = strategydev.LabFlowDetailRef
+	} else if len(flow.LabEpisodeSummaries) > 0 {
+		ent.LabEpisodeSummaries = flow.LabEpisodeSummaries
 	}
 	ent.UsePriceAnalysisEpisodeFilter = flow.UsePriceAnalysisEpisodeFilter
 	ent.PriceAnalysis = flow.PriceAnalysis

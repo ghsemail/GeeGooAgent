@@ -59,7 +59,7 @@ func TestPersistSignalDiagnoseResultStepwiseLabModeInbound(t *testing.T) {
 	}
 }
 
-func TestPersistSignalDiagnoseResultStepwiseNoLabWhenLabModeOff(t *testing.T) {
+func TestPersistSignalDiagnoseResultStepwiseLabWithoutLabMode(t *testing.T) {
 	rt := runtime.NewSession()
 	off := false
 	rt.StickyPanelOps = &runtime.SignalDiagnoseOpts{LabMode: &off}
@@ -73,14 +73,17 @@ func TestPersistSignalDiagnoseResultStepwiseNoLabWhenLabModeOff(t *testing.T) {
 		t.Fatal("missing result")
 	}
 	if ent.LabMode {
-		t.Fatal("lab_mode should stay false")
+		t.Fatal("lab_mode should stay false on stored result")
 	}
-	if len(ent.LabEpisodeSummaries) > 0 {
-		t.Fatal("must not populate lab summaries when lab_mode false")
+	if len(ent.LabEpisodeSummaries) == 0 {
+		t.Fatal("expected lab_episode_summaries without lab_mode")
+	}
+	if ent.LabDefaultDetailRef != strategydev.LabFlowDetailRef {
+		t.Fatalf("lab_default_detail_ref=%q", ent.LabDefaultDetailRef)
 	}
 	resp := MondayAPIResponse(ent)
-	if resp.Lab != nil {
-		t.Fatalf("unexpected lab=%v", resp.Lab)
+	if resp.Lab == nil {
+		t.Fatal("Monday response must include lab when probe has bars (no lab_mode)")
 	}
 }
 
@@ -108,6 +111,12 @@ func TestPersistSignalDiagnoseResultAfterProbeTool(t *testing.T) {
 	}
 	if ent.StockCode != "00700.HK" {
 		t.Fatalf("stock=%q", ent.StockCode)
+	}
+	if len(ent.LabEpisodeSummaries) == 0 {
+		t.Fatal("expected lab summaries on probe persist without lab_mode opts")
+	}
+	if resp := MondayAPIResponse(ent); resp.Lab == nil {
+		t.Fatal("Monday response must include lab after probe persist")
 	}
 }
 
