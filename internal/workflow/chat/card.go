@@ -116,9 +116,13 @@ func CardPayloadForSession(rt *runtime.Session, chat *chatsession.ChatSession, f
 			out["trade_direction"] = string(runtime.TradeDirectionBoth)
 		}
 		if key := EnsureFlowDiagnoseUIKey(rt, chat, flow); key != "" {
+			out["result_key"] = key
 			out["diagnose_ui_key"] = key
 		} else if k := strings.TrimSpace(flow.DiagnoseUIKey); k != "" {
+			out["result_key"] = k
 			out["diagnose_ui_key"] = k
+		} else if rt != nil && strings.TrimSpace(rt.SignalDiagnoseResultLatest) != "" {
+			out["result_key"] = rt.SignalDiagnoseResultLatest
 		}
 		if cp := chartProbePayloadLight(flow); cp != nil {
 			out["chart_probe"] = cp

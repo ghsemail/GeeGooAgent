@@ -50,7 +50,7 @@ func ToolRouting() string {
 
 ### Chat 技能（信号诊断 / 策略开发 / 多策略对比 / 生成策略档案）
 - 从注入的 **Skills catalog** 选 skill id → **skill_view** 加载 SKILL.md → 按步骤调用普通工具（probe_bot_signal_series、diagnose_bot_signal_series、save_strategy_knowledge 等）
-- 需要 Monday 诊断/策略卡片时 → **emit_workflow_card**（payload 见 signal_diagnose SKILL.md）
+- 信号诊断结果由服务端 Persist；Monday 用 POST /v1/signal-diagnose/result（见 signal_diagnose SKILL.md）。emit_workflow_card 仅遗留可选
 - 仅当运维开启 config chat_open_flow_tool 时才可用已废弃的 **run_chat_workflow_turn**
 
 ### 概念释义 vs 知识库

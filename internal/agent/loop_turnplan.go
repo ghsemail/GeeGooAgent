@@ -16,7 +16,7 @@ func agentRoutingFragment(userText string) ctxfrag.Fragment {
 	b.WriteString("- Read session context and pick tools; no separate intent classifier runs in this turn.\n")
 	b.WriteString("- If the user intent is ambiguous (e.g. quote vs analysis, which signal/strategy, analyze vs backtest), call the clarify tool with a clear question and up to 4 choices before irreversible tools.\n")
 	b.WriteString("- After clarify returns user_response, continue in the same turn with that choice.\n")
-	b.WriteString("- Guided skills (信号诊断、策略开发、多策略对比、生成策略档案): pick the skill id from the **Skills catalog**, call **skill_view**, then follow SKILL.md using ordinary tools (probe_bot_signal_series, diagnose_bot_signal_series, save_strategy_knowledge, …). Call **emit_workflow_card** when the skill asks for Monday UI cards.\n")
+	b.WriteString("- Guided skills (信号诊断、策略开发、多策略对比、生成策略档案): pick the skill id from the **Skills catalog**, call **skill_view**, then follow SKILL.md using ordinary tools (probe_bot_signal_series, diagnose_bot_signal_series, save_strategy_knowledge, …). signal_diagnose dashboard data is server-persisted; do not rely on emit_workflow_card.\n")
 	b.WriteString(subagentOrchestratorPlanBlock())
 	return ctxfrag.StaticFragment{K: ctxfrag.KindSystemRules, Text: b.String(), Prio: 22}
 }

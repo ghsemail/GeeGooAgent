@@ -31,7 +31,7 @@ trigger_modes: chat
 9. **diag_compose**：用主模型根据 probe + diagnose + price_analysis 写综合判断 Markdown（勿编造 probe 未返回的数据）。
 10. **diag_save_kb**：**save_strategy_knowledge** → 信号诊断目录；记录返回的 knowledge id。
 11. **summarize**：向用户输出 Markdown 诊断报告（含知识库 id）。
-12. **UI 卡片**：probe/diagnose 有结果后调用 **emit_workflow_card**，`card.skill=signal_diagnose`，`status=completed`，`phase=done`，`card_stage=eval_done`（或与 runner 一致的阶段）。只填**摘要字段**（`stock_code`、`strategy_query`、`diagnose_detail`、probe 命中、`probe_bar_count` 等）；**不要**在 card 里粘贴 `chart_probe.bars` 或完整 `signal_eval`。服务端会在存储完整 K 线 + Episode 后自动写入 **`diagnose_ui_key`**；Monday 用该 key 调 Agent `GET /v1/signal-diagnose/ui-payload` 拉取重数据。
+12. **Monday 仪表盘**：probe / diagnose / diag_compose 完成后**无需**再调 **emit_workflow_card** 交付结果。服务端在工具成功返回后自动 Persist **`SignalDiagnoseResult`** 到会话 store；Monday 在 chat turn 结束后 **`POST /v1/signal-diagnose/result`**（`session_id`，可选 `run_id`）读取 `chart_probe`、`signal_eval`、`eval_judgment`、`lab`。`emit_workflow_card` 仅遗留可选，**不是**主路径。
 
 ## 工具参数要点
 
@@ -41,7 +41,7 @@ trigger_modes: chat
 | 买卖点序列 | probe_bot_signal_series |
 | 零信号/阈值解释 | diagnose_bot_signal_series |
 | 持久化 | save_strategy_knowledge |
-| Monday 卡 | emit_workflow_card |
+| Monday 结果 | 服务端自动 Persist；客户端 POST `/v1/signal-diagnose/result` |
 
 ## K 线关键价位参考线
 
