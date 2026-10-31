@@ -206,8 +206,9 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 		WeKnora:              app.WeKnora,
 		ChatSessionPersist:          app.persistChatSessionForTools,
 		RememberProbeForDiagnoseUI:      app.rememberProbeForDiagnoseUI,
-		ApplyPanelOpsToSignalProbeTool:  app.applyPanelOpsToSignalProbeTool,
-		PrepareWorkflowCardEmit:         app.prepareWorkflowCardEmit,
+		ApplyPanelOpsToSignalProbeTool: app.applyPanelOpsToSignalProbeTool,
+		BypassPanelFrequencyClarify:    app.bypassPanelFrequencyClarify,
+		PrepareWorkflowCardEmit:        app.prepareWorkflowCardEmit,
 	})
 	app.Agent.SetSubAgent(sub)
 	app.Workflow.SetToolExec(app.Agent.ToolExec())
@@ -634,6 +635,11 @@ func (a *App) rememberProbeForDiagnoseUI(runtimeSession any, probe map[string]an
 func (a *App) applyPanelOpsToSignalProbeTool(runtimeSession any, body map[string]any) {
 	rt, _ := runtimeSession.(*runtime.Session)
 	runtime.ApplyPanelOpsToSignalProbeTool(rt, body)
+}
+
+func (a *App) bypassPanelFrequencyClarify(runtimeSession any, question string, choices []string) (string, bool) {
+	rt, _ := runtimeSession.(*runtime.Session)
+	return runtime.TryAnswerFrequencyFromPanelOps(rt, question, choices)
 }
 
 func (a *App) prepareWorkflowCardEmit(ctx tools.Context, card map[string]any) map[string]any {

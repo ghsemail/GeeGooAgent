@@ -45,6 +45,8 @@ type Deps struct {
 	RememberProbeForDiagnoseUI func(runtimeSession any, probe map[string]any)
 	// ApplyPanelOpsToSignalProbeTool overrides probe/diagnose args from Monday panel ops (wired by app).
 	ApplyPanelOpsToSignalProbeTool func(runtimeSession any, body map[string]any)
+	// BypassPanelFrequencyClarify skips K-line period clarify when panel ops already set frequency.
+	BypassPanelFrequencyClarify BypassPanelFrequencyClarify
 	// PrepareWorkflowCardEmit lightens signal_diagnose cards and persists rich UI payloads (wired by app).
 	PrepareWorkflowCardEmit func(ctx Context, card map[string]any) map[string]any
 }

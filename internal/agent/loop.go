@@ -478,6 +478,7 @@ func (l *Loop) runPreparedTurn(
 		ctxfrag.ClockFragment(clockNow()),
 		agentRoutingFragment(userText),
 		activeWorkflowFragment(session),
+		signalDiagnosePanelOpsFragment(session),
 	}
 	if taskMD := sessiontask.BuildState(session, session.LastTurnDomain).RenderMarkdown(); taskMD != "" {
 		dynFrags = append(dynFrags, ctxfrag.WorkingStateFragment(taskMD))
