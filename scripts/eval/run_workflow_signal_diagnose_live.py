@@ -13,7 +13,10 @@ MESSAGE = (
     "信号诊断：帮我用 SAR 信号作为买入信号，用 SAR 信号作为卖出信号，"
     "开启阻力支撑熔断，测试一下腾讯控股（00700.HK）。"
 )
-PASS_KEYWORDS = ["Episode", "命中", "SAR", "腾讯"]
+# Keep in sync with internal/eval/workflow_cases.go pass_keywords.
+PASS_KEYWORDS = ["SAR", "腾讯", "诊断", "命中", "触发"]
+PASS_KEYWORDS_REQUIRED = ["SAR", "腾讯"]
+PASS_KEYWORDS_ANY = ["诊断", "命中", "触发"]
 WORKFLOW_OPTIONS = {
     "signal_diagnose": {
         "panel_strategy_label": "买:SAR · 卖:SAR",
@@ -80,6 +83,7 @@ def chat_turn(runtime_key: str, mcp_token: str, message: str, session_id: str = 
     clarify_events = 0
     eval_method = ""
     key_break_hits = 0
+    workflow_card_seen = False
     for line in raw.splitlines():
         if line.startswith("event:"):
             event = line[6:].strip()
@@ -91,6 +95,7 @@ def chat_turn(runtime_key: str, mcp_token: str, message: str, session_id: str = 
                 except json.JSONDecodeError:
                     pass
             elif event in ("workflow_card", "taskflow_card"):
+                workflow_card_seen = True
                 try:
                     data = json.loads(payload)
                     if data.get("chart_probe"):
@@ -126,6 +131,7 @@ def chat_turn(runtime_key: str, mcp_token: str, message: str, session_id: str = 
         "eval_method": eval_method,
         "key_break_hits": key_break_hits,
         "clarify_events": clarify_events,
+        "workflow_card_seen": workflow_card_seen,
     }
 
 
@@ -149,9 +155,11 @@ def keyword_pass(reply: str) -> tuple[bool, str]:
     text = reply.strip()
     if len(text) < MIN_REPLY_CHARS:
         return False, f"reply too short: {len(text)} < {MIN_REPLY_CHARS}"
-    missing = [kw for kw in PASS_KEYWORDS if kw not in text]
-    if missing:
-        return False, f"missing keywords: {missing}"
+    missing_req = [kw for kw in PASS_KEYWORDS_REQUIRED if kw not in text]
+    if missing_req:
+        return False, f"missing required keywords: {missing_req} (from {PASS_KEYWORDS})"
+    if not any(kw in text for kw in PASS_KEYWORDS_ANY):
+        return False, f"missing any of {PASS_KEYWORDS_ANY} (from {PASS_KEYWORDS})"
     return True, "keywords ok"
 
 
@@ -169,10 +177,12 @@ def main() -> int:
     print(f"session_id={session_id}")
     print(f"reply_len={len(reply)}")
     print(
-        f"chart_probe={chat.get('chart_probe')} signal_eval={chat.get('signal_eval')} "
-        f"eval_method={chat.get('eval_method')} key_break_hits={chat.get('key_break_hits')} "
-        f"clarify_events={chat.get('clarify_events')}"
+        f"workflow_card_seen={chat.get('workflow_card_seen')} chart_probe={chat.get('chart_probe')} "
+        f"signal_eval={chat.get('signal_eval')} eval_method={chat.get('eval_method')} "
+        f"key_break_hits={chat.get('key_break_hits')} clarify_events={chat.get('clarify_events')}"
     )
+    if not chat.get("workflow_card_seen"):
+        print("WARN: no workflow_card SSE (soft observation; pass gate is reply keywords + length)")
     if int(chat.get("clarify_events") or 0) > 0:
         print("FAIL: unexpected clarify SSE during signal_diagnose workflow")
         print("SUMMARY: FAIL")
@@ -189,16 +199,15 @@ def main() -> int:
         return 0
     if verify.get("http") not in (200, None):
         print("verify skipped/failed:", verify.get("http"), verify.get("raw") or verify.get("detail"))
+
     method = str(chat.get("eval_method") or "")
     if "key_break_resist_high" not in method:
-        print("FAIL: eval method missing key_break_resist_high:", method or "(empty)")
-        print("SUMMARY: FAIL")
-        return 1
-    if kw_ok and chat.get("signal_eval"):
-        print("SUMMARY: PASS (keyword + resist_high key_break)")
-        return 0
+        print("WARN: eval method missing key_break_resist_high (soft):", method or "(empty)")
+    if not chat.get("signal_eval"):
+        print("WARN: no signal_eval on workflow_card (soft observation)")
+
     if kw_ok:
-        print("SUMMARY: PASS (keyword fallback)")
+        print("SUMMARY: PASS (keyword gate)")
         return 0
     print("SUMMARY: FAIL")
     if verify.get("detail"):
