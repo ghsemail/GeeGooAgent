@@ -23,7 +23,7 @@
 
 ## 仍存在的机制风险（未靠抬超时糊弄）
 
-1. **`DefaultLabDetailPhaseTimeout=8s` 仅包 MTF probe**（PA 已拆到 45s budget）。冷 lab-api 仍可能单 TF 慢；依赖 run 级正缓存 + MTF 回退。
+1. **`DefaultLabDetailPhaseTimeout=30s` 仅包 MTF probe**（PA 45s / JEV 45s 独立）。极慢单 TF 仍可能失败；依赖 run 级 MTF 缓存 + probe→PA 回退。锚点 daily 补拉改用 PA ctx，避免 MTF 占满 phase 后 `price_anchor_missing`。
 
 2. **`BarsFetcher` 仅 `(bars, ok)`**  
    上层无法区分 unsupported / 4xx / 超时 / 空 bars，PA 只能粗分「拉数失败」与「取数超时或已取消」。  
