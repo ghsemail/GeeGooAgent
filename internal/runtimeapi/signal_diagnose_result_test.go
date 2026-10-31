@@ -73,6 +73,9 @@ func TestSignalDiagnoseResultPostLatest(t *testing.T) {
 	if se["method"] == nil {
 		t.Fatalf("signal_eval=%v", out["signal_eval"])
 	}
+	if out["trade_direction"] != "both" {
+		t.Fatalf("trade_direction=%v want both", out["trade_direction"])
+	}
 }
 
 func TestSignalDiagnoseResultPostByRunID(t *testing.T) {
@@ -97,5 +100,67 @@ func TestSignalDiagnoseResultPostByRunID(t *testing.T) {
 	_, okLatest := workflowchat.LookupSignalDiagnoseResultForMonday(chat, "")
 	if !okLatest {
 		t.Fatal("expected latest when run_id omitted")
+	}
+}
+
+func TestSignalDiagnoseResultPostIncludesRunIDAndTradeDirection(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	db, err := infra.OpenSQLite(filepath.Join(root, "geegoo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	store := chatsession.NewSQLiteSessionStore(db)
+	chat, err := store.Create()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := runtime.NewSession()
+	rt.ID = chat.ID
+	flow := &workflowchat.Flow{
+		Template: workflowchat.SkillSignalDiagnose, RunID: "flow-test-1", StockCode: "00700.HK",
+		TradeDirection: runtime.TradeDirectionLongOnly,
+		Status: workflowchat.StatusCompleted,
+		ProbeRaw: map[string]any{
+			"bars": []any{map[string]any{"close": 2.0}}, "buy_merged": []any{1}, "sell_merged": []any{0},
+		},
+		SignalEval: slots.SignalEpisodeEval{Method: "until_opposite_signal"},
+	}
+	workflowchat.SaveToSession(rt, flow)
+	workflowchat.FinalizeSignalDiagnoseResultFromSession(rt, chat)
+	if err := store.Save(chat); err != nil {
+		t.Fatal(err)
+	}
+	application := &app.App{Config: &config.AppConfig{}, DB: db}
+	mux := httpserver.NewMux("agent-runtime")
+	runtimeapi.NewHandler(application, "").Register(mux)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	body, _ := json.Marshal(map[string]string{"session_id": chat.ID})
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL+"/v1/signal-diagnose/result", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-MCP-Token", "user-mcp-token")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
+	var out map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out["run_id"] != "flow-test-1" {
+		t.Fatalf("run_id=%v", out["run_id"])
+	}
+	if out["trade_direction"] != "long_only" {
+		t.Fatalf("trade_direction=%v", out["trade_direction"])
 	}
 }
