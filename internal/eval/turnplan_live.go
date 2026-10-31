@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
+	workflowchat "github.com/ghsemail/GeeGooAgent/internal/workflow/chat"
 )
 
 // DefaultEvalSessionCleanup is the default Dock Chat policy for live eval cases.
@@ -41,7 +42,13 @@ type TurnPlanCaseOptions struct {
 	ExpectRouting  *ExpectRoutingSpec `json:"expect_routing,omitempty"`
 	Judge          *EvalJudgeConfig   `json:"judge,omitempty"`
 	AutoClarifyOnly bool              `json:"auto_clarify_only,omitempty"`
-	WorkflowOptions map[string]any    `json:"workflow_options,omitempty"`
+	SkillOptions     map[string]any `json:"skill_options,omitempty"`
+	WorkflowOptions  map[string]any `json:"workflow_options,omitempty"` // legacy; prefer skill_options
+}
+
+// ResolvedSkillOptions merges skill_options with legacy workflow_options (skill wins per key).
+func (o TurnPlanCaseOptions) ResolvedSkillOptions() map[string]any {
+	return workflowchat.ResolveInboundSkillOptions(o.SkillOptions, o.WorkflowOptions)
 }
 
 // TurnPlanEvalCaseDef is one seeded dashboard eval row.
