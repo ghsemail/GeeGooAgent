@@ -422,12 +422,7 @@ func (r *Runner) phaseSignalDiagnoseEvaluate(
 			flow.SignalEval = slots.EvaluateSignalEpisodesWithOptions(bars, buyMerged, sellMerged, signalDiagnoseEpisodeEvalOpts(flow))
 		}
 		if flow.LabMode && len(bars) > 0 {
-			patIn := strategydev.NewKlinePatternDisplayInputForDiagnose(true, freq, bars, flow.ProbeRaw, nil)
-			strategydev.EnrichSignalEpisodeEvalKlineDisplayLight(&flow.SignalEval, patIn)
-			fromEval := strategydev.BuildLabCardSummariesFromEval(flow.SignalEval, patIn.PatternHits, "")
-			fromMerged := strategydev.BuildLabCardSummariesFromMerged(bars, buyMerged, sellMerged, patIn.PatternHits, "")
-			flow.LabEpisodeSummaries = strategydev.MergeLabCardSummaries(fromEval, fromMerged)
-			ensureLabFlowDetailRef(flow)
+			populateFlowLabSummariesFromProbe(flow)
 		}
 	}
 	if r != nil && !flow.LabMode && strategydev.PriceAnalysisFeatureEnabled() {
