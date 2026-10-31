@@ -6,10 +6,10 @@ INSERT INTO agent_eval_cases (
     'workflow_generate_strategy_cognition',
     '',
     'legacy open-flow · Workflow · 生成策略档案（Macd4H）',
-    'legacy open-flow：仍依赖 run_chat_workflow_turn / Workflow Runner（#106 默认 Chat Loop 未开 open-flow）。generate_strategy_cognition：读策略库 → LLM 合成策略档案 → 写入并读回 WeKnora 知识库。',
+    'legacy open-flow：仍依赖 run_chat_workflow_turn / Workflow Runner（#106 默认 Chat Loop 未开 open-flow）。generate_strategy_archive：读策略库 → LLM 合成策略档案 → 写入并读回 WeKnora 知识库。',
     '["发送生成策略档案请求（Macd4H）","校验 workflow 完成档案生成报告","校验回复含策略库/知识库与读回验证"]',
     FALSE,
-    '{"category":"workflow","task":"generate_strategy_cognition","scenario":"cognition","workflow_skill":"generate_strategy_cognition","random_stock_enabled":false,"min_reply_chars":80,"pass_keywords":["策略档案","知识库","策略库"],"session_cleanup":"before_run","message":"帮我生成 Macd4H 的策略档案","wait_timeout_sec":900}',
+    '{"category":"workflow","task":"generate_strategy_archive","scenario":"cognition","workflow_skill":"generate_strategy_archive","random_stock_enabled":false,"min_reply_chars":80,"pass_keywords":["策略档案","知识库","策略库"],"session_cleanup":"before_run","message":"帮我生成 Macd4H 的策略档案","wait_timeout_sec":900}',
     10,
     TRUE
 ) ON CONFLICT (id) DO UPDATE SET
@@ -90,10 +90,10 @@ INSERT INTO agent_eval_cases (
     'workflow_generate_strategy_cognition_random',
     '',
     'legacy open-flow · Workflow · 生成策略档案（随机策略）',
-    'legacy open-flow：仍依赖 run_chat_workflow_turn / Workflow Runner。generate_strategy_cognition：从策略库随机选一项，LLM 合成策略档案并写入知识库。',
+    'legacy open-flow：仍依赖 run_chat_workflow_turn / Workflow Runner。generate_strategy_archive：从策略库随机选一项，LLM 合成策略档案并写入知识库。',
     '["随机选取一项 catalog 组合策略","发送生成策略档案请求","校验 workflow 完成档案生成报告","校验回复含策略库/知识库与读回验证"]',
     FALSE,
-    '{"category":"workflow","task":"generate_strategy_cognition","scenario":"cognition_random","workflow_skill":"generate_strategy_cognition","random_strategy_enabled":true,"random_stock_enabled":false,"min_reply_chars":80,"pass_keywords":["策略档案","知识库","策略库"],"session_cleanup":"before_run","message":"帮我生成策略档案","wait_timeout_sec":900}',
+    '{"category":"workflow","task":"generate_strategy_archive","scenario":"cognition_random","workflow_skill":"generate_strategy_archive","random_strategy_enabled":true,"random_stock_enabled":false,"min_reply_chars":80,"pass_keywords":["策略档案","知识库","策略库"],"session_cleanup":"before_run","message":"帮我生成策略档案","wait_timeout_sec":900}',
     13,
     TRUE
 ) ON CONFLICT (id) DO UPDATE SET

@@ -9,8 +9,9 @@ import urllib.error
 import urllib.request
 
 CASE_ID = "workflow_generate_strategy_cognition"
-MESSAGE = "生成策略认知 Macd4H"
-PASS_KEYWORDS = ["策略认知", "Macd4H", "知识库", "策略库"]
+MESSAGE = "帮我生成 Macd4H 的策略档案"
+# SSOT: Go/seed pass_keywords (OR in dashboard); Macd4H is live-only AND hard check.
+PASS_KEYWORDS = ["策略档案", "知识库", "策略库", "Macd4H"]
 MIN_REPLY_CHARS = 80
 CHAT_TIMEOUT = int(os.environ.get("WORKFLOW_COGNITION_CHAT_TIMEOUT", "900"))
 VERIFY_TIMEOUT = 120

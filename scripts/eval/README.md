@@ -61,6 +61,7 @@ PR #106 后默认 Chat Loop 为 `skill_injection=catalog`、`chat_open_flow_tool
 |------|------|
 | `workflow_signal_diagnose_sar_tencent` | 默认绿线：以诊断回复长度 + 关键词为准；`workflow_card` / `skill_view` / Episode 均为可选观察，live 脚本对缺 card 仅 WARN |
 | `workflow_generate_strategy_cognition` 等标题含 **legacy open-flow** | 仍假设旧 `run_chat_workflow_turn` / Workflow Runner；全量 Workflow 自动测评在默认 Loop 下可能假红，跑前需临时开 open-flow 或排除这些 case |
+| `run_workflow_generate_cognition_*_live.py` | 文案与 Go/seed 一致：**策略档案**、`pass_keywords` 为 `策略档案`/`知识库`/`策略库`；Macd4H 固定用例 message 为「帮我生成 Macd4H 的策略档案」 |
 
 **Verify 语义**：Dashboard `pass_keywords` 为命中**任一**即过（OR）；`run_workflow_signal_diagnose_live.py` 冒烟对 SAR·腾讯 用 **AND**，且要求诊断/命中/触发至少其一 — 以 live 脚本为准。
 

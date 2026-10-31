@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upsert workflow eval cases and run random strategy cognition smoke on geegoo-agent."""
+"""Upsert workflow eval cases and run random generate_strategy_archive live smoke on geegoo-agent."""
 from __future__ import annotations
 
 import json

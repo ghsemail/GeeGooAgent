@@ -10,7 +10,7 @@ import urllib.error
 import urllib.request
 
 CASE_ID = "workflow_generate_strategy_cognition_random"
-PASS_KEYWORDS = ["策略认知", "知识库", "策略库"]
+PASS_KEYWORDS = ["策略档案", "知识库", "策略库"]
 MIN_REPLY_CHARS = 80
 CHAT_TIMEOUT = int(os.environ.get("WORKFLOW_COGNITION_CHAT_TIMEOUT", "900"))
 VERIFY_TIMEOUT = 120
@@ -140,7 +140,7 @@ def main() -> int:
     strategy = pick_random_strategy(catalog, cat_key)
     if len(sys.argv) > 1 and sys.argv[1].strip():
         strategy = sys.argv[1].strip()
-    message = f"生成策略认知 {strategy}"
+    message = f"帮我生成 {strategy} 的策略档案"
     print(f"=== {CASE_ID} ===")
     print(f"picked_strategy: {strategy}")
     print(f"message: {message}")
