@@ -19,7 +19,7 @@ trigger_modes: chat
 2. **读策略**：用户只给指标/模糊名 → 先 **search_signals** 列候选，2+ 命中 → **clarify**；已有明确 catalog 名时按序解析（与 Workflow Runner 一致）：**get_signal_combinations** → **get_index_signals** → **get_custom_signal_for_skill** → **get_custom_strategy_definitions**，得到 `buy_signal`、`sell_signal`；catalog 返回的 **frequency 只是候选**，勿直接当作最终 probe 周期。
 3. **确认 frequency**（在 **run_probe** 之前必须完成）：
    - ① 用户**当句**已写明周期（60m / 15m / 5m / daily 等）→ 直接采用；
-   - ② **Monday 面板 / sticky**（`workflow_options.signal_diagnose`、InboundPanelOps 或会话 sticky_panel_ops）已带 `frequency` → **视为已确认**，直接采用；回复里可一句对齐（例：「按面板 60m 诊断」）；**禁止**再 clarify「请选择 K 线周期」；
+   - ② **Monday 面板 / sticky**（`skill_options.signal_diagnose` 或 legacy `workflow_options.signal_diagnose`、InboundPanelOps 或会话 sticky_panel_ops）已带 `frequency` → **视为已确认**，直接采用；回复里可一句对齐（例：「按面板 60m 诊断」）；**禁止**再 clarify「请选择 K 线周期」；
    - ③ 否则若会话记忆或用户偏好里有常用周期 → 采用，并在 probe 前用一句话告知（例：「按你常用的 60m 诊断」）；
    - ④ 否则 **必须 clarify**，选项建议 `60m` / `daily`（必要时加 15m / 5m）；**禁止**未确认就按 catalog 默认或 daily 调用 probe / diagnose。
    - 服务端会在 probe / diagnose 前自动注入面板 frequency / 买卖点；catalog 返回的 frequency 仍只是候选，不能代替上述确认。

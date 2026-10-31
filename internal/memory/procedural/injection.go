@@ -103,6 +103,21 @@ func (l *Loader) ChatCatalog() []CatalogEntry {
 	return out
 }
 
+// CatalogEntriesForLockedSkill narrows the injected catalog to one Monday locked skill id.
+func CatalogEntriesForLockedSkill(entries []CatalogEntry, lockedID string) []CatalogEntry {
+	lockedID = strings.TrimSpace(lockedID)
+	if lockedID == "" || len(entries) == 0 {
+		return entries
+	}
+	var out []CatalogEntry
+	for _, e := range entries {
+		if e.ID == lockedID {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 // FormatCatalog renders the catalog block for system context.
 func FormatCatalog(entries []CatalogEntry) string {
 	if len(entries) == 0 {

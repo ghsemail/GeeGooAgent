@@ -51,6 +51,8 @@ type Context struct {
 	Hooks *HookRunner
 	// RuntimeSession is the live chat turn *runtime.Session (Loop sets during RunTurn).
 	RuntimeSession any
+	// LockedSkill is Monday skill_options.locked_skill for this turn (Loop sets from runtime.Session).
+	LockedSkill string
 }
 
 // ProgressFunc is the chat progress callback signature.

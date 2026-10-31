@@ -44,8 +44,17 @@ func effectiveSignalDiagnoseBuyScoreDirection(d strategydev.BuyScoreDirection) s
 	return d
 }
 
-// ParseSignalDiagnoseOptsFromWorkflowOptions reads workflow_options.signal_diagnose from chat request.
+// ParseSignalDiagnoseOptsFromSkillOptions reads skill_options.signal_diagnose (or legacy workflow_options bag).
+func ParseSignalDiagnoseOptsFromSkillOptions(raw map[string]any) *runtime.SignalDiagnoseOpts {
+	return parseSignalDiagnoseOptsFromOptionsBag(raw)
+}
+
+// ParseSignalDiagnoseOptsFromWorkflowOptions reads legacy workflow_options.signal_diagnose from chat request.
 func ParseSignalDiagnoseOptsFromWorkflowOptions(raw map[string]any) *runtime.SignalDiagnoseOpts {
+	return parseSignalDiagnoseOptsFromOptionsBag(raw)
+}
+
+func parseSignalDiagnoseOptsFromOptionsBag(raw map[string]any) *runtime.SignalDiagnoseOpts {
 	if len(raw) == 0 {
 		return nil
 	}

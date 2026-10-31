@@ -400,6 +400,7 @@ func (l *Loop) RunTurn(
 		toolCtx.EventBus = l.eventBus
 	}
 	toolCtx.RuntimeSession = session
+	toolCtx.LockedSkill = session.LockedSkill
 
 	session.AppendMessage(llm.Message{Role: llm.RoleUser, Content: userText})
 	records := []runtime.StepRecord{}
@@ -421,6 +422,7 @@ func (l *Loop) runPreparedTurn(
 	records []runtime.StepRecord,
 ) runtime.TurnResult {
 	toolCtx.RuntimeSession = session
+	toolCtx.LockedSkill = session.LockedSkill
 	messages := session.LLMMessages()
 
 	policy := l.effectivePlanPolicy()
@@ -454,7 +456,7 @@ func (l *Loop) runPreparedTurn(
 		"reason":     turnPlan.Reason,
 	})
 
-	procFrag, matchedSkills := l.loadPlanSkills(turnPlan, userText, &records)
+	procFrag, matchedSkills := l.loadPlanSkills(session, turnPlan, userText, &records)
 	var gateFrag ctxfrag.Fragment
 	if ShouldSkipRetrievalGate(matchedSkills, turnPlan, userText) {
 		reason := skipRetrievalReason(matchedSkills, turnPlan, userText)
@@ -479,6 +481,7 @@ func (l *Loop) runPreparedTurn(
 		agentRoutingFragment(userText),
 		activeWorkflowFragment(session),
 		signalDiagnosePanelOpsFragment(session),
+		lockedSkillFragment(session),
 	}
 	if taskMD := sessiontask.BuildState(session, session.LastTurnDomain).RenderMarkdown(); taskMD != "" {
 		dynFrags = append(dynFrags, ctxfrag.WorkingStateFragment(taskMD))

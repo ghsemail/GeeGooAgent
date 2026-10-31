@@ -57,6 +57,8 @@ type Session struct {
 	LabDiagnoseSnapshots map[string]json.RawMessage `json:"-"`
 	// LabDiagnoseEpisodeDetails maps run_id → cached lab-detail JSON (detail_ref → LabEpisodeDetail).
 	LabDiagnoseEpisodeDetails map[string]json.RawMessage `json:"-"`
+	// LockedSkill is Monday skill_options.locked_skill for the current request (not persisted).
+	LockedSkill string
 	// InboundPanelOps holds Monday panel parameters for the current request (not persisted).
 	InboundPanelOps *SignalDiagnoseOpts
 	// StickyPanelOps retains last merged panel ops (buy/sell/freq) across turns after Apply or probe inject.

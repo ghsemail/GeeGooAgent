@@ -2,6 +2,7 @@ package tools
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/memory/procedural"
@@ -36,6 +37,15 @@ func registerSkillViewTools(r *Registry, deps Deps) {
 			name := strings.TrimSpace(strArg(args, "skill", ""))
 			if name == "" {
 				return Result{Status: StatusError, Summary: "skill required"}
+			}
+			if locked := strings.TrimSpace(ctx.LockedSkill); locked != "" && !strings.EqualFold(name, locked) {
+				return Result{
+					Status: StatusError,
+					Summary: fmt.Sprintf(
+						"Monday locked_skill=%q for this turn; call skill_view with that id only (not %q) unless the user clearly changes topic",
+						locked, name,
+					),
+				}
 			}
 			file := strings.TrimSpace(strArg(args, "file", ""))
 			sk, body, err := deps.SkillLoader.ReadSkillFile(name, file)

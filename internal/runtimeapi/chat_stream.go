@@ -32,7 +32,8 @@ type chatStreamRequest struct {
 	MCPToken         string         `json:"mcp_token"`
 	ContextProfiles  []string       `json:"context_profiles,omitempty"`
 	ActiveScopes     []string       `json:"active_scopes,omitempty"`
-	WorkflowOptions  map[string]any `json:"workflow_options,omitempty"`
+	SkillOptions     map[string]any `json:"skill_options,omitempty"`
+	WorkflowOptions  map[string]any `json:"workflow_options,omitempty"` // legacy; prefer skill_options
 }
 
 type chatTurnEndPayload struct {
@@ -137,12 +138,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	chat.SyncChatSystemPrompt()
 	rtSession := agent.RuntimeSessionFromChat(chat)
 	rtSession.InboundQueueWait = inboundQueueWait
-	if opts := workflowchat.ParseSignalDiagnoseOptsFromWorkflowOptions(req.WorkflowOptions); opts != nil {
-		rtSession.InboundPanelOps = opts
-	}
-	if opts := workflowchat.ParseStrategyDevOptsFromWorkflowOptions(req.WorkflowOptions); opts != nil {
-		rtSession.PendingStrategyDevOpts = opts
-	}
+	workflowchat.ApplyInboundSkillOptions(rtSession, req.SkillOptions, req.WorkflowOptions)
 	mcpToken := resolveChatMCPToken(r, req.MCPToken, h.configMCPToken())
 	toolCtx := h.App.ToolContextWithContext(r.Context(), chat.ID)
 	toolCtx.UserID = resolveUserID(r)

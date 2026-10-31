@@ -34,7 +34,7 @@ func subagentOrchestratorPlanBlock() string {
 `
 }
 
-func (l *Loop) loadPlanSkills(plan cognition.TurnPlan, userText string, records *[]runtime.StepRecord) (ctxfrag.Fragment, []string) {
+func (l *Loop) loadPlanSkills(session *runtime.Session, plan cognition.TurnPlan, userText string, records *[]runtime.StepRecord) (ctxfrag.Fragment, []string) {
 	if l == nil || l.skillLoader == nil {
 		return nil, nil
 	}
@@ -43,7 +43,7 @@ func (l *Loop) loadPlanSkills(plan cognition.TurnPlan, userText string, records 
 	case procedural.SkillInjectionOff:
 		return l.loadExplicitPlanSkillsOnly(plan, records)
 	case procedural.SkillInjectionCatalog:
-		return l.loadCatalogSkills(plan, records)
+		return l.loadCatalogSkills(session, plan, records)
 	default:
 		return l.loadKeywordMatchedSkills(plan, userText, records)
 	}
@@ -57,8 +57,22 @@ func (l *Loop) loadExplicitPlanSkillsOnly(plan cognition.TurnPlan, records *[]ru
 	return l.formatMatchedSkills(matched, "turn_plan", records)
 }
 
-func (l *Loop) loadCatalogSkills(plan cognition.TurnPlan, records *[]runtime.StepRecord) (ctxfrag.Fragment, []string) {
+func (l *Loop) loadCatalogSkills(session *runtime.Session, plan cognition.TurnPlan, records *[]runtime.StepRecord) (ctxfrag.Fragment, []string) {
 	catalog := l.skillLoader.ChatCatalog()
+	locked := ""
+	if session != nil {
+		locked = session.LockedSkill
+	}
+	catalog = procedural.CatalogEntriesForLockedSkill(catalog, locked)
+	if locked != "" && len(catalog) == 0 {
+		if sk, ok := l.skillLoader.FindByName(locked); ok {
+			desc := strings.TrimSpace(sk.Description)
+			if desc == "" {
+				desc = strings.TrimSpace(sk.Body)
+			}
+			catalog = []procedural.CatalogEntry{{ID: sk.Name, Description: desc, Kind: procedural.ClassifyPath(sk.Path)}}
+		}
+	}
 	var frag ctxfrag.Fragment
 	if block := procedural.FormatCatalog(catalog); block != "" {
 		l.emitStatus("plan", fmt.Sprintf("注入 %d 个技能 catalog 条目", len(catalog)))

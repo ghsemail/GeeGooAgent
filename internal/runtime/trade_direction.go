@@ -10,7 +10,7 @@ const (
 	TradeDirectionLongOnly TradeDirection = "long_only"
 )
 
-// ParseTradeDirection normalizes workflow_options.signal_diagnose.trade_direction.
+// ParseTradeDirection normalizes skill_options.signal_diagnose.trade_direction (legacy workflow_options).
 // Unknown values default to both (same as omitted).
 func ParseTradeDirection(raw string) TradeDirection {
 	switch strings.ToLower(strings.TrimSpace(raw)) {

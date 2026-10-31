@@ -28,8 +28,17 @@ func ApplyPendingStrategyDevOpts(session *runtime.Session, flow *Flow) {
 	session.PendingStrategyDevOpts = nil
 }
 
-// ParseStrategyDevOptsFromWorkflowOptions reads workflow_options.strategy_dev from chat request.
+// ParseStrategyDevOptsFromSkillOptions reads skill_options.strategy_dev (or legacy workflow_options bag).
+func ParseStrategyDevOptsFromSkillOptions(raw map[string]any) *runtime.StrategyDevOpts {
+	return parseStrategyDevOptsFromOptionsBag(raw)
+}
+
+// ParseStrategyDevOptsFromWorkflowOptions reads legacy workflow_options.strategy_dev from chat request.
 func ParseStrategyDevOptsFromWorkflowOptions(raw map[string]any) *runtime.StrategyDevOpts {
+	return parseStrategyDevOptsFromOptionsBag(raw)
+}
+
+func parseStrategyDevOptsFromOptionsBag(raw map[string]any) *runtime.StrategyDevOpts {
 	if len(raw) == 0 {
 		return nil
 	}
