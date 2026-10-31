@@ -13,7 +13,7 @@ Skill stepwise 在 probe 成功后会 Persist `chart_probe` / `signal_eval`，�
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `session_id` | string | 是 | Chat 会话 id |
-| `run_id` | string | 否 | 省略时返回该会话 **最新** 一条 result；指定时返回匹配 `run_id` 且 `updated_at` 最新的一条 |
+| `run_id` | string | 否 | 省略时返回该会话 **最新** 一条 result。指定时优先匹配 Persist 条目上的 `run_id` / `result_key`；若无匹配且会话内仅有一条未过期 result，则返回该条（兼容 Monday 侧自有 run 文档 id）。Skill stepwise 路径建议在首次响应后改用 Persist 内的 `run_id`（`flow-…`）或省略本字段 |
 | `mcp_token` | string | 否 | 可与 Header 二选一 |
 
 ## 响应 JSON（Monday PR #57 映射）

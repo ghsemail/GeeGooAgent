@@ -20,9 +20,9 @@ type labDiagnoseSnapshotEntry struct {
 	Flow      Flow      `json:"flow"`
 }
 
-// ArchiveLabDiagnoseFlow stores a completed lab-mode diagnose flow for lazy lab-detail.
+// ArchiveLabDiagnoseFlow stores a completed signal-diagnose flow for lazy lab-detail (48h TTL).
 func ArchiveLabDiagnoseFlow(session *runtime.Session, flow *Flow) {
-	if session == nil || flow == nil || !flow.LabMode || flow.RunID == "" {
+	if session == nil || flow == nil || flow.RunID == "" || !FlowSupportsLabDetail(flow) {
 		return
 	}
 	if session.LabDiagnoseSnapshots == nil {
@@ -126,9 +126,9 @@ func loadLabDiagnoseSnapshotsIntoSession(chat *chatsession.ChatSession, rt *runt
 	}
 }
 
-// UpsertLabDiagnoseSnapshot writes or refreshes one archived lab flow (e.g. after lazy MTF cache).
+// UpsertLabDiagnoseSnapshot writes or refreshes one archived diagnose flow (e.g. after Persist Result or lazy MTF cache).
 func UpsertLabDiagnoseSnapshot(chat *chatsession.ChatSession, flow *Flow) {
-	if chat == nil || flow == nil || !flow.LabMode || flow.RunID == "" {
+	if chat == nil || flow == nil || flow.RunID == "" || !FlowSupportsLabDetail(flow) {
 		return
 	}
 	if chat.Metadata == nil {
@@ -158,7 +158,7 @@ func MustLabDiagnoseSnapshotJSON(flow Flow) json.RawMessage {
 	return raw
 }
 
-// ResolveFlowForLabDetail returns active or archived flow for lab-detail.
+// ResolveFlowForLabDetail returns active, archived, or Persist-Result-rebuilt flow for lab-detail.
 func ResolveFlowForLabDetail(chat *chatsession.ChatSession, runID string) *Flow {
 	runID = strings.TrimSpace(runID)
 	if active := FlowFromChat(chat); active != nil {
@@ -169,6 +169,16 @@ func ResolveFlowForLabDetail(chat *chatsession.ChatSession, runID string) *Flow 
 	if chat == nil || chat.Metadata == nil || runID == "" {
 		return nil
 	}
+	if flow := flowFromLabDiagnoseSnapshot(chat, runID); flow != nil {
+		return flow
+	}
+	if res, ok := LookupSignalDiagnoseResultForLabDetail(chat, runID); ok && res != nil {
+		return flowFromPersistedSignalDiagnoseResult(res, runID)
+	}
+	return nil
+}
+
+func flowFromLabDiagnoseSnapshot(chat *chatsession.ChatSession, runID string) *Flow {
 	merged := loadLabSnapshotMap(chat.Metadata)
 	raw, ok := merged[runID]
 	if !ok || len(raw) == 0 {
@@ -187,4 +197,49 @@ func ResolveFlowForLabDetail(chat *chatsession.ChatSession, runID string) *Flow 
 	flow := ent.Flow
 	normalizeOnLoad(&flow)
 	return &flow
+}
+
+// flowFromPersistedSignalDiagnoseResult rebuilds a minimal Flow from SignalDiagnoseResult (skill stepwise / no runner archive).
+func flowFromPersistedSignalDiagnoseResult(res *SignalDiagnoseResult, requestedRunID string) *Flow {
+	if res == nil || res.ChartProbe == nil {
+		return nil
+	}
+	bars, _ := res.ChartProbe["bars"].([]any)
+	if len(bars) == 0 {
+		return nil
+	}
+	runID := strings.TrimSpace(requestedRunID)
+	if runID == "" {
+		runID = strings.TrimSpace(res.RunID)
+	}
+	if runID == "" {
+		runID = strings.TrimSpace(res.ResultKey)
+	}
+	flow := &Flow{
+		Template:              SkillSignalDiagnose,
+		RunID:                 runID,
+		StockCode:             res.StockCode,
+		ProbeRaw:              res.ChartProbe,
+		SignalEval:            res.SignalEval,
+		LabMode:               res.LabMode,
+		LabEpisodeSummaries:   res.LabEpisodeSummaries,
+		LabFlowPriceSummary:   res.LabFlowPriceSummary,
+		MonthsBack:            res.MonthsBack,
+		EvalJudgment:          res.EvalJudgment,
+		UsePriceAnalysisEpisodeFilter: res.UsePriceAnalysisEpisodeFilter,
+		PriceAnalysis:         res.PriceAnalysis,
+		PriceEpisodeFilterStats: res.PriceEpisodeFilterStats,
+	}
+	if res.Frequency != "" {
+		flow.Strategies = []StrategyItem{{Frequency: res.Frequency}}
+	}
+	if len(flow.LabEpisodeSummaries) == 0 {
+		populateFlowLabSummariesFromProbe(flow)
+	} else {
+		ensureLabFlowDetailRef(flow)
+	}
+	if !FlowSupportsLabDetail(flow) {
+		return nil
+	}
+	return flow
 }
