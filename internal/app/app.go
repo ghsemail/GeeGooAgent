@@ -205,7 +205,8 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 		SkillLoader:          app.SkillLoader,
 		WeKnora:              app.WeKnora,
 		ChatSessionPersist:          app.persistChatSessionForTools,
-		RememberProbeForDiagnoseUI:      app.rememberProbeForDiagnoseUI,
+		RememberProbeForDiagnoseUI:           app.rememberProbeForDiagnoseUI,
+		PersistSignalDiagnoseResultAfterTool: app.persistSignalDiagnoseResultAfterTool,
 		ApplyPanelOpsToSignalProbeTool: app.applyPanelOpsToSignalProbeTool,
 		BypassPanelFrequencyClarify:    app.bypassPanelFrequencyClarify,
 		PrepareWorkflowCardEmit:        app.prepareWorkflowCardEmit,
@@ -630,6 +631,17 @@ func (a *App) IntentPlanner() cognition.Planner {
 func (a *App) rememberProbeForDiagnoseUI(runtimeSession any, probe map[string]any) {
 	rt, _ := runtimeSession.(*runtime.Session)
 	workflowchat.RememberSignalDiagnoseProbe(rt, probe)
+}
+
+func (a *App) persistSignalDiagnoseResultAfterTool(ctx tools.Context, toolName string, data map[string]any) {
+	if a == nil || len(data) == 0 {
+		return
+	}
+	_ = a.persistChatSessionForTools(ctx, func(chat *chatsession.ChatSession, runtimeSession any) error {
+		rt, _ := runtimeSession.(*runtime.Session)
+		workflowchat.UpdateSignalDiagnoseResultAfterTool(rt, chat, toolName, data)
+		return nil
+	})
 }
 
 func (a *App) applyPanelOpsToSignalProbeTool(runtimeSession any, body map[string]any) {

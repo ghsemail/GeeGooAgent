@@ -43,6 +43,8 @@ type Deps struct {
 	ChatSessionPersist func(ctx Context, fn func(chat *chatsession.ChatSession, runtimeSession any) error) error
 	// RememberProbeForDiagnoseUI archives full probe payloads for signal_diagnose UI keys (wired by app).
 	RememberProbeForDiagnoseUI func(runtimeSession any, probe map[string]any)
+	// PersistSignalDiagnoseResultAfterTool writes SignalDiagnoseResult after probe/diagnose tools (wired by app).
+	PersistSignalDiagnoseResultAfterTool func(ctx Context, toolName string, data map[string]any)
 	// ApplyPanelOpsToSignalProbeTool overrides probe/diagnose args from Monday panel ops (wired by app).
 	ApplyPanelOpsToSignalProbeTool func(runtimeSession any, body map[string]any)
 	// BypassPanelFrequencyClarify skips K-line period clarify when panel ops already set frequency.
@@ -153,6 +155,12 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 					if deps.RememberProbeForDiagnoseUI != nil && (spec.Name == "probe_bot_signal_series" || spec.Name == "probe_bot_signal") {
 						if row, ok := data.(map[string]any); ok {
 							deps.RememberProbeForDiagnoseUI(ctx.RuntimeSession, row)
+						}
+					}
+					if deps.PersistSignalDiagnoseResultAfterTool != nil &&
+						(spec.Name == "probe_bot_signal_series" || spec.Name == "probe_bot_signal" || spec.Name == "diagnose_bot_signal_series") {
+						if row, ok := data.(map[string]any); ok {
+							deps.PersistSignalDiagnoseResultAfterTool(ctx, spec.Name, row)
 						}
 					}
 					data = compactHTTPPayload(ctx, spec.Name, data)

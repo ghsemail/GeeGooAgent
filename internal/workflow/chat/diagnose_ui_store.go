@@ -179,11 +179,22 @@ func StoreSignalDiagnoseUIPayload(rt *runtime.Session, chat *chatsession.ChatSes
 	return key
 }
 
-// LookupSignalDiagnoseUIPayload loads a stored payload by key from chat metadata.
+// LookupSignalDiagnoseUIPayload loads a stored payload by key from chat metadata (read-compat via result store).
 func LookupSignalDiagnoseUIPayload(chat *chatsession.ChatSession, key string) (*SignalDiagnoseUIEntry, bool) {
 	key = strings.TrimSpace(key)
 	if chat == nil || key == "" {
 		return nil, false
+	}
+	if res, ok := LookupSignalDiagnoseResult(chat, key); ok && res != nil {
+		return &SignalDiagnoseUIEntry{
+			ExpiresAt:  res.ExpiresAt,
+			CreatedAt:  res.CreatedAt,
+			RunID:      res.RunID,
+			SessionID:  res.SessionID,
+			StockCode:  res.StockCode,
+			ChartProbe: res.ChartProbe,
+			SignalEval: res.SignalEval,
+		}, true
 	}
 	raw, ok := loadSignalDiagnoseUIMap(chat.Metadata)[key]
 	if !ok || len(raw) == 0 {
@@ -220,7 +231,7 @@ func uiPayloadFromFlow(flow *Flow) (chartProbe map[string]any, eval slots.Signal
 	return cp, eval, true
 }
 
-// EnsureFlowDiagnoseUIKey stores rich payload for a workflow flow when ready and sets flow.DiagnoseUIKey.
+// EnsureFlowDiagnoseUIKey persists SignalDiagnoseResult for a workflow flow when ready and sets flow.DiagnoseUIKey (legacy alias).
 func EnsureFlowDiagnoseUIKey(rt *runtime.Session, chat *chatsession.ChatSession, flow *Flow) string {
 	if flow == nil {
 		return ""
@@ -237,13 +248,9 @@ func EnsureFlowDiagnoseUIKey(rt *runtime.Session, chat *chatsession.ChatSession,
 			return ""
 		}
 	}
-	key := StoreSignalDiagnoseUIPayload(rt, chat, SignalDiagnoseUIEntry{
-		RunID: flow.RunID, SessionID: sessionIDFromStore(rt, chat),
-		StockCode: flow.StockCode, ChartProbe: cp, SignalEval: eval,
-	})
-	if key != "" {
-		flow.DiagnoseUIKey = key
-	}
+	_ = cp
+	_ = eval
+	key := PersistSignalDiagnoseResultFromFlow(rt, chat, flow)
 	return key
 }
 
@@ -338,12 +345,16 @@ func PrepareSignalDiagnoseEmitCard(rt *runtime.Session, chat *chatsession.ChatSe
 		}
 	}
 	if cp != nil {
-		key := StoreSignalDiagnoseUIPayload(rt, chat, SignalDiagnoseUIEntry{
-			RunID: strAny(out["run_id"]), SessionID: sessionIDFromStore(rt, chat),
-			StockCode: strAny(out["stock_code"]), ChartProbe: cp, SignalEval: eval,
-		})
-		if key != "" {
-			out["diagnose_ui_key"] = key
+		flow := flowFromEmitCard(out, rt)
+		if flow != nil {
+			flow.SignalEval = eval
+		}
+		if key := PersistSignalDiagnoseResultFromFlow(rt, chat, flow); key != "" {
+			out["result_key"] = key
+			out["diagnose_ui_key"] = key // legacy SSE clients
+		} else if rt != nil && strings.TrimSpace(rt.SignalDiagnoseResultLatest) != "" {
+			out["result_key"] = rt.SignalDiagnoseResultLatest
+			out["diagnose_ui_key"] = rt.SignalDiagnoseResultLatest
 		}
 	}
 	stripHeavySignalDiagnoseCard(out)
