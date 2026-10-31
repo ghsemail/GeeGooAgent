@@ -24,7 +24,7 @@ type StrategyCatalogEntry struct {
 	Label string `json:"label"`
 }
 
-// ResolveGenerateCognitionMessage builds the Dock Chat utterance for generate_strategy_cognition eval.
+// ResolveGenerateCognitionMessage builds the Dock Chat utterance for generate_strategy_archive eval.
 func ResolveGenerateCognitionMessage(opts TurnPlanCaseOptions, pickedName string) string {
 	name := strings.TrimSpace(pickedName)
 	if name == "" {
