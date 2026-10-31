@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/clients/mcp"
 	"github.com/ghsemail/GeeGooAgent/internal/clients/weknora"
 	"github.com/ghsemail/GeeGooAgent/internal/config"
@@ -38,6 +39,12 @@ type Deps struct {
 	ChatWorkflowTurn ChatWorkflowTurn
 	// ChatOpenFlowTool registers deprecated run_chat_workflow_turn on the Chat allowlist.
 	ChatOpenFlowTool bool
+	// ChatSessionPersist loads/saves chat metadata during tool handlers (emit_workflow_card UI store).
+	ChatSessionPersist func(ctx Context, fn func(chat *chatsession.ChatSession, runtimeSession any) error) error
+	// RememberProbeForDiagnoseUI archives full probe payloads for signal_diagnose UI keys (wired by app).
+	RememberProbeForDiagnoseUI func(runtimeSession any, probe map[string]any)
+	// PrepareWorkflowCardEmit lightens signal_diagnose cards and persists rich UI payloads (wired by app).
+	PrepareWorkflowCardEmit func(ctx Context, card map[string]any) map[string]any
 }
 
 // TaskDelegator is implemented by agent.SubAgent for delegate_task registration.
@@ -135,6 +142,11 @@ func RegisterHTTPFromCatalog(r *Registry, deps Deps) {
 						}
 						return Result{Status: StatusError, Summary: enrichHTTPError(spec.Name, err), ExitCode: 1,
 							Meta: MetaFromEnvelope(nil, started)}
+					}
+					if deps.RememberProbeForDiagnoseUI != nil && (spec.Name == "probe_bot_signal_series" || spec.Name == "probe_bot_signal") {
+						if row, ok := data.(map[string]any); ok {
+							deps.RememberProbeForDiagnoseUI(ctx.RuntimeSession, row)
+						}
 					}
 					data = compactHTTPPayload(ctx, spec.Name, data)
 					normalized, summary := normalizeHTTPResponse(spec.Name, data)

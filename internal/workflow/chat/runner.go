@@ -52,7 +52,7 @@ func (r *Runner) RunTurn(
 		ApplyPendingSignalDiagnoseOpts(session, flow)
 		finalizeSignalDiagnoseFromPanel(flow)
 		SaveToSession(session, flow)
-		r.emitCard(flow)
+		r.emitCard(session, flow)
 		r.emit("workflow_started", map[string]any{
 			"run_id": flow.RunID, "skill": flow.Template,
 		})
@@ -77,7 +77,7 @@ func (r *Runner) RunTurn(
 			return runtime.TurnResult{}, false
 		}
 		SaveToSession(session, flow)
-		r.emitCard(flow)
+		r.emitCard(session, flow)
 		r.emit("workflow_started", map[string]any{
 			"run_id": flow.RunID, "skill": flow.Template,
 		})
@@ -136,7 +136,7 @@ func (r *Runner) runTemplateTurn(
 			r.OnProgress(event, data)
 		}
 	}
-	r.emitCard(flow)
+	r.emitCard(session, flow)
 	wfStart := time.Now()
 	if flow.WorkflowStartedAt.IsZero() {
 		flow.WorkflowStartedAt = wfStart
@@ -160,7 +160,7 @@ func (r *Runner) runTemplateTurn(
 			flow.PartialReport = partial(flow)
 			flow.touch()
 			SaveToSession(session, flow)
-			r.emitCard(flow)
+			r.emitCard(session, flow)
 			session.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: msg + "\n\n" + flow.PartialReport})
 			records = append(records, runtime.StepRecord{
 				Step: step, Timestamp: time.Now().UTC(), Kind: "reply", Summary: truncate(msg, 300),
@@ -179,7 +179,7 @@ func (r *Runner) runTemplateTurn(
 				flow.PartialReport = partial(flow)
 				flow.touch()
 				SaveToSession(session, flow)
-				r.emitCard(flow)
+				r.emitCard(session, flow)
 				if flow.LabMode && flow.CardStage == "eval_done" && len(flow.ProbeRaw) > 0 {
 					bars, _ := flow.ProbeRaw["bars"].([]any)
 					freq := "60m"
@@ -210,14 +210,14 @@ func (r *Runner) runTemplateTurn(
 		records = append(records, runtime.StepRecord{
 			Step: step, Timestamp: time.Now().UTC(), Kind: "reply", Summary: truncate(reply, 300),
 		})
-		r.emitCard(flow)
+		r.emitCard(session, flow)
 		r.emit("workflow_completed", map[string]any{"run_id": flow.RunID})
 		return runtime.TurnResult{AssistantText: reply, StepRecords: records}, true
 	}
 	flow.PartialReport = partial(flow)
 	flow.touch()
 	SaveToSession(session, flow)
-	r.emitCard(flow)
+	r.emitCard(session, flow)
 	reply := flow.PartialReport
 	if strings.TrimSpace(reply) == "" {
 		reply = "Workflow 进行中，请发送「继续」以执行下一步。"
@@ -247,11 +247,11 @@ func (r *Runner) emit(event string, data map[string]any) {
 	}
 }
 
-func (r *Runner) emitCard(flow *Flow) {
+func (r *Runner) emitCard(session *runtime.Session, flow *Flow) {
 	if flow == nil {
 		return
 	}
-	r.emit("workflow_card", CardPayload(flow))
+	r.emit("workflow_card", CardPayloadForSession(session, nil, flow))
 }
 
 func (r *Runner) runTool(

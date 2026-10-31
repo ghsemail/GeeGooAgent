@@ -3,12 +3,18 @@ package chat
 import (
 	"strings"
 
+	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
-// CardPayload builds SSE card data for the live UI.
+// CardPayload builds SSE card data for the live UI (signal_diagnose cards are lightweight; rich data is keyed).
 func CardPayload(flow *Flow) map[string]any {
+	return CardPayloadForSession(nil, nil, flow)
+}
+
+// CardPayloadForSession builds SSE card data and archives rich diagnose UI payloads when session context is available.
+func CardPayloadForSession(rt *runtime.Session, chat *chatsession.ChatSession, flow *Flow) map[string]any {
 	if flow == nil {
 		return nil
 	}
@@ -109,11 +115,13 @@ func CardPayload(flow *Flow) map[string]any {
 		} else {
 			out["trade_direction"] = string(runtime.TradeDirectionBoth)
 		}
-		if cp := chartProbePayload(flow); cp != nil {
-			out["chart_probe"] = cp
+		if key := EnsureFlowDiagnoseUIKey(rt, chat, flow); key != "" {
+			out["diagnose_ui_key"] = key
+		} else if k := strings.TrimSpace(flow.DiagnoseUIKey); k != "" {
+			out["diagnose_ui_key"] = k
 		}
-		if flow.SignalEval.Method != "" {
-			out["signal_eval"] = flow.SignalEval
+		if cp := chartProbePayloadLight(flow); cp != nil {
+			out["chart_probe"] = cp
 		}
 		if strategydev.PriceAnalysisFeatureEnabled() {
 			out["use_price_analysis_episode_filter"] = flow.UsePriceAnalysisEpisodeFilter
@@ -163,9 +171,6 @@ func CardPayload(flow *Flow) map[string]any {
 		}
 		if kl := keyLevelSnapshotToMap(flow.KeyLevels); kl != nil {
 			out["key_levels"] = kl
-		}
-		if ser := keyLevelBarSeriesToMap(flow.KeyLevelSeries); ser != nil {
-			out["key_level_series"] = ser
 		}
 	}
 	return out

@@ -202,8 +202,11 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 		Memory:           app.ChatMemory,
 		Facts: app.Facts, Episodic: app.Episodic, Home: config.Home(),
 		Preferences: app.Preferences,
-		SkillLoader: app.SkillLoader,
-		WeKnora:     app.WeKnora,
+		SkillLoader:          app.SkillLoader,
+		WeKnora:              app.WeKnora,
+		ChatSessionPersist:          app.persistChatSessionForTools,
+		RememberProbeForDiagnoseUI:  app.rememberProbeForDiagnoseUI,
+		PrepareWorkflowCardEmit:     app.prepareWorkflowCardEmit,
 	})
 	app.Agent.SetSubAgent(sub)
 	app.Workflow.SetToolExec(app.Agent.ToolExec())
@@ -620,6 +623,60 @@ func (a *App) IntentPlanner() cognition.Planner {
 			return a.classifyOpsFallbackProvider()
 		},
 	}
+}
+
+func (a *App) rememberProbeForDiagnoseUI(runtimeSession any, probe map[string]any) {
+	rt, _ := runtimeSession.(*runtime.Session)
+	workflowchat.RememberSignalDiagnoseProbe(rt, probe)
+}
+
+func (a *App) prepareWorkflowCardEmit(ctx tools.Context, card map[string]any) map[string]any {
+	rt, _ := ctx.RuntimeSession.(*runtime.Session)
+	out := card
+	apply := func(chat *chatsession.ChatSession, session *runtime.Session) {
+		out = workflowchat.PrepareSignalDiagnoseEmitCard(session, chat, out)
+	}
+	if err := a.persistChatSessionForTools(ctx, func(chat *chatsession.ChatSession, runtimeSession any) error {
+		s, _ := runtimeSession.(*runtime.Session)
+		if s == nil {
+			s = rt
+		}
+		apply(chat, s)
+		return nil
+	}); err != nil {
+		apply(nil, rt)
+	}
+	return out
+}
+
+func (a *App) persistChatSessionForTools(ctx tools.Context, fn func(*chatsession.ChatSession, any) error) error {
+	if a == nil || fn == nil {
+		return nil
+	}
+	store, err := a.SessionStore()
+	if err != nil {
+		return err
+	}
+	sessionID := strings.TrimSpace(ctx.SessionID)
+	if sessionID == "" {
+		return fmt.Errorf("session_id required")
+	}
+	chat, err := store.Load(sessionID)
+	if err != nil {
+		return err
+	}
+	if chat == nil {
+		return fmt.Errorf("session not found")
+	}
+	rt, _ := ctx.RuntimeSession.(*runtime.Session)
+	if rt == nil {
+		rt = agent.RuntimeSessionFromChat(chat)
+	}
+	if err := fn(chat, rt); err != nil {
+		return err
+	}
+	agent.SyncChatFromRuntime(chat, rt, nil)
+	return store.Save(chat)
 }
 
 func (a *App) chatWorkflowTurn(ctx tools.Context, userMessage string) tools.Result {
