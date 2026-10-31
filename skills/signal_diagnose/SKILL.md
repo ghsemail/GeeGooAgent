@@ -13,8 +13,10 @@ trigger_modes: chat
 
 ## Chat 执行顺序（不要用 run_chat_workflow_turn）
 
+**推荐首步（非硬性）**：从注入的 **Skills catalog** 选中 `signal_diagnose` 后，先 **skill_view**(`skill=signal_diagnose`) 加载本 SKILL.md，再按下列步骤调用普通工具（Eval Live 不强制本步）。
+
 1. **解析意图**：从用户话里提取 `strategy_query`（策略/catalog 名）与 `stock_query`（公司/代码）。缺一项 → **clarify**。
-2. **读策略**：`search_signals` / catalog 工具解析出 `buy_signal`、`sell_signal`、`frequency`（与 Web 策略库一致）。
+2. **读策略**：用户只给指标/模糊名 → 先 **search_signals** 列候选，2+ 命中 → **clarify**；已有明确 catalog 名时按序解析（与 Workflow Runner 一致）：**get_signal_combinations** → **get_index_signals** → **get_custom_signal_for_skill** → **get_custom_strategy_definitions**，得到 `buy_signal`、`sell_signal`、`frequency`（与 Web 策略库一致）。
 3. **resolve_symbol**：**search_code** → 标准 `code`。
 4. **run_probe**：**probe_bot_signal_series**（`include_key_levels` / `key_levels_mode=series` 默认；`months_back` 按诊断窗，通常 3）。
 5. **（可选）fetch_key_levels**：probe 未带回关键价位时 **get_key_levels**。
