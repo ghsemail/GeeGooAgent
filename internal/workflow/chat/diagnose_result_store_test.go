@@ -6,7 +6,83 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
+
+func TestPersistSignalDiagnoseResultStepwiseLabModeSticky(t *testing.T) {
+	rt := runtime.NewSession()
+	lab := true
+	rt.StickyPanelOps = &runtime.SignalDiagnoseOpts{LabMode: &lab}
+	chat := &chatsession.ChatSession{ID: rt.ID, Metadata: map[string]any{}}
+	bars := []any{
+		map[string]any{"time": "t0", "close": 1.0, "open": 1.0, "high": 1.0, "low": 1.0},
+		map[string]any{"time": "t1", "close": 2.0, "open": 2.0, "high": 2.0, "low": 2.0},
+	}
+	UpdateSignalDiagnoseResultAfterTool(rt, chat, "probe_bot_signal_series", map[string]any{
+		"code": "00700.HK", "frequency": "60m", "bars": bars,
+		"buy_merged": []any{1, 0}, "sell_merged": []any{0, -1},
+	})
+	ent, ok := LookupSignalDiagnoseResult(chat, rt.SignalDiagnoseResultLatest)
+	if !ok || ent == nil {
+		t.Fatal("missing result")
+	}
+	if !ent.LabMode {
+		t.Fatal("expected lab_mode on stored result")
+	}
+	if len(ent.LabEpisodeSummaries) == 0 {
+		t.Fatal("expected lab_episode_summaries")
+	}
+	if ent.LabDefaultDetailRef != strategydev.LabFlowDetailRef {
+		t.Fatalf("lab_default_detail_ref=%q", ent.LabDefaultDetailRef)
+	}
+	resp := MondayAPIResponse(ent)
+	if resp.Lab == nil {
+		t.Fatal("Monday response must include lab when lab_mode")
+	}
+}
+
+func TestPersistSignalDiagnoseResultStepwiseLabModeInbound(t *testing.T) {
+	rt := runtime.NewSession()
+	lab := true
+	rt.InboundPanelOps = &runtime.SignalDiagnoseOpts{LabMode: &lab}
+	chat := &chatsession.ChatSession{ID: rt.ID, Metadata: map[string]any{}}
+	bars := []any{map[string]any{"time": "t0", "close": 1.0}, map[string]any{"time": "t1", "close": 2.0}}
+	UpdateSignalDiagnoseResultAfterTool(rt, chat, "probe_bot_signal_series", map[string]any{
+		"code": "00700.HK", "bars": bars, "buy_merged": []any{1, 0}, "sell_merged": []any{0, 0},
+	})
+	ent, ok := LookupSignalDiagnoseResult(chat, rt.SignalDiagnoseResultLatest)
+	if !ok || ent == nil || len(ent.LabEpisodeSummaries) == 0 {
+		t.Fatal("expected lab summaries from inbound lab_mode")
+	}
+	if rt.InboundPanelOps == nil {
+		t.Fatal("persist draft must not clear inbound panel ops")
+	}
+}
+
+func TestPersistSignalDiagnoseResultStepwiseNoLabWhenLabModeOff(t *testing.T) {
+	rt := runtime.NewSession()
+	off := false
+	rt.StickyPanelOps = &runtime.SignalDiagnoseOpts{LabMode: &off}
+	chat := &chatsession.ChatSession{ID: rt.ID, Metadata: map[string]any{}}
+	bars := []any{map[string]any{"close": 1.0}, map[string]any{"close": 2.0}}
+	UpdateSignalDiagnoseResultAfterTool(rt, chat, "probe_bot_signal_series", map[string]any{
+		"code": "00700.HK", "bars": bars, "buy_merged": []any{1, 0}, "sell_merged": []any{0, 0},
+	})
+	ent, ok := LookupSignalDiagnoseResult(chat, rt.SignalDiagnoseResultLatest)
+	if !ok || ent == nil {
+		t.Fatal("missing result")
+	}
+	if ent.LabMode {
+		t.Fatal("lab_mode should stay false")
+	}
+	if len(ent.LabEpisodeSummaries) > 0 {
+		t.Fatal("must not populate lab summaries when lab_mode false")
+	}
+	resp := MondayAPIResponse(ent)
+	if resp.Lab != nil {
+		t.Fatalf("unexpected lab=%v", resp.Lab)
+	}
+}
 
 func TestPersistSignalDiagnoseResultAfterProbeTool(t *testing.T) {
 	rt := runtime.NewSession()

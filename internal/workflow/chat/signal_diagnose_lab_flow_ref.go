@@ -4,9 +4,39 @@ import (
 	"context"
 	"time"
 
+	"github.com/ghsemail/GeeGooAgent/internal/slots"
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
+
+// populateFlowLabSummariesFromProbe builds lab_episode_summaries from probe bars when LabMode is on.
+func populateFlowLabSummariesFromProbe(flow *Flow) {
+	if flow == nil || !flow.LabMode || flow.ProbeRaw == nil {
+		return
+	}
+	bars, _ := flow.ProbeRaw["bars"].([]any)
+	if len(bars) == 0 {
+		return
+	}
+	buyMerged, _ := flow.ProbeRaw["buy_merged"].([]any)
+	sellMerged, _ := flow.ProbeRaw["sell_merged"].([]any)
+	if len(buyMerged) == 0 {
+		buyMerged = make([]any, len(bars))
+	}
+	if len(sellMerged) == 0 {
+		sellMerged = make([]any, len(bars))
+	}
+	freq := probeFrequency(flow)
+	if flow.SignalEval.Method == "" {
+		flow.SignalEval = slots.EvaluateSignalEpisodesWithOptions(bars, buyMerged, sellMerged, signalDiagnoseEpisodeEvalOpts(flow))
+	}
+	patIn := strategydev.NewKlinePatternDisplayInputForDiagnose(true, freq, bars, flow.ProbeRaw, nil)
+	strategydev.EnrichSignalEpisodeEvalKlineDisplayLight(&flow.SignalEval, patIn)
+	fromEval := strategydev.BuildLabCardSummariesFromEval(flow.SignalEval, patIn.PatternHits, "")
+	fromMerged := strategydev.BuildLabCardSummariesFromMerged(bars, buyMerged, sellMerged, patIn.PatternHits, "")
+	flow.LabEpisodeSummaries = strategydev.MergeLabCardSummaries(fromEval, fromMerged)
+	ensureLabFlowDetailRef(flow)
+}
 
 func ensureLabFlowDetailRef(flow *Flow) {
 	if flow == nil || !flow.LabMode {

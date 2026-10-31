@@ -13,6 +13,16 @@ const (
 	metaKeyLegacyStickyPanelOps  = "signal_diagnose_sticky_opts"
 )
 
+// ApplyMergedPanelOpsToFlowForPersist merges sticky + inbound panel ops onto flow without
+// mutating session sticky/inbound (skill stepwise Persist must not consume inbound like Runner).
+func ApplyMergedPanelOpsToFlowForPersist(session *runtime.Session, flow *Flow) {
+	if session == nil || flow == nil {
+		return
+	}
+	merged := MergeSignalDiagnoseOpts(session.StickyPanelOps, session.InboundPanelOps)
+	applySignalDiagnoseOptsToFlow(merged, flow)
+}
+
 // ApplyInboundPanelOpsToFlow merges sticky + inbound panel ops onto a new signal_diagnose flow.
 // Sticky survives across turns so toggling lab_mode alone cannot drop buy/sell overrides.
 func ApplyInboundPanelOpsToFlow(session *runtime.Session, flow *Flow) {

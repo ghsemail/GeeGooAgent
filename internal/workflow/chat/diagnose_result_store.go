@@ -408,6 +408,8 @@ func draftFlowFromRuntime(rt *runtime.Session) *Flow {
 	if p.StrategyQuery != "" {
 		flow.StrategyQuery = p.StrategyQuery
 	}
+	ApplyMergedPanelOpsToFlowForPersist(rt, flow)
+	populateFlowLabSummariesFromProbe(flow)
 	return flow
 }
 
