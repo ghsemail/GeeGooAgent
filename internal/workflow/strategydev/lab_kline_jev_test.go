@@ -15,7 +15,7 @@ func TestBuildKlineJEVStateIncludesKlinePatterns(t *testing.T) {
 		Hits:       []slots.KlinePatternHit{{LabelCN: "锤子", Direction: 1}},
 		SignalFreq: "5m",
 	}
-	state := BuildKlineJEVState(kline, "buy")
+	state := BuildKlineJEVState(kline, "buy", false)
 	if !strings.Contains(state, "锤子") || !strings.Contains(state, "形态摘要") {
 		t.Fatalf("state missing kline: %q", state)
 	}
@@ -33,7 +33,7 @@ func TestResolveKlineJEVPatternOnly(t *testing.T) {
 		Bias:    &slots.KlinePatternBias{Bias: "看多"},
 		Hits:    []slots.KlinePatternHit{{LabelCN: "锤子", Direction: 1}},
 	}
-	out := ResolveKlineJEV(context.Background(), jev, kline, "sell")
+	out := ResolveKlineJEV(context.Background(), jev, kline, "sell", false)
 	if !out.OK || out.RecommendedChoice != "看多" {
 		t.Fatalf("pattern-only: %+v", out)
 	}
@@ -47,7 +47,7 @@ func TestResolveKlineJEVConflictPicksSideNotUnclear(t *testing.T) {
 		Bias: &slots.KlinePatternBias{Bias: "看空"},
 		Hits: []slots.KlinePatternHit{{LabelCN: "射击之星", Direction: -1}},
 	}
-	out := ResolveKlineJEV(context.Background(), jev, kline, "buy")
+	out := ResolveKlineJEV(context.Background(), jev, kline, "buy", false)
 	if !out.OK || out.RecommendedChoice != "看空" {
 		t.Fatalf("conflict mock should pick 看空, got %+v", out)
 	}
@@ -62,7 +62,7 @@ func TestApplyKlineJEVOnDetail(t *testing.T) {
 		KlinePatternBias:    &slots.KlinePatternBias{Bias: "看多"},
 		KlinePatterns:       []slots.KlinePatternHit{{LabelCN: "锤子", Direction: 1}},
 	}
-	applyKlineJEV(context.Background(), &detail, "buy", jev)
+	applyKlineJEV(context.Background(), &detail, "buy", jev, false)
 	if detail.KlineJEV == nil || !detail.KlineJEV.OK {
 		t.Fatalf("kline_jev: %+v", detail.KlineJEV)
 	}

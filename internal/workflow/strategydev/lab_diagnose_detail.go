@@ -45,6 +45,8 @@ type LabDetailInput struct {
 	Jev *JevClient
 	// TAClient optional lab-api client for POST /v1/lab/technical-analysis (same base URL/key as kline jobs).
 	TAClient LabTechnicalAnalysisClient
+	// LongOnly matches signal_diagnose trade_direction (JEV copy + omitted short lab refs).
+	LongOnly bool
 }
 
 // BuildLabEpisodeDetail loads MTF kline context and anchored price analysis for one ref.
@@ -135,10 +137,10 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		}
 		jevCtx, jevCancel := labDetailJEVContext(cacheCtx, in.JEVTimeout)
 		defer jevCancel()
-		applyPriceAnalysisJEV(jevCtx, &out, side, in.Jev)
-		applyKlineJEV(jevCtx, &out, side, in.Jev)
+		applyPriceAnalysisJEV(jevCtx, &out, side, in.Jev, in.LongOnly)
+		applyKlineJEV(jevCtx, &out, side, in.Jev, in.LongOnly)
 		if ta != nil {
-			rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, side, in.SignalFreq)
+			rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, side, in.SignalFreq, in.LongOnly)
 			out.TechnicalAnalysisJEV = &rec
 		}
 		applyLabJEVUnified(jevCtx, &out, side, in)
@@ -203,10 +205,10 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 		}
 		jevCtx, jevCancel := labDetailJEVContext(cacheCtx, in.JEVTimeout)
 		defer jevCancel()
-		applyPriceAnalysisJEV(jevCtx, &out, "flow", in.Jev)
-		applyKlineJEV(jevCtx, &out, "flow", in.Jev)
+		applyPriceAnalysisJEV(jevCtx, &out, "flow", in.Jev, in.LongOnly)
+		applyKlineJEV(jevCtx, &out, "flow", in.Jev, in.LongOnly)
 		if ta != nil {
-			rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, "flow", in.SignalFreq)
+			rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, "flow", in.SignalFreq, in.LongOnly)
 			out.TechnicalAnalysisJEV = &rec
 		}
 		applyLabJEVUnified(jevCtx, &out, "flow", in)

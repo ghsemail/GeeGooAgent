@@ -37,6 +37,7 @@ type SignalDiagnoseResult struct {
 	EvalJudgment  string                      `json:"eval_judgment,omitempty"`
 
 	LabMode               bool                                      `json:"lab_mode,omitempty"`
+	TradeDirection        runtime.TradeDirection                    `json:"trade_direction,omitempty"`
 	LabEpisodeSummaries   strategydev.LabCardEpisodeSummaries       `json:"lab_episode_summaries,omitempty"`
 	LabFlowPriceSummary   string                                    `json:"lab_flow_price_summary,omitempty"`
 	LabDefaultDetailRef   string                                    `json:"lab_default_detail_ref,omitempty"`
@@ -175,12 +176,13 @@ func MondayAPIResponse(ent *SignalDiagnoseResult) SignalDiagnoseResultMondayResp
 	if s := strings.TrimSpace(ent.EvalJudgment); s != "" {
 		out.EvalJudgment = s
 	}
-	if len(ent.LabEpisodeSummaries) > 0 {
-		out.Lab = ent.LabEpisodeSummaries
+	labSums := strategydev.FilterLabCardSummariesForLongOnly(ent.LabEpisodeSummaries, ent.TradeDirection.LongOnlyEpisodeEval())
+	if len(labSums) > 0 {
+		out.Lab = labSums
 	} else if strings.TrimSpace(ent.LabFlowPriceSummary) != "" || strings.TrimSpace(ent.LabDefaultDetailRef) != "" {
 		lab := map[string]any{}
-		if len(ent.LabEpisodeSummaries) > 0 {
-			lab["lab_episode_summaries"] = ent.LabEpisodeSummaries
+		if len(labSums) > 0 {
+			lab["lab_episode_summaries"] = labSums
 		}
 		if s := strings.TrimSpace(ent.LabFlowPriceSummary); s != "" {
 			lab["lab_flow_price_summary"] = s
@@ -402,6 +404,11 @@ func resultFromFlow(rt *runtime.Session, chat *chatsession.ChatSession, flow *Fl
 		ent.EvalJudgment = s
 	}
 	ent.LabMode = flow.LabMode
+	if td := strings.TrimSpace(string(flow.TradeDirection)); td != "" {
+		ent.TradeDirection = flow.TradeDirection
+	} else {
+		ent.TradeDirection = runtime.TradeDirectionBoth
+	}
 	if s := strings.TrimSpace(flow.LabFlowPriceSummary); s != "" {
 		ent.LabFlowPriceSummary = s
 	}
@@ -409,14 +416,22 @@ func resultFromFlow(rt *runtime.Session, chat *chatsession.ChatSession, flow *Fl
 		if len(flow.LabEpisodeSummaries) == 0 {
 			populateFlowLabSummariesFromProbe(flow)
 		} else {
+			flow.LabEpisodeSummaries = strategydev.FilterLabCardSummariesForLongOnly(
+				flow.LabEpisodeSummaries,
+				flow.TradeDirection.LongOnlyEpisodeEval(),
+			)
 			ensureLabFlowDetailRef(flow)
 		}
+		longOnly := flow.TradeDirection.LongOnlyEpisodeEval()
 		if len(flow.LabEpisodeSummaries) > 0 {
-			ent.LabEpisodeSummaries = flow.LabEpisodeSummaries
+			ent.LabEpisodeSummaries = strategydev.FilterLabCardSummariesForLongOnly(flow.LabEpisodeSummaries, longOnly)
 		}
 		ent.LabDefaultDetailRef = strategydev.LabFlowDetailRef
 	} else if len(flow.LabEpisodeSummaries) > 0 {
-		ent.LabEpisodeSummaries = flow.LabEpisodeSummaries
+		ent.LabEpisodeSummaries = strategydev.FilterLabCardSummariesForLongOnly(
+			flow.LabEpisodeSummaries,
+			flow.TradeDirection.LongOnlyEpisodeEval(),
+		)
 	}
 	ent.UsePriceAnalysisEpisodeFilter = flow.UsePriceAnalysisEpisodeFilter
 	ent.PriceAnalysis = flow.PriceAnalysis

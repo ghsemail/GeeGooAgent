@@ -181,7 +181,7 @@ func applyLabTechnicalAnalysis(out *LabEpisodeDetail, ta *LabTechnicalAnalysis, 
 		return
 	}
 	out.TechnicalAnalysis = ta
-	rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, side, in.SignalFreq)
+	rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, side, in.SignalFreq, in.LongOnly)
 	out.TechnicalAnalysisJEV = &rec
 }
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
 	"github.com/ghsemail/GeeGooAgent/internal/runtime"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
 const (
@@ -222,6 +223,7 @@ func flowFromPersistedSignalDiagnoseResult(res *SignalDiagnoseResult, requestedR
 		ProbeRaw:              res.ChartProbe,
 		SignalEval:            res.SignalEval,
 		LabMode:               res.LabMode,
+		TradeDirection:        res.TradeDirection,
 		LabEpisodeSummaries:   res.LabEpisodeSummaries,
 		LabFlowPriceSummary:   res.LabFlowPriceSummary,
 		MonthsBack:            res.MonthsBack,
@@ -236,6 +238,10 @@ func flowFromPersistedSignalDiagnoseResult(res *SignalDiagnoseResult, requestedR
 	if len(flow.LabEpisodeSummaries) == 0 {
 		populateFlowLabSummariesFromProbe(flow)
 	} else {
+		flow.LabEpisodeSummaries = strategydev.FilterLabCardSummariesForLongOnly(
+			flow.LabEpisodeSummaries,
+			flow.TradeDirection.LongOnlyEpisodeEval(),
+		)
 		ensureLabFlowDetailRef(flow)
 	}
 	if !FlowSupportsLabDetail(flow) {

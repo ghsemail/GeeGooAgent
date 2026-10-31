@@ -47,7 +47,7 @@ func sampleLabTA00700() *LabTechnicalAnalysis {
 }
 
 func TestBuildTechnicalAnalysisJEVStateTripleScreen(t *testing.T) {
-	state := BuildTechnicalAnalysisJEVState(sampleLabTA00700(), "sell", "60m")
+	state := BuildTechnicalAnalysisJEVState(sampleLabTA00700(), "sell", "60m", false)
 	for _, want := range []string{
 		"00700.HK",
 		"日线（三重滤网方向层）",
@@ -95,7 +95,7 @@ func TestResolveTechnicalAnalysisJEVMock(t *testing.T) {
 	defer srv.Close()
 
 	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"})
-	out := ResolveTechnicalAnalysisJEV(context.Background(), jev, sampleLabTA00700(), "sell", "60m")
+	out := ResolveTechnicalAnalysisJEV(context.Background(), jev, sampleLabTA00700(), "sell", "60m", false)
 	if !out.OK {
 		t.Fatalf("expected ok, err=%q", out.Error)
 	}
@@ -112,7 +112,7 @@ func TestResolveTechnicalAnalysisJEVMock(t *testing.T) {
 
 func TestResolveTechnicalAnalysisJEVNoFallbackOnSignalError(t *testing.T) {
 	ta := &LabTechnicalAnalysis{OK: false, Error: "lab-api: HTTP 503"}
-	out := ResolveTechnicalAnalysisJEV(context.Background(), NewJevClient(JevConfig{BaseURL: "http://unused", APIKey: "k"}), ta, "buy", "60m")
+	out := ResolveTechnicalAnalysisJEV(context.Background(), NewJevClient(JevConfig{BaseURL: "http://unused", APIKey: "k"}), ta, "buy", "60m", false)
 	if out.OK {
 		t.Fatal("must not invent direction on failed TA")
 	}

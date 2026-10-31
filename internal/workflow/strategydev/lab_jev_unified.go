@@ -64,13 +64,11 @@ type labJEVLegSnapshot struct {
 }
 
 // BuildLabJEVUnifiedState feeds unified JEV Choice with per-leg fact summaries plus JEV conclusions; omitted legs are labeled.
-func BuildLabJEVUnifiedState(plan labJEVUnifiedPlan, legs []labJEVLegSnapshot, signalSide string) string {
+func BuildLabJEVUnifiedState(plan labJEVUnifiedPlan, legs []labJEVLegSnapshot, signalSide string, longOnly bool) string {
 	var b strings.Builder
-	side := strings.TrimSpace(signalSide)
-	if side == "buy" {
-		b.WriteString("信号侧：买入触发\n")
-	} else if side == "sell" {
-		b.WriteString("信号侧：卖出触发\n")
+	if heading := LabSignalSideTriggerHeading(signalSide, longOnly); heading != "" {
+		b.WriteString(heading)
+		b.WriteByte('\n')
 	}
 	legByName := map[string]labJEVLegSnapshot{}
 	for _, leg := range legs {
@@ -117,14 +115,15 @@ func ResolveLabJEVUnified(
 	out *LabEpisodeDetail,
 	plan labJEVUnifiedPlan,
 	signalSide, signalFreq string,
+	longOnly bool,
 ) LabJEVUnified {
 	model := config.DefaultDecisionModel
 	if jev != nil && strings.TrimSpace(jev.cfg.Model) != "" {
 		model = strings.TrimSpace(jev.cfg.Model)
 	}
 	base := emptyLabJEVUnified(model)
-	legs := collectLabJEVUnifiedLegs(out, plan, signalSide, signalFreq)
-	state := BuildLabJEVUnifiedState(plan, legs, signalSide)
+	legs := collectLabJEVUnifiedLegs(out, plan, signalSide, signalFreq, longOnly)
+	state := BuildLabJEVUnifiedState(plan, legs, signalSide, longOnly)
 	if state == "" {
 		base.Error = "lab unified decision state empty"
 		return base
@@ -273,14 +272,14 @@ func labJEVUnifiedLegConflict(legs []labJEVLegSnapshot, unifiedChoice string) bo
 	return false
 }
 
-func labJEVLegFromPA(out *LabEpisodeDetail, signalSide string) *labJEVLegSnapshot {
+func labJEVLegFromPA(out *LabEpisodeDetail, signalSide string, longOnly bool) *labJEVLegSnapshot {
 	j := out.PriceAnalysisJEV
 	if j == nil || !j.OK {
 		return nil
 	}
 	facts := ""
 	if out.PriceAnalysis != nil {
-		facts = BuildPriceAnalysisJEVState(out.PriceAnalysis, signalSide)
+		facts = BuildPriceAnalysisJEVState(out.PriceAnalysis, signalSide, longOnly)
 	}
 	return &labJEVLegSnapshot{
 		name:    labJEVLegNamePA,
@@ -291,13 +290,13 @@ func labJEVLegFromPA(out *LabEpisodeDetail, signalSide string) *labJEVLegSnapsho
 	}
 }
 
-func labJEVLegFromKline(out *LabEpisodeDetail, signalSide string) *labJEVLegSnapshot {
+func labJEVLegFromKline(out *LabEpisodeDetail, signalSide string, longOnly bool) *labJEVLegSnapshot {
 	j := out.KlineJEV
 	if j == nil || !j.OK {
 		return nil
 	}
 	kline := labJEVKlineFromDetail(out)
-	facts := BuildKlineJEVState(kline, signalSide)
+	facts := BuildKlineJEVState(kline, signalSide, longOnly)
 	return &labJEVLegSnapshot{
 		name:    labJEVLegNameKline,
 		facts:   facts,
@@ -307,14 +306,14 @@ func labJEVLegFromKline(out *LabEpisodeDetail, signalSide string) *labJEVLegSnap
 	}
 }
 
-func labJEVLegFromTA(out *LabEpisodeDetail, signalSide, signalFreq string) *labJEVLegSnapshot {
+func labJEVLegFromTA(out *LabEpisodeDetail, signalSide, signalFreq string, longOnly bool) *labJEVLegSnapshot {
 	j := out.TechnicalAnalysisJEV
 	if j == nil || !j.OK {
 		return nil
 	}
 	facts := ""
 	if out.TechnicalAnalysis != nil {
-		facts = BuildTechnicalAnalysisJEVState(out.TechnicalAnalysis, signalSide, signalFreq)
+		facts = BuildTechnicalAnalysisJEVState(out.TechnicalAnalysis, signalSide, signalFreq, longOnly)
 	}
 	return &labJEVLegSnapshot{
 		name:    labJEVLegNameTA,
@@ -364,20 +363,20 @@ func labJEVUnifiedBlocked(out *LabEpisodeDetail, plan labJEVUnifiedPlan) bool {
 	return false
 }
 
-func collectLabJEVUnifiedLegs(out *LabEpisodeDetail, plan labJEVUnifiedPlan, signalSide, signalFreq string) []labJEVLegSnapshot {
+func collectLabJEVUnifiedLegs(out *LabEpisodeDetail, plan labJEVUnifiedPlan, signalSide, signalFreq string, longOnly bool) []labJEVLegSnapshot {
 	var legs []labJEVLegSnapshot
 	if plan.attemptPA {
-		if leg := labJEVLegFromPA(out, signalSide); leg != nil {
+		if leg := labJEVLegFromPA(out, signalSide, longOnly); leg != nil {
 			legs = append(legs, *leg)
 		}
 	}
 	if plan.attemptKline {
-		if leg := labJEVLegFromKline(out, signalSide); leg != nil {
+		if leg := labJEVLegFromKline(out, signalSide, longOnly); leg != nil {
 			legs = append(legs, *leg)
 		}
 	}
 	if plan.attemptTA {
-		if leg := labJEVLegFromTA(out, signalSide, signalFreq); leg != nil {
+		if leg := labJEVLegFromTA(out, signalSide, signalFreq, longOnly); leg != nil {
 			legs = append(legs, *leg)
 		}
 	}
@@ -393,7 +392,7 @@ func applyLabJEVUnified(ctx context.Context, out *LabEpisodeDetail, side string,
 	if labJEVUnifiedBlocked(out, plan) {
 		return
 	}
-	rec := ResolveLabJEVUnified(ctx, in.Jev, out, plan, side, in.SignalFreq)
+	rec := ResolveLabJEVUnified(ctx, in.Jev, out, plan, side, in.SignalFreq, in.LongOnly)
 	out.JEVUnified = &rec
 }
 
@@ -403,13 +402,13 @@ func ApplyLabJEVUnified(out *LabEpisodeDetail) {
 		return
 	}
 	var legs []labJEVLegSnapshot
-	if leg := labJEVLegFromPA(out, ""); leg != nil {
+	if leg := labJEVLegFromPA(out, "", false); leg != nil {
 		legs = append(legs, *leg)
 	}
-	if leg := labJEVLegFromKline(out, ""); leg != nil {
+	if leg := labJEVLegFromKline(out, "", false); leg != nil {
 		legs = append(legs, *leg)
 	}
-	if leg := labJEVLegFromTA(out, "", ""); leg != nil {
+	if leg := labJEVLegFromTA(out, "", "", false); leg != nil {
 		legs = append(legs, *leg)
 	}
 	if len(legs) == 0 {

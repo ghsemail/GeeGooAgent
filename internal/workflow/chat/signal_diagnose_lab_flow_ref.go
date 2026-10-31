@@ -32,9 +32,13 @@ func populateFlowLabSummariesFromProbe(flow *Flow) {
 	}
 	patIn := strategydev.NewKlinePatternDisplayInputForDiagnose(true, freq, bars, flow.ProbeRaw, nil)
 	strategydev.EnrichSignalEpisodeEvalKlineDisplayLight(&flow.SignalEval, patIn)
-	fromEval := strategydev.BuildLabCardSummariesFromEval(flow.SignalEval, patIn.PatternHits, "")
-	fromMerged := strategydev.BuildLabCardSummariesFromMerged(bars, buyMerged, sellMerged, patIn.PatternHits, "")
-	flow.LabEpisodeSummaries = strategydev.MergeLabCardSummaries(fromEval, fromMerged)
+	longOnly := flow.TradeDirection.LongOnlyEpisodeEval()
+	fromEval := strategydev.BuildLabCardSummariesFromEval(flow.SignalEval, patIn.PatternHits, "", longOnly)
+	fromMerged := strategydev.BuildLabCardSummariesFromMerged(bars, buyMerged, sellMerged, patIn.PatternHits, "", longOnly)
+	flow.LabEpisodeSummaries = strategydev.FilterLabCardSummariesForLongOnly(
+		strategydev.MergeLabCardSummaries(fromEval, fromMerged),
+		longOnly,
+	)
 	ensureLabFlowDetailRef(flow)
 }
 

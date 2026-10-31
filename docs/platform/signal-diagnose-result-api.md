@@ -24,6 +24,7 @@ Skill stepwise 在 probe 成功后会 Persist `chart_probe` / `signal_eval`，�
 | `signal_eval` | object | Episode 评价（`method`、`buy_details`、`sell_details` 等） |
 | `eval_judgment` | string | ComposeLLM / diag_compose Markdown（一～四段）；无则省略 |
 | `lab` | object | Lab 摘要：有 `lab_episode_summaries` 时为 **detail_ref → summary** 的 map；仅 lab 元数据时为 `{ lab_episode_summaries?, lab_flow_price_summary?, lab_default_detail_ref? }` |
+| `trade_direction` | string | 可选：`both`（默认）或 `long_only`。`long_only` 时 **`lab` / Persist 的 `lab_episode_summaries` 不含 `sell:*`**（与 `signal_eval` 一致，不做做空 Episode 列表）；probe 原始 `sell_merged` 仍可在 `chart_probe` 中表示平多卖出信号 |
 
 HTTP 404：会话不存在、无 result 或已过期（48h TTL）。
 

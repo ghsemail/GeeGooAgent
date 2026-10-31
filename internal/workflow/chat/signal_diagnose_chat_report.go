@@ -12,7 +12,7 @@ func appendSignalDiagnoseChatBody(b *strings.Builder, flow *Flow) {
 		return
 	}
 	if flow.SignalEval.Method != "" {
-		appendSignalDiagnoseWavePnLCards(b, flow.SignalEval)
+		appendSignalDiagnoseWavePnLCards(b, flow.SignalEval, flow.TradeDirection.LongOnlyEpisodeEval())
 	}
 	if v := strings.TrimSpace(flow.DiagnoseVerdict); v != "" {
 		fmt.Fprintf(b, "\n\n**diagnose 结论**：%s", v)
@@ -54,19 +54,27 @@ func computeStrictWavePnL(details []slots.SignalEpisodeDetail) strictWavePnLStat
 	return s
 }
 
-func appendSignalDiagnoseWavePnLCards(b *strings.Builder, eval slots.SignalEpisodeEval) {
+func appendSignalDiagnoseWavePnLCards(b *strings.Builder, eval slots.SignalEpisodeEval, longOnly bool) {
 	fmt.Fprintf(b, "\n\n### 波段盈亏（Strict 闭合 · %s）\n", eval.Method)
 	fmt.Fprintf(b, "\n涨幅/亏损为各闭合波段 **方向收益**（DirectionReturn）累加：盈利段求和涨幅，亏损段为亏损幅度绝对值之和。\n")
 
 	buy := computeStrictWavePnL(eval.BuyDetails)
 	sell := computeStrictWavePnL(eval.SellDetails)
 	appendStrictWavePnLCard(b, "买入（做多）", buy)
-	appendStrictWavePnLCard(b, "做空（卖出）", sell)
+	if !longOnly {
+		appendStrictWavePnLCard(b, "做空（卖出）", sell)
+	}
 
-	inc := eval.BuyEpisodes.IncompleteCount + eval.SellEpisodes.IncompleteCount
+	incBuy := eval.BuyEpisodes.IncompleteCount
+	incSell := eval.SellEpisodes.IncompleteCount
+	inc := incBuy + incSell
+	if longOnly {
+		inc = incBuy
+		incSell = 0
+	}
 	if inc > 0 {
 		fmt.Fprintf(b, "\n> 另有 Strict **未闭合** %d 段（买 %d / 卖 %d），未计入上表。\n",
-			inc, eval.BuyEpisodes.IncompleteCount, eval.SellEpisodes.IncompleteCount)
+			inc, incBuy, incSell)
 	}
 }
 

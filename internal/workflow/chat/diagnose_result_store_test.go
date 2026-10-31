@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/chatsession"
@@ -84,6 +85,55 @@ func TestPersistSignalDiagnoseResultStepwiseLabWithoutLabMode(t *testing.T) {
 	resp := MondayAPIResponse(ent)
 	if resp.Lab == nil {
 		t.Fatal("Monday response must include lab when probe has bars (no lab_mode)")
+	}
+}
+
+func TestPersistSignalDiagnoseResultLongOnlyOmitsLabSell(t *testing.T) {
+	rt := runtime.NewSession()
+	td := runtime.TradeDirectionLongOnly
+	rt.InboundPanelOps = &runtime.SignalDiagnoseOpts{TradeDirection: &td}
+	chat := &chatsession.ChatSession{ID: rt.ID, Metadata: map[string]any{}}
+	nBars := 24
+	bars := make([]any, nBars)
+	buyMerged := make([]any, nBars)
+	sellMerged := make([]any, nBars)
+	for i := range bars {
+		bars[i] = map[string]any{"time": "t", "close": float64(i), "open": 1.0, "high": 1.0, "low": 1.0}
+	}
+	buyMerged[3] = 1
+	for i := range sellMerged {
+		if i%3 == 2 {
+			sellMerged[i] = -1
+		}
+	}
+	UpdateSignalDiagnoseResultAfterTool(rt, chat, "probe_bot_signal_series", map[string]any{
+		"code": "000858.SZ", "frequency": "60m", "bars": bars,
+		"buy_merged": buyMerged, "sell_merged": sellMerged,
+	})
+	ent, ok := LookupSignalDiagnoseResult(chat, rt.SignalDiagnoseResultLatest)
+	if !ok || ent == nil {
+		t.Fatal("missing result")
+	}
+	if len(ent.SignalEval.SellDetails) != 0 {
+		t.Fatalf("signal_eval sell details=%d want 0", len(ent.SignalEval.SellDetails))
+	}
+	sellKeys := 0
+	for ref := range ent.LabEpisodeSummaries {
+		if strings.HasPrefix(ref, "sell:") {
+			sellKeys++
+		}
+	}
+	if sellKeys > 0 {
+		t.Fatalf("lab must omit sell:* keys, got %d", sellKeys)
+	}
+	if resp := MondayAPIResponse(ent); resp.Lab != nil {
+		if m, ok := resp.Lab.(strategydev.LabCardEpisodeSummaries); ok {
+			for ref := range m {
+				if strings.HasPrefix(ref, "sell:") {
+					t.Fatalf("Monday lab still has %s", ref)
+				}
+			}
+		}
 	}
 }
 

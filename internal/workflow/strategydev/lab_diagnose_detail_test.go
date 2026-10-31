@@ -67,7 +67,7 @@ func TestLabDetailJEVContextSurvivesPhaseDeadline(t *testing.T) {
 	}
 	jevCtx, jevCancel := labDetailJEVContext(parent, 2*time.Second)
 	defer jevCancel()
-	out := ResolvePriceAnalysisJEV(jevCtx, jev, pa, "buy")
+	out := ResolvePriceAnalysisJEV(jevCtx, jev, pa, "buy", false)
 	if !out.OK {
 		t.Fatalf("expected JEV ok after phase expiry, err=%q", out.Error)
 	}
@@ -78,7 +78,7 @@ func TestLabDetailJEVContextSurvivesPhaseDeadline(t *testing.T) {
 	staleCtx, staleCancel := context.WithTimeout(parent, 30*time.Millisecond)
 	defer staleCancel()
 	time.Sleep(50 * time.Millisecond)
-	staleOut := ResolvePriceAnalysisJEV(staleCtx, jev, pa, "buy")
+	staleOut := ResolvePriceAnalysisJEV(staleCtx, jev, pa, "buy", false)
 	if staleOut.OK {
 		t.Fatal("shared short deadline should fail JEV")
 	}

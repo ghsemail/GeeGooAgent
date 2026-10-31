@@ -52,7 +52,7 @@ func TestSummarizeKlineJEVReasonPayloadIncludesFacts(t *testing.T) {
 
 func TestSummarizeTechnicalAnalysisJEVReasonPayloadIncludesFacts(t *testing.T) {
 	ta := sampleLabTA00700()
-	wantFacts := BuildTechnicalAnalysisJEVState(ta, "sell", "60m")
+	wantFacts := BuildTechnicalAnalysisJEVState(ta, "sell", "60m", false)
 	if wantFacts == "" {
 		t.Fatal("empty ta facts fixture")
 	}

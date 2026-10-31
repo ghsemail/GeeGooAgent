@@ -47,9 +47,9 @@ func TestLabDetailJEVPipelineFourChoiceCalls(t *testing.T) {
 	}
 	in := LabDetailInput{Jev: jev, TAClient: signalclient.NewHTTPClient("http://unused", "k")}
 
-	applyPriceAnalysisJEV(ctx, &detail, "buy", jev)
-	applyKlineJEV(ctx, &detail, "buy", jev)
-	rec := ResolveTechnicalAnalysisJEV(ctx, jev, detail.TechnicalAnalysis, "buy", "60m")
+	applyPriceAnalysisJEV(ctx, &detail, "buy", jev, false)
+	applyKlineJEV(ctx, &detail, "buy", jev, false)
+	rec := ResolveTechnicalAnalysisJEV(ctx, jev, detail.TechnicalAnalysis, "buy", "60m", false)
 	detail.TechnicalAnalysisJEV = &rec
 	applyLabJEVUnified(ctx, &detail, "buy", in)
 

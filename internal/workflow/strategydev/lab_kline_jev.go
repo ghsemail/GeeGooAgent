@@ -27,23 +27,21 @@ var klineJEVCriteria = map[string]string{
 }
 
 // BuildKlineJEVState compresses anchor-bar kline pattern hits into state for JEV 决策.
-func BuildKlineJEVState(kline *LabJEVKlineInput, signalSide string) string {
+func BuildKlineJEVState(kline *LabJEVKlineInput, signalSide string, longOnly bool) string {
 	if labJEVKlineInputEmpty(kline) {
 		return ""
 	}
 	var b strings.Builder
-	side := strings.TrimSpace(signalSide)
-	if side == "buy" {
-		b.WriteString("信号侧：买入触发\n")
-	} else if side == "sell" {
-		b.WriteString("信号侧：卖出触发\n")
+	if heading := LabSignalSideTriggerHeading(signalSide, longOnly); heading != "" {
+		b.WriteString(heading)
+		b.WriteByte('\n')
 	}
 	appendKlinePatternJEVState(&b, kline)
 	return strings.TrimSpace(b.String())
 }
 
 // ResolveKlineJEV calls JEV Choice once; never falls back to local pattern rules.
-func ResolveKlineJEV(ctx context.Context, jev *JevClient, kline *LabJEVKlineInput, signalSide string) KlineJEV {
+func ResolveKlineJEV(ctx context.Context, jev *JevClient, kline *LabJEVKlineInput, signalSide string, longOnly bool) KlineJEV {
 	model := config.DefaultDecisionModel
 	if jev != nil && strings.TrimSpace(jev.cfg.Model) != "" {
 		model = strings.TrimSpace(jev.cfg.Model)
@@ -53,7 +51,7 @@ func ResolveKlineJEV(ctx context.Context, jev *JevClient, kline *LabJEVKlineInpu
 		base.Error = "lab kline decision state empty"
 		return base
 	}
-	state := BuildKlineJEVState(kline, signalSide)
+	state := BuildKlineJEVState(kline, signalSide, longOnly)
 	if state == "" {
 		base.Error = "lab kline decision state empty"
 		return base
@@ -96,7 +94,7 @@ func emptyKlineJEV(model string) KlineJEV {
 	}
 }
 
-func applyKlineJEV(ctx context.Context, out *LabEpisodeDetail, side string, jev *JevClient) {
+func applyKlineJEV(ctx context.Context, out *LabEpisodeDetail, side string, jev *JevClient, longOnly bool) {
 	if out == nil {
 		return
 	}
@@ -104,7 +102,7 @@ func applyKlineJEV(ctx context.Context, out *LabEpisodeDetail, side string, jev 
 	if labJEVKlineInputEmpty(kline) {
 		return
 	}
-	rec := ResolveKlineJEV(ctx, jev, kline, side)
+	rec := ResolveKlineJEV(ctx, jev, kline, side, longOnly)
 	out.KlineJEV = &rec
 }
 

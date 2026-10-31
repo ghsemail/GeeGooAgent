@@ -388,6 +388,9 @@ func ensureSignalDiagnoseCompletionFields(card map[string]any) {
 
 func flowFromEmitCard(card map[string]any, rt *runtime.Session) *Flow {
 	flow := &Flow{Template: SkillSignalDiagnose}
+	if td, ok := card["trade_direction"].(string); ok && strings.EqualFold(strings.TrimSpace(td), "long_only") {
+		flow.TradeDirection = runtime.TradeDirectionLongOnly
+	}
 	if rt != nil && rt.SignalDiagnoseUIPending != nil {
 		p := rt.SignalDiagnoseUIPending
 		flow.ProbeRaw = p.ProbeRaw

@@ -122,6 +122,7 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		TATimeout:     strategydev.DefaultLabDetailTATimeout,
 		JEVTimeout:    strategydev.DefaultLabDetailJEVTimeout,
 		CachedMTF: &flow.LabKlineMTF, SessionID: sessionID, RunID: flow.RunID, Jev: jev,
+		LongOnly: flow.TradeDirection.LongOnlyEpisodeEval(),
 	}, ref)
 	if err != nil {
 		if strategydev.IsBadLabRef(err) {
