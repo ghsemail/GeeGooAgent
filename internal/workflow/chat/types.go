@@ -115,6 +115,7 @@ type Flow struct {
 	BuildDetailSkipped    bool   `json:"build_detail_skipped,omitempty"`
 	BuildDetailSkipReason string `json:"build_detail_skip_reason,omitempty"`
 	CardStage             string `json:"card_stage,omitempty"`
+	DiagnoseUIKey         string `json:"diagnose_ui_key,omitempty"`
 	ProbeRaw            map[string]any `json:"probe_raw,omitempty"`
 	SignalEval          slots.SignalEpisodeEval `json:"signal_eval,omitempty"`
 	UsePriceAnalysisEpisodeFilter bool    `json:"use_price_analysis_episode_filter,omitempty"`

@@ -121,7 +121,7 @@ func (p *composeStreamPublisher) flush(final bool) {
 	}
 	p.flow.EvalJudgment = doc
 	p.flow.CardStage = "compose_stream"
-	p.r.emitCard(p.flow)
+	p.r.emitCard(nil, p.flow)
 	if p.r.OnProgress != nil {
 		p.r.OnProgress("eval_judgment_delta", map[string]any{
 			"run_id": p.flow.RunID, "partial": doc,

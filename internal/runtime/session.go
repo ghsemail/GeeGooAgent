@@ -63,6 +63,10 @@ type Session struct {
 	SignalDiagnoseStickyOpts *SignalDiagnoseOpts
 	// SignalDiagnoseResolveCache maps signalResolveCacheKey → resolved buy/sell (cross-turn lab parity).
 	SignalDiagnoseResolveCache map[string]json.RawMessage `json:"-"`
+	// SignalDiagnoseUIPayloads maps diagnose_ui_key → archived chart_probe + signal_eval (Monday lazy fetch).
+	SignalDiagnoseUIPayloads map[string]json.RawMessage `json:"-"`
+	// SignalDiagnoseUIPending holds the latest full probe payload for emit_workflow_card archival.
+	SignalDiagnoseUIPending *SignalDiagnoseUIPending `json:"-"`
 	// PendingStrategyDevOpts applies to the next strategy_dev_pipeline flow only (not persisted).
 	PendingStrategyDevOpts *StrategyDevOpts
 	// InboundQueueWait is time spent waiting on chatMu before this turn started (not persisted).
@@ -76,6 +80,15 @@ type StrategyDevOpts struct {
 	MonthsBack int    `json:"months_back,omitempty"`
 	UsePriceAnalysisEpisodeFilter *bool    `json:"use_price_analysis_episode_filter,omitempty"`
 	PriceAnalysisScoreThreshold   *float64 `json:"price_analysis_score_threshold,omitempty"`
+}
+
+// SignalDiagnoseUIPending holds the latest full probe payload for chat skill turns (pre-compact).
+type SignalDiagnoseUIPending struct {
+	ProbeRaw   map[string]any
+	StockCode  string
+	Frequency  string
+	MonthsBack int
+	LongOnly   bool
 }
 
 // SignalDiagnoseOpts configures optional signal_diagnose workflow behavior for one turn.

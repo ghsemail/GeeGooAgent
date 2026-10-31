@@ -25,7 +25,7 @@ trigger_modes: chat
 8. **diag_compose**：用主模型根据 probe + diagnose + price_analysis 写综合判断 Markdown（勿编造 probe 未返回的数据）。
 9. **diag_save_kb**：**save_strategy_knowledge** → 信号诊断目录；记录返回的 knowledge id。
 10. **summarize**：向用户输出 Markdown 诊断报告（含知识库 id）。
-11. **UI 卡片**：probe/diagnose 有结果后调用 **emit_workflow_card**，`card.skill=signal_diagnose`，填入 `stock_code`、`strategy_query`、`phase=done`、`diagnose_detail` / probe 命中等（与旧 workflow_card 字段对齐）。
+11. **UI 卡片**：probe/diagnose 有结果后调用 **emit_workflow_card**，`card.skill=signal_diagnose`，`status=completed`，`phase=done`，`card_stage=eval_done`（或与 runner 一致的阶段）。只填**摘要字段**（`stock_code`、`strategy_query`、`diagnose_detail`、probe 命中、`probe_bar_count` 等）；**不要**在 card 里粘贴 `chart_probe.bars` 或完整 `signal_eval`。服务端会在存储完整 K 线 + Episode 后自动写入 **`diagnose_ui_key`**；Monday 用该 key 调 Agent `GET /v1/signal-diagnose/ui-payload` 拉取重数据。
 
 ## 工具参数要点
 

@@ -60,7 +60,8 @@ func registerSkillViewTools(r *Registry, deps Deps) {
 	r.Register(Tool{
 		Name: "emit_workflow_card",
 		Description: "Emit a workflow_card SSE payload for Monday / strategy UI when following a guided skill without run_chat_workflow_turn. " +
-			"Pass the card object (skill, phase, status, probe/diagnose fields as available).",
+			"For signal_diagnose, pass summary fields only (stock_code, strategy_query, phase, status, diagnose_detail, probe hits); " +
+			"do not embed chart_probe.bars or signal_eval — the server attaches diagnose_ui_key after storing rich payload.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -75,6 +76,9 @@ func registerSkillViewTools(r *Registry, deps Deps) {
 			raw, _ := args["card"].(map[string]any)
 			if len(raw) == 0 {
 				return Result{Status: StatusError, Summary: "card object required"}
+			}
+			if deps.PrepareWorkflowCardEmit != nil {
+				raw = deps.PrepareWorkflowCardEmit(ctx, raw)
 			}
 			if ctx.Progress != nil {
 				ctx.Progress("workflow_card", raw)

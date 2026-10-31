@@ -251,7 +251,7 @@ func (r *Runner) phaseProbeForeach(ctx context.Context, flow *Flow, toolCtx tool
 			continue
 		}
 		item.Status = StepRunning
-		r.emitCard(flow)
+		r.emitCard(nil, flow)
 		var lastErr error
 		for attempt := 0; attempt <= maxStepRetries; attempt++ {
 			item.Attempts = attempt + 1
@@ -262,7 +262,7 @@ func (r *Runner) phaseProbeForeach(ctx context.Context, flow *Flow, toolCtx tool
 				flow.Cursor = i + 1
 				flow.PartialReport = renderPartialReport(flow)
 				flow.touch()
-				r.emitCard(flow)
+				r.emitCard(nil, flow)
 				lastErr = nil
 				break
 			}
@@ -273,7 +273,7 @@ func (r *Runner) phaseProbeForeach(ctx context.Context, flow *Flow, toolCtx tool
 			item.Status = StepSkipped
 			flow.PartialReport = renderPartialReport(flow)
 			flow.touch()
-			r.emitCard(flow)
+			r.emitCard(nil, flow)
 			if r.OnProgress != nil {
 				r.OnProgress("workflow_step_skipped", map[string]any{
 					"strategy": item.Label,
