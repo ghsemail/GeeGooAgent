@@ -5,6 +5,7 @@ import (
 
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
+	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
 // BenchmarkComposeFlow is a representative flow for compose latency benchmarks (AAPL-like).
@@ -43,18 +44,24 @@ func BuildSignalDiagnoseComposeMessages(flow *Flow) []llm.Message {
 }
 
 func buildSignalDiagnoseComposeUserPrompt(flow *Flow, label, freq string) string {
+	longOnlyNote := ""
+	if flow.TradeDirection.LongOnlyEpisodeEval() {
+		longOnlyNote = "\ntrade_direction=long_only（只做多；probe 卖次为平多卖出信号，勿表述为做空 Episode 或「卖出触发 N 次」暗示开空）"
+	}
 	return fmt.Sprintf(`请用完整、正式的中文写信号诊断评价（可分段落，勿编造数字；不要输出英文推理或草稿，只输出最终中文正文）：
 
 策略 %s（%s）· %s %s · %s / %d月
-probe 买%d/卖%d（%d根K）
+probe %s（%d根K）
 diagnose：%s — %s
-Episode：%s`,
+Episode：%s%s`,
 		label, flow.CatalogType,
 		flow.StockName, flow.StockCode,
 		freq, flow.MonthsBack,
-		flow.ProbeBuyHits, flow.ProbeSellHits, flow.ProbeBarCount,
+		strategydev.SignalDiagnoseProbeHitLine(flow.TradeDirection.LongOnlyEpisodeEval(), flow.ProbeBuyHits, flow.ProbeSellHits),
+		flow.ProbeBarCount,
 		flow.DiagnoseVerdict, flow.DiagnoseSummary,
 		slots.FormatEvalMetricsJSON(flow.SignalEval),
+		longOnlyNote,
 	)
 }
 

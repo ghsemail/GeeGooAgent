@@ -32,7 +32,8 @@ func BuildPriceFilterInterceptionBasis(pf PriceFilterResult) string {
 }
 
 // AppendPriceEpisodeFilterMarkdown writes the full stripped-trigger section for diagnose reports.
-func AppendPriceEpisodeFilterMarkdown(b *strings.Builder, pf *PriceFilterResult, stats *EpisodeTriggerFilterStats) {
+// When longOnly is true, sell-side trigger ledgers are omitted (probe 卖次为平多信号，非做空 Episode).
+func AppendPriceEpisodeFilterMarkdown(b *strings.Builder, pf *PriceFilterResult, stats *EpisodeTriggerFilterStats, longOnly bool) {
 	if pf == nil || stats == nil {
 		return
 	}
@@ -57,21 +58,34 @@ func AppendPriceEpisodeFilterMarkdown(b *strings.Builder, pf *PriceFilterResult,
 	if basis := strings.TrimSpace(stats.InterceptionBasis); basis != "" {
 		fmt.Fprintf(b, "- **拦截依据**：%s\n", basis)
 	}
-	fmt.Fprintf(b, "- **触发计数**：过滤前 买 %d / 卖 %d → 掩码剔除 买 %d / 卖 %d → 过滤后 买 %d / 卖 %d",
-		stats.PreFilterBuyHits, stats.PreFilterSellHits,
-		stats.StrippedBuy, stats.StrippedSell,
-		stats.PostFilterBuyHits, stats.PostFilterSellHits)
-	if stats.PostFilterBuyEpisodes > 0 || stats.PostFilterSellEpisodes > 0 ||
-		stats.PostFilterBuyEpisodesComplete > 0 || stats.PostFilterSellEpisodesComplete > 0 {
-		fmt.Fprintf(b, " → Episode 买 %d 段（闭合 %d）/ 卖 %d 段（闭合 %d）",
-			stats.PostFilterBuyEpisodes, stats.PostFilterBuyEpisodesComplete,
-			stats.PostFilterSellEpisodes, stats.PostFilterSellEpisodesComplete)
+	if longOnly {
+		fmt.Fprintf(b, "- **触发计数（只做多）**：过滤前 买 %d → 掩码剔除 买 %d → 过滤后 买 %d",
+			stats.PreFilterBuyHits, stats.StrippedBuy, stats.PostFilterBuyHits)
+		if stats.PostFilterBuyEpisodes > 0 || stats.PostFilterBuyEpisodesComplete > 0 {
+			fmt.Fprintf(b, " → Episode 买 %d 段（闭合 %d）",
+				stats.PostFilterBuyEpisodes, stats.PostFilterBuyEpisodesComplete)
+		}
+	} else {
+		fmt.Fprintf(b, "- **触发计数**：过滤前 买 %d / 卖 %d → 掩码剔除 买 %d / 卖 %d → 过滤后 买 %d / 卖 %d",
+			stats.PreFilterBuyHits, stats.PreFilterSellHits,
+			stats.StrippedBuy, stats.StrippedSell,
+			stats.PostFilterBuyHits, stats.PostFilterSellHits)
+		if stats.PostFilterBuyEpisodes > 0 || stats.PostFilterSellEpisodes > 0 ||
+			stats.PostFilterBuyEpisodesComplete > 0 || stats.PostFilterSellEpisodesComplete > 0 {
+			fmt.Fprintf(b, " → Episode 买 %d 段（闭合 %d）/ 卖 %d 段（闭合 %d）",
+				stats.PostFilterBuyEpisodes, stats.PostFilterBuyEpisodesComplete,
+				stats.PostFilterSellEpisodes, stats.PostFilterSellEpisodesComplete)
+		}
 	}
 	fmt.Fprintf(b, "\n")
 	appendStrippedTriggerList(b, "被掩码剔除的买入触发", stats.StrippedBuyTriggers)
-	appendStrippedTriggerList(b, "被掩码剔除的卖出触发", stats.StrippedSellTriggers)
+	if !longOnly {
+		appendStrippedTriggerList(b, "被掩码剔除的卖出触发", stats.StrippedSellTriggers)
+	}
 	appendEpisodeTriggerRecords(b, "全部买入触发（含掩码）", stats.BuyTriggers)
-	appendEpisodeTriggerRecords(b, "全部卖出触发（含掩码）", stats.SellTriggers)
+	if !longOnly {
+		appendEpisodeTriggerRecords(b, "全部卖出触发（含掩码）", stats.SellTriggers)
+	}
 }
 
 func appendEpisodeTriggerRecords(b *strings.Builder, title string, items []EpisodeTriggerRecord) {

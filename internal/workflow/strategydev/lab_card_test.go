@@ -15,7 +15,7 @@ func TestBuildLabCardSummariesFromMergedTriggers(t *testing.T) {
 	}
 	buy := []any{0, 1, 0}
 	sell := []any{0, 0, -1}
-	out := BuildLabCardSummariesFromMerged(bars, buy, sell, nil, "")
+	out := BuildLabCardSummariesFromMerged(bars, buy, sell, nil, "", false)
 	if len(out) != 2 {
 		t.Fatalf("summaries=%d", len(out))
 	}
@@ -35,7 +35,7 @@ func TestBuildLabCardSummariesFromEval_RefUsesStartIdxNotEpisodeIndex(t *testing
 		eval.SellDetails[i].StartIdx = 100 + i*10
 	}
 	eval.SellDetails[7].StartIdx = 190
-	out := BuildLabCardSummariesFromEval(eval, nil, "")
+	out := BuildLabCardSummariesFromEval(eval, nil, "", false)
 	ref := LabDetailRef("sell", 190)
 	sum, ok := out[ref]
 	if !ok {
@@ -56,7 +56,7 @@ func TestBuildLabCardSummariesFromEval_EpisodeIndexZeroInJSON(t *testing.T) {
 	eval := slots.SignalEpisodeEval{
 		SellDetails: []slots.SignalEpisodeDetail{{StartIdx: 77}},
 	}
-	out := BuildLabCardSummariesFromEval(eval, nil, "")
+	out := BuildLabCardSummariesFromEval(eval, nil, "", false)
 	sum := out[LabDetailRef("sell", 77)]
 	raw, err := json.Marshal(sum)
 	if err != nil {
@@ -75,17 +75,31 @@ func TestBuildLabCardSummariesFromEval_EpisodeIndexZeroInJSON(t *testing.T) {
 	}
 }
 
+func TestBuildLabCardSummariesFromMergedLongOnlyOmitsSell(t *testing.T) {
+	bars := []any{map[string]any{"close": 1.0}, map[string]any{"close": 2.0}}
+	buy := []any{0, 1}
+	sell := []any{0, -1}
+	out := BuildLabCardSummariesFromMerged(bars, buy, sell, nil, "", true)
+	if _, ok := out[LabDetailRef("sell", 1)]; ok {
+		t.Fatal("long_only must omit sell trigger refs")
+	}
+	if _, ok := out[LabDetailRef("buy", 1)]; !ok {
+		t.Fatal("expected buy ref")
+	}
+}
+
 func TestMergeLabCardSummariesEvalWins(t *testing.T) {
 	eval := slots.SignalEpisodeEval{
 		BuyDetails: []slots.SignalEpisodeDetail{{StartIdx: 1}},
 	}
-	fromEval := BuildLabCardSummariesFromEval(eval, nil, "flow-price")
+	fromEval := BuildLabCardSummariesFromEval(eval, nil, "flow-price", false)
 	fromMerged := BuildLabCardSummariesFromMerged(
 		[]any{map[string]any{}, map[string]any{}},
 		[]any{0, 1},
 		[]any{0, 0},
 		nil,
 		"merged-price",
+		false,
 	)
 	merged := MergeLabCardSummaries(fromEval, fromMerged)
 	ref := LabDetailRef("buy", 1)

@@ -76,7 +76,7 @@ func TestBuildLabJEVUnifiedStateFactsAndOmittedLeg(t *testing.T) {
 		reason:  "指标偏空",
 		choices: []PriceAnalysisJEVChoice{{Label: "看空", Probability: 0.6}},
 	}}
-	state := BuildLabJEVUnifiedState(plan, legs, "buy")
+	state := BuildLabJEVUnifiedState(plan, legs, "buy", false)
 	if !strings.Contains(state, "基础事实摘要") {
 		t.Fatalf("missing facts: %q", state)
 	}

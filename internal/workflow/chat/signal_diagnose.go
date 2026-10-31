@@ -541,7 +541,7 @@ func renderSignalDiagnosePartial(flow *Flow) string {
 	}
 	appendProbePanelConfigLines(&b, flow)
 	if flow.ProbeBuyHits > 0 || flow.ProbeSellHits > 0 || flow.Phase == PhaseBuildDetail || flow.Phase == PhaseSummarize {
-		fmt.Fprintf(&b, "- 信号测试（probe）：买入 %d 次 / 卖出 %d 次\n", flow.ProbeBuyHits, flow.ProbeSellHits)
+		fmt.Fprintf(&b, "- 信号测试（probe）：%s\n", strategydev.SignalDiagnoseProbeHitLine(flow.TradeDirection.LongOnlyEpisodeEval(), flow.ProbeBuyHits, flow.ProbeSellHits))
 	}
 	return strings.TrimSpace(b.String())
 }

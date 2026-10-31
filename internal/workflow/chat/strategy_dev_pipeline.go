@@ -142,7 +142,7 @@ func renderStrategyDevPipelineReport(flow *Flow) string {
 					st.PostFilterBuyHits, st.PostFilterSellHits)
 			}
 			fmt.Fprintf(&b, "| 5 诊断（价格过滤） | %s |\n", line)
-			strategydev.AppendPriceEpisodeFilterMarkdown(&b, r.PriceFilter, r.PriceEpisodeFilterStats)
+			strategydev.AppendPriceEpisodeFilterMarkdown(&b, r.PriceFilter, r.PriceEpisodeFilterStats, false)
 		}
 		if r.PriceAnalysis != nil {
 			strategydev.AppendPriceAnalysisMarkdown(&b, r.PriceAnalysis)

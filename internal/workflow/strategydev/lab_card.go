@@ -1,6 +1,8 @@
 package strategydev
 
 import (
+	"strings"
+
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
@@ -8,7 +10,7 @@ import (
 type LabCardEpisodeSummaries map[string]LabEpisodeCardSummary
 
 // BuildLabCardSummariesFromEval builds lightweight lab lines for each episode start bar.
-func BuildLabCardSummariesFromEval(eval slots.SignalEpisodeEval, patternHits []any, flowPriceSummary string) LabCardEpisodeSummaries {
+func BuildLabCardSummariesFromEval(eval slots.SignalEpisodeEval, patternHits []any, flowPriceSummary string, longOnly bool) LabCardEpisodeSummaries {
 	out := LabCardEpisodeSummaries{}
 	appendSide := func(side string, details []slots.SignalEpisodeDetail) {
 		for epIdx, d := range details {
@@ -27,12 +29,15 @@ func BuildLabCardSummariesFromEval(eval slots.SignalEpisodeEval, patternHits []a
 		}
 	}
 	appendSide("buy", eval.BuyDetails)
-	appendSide("sell", eval.SellDetails)
+	if !longOnly {
+		appendSide("sell", eval.SellDetails)
+	}
 	return out
 }
 
 // BuildLabCardSummariesFromMerged adds detail_ref rows for each buy/sell trigger bar (episode-independent).
-func BuildLabCardSummariesFromMerged(bars, buyMerged, sellMerged, patternHits []any, flowPriceSummary string) LabCardEpisodeSummaries {
+// When longOnly is true, sell-side trigger rows are omitted (matches signal_eval long_only cohorts).
+func BuildLabCardSummariesFromMerged(bars, buyMerged, sellMerged, patternHits []any, flowPriceSummary string, longOnly bool) LabCardEpisodeSummaries {
 	out := LabCardEpisodeSummaries{}
 	n := len(bars)
 	if n == 0 {
@@ -53,7 +58,24 @@ func BuildLabCardSummariesFromMerged(bars, buyMerged, sellMerged, patternHits []
 		}
 	}
 	add("buy", buyMerged, 1)
-	add("sell", sellMerged, -1)
+	if !longOnly {
+		add("sell", sellMerged, -1)
+	}
+	return out
+}
+
+// FilterLabCardSummariesForLongOnly drops sell:* refs from lab episode lists (Persist / Monday lab panel).
+func FilterLabCardSummariesForLongOnly(sums LabCardEpisodeSummaries, longOnly bool) LabCardEpisodeSummaries {
+	if !longOnly || len(sums) == 0 {
+		return sums
+	}
+	out := LabCardEpisodeSummaries{}
+	for k, v := range sums {
+		if strings.HasPrefix(k, "sell:") {
+			continue
+		}
+		out[k] = v
+	}
 	return out
 }
 

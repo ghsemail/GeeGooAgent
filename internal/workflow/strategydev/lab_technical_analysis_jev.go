@@ -15,7 +15,7 @@ var technicalAnalysisJEVCriteria = map[string]string{
 }
 
 // BuildTechnicalAnalysisJEVState compresses multi-TF Elder indicators into state for JEV 决策.
-func BuildTechnicalAnalysisJEVState(ta *LabTechnicalAnalysis, signalSide, signalFreq string) string {
+func BuildTechnicalAnalysisJEVState(ta *LabTechnicalAnalysis, signalSide, signalFreq string, longOnly bool) string {
 	if ta == nil || len(ta.Timeframes) == 0 {
 		return ""
 	}
@@ -52,11 +52,10 @@ func BuildTechnicalAnalysisJEVState(ta *LabTechnicalAnalysis, signalSide, signal
 		}
 		appendLabTAIndicators(&b, labTATimeframeLabel(key), tf.Indicators)
 	}
-	side := strings.TrimSpace(signalSide)
-	if side == "buy" {
-		b.WriteString("\n信号侧：买入触发\n")
-	} else if side == "sell" {
-		b.WriteString("\n信号侧：卖出触发\n")
+	if heading := LabSignalSideTriggerHeading(signalSide, longOnly); heading != "" {
+		b.WriteString("\n")
+		b.WriteString(heading)
+		b.WriteByte('\n')
 	}
 	b.WriteString("\n规则提示：日线定方向，信号周期过滤；价值区=EMA13与EMA26之间；Impulse 由 EMA13 斜率与 MACD 柱斜率同向绿/反向蓝/冲突红。\n")
 	return strings.TrimSpace(b.String())
@@ -86,7 +85,7 @@ func priceanalysisLabFreq(sig string) string {
 }
 
 // ResolveTechnicalAnalysisJEV calls JEV Choice once; never falls back to local indicator rules.
-func ResolveTechnicalAnalysisJEV(ctx context.Context, jev *JevClient, ta *LabTechnicalAnalysis, signalSide, signalFreq string) TechnicalAnalysisJEV {
+func ResolveTechnicalAnalysisJEV(ctx context.Context, jev *JevClient, ta *LabTechnicalAnalysis, signalSide, signalFreq string, longOnly bool) TechnicalAnalysisJEV {
 	model := config.DefaultDecisionModel
 	if jev != nil && strings.TrimSpace(jev.cfg.Model) != "" {
 		model = strings.TrimSpace(jev.cfg.Model)
@@ -100,7 +99,7 @@ func ResolveTechnicalAnalysisJEV(ctx context.Context, jev *JevClient, ta *LabTec
 		}
 		return base
 	}
-	state := BuildTechnicalAnalysisJEVState(ta, signalSide, signalFreq)
+	state := BuildTechnicalAnalysisJEVState(ta, signalSide, signalFreq, longOnly)
 	if state == "" {
 		base.Error = "lab technical-analysis state empty"
 		return base

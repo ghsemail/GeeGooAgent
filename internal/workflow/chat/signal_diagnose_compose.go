@@ -289,7 +289,7 @@ func fallbackSignalDiagnoseJudgment(flow *Flow) string {
 		fmt.Fprintf(&b, " 买入 %d 段闭合 episode 命中率 %.0f%%（均收益 %s）。",
 			buy.CompleteCount, buy.HitRate*100, slots.FormatPct(buy.AvgReturn))
 	}
-	if sell.CompleteCount > 0 {
+	if sell.CompleteCount > 0 && !flow.TradeDirection.LongOnlyEpisodeEval() {
 		fmt.Fprintf(&b, " 卖出 %d 段闭合 episode 命中率 %.0f%%（均收益 %s）。",
 			sell.CompleteCount, sell.HitRate*100, slots.FormatPct(sell.AvgReturn))
 	}
@@ -300,7 +300,7 @@ func fallbackSignalDiagnoseJudgment(flow *Flow) string {
 		fmt.Fprintf(&b, " Path 买入 %d 段命中率 %.0f%%（均 peak %s，均 maxDD %s）。",
 			pathBuy.CompleteCount, pathBuy.HitRate*100, slots.FormatPct(pathBuy.AvgPeakReturn), slots.FormatPct(pathBuy.AvgMaxDrawdown))
 	}
-	if pathSell.CompleteCount > 0 {
+	if pathSell.CompleteCount > 0 && !flow.TradeDirection.LongOnlyEpisodeEval() {
 		fmt.Fprintf(&b, " Path 卖出 %d 段命中率 %.0f%%。",
 			pathSell.CompleteCount, pathSell.HitRate*100)
 	}
@@ -317,8 +317,8 @@ func assembleSignalDiagnoseDoc(flow *Flow, judgment string) string {
 	b.WriteString(renderSignalDiagnoseFacts(flow))
 	appendSignalEvalMethodology(&b)
 	appendKlineOverviewSection(&b, flow)
-	appendSignalEvalSection(&b, flow.SignalEval)
-	appendEpisodeDetailSections(&b, flow.SignalEval)
+	appendSignalEvalSectionForFlow(&b, flow)
+	appendEpisodeDetailSectionsForFlow(&b, flow)
 	fmt.Fprintf(&b, "\n### Agent 评价\n\n%s\n", strings.TrimSpace(judgment))
 	appendDiagnoseRuleDetails(&b, flow.DiagnoseRaw)
 	if skipSignalDiagnoseKB() {
@@ -353,7 +353,7 @@ func renderSignalDiagnoseFactsEx(flow *Flow, compact bool) string {
 		freq = flow.Strategies[0].Frequency
 	}
 	fmt.Fprintf(&b, "| 周期 / 回溯 | %s / %d 月 |\n", freq, flow.MonthsBack)
-	fmt.Fprintf(&b, "| 信号测试 probe | 买入 %d 次 / 卖出 %d 次", flow.ProbeBuyHits, flow.ProbeSellHits)
+	fmt.Fprintf(&b, "| 信号测试 probe | %s", strategydev.SignalDiagnoseProbeHitLine(flow.TradeDirection.LongOnlyEpisodeEval(), flow.ProbeBuyHits, flow.ProbeSellHits))
 	if flow.ProbeBarCount > 0 {
 		fmt.Fprintf(&b, "（%d 根 K 线）", flow.ProbeBarCount)
 	}
@@ -376,7 +376,7 @@ func renderSignalDiagnoseFactsEx(flow *Flow, compact bool) string {
 	if !compact {
 		if st := flow.PriceEpisodeFilterStats; flow.UsePriceAnalysisEpisodeFilter ||
 			(st != nil && (st.StrippedBuy > 0 || st.StrippedSell > 0 || len(st.BuyTriggers) > 0 || len(st.SellTriggers) > 0)) {
-			strategydev.AppendPriceEpisodeFilterMarkdown(&b, flow.PriceFilter, flow.PriceEpisodeFilterStats)
+			strategydev.AppendPriceEpisodeFilterMarkdown(&b, flow.PriceFilter, flow.PriceEpisodeFilterStats, flow.TradeDirection.LongOnlyEpisodeEval())
 		}
 		strategydev.AppendPriceAnalysisMarkdown(&b, flow.PriceAnalysis)
 	}
@@ -401,16 +401,31 @@ func appendSignalEvalMethodology(b *strings.Builder) {
 }
 
 func appendSignalEvalSection(b *strings.Builder, eval slots.SignalEpisodeEval) {
+	appendSignalEvalSectionEx(b, eval, false)
+}
+
+func appendSignalEvalSectionForFlow(b *strings.Builder, flow *Flow) {
+	if flow == nil {
+		return
+	}
+	appendSignalEvalSectionEx(b, flow.SignalEval, flow.TradeDirection.LongOnlyEpisodeEval())
+}
+
+func appendSignalEvalSectionEx(b *strings.Builder, eval slots.SignalEpisodeEval, longOnly bool) {
 	fmt.Fprintf(b, "\n### 汇总 · Strict（%s · 至反向信号）\n\n", eval.Method)
 	fmt.Fprintf(b, "| 方向 | 闭合段 | 未闭合 | 命中/闭合 | 命中率 | 均方向收益 | 中位方向收益 | 均持有K线 | 中位持有K线 |\n")
 	fmt.Fprintf(b, "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	writeEvalRow(b, "买入", eval.BuyEpisodes)
-	writeEvalRow(b, "卖出", eval.SellEpisodes)
+	if !longOnly {
+		writeEvalRow(b, "卖出", eval.SellEpisodes)
+	}
 	fmt.Fprintf(b, "\n### 汇总 · Path（诊断：至下一同向或样本末）\n\n")
 	fmt.Fprintf(b, "| 方向 | 段数 | 命中/段 | 命中率 | 均方向收益 | 均 peak | 均 maxDD(自高点) | 均持有K线 |\n")
 	fmt.Fprintf(b, "| --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	writePathEvalRow(b, "买入", eval.BuyPathEpisodes)
-	writePathEvalRow(b, "卖出", eval.SellPathEpisodes)
+	if !longOnly {
+		writePathEvalRow(b, "卖出", eval.SellPathEpisodes)
+	}
 }
 
 func writeEvalRow(b *strings.Builder, label string, m slots.SignalEpisodeMetrics) {
@@ -435,6 +450,16 @@ func writeEvalRow(b *strings.Builder, label string, m slots.SignalEpisodeMetrics
 func appendEpisodeDetailSections(b *strings.Builder, eval slots.SignalEpisodeEval) {
 	appendEpisodeDetailTable(b, "买入 Episode 明细", eval.BuyDetails)
 	appendEpisodeDetailTable(b, "卖出 Episode 明细", eval.SellDetails)
+}
+
+func appendEpisodeDetailSectionsForFlow(b *strings.Builder, flow *Flow) {
+	if flow == nil {
+		return
+	}
+	appendEpisodeDetailTable(b, "买入 Episode 明细", flow.SignalEval.BuyDetails)
+	if !flow.TradeDirection.LongOnlyEpisodeEval() {
+		appendEpisodeDetailTable(b, "卖出 Episode 明细", flow.SignalEval.SellDetails)
+	}
 }
 
 func writePathEvalRow(b *strings.Builder, label string, m slots.SignalEpisodeMetrics) {

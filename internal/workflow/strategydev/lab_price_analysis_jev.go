@@ -56,7 +56,7 @@ type LabJEVKlineInput struct {
 }
 
 // BuildPriceAnalysisJEVState compresses multi-TF PA into state for JEV 决策 (no kline patterns).
-func BuildPriceAnalysisJEVState(pa *PriceAnalysis, signalSide string) string {
+func BuildPriceAnalysisJEVState(pa *PriceAnalysis, signalSide string, longOnly bool) string {
 	var b strings.Builder
 	if pa != nil {
 		if c := strings.TrimSpace(pa.Code); c != "" {
@@ -93,11 +93,9 @@ func BuildPriceAnalysisJEVState(pa *PriceAnalysis, signalSide string) string {
 			b.WriteByte('\n')
 		}
 	}
-	side := strings.TrimSpace(signalSide)
-	if side == "buy" {
-		b.WriteString("信号侧：买入触发\n")
-	} else if side == "sell" {
-		b.WriteString("信号侧：卖出触发\n")
+	if heading := LabSignalSideTriggerHeading(signalSide, longOnly); heading != "" {
+		b.WriteString(heading)
+		b.WriteByte('\n')
 	}
 	return strings.TrimSpace(b.String())
 }
@@ -303,7 +301,7 @@ func labPAInformative(pa *PriceAnalysis) bool {
 }
 
 // ResolvePriceAnalysisJEV calls JEV Choice once; never falls back to local PA rules.
-func ResolvePriceAnalysisJEV(ctx context.Context, jev *JevClient, pa *PriceAnalysis, signalSide string) PriceAnalysisJEV {
+func ResolvePriceAnalysisJEV(ctx context.Context, jev *JevClient, pa *PriceAnalysis, signalSide string, longOnly bool) PriceAnalysisJEV {
 	model := config.DefaultDecisionModel
 	if jev != nil && strings.TrimSpace(jev.cfg.Model) != "" {
 		model = strings.TrimSpace(jev.cfg.Model)
@@ -313,7 +311,7 @@ func ResolvePriceAnalysisJEV(ctx context.Context, jev *JevClient, pa *PriceAnaly
 		base.Error = "lab decision state empty"
 		return base
 	}
-	state := BuildPriceAnalysisJEVState(pa, signalSide)
+	state := BuildPriceAnalysisJEVState(pa, signalSide, longOnly)
 	if state == "" {
 		base.Error = "lab decision state empty"
 		return base
@@ -379,11 +377,11 @@ func indexPriceAnalysisJEVLabel(label string) (int, bool) {
 	return 0, false
 }
 
-func applyPriceAnalysisJEV(ctx context.Context, out *LabEpisodeDetail, side string, jev *JevClient) {
+func applyPriceAnalysisJEV(ctx context.Context, out *LabEpisodeDetail, side string, jev *JevClient, longOnly bool) {
 	if out == nil || out.PriceAnalysis == nil || !labPAInformative(out.PriceAnalysis) {
 		return
 	}
-	rec := ResolvePriceAnalysisJEV(ctx, jev, out.PriceAnalysis, side)
+	rec := ResolvePriceAnalysisJEV(ctx, jev, out.PriceAnalysis, side, longOnly)
 	out.PriceAnalysisJEV = &rec
 	if out.PriceAnalysis != nil {
 		out.PriceAnalysis.PriceAnalysisJEV = &rec

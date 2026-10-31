@@ -5,6 +5,22 @@ import (
 	"testing"
 )
 
+func TestAppendPriceEpisodeFilterMarkdownLongOnlyOmitsSellLedger(t *testing.T) {
+	pf := &PriceFilterResult{Regime: RegimeUp, Side: "long", AllowLong: true, AllowShort: false}
+	st := &EpisodeTriggerFilterStats{
+		PreFilterBuyHits: 2, PreFilterSellHits: 5,
+		StrippedBuy: 1, StrippedSell: 0,
+		PostFilterBuyHits: 1, PostFilterSellHits: 5,
+		SellTriggers: []EpisodeTriggerRecord{{Time: "t", Close: 1}},
+	}
+	var b strings.Builder
+	AppendPriceEpisodeFilterMarkdown(&b, pf, st, true)
+	out := b.String()
+	if strings.Contains(out, "全部卖出触发") {
+		t.Fatalf("long_only report must not list sell triggers: %s", out)
+	}
+}
+
 func TestAppendPriceEpisodeFilterMarkdownAllStripped(t *testing.T) {
 	pf := &PriceFilterResult{
 		Regime: RegimeUnclear, Side: SideNone,
@@ -25,7 +41,7 @@ func TestAppendPriceEpisodeFilterMarkdownAllStripped(t *testing.T) {
 		},
 	}
 	var b strings.Builder
-	AppendPriceEpisodeFilterMarkdown(&b, pf, st)
+	AppendPriceEpisodeFilterMarkdown(&b, pf, st, false)
 	out := b.String()
 	for _, want := range []string{
 		"剔除明细", "拦截依据", "不明确", "被掩码剔除的买入触发", "被掩码剔除的卖出触发",
