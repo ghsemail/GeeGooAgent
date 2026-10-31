@@ -50,7 +50,19 @@ go run scripts/eval/sync_eval_cases_local.go -db D:/path/to/geegoo.db
 # Workflow eval（PG seed + live smoke）
 python scripts/eval/migrate_workflow_eval_db.py
 python scripts/eval/run_workflow_generate_cognition_random_remote.py
+python scripts/eval/run_workflow_signal_diagnose_remote.py
 ```
+
+## Workflow eval 与 Chat Loop（#106）
+
+PR #106 后默认 Chat Loop 为 `skill_injection=catalog`、`chat_open_flow_tool` 关闭。**#106 回归绿线**建议只跑默认路径用例 `workflow_signal_diagnose_sar_tencent`（`run_workflow_signal_diagnose_live.py` / remote 包装）。
+
+| 用例 | 说明 |
+|------|------|
+| `workflow_signal_diagnose_sar_tencent` | 默认绿线：以诊断回复长度 + 关键词为准；`workflow_card` / `skill_view` / Episode 均为可选观察，live 脚本对缺 card 仅 WARN |
+| `workflow_generate_strategy_cognition` 等标题含 **legacy open-flow** | 仍假设旧 `run_chat_workflow_turn` / Workflow Runner；全量 Workflow 自动测评在默认 Loop 下可能假红，跑前需临时开 open-flow 或排除这些 case |
+
+**Verify 语义**：Dashboard `pass_keywords` 为命中**任一**即过（OR）；`run_workflow_signal_diagnose_live.py` 冒烟对 SAR·腾讯 用 **AND**，且要求诊断/命中/触发至少其一 — 以 live 脚本为准。
 
 ## 源码位置
 
