@@ -158,10 +158,12 @@ func loadSignalDiagnoseResultsIntoSession(chat *chatsession.ChatSession, rt *run
 
 // SignalDiagnoseResultMondayResponse is the POST /v1/signal-diagnose/result body (trading_operation PR #57).
 type SignalDiagnoseResultMondayResponse struct {
-	ChartProbe   map[string]any          `json:"chart_probe,omitempty"`
-	SignalEval   slots.SignalEpisodeEval `json:"signal_eval,omitempty"`
-	EvalJudgment string                  `json:"eval_judgment,omitempty"`
-	Lab          any                     `json:"lab,omitempty"`
+	RunID          string                  `json:"run_id,omitempty"`
+	TradeDirection runtime.TradeDirection  `json:"trade_direction"`
+	ChartProbe     map[string]any          `json:"chart_probe,omitempty"`
+	SignalEval     slots.SignalEpisodeEval `json:"signal_eval,omitempty"`
+	EvalJudgment   string                  `json:"eval_judgment,omitempty"`
+	Lab            any                     `json:"lab,omitempty"`
 }
 
 // MondayAPIResponse builds the Monday client field set (no ui-payload fallback).
@@ -172,6 +174,14 @@ func MondayAPIResponse(ent *SignalDiagnoseResult) SignalDiagnoseResultMondayResp
 	out := SignalDiagnoseResultMondayResponse{
 		ChartProbe: ent.ChartProbe,
 		SignalEval: ent.SignalEval,
+	}
+	if s := strings.TrimSpace(ent.RunID); s != "" {
+		out.RunID = s
+	}
+	if td := strings.TrimSpace(string(ent.TradeDirection)); td != "" {
+		out.TradeDirection = ent.TradeDirection
+	} else {
+		out.TradeDirection = runtime.TradeDirectionBoth
 	}
 	if s := strings.TrimSpace(ent.EvalJudgment); s != "" {
 		out.EvalJudgment = s
