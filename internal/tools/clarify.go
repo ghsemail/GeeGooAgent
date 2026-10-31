@@ -59,6 +59,15 @@ func handleClarify(ctx Context, args map[string]any) Result {
 			Data:    map[string]any{"user_response": "(dry-run)"},
 		}
 	}
+	if ctx.RuntimeSession != nil && bypassPanelFrequencyClarify != nil {
+		if ans, bypass := bypassPanelFrequencyClarify(ctx.RuntimeSession, question, choices); bypass {
+			return Result{
+				Status:  StatusOK,
+				Summary: ans,
+				Data:    map[string]any{"user_response": ans, "panel_frequency_bypass": true},
+			}
+		}
+	}
 	if ctx.ClarifyFn == nil {
 		return Result{Status: StatusError, Summary: "clarify 未配置（当前环境无用户输入回调）"}
 	}
