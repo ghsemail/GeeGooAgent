@@ -75,8 +75,8 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusNotFound, "lab diagnose snapshot not found or expired")
 		return
 	}
-	if !flow.LabMode {
-		writeError(w, http.StatusBadRequest, "lab_mode is off for this diagnose run")
+	if !workflowchat.FlowSupportsLabDetail(flow) {
+		writeError(w, http.StatusBadRequest, "diagnose run has no probe bars for lab detail")
 		return
 	}
 	if cached, ok := workflowchat.CachedLabEpisodeDetail(chat, runID, ref); ok {

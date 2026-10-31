@@ -201,12 +201,31 @@ func LookupSignalDiagnoseResultForMonday(chat *chatsession.ChatSession, runID st
 	if runID == "" {
 		return LookupSignalDiagnoseResult(chat, "")
 	}
-	if chat == nil {
+	if ent, ok := lookupSignalDiagnoseResultByRunOrKey(chat, runID); ok {
+		return ent, true
+	}
+	return fallbackSignalDiagnoseResultWhenRunIDUnknown(chat, runID)
+}
+
+// LookupSignalDiagnoseResultForLabDetail resolves Persist Result for lab-detail (same as Monday result, plus single-result fallback).
+func LookupSignalDiagnoseResultForLabDetail(chat *chatsession.ChatSession, runID string) (*SignalDiagnoseResult, bool) {
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return LookupSignalDiagnoseResult(chat, "")
+	}
+	if ent, ok := lookupSignalDiagnoseResultByRunOrKey(chat, runID); ok {
+		return ent, true
+	}
+	return fallbackSignalDiagnoseResultWhenRunIDUnknown(chat, runID)
+}
+
+func lookupSignalDiagnoseResultByRunOrKey(chat *chatsession.ChatSession, runID string) (*SignalDiagnoseResult, bool) {
+	if chat == nil || runID == "" {
 		return nil, false
 	}
 	m := loadSignalDiagnoseResultsMap(chat.Metadata)
 	var best *SignalDiagnoseResult
-	for _, raw := range m {
+	for key, raw := range m {
 		var ent SignalDiagnoseResult
 		if err := json.Unmarshal(raw, &ent); err != nil {
 			continue
@@ -214,7 +233,7 @@ func LookupSignalDiagnoseResultForMonday(chat *chatsession.ChatSession, runID st
 		if time.Now().UTC().After(ent.ExpiresAt) {
 			continue
 		}
-		if strings.TrimSpace(ent.RunID) != runID {
+		if strings.TrimSpace(ent.RunID) != runID && key != runID && strings.TrimSpace(ent.ResultKey) != runID {
 			continue
 		}
 		if best == nil || ent.UpdatedAt.After(best.UpdatedAt) {
@@ -226,6 +245,32 @@ func LookupSignalDiagnoseResultForMonday(chat *chatsession.ChatSession, runID st
 		return best, true
 	}
 	return nil, false
+}
+
+// fallbackSignalDiagnoseResultWhenRunIDUnknown handles Monday client run ids that are not agent workflow run_id.
+func fallbackSignalDiagnoseResultWhenRunIDUnknown(chat *chatsession.ChatSession, runID string) (*SignalDiagnoseResult, bool) {
+	if chat == nil || runID == "" {
+		return nil, false
+	}
+	m := loadSignalDiagnoseResultsMap(chat.Metadata)
+	var only *SignalDiagnoseResult
+	count := 0
+	for _, raw := range m {
+		var ent SignalDiagnoseResult
+		if err := json.Unmarshal(raw, &ent); err != nil {
+			continue
+		}
+		if time.Now().UTC().After(ent.ExpiresAt) || ent.ChartProbe == nil {
+			continue
+		}
+		count++
+		copy := ent
+		only = &copy
+	}
+	if count == 1 && only != nil {
+		return only, true
+	}
+	return LookupSignalDiagnoseResult(chat, "")
 }
 
 // LookupSignalDiagnoseResult loads a stored result by key; empty key returns the latest for the session.
@@ -335,6 +380,7 @@ func resultFromFlow(rt *runtime.Session, chat *chatsession.ChatSession, flow *Fl
 		ent.ChartProbe = cp
 		ent.SignalEval = eval
 	}
+	ensureDiagnoseRunIDOnFlow(flow, chat, rt)
 	if flow.RunID != "" {
 		ent.RunID = flow.RunID
 	}
@@ -434,6 +480,17 @@ func RememberSignalDiagnoseDiagnose(rt *runtime.Session, diagnose map[string]any
 	rt.SignalDiagnoseUIPending.DiagnoseRaw = cp
 }
 
+func ensureDiagnoseRunIDOnFlow(flow *Flow, chat *chatsession.ChatSession, rt *runtime.Session) {
+	if flow == nil || flow.RunID != "" {
+		return
+	}
+	if ent, ok := LookupSignalDiagnoseResult(chat, ""); ok && ent != nil && strings.TrimSpace(ent.RunID) != "" {
+		flow.RunID = strings.TrimSpace(ent.RunID)
+		return
+	}
+	flow.RunID = newRunID()
+}
+
 // PersistSignalDiagnoseResultFromFlow writes or updates the session result from workflow or skill draft state.
 func PersistSignalDiagnoseResultFromFlow(rt *runtime.Session, chat *chatsession.ChatSession, flow *Flow) string {
 	if flow == nil {
@@ -442,6 +499,7 @@ func PersistSignalDiagnoseResultFromFlow(rt *runtime.Session, chat *chatsession.
 	if flow == nil {
 		return ""
 	}
+	ensureDiagnoseRunIDOnFlow(flow, chat, rt)
 	ent := resultFromFlow(rt, chat, flow)
 	if ent.ChartProbe == nil {
 		return ""
@@ -449,8 +507,21 @@ func PersistSignalDiagnoseResultFromFlow(rt *runtime.Session, chat *chatsession.
 	key := storeSignalDiagnoseResult(rt, chat, ent)
 	if key != "" && flow != nil {
 		flow.DiagnoseUIKey = key
+		syncLabDiagnoseSnapshotAfterPersist(chat, rt, flow)
 	}
 	return key
+}
+
+func syncLabDiagnoseSnapshotAfterPersist(chat *chatsession.ChatSession, rt *runtime.Session, flow *Flow) {
+	if flow == nil || !FlowSupportsLabDetail(flow) {
+		return
+	}
+	if chat != nil {
+		UpsertLabDiagnoseSnapshot(chat, flow)
+	}
+	if rt != nil {
+		ArchiveLabDiagnoseFlow(rt, flow)
+	}
 }
 
 // UpdateSignalDiagnoseResultAfterTool persists partial results after probe/diagnose tools (skill stepwise path).

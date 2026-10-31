@@ -201,7 +201,7 @@ func (r *Runner) runTemplateTurn(
 		flow.Status = StatusCompleted
 		flow.PartialReport = reply
 		flow.touch()
-		if canonicalSkill(flow.Template) == SkillSignalDiagnose && flow.LabMode {
+		if canonicalSkill(flow.Template) == SkillSignalDiagnose && FlowSupportsLabDetail(flow) {
 			ArchiveLabDiagnoseFlow(session, flow)
 		}
 		recordWorkflowTimingTotal(flow)
