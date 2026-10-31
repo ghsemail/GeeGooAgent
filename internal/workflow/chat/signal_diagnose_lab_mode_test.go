@@ -38,11 +38,11 @@ func TestCardPayloadLabModeSummaries(t *testing.T) {
 	}
 }
 
-func TestApplyPendingSignalDiagnoseOptsLabMode(t *testing.T) {
+func TestApplyInboundPanelOpsToFlowLabMode(t *testing.T) {
 	on := true
-	session := &runtime.Session{PendingSignalDiagnoseOpts: &runtime.SignalDiagnoseOpts{LabMode: &on}}
+	session := &runtime.Session{InboundPanelOps: &runtime.SignalDiagnoseOpts{LabMode: &on}}
 	flow := newSignalDiagnoseFlow("诊断 x · y")
-	ApplyPendingSignalDiagnoseOpts(session, flow)
+	ApplyInboundPanelOpsToFlow(session, flow)
 	if !flow.LabMode {
 		t.Fatal("expected lab mode on flow")
 	}

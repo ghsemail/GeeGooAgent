@@ -104,11 +104,11 @@ func TestParseTradeDirectionFromWorkflowOptions(t *testing.T) {
 	})
 }
 
-func TestApplyPendingTradeDirection(t *testing.T) {
+func TestApplyInboundPanelOpsTradeDirection(t *testing.T) {
 	td := runtime.TradeDirectionLongOnly
-	session := &runtime.Session{PendingSignalDiagnoseOpts: &runtime.SignalDiagnoseOpts{TradeDirection: &td}}
+	session := &runtime.Session{InboundPanelOps: &runtime.SignalDiagnoseOpts{TradeDirection: &td}}
 	flow := newSignalDiagnoseFlow("诊断 x · y")
-	ApplyPendingSignalDiagnoseOpts(session, flow)
+	ApplyInboundPanelOpsToFlow(session, flow)
 	if flow.TradeDirection != runtime.TradeDirectionLongOnly {
 		t.Fatalf("flow=%q", flow.TradeDirection)
 	}

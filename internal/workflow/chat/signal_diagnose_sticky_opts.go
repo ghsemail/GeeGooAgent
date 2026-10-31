@@ -7,89 +7,7 @@ import (
 
 // MergeSignalDiagnoseOpts overlays incoming onto base; incoming non-empty fields win.
 func MergeSignalDiagnoseOpts(base, incoming *runtime.SignalDiagnoseOpts) *runtime.SignalDiagnoseOpts {
-	if incoming == nil {
-		return cloneSignalDiagnoseOpts(base)
-	}
-	if base == nil {
-		return cloneSignalDiagnoseOpts(incoming)
-	}
-	out := cloneSignalDiagnoseOpts(base)
-	if incoming.UsePriceAnalysisEpisodeFilter != nil {
-		out.UsePriceAnalysisEpisodeFilter = incoming.UsePriceAnalysisEpisodeFilter
-	}
-	if incoming.PriceAnalysisScoreThreshold != nil {
-		out.PriceAnalysisScoreThreshold = incoming.PriceAnalysisScoreThreshold
-	}
-	if incoming.PriceAnalysisBuyScoreDirection != "" {
-		out.PriceAnalysisBuyScoreDirection = incoming.PriceAnalysisBuyScoreDirection
-	}
-	if incoming.PriceAnalysisGateScoreMode != "" {
-		out.PriceAnalysisGateScoreMode = incoming.PriceAnalysisGateScoreMode
-	}
-	if len(incoming.BuySignal) > 0 {
-		out.BuySignal = cloneAnySlice(incoming.BuySignal)
-	}
-	if len(incoming.SellSignal) > 0 {
-		out.SellSignal = cloneAnySlice(incoming.SellSignal)
-	}
-	if incoming.SellMerge != "" {
-		out.SellMerge = incoming.SellMerge
-	}
-	if incoming.BuyMerge != "" {
-		out.BuyMerge = incoming.BuyMerge
-	}
-	if incoming.Frequency != "" {
-		out.Frequency = incoming.Frequency
-	}
-	if incoming.MonthsBack > 0 {
-		out.MonthsBack = incoming.MonthsBack
-	}
-	if incoming.PanelStrategyLabel != "" {
-		out.PanelStrategyLabel = incoming.PanelStrategyLabel
-	}
-	if incoming.TradeDirection != nil {
-		td := *incoming.TradeDirection
-		out.TradeDirection = &td
-	}
-	if incoming.LabMode != nil {
-		out.LabMode = incoming.LabMode
-	}
-	return out
-}
-
-func cloneSignalDiagnoseOpts(o *runtime.SignalDiagnoseOpts) *runtime.SignalDiagnoseOpts {
-	if o == nil {
-		return nil
-	}
-	out := *o
-	if o.UsePriceAnalysisEpisodeFilter != nil {
-		v := *o.UsePriceAnalysisEpisodeFilter
-		out.UsePriceAnalysisEpisodeFilter = &v
-	}
-	if o.PriceAnalysisScoreThreshold != nil {
-		v := *o.PriceAnalysisScoreThreshold
-		out.PriceAnalysisScoreThreshold = &v
-	}
-	if o.TradeDirection != nil {
-		td := *o.TradeDirection
-		out.TradeDirection = &td
-	}
-	if len(o.BuySignal) > 0 {
-		out.BuySignal = cloneAnySlice(o.BuySignal)
-	}
-	if len(o.SellSignal) > 0 {
-		out.SellSignal = cloneAnySlice(o.SellSignal)
-	}
-	return &out
-}
-
-func cloneAnySlice(in []any) []any {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]any, len(in))
-	copy(out, in)
-	return out
+	return runtime.MergeSignalDiagnoseOpts(base, incoming)
 }
 
 func applySignalDiagnoseOptsToFlow(o *runtime.SignalDiagnoseOpts, flow *Flow) {
@@ -109,10 +27,10 @@ func applySignalDiagnoseOptsToFlow(o *runtime.SignalDiagnoseOpts, flow *Flow) {
 		flow.PriceAnalysisGateScoreMode = strategydevParseGateMode(o.PriceAnalysisGateScoreMode)
 	}
 	if len(o.BuySignal) > 0 {
-		flow.ProbeBuyOverride = cloneAnySlice(o.BuySignal)
+		flow.ProbeBuyOverride = append([]any(nil), o.BuySignal...)
 	}
 	if len(o.SellSignal) > 0 {
-		flow.ProbeSellOverride = cloneAnySlice(o.SellSignal)
+		flow.ProbeSellOverride = append([]any(nil), o.SellSignal...)
 	}
 	if o.SellMerge != "" {
 		flow.ProbeSellMerge = o.SellMerge

@@ -138,7 +138,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	rtSession := agent.RuntimeSessionFromChat(chat)
 	rtSession.InboundQueueWait = inboundQueueWait
 	if opts := workflowchat.ParseSignalDiagnoseOptsFromWorkflowOptions(req.WorkflowOptions); opts != nil {
-		rtSession.PendingSignalDiagnoseOpts = opts
+		rtSession.InboundPanelOps = opts
 	}
 	if opts := workflowchat.ParseStrategyDevOptsFromWorkflowOptions(req.WorkflowOptions); opts != nil {
 		rtSession.PendingStrategyDevOpts = opts

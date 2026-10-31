@@ -57,10 +57,10 @@ type Session struct {
 	LabDiagnoseSnapshots map[string]json.RawMessage `json:"-"`
 	// LabDiagnoseEpisodeDetails maps run_id → cached lab-detail JSON (detail_ref → LabEpisodeDetail).
 	LabDiagnoseEpisodeDetails map[string]json.RawMessage `json:"-"`
-	// PendingSignalDiagnoseOpts applies to the next new signal_diagnose flow only (not persisted).
-	PendingSignalDiagnoseOpts *SignalDiagnoseOpts
-	// SignalDiagnoseStickyOpts retains last merged panel opts (buy/sell/freq) across turns.
-	SignalDiagnoseStickyOpts *SignalDiagnoseOpts
+	// InboundPanelOps holds Monday panel parameters for the current request (not persisted).
+	InboundPanelOps *SignalDiagnoseOpts
+	// StickyPanelOps retains last merged panel ops (buy/sell/freq) across turns after Apply or probe inject.
+	StickyPanelOps *SignalDiagnoseOpts
 	// SignalDiagnoseResolveCache maps signalResolveCacheKey → resolved buy/sell (cross-turn lab parity).
 	SignalDiagnoseResolveCache map[string]json.RawMessage `json:"-"`
 	// SignalDiagnoseUIPayloads maps diagnose_ui_key → archived chart_probe + signal_eval (Monday lazy fetch).

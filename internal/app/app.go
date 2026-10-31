@@ -205,8 +205,9 @@ func LoadFromConfigPath(path string, dryRun bool) (*App, error) {
 		SkillLoader:          app.SkillLoader,
 		WeKnora:              app.WeKnora,
 		ChatSessionPersist:          app.persistChatSessionForTools,
-		RememberProbeForDiagnoseUI:  app.rememberProbeForDiagnoseUI,
-		PrepareWorkflowCardEmit:     app.prepareWorkflowCardEmit,
+		RememberProbeForDiagnoseUI:      app.rememberProbeForDiagnoseUI,
+		ApplyPanelOpsToSignalProbeTool:  app.applyPanelOpsToSignalProbeTool,
+		PrepareWorkflowCardEmit:         app.prepareWorkflowCardEmit,
 	})
 	app.Agent.SetSubAgent(sub)
 	app.Workflow.SetToolExec(app.Agent.ToolExec())
@@ -628,6 +629,11 @@ func (a *App) IntentPlanner() cognition.Planner {
 func (a *App) rememberProbeForDiagnoseUI(runtimeSession any, probe map[string]any) {
 	rt, _ := runtimeSession.(*runtime.Session)
 	workflowchat.RememberSignalDiagnoseProbe(rt, probe)
+}
+
+func (a *App) applyPanelOpsToSignalProbeTool(runtimeSession any, body map[string]any) {
+	rt, _ := runtimeSession.(*runtime.Session)
+	runtime.ApplyPanelOpsToSignalProbeTool(rt, body)
 }
 
 func (a *App) prepareWorkflowCardEmit(ctx tools.Context, card map[string]any) map[string]any {

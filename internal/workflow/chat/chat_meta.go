@@ -19,7 +19,7 @@ func SyncToChat(chat *chatsession.ChatSession, rt *runtime.Session) {
 	syncLabDiagnoseSnapshotsToChat(chat, rt)
 	syncLabEpisodeDetailsToChat(chat, rt)
 	syncSignalDiagnoseUIPayloadsToChat(chat, rt)
-	syncSignalDiagnoseStickyOptsToChat(chat, rt)
+	syncStickyPanelOpsToChat(chat, rt)
 	syncSignalDiagnoseResolveCacheToChat(chat, rt)
 	flow := LoadFromSession(rt)
 	if flow == nil {
@@ -41,7 +41,7 @@ func LoadFromChat(chat *chatsession.ChatSession, rt *runtime.Session) {
 	loadLabDiagnoseSnapshotsIntoSession(chat, rt)
 	loadLabEpisodeDetailsIntoSession(chat, rt)
 	loadSignalDiagnoseUIPayloadsIntoSession(chat, rt)
-	loadSignalDiagnoseStickyOptsFromChat(chat, rt)
+	loadStickyPanelOpsFromChat(chat, rt)
 	loadSignalDiagnoseResolveCacheFromChat(chat, rt)
 	raw, ok := chat.Metadata[MetaKeyActiveFlow]
 	if !ok || raw == nil {
