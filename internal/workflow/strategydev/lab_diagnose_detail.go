@@ -11,7 +11,9 @@ import (
 
 const (
 	// DefaultLabDetailPhaseTimeout bounds kline MTF probe for one lab-detail call.
-	DefaultLabDetailPhaseTimeout = 8 * time.Second
+	// Three upward probe_bot_signal_series calls (e.g. 60m+daily+weekly) run in parallel with up to
+	// three retries each; 8s was too tight on cold market fetch and surfaced as MTF「拉数失败」+ price_anchor_missing.
+	DefaultLabDetailPhaseTimeout = 30 * time.Second
 	// DefaultLabDetailPATimeout is a separate budget for lab-api multi-TF price analysis (after MTF probe).
 	DefaultLabDetailPATimeout = 45 * time.Second
 	// DefaultLabDetailJEVTimeout is the dedicated JEV 决策 budget after PA / TA (matches JevClient HTTP timeout).
@@ -69,6 +71,8 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 	cacheCtx := ContextWithPriceProbeCache(ctx)
 	phaseCtx, phaseCancel := labDetailPhaseContext(cacheCtx, in.DetailTimeout)
 	defer phaseCancel()
+	paCtx, paCancel := labDetailPAContext(cacheCtx, in.PATimeout)
+	defer paCancel()
 
 	var mtf *KlinePatternMTFBundle
 	if in.CachedMTF != nil && *in.CachedMTF != nil {
@@ -99,13 +103,11 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 	applyLabKlinePatternTopLevel(&out)
 
 	labFetcher := WrapCachedLabBarsFetcher(in.SessionID, in.RunID, wrapMTFFallbackBarsFetcher(in.LabFetcher, mtf))
-	paCtx, paCancel := labDetailPAContext(cacheCtx, in.PATimeout)
-	defer paCancel()
 	if labFetcher != nil && strings.TrimSpace(in.Code) != "" {
 		row := barRowAt(in.Bars, idx)
 		dailyForAnchor := dailyBarsForLabAnchorFromMTF(mtf)
 		if len(dailyForAnchor) == 0 {
-			dailyForAnchor = dailyBarsForLabAnchor(phaseCtx, LabDetailInput{
+			dailyForAnchor = dailyBarsForLabAnchor(paCtx, LabDetailInput{
 				Run: in.Run, Code: in.Code, SignalFreq: in.SignalFreq, Months: in.Months,
 				KeyLevels: in.KeyLevels, ProbeRaw: in.ProbeRaw, Bars: in.Bars, LookbackBars: in.LookbackBars,
 				LabFetcher: labFetcher, SessionID: in.SessionID, RunID: in.RunID,
@@ -188,8 +190,10 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 		applyLabKlinePatternTopLevel(&out)
 	}
 	labFetcher := WrapCachedLabBarsFetcher(in.SessionID, in.RunID, in.LabFetcher)
+	paCtx, paCancel := labDetailPAContext(cacheCtx, in.PATimeout)
+	defer paCancel()
 	if labFetcher != nil && strings.TrimSpace(in.Code) != "" {
-		pa := priceanalysis.Run(phaseCtx, labFetcher, priceanalysis.RunRequest{
+		pa := priceanalysis.Run(paCtx, labFetcher, priceanalysis.RunRequest{
 			Code: in.Code, Months: CapMonthsBack(in.Months), SignalFreq: in.SignalFreq,
 			SpotPrice: ent.Close, KeyLevels: keyLevelsToLab(in.KeyLevels),
 		})

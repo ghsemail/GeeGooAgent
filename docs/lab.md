@@ -159,7 +159,7 @@ Lab 诊断主流程（`workflow_completed`）仍只下发卡片摘要 `lab_episo
 | 同上 | `日线 大周期未加载（请打开 lab 详情）` | bundle 缺序列（非「拉数失败」） |
 | 同上 | `4h 周期暂不支持（已跳过）` | unsupported |
 | `detail.price_analysis.rows[].structure` | `拉数失败` | lab-api 取 bars 失败 |
-| 同上 | `取数超时或已取消` | `DefaultLabDetailPhaseTimeout`（8s）内 MTF+PA 共享 phase ctx 被取消 |
+| 同上 | `取数超时或已取消` | `DefaultLabDetailPATimeout`（45s）内 lab-api 多 TF 取数被取消（MTF probe 独立 `DefaultLabDetailPhaseTimeout` 30s） |
 | `detail.degraded[]` | `kline_mtf_probe_unavailable` / `price_anchor_missing` | 降级标记，非 structure 文案 |
 
 lab-detail **不**走卡片 light enrich；MTF 来自 run 级 probe + `BuildKlinePatternMTFContext`。生产 flow 在正确 ref + 成功取数时不应出现上表「拉数失败」行（与 fe7574e 整机日志一致）。
