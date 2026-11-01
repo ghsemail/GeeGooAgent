@@ -209,6 +209,9 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
 	if h.App != nil && (h.App.Facts != nil || h.App.Episodic != nil) {
 		_ = exportmarkdown.Export(r.Context(), config.Home(), userID, h.App.Facts, h.App.Episodic)
 	}
+	if payload := rtSession.SignalDiagnoseResultReadySSE; len(payload) > 0 {
+		emit(workflowchat.EventSignalDiagnoseResultReady, payload)
+	}
 	if live != nil {
 		live.EndTurn()
 	}

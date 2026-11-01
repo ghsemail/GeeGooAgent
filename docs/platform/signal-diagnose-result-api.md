@@ -29,6 +29,22 @@ Skill stepwise 在 probe 成功后会 Persist `chart_probe` / `signal_eval`，�
 
 HTTP 404：会话不存在、无 result 或已过期（48h TTL）。
 
+## SSE：`signal_diagnose_result_ready`（Monday 主路径）
+
+在 **`POST /v1/chat/stream`** 同一轮内，服务端在 **Finalize Persist** 成功且 `result_key` 非空时，于 **`turn_end` 之前** 通过现有 progress SSE **恰好推送一次** readiness 事件（与 `writeAgentProgressSSE` / LivePublisher 同通道）。Probe/diagnose 工具中途 Persist **不会** 推送此事件。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `session_id` | string | Chat 会话 id |
+| `result_key` | string | Persist 条目 key（`sd-res-…`） |
+| `run_id` | string | 可选；workflow `flow-…`，无则省略 |
+| `phase` | string | 恒为 `"final"` |
+| `stock_code` | string | 可选；已有则带上，便于 Monday 对齐 UI |
+
+**SSE 行**：`event: signal_diagnose_result_ready`，JSON body 含 `schema_version`、`item_type`（=`signal_diagnose_result_ready`）及上述字段（见 `docs/api/runtime-events.md`）。
+
+**Monday FE 建议**：收到本事件后 **调用一次** `POST /v1/signal-diagnose/result`（`session_id`，可选 `run_id`）拉全量 `chart_probe` / `signal_eval` / `lab`；勿在事件里塞 bars 或全量 eval。若未收到事件（断线、legacy 客户端），仍可轮询或 turn 结束后单次 POST 作为 fallback。
+
 ## 非目标
 
 - 主路径 **不** 再写 `signal_diagnose_ui_payloads`；`GET/POST /v1/signal-diagnose/ui-payload` 仅 legacy 读已存条目。

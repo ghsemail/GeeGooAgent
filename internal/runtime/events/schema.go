@@ -54,6 +54,8 @@ func ItemTypeForEvent(event string) string {
 		return ItemTurnAborted
 	case "status", "step", "context_fragment_applied", "gate", "received", "hygiene", "round", "llm":
 		return ItemStatus
+	case "signal_diagnose_result_ready":
+		return "signal_diagnose_result_ready"
 	default:
 		return event
 	}

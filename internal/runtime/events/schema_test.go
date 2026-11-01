@@ -18,7 +18,8 @@ func TestItemTypeForEvent(t *testing.T) {
 		"turn_end":                 events.ItemTurnComplete,
 		"clarify":                  events.ItemClarifyPrompt,
 		"clarify_plan":             events.ItemClarifyPrompt,
-		"context_fragment_applied": events.ItemStatus,
+		"context_fragment_applied":              events.ItemStatus,
+		"signal_diagnose_result_ready":          "signal_diagnose_result_ready",
 	}
 	for event, want := range cases {
 		if got := events.ItemTypeForEvent(event); got != want {
