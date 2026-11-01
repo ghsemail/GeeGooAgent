@@ -37,6 +37,7 @@ CLI NDJSON uses the same fields via `runtime.ProgressToAgentEvent`.
 | `clarify_prompt` | `clarify` |
 | `budget_warning` | `budget_warning` |
 | `status` | `gate`, `status`, `context_fragment_applied` |
+| `signal_diagnose_result_ready` | `signal_diagnose_result_ready`（Finalize Persist 后、`turn_end` 前；轻量 envelope，全量在 Result API） |
 | `turn_complete` | `turn_complete`, `turn_end`, `done` |
 
 ## Context fragments (P1-1)

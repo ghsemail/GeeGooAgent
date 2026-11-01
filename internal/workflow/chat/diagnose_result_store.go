@@ -18,6 +18,9 @@ const (
 	MetaKeySignalDiagnoseResultLatest  = "signal_diagnose_result_latest"
 	signalDiagnoseResultTTL            = 48 * time.Hour
 	maxSignalDiagnoseResults           = 24
+
+	// EventSignalDiagnoseResultReady is emitted once on POST /v1/chat/stream after Finalize Persist (not mid-turn tool persist).
+	EventSignalDiagnoseResultReady = "signal_diagnose_result_ready"
 )
 
 // SignalDiagnoseResult is the SSOT payload Monday polls after a chat turn (skill stepwise or runner).
@@ -565,17 +568,42 @@ func UpdateSignalDiagnoseResultAfterTool(rt *runtime.Session, chat *chatsession.
 	_ = PersistSignalDiagnoseResultFromFlow(rt, chat, nil)
 }
 
+// SignalDiagnoseResultReadyEnvelope is the light SSE payload Monday uses to pull POST /v1/signal-diagnose/result once.
+func SignalDiagnoseResultReadyEnvelope(chat *chatsession.ChatSession, resultKey string) map[string]any {
+	resultKey = strings.TrimSpace(resultKey)
+	if chat == nil || resultKey == "" {
+		return nil
+	}
+	ent, ok := LookupSignalDiagnoseResult(chat, resultKey)
+	if !ok || ent == nil {
+		return nil
+	}
+	out := map[string]any{
+		"session_id": chat.ID,
+		"result_key": resultKey,
+		"phase":      "final",
+	}
+	if runID := strings.TrimSpace(ent.RunID); runID != "" {
+		out["run_id"] = runID
+	}
+	if code := strings.TrimSpace(ent.StockCode); code != "" {
+		out["stock_code"] = code
+	}
+	return out
+}
+
 // FinalizeSignalDiagnoseResultFromSession merges active runner flow fields (eval_judgment, lab) into the latest result.
-func FinalizeSignalDiagnoseResultFromSession(rt *runtime.Session, chat *chatsession.ChatSession) {
+// Returns the persisted result_key when chart_probe was written (empty when nothing to finalize).
+func FinalizeSignalDiagnoseResultFromSession(rt *runtime.Session, chat *chatsession.ChatSession) string {
 	if rt == nil {
-		return
+		return ""
 	}
 	flow := LoadFromSession(rt)
 	if flow == nil || canonicalSkill(flow.Template) != SkillSignalDiagnose {
 		flow = draftFlowFromRuntime(rt)
 	}
 	if flow == nil {
-		return
+		return ""
 	}
-	_ = PersistSignalDiagnoseResultFromFlow(rt, chat, flow)
+	return PersistSignalDiagnoseResultFromFlow(rt, chat, flow)
 }

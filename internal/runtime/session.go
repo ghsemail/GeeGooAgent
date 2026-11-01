@@ -77,6 +77,8 @@ type Session struct {
 	PendingStrategyDevOpts *StrategyDevOpts
 	// InboundQueueWait is time spent waiting on chatMu before this turn started (not persisted).
 	InboundQueueWait time.Duration
+	// SignalDiagnoseResultReadySSE is set when Finalize Persist succeeds this sync (chat stream emits once; not persisted).
+	SignalDiagnoseResultReadySSE map[string]any `json:"-"`
 }
 
 // StrategyDevOpts configures strategy_dev_pipeline for one chat turn.

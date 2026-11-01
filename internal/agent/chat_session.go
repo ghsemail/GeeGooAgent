@@ -48,6 +48,9 @@ func SyncChatFromRuntime(chat *chatsession.ChatSession, rt *runtime.Session, new
 	} else {
 		chat.SyncHeldPlan(0, nil)
 	}
-	workflowchat.FinalizeSignalDiagnoseResultFromSession(rt, chat)
+	rt.SignalDiagnoseResultReadySSE = nil
+	if key := workflowchat.FinalizeSignalDiagnoseResultFromSession(rt, chat); key != "" {
+		rt.SignalDiagnoseResultReadySSE = workflowchat.SignalDiagnoseResultReadyEnvelope(chat, key)
+	}
 	workflowchat.SyncToChat(chat, rt)
 }
