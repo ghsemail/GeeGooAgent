@@ -81,6 +81,14 @@ func TestBuildLabEpisodeDetailThreeJEVWhenNoKline(t *testing.T) {
 	var jevCalls int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/v1/lab/index-trend":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"code": "X", "frequency": "daily", "strategy_version": "alpha", "months_back": 3, "bar_count": 5,
+				"trends": []map[string]any{
+					{"name": "ADX趋势", "index": "ADX", "stance": "long", "value": 1},
+				},
+				"summary": map[string]any{"long": 1, "short": 0, "flat": 2, "net": 1},
+			})
 		case "/v1/lab/technical-analysis":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"code": "X", "frequency": "daily", "strategy_version": "alpha", "months_back": 3, "bar_count": 5,
@@ -112,8 +120,9 @@ func TestBuildLabEpisodeDetailThreeJEVWhenNoKline(t *testing.T) {
 	detail, err := BuildLabEpisodeDetail(context.Background(), LabDetailInput{
 		Code: "00700.HK", SignalFreq: "daily", Months: 1, Bars: bars,
 		LabFetcher: stubLabBarsOK{},
-		TAClient:   signalclient.NewHTTPClient(srv.URL, "k"),
-		Jev:        NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"}),
+		TAClient:         signalclient.NewHTTPClient(srv.URL, "k"),
+		IndexTrendClient: signalclient.NewHTTPClient(srv.URL, "k"),
+		Jev:              NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"}),
 		JEVTimeout: 5 * time.Second,
 	}, LabDetailRef("buy", 0))
 	if err != nil {
@@ -122,8 +131,8 @@ func TestBuildLabEpisodeDetailThreeJEVWhenNoKline(t *testing.T) {
 	if detail.KlineJEV != nil {
 		t.Fatalf("expected no kline_jev without pattern context, got %+v", detail.KlineJEV)
 	}
-	if jevCalls != 3 {
-		t.Fatalf("expected PA + TA + unified JEV calls, got %d", jevCalls)
+	if jevCalls != 4 {
+		t.Fatalf("expected PA + TA + index_trend + unified JEV calls, got %d", jevCalls)
 	}
 }
 

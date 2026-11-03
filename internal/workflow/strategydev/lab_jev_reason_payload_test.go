@@ -74,15 +74,39 @@ func TestSummarizeTechnicalAnalysisJEVReasonPayloadIncludesFacts(t *testing.T) {
 	}
 }
 
+func TestSummarizeIndexTrendJEVReasonPayloadIncludesFacts(t *testing.T) {
+	wantFacts := BuildIndexTrendJEVState(sampleLabIndexTrend00700(), "sell", "60m", false)
+	if wantFacts == "" {
+		t.Fatal("empty index trend facts fixture")
+	}
+	var capturedUser string
+	jev := NewJevClient(JevConfig{APIKey: "test-key"})
+	jev.SetReasonChat(func(ctx context.Context, system, user string) (string, error) {
+		capturedUser = user
+		return "日线 net 偏空。", nil
+	})
+	if _, err := jev.SummarizeIndexTrendJEVReason(context.Background(), "看空", 1, nil, 0.85, wantFacts); err != nil {
+		t.Fatal(err)
+	}
+	var payload priceAnalysisJEVReasonPayload
+	if err := json.Unmarshal([]byte(capturedUser), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Facts != wantFacts {
+		t.Fatalf("facts missing or mismatch len=%d", len(payload.Facts))
+	}
+}
+
 func TestLabJEVUnifiedLegReasonInputsIncludesFacts(t *testing.T) {
-	plan := labJEVUnifiedPlan{attemptPA: true, attemptKline: true, attemptTA: true}
+	plan := labJEVUnifiedPlan{attemptPA: true, attemptKline: true, attemptTA: true, attemptIndexTrend: true}
 	legs := []labJEVLegSnapshot{
 		{name: labJEVLegNamePA, facts: "pa-state", choice: "看多", reason: "pa-reason"},
 		{name: labJEVLegNameKline, facts: "kline-state", choice: "不明确", reason: "kline-reason"},
 		{name: labJEVLegNameTA, facts: "ta-state", choice: "看空", reason: "ta-reason"},
+		{name: labJEVLegNameIndexTrend, facts: "it-state", choice: "看多", reason: "it-reason"},
 	}
 	out := labJEVUnifiedLegReasonInputs(plan, legs)
-	if len(out) != 3 {
+	if len(out) != 4 {
 		t.Fatalf("len=%d", len(out))
 	}
 	byName := map[string]labJEVUnifiedLegReasonInput{}

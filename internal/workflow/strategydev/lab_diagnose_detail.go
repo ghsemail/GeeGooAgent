@@ -47,6 +47,8 @@ type LabDetailInput struct {
 	Jev *JevClient
 	// TAClient optional lab-api client for POST /v1/lab/technical-analysis (same base URL/key as kline jobs).
 	TAClient LabTechnicalAnalysisClient
+	// IndexTrendClient optional lab-api client for POST /v1/lab/index-trend (same base URL/key as TA).
+	IndexTrendClient LabIndexTrendClient
 	// LongOnly matches signal_diagnose trade_direction (JEV copy + omitted short lab refs).
 	LongOnly bool
 }
@@ -131,11 +133,18 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		converted := priceAnalysisFromLab(pa)
 		out.PriceAnalysis = &converted
 		var ta *LabTechnicalAnalysis
-		if in.TAClient != nil {
+		var indexTrend *LabIndexTrend
+		if in.TAClient != nil || in.IndexTrendClient != nil {
 			taCtx, taCancel := labDetailTAContext(cacheCtx, in.TATimeout)
-			ta = fetchLabTechnicalAnalysis(taCtx, in.TAClient, in, asOf)
+			if in.TAClient != nil {
+				ta = fetchLabTechnicalAnalysis(taCtx, in.TAClient, in, asOf)
+				out.TechnicalAnalysis = ta
+			}
+			if in.IndexTrendClient != nil {
+				indexTrend = fetchLabIndexTrend(taCtx, in.IndexTrendClient, in, asOf)
+				out.IndexTrend = indexTrend
+			}
 			taCancel()
-			out.TechnicalAnalysis = ta
 		}
 		jevCtx, jevCancel := labDetailJEVContext(cacheCtx, in.JEVTimeout)
 		defer jevCancel()
@@ -144,6 +153,10 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		if ta != nil {
 			rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, side, in.SignalFreq, in.LongOnly)
 			out.TechnicalAnalysisJEV = &rec
+		}
+		if indexTrend != nil {
+			rec := ResolveIndexTrendJEV(jevCtx, in.Jev, indexTrend, side, in.SignalFreq, in.LongOnly)
+			out.IndexTrendJEV = &rec
 		}
 		applyLabJEVUnified(jevCtx, &out, side, in)
 		if !anchorOK {
@@ -201,11 +214,18 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 		converted := priceAnalysisFromLab(pa)
 		out.PriceAnalysis = &converted
 		var ta *LabTechnicalAnalysis
-		if in.TAClient != nil {
+		var indexTrend *LabIndexTrend
+		if in.TAClient != nil || in.IndexTrendClient != nil {
 			taCtx, taCancel := labDetailTAContext(cacheCtx, in.TATimeout)
-			ta = fetchLabTechnicalAnalysis(taCtx, in.TAClient, in, nil)
+			if in.TAClient != nil {
+				ta = fetchLabTechnicalAnalysis(taCtx, in.TAClient, in, nil)
+				out.TechnicalAnalysis = ta
+			}
+			if in.IndexTrendClient != nil {
+				indexTrend = fetchLabIndexTrend(taCtx, in.IndexTrendClient, in, nil)
+				out.IndexTrend = indexTrend
+			}
 			taCancel()
-			out.TechnicalAnalysis = ta
 		}
 		jevCtx, jevCancel := labDetailJEVContext(cacheCtx, in.JEVTimeout)
 		defer jevCancel()
@@ -214,6 +234,10 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 		if ta != nil {
 			rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, "flow", in.SignalFreq, in.LongOnly)
 			out.TechnicalAnalysisJEV = &rec
+		}
+		if indexTrend != nil {
+			rec := ResolveIndexTrendJEV(jevCtx, in.Jev, indexTrend, "flow", in.SignalFreq, in.LongOnly)
+			out.IndexTrendJEV = &rec
 		}
 		applyLabJEVUnified(jevCtx, &out, "flow", in)
 	}

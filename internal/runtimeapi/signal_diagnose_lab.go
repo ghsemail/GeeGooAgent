@@ -116,7 +116,7 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 	detail, err := strategydev.BuildLabEpisodeDetail(r.Context(), strategydev.LabDetailInput{
 		Run: strategydev.ToolRunner(runner), Code: flow.StockCode, SignalFreq: freq, Months: months,
 		KeyLevels: keyLevelBandsFromFlowSnapshot(flow), ProbeRaw: flow.ProbeRaw, Bars: bars,
-		LookbackBars: lookback, LabFetcher: fetcher, TAClient: labHTTP,
+		LookbackBars: lookback, LabFetcher: fetcher, TAClient: labHTTP, IndexTrendClient: labHTTP,
 		DetailTimeout: strategydev.DefaultLabDetailPhaseTimeout,
 		PATimeout:     strategydev.DefaultLabDetailPATimeout,
 		TATimeout:     strategydev.DefaultLabDetailTATimeout,

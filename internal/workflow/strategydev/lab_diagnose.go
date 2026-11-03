@@ -45,6 +45,8 @@ type LabEpisodeDetail struct {
 	KlineJEV              *KlineJEV              `json:"kline_jev,omitempty"`
 	TechnicalAnalysis     *LabTechnicalAnalysis  `json:"technical_analysis,omitempty"`
 	TechnicalAnalysisJEV  *TechnicalAnalysisJEV  `json:"technical_analysis_jev,omitempty"`
+	IndexTrend            *LabIndexTrend         `json:"index_trend,omitempty"`
+	IndexTrendJEV         *IndexTrendJEV         `json:"index_trend_jev,omitempty"`
 	JEVUnified            *LabJEVUnified         `json:"jev_unified,omitempty"`
 	Degraded          []string           `json:"degraded,omitempty"`
 }
