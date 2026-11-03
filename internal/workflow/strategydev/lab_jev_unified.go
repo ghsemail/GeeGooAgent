@@ -12,9 +12,10 @@ import (
 const labJEVUnifiedConflictConfidenceCap = 0.75
 
 const (
-	labJEVLegNamePA     = "价格结构 JEV (price_analysis_jev)"
-	labJEVLegNameKline  = "K 线形态 JEV (kline_jev)"
-	labJEVLegNameTA     = "技术指标 JEV (technical_analysis_jev)"
+	labJEVLegNamePA         = "价格结构 JEV (price_analysis_jev)"
+	labJEVLegNameKline      = "K 线形态 JEV (kline_jev)"
+	labJEVLegNameTA         = "技术指标 JEV (technical_analysis_jev)"
+	labJEVLegNameIndexTrend = "单指标趋势 JEV (index_trend_jev)"
 )
 
 // LabJEVUnifiedDirection is the final lab-detail direction from the unified JEV 决策 pass.
@@ -28,12 +29,13 @@ const (
 
 // LabJEVUnifiedBreakdown holds human-readable snippets for traders / FE.
 type LabJEVUnifiedBreakdown struct {
-	Structure string `json:"structure"`
-	Pattern   string `json:"pattern"`
-	Technical string `json:"technical"`
+	Structure  string `json:"structure"`
+	Pattern    string `json:"pattern"`
+	Technical  string `json:"technical"`
+	IndexTrend string `json:"index_trend"`
 }
 
-// LabJEVUnified is the total JEV read synthesizing price / kline / TA JEV facts and conclusions.
+// LabJEVUnified is the total JEV read synthesizing price / kline / TA / index-trend JEV facts and conclusions.
 type LabJEVUnified struct {
 	Source            string                   `json:"source"`
 	Model             string                   `json:"model"`
@@ -77,6 +79,7 @@ func BuildLabJEVUnifiedState(plan labJEVUnifiedPlan, legs []labJEVLegSnapshot, s
 	appendLabJEVUnifiedLegSection(&b, labJEVLegNamePA, plan.attemptPA, legByName[labJEVLegNamePA])
 	appendLabJEVUnifiedLegSection(&b, labJEVLegNameKline, plan.attemptKline, legByName[labJEVLegNameKline])
 	appendLabJEVUnifiedLegSection(&b, labJEVLegNameTA, plan.attemptTA, legByName[labJEVLegNameTA])
+	appendLabJEVUnifiedLegSection(&b, labJEVLegNameIndexTrend, plan.attemptIndexTrend, legByName[labJEVLegNameIndexTrend])
 	return strings.TrimSpace(b.String())
 }
 
@@ -108,7 +111,7 @@ func appendLabJEVUnifiedLegSection(b *strings.Builder, title string, participate
 	}
 }
 
-// ResolveLabJEVUnified calls JEV Choice on three-leg facts + conclusions; never mirrors a single leg locally.
+// ResolveLabJEVUnified calls JEV Choice on per-leg facts + conclusions; never mirrors a single leg locally.
 func ResolveLabJEVUnified(
 	ctx context.Context,
 	jev *JevClient,
@@ -133,7 +136,7 @@ func ResolveLabJEVUnified(
 		return base
 	}
 	instructions := "基于 state 中各路「基础事实摘要」与同路的 JEV 结论（推荐、概率、理由），综合判断该信号上下文最终方向。" +
-		"未参与的路须忽略；不得仅用结论而忽略事实摘要；不得对三路做固定权重或机械计票合成方向，须按上下文权衡。" +
+		"未参与的路须忽略；不得仅用结论而忽略事实摘要；不得对各路做固定权重或机械计票合成方向，须按上下文权衡。" +
 		"只能从给定选项中选一项。规则：①参与路同向则倾向该方向；②冲突时须权衡后选看多或看空，不得仅因冲突选不明确；" +
 		"③仅部分路有明确倾向时跟随有信息的一方；④均不足或确实无法判断时才选不明确。"
 	choice, probs, confidence, respModel, err := jev.Choice(ctx, state, "direction", instructions, labJEVUnifiedCriteria)
@@ -196,6 +199,8 @@ func labJEVUnifiedBreakdownFromLegs(legs []labJEVLegSnapshot) LabJEVUnifiedBreak
 			bd.Pattern = line
 		case labJEVLegNameTA:
 			bd.Technical = line
+		case labJEVLegNameIndexTrend:
+			bd.IndexTrend = line
 		}
 	}
 	return bd
@@ -214,6 +219,7 @@ func labJEVUnifiedLegReasonInputs(plan labJEVUnifiedPlan, legs []labJEVLegSnapsh
 		{labJEVLegNamePA, plan.attemptPA},
 		{labJEVLegNameKline, plan.attemptKline},
 		{labJEVLegNameTA, plan.attemptTA},
+		{labJEVLegNameIndexTrend, plan.attemptIndexTrend},
 	}
 	var out []labJEVUnifiedLegReasonInput
 	for _, s := range slots {
@@ -324,14 +330,36 @@ func labJEVLegFromTA(out *LabEpisodeDetail, signalSide, signalFreq string, longO
 	}
 }
 
+func labJEVLegFromIndexTrend(out *LabEpisodeDetail, signalSide, signalFreq string, longOnly bool) *labJEVLegSnapshot {
+	j := out.IndexTrendJEV
+	if j == nil || !j.OK {
+		return nil
+	}
+	facts := ""
+	if out.IndexTrend != nil {
+		facts = BuildIndexTrendJEVState(out.IndexTrend, signalSide, signalFreq, longOnly)
+	}
+	return &labJEVLegSnapshot{
+		name:    labJEVLegNameIndexTrend,
+		facts:   facts,
+		choice:  j.RecommendedChoice,
+		reason:  j.RecommendedReason,
+		choices: j.Choices,
+	}
+}
+
 type labJEVUnifiedPlan struct {
-	attemptTA    bool
-	attemptPA    bool
-	attemptKline bool
+	attemptTA         bool
+	attemptPA         bool
+	attemptKline      bool
+	attemptIndexTrend bool
 }
 
 func labJEVUnifiedPlanFor(in LabDetailInput, out *LabEpisodeDetail) labJEVUnifiedPlan {
-	plan := labJEVUnifiedPlan{attemptTA: in.TAClient != nil}
+	plan := labJEVUnifiedPlan{
+		attemptTA:         in.TAClient != nil,
+		attemptIndexTrend: in.IndexTrendClient != nil,
+	}
 	if out.PriceAnalysis != nil && labPAInformative(out.PriceAnalysis) {
 		plan.attemptPA = true
 	}
@@ -357,7 +385,12 @@ func labJEVUnifiedBlocked(out *LabEpisodeDetail, plan labJEVUnifiedPlan) bool {
 			return true
 		}
 	}
-	if !plan.attemptPA && !plan.attemptKline && !plan.attemptTA {
+	if plan.attemptIndexTrend {
+		if out.IndexTrendJEV == nil || !out.IndexTrendJEV.OK {
+			return true
+		}
+	}
+	if !plan.attemptPA && !plan.attemptKline && !plan.attemptTA && !plan.attemptIndexTrend {
 		return true
 	}
 	return false
@@ -377,6 +410,11 @@ func collectLabJEVUnifiedLegs(out *LabEpisodeDetail, plan labJEVUnifiedPlan, sig
 	}
 	if plan.attemptTA {
 		if leg := labJEVLegFromTA(out, signalSide, signalFreq, longOnly); leg != nil {
+			legs = append(legs, *leg)
+		}
+	}
+	if plan.attemptIndexTrend {
+		if leg := labJEVLegFromIndexTrend(out, signalSide, signalFreq, longOnly); leg != nil {
 			legs = append(legs, *leg)
 		}
 	}
@@ -409,6 +447,9 @@ func ApplyLabJEVUnified(out *LabEpisodeDetail) {
 		legs = append(legs, *leg)
 	}
 	if leg := labJEVLegFromTA(out, "", "", false); leg != nil {
+		legs = append(legs, *leg)
+	}
+	if leg := labJEVLegFromIndexTrend(out, "", "", false); leg != nil {
 		legs = append(legs, *leg)
 	}
 	if len(legs) == 0 {

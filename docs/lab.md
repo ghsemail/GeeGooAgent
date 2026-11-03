@@ -100,6 +100,14 @@ Agent 通过 `internal/lab/signalclient` 实现上述契约。单测使用 `Mock
 
 Agent `signalclient` 对 4xx/5xx 解析 JSON `error` 字段并包装为 `APIError`；对 `completed` 但缺少 `result` / `result.bars` 视为协议错误。
 
+### `POST /v1/lab/technical-analysis`（同步）
+
+Elder 工具箱指标；Agent `signalclient.FetchTechnicalAnalysis`。请求：`code`、`frequency`、`months_back`、可选 `as_of`（Asia/Shanghai `2006-01-02 15:04:05`）、`strategy_version`（英文 `alpha`）。lab-detail 按信号周期 **MTF 阶梯**（非 daily 信号时 **daily + 信号 TF**）并行拉取。
+
+### `POST /v1/lab/index-trend`（同步）
+
+目录三旗趋势（ADX / EMA 中长期 / SAR）；Agent `signalclient.FetchIndexTrend`。请求字段与取数窗语义同 price-analysis / technical-analysis（`months_back`、`as_of`、`strategy_version=alpha`）。响应含 `trends[]`（`name` / `stance` long|short|flat / `value`）与 `summary`（`long` / `short` / `flat` / `net`）。lab-detail **MTF 阶梯与 TA 一致**（至少覆盖信号周期 + 更高周期 daily）。
+
 ### Agent 侧 `months_back` 算法（`MonthsBackForLabFetch`）
 
 `months_back(tf) = CapMonthsBack(信号 months) + analysisWindowMonths(tf) + warmupMonths(tf)`，再按 `EstimateFetchBars` 校验 Signal **5000 根/任务** 上限。
@@ -197,20 +205,21 @@ lab-detail **不**走卡片 light enrich；MTF 来自 run 级 probe + `BuildKlin
 
 ### 四路 JEV 决策（lab-detail）
 
-编排顺序：**三路原始**（`price_analysis`、K 线形态、`technical_analysis`）→ **三路 JEV**（`price_analysis_jev`、`kline_jev`、`technical_analysis_jev`）→ **总 JEV**（`jev_unified`）。
+编排顺序：**四路原始**（`price_analysis`、K 线形态、`technical_analysis`、`index_trend`）→ **四路 JEV**（`price_analysis_jev`、`kline_jev`、`technical_analysis_jev`、`index_trend_jev`）→ **总 JEV**（`jev_unified`）。
 
 - `price_analysis_jev`：仅多周期价格结构，不含 K 线。
 - `kline_jev`：仅锚点/多周期 K 线形态命中与倾向。
 - `technical_analysis_jev`：仅 Elder 指标（`strategy_version` 请求用英文 `alpha`）。
+- `index_trend_jev`：仅 ADX / EMA(中长期) / SAR 三旗 stance 与 summary（lab-api `POST /v1/lab/index-trend`）。
 - `jev_unified`：总 JEV Choice 的 state = 各路**基础事实摘要**（与单路 JEV 同源压缩）+ 各路 **JEV 结论**（`recommended_choice` / `choices` / `recommended_reason`）；未参与的路在 state 中写明「未参与」。禁止只喂结论、禁止固定权重机械合成方向；**不**再镜像单路 JEV。
 
 任一路 JEV 失败时 `ok=false` 且带 `error`，不本地捏方向；参与 unified 的任一路失败则不下发 `jev_unified`。总 JEV 自身 Choice/理由 Chat 失败时下发 `jev_unified.ok=false` 与 `error`，不本地捏 `direction`。冲突时 JEV 不得仅因矛盾默认「不明确」（与单路 JEV 口径一致）。对外文案用「JEV 决策」，不写 System One。
 
-单路与各 leg 的 **`recommended_reason`** 由独立 Decision Chat 生成：payload 除 JEV Choice 输出外，还携带与 Choice **同源** 的 `facts` 摘要（PA / K 线 / TA 的 `Build*JEVState`）；总 JEV 理由 Chat 的 `leg_conclusions` 同样含各路 `facts`。方向仍只来自 Choice，理由 Chat 只解释依据、不重推方向。
+单路与各 leg 的 **`recommended_reason`** 由独立 Decision Chat 生成：payload 除 JEV Choice 输出外，还携带与 Choice **同源** 的 `facts` 摘要（PA / K 线 / TA / index_trend 的 `Build*JEVState`）；总 JEV 理由 Chat 的 `leg_conclusions` 同样含各路 `facts`。方向仍只来自 Choice，理由 Chat 只解释依据、不重推方向。
 
 ### `jev_unified`（总决策）
 
-字段与单路 JEV 对齐：`ok` / `error` / `recommended_choice` / `choices` / `recommended_reason`，并保留 `direction`（bull/bear/unclear，由推荐项映射）、`confidence`（推荐项概率；`conflict=true` 时本地 cap ≤0.75）、`conflict`（参与路 JEV 结论互不一致或与总推荐不一致）。`breakdown.structure` / `breakdown.pattern` / `breakdown.technical` 分别摘录三路 JEV 的 `recommended_reason`（或等价摘要）。
+字段与单路 JEV 对齐：`ok` / `error` / `recommended_choice` / `choices` / `recommended_reason`，并保留 `direction`（bull/bear/unclear，由推荐项映射）、`confidence`（推荐项概率；`conflict=true` 时本地 cap ≤0.75）、`conflict`（参与路 JEV 结论互不一致或与总推荐不一致）。`breakdown.structure` / `breakdown.pattern` / `breakdown.technical` / `breakdown.index_trend` 分别摘录四路 JEV 的 `recommended_reason`（或等价摘要）。
 
 示例：
 
@@ -230,7 +239,8 @@ lab-detail **不**走卡片 light enrich；MTF 来自 run 级 probe + `BuildKlin
   "breakdown": {
     "structure": "多周期结构倾向看多（置信 71%）",
     "pattern": "锚点锤子偏多",
-    "technical": "日线 Impulse 绿区，过滤周期同向"
+    "technical": "日线 Impulse 绿区，过滤周期同向",
+    "index_trend": "日线三旗 net 偏多，信号周期同向"
   }
 }
 ```
