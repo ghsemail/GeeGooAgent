@@ -93,7 +93,8 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		_ = json.NewEncoder(w).Encode(payload)
 		return
 	}
-	bars, _ := flow.ProbeRaw["bars"].([]any)
+	strategydev.EnsureProbeChartBarsForLab(flow.ProbeRaw, flow.MonthsBack)
+	bars := strategydev.LabDetailChartBars(flow.ProbeRaw)
 	lookback, _ := flow.ProbeRaw["bars_lookback"].([]any)
 	freq := "60m"
 	if len(flow.Strategies) > 0 && strings.TrimSpace(flow.Strategies[0].Frequency) != "" {
@@ -116,7 +117,7 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 	detail, err := strategydev.BuildLabEpisodeDetail(r.Context(), strategydev.LabDetailInput{
 		Run: strategydev.ToolRunner(runner), Code: flow.StockCode, SignalFreq: freq, Months: months,
 		KeyLevels: keyLevelBandsFromFlowSnapshot(flow), ProbeRaw: flow.ProbeRaw, Bars: bars,
-		LookbackBars: lookback, LabFetcher: fetcher, TAClient: labHTTP, IndexTrendClient: labHTTP,
+		LookbackBars: lookback, SignalEval: flow.SignalEval, LabFetcher: fetcher, TAClient: labHTTP, IndexTrendClient: labHTTP,
 		DetailTimeout: strategydev.DefaultLabDetailPhaseTimeout,
 		PATimeout:     strategydev.DefaultLabDetailPATimeout,
 		TATimeout:     strategydev.DefaultLabDetailTATimeout,

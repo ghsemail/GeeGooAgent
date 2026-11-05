@@ -2,6 +2,7 @@ package chat
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -132,6 +133,7 @@ func UpsertLabDiagnoseSnapshot(chat *chatsession.ChatSession, flow *Flow) {
 	if chat == nil || flow == nil || flow.RunID == "" || !FlowSupportsLabDetail(flow) {
 		return
 	}
+	strategydev.EnsureProbeChartBarsForLab(flow.ProbeRaw, flow.MonthsBack)
 	if chat.Metadata == nil {
 		chat.Metadata = map[string]any{}
 	}
@@ -162,21 +164,74 @@ func MustLabDiagnoseSnapshotJSON(flow Flow) json.RawMessage {
 // ResolveFlowForLabDetail returns active, archived, or Persist-Result-rebuilt flow for lab-detail.
 func ResolveFlowForLabDetail(chat *chatsession.ChatSession, runID string) *Flow {
 	runID = strings.TrimSpace(runID)
-	if active := FlowFromChat(chat); active != nil {
-		if runID == "" || runID == active.RunID {
-			return active
+	var active *Flow
+	if a := FlowFromChat(chat); a != nil {
+		if runID == "" || runID == a.RunID {
+			active = a
 		}
 	}
-	if chat == nil || chat.Metadata == nil || runID == "" {
-		return nil
+	if runID != "" && active != nil && active.Status != StatusCompleted && flowHasProbeBars(active) {
+		strategydev.EnsureProbeChartBarsForLab(active.ProbeRaw, active.MonthsBack)
+		return active
 	}
-	if flow := flowFromLabDiagnoseSnapshot(chat, runID); flow != nil {
+	if chat == nil || chat.Metadata == nil {
+		return active
+	}
+	var persistFlow, snapFlow *Flow
+	if runID != "" {
+		if res, ok := LookupSignalDiagnoseResultForLabDetail(chat, runID); ok && res != nil {
+			persistFlow = flowFromPersistedSignalDiagnoseResult(res, runID)
+		}
+		snapFlow = flowFromLabDiagnoseSnapshot(chat, runID)
+	}
+	flow := mergeLabDetailFlow(persistFlow, snapFlow, active)
+	if flow != nil {
+		strategydev.EnsureProbeChartBarsForLab(flow.ProbeRaw, flow.MonthsBack)
 		return flow
 	}
-	if res, ok := LookupSignalDiagnoseResultForLabDetail(chat, runID); ok && res != nil {
-		return flowFromPersistedSignalDiagnoseResult(res, runID)
+	return active
+}
+
+func mergeLabDetailFlow(persist, snap, active *Flow) *Flow {
+	base := persist
+	if base == nil {
+		base = snap
 	}
-	return nil
+	if base == nil {
+		return active
+	}
+	if snap != nil && persist != nil && labDetailProbeBarsDiffer(persist.ProbeRaw, snap.ProbeRaw) {
+		base = persist
+	}
+	if active != nil && base.RunID != "" && active.RunID == base.RunID {
+		if active.LabKlineMTF != nil {
+			base.LabKlineMTF = active.LabKlineMTF
+		}
+	}
+	if snap != nil && base != snap && snap.LabKlineMTF != nil && base.LabKlineMTF == nil {
+		base.LabKlineMTF = snap.LabKlineMTF
+	}
+	return base
+}
+
+func labDetailProbeBarsDiffer(a, b map[string]any) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	ab, _ := a["bars"].([]any)
+	bb, _ := b["bars"].([]any)
+	if len(ab) == 0 || len(bb) == 0 {
+		return len(ab) != len(bb)
+	}
+	if len(ab) != len(bb) {
+		return true
+	}
+	ar, _ := ab[0].(map[string]any)
+	br, _ := bb[0].(map[string]any)
+	if ar == nil || br == nil {
+		return false
+	}
+	return strings.TrimSpace(fmt.Sprint(ar["time"])) != strings.TrimSpace(fmt.Sprint(br["time"]))
 }
 
 func flowFromLabDiagnoseSnapshot(chat *chatsession.ChatSession, runID string) *Flow {
@@ -235,6 +290,7 @@ func flowFromPersistedSignalDiagnoseResult(res *SignalDiagnoseResult, requestedR
 	if res.Frequency != "" {
 		flow.Strategies = []StrategyItem{{Frequency: res.Frequency}}
 	}
+	strategydev.EnsureProbeChartBarsForLab(flow.ProbeRaw, flow.MonthsBack)
 	if len(flow.LabEpisodeSummaries) == 0 {
 		populateFlowLabSummariesFromProbe(flow)
 	} else {
