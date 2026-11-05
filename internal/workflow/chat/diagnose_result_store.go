@@ -489,6 +489,7 @@ func draftFlowFromRuntime(rt *runtime.Session) *Flow {
 		flow.StrategyQuery = p.StrategyQuery
 	}
 	ApplyMergedPanelOpsToFlowForPersist(rt, flow)
+	strategydev.EnsureProbeChartBarsForLab(flow.ProbeRaw, flow.MonthsBack)
 	populateFlowLabSummariesFromProbe(flow)
 	return flow
 }

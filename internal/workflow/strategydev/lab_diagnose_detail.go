@@ -5,8 +5,9 @@ import (
 	"strings"
 	"time"
 
-	kp "github.com/ghsemail/GeeGooAgent/internal/lab/klinepattern"
+	kp 	"github.com/ghsemail/GeeGooAgent/internal/lab/klinepattern"
 	"github.com/ghsemail/GeeGooAgent/internal/lab/priceanalysis"
+	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
 const (
@@ -30,6 +31,8 @@ type LabDetailInput struct {
 	ProbeRaw      map[string]any
 	Bars          []any
 	LookbackBars  []any
+	// SignalEval when set, anchors detail.time to episode start_time on chart bars.
+	SignalEval slots.SignalEpisodeEval
 	LabFetcher    priceanalysis.BarsFetcher
 	// DetailTimeout caps kline MTF probe only (not PA / JEV).
 	DetailTimeout time.Duration
@@ -63,10 +66,15 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		return buildLabFlowDetail(ctx, in, ref)
 	}
 	out := LabEpisodeDetail{Ref: ref, Side: side, BarIndex: idx}
-	if len(in.Bars) == 0 || idx >= len(in.Bars) {
+	chartBars := labDetailInputChartBars(in)
+	if len(chartBars) == 0 || idx >= len(chartBars) {
 		return out, errBadLabRef("bar index out of range: detail_ref suffix is chart start_idx (see lab_episode_summaries.start_idx), not episode list index")
 	}
-	ent := triggerRecordEntry(in.Bars, idx)
+	chartIdx, anchorRow, anchorOK := resolveLabDetailChartBar(chartBars, in.SignalEval, side, idx)
+	if !anchorOK || anchorRow == nil {
+		return out, errBadLabRef("bar index out of range: detail_ref suffix is chart start_idx (see lab_episode_summaries.start_idx), not episode list index")
+	}
+	ent := triggerRecordEntry(chartBars, chartIdx)
 	out.Time = ent.Time
 	out.Close = ent.Close
 
@@ -86,7 +94,7 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		}
 	}
 	if in.Run != nil && mtf == nil {
-		mtf = BuildKlinePatternMTFForDiagnoseRequest(true, phaseCtx, in.Run, in.Code, in.SignalFreq, in.Months, in.Bars)
+		mtf = BuildKlinePatternMTFForDiagnoseRequest(true, phaseCtx, in.Run, in.Code, in.SignalFreq, in.Months, chartBars)
 		if in.CachedMTF != nil {
 			*in.CachedMTF = mtf
 		}
@@ -94,31 +102,31 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 	}
 	var patIn KlinePatternDisplayInput
 	if in.Run != nil {
-		patIn = NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, in.Bars, in.ProbeRaw, mtf)
+		patIn = NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, chartBars, in.ProbeRaw, mtf)
 	} else {
-		patIn = NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, in.Bars, in.ProbeRaw, mtf)
+		patIn = NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, chartBars, in.ProbeRaw, mtf)
 		if mtf == nil {
 			out.Degraded = append(out.Degraded, "kline_mtf_probe_unavailable")
 		}
 	}
-	out.KlinePattern = buildLabKlineDetail(idx, patIn)
+	out.KlinePattern = buildLabKlineDetail(chartIdx, patIn)
 	applyLabKlinePatternTopLevel(&out)
 
 	labFetcher := WrapCachedLabBarsFetcher(in.SessionID, in.RunID, wrapMTFFallbackBarsFetcher(in.LabFetcher, mtf))
 	if labFetcher != nil && strings.TrimSpace(in.Code) != "" {
-		row := barRowAt(in.Bars, idx)
+		row := anchorRow
 		dailyForAnchor := dailyBarsForLabAnchorFromMTF(mtf)
 		if len(dailyForAnchor) == 0 {
 			dailyForAnchor = dailyBarsForLabAnchor(paCtx, LabDetailInput{
 				Run: in.Run, Code: in.Code, SignalFreq: in.SignalFreq, Months: in.Months,
-				KeyLevels: in.KeyLevels, ProbeRaw: in.ProbeRaw, Bars: in.Bars, LookbackBars: in.LookbackBars,
+				KeyLevels: in.KeyLevels, ProbeRaw: in.ProbeRaw, Bars: chartBars, LookbackBars: in.LookbackBars,
 				LabFetcher: labFetcher, SessionID: in.SessionID, RunID: in.RunID,
 			})
 		}
-		anchorTime, _, anchorOK := anchorForSignalBar(row, dailyForAnchor)
+		priceAnchorTime, _, priceAnchorOK := anchorForSignalBar(row, dailyForAnchor)
 		var asOf *time.Time
-		if anchorOK {
-			t := anchorTime
+		if priceAnchorOK {
+			t := priceAnchorTime
 			asOf = &t
 		}
 		pa := priceanalysis.Run(paCtx, labFetcher, priceanalysis.RunRequest{
@@ -159,7 +167,7 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 			out.IndexTrendJEV = &rec
 		}
 		applyLabJEVUnified(jevCtx, &out, side, in)
-		if !anchorOK {
+		if !priceAnchorOK {
 			out.Degraded = append(out.Degraded, "price_anchor_missing")
 		}
 	} else {
@@ -171,11 +179,12 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 
 func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (LabEpisodeDetail, error) {
 	out := LabEpisodeDetail{Ref: ref, Side: "flow", BarIndex: 0}
-	if len(in.Bars) == 0 {
+	chartBars := labDetailInputChartBars(in)
+	if len(chartBars) == 0 {
 		return out, nil
 	}
-	idx := len(in.Bars) - 1
-	ent := triggerRecordEntry(in.Bars, idx)
+	idx := len(chartBars) - 1
+	ent := triggerRecordEntry(chartBars, idx)
 	out.Time = ent.Time
 	out.Close = ent.Close
 
@@ -192,13 +201,13 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 				*in.CachedMTF = mtf
 			}
 		} else {
-			mtf = BuildKlinePatternMTFForDiagnoseRequest(true, phaseCtx, in.Run, in.Code, in.SignalFreq, in.Months, in.Bars)
+			mtf = BuildKlinePatternMTFForDiagnoseRequest(true, phaseCtx, in.Run, in.Code, in.SignalFreq, in.Months, chartBars)
 			if in.CachedMTF != nil {
 				*in.CachedMTF = mtf
 			}
 			StoreCachedLabKlineMTF(in.SessionID, in.RunID, mtf)
 		}
-		patIn := NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, in.Bars, in.ProbeRaw, mtf)
+		patIn := NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, chartBars, in.ProbeRaw, mtf)
 		out.KlinePattern = buildLabKlineDetail(idx, patIn)
 		applyLabKlinePatternTopLevel(&out)
 	}
