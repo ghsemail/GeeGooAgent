@@ -213,7 +213,7 @@ lab-detail **不**走卡片 light enrich；MTF 来自 run 级 probe + `BuildKlin
 - `index_trend_jev`：仅 ADX / EMA(中长期) / SAR 三旗 stance 与 summary（lab-api `POST /v1/lab/index-trend`）。
 - `jev_unified`：总 JEV Choice 的 state = 各路**基础事实摘要**（与单路 JEV 同源压缩）+ 各路 **JEV 结论**（`recommended_choice` / `choices` / `recommended_reason`）；未参与的路在 state 中写明「未参与」。禁止只喂结论、禁止固定权重机械合成方向；**不**再镜像单路 JEV。
 
-任一路 JEV 失败时 `ok=false` 且带 `error`，不本地捏方向；参与 unified 的任一路失败则不下发 `jev_unified`。总 JEV 自身 Choice/理由 Chat 失败时下发 `jev_unified.ok=false` 与 `error`，不本地捏 `direction`。冲突时 JEV 不得仅因矛盾默认「不明确」（与单路 JEV 口径一致）。对外文案用「JEV 决策」，不写 System One。
+任一路 JEV 失败时 `ok=false` 且带 `error`，不本地捏方向。总 JEV（`jev_unified`）仅汇总**参与路**：一路在 unified 中「参与」当且仅当该路原始数据对 JEV 有意义（与单路是否调用 JEV 的门槛一致，例如 PA 有摘要/行、K 线有形态输入、TA / index_trend 至少一周期拉数成功等）。**未参与**的路（无客户端、无输入、或拉数全盘失败等）在 unified state 中标为「未参与」，且**不**因该路的 `technical_analysis_jev` / `index_trend_jev` 等 `ok=false` 而抑下发 `jev_unified`。若某路参与 unified 但其 JEV 调用失败，则仍不下发 `jev_unified.ok=true`。总 JEV 自身 Choice/理由 Chat 失败时下发 `jev_unified.ok=false` 与 `error`，不本地捏 `direction`。冲突时 JEV 不得仅因矛盾默认「不明确」（与单路 JEV 口径一致）。对外文案用「JEV 决策」，不写 System One。
 
 单路与各 leg 的 **`recommended_reason`** 由独立 Decision Chat 生成：payload 除 JEV Choice 输出外，还携带与 Choice **同源** 的 `facts` 摘要（PA / K 线 / TA / index_trend 的 `Build*JEVState`）；总 JEV 理由 Chat 的 `leg_conclusions` 同样含各路 `facts`。方向仍只来自 Choice，理由 Chat 只解释依据、不重推方向。
 
