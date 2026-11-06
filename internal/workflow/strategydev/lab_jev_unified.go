@@ -52,8 +52,8 @@ type LabJEVUnified struct {
 }
 
 var labJEVUnifiedCriteria = map[string]string{
-	"看多": "参与各路的基础事实与 JEV 结论整体偏多，或冲突时经权衡后仍偏多（非固定权重计票）",
-	"看空": "参与各路的基础事实与 JEV 结论整体偏空，或冲突时经权衡后仍偏空（非固定权重计票）",
+	"看多":  "参与各路的基础事实与 JEV 结论整体偏多，或冲突时经权衡后仍偏多（非固定权重计票）",
+	"看空":  "参与各路的基础事实与 JEV 结论整体偏空，或冲突时经权衡后仍偏空（非固定权重计票）",
 	"不明确": "参与路信息均不足，或经权衡仍无法可靠定向（非仅因冲突就默认此项）",
 }
 
@@ -356,9 +356,15 @@ type labJEVUnifiedPlan struct {
 }
 
 func labJEVUnifiedPlanFor(in LabDetailInput, out *LabEpisodeDetail) labJEVUnifiedPlan {
-	plan := labJEVUnifiedPlan{
-		attemptTA:         in.TAClient != nil,
-		attemptIndexTrend: in.IndexTrendClient != nil,
+	plan := labJEVUnifiedPlan{}
+	// Unified JEV "participation" matches whether the lane had informative raw input
+	// (same gates as single-leg JEV), not merely whether a fetch client was attached.
+	// e.g. TA/index-trend all-timeframe fetch failure → lane is 未参与; remaining legs still unify.
+	if in.TAClient != nil && labTAInformative(out.TechnicalAnalysis) {
+		plan.attemptTA = true
+	}
+	if in.IndexTrendClient != nil && labIndexTrendInformative(out.IndexTrend) {
+		plan.attemptIndexTrend = true
 	}
 	if out.PriceAnalysis != nil && labPAInformative(out.PriceAnalysis) {
 		plan.attemptPA = true
@@ -421,7 +427,8 @@ func collectLabJEVUnifiedLegs(out *LabEpisodeDetail, plan labJEVUnifiedPlan, sig
 	return legs
 }
 
-// applyLabJEVUnified runs the final JEV pass when all attempted legs succeeded.
+// applyLabJEVUnified runs the final JEV pass when every participating leg succeeded.
+// Lanes without informative raw input are not participating (未参与) and do not block unified.
 func applyLabJEVUnified(ctx context.Context, out *LabEpisodeDetail, side string, in LabDetailInput) {
 	if out == nil {
 		return
