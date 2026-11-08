@@ -46,6 +46,19 @@ func multiTimeframeSpecsForLabJEVData() []struct {
 	}
 }
 
+// multiTimeframeSpecsForLabDailyMacro is macro monitor: JEV legs use daily only (faster lab-detail).
+func multiTimeframeSpecsForLabDailyMacro() []struct {
+	Label string
+	Freq  string
+} {
+	return []struct {
+		Label string
+		Freq  string
+	}{
+		{"日线", "daily"},
+	}
+}
+
 // multiTimeframeSpecsForGate returns 5m/60m/日线/周线 rows to fetch and display:
 // signal period plus coarser TFs only (never finer than the diagnose frequency).
 func multiTimeframeSpecsForGate(gateFreq string) []struct {

@@ -86,31 +86,44 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 	paCtx, paCancel := labDetailPAContext(cacheCtx, in.PATimeout)
 	defer paCancel()
 
-	if in.Run != nil && in.ProbeRaw != nil {
+	dailyMacro := labDetailDailyMacro(in)
+	if in.Run != nil && in.ProbeRaw != nil && !dailyMacro {
 		kp.EnsurePatternHitsOnProbeRaw(phaseCtx, kp.ToolRunner(in.Run), in.Code, in.SignalFreq, in.Months, chartBars, in.ProbeRaw)
 	}
 
 	var mtf *KlinePatternMTFBundle
-	if in.CachedMTF != nil && *in.CachedMTF != nil {
-		mtf = *in.CachedMTF
-	} else if b := CachedLabKlineMTF(in.SessionID, in.RunID); b != nil {
-		mtf = b
-		if in.CachedMTF != nil {
-			*in.CachedMTF = mtf
-		}
+	displayFreq := in.SignalFreq
+	if dailyMacro {
+		displayFreq = "daily"
 	}
-	if in.Run != nil && mtf == nil {
-		mtf = BuildKlinePatternMTFForDiagnoseRequest(true, phaseCtx, in.Run, in.Code, in.SignalFreq, in.Months, chartBars)
+	if dailyMacro && in.Run != nil {
+		mtf = BuildKlinePatternDailyMacroForDiagnose(true, phaseCtx, in.Run, in.Code, in.Months, chartBars)
 		if in.CachedMTF != nil {
 			*in.CachedMTF = mtf
 		}
 		StoreCachedLabKlineMTF(in.SessionID, in.RunID, mtf)
+	} else {
+		if in.CachedMTF != nil && *in.CachedMTF != nil {
+			mtf = *in.CachedMTF
+		} else if b := CachedLabKlineMTF(in.SessionID, in.RunID); b != nil {
+			mtf = b
+			if in.CachedMTF != nil {
+				*in.CachedMTF = mtf
+			}
+		}
+		if in.Run != nil && mtf == nil {
+			mtf = BuildKlinePatternMTFForDiagnoseRequest(true, phaseCtx, in.Run, in.Code, in.SignalFreq, in.Months, chartBars)
+			if in.CachedMTF != nil {
+				*in.CachedMTF = mtf
+			}
+			StoreCachedLabKlineMTF(in.SessionID, in.RunID, mtf)
+		}
 	}
 	var patIn KlinePatternDisplayInput
 	if in.Run != nil {
-		patIn = NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, chartBars, in.ProbeRaw, mtf)
+		patIn = NewKlinePatternDisplayInputForDiagnose(true, displayFreq, chartBars, in.ProbeRaw, mtf)
 	} else {
-		patIn = NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, chartBars, in.ProbeRaw, mtf)
+		patIn = NewKlinePatternDisplayInputForDiagnose(true, displayFreq, chartBars, in.ProbeRaw, mtf)
 		if mtf == nil {
 			out.Degraded = append(out.Degraded, "kline_mtf_probe_unavailable")
 		}
@@ -136,12 +149,13 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 			asOf = &t
 		}
 		pa := priceanalysis.Run(paCtx, labFetcher, priceanalysis.RunRequest{
-			Code:       in.Code,
-			Months:     CapMonthsBack(in.Months),
-			SignalFreq: in.SignalFreq,
-			AsOf:       asOf,
-			SpotPrice:  ent.Close,
-			KeyLevels:  keyLevelsToLab(in.KeyLevels),
+			Code:              in.Code,
+			Months:            CapMonthsBack(in.Months),
+			SignalFreq:        labDetailJEVSignalFreq(in),
+			AsOf:              asOf,
+			SpotPrice:         ent.Close,
+			KeyLevels:         keyLevelsToLab(in.KeyLevels),
+			JEVDailyMacroOnly: dailyMacro,
 		})
 		pa = priceanalysis.RoundPriceAnalysisForOutput(pa)
 		converted := priceAnalysisFromLab(pa)
@@ -165,11 +179,11 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		applyPriceAnalysisJEV(jevCtx, &out, side, in.Jev, in.LongOnly)
 		applyKlineJEV(jevCtx, &out, side, in.Jev, in.LongOnly)
 		if ta != nil {
-			rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, side, in.SignalFreq, in.LongOnly)
+			rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, side, labDetailJEVSignalFreq(in), in.LongOnly)
 			out.TechnicalAnalysisJEV = &rec
 		}
 		if indexTrend != nil {
-			rec := ResolveIndexTrendJEV(jevCtx, in.Jev, indexTrend, side, in.SignalFreq, in.LongOnly)
+			rec := ResolveIndexTrendJEV(jevCtx, in.Jev, indexTrend, side, labDetailJEVSignalFreq(in), in.LongOnly)
 			out.IndexTrendJEV = &rec
 		}
 		applyLabJEVUnified(jevCtx, &out, side, in)
@@ -197,12 +211,17 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 	cacheCtx := ContextWithPriceProbeCache(ctx)
 	phaseCtx, phaseCancel := labDetailPhaseContext(cacheCtx, in.DetailTimeout)
 	defer phaseCancel()
-	if in.Run != nil && in.ProbeRaw != nil {
+	flowDailyMacro := labDetailDailyMacro(in)
+	if in.Run != nil && in.ProbeRaw != nil && !flowDailyMacro {
 		kp.EnsurePatternHitsOnProbeRaw(phaseCtx, kp.ToolRunner(in.Run), in.Code, in.SignalFreq, in.Months, chartBars, in.ProbeRaw)
 	}
 	if in.Run != nil {
 		var mtf *KlinePatternMTFBundle
-		if in.CachedMTF != nil && *in.CachedMTF != nil {
+		displayFreq := in.SignalFreq
+		if flowDailyMacro {
+			displayFreq = "daily"
+			mtf = BuildKlinePatternDailyMacroForDiagnose(true, phaseCtx, in.Run, in.Code, in.Months, chartBars)
+		} else if in.CachedMTF != nil && *in.CachedMTF != nil {
 			mtf = *in.CachedMTF
 		} else if b := CachedLabKlineMTF(in.SessionID, in.RunID); b != nil {
 			mtf = b
@@ -216,7 +235,11 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 			}
 			StoreCachedLabKlineMTF(in.SessionID, in.RunID, mtf)
 		}
-		patIn := NewKlinePatternDisplayInputForDiagnose(true, in.SignalFreq, chartBars, in.ProbeRaw, mtf)
+		if flowDailyMacro && in.CachedMTF != nil {
+			*in.CachedMTF = mtf
+			StoreCachedLabKlineMTF(in.SessionID, in.RunID, mtf)
+		}
+		patIn := NewKlinePatternDisplayInputForDiagnose(true, displayFreq, chartBars, in.ProbeRaw, mtf)
 		out.KlinePattern = buildLabKlineDetail(idx, patIn)
 		applyLabKlinePatternTopLevel(&out)
 	}
@@ -225,8 +248,12 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 	defer paCancel()
 	if labFetcher != nil && strings.TrimSpace(in.Code) != "" {
 		pa := priceanalysis.Run(paCtx, labFetcher, priceanalysis.RunRequest{
-			Code: in.Code, Months: CapMonthsBack(in.Months), SignalFreq: in.SignalFreq,
-			SpotPrice: ent.Close, KeyLevels: keyLevelsToLab(in.KeyLevels),
+			Code:              in.Code,
+			Months:            CapMonthsBack(in.Months),
+			SignalFreq:        labDetailJEVSignalFreq(in),
+			SpotPrice:         ent.Close,
+			KeyLevels:         keyLevelsToLab(in.KeyLevels),
+			JEVDailyMacroOnly: flowDailyMacro,
 		})
 		pa = priceanalysis.RoundPriceAnalysisForOutput(pa)
 		converted := priceAnalysisFromLab(pa)
@@ -250,11 +277,11 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 		applyPriceAnalysisJEV(jevCtx, &out, "flow", in.Jev, in.LongOnly)
 		applyKlineJEV(jevCtx, &out, "flow", in.Jev, in.LongOnly)
 		if ta != nil {
-			rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, "flow", in.SignalFreq, in.LongOnly)
+			rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, "flow", labDetailJEVSignalFreq(in), in.LongOnly)
 			out.TechnicalAnalysisJEV = &rec
 		}
 		if indexTrend != nil {
-			rec := ResolveIndexTrendJEV(jevCtx, in.Jev, indexTrend, "flow", in.SignalFreq, in.LongOnly)
+			rec := ResolveIndexTrendJEV(jevCtx, in.Jev, indexTrend, "flow", labDetailJEVSignalFreq(in), in.LongOnly)
 			out.IndexTrendJEV = &rec
 		}
 		applyLabJEVUnified(jevCtx, &out, "flow", in)

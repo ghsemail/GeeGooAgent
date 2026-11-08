@@ -97,7 +97,7 @@ func fetchLabIndexTrendAt(
 	if len(chart) > 0 {
 		_, windowEnd = barSeriesTimeExtent(chart)
 	}
-	freqs := labTAFrequencies(in.SignalFreq)
+	freqs := labTAFrequencies(in)
 	type tfJob struct {
 		key string
 		req signalclient.IndexTrendRequest

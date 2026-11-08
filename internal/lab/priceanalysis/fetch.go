@@ -21,6 +21,11 @@ type MultiTFBarsInput struct {
 	Months   int
 	GateFreq string
 	AsOf     *time.Time
+	// Specs when non-empty overrides multiTimeframeSpecsForLabJEVData (macro daily-only).
+	Specs []struct {
+		Label string
+		Freq  string
+	}
 }
 
 // FetchMultiTimeframeBars probes each upward standard TF once.
@@ -31,7 +36,10 @@ func FetchMultiTimeframeBars(ctx context.Context, in MultiTFBarsInput) (barsByFr
 	if in.Fetch == nil || strings.TrimSpace(in.Code) == "" {
 		return barsByFreq, fetchOKByFreq, fetchErrByFreq
 	}
-	specs := multiTimeframeSpecsForLabJEVData()
+	specs := in.Specs
+	if len(specs) == 0 {
+		specs = multiTimeframeSpecsForLabJEVData()
+	}
 	type tfResult struct {
 		freq string
 		bars []any

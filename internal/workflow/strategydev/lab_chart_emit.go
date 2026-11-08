@@ -8,6 +8,7 @@ func PrepareLabEpisodeDetailForEmit(out *LabEpisodeDetail) {
 	if out == nil {
 		return
 	}
+	applyDailyMacroKlineDisplayForEmit(out)
 	out.KlinePatternThreeBar = kp.ThreeBarWindowForChartEmit(out.KlinePatternThreeBar)
 	out.KlinePatternMTF = kp.MTFContextForChartEmit(out.KlinePatternMTF)
 	if out.KlinePattern != nil {

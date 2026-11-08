@@ -73,6 +73,21 @@ func BuildKlinePatternMTFForDiagnoseRequest(
 	return kp.BuildKlinePatternMTFBundleParallel(ctx, kp.ToolRunner(run), code, signalFreq, months, bars)
 }
 
+// BuildKlinePatternDailyMacroForDiagnose probes daily K-line patterns only (macro lab-detail).
+func BuildKlinePatternDailyMacroForDiagnose(
+	labMode bool,
+	ctx context.Context,
+	run ToolRunner,
+	code string,
+	months int,
+	bars []any,
+) *KlinePatternMTFBundle {
+	if !DiagnoseLabMode(labMode) || run == nil {
+		return nil
+	}
+	return kp.BuildKlinePatternDailyMacroBundle(ctx, kp.ToolRunner(run), code, months, bars)
+}
+
 // BuildKlinePatternMTFBundle probes higher timeframes (lab archive; opt-in only).
 func BuildKlinePatternMTFBundle(
 	ctx context.Context,

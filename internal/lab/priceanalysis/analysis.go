@@ -72,6 +72,8 @@ type RunRequest struct {
 	AsOf       *time.Time
 	SpotPrice  float64
 	KeyLevels  KeyLevelBands
+	// JEVDailyMacroOnly: macro lab-detail — fetch/analyze daily row only (no 60m).
+	JEVDailyMacroOnly bool
 }
 
 // Run fetches OHLCV via BarsFetcher and builds the multi-TF analysis table.
@@ -91,10 +93,15 @@ func Run(ctx context.Context, fetch BarsFetcher, req RunRequest) PriceAnalysis {
 		out.AnchorTime = req.AsOf.In(loc).Format("2006-01-02 15:04") + " (Asia/Shanghai)"
 	}
 	if fetch != nil && code != "" {
+		specs := multiTimeframeSpecsForLabJEVData()
+		if req.JEVDailyMacroOnly {
+			specs = multiTimeframeSpecsForLabDailyMacro()
+			filterFreq = "daily"
+		}
 		barsByFreq, fetchOKByFreq, fetchErrByFreq := FetchMultiTimeframeBars(ctx, MultiTFBarsInput{
-			Fetch: fetch, Code: code, Months: req.Months, AsOf: req.AsOf, GateFreq: filterFreq,
+			Fetch: fetch, Code: code, Months: req.Months, AsOf: req.AsOf, GateFreq: filterFreq, Specs: specs,
 		})
-		for _, spec := range multiTimeframeSpecsForLabJEVData() {
+		for _, spec := range specs {
 			bars := barsByFreq[spec.Freq]
 			fetchOK := fetchOKByFreq[spec.Freq]
 			if err := fetchErrByFreq[spec.Freq]; err != nil {

@@ -83,20 +83,27 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "diagnose run has no probe bars for lab detail")
 		return
 	}
+	if body.Rebuild {
+		strategydev.ClearCachedLabKlineMTF(sessionID, flow.RunID)
+		flow.LabKlineMTF = nil
+	}
+	wantProfile := strings.TrimSpace(body.KlineJEVProfile)
+	cacheRef := strategydev.LabDetailCacheRef(ref, wantProfile)
 	if !body.Rebuild {
-		if cached, ok := workflowchat.CachedLabEpisodeDetail(chat, runID, ref); ok {
-		strategydev.PrepareLabEpisodeDetailForEmit(&cached)
-		w.Header().Set("Content-Type", "application/json")
-		payload := map[string]any{
-			"run_id": flow.RunID,
-			"detail": cached,
-			"cached": true,
-		}
-		if hint := strategydev.LabDetailRefMismatchHint(flow.LabEpisodeSummaries, ref); hint != "" {
-			payload["ref_hint"] = hint
-		}
-		_ = json.NewEncoder(w).Encode(payload)
-		return
+		if cached, ok := workflowchat.CachedLabEpisodeDetail(chat, runID, cacheRef); ok &&
+			strategydev.LabDetailProfileMatches(cached, wantProfile) {
+			strategydev.PrepareLabEpisodeDetailForEmit(&cached)
+			w.Header().Set("Content-Type", "application/json")
+			payload := map[string]any{
+				"run_id": flow.RunID,
+				"detail": cached,
+				"cached": true,
+			}
+			if hint := strategydev.LabDetailRefMismatchHint(flow.LabEpisodeSummaries, ref); hint != "" {
+				payload["ref_hint"] = hint
+			}
+			_ = json.NewEncoder(w).Encode(payload)
+			return
 		}
 	}
 	strategydev.EnsureProbeChartBarsForLab(flow.ProbeRaw, flow.MonthsBack)
@@ -140,7 +147,7 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	workflowchat.StoreLabEpisodeDetail(chat, nil, flow.RunID, ref, detail)
+	workflowchat.StoreLabEpisodeDetail(chat, nil, flow.RunID, cacheRef, detail)
 	if err := store.Save(chat); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

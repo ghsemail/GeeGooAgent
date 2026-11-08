@@ -437,7 +437,7 @@ func applyLabJEVUnified(ctx context.Context, out *LabEpisodeDetail, side string,
 	if labJEVUnifiedBlocked(out, plan) {
 		return
 	}
-	rec := ResolveLabJEVUnified(ctx, in.Jev, out, plan, side, in.SignalFreq, in.LongOnly)
+	rec := ResolveLabJEVUnified(ctx, in.Jev, out, plan, side, labDetailJEVSignalFreq(in), in.LongOnly)
 	out.JEVUnified = &rec
 }
 

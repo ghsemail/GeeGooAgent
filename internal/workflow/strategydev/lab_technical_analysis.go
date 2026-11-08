@@ -62,8 +62,11 @@ func labDetailTAContext(ctx context.Context, timeout time.Duration) (context.Con
 	return context.WithTimeout(ctx, timeout)
 }
 
-// labTAFrequencies lists TF pulls for TA/index JEV (K 线形态 MTF 不在此列；固定 60m + 日线).
-func labTAFrequencies(_ string) []string {
+// labTAFrequencies lists TF pulls for TA/index JEV (macro daily_macro: daily only).
+func labTAFrequencies(in LabDetailInput) []string {
+	if labDetailDailyMacro(in) {
+		return []string{"daily"}
+	}
 	return []string{"daily", "60m"}
 }
 
@@ -124,7 +127,7 @@ func fetchLabTechnicalAnalysisAt(
 	if len(chart) > 0 {
 		_, windowEnd = barSeriesTimeExtent(chart)
 	}
-	freqs := labTAFrequencies(in.SignalFreq)
+	freqs := labTAFrequencies(in)
 	type tfJob struct {
 		key string
 		req signalclient.TechnicalAnalysisRequest

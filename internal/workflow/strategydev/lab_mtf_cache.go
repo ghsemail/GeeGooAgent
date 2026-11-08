@@ -45,3 +45,11 @@ func StoreCachedLabKlineMTF(sessionID, runID string, bundle *KlinePatternMTFBund
 		expiresAt: time.Now().UTC().Add(labMTFCacheTTL),
 	})
 }
+
+// ClearCachedLabKlineMTF drops MTF probe cache so lab-detail rebuild re-fetches daily/weekly.
+func ClearCachedLabKlineMTF(sessionID, runID string) {
+	if strings.TrimSpace(runID) == "" {
+		return
+	}
+	labMTFCache.Delete(labMTFCacheKey(sessionID, runID))
+}

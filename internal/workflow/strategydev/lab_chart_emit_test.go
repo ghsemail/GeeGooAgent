@@ -2,6 +2,7 @@ package strategydev
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
@@ -61,6 +62,57 @@ func TestPrepareLabEpisodeDetailForEmit_AnchorOnlyChartMarkers(t *testing.T) {
 	prev2, _ := bars[0].(map[string]any)
 	if _, ok := prev2["kline_patterns"]; ok {
 		t.Fatalf("chart JSON must omit prev2 kline_patterns: %v", prev2)
+	}
+}
+
+func TestPrepareLabEpisodeDetailForEmit_DailyMacroKlineColumnOnly(t *testing.T) {
+	dailyBar := slots.KlinePatternBarWindowEntry{
+		Role:          "anchor",
+		KlinePatterns: []slots.KlinePatternHit{{LabelCN: "射击之星", Direction: -1}},
+	}
+	daily := slots.KlinePatternMTFEntry{
+		Frequency: "daily",
+		Label:     "日线",
+		ThreeBar: &slots.KlinePatternThreeBarWindow{
+			Bars: []slots.KlinePatternBarWindowEntry{dailyBar},
+		},
+	}
+	mtf := &slots.KlinePatternMTFContext{
+		SignalFrequency: "60m",
+		WeightSchema:    "mtf_v1",
+		PrimaryBias:     &slots.KlinePatternBias{Bias: "看空", Score: -0.89},
+		Timeframes: []slots.KlinePatternMTFEntry{
+			{Frequency: "60m", Label: "1小时"},
+			daily,
+			{Frequency: "weekly", Label: "周线"},
+		},
+	}
+	detail := LabEpisodeDetail{
+		KlineJEVProfile: LabKlineJEVProfileDailyMacro,
+		KlinePatternMTF: mtf,
+		KlinePattern: &LabKlinePatternDetail{
+			Summary: "多周期加权看空（-0.89）：1小时 贡献偏空",
+			MTF:     mtf,
+		},
+	}
+	PrepareLabEpisodeDetailForEmit(&detail)
+	if detail.KlinePattern == nil || detail.KlinePattern.MTF == nil {
+		t.Fatal("missing kline_pattern.mtf")
+	}
+	if len(detail.KlinePattern.MTF.Timeframes) != 1 {
+		t.Fatalf("want 1 daily column, got %d: %+v", len(detail.KlinePattern.MTF.Timeframes), detail.KlinePattern.MTF.Timeframes)
+	}
+	if detail.KlinePattern.MTF.SignalFrequency != "daily" {
+		t.Fatalf("signal_frequency=%q", detail.KlinePattern.MTF.SignalFrequency)
+	}
+	if strings.TrimSpace(detail.KlinePattern.MTF.WeightSchema) != "" {
+		t.Fatalf("weight_schema should be empty: %q", detail.KlinePattern.MTF.WeightSchema)
+	}
+	if strings.Contains(detail.KlinePattern.Summary, "多周期") {
+		t.Fatalf("summary should be daily hits only: %q", detail.KlinePattern.Summary)
+	}
+	if !strings.Contains(detail.KlinePattern.Summary, "射击之星") {
+		t.Fatalf("summary=%q", detail.KlinePattern.Summary)
 	}
 }
 
