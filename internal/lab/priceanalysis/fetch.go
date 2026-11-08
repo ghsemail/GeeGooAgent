@@ -31,7 +31,7 @@ func FetchMultiTimeframeBars(ctx context.Context, in MultiTFBarsInput) (barsByFr
 	if in.Fetch == nil || strings.TrimSpace(in.Code) == "" {
 		return barsByFreq, fetchOKByFreq, fetchErrByFreq
 	}
-	specs := multiTimeframeSpecsForGate(in.GateFreq)
+	specs := multiTimeframeSpecsForLabJEVData()
 	type tfResult struct {
 		freq string
 		bars []any

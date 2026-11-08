@@ -94,7 +94,7 @@ func Run(ctx context.Context, fetch BarsFetcher, req RunRequest) PriceAnalysis {
 		barsByFreq, fetchOKByFreq, fetchErrByFreq := FetchMultiTimeframeBars(ctx, MultiTFBarsInput{
 			Fetch: fetch, Code: code, Months: req.Months, AsOf: req.AsOf, GateFreq: filterFreq,
 		})
-		for _, spec := range multiTimeframeSpecsForGate(filterFreq) {
+		for _, spec := range multiTimeframeSpecsForLabJEVData() {
 			bars := barsByFreq[spec.Freq]
 			fetchOK := fetchOKByFreq[spec.Freq]
 			if err := fetchErrByFreq[spec.Freq]; err != nil {

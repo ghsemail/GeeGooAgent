@@ -62,15 +62,9 @@ func labDetailTAContext(ctx context.Context, timeout time.Duration) (context.Con
 	return context.WithTimeout(ctx, timeout)
 }
 
-func labTAFrequencies(signalFreq string) []string {
-	sig := NormalizeFrequency(signalFreq)
-	if sig == "" {
-		sig = "60m"
-	}
-	if sig == "daily" {
-		return []string{"daily"}
-	}
-	return []string{"daily", sig}
+// labTAFrequencies lists TF pulls for TA/index JEV (K 线形态 MTF 不在此列；固定 60m + 日线).
+func labTAFrequencies(_ string) []string {
+	return []string{"daily", "60m"}
 }
 
 func monthsBackForLabTechnicalAnalysis(chartMonths int, chartBars []any, freq string, windowEnd time.Time) int {

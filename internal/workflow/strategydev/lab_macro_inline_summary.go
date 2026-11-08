@@ -14,6 +14,13 @@ func LabEpisodeSummaryForMacro(detail LabEpisodeDetail) map[string]any {
 	if klineLine == "" && detail.KlinePattern != nil {
 		klineLine = strings.TrimSpace(detail.KlinePattern.Summary)
 	}
+	if klineLine == "" && detail.KlineJEV != nil {
+		if r := strings.TrimSpace(detail.KlineJEV.RecommendedReason); r != "" {
+			klineLine = r
+		} else if c := strings.TrimSpace(detail.KlineJEV.RecommendedChoice); c != "" {
+			klineLine = c
+		}
+	}
 	if klineLine != "" {
 		klineLine = LabCardSummaryLine("kline", klineLine)
 	}

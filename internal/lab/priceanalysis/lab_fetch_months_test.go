@@ -46,32 +46,28 @@ func TestMonthsBackPerTimeframeSignal3(t *testing.T) {
 	}
 }
 
-func Test00700HK5mMonths3WeeklyFetchMonthsRecorded(t *testing.T) {
-	var gotWeekly int
+func Test00700HK5mMonths3LabJEVDataPullsOnly60mDaily(t *testing.T) {
+	fetched := map[string]int{}
 	fetch := BarsFetcherFunc(func(_ context.Context, code, freq string, months int, _ *time.Time) ([]any, bool) {
 		if code != "00700.HK" {
 			t.Fatalf("code=%q", code)
 		}
-		if freq == "weekly" {
-			gotWeekly = months
-		}
+		fetched[freq] = months
 		return synthBarsForFetchTest(freq, months), true
 	})
 	pa := Run(t.Context(), fetch, RunRequest{
 		Code: "00700.HK", SignalFreq: "5m", Months: 3,
 	})
-	if gotWeekly < 10 {
-		t.Fatalf("weekly months_back=%d want >=10", gotWeekly)
+	if fetched["weekly"] != 0 || fetched["5m"] != 0 {
+		t.Fatalf("unexpected fetches: %v", fetched)
 	}
-	sc := ComputeMultiTFPriceScore(pa, "5m")
-	if strings.Contains(sc.ScoreReason, "缺周期") && strings.Contains(sc.ScoreReason, "周线") {
-		t.Fatalf("weekly still missing from composite: %q", sc.ScoreReason)
+	if fetched["60m"] < 1 || fetched["daily"] < 1 {
+		t.Fatalf("want 60m+daily pulls: %v", fetched)
 	}
-	for _, r := range pa.Rows {
-		if r.Timeframe == "周线" && r.Structure == structureInsufficientBars {
-			t.Fatalf("weekly row insufficient: %+v", r)
-		}
+	if len(pa.Rows) != 2 {
+		t.Fatalf("rows=%d want 2 (60m+daily)", len(pa.Rows))
 	}
+	_ = ComputeMultiTFPriceScore(pa, "5m")
 }
 
 func TestFormatLabPriceNoScientificNotation(t *testing.T) {
