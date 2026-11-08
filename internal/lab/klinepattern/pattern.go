@@ -7,7 +7,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
-// klinePatternLabelCN maps canonical pattern id → 中文展示（仅当 Signal 未给 name_chs 时回退用，不做过滤）。
+// klinePatternLabelCN 仅用于探针只带 name_chs、缺英文 name 时的反向解析（展示以 Signal name_chs 为准，无则露英文 name）。
 var klinePatternLabelCN = map[string]string{
 	"Doji":               "十字线",
 	"DragonflyDoji":      "蜻蜓十字线",
@@ -79,13 +79,7 @@ func FilteredKlinePatternsAtIndex(series []any, idx int) []slots.KlinePatternHit
 			continue
 		}
 		if labelCN == "" {
-			if cn, ok := klinePatternLabelCN[canonicalPatternName(name)]; ok {
-				labelCN = cn
-			} else if cn, ok := klinePatternLabelCN[name]; ok {
-				labelCN = cn
-			} else {
-				labelCN = name
-			}
+			labelCN = name
 		}
 		if name == "" {
 			name = labelCN

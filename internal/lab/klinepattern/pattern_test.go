@@ -60,6 +60,25 @@ func TestKlinePatternLabelCN_MatchesSignalTalibList(t *testing.T) {
 	}
 }
 
+func TestFilteredKlinePatternsAtIndex_DisplayLabelPrefersNameCHS(t *testing.T) {
+	series := []any{
+		[]any{
+			map[string]any{"name": "Hammer", "pattern": 1},
+			map[string]any{"name": "Engulfing", "name_chs": "吞没模式", "pattern": -1},
+		},
+	}
+	h := FilteredKlinePatternsAtIndex(series, 0)
+	if len(h) != 2 {
+		t.Fatalf("hits=%+v", h)
+	}
+	if h[0].LabelCN != "Hammer" {
+		t.Fatalf("no name_chs → show raw name, got %q", h[0].LabelCN)
+	}
+	if h[1].LabelCN != "吞没模式" {
+		t.Fatalf("name_chs wins, got %q", h[1].LabelCN)
+	}
+}
+
 func TestFilteredKlinePatternsAtIndex_KeepsProbeHitsAndDirection(t *testing.T) {
 	series := []any{
 		[]any{map[string]any{"name": "Hammer", "direction": 1}},
