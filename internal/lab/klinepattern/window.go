@@ -117,6 +117,22 @@ func triggerTimeFromBars(bars []any, idx int) time.Time {
 	return barTimeUnix(row)
 }
 
+// AlignAnchorBarIndex maps a signal-TF bar index to the bar at or before the same time on targetBars.
+func AlignAnchorBarIndex(chartBars []any, chartIdx int, targetBars []any) int {
+	if len(targetBars) == 0 {
+		return chartIdx
+	}
+	trigger := triggerTimeFromBars(chartBars, chartIdx)
+	if trigger.IsZero() {
+		return len(targetBars) - 1
+	}
+	aligned := alignBarIndexAtOrBefore(targetBars, trigger)
+	if aligned < 0 {
+		return len(targetBars) - 1
+	}
+	return aligned
+}
+
 type mtfAlignStatus int
 
 const (

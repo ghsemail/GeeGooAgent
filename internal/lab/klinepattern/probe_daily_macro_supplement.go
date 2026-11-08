@@ -56,3 +56,39 @@ func SupplementDailyMacroMTF(
 		Unsupported: unsup,
 	}
 }
+
+// HydrateDailyMacroMTFFromBars attaches lab-fetched daily OHLCV to the bundle and backfills pattern_hits.
+func HydrateDailyMacroMTFFromBars(
+	ctx context.Context,
+	run ToolRunner,
+	code string,
+	months int,
+	dailyBars []any,
+	bundle *KlinePatternMTFBundle,
+) {
+	if bundle == nil || run == nil || len(dailyBars) == 0 {
+		return
+	}
+	if bundle.ByFreq == nil {
+		bundle.ByFreq = map[string]KlinePatternFreqSeries{}
+	}
+	key := klinePatternMTFTimeframeKey("daily")
+	ser := bundle.ByFreq[key]
+	if len(ser.Bars) > 0 && len(ser.PatternHits) == len(ser.Bars) {
+		return
+	}
+	probeRaw := map[string]any{}
+	EnsurePatternHitsOnProbeRaw(ctx, run, code, "daily", months, dailyBars, probeRaw)
+	hits := PatternHitsSeriesFromProbe(probeRaw)
+	if len(hits) == 0 {
+		hits = ser.PatternHits
+	}
+	bundle.SignalFreq = "daily"
+	bundle.ByFreq[key] = KlinePatternFreqSeries{
+		Label:       "日线",
+		Freq:        "daily",
+		Bars:        dailyBars,
+		PatternHits: hits,
+		FetchOK:     true,
+	}
+}
