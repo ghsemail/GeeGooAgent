@@ -445,9 +445,15 @@ def lab_detail_jev(
     )
     if status != 200:
         return "", None
-    unified = data.get("jev_unified") or {}
+    detail = data.get("detail") if isinstance(data.get("detail"), dict) else {}
+    unified = detail.get("jev_unified") or data.get("jev_unified") or {}
     if isinstance(unified, dict):
-        choice = str(unified.get("choice") or unified.get("direction") or "").strip().lower()
+        choice = str(
+            unified.get("choice")
+            or unified.get("direction")
+            or unified.get("recommended_choice")
+            or ""
+        ).strip().lower()
         conf = unified.get("confidence")
         try:
             conf_f = float(conf) if conf is not None else None
@@ -456,9 +462,11 @@ def lab_detail_jev(
         direction = ""
         if choice in ("long", "short", "neutral"):
             direction = choice
-        elif "多" in choice or "涨" in choice:
+        elif choice in ("bull", "bear"):
+            direction = "long" if choice == "bull" else "short"
+        elif "多" in choice or "涨" in choice or "bull" in choice:
             direction = "long"
-        elif "空" in choice or "跌" in choice:
+        elif "空" in choice or "跌" in choice or "bear" in choice:
             direction = "short"
         if direction:
             return direction, conf_f
