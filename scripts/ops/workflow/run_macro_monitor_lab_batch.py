@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 DEFAULT_MACRO = "http://146.56.225.252:3220"
-DEFAULT_AGENT = "http://118.195.135.97:3110/op_agent"
+DEFAULT_AGENT = "http://127.0.0.1:3400"
 WORKFLOW_OPTIONS = {
     "signal_diagnose": {
         "panel_strategy_label": "买:SAR · 卖:SAR",
@@ -161,6 +161,7 @@ def chat_diagnose(
         "Content-Type": "application/json",
         "Authorization": f"Bearer {runtime_key}",
         "X-Approve-Writes": "true",
+        "X-MCP-Token": mcp_token,
     }
     body = {
         "message": message,
@@ -219,6 +220,7 @@ def fetch_diagnose_result(
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {runtime_key}",
+        "X-MCP-Token": mcp_token,
     }
     body: dict[str, Any] = {"session_id": session_id, "mcp_token": mcp_token}
     if run_id:
@@ -419,6 +421,7 @@ def lab_detail_jev(
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {runtime_key}",
+        "X-MCP-Token": mcp_token,
     }
     body = {
         "session_id": session_id,
@@ -509,7 +512,6 @@ def run_batch(
     def publish_progress(done_label: str, *, final: bool = False) -> None:
         if dry_run:
             return
-        finished = rfc3339_now() if final else None
         in_progress = not final and (ok_count + fail_count < total)
         summary = (
             f"{workflow} {done_label} ok={ok_count} fail={fail_count}/{total}"
@@ -520,12 +522,11 @@ def run_batch(
             "workflow": workflow,
             "date": batch_date,
             "started_at": started,
+            "finished_at": rfc3339_now(),
             "success": False if in_progress else (fail_count == 0 and ok_count > 0),
             "summary": summary,
             "pools": batch_pools,
         }
-        if finished:
-            body["finished_at"] = finished
         rid = post_batch_run(macro_base, macro_key, body)
         if rid:
             print(f"batch progress id={rid} · {summary}", flush=True)
