@@ -22,6 +22,8 @@ type signalDiagnoseLabDetailBody struct {
 	RunID     string `json:"run_id"`
 	DetailRef string `json:"detail_ref"`
 	MCPToken  string `json:"mcp_token"`
+	// Rebuild bypasses session lab-detail cache (e.g. macro backfill after JEV logic changes).
+	Rebuild bool `json:"rebuild"`
 }
 
 func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +81,8 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "diagnose run has no probe bars for lab detail")
 		return
 	}
-	if cached, ok := workflowchat.CachedLabEpisodeDetail(chat, runID, ref); ok {
+	if !body.Rebuild {
+		if cached, ok := workflowchat.CachedLabEpisodeDetail(chat, runID, ref); ok {
 		strategydev.PrepareLabEpisodeDetailForEmit(&cached)
 		w.Header().Set("Content-Type", "application/json")
 		payload := map[string]any{
@@ -92,6 +95,7 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		}
 		_ = json.NewEncoder(w).Encode(payload)
 		return
+		}
 	}
 	strategydev.EnsureProbeChartBarsForLab(flow.ProbeRaw, flow.MonthsBack)
 	bars := strategydev.LabDetailChartBars(flow.ProbeRaw)
