@@ -261,6 +261,11 @@ def pick_detail_ref(result: dict[str, Any]) -> str:
     ref = (lab.get("lab_default_detail_ref") or "").strip()
     if ref.startswith(("buy:", "sell:")):
         return ref
+    # Result API often inlines card summaries: lab is { "buy:9": {...}, "sell:43": {...} }.
+    if isinstance(lab, dict):
+        inline = _best_episode_ref([str(k) for k in lab.keys()])
+        if inline:
+            return inline
     summaries = lab.get("lab_episode_summaries")
     if isinstance(summaries, dict):
         picked = _best_episode_ref([str(k) for k in summaries])
