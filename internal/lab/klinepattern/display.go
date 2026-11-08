@@ -126,7 +126,8 @@ func BuildKlinePatternMTFContext(anchorIdx int, in KlinePatternDisplayInput) *sl
 			DisplayOnly: true,
 		}
 		if klinePatternMTFTimeframeKey(spec.Freq) == klinePatternMTFTimeframeKey(sigFreq) {
-			if ser, ok := mtfBundleSeries(in.MTF, spec.Freq); ok && ser.FetchOK && len(ser.Bars) > 0 {
+			// Daily macro may set FetchOK false when pattern_hits sparse; still align on probed TF bars.
+			if ser, ok := mtfBundleSeries(in.MTF, spec.Freq); ok && len(ser.Bars) > 0 {
 				aligned := alignBarIndexAtOrBefore(ser.Bars, trigger)
 				entry.FetchOK = true
 				entry.AlignedIndex = aligned

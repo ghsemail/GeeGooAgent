@@ -18,7 +18,7 @@ func TestPatternHitsForDisplayInput_DailyMacroPrefersMTFDailySeries(t *testing.T
 			nil,
 			[]any{map[string]any{"name": "Engulfing", "pattern": 1}},
 		},
-		FetchOK: true,
+		FetchOK: false, // macro paths may still have bars when fetch flag is false
 	}
 	probe := map[string]any{
 		"pattern_hits": []any{
