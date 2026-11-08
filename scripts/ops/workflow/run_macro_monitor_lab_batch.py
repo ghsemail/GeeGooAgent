@@ -256,11 +256,44 @@ def _best_episode_ref(candidates: list[str]) -> str:
     return keys[0]
 
 
+def _ref_from_lab_episode_summaries(lab: dict[str, Any]) -> str:
+    summaries = lab.get("lab_episode_summaries")
+    if not isinstance(summaries, dict):
+        return ""
+    best_ref = ""
+    best_idx = -1
+    for key, raw in summaries.items():
+        if not isinstance(raw, dict):
+            continue
+        start_idx = raw.get("start_idx")
+        if start_idx is None:
+            continue
+        try:
+            idx = int(start_idx)
+        except (TypeError, ValueError):
+            continue
+        side = ""
+        k = str(key).strip().lower()
+        if k.startswith("buy:"):
+            side = "buy"
+        elif k.startswith("sell:"):
+            side = "sell"
+        if not side:
+            continue
+        if idx > best_idx:
+            best_idx = idx
+            best_ref = f"{side}:{idx}"
+    return best_ref
+
+
 def pick_detail_ref(result: dict[str, Any]) -> str:
     lab = result.get("lab") or {}
     ref = (lab.get("lab_default_detail_ref") or "").strip()
     if ref.startswith(("buy:", "sell:")):
         return ref
+    from_summaries = _ref_from_lab_episode_summaries(lab)
+    if from_summaries:
+        return from_summaries
     # Result API often inlines card summaries: lab is { "buy:9": {...}, "sell:43": {...} }.
     if isinstance(lab, dict):
         inline = _best_episode_ref([str(k) for k in lab.keys()])
