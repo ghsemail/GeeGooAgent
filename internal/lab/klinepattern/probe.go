@@ -39,7 +39,12 @@ func EnsurePatternHitsOnProbeRaw(
 	if hits := PatternHitsSeriesFromProbe(probeRaw); len(hits) == len(chartBars) {
 		return
 	}
-	bars, hits, ok, _ := fetchKlinePatternProbeSeriesWithRetry(ctx, run, code, freq, months, nil)
+	var asOf *time.Time
+	if _, windowEnd := barSeriesTimeExtent(chartBars); !windowEnd.IsZero() {
+		end := windowEnd
+		asOf = &end
+	}
+	bars, hits, ok, _ := fetchKlinePatternProbeSeriesWithRetry(ctx, run, code, freq, months, asOf)
 	if !ok || len(hits) == 0 {
 		return
 	}
