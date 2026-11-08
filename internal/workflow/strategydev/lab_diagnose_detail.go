@@ -98,6 +98,9 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 	}
 	if dailyMacro && in.Run != nil {
 		mtf = BuildKlinePatternDailyMacroForDiagnose(true, phaseCtx, in.Run, in.Code, in.Months, chartBars)
+		if mtf != nil {
+			kp.SupplementDailyMacroMTF(phaseCtx, kp.ToolRunner(in.Run), in.Code, in.Months, chartBars, chartIdx, mtf)
+		}
 		if in.CachedMTF != nil {
 			*in.CachedMTF = mtf
 		}
