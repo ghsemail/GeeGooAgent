@@ -90,6 +90,24 @@ func fetchLabTechnicalAnalysis(
 	in LabDetailInput,
 	asOf *time.Time,
 ) *LabTechnicalAnalysis {
+	out := fetchLabTechnicalAnalysisAt(ctx, client, in, asOf)
+	if out.OK {
+		return out
+	}
+	if asOf != nil && !asOf.IsZero() && labCodeLooksCrypto(in.Code) {
+		if retry := fetchLabTechnicalAnalysisAt(ctx, client, in, nil); retry.OK {
+			return retry
+		}
+	}
+	return out
+}
+
+func fetchLabTechnicalAnalysisAt(
+	ctx context.Context,
+	client LabTechnicalAnalysisClient,
+	in LabDetailInput,
+	asOf *time.Time,
+) *LabTechnicalAnalysis {
 	out := &LabTechnicalAnalysis{
 		Code:            strings.TrimSpace(in.Code),
 		StrategyVersion: "alpha",

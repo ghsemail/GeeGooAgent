@@ -57,6 +57,24 @@ func fetchLabIndexTrend(
 	in LabDetailInput,
 	asOf *time.Time,
 ) *LabIndexTrend {
+	out := fetchLabIndexTrendAt(ctx, client, in, asOf)
+	if out.OK {
+		return out
+	}
+	if asOf != nil && !asOf.IsZero() && labCodeLooksCrypto(in.Code) {
+		if retry := fetchLabIndexTrendAt(ctx, client, in, nil); retry.OK {
+			return retry
+		}
+	}
+	return out
+}
+
+func fetchLabIndexTrendAt(
+	ctx context.Context,
+	client LabIndexTrendClient,
+	in LabDetailInput,
+	asOf *time.Time,
+) *LabIndexTrend {
 	out := &LabIndexTrend{
 		Code:            strings.TrimSpace(in.Code),
 		StrategyVersion: "alpha",
