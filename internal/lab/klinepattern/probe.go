@@ -44,6 +44,10 @@ func EnsurePatternHitsOnProbeRaw(
 		return
 	}
 	aligned := AlignPatternHitsSeriesToBars(chartBars, bars, hits)
+	if len(aligned) != len(chartBars) && len(bars) >= len(chartBars) && len(hits) == len(bars) {
+		start := len(bars) - len(chartBars)
+		aligned = append([]any(nil), hits[start:]...)
+	}
 	if len(aligned) != len(chartBars) {
 		return
 	}
