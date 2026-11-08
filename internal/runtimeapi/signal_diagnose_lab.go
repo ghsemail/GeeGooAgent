@@ -71,7 +71,7 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		return
 	}
 	userID := resolveUserID(r)
-	if !enforceSessionAccess(w, chat, userID) {
+	if !enforceSessionAccessOpsLabDetail(w, r, chat, userID) {
 		return
 	}
 	flow := workflowchat.ResolveFlowForLabDetail(chat, runID)
