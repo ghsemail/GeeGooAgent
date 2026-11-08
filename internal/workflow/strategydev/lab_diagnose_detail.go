@@ -100,7 +100,6 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		mtf = BuildKlinePatternDailyMacroForDiagnose(true, phaseCtx, in.Run, in.Code, in.Months, chartBars)
 		if mtf != nil {
 			kp.SupplementDailyMacroMTF(phaseCtx, kp.ToolRunner(in.Run), in.Code, in.Months, chartBars, chartIdx, mtf)
-			prepareDailyMacroKlineProbe(phaseCtx, in, chartBars, chartIdx, mtf)
 		}
 		if in.CachedMTF != nil {
 			*in.CachedMTF = mtf
@@ -125,18 +124,18 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 	}
 	klineIdx := chartIdx
 	var patIn KlinePatternDisplayInput
-	if dailyMacro {
-		patIn, klineIdx = dailyMacroKlineDisplayInput(chartBars, chartIdx, in.ProbeRaw, mtf)
-	} else if in.Run != nil {
-		patIn = NewKlinePatternDisplayInputForDiagnose(true, displayFreq, chartBars, in.ProbeRaw, mtf)
-	} else {
-		patIn = NewKlinePatternDisplayInputForDiagnose(true, displayFreq, chartBars, in.ProbeRaw, mtf)
-		if mtf == nil {
-			out.Degraded = append(out.Degraded, "kline_mtf_probe_unavailable")
+	if !dailyMacro {
+		if in.Run != nil {
+			patIn = NewKlinePatternDisplayInputForDiagnose(true, displayFreq, chartBars, in.ProbeRaw, mtf)
+		} else {
+			patIn = NewKlinePatternDisplayInputForDiagnose(true, displayFreq, chartBars, in.ProbeRaw, mtf)
+			if mtf == nil {
+				out.Degraded = append(out.Degraded, "kline_mtf_probe_unavailable")
+			}
 		}
+		out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
+		applyLabKlinePatternTopLevel(&out)
 	}
-	out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
-	applyLabKlinePatternTopLevel(&out)
 
 	labFetcher := WrapCachedLabBarsFetcher(in.SessionID, in.RunID, wrapMTFFallbackBarsFetcher(in.LabFetcher, mtf))
 	if labFetcher != nil && strings.TrimSpace(in.Code) != "" {
@@ -148,6 +147,14 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 				KeyLevels: in.KeyLevels, ProbeRaw: in.ProbeRaw, Bars: chartBars, LookbackBars: in.LookbackBars,
 				LabFetcher: labFetcher, SessionID: in.SessionID, RunID: in.RunID,
 			})
+		}
+		if dailyMacro {
+			fetchIn := in
+			fetchIn.LabFetcher = labFetcher
+			prepareDailyMacroKlineProbe(paCtx, fetchIn, chartBars, mtf, dailyForAnchor)
+			patIn, klineIdx = dailyMacroKlineDisplayInput(chartBars, chartIdx, in.ProbeRaw, mtf)
+			out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
+			applyLabKlinePatternTopLevel(&out)
 		}
 		priceAnchorTime, _, priceAnchorOK := anchorForSignalBar(row, dailyForAnchor)
 		var asOf *time.Time
@@ -197,7 +204,11 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		if !priceAnchorOK {
 			out.Degraded = append(out.Degraded, "price_anchor_missing")
 		}
-	} else {
+	} else if dailyMacro {
+		prepareDailyMacroKlineProbe(paCtx, in, chartBars, mtf, nil)
+		patIn, klineIdx := dailyMacroKlineDisplayInput(chartBars, chartIdx, in.ProbeRaw, mtf)
+		out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
+		applyLabKlinePatternTopLevel(&out)
 		out.Degraded = append(out.Degraded, "lab_price_fetch_unavailable")
 	}
 	PrepareLabEpisodeDetailForEmit(&out)
@@ -230,7 +241,6 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 			mtf = BuildKlinePatternDailyMacroForDiagnose(true, phaseCtx, in.Run, in.Code, in.Months, chartBars)
 			if mtf != nil {
 				kp.SupplementDailyMacroMTF(phaseCtx, kp.ToolRunner(in.Run), in.Code, in.Months, chartBars, idx, mtf)
-				prepareDailyMacroKlineProbe(phaseCtx, in, chartBars, idx, mtf)
 			}
 		} else if in.CachedMTF != nil && *in.CachedMTF != nil {
 			mtf = *in.CachedMTF
@@ -250,19 +260,35 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 			*in.CachedMTF = mtf
 			StoreCachedLabKlineMTF(in.SessionID, in.RunID, mtf)
 		}
-		klineIdx := idx
-		var patIn KlinePatternDisplayInput
-		if flowDailyMacro {
-			patIn, klineIdx = dailyMacroKlineDisplayInput(chartBars, idx, in.ProbeRaw, mtf)
-		} else {
-			patIn = NewKlinePatternDisplayInputForDiagnose(true, displayFreq, chartBars, in.ProbeRaw, mtf)
+		if !flowDailyMacro {
+			patIn := NewKlinePatternDisplayInputForDiagnose(true, displayFreq, chartBars, in.ProbeRaw, mtf)
+			out.KlinePattern = buildLabKlineDetail(idx, patIn)
+			applyLabKlinePatternTopLevel(&out)
 		}
-		out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
-		applyLabKlinePatternTopLevel(&out)
 	}
 	labFetcher := WrapCachedLabBarsFetcher(in.SessionID, in.RunID, in.LabFetcher)
 	paCtx, paCancel := labDetailPAContext(cacheCtx, in.PATimeout)
 	defer paCancel()
+	if flowDailyMacro && in.Run != nil {
+		var mtf *KlinePatternMTFBundle
+		if in.CachedMTF != nil && *in.CachedMTF != nil {
+			mtf = *in.CachedMTF
+		}
+		dailyForAnchor := dailyBarsForLabAnchorFromMTF(mtf)
+		if len(dailyForAnchor) == 0 && labFetcher != nil && strings.TrimSpace(in.Code) != "" {
+			dailyForAnchor = dailyBarsForLabAnchor(paCtx, LabDetailInput{
+				Run: in.Run, Code: in.Code, SignalFreq: in.SignalFreq, Months: in.Months,
+				Bars: chartBars, LookbackBars: in.LookbackBars, LabFetcher: labFetcher,
+				SessionID: in.SessionID, RunID: in.RunID,
+			})
+		}
+		fetchIn := in
+		fetchIn.LabFetcher = labFetcher
+		prepareDailyMacroKlineProbe(paCtx, fetchIn, chartBars, mtf, dailyForAnchor)
+		patIn, klineIdx := dailyMacroKlineDisplayInput(chartBars, idx, in.ProbeRaw, mtf)
+		out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
+		applyLabKlinePatternTopLevel(&out)
+	}
 	if labFetcher != nil && strings.TrimSpace(in.Code) != "" {
 		pa := priceanalysis.Run(paCtx, labFetcher, priceanalysis.RunRequest{
 			Code:              in.Code,

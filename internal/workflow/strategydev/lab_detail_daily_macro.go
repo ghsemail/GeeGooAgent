@@ -33,18 +33,22 @@ func LabDetailProfileMatches(cached LabEpisodeDetail, wantProfile string) bool {
 	return strings.TrimSpace(cached.KlineJEVProfile) == strings.TrimSpace(wantProfile)
 }
 
-// prepareDailyMacroKlineProbe ensures the MTF bundle has daily bars (probe or lab-api) before kline display.
+// prepareDailyMacroKlineProbe ensures the MTF bundle has daily bars (+ pattern_hits when possible).
+// dailyBarsHint may be pre-fetched lab-api series (PA budget); otherwise fetches when LabFetcher is set.
 func prepareDailyMacroKlineProbe(
 	ctx context.Context,
 	in LabDetailInput,
 	chartBars []any,
-	chartIdx int,
 	mtf *KlinePatternMTFBundle,
+	dailyBarsHint []any,
 ) {
 	if mtf == nil {
 		return
 	}
-	dailyBars := dailyBarsForLabAnchorFromMTF(mtf)
+	dailyBars := dailyBarsHint
+	if len(dailyBars) == 0 {
+		dailyBars = dailyBarsForLabAnchorFromMTF(mtf)
+	}
 	if len(dailyBars) == 0 && in.LabFetcher != nil {
 		dailyBars = dailyBarsForLabAnchor(ctx, in)
 	}
