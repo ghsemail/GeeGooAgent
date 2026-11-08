@@ -128,11 +128,21 @@ func TestBuildLabEpisodeDetailThreeJEVWhenNoKline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if detail.KlineJEV != nil {
-		t.Fatalf("expected no kline_jev without pattern context, got %+v", detail.KlineJEV)
-	}
-	if jevCalls != 4 {
-		t.Fatalf("expected PA + TA + index_trend + unified JEV calls, got %d", jevCalls)
+	hasKlineLane := !labJEVKlineInputEmpty(labJEVKlineFromDetail(&detail))
+	if hasKlineLane {
+		if detail.KlineJEV == nil || !detail.KlineJEV.OK {
+			t.Fatalf("expected kline_jev when anchor three_bar context, got %+v", detail.KlineJEV)
+		}
+		if jevCalls != 5 {
+			t.Fatalf("expected PA + kline + TA + index_trend + unified JEV calls, got %d", jevCalls)
+		}
+	} else {
+		if detail.KlineJEV != nil {
+			t.Fatalf("expected no kline_jev without pattern context, got %+v", detail.KlineJEV)
+		}
+		if jevCalls != 4 {
+			t.Fatalf("expected PA + TA + index_trend + unified JEV calls, got %d", jevCalls)
+		}
 	}
 }
 

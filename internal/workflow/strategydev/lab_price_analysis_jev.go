@@ -53,7 +53,11 @@ type LabJEVKlineInput struct {
 	Summary             string
 	Bias                *slots.KlinePatternBias
 	Hits                []slots.KlinePatternHit
+	// ThreeBar carries prev2/prev/anchor OHLC when pattern hits are empty (still run kline JEV).
+	ThreeBar *slots.KlinePatternThreeBarWindow
 }
+
+const labJEVKlineNoNamedPatternSummary = "无命名形态命中（锚点三根K线结构）"
 
 // BuildPriceAnalysisJEVState compresses multi-TF PA into state for JEV 决策 (no kline patterns).
 func BuildPriceAnalysisJEVState(pa *PriceAnalysis, signalSide string, longOnly bool) string {
@@ -114,7 +118,8 @@ func appendKlinePatternJEVState(b *strings.Builder, kline *LabJEVKlineInput) {
 	}
 	tagged := kline.TaggedHits
 	hasLegacyHits := len(kline.Hits) > 0
-	if summary == "" && bias == nil && len(tagged) == 0 && !hasLegacyHits {
+	hasThreeBar := labJEVThreeBarHasAnchorOHLC(kline.ThreeBar)
+	if summary == "" && bias == nil && len(tagged) == 0 && !hasLegacyHits && !hasThreeBar {
 		return
 	}
 	b.WriteString("\n--- 锚点 K 线形态（按周期标注，供与结构一并判断）---\n")
@@ -144,6 +149,31 @@ func appendKlinePatternJEVState(b *strings.Builder, kline *LabJEVKlineInput) {
 	if len(tagged) == 0 {
 		for _, h := range kline.Hits {
 			appendLabJEVKlineHitLine(b, labJEVTimeframeTag("", kline.SignalFreq), true, h)
+		}
+	}
+	if kline.ThreeBar != nil {
+		appendLabJEVKlineThreeBarOHLC(b, kline.ThreeBar)
+	}
+}
+
+func appendLabJEVKlineThreeBarOHLC(b *strings.Builder, win *slots.KlinePatternThreeBarWindow) {
+	if win == nil || len(win.Bars) == 0 {
+		return
+	}
+	b.WriteString("锚点三根K线 OHLC：\n")
+	for _, bar := range win.Bars {
+		if bar.Omitted {
+			continue
+		}
+		role := strings.TrimSpace(bar.Role)
+		if role == "" {
+			role = "bar"
+		}
+		t := strings.TrimSpace(bar.Time)
+		if t != "" {
+			fmt.Fprintf(b, "%s（%s）O=%.4g H=%.4g L=%.4g C=%.4g\n", role, t, bar.Open, bar.High, bar.Low, bar.Close)
+		} else {
+			fmt.Fprintf(b, "%s O=%.4g H=%.4g L=%.4g C=%.4g\n", role, bar.Open, bar.High, bar.Low, bar.Close)
 		}
 	}
 }
@@ -264,17 +294,48 @@ func labJEVKlineFromDetail(out *LabEpisodeDetail) *LabJEVKlineInput {
 	if out.KlinePatternMTF != nil {
 		sigFreq = out.KlinePatternMTF.SignalFrequency
 	}
+	threeBar := labJEVThreeBarFromEpisodeDetail(out)
 	in := &LabJEVKlineInput{
 		SignalFreq:         sigFreq,
 		DisplaySummary:     patternSummaryText(out),
 		DisplayBias:        patternBiasForDetail(out),
 		MTFWeightedDisplay: out.KlinePatternMTF != nil && strings.TrimSpace(out.KlinePatternMTF.WeightSchema) != "",
 		TaggedHits:         labJEVKlineTaggedHitsFromDetail(out, sigFreq),
+		ThreeBar:           threeBar,
 	}
 	if in.DisplaySummary == "" && in.DisplayBias == nil && len(in.TaggedHits) == 0 {
-		return nil
+		if threeBar != nil && labJEVThreeBarHasAnchorOHLC(threeBar) {
+			in.DisplaySummary = labJEVKlineNoNamedPatternSummary
+		} else {
+			return nil
+		}
 	}
 	return in
+}
+
+func labJEVThreeBarFromEpisodeDetail(out *LabEpisodeDetail) *slots.KlinePatternThreeBarWindow {
+	if out == nil {
+		return nil
+	}
+	if out.KlinePattern != nil && out.KlinePattern.ThreeBar != nil {
+		return out.KlinePattern.ThreeBar
+	}
+	return out.KlinePatternThreeBar
+}
+
+func labJEVThreeBarHasAnchorOHLC(win *slots.KlinePatternThreeBarWindow) bool {
+	if win == nil || len(win.Bars) == 0 {
+		return false
+	}
+	for _, bar := range win.Bars {
+		if bar.Omitted {
+			continue
+		}
+		if strings.TrimSpace(bar.Role) == "anchor" {
+			return true
+		}
+	}
+	return false
 }
 
 func labJEVKlineInputEmpty(kline *LabJEVKlineInput) bool {
@@ -288,6 +349,9 @@ func labJEVKlineInputEmpty(kline *LabJEVKlineInput) bool {
 		return false
 	}
 	if kline.Bias != nil || kline.DisplayBias != nil {
+		return false
+	}
+	if labJEVThreeBarHasAnchorOHLC(kline.ThreeBar) {
 		return false
 	}
 	return true
