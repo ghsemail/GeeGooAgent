@@ -84,6 +84,10 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 	paCtx, paCancel := labDetailPAContext(cacheCtx, in.PATimeout)
 	defer paCancel()
 
+	if in.Run != nil && in.ProbeRaw != nil {
+		kp.EnsurePatternHitsOnProbeRaw(phaseCtx, kp.ToolRunner(in.Run), in.Code, in.SignalFreq, in.Months, chartBars, in.ProbeRaw)
+	}
+
 	var mtf *KlinePatternMTFBundle
 	if in.CachedMTF != nil && *in.CachedMTF != nil {
 		mtf = *in.CachedMTF
@@ -191,6 +195,9 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 	cacheCtx := ContextWithPriceProbeCache(ctx)
 	phaseCtx, phaseCancel := labDetailPhaseContext(cacheCtx, in.DetailTimeout)
 	defer phaseCancel()
+	if in.Run != nil && in.ProbeRaw != nil {
+		kp.EnsurePatternHitsOnProbeRaw(phaseCtx, kp.ToolRunner(in.Run), in.Code, in.SignalFreq, in.Months, chartBars, in.ProbeRaw)
+	}
 	if in.Run != nil {
 		var mtf *KlinePatternMTFBundle
 		if in.CachedMTF != nil && *in.CachedMTF != nil {

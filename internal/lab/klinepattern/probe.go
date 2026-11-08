@@ -24,6 +24,32 @@ type KlinePatternMTFBundle struct {
 	ByFreq     map[string]KlinePatternFreqSeries
 }
 
+// EnsurePatternHitsOnProbeRaw backfills pattern_hits on chart_probe when persistence omitted the series.
+func EnsurePatternHitsOnProbeRaw(
+	ctx context.Context,
+	run ToolRunner,
+	code, freq string,
+	months int,
+	chartBars []any,
+	probeRaw map[string]any,
+) {
+	if probeRaw == nil || run == nil || len(chartBars) == 0 {
+		return
+	}
+	if hits := PatternHitsSeriesFromProbe(probeRaw); len(hits) == len(chartBars) {
+		return
+	}
+	bars, hits, ok, _ := fetchKlinePatternProbeSeriesWithRetry(ctx, run, code, freq, months, nil)
+	if !ok || len(hits) == 0 {
+		return
+	}
+	aligned := AlignPatternHitsSeriesToBars(chartBars, bars, hits)
+	if len(aligned) != len(chartBars) {
+		return
+	}
+	probeRaw["pattern_hits"] = aligned
+}
+
 func fetchKlinePatternProbeSeries(
 	ctx context.Context,
 	run ToolRunner,
