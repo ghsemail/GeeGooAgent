@@ -63,6 +63,11 @@ func ResolveKlineJEV(ctx context.Context, jev *JevClient, kline *LabJEVKlineInpu
 	instructions := "基于 state 中的锚点 K 线形态命中、摘要与倾向，对该信号上下文应如何判断价格方向？只能从给定选项中选一项。" +
 		"规则：①多周期形态同向则选该方向；②冲突时须权衡后选看多或看空，不得仅因冲突选不明确；" +
 		"③仅摘要或仅命中一方有信息则跟随有信息的一方；④信息均不足或确实无法判断时才选不明确。"
+	if kline != nil && strings.TrimSpace(kline.Profile) == LabKlineJEVProfileDailyMacro {
+		instructions = "基于 state 中的**日线**锚点命名形态与三根 K 线 OHLC，对该信号上下文应如何判断价格方向？只能从给定选项中选一项。" +
+			"勿使用其它周期或加权结论；仅依据 state 给出的日线命中与 K 线结构。" +
+			"规则：①命名形态与 OHLC 同向则选该方向；②冲突时权衡后选明确方向；③信息不足时选不明确。"
+	}
 	choice, probs, confidence, respModel, err := jev.Choice(ctx, state, "direction", instructions, klineJEVCriteria)
 	if err != nil {
 		base.Error = err.Error()

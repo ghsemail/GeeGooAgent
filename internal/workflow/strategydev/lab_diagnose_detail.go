@@ -54,6 +54,8 @@ type LabDetailInput struct {
 	IndexTrendClient LabIndexTrendClient
 	// LongOnly matches signal_diagnose trade_direction (JEV copy + omitted short lab refs).
 	LongOnly bool
+	// KlineJEVProfile selects kline JEV facts (e.g. LabKlineJEVProfileDailyMacro for macro monitor).
+	KlineJEVProfile string
 }
 
 // BuildLabEpisodeDetail loads MTF kline context and anchored price analysis for one ref.
@@ -65,7 +67,7 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 	if side == "flow" {
 		return buildLabFlowDetail(ctx, in, ref)
 	}
-	out := LabEpisodeDetail{Ref: ref, Side: side, BarIndex: idx}
+	out := LabEpisodeDetail{Ref: ref, Side: side, BarIndex: idx, KlineJEVProfile: strings.TrimSpace(in.KlineJEVProfile)}
 	chartBars := labDetailInputChartBars(in)
 	if len(chartBars) == 0 || idx >= len(chartBars) {
 		return out, errBadLabRef("bar index out of range: detail_ref suffix is chart start_idx (see lab_episode_summaries.start_idx), not episode list index")
@@ -182,7 +184,7 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 }
 
 func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (LabEpisodeDetail, error) {
-	out := LabEpisodeDetail{Ref: ref, Side: "flow", BarIndex: 0}
+	out := LabEpisodeDetail{Ref: ref, Side: "flow", BarIndex: 0, KlineJEVProfile: strings.TrimSpace(in.KlineJEVProfile)}
 	chartBars := labDetailInputChartBars(in)
 	if len(chartBars) == 0 {
 		return out, nil

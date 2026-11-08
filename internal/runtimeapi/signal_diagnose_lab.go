@@ -24,6 +24,8 @@ type signalDiagnoseLabDetailBody struct {
 	MCPToken  string `json:"mcp_token"`
 	// Rebuild bypasses session lab-detail cache (e.g. macro backfill after JEV logic changes).
 	Rebuild bool `json:"rebuild"`
+	// KlineJEVProfile e.g. daily_macro for macro monitor (daily patterns + three-bar OHLC only).
+	KlineJEVProfile string `json:"kline_jev_profile,omitempty"`
 }
 
 func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request) {
@@ -128,6 +130,7 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		JEVTimeout:    strategydev.DefaultLabDetailJEVTimeout,
 		CachedMTF: &flow.LabKlineMTF, SessionID: sessionID, RunID: flow.RunID, Jev: jev,
 		LongOnly: flow.TradeDirection.LongOnlyEpisodeEval(),
+		KlineJEVProfile: strings.TrimSpace(body.KlineJEVProfile),
 	}, ref)
 	if err != nil {
 		if strategydev.IsBadLabRef(err) {

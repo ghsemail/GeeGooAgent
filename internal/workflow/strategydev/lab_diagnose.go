@@ -13,6 +13,9 @@ func DiagnoseLabMode(labMode bool) bool {
 	return labMode
 }
 
+// LabKlineJEVProfileDailyMacro: K-line JEV uses daily anchor patterns + three-bar OHLC only (no MTF weighted summary).
+const LabKlineJEVProfileDailyMacro = "daily_macro"
+
 // LabEpisodeCardSummary is a one-line lab conclusion on a diagnose card (episode or trigger).
 type LabEpisodeCardSummary struct {
 	KlinePattern  string   `json:"kline_pattern,omitempty"`
@@ -48,6 +51,7 @@ type LabEpisodeDetail struct {
 	IndexTrend            *LabIndexTrend         `json:"index_trend,omitempty"`
 	IndexTrendJEV         *IndexTrendJEV         `json:"index_trend_jev,omitempty"`
 	JEVUnified            *LabJEVUnified         `json:"jev_unified,omitempty"`
+	KlineJEVProfile       string                 `json:"kline_jev_profile,omitempty"`
 	Degraded          []string           `json:"degraded,omitempty"`
 }
 

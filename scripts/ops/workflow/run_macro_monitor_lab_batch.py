@@ -434,6 +434,7 @@ def lab_detail_jev(
         "detail_ref": detail_ref,
         "mcp_token": mcp_token,
         "rebuild": True,
+        "kline_jev_profile": "daily_macro",
     }
     status, data, _ = http_json(
         "POST",

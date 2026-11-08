@@ -76,6 +76,52 @@ func TestBuildPriceAnalysisJEVStateExcludesKlinePatterns(t *testing.T) {
 	_ = kline
 }
 
+func TestLabJEVKlineFromDetailDailyMacroProfile(t *testing.T) {
+	detail := &LabEpisodeDetail{
+		KlineJEVProfile: LabKlineJEVProfileDailyMacro,
+		KlinePatternMTF: &slots.KlinePatternMTFContext{
+			SignalFrequency: "60m",
+			WeightSchema:    "mtf_v1",
+			Timeframes: []slots.KlinePatternMTFEntry{
+				{
+					Frequency: "60m",
+					Label:     "1小时",
+					ThreeBar: &slots.KlinePatternThreeBarWindow{
+						Bars: []slots.KlinePatternBarWindowEntry{
+							{Role: "anchor", KlinePatterns: []slots.KlinePatternHit{{LabelCN: "捉腰带线", Direction: 1}}},
+						},
+					},
+				},
+				{
+					Frequency: "daily",
+					Label:     "日线",
+					ThreeBar: &slots.KlinePatternThreeBarWindow{
+						Bars: []slots.KlinePatternBarWindowEntry{
+							{Role: "anchor", KlinePatterns: []slots.KlinePatternHit{{LabelCN: "射击之星", Direction: -1}}},
+						},
+					},
+				},
+			},
+		},
+		KlinePatternSummary: "多周期加权看空（-0.44）",
+		KlinePatternBias:    &slots.KlinePatternBias{Bias: "看空", Score: -0.44},
+	}
+	kline := labJEVKlineFromDetail(detail)
+	if kline == nil || kline.MTFWeightedDisplay {
+		t.Fatalf("kline=%+v", kline)
+	}
+	if len(kline.TaggedHits) != 1 || !strings.Contains(kline.TaggedHits[0].Timeframe, "日") {
+		t.Fatalf("tagged=%+v", kline.TaggedHits)
+	}
+	state := BuildKlineJEVState(kline, "buy", false)
+	if strings.Contains(state, "形态展示摘要（多周期加权") || strings.Contains(state, "1小时") {
+		t.Fatalf("daily macro state should be daily-only:\n%s", state)
+	}
+	if !strings.Contains(state, "射击之星") {
+		t.Fatalf("missing daily hit in state:\n%s", state)
+	}
+}
+
 func TestBuildKlineJEVStateIncludesMTFTaggedHits(t *testing.T) {
 	detail := &LabEpisodeDetail{
 		KlinePatternMTF: &slots.KlinePatternMTFContext{

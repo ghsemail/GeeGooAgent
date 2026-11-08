@@ -55,6 +55,8 @@ type LabJEVKlineInput struct {
 	Hits                []slots.KlinePatternHit
 	// ThreeBar carries prev2/prev/anchor OHLC when pattern hits are empty (still run kline JEV).
 	ThreeBar *slots.KlinePatternThreeBarWindow
+	// Profile e.g. LabKlineJEVProfileDailyMacro selects fact assembly (see labJEVKlineFromDetail).
+	Profile string
 }
 
 const labJEVKlineNoNamedPatternSummary = "无命名形态命中（锚点三根K线结构）"
@@ -122,7 +124,11 @@ func appendKlinePatternJEVState(b *strings.Builder, kline *LabJEVKlineInput) {
 	if summary == "" && bias == nil && len(tagged) == 0 && !hasLegacyHits && !hasThreeBar {
 		return
 	}
-	b.WriteString("\n--- 锚点 K 线形态（按周期标注，供与结构一并判断）---\n")
+	if strings.TrimSpace(kline.Profile) == LabKlineJEVProfileDailyMacro {
+		b.WriteString("\n--- 锚点 K 线形态（日线，仅命名形态与三根结构，非多周期加权）---\n")
+	} else {
+		b.WriteString("\n--- 锚点 K 线形态（按周期标注，供与结构一并判断）---\n")
+	}
 	if summary != "" {
 		if kline.MTFWeightedDisplay {
 			fmt.Fprintf(b, "形态展示摘要（多周期加权，仅供参考）：%s\n", summary)
@@ -286,7 +292,74 @@ func labJEVKlineTaggedHitsFromDetail(out *LabEpisodeDetail, signalFreq string) [
 	return nil
 }
 
-func labJEVKlineFromDetail(out *LabEpisodeDetail) *LabJEVKlineInput {
+func labJEVMTFEntry(out *LabEpisodeDetail, freq string) *slots.KlinePatternMTFEntry {
+	if out == nil || out.KlinePatternMTF == nil {
+		return nil
+	}
+	want := NormalizeFrequency(freq)
+	for i := range out.KlinePatternMTF.Timeframes {
+		tf := &out.KlinePatternMTF.Timeframes[i]
+		if NormalizeFrequency(tf.Frequency) == want {
+			return tf
+		}
+	}
+	return nil
+}
+
+func labJEVBiasFromThreeBar(win *slots.KlinePatternThreeBarWindow) *slots.KlinePatternBias {
+	if win == nil {
+		return nil
+	}
+	if win.WindowBias != nil {
+		return win.WindowBias
+	}
+	var hits []slots.KlinePatternHit
+	for _, bar := range win.Bars {
+		if bar.Omitted {
+			continue
+		}
+		hits = append(hits, bar.KlinePatterns...)
+	}
+	if len(hits) == 0 {
+		return nil
+	}
+	b := slots.ScoreKlinePatternHits(hits)
+	return &b
+}
+
+func labJEVKlineFromDailyMacro(out *LabEpisodeDetail) *LabJEVKlineInput {
+	daily := labJEVMTFEntry(out, "daily")
+	if daily == nil || daily.ThreeBar == nil {
+		return nil
+	}
+	threeBar := daily.ThreeBar
+	hits := labJEVHitsFromThreeBarAnchor(threeBar)
+	summary := slots.KlinePatternSummary(hits)
+	if summary == "" && !labJEVThreeBarHasAnchorOHLC(threeBar) {
+		return nil
+	}
+	if summary == "" {
+		summary = labJEVKlineNoNamedPatternSummary
+	}
+	in := &LabJEVKlineInput{
+		Profile:            LabKlineJEVProfileDailyMacro,
+		SignalFreq:         "daily",
+		DisplaySummary:     summary,
+		DisplayBias:        labJEVBiasFromThreeBar(threeBar),
+		MTFWeightedDisplay: false,
+		ThreeBar:           threeBar,
+	}
+	if len(hits) > 0 {
+		in.TaggedHits = []LabJEVKlineTaggedHit{{
+			Timeframe: labJEVTimeframeTag(daily.Label, daily.Frequency),
+			Anchor:    true,
+			Hits:      hits,
+		}}
+	}
+	return in
+}
+
+func labJEVKlineFromDetailDefault(out *LabEpisodeDetail) *LabJEVKlineInput {
 	if out == nil {
 		return nil
 	}
@@ -311,6 +384,18 @@ func labJEVKlineFromDetail(out *LabEpisodeDetail) *LabJEVKlineInput {
 		}
 	}
 	return in
+}
+
+func labJEVKlineFromDetail(out *LabEpisodeDetail) *LabJEVKlineInput {
+	if out == nil {
+		return nil
+	}
+	if strings.TrimSpace(out.KlineJEVProfile) == LabKlineJEVProfileDailyMacro {
+		if daily := labJEVKlineFromDailyMacro(out); daily != nil {
+			return daily
+		}
+	}
+	return labJEVKlineFromDetailDefault(out)
 }
 
 func labJEVThreeBarFromEpisodeDetail(out *LabEpisodeDetail) *slots.KlinePatternThreeBarWindow {
