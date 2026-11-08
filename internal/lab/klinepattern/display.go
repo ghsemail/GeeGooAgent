@@ -26,6 +26,16 @@ func NewKlinePatternDisplayInput(signalFreq string, bars []any, probeRaw map[str
 // patternHitsForDisplayInput prefers probe_raw.pattern_hits; falls back to MTF signal-TF probe when
 // chart_probe persistence omitted pattern_hits (macro lab-detail / SignalDiagnoseResult rebuild).
 func patternHitsForDisplayInput(signalFreq string, chartBars []any, probeRaw map[string]any, mtf *KlinePatternMTFBundle) []any {
+	sig := NormalizeFrequency(signalFreq)
+	// Macro daily_macro: chart bars are signal TF (60m) but MTF bundle probes daily patterns — prefer daily series.
+	if mtf != nil && NormalizeFrequency(mtf.SignalFreq) == sig && len(chartBars) > 0 {
+		if ser, ok := mtf.ByFreq[klinePatternMTFTimeframeKey(sig)]; ok && len(ser.PatternHits) > 0 {
+			if len(ser.PatternHits) == len(chartBars) {
+				return ser.PatternHits
+			}
+			return AlignPatternHitsSeriesToBars(chartBars, ser.Bars, ser.PatternHits)
+		}
+	}
 	if probeRaw != nil {
 		if hits := PatternHitsSeriesFromProbe(probeRaw); len(hits) > 0 {
 			if len(chartBars) == 0 || len(hits) == len(chartBars) {
@@ -36,7 +46,6 @@ func patternHitsForDisplayInput(signalFreq string, chartBars []any, probeRaw map
 	if mtf == nil || len(chartBars) == 0 {
 		return nil
 	}
-	sig := NormalizeFrequency(signalFreq)
 	ser, ok := mtf.ByFreq[klinePatternMTFTimeframeKey(sig)]
 	if !ok || len(ser.PatternHits) == 0 {
 		return nil
@@ -117,6 +126,22 @@ func BuildKlinePatternMTFContext(anchorIdx int, in KlinePatternDisplayInput) *sl
 			DisplayOnly: true,
 		}
 		if klinePatternMTFTimeframeKey(spec.Freq) == klinePatternMTFTimeframeKey(sigFreq) {
+			if ser, ok := mtfBundleSeries(in.MTF, spec.Freq); ok && ser.FetchOK && len(ser.Bars) > 0 {
+				aligned := alignBarIndexAtOrBefore(ser.Bars, trigger)
+				entry.FetchOK = true
+				entry.AlignedIndex = aligned
+				if aligned >= 0 && aligned < len(ser.Bars) {
+					if row, ok := ser.Bars[aligned].(map[string]any); ok {
+						entry.AlignedTime = formatBarTimeAsiaShanghai(row)
+					}
+					entry.ThreeBar = BuildKlinePatternThreeBarWindow(ser.Bars, ser.PatternHits, aligned)
+				}
+				entry.AlignNote = mtfAlignNote(spec.Freq, aligned, mtfAlignOK)
+				b := biasFromThreeBarWindow(entry.ThreeBar)
+				entry.Bias = &b
+				ctxOut.Timeframes = append(ctxOut.Timeframes, entry)
+				continue
+			}
 			entry.FetchOK = len(in.Bars) > 0
 			entry.AlignedIndex = anchorIdx
 			if anchorIdx >= 0 && anchorIdx < len(in.Bars) {
