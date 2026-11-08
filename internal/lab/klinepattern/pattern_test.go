@@ -48,9 +48,9 @@ func TestFilteredKlinePatternsAtIndex_GeeGooPatternField(t *testing.T) {
 	}
 }
 
-func TestAllowedKlinePatternNames_MatchesSignalTalibList(t *testing.T) {
-	if len(allowedKlinePatternNames) != 28 {
-		t.Fatalf("allowed count=%d want 28 (GeeGooSignal pattern_list)", len(allowedKlinePatternNames))
+func TestKlinePatternLabelCN_MatchesSignalTalibList(t *testing.T) {
+	if len(klinePatternLabelCN) != 28 {
+		t.Fatalf("label map count=%d want 28 (GeeGooSignal pattern_list)", len(klinePatternLabelCN))
 	}
 	h := FilteredKlinePatternsAtIndex([]any{
 		[]any{map[string]any{"name": "HangingMan", "name_chs": "上吊线", "pattern": -1}},
@@ -60,7 +60,7 @@ func TestAllowedKlinePatternNames_MatchesSignalTalibList(t *testing.T) {
 	}
 }
 
-func TestFilteredKlinePatternsAtIndex_WhitelistAndDirection(t *testing.T) {
+func TestFilteredKlinePatternsAtIndex_KeepsProbeHitsAndDirection(t *testing.T) {
 	series := []any{
 		[]any{map[string]any{"name": "Hammer", "direction": 1}},
 		[]any{
@@ -74,10 +74,10 @@ func TestFilteredKlinePatternsAtIndex_WhitelistAndDirection(t *testing.T) {
 		t.Fatalf("bar0=%+v", h0)
 	}
 	h1 := FilteredKlinePatternsAtIndex(series, 1)
-	if len(h1) != 2 {
+	if len(h1) != 3 {
 		t.Fatalf("bar1 count=%d %+v", len(h1), h1)
 	}
-	if h1[0].Name != "Engulfing" || h1[1].Name != "MorningStar" {
+	if h1[0].Name != "Engulfing" || h1[1].Name != "MorningStar" || h1[2].Name != "RandomPattern" {
 		t.Fatalf("names=%+v", h1)
 	}
 }

@@ -7,8 +7,8 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
-// allowedKlinePatternNames mirrors GeeGooSignal talib_lib pattern_list (28 TA-Lib CDL names).
-var allowedKlinePatternNames = map[string]string{
+// klinePatternLabelCN maps canonical pattern id → 中文展示（仅当 Signal 未给 name_chs 时回退用，不做过滤）。
+var klinePatternLabelCN = map[string]string{
 	"Doji":               "十字线",
 	"DragonflyDoji":      "蜻蜓十字线",
 	"GravestoneDoji":     "墓碑十字线",
@@ -62,7 +62,7 @@ func PatternHitsSeriesFromProbe(data map[string]any) []any {
 	return raw
 }
 
-// FilteredKlinePatternsAtIndex returns whitelisted patterns for bar idx.
+// FilteredKlinePatternsAtIndex returns probe pattern hits for one bar (Signal is source of truth; no name whitelist).
 func FilteredKlinePatternsAtIndex(series []any, idx int) []slots.KlinePatternHit {
 	if len(series) == 0 || idx < 0 || idx >= len(series) {
 		return nil
@@ -73,15 +73,25 @@ func FilteredKlinePatternsAtIndex(series []any, idx int) []slots.KlinePatternHit
 	}
 	out := make([]slots.KlinePatternHit, 0, len(rawHits))
 	for _, h := range rawHits {
-		if _, ok := allowedKlinePatternNames[h.name]; !ok {
+		name := strings.TrimSpace(h.name)
+		labelCN := strings.TrimSpace(h.labelCN)
+		if name == "" && labelCN == "" {
 			continue
 		}
-		labelCN := strings.TrimSpace(h.labelCN)
 		if labelCN == "" {
-			labelCN = allowedKlinePatternNames[h.name]
+			if cn, ok := klinePatternLabelCN[canonicalPatternName(name)]; ok {
+				labelCN = cn
+			} else if cn, ok := klinePatternLabelCN[name]; ok {
+				labelCN = cn
+			} else {
+				labelCN = name
+			}
+		}
+		if name == "" {
+			name = labelCN
 		}
 		out = append(out, slots.KlinePatternHit{
-			Name:      h.name,
+			Name:      name,
 			Direction: h.direction,
 			LabelCN:   labelCN,
 		})
@@ -119,27 +129,25 @@ func parsePatternHitList(items []any) []parsedPatternHit {
 	for _, item := range items {
 		switch row := item.(type) {
 		case map[string]any:
-			name := canonicalPatternName(patternHitName(row))
-			if name == "" {
-				name = canonicalPatternNameFromLabelCN(firstString(row, "name_chs", "label_cn", "NameCHS"))
-			}
-			if name == "" {
+			name, labelCN, ok := patternIdentityFromProbeRow(row)
+			if !ok {
 				continue
 			}
 			dir := normalizePatternDirection(name, patternDirectionValue(row))
 			out = append(out, parsedPatternHit{
 				name:      name,
 				direction: dir,
-				labelCN:   firstString(row, "name_chs", "label_cn"),
+				labelCN:   labelCN,
 			})
 		case string:
-			name := canonicalPatternName(row)
-			if name == "" {
+			name, labelCN, ok := patternIdentityFromProbeString(row)
+			if !ok {
 				continue
 			}
 			out = append(out, parsedPatternHit{
 				name:      name,
 				direction: defaultDirectionForName(name),
+				labelCN:   labelCN,
 			})
 		}
 	}
@@ -153,6 +161,9 @@ func parsePatternHitMap(m map[string]any) []parsedPatternHit {
 			continue
 		}
 		name := canonicalPatternName(key)
+		if name == "" {
+			name = strings.TrimSpace(key)
+		}
 		if name == "" {
 			continue
 		}
@@ -193,12 +204,43 @@ func patternHitName(row map[string]any) string {
 	return firstString(row, "index", "id")
 }
 
+func patternIdentityFromProbeRow(row map[string]any) (name, labelCN string, ok bool) {
+	rawName := strings.TrimSpace(patternHitName(row))
+	labelCN = firstString(row, "name_chs", "label_cn", "NameCHS")
+	name = canonicalPatternName(rawName)
+	if name == "" {
+		name = canonicalPatternNameFromLabelCN(labelCN)
+	}
+	if name == "" && rawName != "" {
+		name = rawName
+	}
+	if name == "" && labelCN != "" {
+		name = labelCN
+	}
+	if name == "" && labelCN == "" {
+		return "", "", false
+	}
+	return name, labelCN, true
+}
+
+func patternIdentityFromProbeString(raw string) (name, labelCN string, ok bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", "", false
+	}
+	name = canonicalPatternName(raw)
+	if name == "" {
+		name = raw
+	}
+	return name, "", true
+}
+
 func canonicalPatternNameFromLabelCN(labelCN string) string {
 	labelCN = strings.TrimSpace(labelCN)
 	if labelCN == "" {
 		return ""
 	}
-	for en, cn := range allowedKlinePatternNames {
+	for en, cn := range klinePatternLabelCN {
 		if cn == labelCN {
 			return en
 		}
@@ -238,7 +280,7 @@ func canonicalPatternName(raw string) string {
 		return ""
 	}
 	raw = strings.TrimPrefix(raw, "CDL")
-	if alt, ok := allowedKlinePatternNames[raw]; ok && alt != "" {
+	if _, ok := klinePatternLabelCN[raw]; ok {
 		return raw
 	}
 	compact := strings.Map(func(r rune) rune {
@@ -247,7 +289,7 @@ func canonicalPatternName(raw string) string {
 		}
 		return r
 	}, raw)
-	for name := range allowedKlinePatternNames {
+	for name := range klinePatternLabelCN {
 		key := strings.Map(func(r rune) rune {
 			if r == '_' || r == '-' || r == ' ' {
 				return -1
@@ -268,7 +310,7 @@ func normalizePatternDirection(name string, v float64) int {
 	if int(v) == 2 {
 		return 2
 	}
-	if _, isDoji := dojiPatternNames[name]; isDoji && v == 0 {
+	if _, isDoji := dojiPatternNames[patternCanonicalKey(name)]; isDoji && v == 0 {
 		return 2
 	}
 	if v > 0 {
@@ -281,10 +323,17 @@ func normalizePatternDirection(name string, v float64) int {
 }
 
 func defaultDirectionForName(name string) int {
-	if _, ok := dojiPatternNames[name]; ok {
+	if _, ok := dojiPatternNames[patternCanonicalKey(name)]; ok {
 		return 2
 	}
 	return 0
+}
+
+func patternCanonicalKey(name string) string {
+	if c := canonicalPatternName(name); c != "" {
+		return c
+	}
+	return strings.TrimSpace(name)
 }
 
 // EnrichSignalEpisodeEvalPatterns attaches trigger-bar patterns to episode start indices.
