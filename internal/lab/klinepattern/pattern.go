@@ -121,6 +121,9 @@ func parsePatternHitList(items []any) []parsedPatternHit {
 		case map[string]any:
 			name := canonicalPatternName(patternHitName(row))
 			if name == "" {
+				name = canonicalPatternNameFromLabelCN(firstString(row, "name_chs", "label_cn", "NameCHS"))
+			}
+			if name == "" {
 				continue
 			}
 			dir := normalizePatternDirection(name, patternDirectionValue(row))
@@ -184,10 +187,23 @@ func patternDirectionValue(row map[string]any) float64 {
 
 // patternHitName reads English TA-Lib name from GeeGooSignal pattern_hits entries.
 func patternHitName(row map[string]any) string {
-	if s := firstString(row, "name"); s != "" && !looksLikeNumericDirection(s) {
+	if s := firstString(row, "name", "Name"); s != "" && !looksLikeNumericDirection(s) {
 		return s
 	}
 	return firstString(row, "index", "id")
+}
+
+func canonicalPatternNameFromLabelCN(labelCN string) string {
+	labelCN = strings.TrimSpace(labelCN)
+	if labelCN == "" {
+		return ""
+	}
+	for en, cn := range allowedKlinePatternNames {
+		if cn == labelCN {
+			return en
+		}
+	}
+	return ""
 }
 
 func looksLikeNumericDirection(s string) bool {

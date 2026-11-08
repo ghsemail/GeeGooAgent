@@ -6,6 +6,26 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
+func TestFilteredKlinePatternsAtIndex_HighWaveSpacedName(t *testing.T) {
+	series := []any{
+		[]any{map[string]any{"name": "High Wave", "name_chs": "风高浪大线", "pattern": -1}},
+	}
+	h := FilteredKlinePatternsAtIndex(series, 0)
+	if len(h) != 1 || h[0].Name != "HighWave" || h[0].LabelCN != "风高浪大线" {
+		t.Fatalf("high wave=%+v", h)
+	}
+}
+
+func TestFilteredKlinePatternsAtIndex_LabelCNOnly(t *testing.T) {
+	series := []any{
+		[]any{map[string]any{"name_chs": "捉腰带线", "pattern": 1}},
+	}
+	h := FilteredKlinePatternsAtIndex(series, 0)
+	if len(h) != 1 || h[0].Name != "Belthold" {
+		t.Fatalf("belthold via chs=%+v", h)
+	}
+}
+
 func TestFilteredKlinePatternsAtIndex_GeeGooPatternField(t *testing.T) {
 	series := []any{
 		[]any{map[string]any{"name": "Engulfing", "name_chs": "吞没模式", "pattern": -1}},

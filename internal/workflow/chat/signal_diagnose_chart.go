@@ -23,6 +23,12 @@ func chartProbePayload(flow *Flow) map[string]any {
 		"buy_merged":  flow.ProbeRaw["buy_merged"],
 		"sell_merged": flow.ProbeRaw["sell_merged"],
 	}
+	if v := flow.ProbeRaw["pattern_hits"]; v != nil {
+		out["pattern_hits"] = v
+	}
+	if v := flow.ProbeRaw["bars_lookback"]; v != nil {
+		out["bars_lookback"] = v
+	}
 	if v := flow.ProbeRaw["indicator_warmup_note"]; v != nil {
 		out["indicator_warmup_note"] = v
 	}

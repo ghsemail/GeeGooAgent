@@ -7,6 +7,26 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
+func TestChartProbePayload_IncludesPatternHitsForLabPersist(t *testing.T) {
+	hits := []any{nil, []any{map[string]any{"name": "Hammer", "pattern": 1}}}
+	flow := &Flow{
+		ProbeRaw: map[string]any{
+			"bars":         []any{map[string]any{"close": 1}, map[string]any{"close": 2}},
+			"buy_merged":   []any{0, 1},
+			"sell_merged":  []any{0, 0},
+			"pattern_hits": hits,
+		},
+	}
+	cp := chartProbePayload(flow)
+	if cp == nil {
+		t.Fatal("nil chart probe")
+	}
+	got, _ := cp["pattern_hits"].([]any)
+	if len(got) != len(hits) {
+		t.Fatalf("pattern_hits=%d want %d", len(got), len(hits))
+	}
+}
+
 func TestChartProbePayload_ThreeBarAnchorOnlyPatternMarkers(t *testing.T) {
 	threeBar := &slots.KlinePatternThreeBarWindow{
 		AnchorIndex: 1,

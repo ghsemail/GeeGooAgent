@@ -14,16 +14,31 @@ type KlinePatternDisplayInput struct {
 
 // NewKlinePatternDisplayInput builds display input from probe raw map and optional MTF bundle.
 func NewKlinePatternDisplayInput(signalFreq string, bars []any, probeRaw map[string]any, mtf *KlinePatternMTFBundle) KlinePatternDisplayInput {
-	var hits []any
-	if probeRaw != nil {
-		hits = PatternHitsSeriesFromProbe(probeRaw)
-	}
+	hits := patternHitsForDisplayInput(signalFreq, probeRaw, mtf)
 	return KlinePatternDisplayInput{
 		SignalFreq:  signalFreq,
 		Bars:        bars,
 		PatternHits: hits,
 		MTF:         mtf,
 	}
+}
+
+// patternHitsForDisplayInput prefers probe_raw.pattern_hits; falls back to MTF signal-TF probe when
+// chart_probe persistence omitted pattern_hits (macro lab-detail / SignalDiagnoseResult rebuild).
+func patternHitsForDisplayInput(signalFreq string, probeRaw map[string]any, mtf *KlinePatternMTFBundle) []any {
+	if probeRaw != nil {
+		if hits := PatternHitsSeriesFromProbe(probeRaw); len(hits) > 0 {
+			return hits
+		}
+	}
+	if mtf == nil {
+		return nil
+	}
+	sig := NormalizeFrequency(signalFreq)
+	if ser, ok := mtf.ByFreq[klinePatternMTFTimeframeKey(sig)]; ok && len(ser.PatternHits) > 0 {
+		return ser.PatternHits
+	}
+	return nil
 }
 
 // EnrichEpisodeDetailKlineDisplay attaches 3-bar window, MTF, and bias to one episode row.
