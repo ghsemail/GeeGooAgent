@@ -39,12 +39,18 @@ func EnsurePatternHitsOnProbeRaw(
 	if hits := PatternHitsSeriesFromProbe(probeRaw); len(hits) == len(chartBars) {
 		return
 	}
+	months = CapMonthsBack(months)
 	var asOf *time.Time
-	if _, windowEnd := barSeriesTimeExtent(chartBars); !windowEnd.IsZero() {
+	var windowEnd time.Time
+	if _, windowEnd = barSeriesTimeExtent(chartBars); !windowEnd.IsZero() {
 		end := windowEnd
 		asOf = &end
 	}
-	bars, hits, ok, _ := fetchKlinePatternProbeSeriesWithRetry(ctx, run, code, freq, months, asOf)
+	fetchMonths := months
+	if len(chartBars) > 0 && host.MonthsBackForPerSignalFetch != nil {
+		fetchMonths = host.MonthsBackForPerSignalFetch(months, chartBars, freq, windowEnd)
+	}
+	bars, hits, ok, _ := fetchKlinePatternProbeSeriesWithRetry(ctx, run, code, freq, fetchMonths, asOf)
 	if !ok || len(hits) == 0 {
 		return
 	}
