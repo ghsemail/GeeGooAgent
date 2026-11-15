@@ -373,13 +373,17 @@ def post_batch_run(
         "Content-Type": "application/json",
         "Authorization": f"Bearer {macro_key}",
     }
-    status, data, raw = http_json(
-        "POST",
-        f"{macro_base.rstrip('/')}/macro/batch/runs",
-        macro_headers,
-        body,
-        timeout=120,
-    )
+    try:
+        status, data, raw = http_json(
+            "POST",
+            f"{macro_base.rstrip('/')}/macro/batch/runs",
+            macro_headers,
+            body,
+            timeout=120,
+        )
+    except urllib.error.URLError as e:
+        print(f"batch/runs transport error: {e}", file=sys.stderr, flush=True)
+        return ""
     if status != 200:
         print(f"batch/runs HTTP {status}: {raw[:400]}", file=sys.stderr, flush=True)
         return ""
