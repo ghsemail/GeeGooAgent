@@ -26,6 +26,7 @@ func BuildKlinePatternDailyMacroBundle(
 	}
 	probeFreq := klinePatternProbeFrequency(spec.Freq)
 	bars, hits, ok, unsup := fetchKlinePatternProbeSeriesWithRetry(ctx, run, code, probeFreq, m, nil)
+	hits = ensurePatternHitsOnDailyBars(ctx, run, code, months, bars, hits)
 	bundle.ByFreq[klinePatternMTFTimeframeKey(spec.Freq)] = KlinePatternFreqSeries{
 		Label: spec.Label, Freq: spec.Freq, Bars: bars, PatternHits: hits,
 		FetchOK: ok, Unsupported: unsup,

@@ -20,7 +20,8 @@ func SupplementDailyMacroMTF(
 		return
 	}
 	key := klinePatternMTFTimeframeKey("daily")
-	if ser, ok := bundle.ByFreq[key]; ok && len(ser.Bars) > 0 {
+	if ser, ok := bundle.ByFreq[key]; ok && len(ser.Bars) > 0 &&
+		len(ser.PatternHits) == len(ser.Bars) && patternHitsSeriesPopulated(ser.PatternHits) {
 		return
 	}
 	var asOf *time.Time
@@ -74,12 +75,11 @@ func HydrateDailyMacroMTFFromBars(
 	}
 	key := klinePatternMTFTimeframeKey("daily")
 	ser := bundle.ByFreq[key]
-	if len(ser.Bars) > 0 && len(ser.PatternHits) == len(ser.Bars) {
+	if len(ser.Bars) > 0 && len(ser.PatternHits) == len(ser.Bars) &&
+		patternHitsSeriesPopulated(ser.PatternHits) && barSeriesSameTimes(ser.Bars, dailyBars) {
 		return
 	}
-	probeRaw := map[string]any{}
-	EnsurePatternHitsOnProbeRaw(ctx, run, code, "daily", months, dailyBars, probeRaw)
-	hits := PatternHitsSeriesFromProbe(probeRaw)
+	hits := ensurePatternHitsOnDailyBars(ctx, run, code, months, dailyBars, ser.PatternHits)
 	if len(hits) == 0 {
 		hits = ser.PatternHits
 	}
