@@ -118,6 +118,7 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		months = 3
 	}
 	toolCtx := h.App.ToolContextWithContext(r.Context(), chat.ID)
+	toolCtx.FullCatalogPayload = true // lab-detail needs full probe (pattern_hits); default ctx strips them for LLM.
 	toolCtx.UserID = userID
 	toolCtx.MCPToken = resolveChatMCPToken(r, body.MCPToken, h.configMCPToken())
 	runner := func(ctx context.Context, name string, args map[string]any) tools.Result {
