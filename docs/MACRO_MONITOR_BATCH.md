@@ -43,12 +43,16 @@
 
 ## Agent 主机定时任务（正式脚本）
 
-```cron
-# 七池标的 Lab + 池级 JEV + overall（替代 asia/us/crypto 三批）
-15 7 * * 1-5 cd /home/ubuntu/.geegoo/geegoo-agent && set -a && . /home/ubuntu/.geegoo/agent.env && set +a && export GEEGOO_AGENT_OP_HTTP_URL=http://127.0.0.1:3400 MACRO_API_BASE=http://146.56.225.252:3220 && /usr/bin/python3 scripts/ops/workflow/run_macro_monitor_lab_batch.py --workflow all >>/tmp/macro_lab_batch_all.log 2>&1
-```
+**分时段（推荐）**：在 Agent 主机执行  
+`bash scripts/ops/workflow/install_macro_jev_crontab.sh`  
+会写入七池 + overall + crypto（`CRON_TZ=America/New_York` 每日 16:15）任务，并移除旧的 `07:15 --workflow all`。
 
-单池：`--workflow cn_a|hk|us|commodity_fx|bond|crypto|volatility`。宏观合成：`--workflow overall`（需当日七池池级已成功）。
+单池：`--workflow cn_a|hk|us|commodity_fx|bond|crypto|volatility`。  
+债券分段：`bond_sh` / `bond_us`（合并后自动 `bond` 池级 JEV）。  
+宏观合成：`--workflow overall`（从当日 pipeline 读取七池 pool JEV）。  
+日期：`--date auto`（华东 pipeline 日；crypto 按 16:15 ET 触发时刻对齐）。
+
+**过渡期一键**：`--workflow all` 仍可本地/临时使用。
 
 重试：`MACRO_BATCH_RETRY_DELAY_SEC` 默认 **600**（10 分钟），标的与池级/宏观均最多 **3 次重试**。
 
