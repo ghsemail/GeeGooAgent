@@ -27,16 +27,24 @@ WORKFLOW_OPTIONS = {
     },
 }
 
-WORKFLOW_POOLS: dict[str, set[str]] = {
-    "asia": {"A股池", "债券利率池", "港股池", "波动率池"},
-    "us": {"美股池", "商品货币池", "债券利率池", "波动率池"},
-    "crypto": {"虚拟货币池"},
+# One Lab workflow per monitor-pool tab (+ overall).
+WORKFLOW_MONITOR_POOL: dict[str, str] = {
+    "cn_a": "A股池",
+    "hk": "港股池",
+    "us": "美股池",
+    "commodity_fx": "商品货币池",
+    "bond": "债券利率池",
+    "crypto": "虚拟货币池",
+    "volatility": "波动率池",
 }
+
+JEV_PIPELINE_WORKFLOWS = list(WORKFLOW_MONITOR_POOL.keys())
+LEGACY_WORKFLOWS = ("asia", "us", "crypto")
 
 CHAT_TIMEOUT = int(os.environ.get("MACRO_BATCH_CHAT_TIMEOUT", "360"))
 MIN_JEV_REASON_LEN = 20
 MAX_DIAGNOSE_RETRIES = 3
-RETRY_DELAY_SEC = 30
+RETRY_DELAY_SEC = int(os.environ.get("MACRO_BATCH_RETRY_DELAY_SEC", "600"))
 DIAGNOSING_ERROR = "诊断中"
 
 
@@ -111,33 +119,51 @@ def fetch_monitor_pool(macro_base: str, macro_key: str) -> list[dict[str, Any]]:
     return list(items)
 
 
-def workflow_includes_symbol(workflow: str, pool_name: str, symbol: str) -> bool:
-    sym = symbol.upper()
-    if pool_name == "债券利率池":
-        if workflow == "asia":
-            return sym.endswith(".SH")
-        if workflow == "us":
-            return sym.endswith(".US")
-        return False
-    if pool_name == "波动率池":
-        if workflow == "asia":
-            return "HSIL" in sym
-        if workflow == "us":
-            return sym.startswith("VIX")
-        return False
-    return True
-
-
 def group_symbols_for_workflow(pool: list[dict[str, Any]], workflow: str) -> dict[str, list[dict[str, Any]]]:
-    allowed = WORKFLOW_POOLS[workflow]
+    pool_name = WORKFLOW_MONITOR_POOL.get(workflow)
+    if workflow in LEGACY_WORKFLOWS:
+        return _group_symbols_legacy(pool, workflow)
+    if not pool_name:
+        return {}
+    items: list[dict[str, Any]] = []
+    for it in pool:
+        name = (it.get("monitor_reason") or "").strip()
+        if name != pool_name:
+            continue
+        sym = (it.get("symbol") or "").strip()
+        if sym:
+            items.append(it)
+    if not items:
+        return {}
+    return {pool_name: items}
+
+
+def _group_symbols_legacy(pool: list[dict[str, Any]], workflow: str) -> dict[str, list[dict[str, Any]]]:
+    legacy_pools: dict[str, set[str]] = {
+        "asia": {"A股池", "债券利率池", "港股池", "波动率池"},
+        "us": {"美股池", "商品货币池", "债券利率池", "波动率池"},
+        "crypto": {"虚拟货币池"},
+    }
+    allowed = legacy_pools.get(workflow, set())
+    sym_filter = lambda pn, sym: True  # noqa: E731
     pools: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for it in pool:
         name = (it.get("monitor_reason") or "").strip()
         if name not in allowed:
             continue
-        sym = (it.get("symbol") or "").strip()
-        if not sym or not workflow_includes_symbol(workflow, name, sym):
+        sym = (it.get("symbol") or "").strip().upper()
+        if not sym:
             continue
+        if name == "债券利率池":
+            if workflow == "asia" and not sym.endswith(".SH"):
+                continue
+            if workflow == "us" and not sym.endswith(".US"):
+                continue
+        if name == "波动率池":
+            if workflow == "asia" and "HSIL" not in sym:
+                continue
+            if workflow == "us" and not sym.startswith("VIX"):
+                continue
         pools[name].append(it)
     return dict(pools)
 
@@ -506,6 +532,81 @@ def lab_detail_jev(
     return "", None
 
 
+def synthesis_jev_message(title: str, rows: list[dict[str, Any]]) -> str:
+    lines: list[str] = []
+    for r in rows:
+        sym = str(r.get("symbol") or r.get("label") or "").strip()
+        direction = str(r.get("jev_direction") or r.get("direction") or "").strip()
+        reason = str(r.get("jev_reason") or r.get("reason") or "").strip()
+        if len(reason) > 800:
+            reason = reason[:800] + "…"
+        lines.append(f"- {sym} [{direction}]: {reason}")
+    joined = "\n".join(lines)
+    return (
+        f"宏观 JEV 合成任务：{title}。根据以下各标的或各市场池级 JEV 结论，"
+        f"再用 JEV 模型给出整体多空（long/short/neutral）与完整理由，"
+        f"禁止简单计数或涨跌幅规则。\n\n{joined}"
+    )
+
+
+def synthesize_jev_with_retries(
+    agent_base: str,
+    runtime_key: str,
+    mcp_token: str,
+    title: str,
+    rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if not rows:
+        return {"ok": False, "error": "no inputs"}
+    msg = synthesis_jev_message(title, rows)
+    last: dict[str, Any] = {"ok": False, "error": "no attempt"}
+    for attempt in range(MAX_DIAGNOSE_RETRIES + 1):
+        if attempt > 0:
+            print(f"  pool/overall retry {attempt}/{MAX_DIAGNOSE_RETRIES} after {RETRY_DELAY_SEC}s …", flush=True)
+            time.sleep(RETRY_DELAY_SEC)
+        chat = chat_diagnose(agent_base, runtime_key, mcp_token, msg)
+        if not chat.get("ok"):
+            last = {"ok": False, "error": chat.get("error") or "chat failed", "attempt": attempt + 1}
+            continue
+        session_id = str(chat.get("session_id") or "").strip()
+        run_id = str(chat.get("run_id") or "").strip()
+        jev_reason = str(chat.get("reply") or "").strip()
+        res = fetch_diagnose_result(agent_base, runtime_key, mcp_token, session_id, run_id)
+        if res.get("ok"):
+            data = res["data"]
+            if isinstance(data, dict) and isinstance(data.get("data"), dict):
+                data = data["data"]
+            jr = str(data.get("eval_judgment") or "").strip()
+            if len(jr) >= MIN_JEV_REASON_LEN:
+                jev_reason = jr
+        detail_ref = ""
+        if res.get("ok"):
+            detail_ref = pick_detail_ref(res["data"] if isinstance(res.get("data"), dict) else {})
+        direction = parse_direction_from_compose(jev_reason)
+        if session_id and run_id and detail_ref:
+            d2, _ = lab_detail_jev(agent_base, runtime_key, mcp_token, session_id, run_id, detail_ref)
+            if d2:
+                direction = d2
+        if len(jev_reason) < MIN_JEV_REASON_LEN or not direction:
+            last = {
+                "ok": False,
+                "error": "incomplete pool/overall jev",
+                "attempt": attempt + 1,
+                "session_id": session_id,
+                "run_id": run_id,
+            }
+            continue
+        return {
+            "ok": True,
+            "jev_direction": direction,
+            "jev_reason": jev_reason,
+            "session_id": session_id,
+            "run_id": run_id,
+            "attempt": attempt + 1,
+        }
+    return last
+
+
 def parse_direction_from_compose(text: str) -> str:
     t = (text or "").strip()
     if not t:
@@ -524,13 +625,13 @@ def run_batch(
     agent_base: str,
     batch_date: str,
     dry_run: bool,
-) -> int:
+) -> tuple[int, dict[str, Any] | None]:
     runtime_key, mcp_token = load_geegoo_env()
     pool = fetch_monitor_pool(macro_base, macro_key)
     grouped = group_symbols_for_workflow(pool, workflow)
     if not grouped:
         print(f"no symbols for workflow={workflow}", file=sys.stderr)
-        return 2
+        return 2, None
 
     started = rfc3339_now()
     batch_pools: list[dict[str, Any]] = []
@@ -556,7 +657,14 @@ def run_batch(
             )
         batch_pools.append({"name": pool_name, "symbols": symbols, "items": pool_items})
 
-    def publish_progress(done_label: str, *, final: bool = False) -> None:
+    pool_jev_out: dict[str, Any] | None = None
+
+    def publish_progress(
+        done_label: str,
+        *,
+        final: bool = False,
+        pool_jev: dict[str, Any] | None = None,
+    ) -> None:
         if dry_run:
             return
         in_progress = not final and (ok_count + fail_count < total)
@@ -565,15 +673,18 @@ def run_batch(
             if not in_progress or final
             else f"{workflow} 诊断中 {ok_count + fail_count}/{total} ok={ok_count} fail={fail_count}"
         )
+        sym_ok = fail_count == 0 and ok_count == total and total > 0
         body: dict[str, Any] = {
             "workflow": workflow,
             "date": batch_date,
             "started_at": started,
             "finished_at": rfc3339_now(),
-            "success": False if in_progress else (fail_count == 0 and ok_count > 0),
+            "success": False if in_progress else sym_ok,
             "summary": summary,
             "pools": batch_pools,
         }
+        if pool_jev:
+            body["pool_jev"] = pool_jev
         rid = post_batch_run(macro_base, macro_key, body)
         if rid:
             print(f"batch progress id={rid} · {summary}", flush=True)
@@ -671,7 +782,7 @@ def run_batch(
     print(summary, flush=True)
 
     if dry_run:
-        return 0 if fail_count == 0 else 1
+        return (0 if fail_count == 0 else 1), None
 
     macro_headers = {
         "Content-Type": "application/json",
@@ -687,18 +798,129 @@ def run_batch(
         )
         if status != 200:
             print(f"ingest HTTP {status}: {raw[:400]}", file=sys.stderr)
-            return 1
+            return 1, None
         upserted = (data.get("data") or {}).get("upserted", data.get("upserted"))
         print(f"ingest upserted={upserted}", flush=True)
 
+    symbol_rows_for_pool: list[dict[str, Any]] = []
+    if fail_count == 0 and ok_count == total and total > 0:
+        for p in batch_pools:
+            for it in p.get("items") or []:
+                if it.get("success"):
+                    symbol_rows_for_pool.append(it)
+
+    if (
+        not dry_run
+        and fail_count == 0
+        and ok_count == total
+        and total > 0
+        and workflow in WORKFLOW_MONITOR_POOL
+    ):
+        label = WORKFLOW_MONITOR_POOL[workflow]
+        print(f"[{workflow}] pool JEV synthesize ({label}) …", flush=True)
+        syn = synthesize_jev_with_retries(
+            agent_base, runtime_key, mcp_token, label, symbol_rows_for_pool
+        )
+        finished = rfc3339_now()
+        if syn.get("ok"):
+            pool_jev_out = {
+                "success": True,
+                "jev_direction": syn.get("jev_direction"),
+                "jev_reason": syn.get("jev_reason"),
+                "agent_session_id": syn.get("session_id"),
+                "agent_run_id": syn.get("run_id"),
+                "finished_at": finished,
+                "attempt": syn.get("attempt"),
+            }
+            print(f"  pool JEV ok={pool_jev_out.get('jev_direction')}", flush=True)
+        else:
+            err = str(syn.get("error") or "pool jev failed")
+            pool_jev_out = {
+                "success": False,
+                "error": err,
+                "attempt": syn.get("attempt"),
+                "finished_at": finished,
+            }
+            print(f"  pool JEV FAIL: {err[:240]}", flush=True)
+
     if not dry_run:
-        publish_progress("finished", final=True)
-    return 0 if fail_count == 0 else 1
+        publish_progress("finished", final=True, pool_jev=pool_jev_out)
+    pool_input = None
+    if pool_jev_out and pool_jev_out.get("success"):
+        pool_input = {
+            "label": WORKFLOW_MONITOR_POOL.get(workflow, workflow),
+            "jev_direction": pool_jev_out.get("jev_direction"),
+            "jev_reason": pool_jev_out.get("jev_reason"),
+        }
+    rc = 0 if fail_count == 0 and (pool_jev_out is None or pool_jev_out.get("success")) else 1
+    return rc, pool_input
+
+
+def run_overall_batch(
+    macro_base: str,
+    macro_key: str,
+    agent_base: str,
+    batch_date: str,
+    pool_inputs: list[dict[str, Any]],
+    dry_run: bool,
+) -> int:
+    if len(pool_inputs) < len(JEV_PIPELINE_WORKFLOWS):
+        print(
+            f"overall skipped: only {len(pool_inputs)}/{len(JEV_PIPELINE_WORKFLOWS)} pool jev",
+            file=sys.stderr,
+        )
+        return 2
+    runtime_key, mcp_token = load_geegoo_env()
+    started = rfc3339_now()
+    if dry_run:
+        return 0
+    print("[overall] macro JEV synthesize …", flush=True)
+    syn = synthesize_jev_with_retries(
+        agent_base, runtime_key, mcp_token, "宏观整体", pool_inputs
+    )
+    finished = rfc3339_now()
+    pool_jev: dict[str, Any]
+    if syn.get("ok"):
+        pool_jev = {
+            "success": True,
+            "jev_direction": syn.get("jev_direction"),
+            "jev_reason": syn.get("jev_reason"),
+            "agent_session_id": syn.get("session_id"),
+            "agent_run_id": syn.get("run_id"),
+            "finished_at": finished,
+            "attempt": syn.get("attempt"),
+        }
+    else:
+        pool_jev = {
+            "success": False,
+            "error": str(syn.get("error") or "overall jev failed"),
+            "attempt": syn.get("attempt"),
+            "finished_at": finished,
+        }
+    body = {
+        "workflow": "overall",
+        "date": batch_date,
+        "started_at": started,
+        "finished_at": finished,
+        "success": bool(pool_jev.get("success")),
+        "summary": "overall JEV",
+        "pools": [
+            {
+                "name": "宏观整体",
+                "symbols": [],
+                "items": [],
+            }
+        ],
+        "pool_jev": pool_jev,
+    }
+    post_batch_run(macro_base, macro_key, body)
+    return 0 if pool_jev.get("success") else 1
 
 
 def main() -> int:
+    wf_choices = JEV_PIPELINE_WORKFLOWS + ["overall", "all", *LEGACY_WORKFLOWS]
     p = argparse.ArgumentParser(description="Run macro monitor pool Lab batch workflow")
-    p.add_argument("--workflow", choices=["asia", "us", "crypto", "all"], required=True)
+    p.add_argument("--workflow", choices=wf_choices, required=True)
     p.add_argument("--date", default=shanghai_today(), help="YYYY-MM-DD Shanghai")
     p.add_argument("--macro-base", default=os.environ.get("MACRO_API_BASE", DEFAULT_MACRO))
     p.add_argument(
@@ -715,12 +937,30 @@ def main() -> int:
         print("MACRO_API_KEY required", file=sys.stderr)
         return 2
 
-    workflows = ["asia", "us", "crypto"] if args.workflow == "all" else [args.workflow]
+    macro_key = args.macro_key.strip()
+    pool_inputs: list[dict[str, Any]] = []
     rc = 0
-    for wf in workflows:
-        code = run_batch(wf, args.macro_base, args.macro_key.strip(), args.agent_base, args.date, args.dry_run)
+    if args.workflow == "all":
+        for wf in JEV_PIPELINE_WORKFLOWS:
+            code, pool_in = run_batch(
+                wf, args.macro_base, macro_key, args.agent_base, args.date, args.dry_run
+            )
+            rc = max(rc, code)
+            if pool_in:
+                pool_inputs.append(pool_in)
+        code = run_overall_batch(
+            args.macro_base, macro_key, args.agent_base, args.date, pool_inputs, args.dry_run
+        )
         rc = max(rc, code)
-    return rc
+        return rc
+    if args.workflow == "overall":
+        return run_overall_batch(
+            args.macro_base, macro_key, args.agent_base, args.date, pool_inputs, args.dry_run
+        )
+    code, _ = run_batch(
+        args.workflow, args.macro_base, macro_key, args.agent_base, args.date, args.dry_run
+    )
+    return code
 
 
 if __name__ == "__main__":

@@ -41,6 +41,19 @@
 2. 可选 `POST /saveSignalDiagnoseLog`（运营台按标的 prefetch 兜底）
 3. 再 POST macro ingest + batch
 
+## Agent 主机定时任务（正式脚本）
+
+```cron
+# 七池标的 Lab + 池级 JEV + overall（替代 asia/us/crypto 三批）
+15 7 * * 1-5 cd /home/ubuntu/.geegoo/geegoo-agent && set -a && . /home/ubuntu/.geegoo/agent.env && set +a && export GEEGOO_AGENT_OP_HTTP_URL=http://127.0.0.1:3400 MACRO_API_BASE=http://146.56.225.252:3220 && /usr/bin/python3 scripts/ops/workflow/run_macro_monitor_lab_batch.py --workflow all >>/tmp/macro_lab_batch_all.log 2>&1
+```
+
+单池：`--workflow cn_a|hk|us|commodity_fx|bond|crypto|volatility`。宏观合成：`--workflow overall`（需当日七池池级已成功）。
+
+重试：`MACRO_BATCH_RETRY_DELAY_SEC` 默认 **600**（10 分钟），标的与池级/宏观均最多 **3 次重试**。
+
+`agent.env` 需含 `MACRO_API_KEY`（可与 Signal 的 `GEEGOO_SIGNAL_MACRO_API_KEY` 相同）。
+
 ## crypto 与 Agent PG
 
 日批若报 `GEEGOO_PG_DSN is not connected`，在 Agent 主机执行：
