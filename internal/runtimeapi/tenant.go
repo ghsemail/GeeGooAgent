@@ -68,8 +68,11 @@ func enforceSessionAccess(w http.ResponseWriter, chat *chatsession.ChatSession, 
 // enforceSessionAccessOpsLabDetail allows trading_operation console to open lab-detail for
 // macro batch / shared diagnose sessions owned by another user_id.
 func enforceSessionAccessOpsLabDetail(w http.ResponseWriter, r *http.Request, chat *chatsession.ChatSession, userID string) bool {
-	if r != nil && strings.TrimSpace(r.Header.Get("X-Client-Source")) == "trading_operation" {
-		return true
+	if r != nil {
+		src := strings.TrimSpace(r.Header.Get("X-Client-Source"))
+		if src == "trading_operation" || src == "macro_batch" {
+			return true
+		}
 	}
 	return enforceSessionAccess(w, chat, userID)
 }
