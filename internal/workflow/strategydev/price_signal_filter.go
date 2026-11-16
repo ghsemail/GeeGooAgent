@@ -250,6 +250,35 @@ func barRowAt(bars []any, idx int) map[string]any {
 	return row
 }
 
+// anchorForDailyMacroMonitor uses the newest daily bar as monitor as_of (not a historical signal trigger).
+func anchorForDailyMacroMonitor(dailyBars []any) (anchorTime time.Time, anchorClose float64, ok bool) {
+	if len(dailyBars) == 0 {
+		return time.Time{}, 0, false
+	}
+	var bestRow map[string]any
+	var bestDay time.Time
+	for _, raw := range dailyBars {
+		row, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		d := calendarDateAsiaShanghai(barTimeUnix(row))
+		if d.IsZero() {
+			continue
+		}
+		if bestRow == nil || d.After(bestDay) {
+			bestRow = row
+			bestDay = d
+		}
+	}
+	if bestRow == nil {
+		return time.Time{}, 0, false
+	}
+	anchorTime = anchorInstantFromDailyBar(bestRow)
+	anchorClose = slots.FloatAny(bestRow["close"])
+	return anchorTime, anchorClose, !anchorTime.IsZero()
+}
+
 func anchorForSignalBar(signalRow map[string]any, dailyBars []any) (anchorTime time.Time, anchorClose float64, ok bool) {
 	if signalRow == nil || len(dailyBars) == 0 {
 		return time.Time{}, 0, false

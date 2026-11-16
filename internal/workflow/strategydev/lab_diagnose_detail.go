@@ -156,18 +156,36 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 			out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
 			applyLabKlinePatternTopLevel(&out)
 		}
-		priceAnchorTime, _, priceAnchorOK := anchorForSignalBar(row, dailyForAnchor)
 		var asOf *time.Time
-		if priceAnchorOK {
-			t := priceAnchorTime
-			asOf = &t
+		priceAnchorOK := false
+		spot := ent.Close
+		if dailyMacro {
+			priceAnchorTime, anchorClose, ok := anchorForDailyMacroMonitor(dailyForAnchor)
+			priceAnchorOK = ok
+			if ok {
+				t := priceAnchorTime
+				asOf = &t
+				if anchorClose > 0 {
+					spot = anchorClose
+				}
+			}
+		} else {
+			priceAnchorTime, anchorClose, ok := anchorForSignalBar(row, dailyForAnchor)
+			priceAnchorOK = ok
+			if ok {
+				t := priceAnchorTime
+				asOf = &t
+				if anchorClose > 0 {
+					spot = anchorClose
+				}
+			}
 		}
 		pa := priceanalysis.Run(paCtx, labFetcher, priceanalysis.RunRequest{
 			Code:              in.Code,
 			Months:            CapMonthsBack(in.Months),
 			SignalFreq:        labDetailJEVSignalFreq(in),
 			AsOf:              asOf,
-			SpotPrice:         ent.Close,
+			SpotPrice:         spot,
 			KeyLevels:         keyLevelsToLab(in.KeyLevels),
 			JEVDailyMacroOnly: dailyMacro,
 		})
@@ -290,11 +308,38 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 		applyLabKlinePatternTopLevel(&out)
 	}
 	if labFetcher != nil && strings.TrimSpace(in.Code) != "" {
+		var asOf *time.Time
+		spot := ent.Close
+		if flowDailyMacro {
+			var dailyForAnchor []any
+			if in.Run != nil {
+				var mtf *KlinePatternMTFBundle
+				if in.CachedMTF != nil && *in.CachedMTF != nil {
+					mtf = *in.CachedMTF
+				}
+				dailyForAnchor = dailyBarsForLabAnchorFromMTF(mtf)
+				if len(dailyForAnchor) == 0 {
+					dailyForAnchor = dailyBarsForLabAnchor(paCtx, LabDetailInput{
+						Run: in.Run, Code: in.Code, SignalFreq: in.SignalFreq, Months: in.Months,
+						Bars: chartBars, LookbackBars: in.LookbackBars, LabFetcher: labFetcher,
+						SessionID: in.SessionID, RunID: in.RunID,
+					})
+				}
+			}
+			if at, closePx, ok := anchorForDailyMacroMonitor(dailyForAnchor); ok {
+				t := at
+				asOf = &t
+				if closePx > 0 {
+					spot = closePx
+				}
+			}
+		}
 		pa := priceanalysis.Run(paCtx, labFetcher, priceanalysis.RunRequest{
 			Code:              in.Code,
 			Months:            CapMonthsBack(in.Months),
 			SignalFreq:        labDetailJEVSignalFreq(in),
-			SpotPrice:         ent.Close,
+			AsOf:              asOf,
+			SpotPrice:         spot,
 			KeyLevels:         keyLevelsToLab(in.KeyLevels),
 			JEVDailyMacroOnly: flowDailyMacro,
 		})
