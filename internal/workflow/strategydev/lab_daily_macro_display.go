@@ -13,6 +13,7 @@ func applyDailyMacroKlineDisplayForEmit(out *LabEpisodeDetail) {
 		return
 	}
 	applyDailyMacroNonKlineDisplayForEmit(out)
+	applyDailyMacroLabHeaderTime(out)
 	daily := labDetailDailyMTFEntry(out)
 	if daily == nil {
 		daily = &slots.KlinePatternMTFEntry{
@@ -101,6 +102,42 @@ func filterLabIndexTrendDailyOnly(m map[string]LabIndexTrendTF) map[string]LabIn
 		}
 	}
 	return out
+}
+
+// applyDailyMacroLabHeaderTime shows the daily JEV anchor (price as_of), not the signal TF trigger bar.
+func applyDailyMacroLabHeaderTime(out *LabEpisodeDetail) {
+	if out == nil {
+		return
+	}
+	if out.PriceAnalysis != nil {
+		if t := strings.TrimSpace(out.PriceAnalysis.AnchorTime); t != "" {
+			out.Time = t
+			if out.PriceAnalysis.SpotPrice > 0 {
+				out.Close = out.PriceAnalysis.SpotPrice
+			}
+			return
+		}
+	}
+	if out.TechnicalAnalysis != nil {
+		if t := strings.TrimSpace(out.TechnicalAnalysis.AnchorTime); t != "" {
+			out.Time = t
+			return
+		}
+	}
+	if ent := labDetailDailyMTFEntry(out); ent != nil && ent.ThreeBar != nil {
+		for _, b := range ent.ThreeBar.Bars {
+			if strings.TrimSpace(b.Role) != "anchor" {
+				continue
+			}
+			if t := strings.TrimSpace(b.Time); t != "" {
+				out.Time = t
+			}
+			if b.Close > 0 {
+				out.Close = b.Close
+			}
+			return
+		}
+	}
 }
 
 func labDetailDailyMTFEntry(out *LabEpisodeDetail) *slots.KlinePatternMTFEntry {
