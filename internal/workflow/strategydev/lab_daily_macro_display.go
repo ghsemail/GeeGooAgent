@@ -104,40 +104,49 @@ func filterLabIndexTrendDailyOnly(m map[string]LabIndexTrendTF) map[string]LabIn
 	return out
 }
 
-// applyDailyMacroLabHeaderTime shows the daily JEV anchor (price as_of), not the signal TF trigger bar.
+// applyDailyMacroLabHeaderTime uses the daily K-line JEV anchor bar (three-bar window), not PA as_of.
 func applyDailyMacroLabHeaderTime(out *LabEpisodeDetail) {
 	if out == nil {
 		return
 	}
-	if out.PriceAnalysis != nil {
-		if t := strings.TrimSpace(out.PriceAnalysis.AnchorTime); t != "" {
-			out.Time = t
-			if out.PriceAnalysis.SpotPrice > 0 {
-				out.Close = out.PriceAnalysis.SpotPrice
-			}
-			return
+	if t, c, ok := labDailyMacroKlineAnchorTC(out); ok {
+		out.Time = t
+		if c > 0 {
+			out.Close = c
 		}
 	}
-	if out.TechnicalAnalysis != nil {
-		if t := strings.TrimSpace(out.TechnicalAnalysis.AnchorTime); t != "" {
-			out.Time = t
-			return
-		}
+}
+
+func labDailyMacroKlineAnchorTC(out *LabEpisodeDetail) (time string, close float64, ok bool) {
+	if out == nil {
+		return "", 0, false
 	}
-	if ent := labDetailDailyMTFEntry(out); ent != nil && ent.ThreeBar != nil {
-		for _, b := range ent.ThreeBar.Bars {
+	windows := []*slots.KlinePatternThreeBarWindow{
+		nil,
+		out.KlinePatternThreeBar,
+	}
+	if kp := out.KlinePattern; kp != nil {
+		windows = append(windows, kp.ThreeBar)
+	}
+	if ent := labDetailDailyMTFEntry(out); ent != nil {
+		windows = append(windows, ent.ThreeBar)
+	}
+	for _, win := range windows {
+		if win == nil {
+			continue
+		}
+		for _, b := range win.Bars {
 			if strings.TrimSpace(b.Role) != "anchor" {
 				continue
 			}
-			if t := strings.TrimSpace(b.Time); t != "" {
-				out.Time = t
+			t := strings.TrimSpace(b.Time)
+			if t == "" {
+				continue
 			}
-			if b.Close > 0 {
-				out.Close = b.Close
-			}
-			return
+			return t, b.Close, true
 		}
 	}
+	return "", 0, false
 }
 
 func labDetailDailyMTFEntry(out *LabEpisodeDetail) *slots.KlinePatternMTFEntry {
