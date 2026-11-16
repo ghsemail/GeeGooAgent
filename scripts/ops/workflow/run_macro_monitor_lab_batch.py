@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""宏观监控池日批：逐标的 signal_diagnose → macro inline/ingest + batch/runs."""
+"""宏观监控池日批：逐标的 signal_diagnose → macro inline/ingest + batch/runs.
+
+Chat 与 runtime 之间使用 agent_chat_stream：SSE 分块读、IncompleteRead 后按 session 轮询
+``GET /v1/sessions/status``，必要时 ``POST /v1/chat/workflow/resume``。池级失败后可用::
+
+  --pool-jev-only --recover-session-id <chat-id>
+
+仅补写 pool_jev，不重跑标的。环境变量见 ``agent_chat_stream`` 模块说明。
+"""
 
 from __future__ import annotations
 
@@ -9,11 +17,22 @@ import os
 import re
 import sys
 import time
+import traceback
 import urllib.error
 import urllib.request
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+from agent_chat_stream import (  # noqa: E402
+    recover_turn_from_session,
+    result_from_stream_error,
+    stream_chat_turn,
+)
 
 DEFAULT_MACRO = "http://146.56.225.252:3220"
 DEFAULT_AGENT = "http://127.0.0.1:3400"
@@ -203,58 +222,84 @@ def chat_diagnose(
     runtime_key: str,
     mcp_token: str,
     message: str,
+    *,
+    session_id: str = "",
 ) -> dict[str, Any]:
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {runtime_key}",
-        "X-Approve-Writes": "true",
-        "X-MCP-Token": mcp_token,
+    """POST /v1/chat/stream with SSE recovery via /v1/sessions/status and workflow resume."""
+    min_reply = MIN_JEV_REASON_LEN
+    turn = stream_chat_turn(
+        agent_base,
+        runtime_key,
+        mcp_token,
+        message,
+        body_extra={"workflow_options": WORKFLOW_OPTIONS},
+        session_id=session_id,
+        recover=True,
+        min_reply_len=min_reply,
+    )
+    out = result_from_stream_error(turn)
+    if turn.recovered or turn.resumed:
+        print(
+            f"  chat stream recover: recovered={turn.recovered} resumed={turn.resumed}"
+            f" session={out.get('session_id', '')[:20]}",
+            flush=True,
+        )
+    if turn.stream_error and not out.get("ok"):
+        print(f"  chat stream error: {turn.stream_error[:280]}", flush=True)
+    if out.get("ok") and not out.get("run_id"):
+        sid = str(out.get("session_id") or "").strip()
+        if sid:
+            for poll in range(24):
+                res = fetch_diagnose_result(agent_base, runtime_key, mcp_token, sid, "")
+                if res.get("ok"):
+                    data = res["data"]
+                    if isinstance(data, dict) and isinstance(data.get("data"), dict):
+                        data = data["data"]
+                    rid = str(data.get("run_id") or "").strip()
+                    if rid:
+                        out["run_id"] = rid
+                        break
+                if poll < 23:
+                    time.sleep(5)
+    return out
+
+
+def pool_jev_from_session(
+    agent_base: str,
+    runtime_key: str,
+    mcp_token: str,
+    session_id: str,
+) -> dict[str, Any]:
+    turn = recover_turn_from_session(
+        agent_base,
+        runtime_key,
+        mcp_token,
+        session_id,
+        min_reply_len=MIN_JEV_REASON_LEN,
+    )
+    if not turn.ok:
+        return {
+            "ok": False,
+            "error": turn.stream_error or "recover session failed",
+            "session_id": session_id,
+        }
+    jev_reason = str(turn.reply or "").strip()
+    direction = parse_direction_from_compose(jev_reason)
+    if len(jev_reason) < MIN_JEV_REASON_LEN or not direction:
+        return {
+            "ok": False,
+            "error": "incomplete pool jev from session",
+            "session_id": session_id,
+            "jev_reason": jev_reason,
+        }
+    return {
+        "ok": True,
+        "jev_direction": direction,
+        "jev_reason": jev_reason,
+        "session_id": session_id,
+        "run_id": turn.run_id,
+        "recovered": True,
     }
-    body = {
-        "message": message,
-        "mcp_token": mcp_token,
-        "workflow_options": WORKFLOW_OPTIONS,
-    }
-    url = f"{agent_base.rstrip('/')}/v1/chat/stream"
-    data = json.dumps(body, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-    sid = ""
-    run_id = ""
-    turn_end: dict[str, Any] = {}
-    event = ""
-    try:
-        with urllib.request.urlopen(req, timeout=CHAT_TIMEOUT) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-    except urllib.error.HTTPError as e:
-        raw = e.read().decode("utf-8", errors="replace")
-        return {"ok": False, "error": f"chat/stream HTTP {e.code}: {raw[:500]}"}
-    for line in raw.splitlines():
-        if line.startswith("event:"):
-            event = line[6:].strip()
-        elif line.startswith("data:"):
-            payload = line[5:].strip()
-            if event == "connected":
-                try:
-                    sid = json.loads(payload).get("session_id", sid) or sid
-                except json.JSONDecodeError:
-                    pass
-            elif event == "signal_diagnose_result_ready":
-                try:
-                    ready = json.loads(payload)
-                    run_id = str(ready.get("run_id") or run_id) or run_id
-                except json.JSONDecodeError:
-                    pass
-            elif event == "turn_end":
-                try:
-                    turn_end = json.loads(payload)
-                except json.JSONDecodeError:
-                    turn_end = {"raw": payload}
-    failed = bool(turn_end.get("failed"))
-    err = str(turn_end.get("error") or "")
-    if failed or err:
-        return {"ok": False, "session_id": sid, "error": err or "turn failed"}
-    reply = str(turn_end.get("assistant_text") or "").strip()
-    return {"ok": True, "session_id": sid, "run_id": run_id, "reply": reply}
 
 
 def fetch_diagnose_result(
@@ -750,7 +795,18 @@ def synthesize_jev_with_retries(
             time.sleep(RETRY_DELAY_SEC)
         chat = chat_diagnose(agent_base, runtime_key, mcp_token, msg)
         if not chat.get("ok"):
-            last = {"ok": False, "error": chat.get("error") or "chat failed", "attempt": attempt + 1}
+            sid_fail = str(chat.get("session_id") or "").strip()
+            if sid_fail:
+                rec = pool_jev_from_session(agent_base, runtime_key, mcp_token, sid_fail)
+                if rec.get("ok"):
+                    rec["attempt"] = attempt + 1
+                    return rec
+            last = {
+                "ok": False,
+                "error": chat.get("error") or "chat failed",
+                "attempt": attempt + 1,
+                "session_id": sid_fail or None,
+            }
             continue
         session_id = str(chat.get("session_id") or "").strip()
         run_id = str(chat.get("run_id") or "").strip()
@@ -996,6 +1052,7 @@ def run_batch(
 
     pool_wf = api_workflow if api_workflow in WORKFLOW_MONITOR_POOL else workflow
     defer_pool = workflow in BOND_SEGMENT_WORKFLOWS
+    pool_final_published = False
     if (
         not dry_run
         and not defer_pool
@@ -1006,32 +1063,46 @@ def run_batch(
     ):
         label = WORKFLOW_MONITOR_POOL[pool_wf]
         print(f"[{workflow}] pool JEV synthesize ({label}) …", flush=True)
-        syn = synthesize_jev_with_retries(
-            agent_base, runtime_key, mcp_token, label, symbol_rows_for_pool
-        )
-        finished = rfc3339_now()
-        if syn.get("ok"):
-            pool_jev_out = {
-                "success": True,
-                "jev_direction": syn.get("jev_direction"),
-                "jev_reason": syn.get("jev_reason"),
-                "agent_session_id": syn.get("session_id"),
-                "agent_run_id": syn.get("run_id"),
-                "finished_at": finished,
-                "attempt": syn.get("attempt"),
-            }
-            print(f"  pool JEV ok={pool_jev_out.get('jev_direction')}", flush=True)
-        else:
-            err = str(syn.get("error") or "pool jev failed")
+        try:
+            syn = synthesize_jev_with_retries(
+                agent_base, runtime_key, mcp_token, label, symbol_rows_for_pool
+            )
+            finished = rfc3339_now()
+            if syn.get("ok"):
+                pool_jev_out = {
+                    "success": True,
+                    "jev_direction": syn.get("jev_direction"),
+                    "jev_reason": syn.get("jev_reason"),
+                    "agent_session_id": syn.get("session_id"),
+                    "agent_run_id": syn.get("run_id"),
+                    "finished_at": finished,
+                    "attempt": syn.get("attempt"),
+                }
+                print(f"  pool JEV ok={pool_jev_out.get('jev_direction')}", flush=True)
+            else:
+                err = str(syn.get("error") or "pool jev failed")
+                pool_jev_out = {
+                    "success": False,
+                    "error": err,
+                    "attempt": syn.get("attempt"),
+                    "finished_at": finished,
+                    "agent_session_id": syn.get("session_id"),
+                }
+                print(f"  pool JEV FAIL: {err[:240]}", flush=True)
+        except Exception as exc:
+            finished = rfc3339_now()
             pool_jev_out = {
                 "success": False,
-                "error": err,
-                "attempt": syn.get("attempt"),
+                "error": f"{type(exc).__name__}: {exc}",
                 "finished_at": finished,
             }
-            print(f"  pool JEV FAIL: {err[:240]}", flush=True)
-
-    if not dry_run:
+            traceback.print_exc()
+            print(f"  pool JEV EXCEPTION: {exc}", flush=True)
+        finally:
+            if not dry_run:
+                publish_progress("finished", final=True, pool_jev=pool_jev_out)
+                pool_final_published = True
+    if not dry_run and not pool_final_published:
         publish_progress("finished", final=True, pool_jev=pool_jev_out)
     pool_input = None
     if pool_jev_out and pool_jev_out.get("success"):
@@ -1049,6 +1120,96 @@ def run_batch(
     ):
         rc = max(rc, try_finalize_bond_pool_jev(macro_base, macro_key, agent_base, batch_date))
     return rc, pool_input
+
+
+def run_pool_jev_only(
+    workflow: str,
+    macro_base: str,
+    macro_key: str,
+    agent_base: str,
+    batch_date: str,
+    *,
+    recover_session_id: str = "",
+) -> int:
+    """Re-run or recover pool-level JEV without re-diagnosing symbols (e.g. after SSE drop)."""
+    api_workflow = resolve_batch_workflow(workflow)
+    if api_workflow not in WORKFLOW_MONITOR_POOL:
+        print(f"workflow {workflow} has no pool JEV step", file=sys.stderr)
+        return 2
+    runtime_key, mcp_token = load_geegoo_env()
+    rows = merged_batch_symbol_rows(macro_base, macro_key, api_workflow, batch_date)
+    if not rows:
+        print(
+            f"no successful symbol rows on {batch_date} for workflow={api_workflow}",
+            file=sys.stderr,
+        )
+        return 2
+    label = WORKFLOW_MONITOR_POOL[api_workflow]
+    started = rfc3339_now()
+    pool_name = label
+    batch_pools = [
+        {
+            "name": pool_name,
+            "symbols": [str(r.get("symbol") or "") for r in rows],
+            "items": rows,
+        }
+    ]
+    if recover_session_id.strip():
+        print(f"[{workflow}] recover pool JEV from session {recover_session_id} …", flush=True)
+        syn = pool_jev_from_session(
+            agent_base, runtime_key, mcp_token, recover_session_id.strip()
+        )
+    else:
+        print(f"[{workflow}] pool JEV only ({label}) …", flush=True)
+        syn = synthesize_jev_with_retries(
+            agent_base, runtime_key, mcp_token, label, rows
+        )
+    finished = rfc3339_now()
+    if syn.get("ok"):
+        pool_jev = {
+            "success": True,
+            "jev_direction": syn.get("jev_direction"),
+            "jev_reason": syn.get("jev_reason"),
+            "agent_session_id": syn.get("session_id"),
+            "agent_run_id": syn.get("run_id"),
+            "finished_at": finished,
+            "attempt": syn.get("attempt"),
+            "recovered": syn.get("recovered"),
+        }
+        sym_ok = all(r.get("success") for r in rows)
+        body = {
+            "workflow": api_workflow,
+            "date": batch_date,
+            "started_at": started,
+            "finished_at": finished,
+            "success": sym_ok and True,
+            "summary": f"{api_workflow} pool JEV finalize ok={pool_jev.get('jev_direction')}",
+            "pools": batch_pools,
+            "pool_jev": pool_jev,
+        }
+        post_batch_run(macro_base, macro_key, body)
+        print(f"  pool JEV ok={pool_jev.get('jev_direction')}", flush=True)
+        return 0
+    err = str(syn.get("error") or "pool jev failed")
+    pool_jev = {
+        "success": False,
+        "error": err,
+        "finished_at": finished,
+        "agent_session_id": syn.get("session_id"),
+    }
+    body = {
+        "workflow": api_workflow,
+        "date": batch_date,
+        "started_at": started,
+        "finished_at": finished,
+        "success": False,
+        "summary": f"{api_workflow} pool JEV finalize failed",
+        "pools": batch_pools,
+        "pool_jev": pool_jev,
+    }
+    post_batch_run(macro_base, macro_key, body)
+    print(f"  pool JEV FAIL: {err[:240]}", flush=True)
+    return 1
 
 
 def run_overall_batch(
@@ -1143,6 +1304,16 @@ def main() -> int:
         default=os.environ.get("GEEGOO_AGENT_OP_HTTP_URL", DEFAULT_AGENT),
     )
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument(
+        "--pool-jev-only",
+        action="store_true",
+        help="Skip symbol diagnose; synthesize or recover pool JEV from existing batch rows",
+    )
+    p.add_argument(
+        "--recover-session-id",
+        default="",
+        help="With --pool-jev-only: load pool JEV from an existing agent chat session",
+    )
     args = p.parse_args()
     if not args.macro_key.strip():
         print("MACRO_API_KEY required", file=sys.stderr)
@@ -1168,6 +1339,18 @@ def main() -> int:
     if args.workflow == "overall":
         return run_overall_batch(
             args.macro_base, macro_key, args.agent_base, batch_date, pool_inputs, args.dry_run
+        )
+    if args.pool_jev_only:
+        if args.workflow in ("all", "overall") or args.workflow in BOND_SEGMENT_WORKFLOWS:
+            print("--pool-jev-only requires a single monitor pool workflow", file=sys.stderr)
+            return 2
+        return run_pool_jev_only(
+            args.workflow,
+            args.macro_base,
+            macro_key,
+            args.agent_base,
+            batch_date,
+            recover_session_id=args.recover_session_id,
         )
     code, _ = run_batch(
         args.workflow, args.macro_base, macro_key, args.agent_base, batch_date, args.dry_run
