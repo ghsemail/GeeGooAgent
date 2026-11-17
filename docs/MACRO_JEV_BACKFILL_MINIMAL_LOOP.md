@@ -80,11 +80,13 @@
 
 ## 代码现状（PR #126）
 
-| 已有 | 待办（授权后另 PR） |
-|------|---------------------|
-| 日批 PUT 接线 + ledger | `macro_jev_backfill_symbols.py` |
-| `macro_jev_audit_schema.py` 分类 | `macro_jev_backfill_pools_overall.py`（包装 pool-jev-only + overall） |
-| 集成 46 项 | 生产 smoke：`source=canonical` 抽样 |
+| 已有 | 备注 |
+|------|------|
+| 日批 PUT 接线 + ledger | — |
+| `macro_jev_audit_schema.py` 分类 | — |
+| `macro_jev_backfill_symbols.py` Phase A | 默认 dry-run；`--apply` + `--confirm-no-active-batch`；非 localhost 需 `--allow-production-host` |
+| `macro_jev_backfill_pools_overall.py` B/C | `--recorded-synthesis-dir` 仅回放已录 synthesis（集成/演练）；生产 `--apply` 走真实 Agent 合成 |
+| 集成测试 | `run_macro_jev_integration_tests.sh` 全开 HTTP + Go |
 
 ## 可行性结论
 

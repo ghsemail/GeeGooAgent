@@ -1,0 +1,178 @@
+{
+  "batch_date": "2026-12-01",
+  "bond_merged": true,
+  "overall_runs": [],
+  "pool_runs_by_workflow": {
+    "cn_a": {
+      "id": "audit-run-cn_a",
+      "date": "2026-12-01",
+      "started_at": "2026-12-01T05:00:00+08:00",
+      "finished_at": "2026-12-01T05:20:00+08:00",
+      "pools": [
+        {
+          "name": "A股池",
+          "symbols": ["000001.SH"],
+          "items": [
+            {
+              "symbol": "000001.SH",
+              "success": true,
+              "jev_direction": "long",
+              "jev_reason": "integration audit symbol reason text ok",
+              "detail_ref": "buy:1",
+              "agent_session_id": "sess-cn",
+              "agent_run_id": "run-cn"
+            }
+          ]
+        }
+      ]
+    },
+    "hk": {
+      "id": "audit-run-hk",
+      "date": "2026-12-01",
+      "started_at": "2026-12-01T05:01:00+08:00",
+      "finished_at": "2026-12-01T05:21:00+08:00",
+      "pools": [
+        {
+          "name": "港股池",
+          "items": [
+            {
+              "symbol": "800000.HK",
+              "success": true,
+              "jev_direction": "neutral",
+              "jev_reason": "integration audit hk symbol reason ok",
+              "detail_ref": "buy:1",
+              "agent_session_id": "sess-hk",
+              "agent_run_id": "run-hk"
+            }
+          ]
+        }
+      ]
+    },
+    "us": {
+      "id": "audit-run-us",
+      "date": "2026-12-01",
+      "started_at": "2026-12-01T05:30:00+08:00",
+      "finished_at": "2026-12-01T05:50:00+08:00",
+      "pools": [
+        {
+          "name": "美股池",
+          "items": [
+            {
+              "symbol": "SPY.US",
+              "success": true,
+              "jev_direction": "long",
+              "jev_reason": "integration audit us symbol reason text",
+              "detail_ref": "buy:1",
+              "agent_session_id": "sess-us",
+              "agent_run_id": "run-us"
+            }
+          ]
+        }
+      ]
+    },
+    "commodity_fx": {
+      "id": "audit-run-cf",
+      "date": "2026-12-01",
+      "started_at": "2026-12-01T05:32:00+08:00",
+      "finished_at": "2026-12-01T05:52:00+08:00",
+      "pools": [
+        {
+          "name": "商品货币池",
+          "items": [
+            {
+              "symbol": "GLD.US",
+              "success": true,
+              "jev_direction": "long",
+              "jev_reason": "integration commodity symbol reason ok",
+              "detail_ref": "buy:1",
+              "agent_session_id": "sess-cf",
+              "agent_run_id": "run-cf"
+            }
+          ]
+        }
+      ]
+    },
+    "bond": {
+      "id": "audit-run-bond-seg",
+      "date": "2026-12-01",
+      "started_at": "2026-12-01T05:35:00+08:00",
+      "finished_at": "2026-12-01T05:55:00+08:00",
+      "pools": [
+        {
+          "name": "债券利率池",
+          "symbols": ["HYG.US", "TLT.US"],
+          "items": [
+            {
+              "symbol": "HYG.US",
+              "success": true,
+              "jev_direction": "long",
+              "jev_reason": "integration bond hyg leg reason text",
+              "detail_ref": "buy:1",
+              "agent_session_id": "sess-b1",
+              "agent_run_id": "run-b1"
+            },
+            {
+              "symbol": "TLT.US",
+              "success": true,
+              "jev_direction": "short",
+              "jev_reason": "integration bond tlt leg reason text",
+              "detail_ref": "buy:2",
+              "agent_session_id": "sess-b2",
+              "agent_run_id": "run-b2"
+            }
+          ]
+        }
+      ],
+      "pool_jev": {
+        "success": true,
+        "jev_direction": "neutral",
+        "jev_reason": "legacy pool without agent run id field",
+        "agent_session_id": ""
+      }
+    },
+    "crypto": {
+      "id": "audit-run-crypto",
+      "date": "2026-12-01",
+      "started_at": "2026-12-01T16:15:00+08:00",
+      "finished_at": "2026-12-01T16:45:00+08:00",
+      "pools": [
+        {
+          "name": "虚拟货币池",
+          "items": [
+            {
+              "symbol": "BTCUSD",
+              "success": true,
+              "jev_direction": "long",
+              "jev_reason": "integration crypto symbol reason text",
+              "detail_ref": "buy:1",
+              "agent_session_id": "sess-cr",
+              "agent_run_id": "run-cr"
+            }
+          ]
+        }
+      ]
+    },
+    "volatility": {
+      "id": "audit-run-vol",
+      "date": "2026-12-01",
+      "started_at": "2026-12-01T05:38:00+08:00",
+      "finished_at": "2026-12-01T05:58:00+08:00",
+      "pools": [
+        {
+          "name": "波动率池",
+          "items": [
+            {
+              "symbol": "VIX",
+              "success": true,
+              "jev_direction": "short",
+              "jev_reason": "integration volatility symbol reason ok",
+              "detail_ref": "buy:1",
+              "agent_session_id": "sess-v",
+              "agent_run_id": "run-v"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

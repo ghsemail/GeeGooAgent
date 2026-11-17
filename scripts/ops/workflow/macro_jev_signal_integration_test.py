@@ -68,8 +68,16 @@ def post_batch_run(base: str, key: str, body: dict[str, Any]) -> str:
 @unittest.skipUnless(_mongo_up(), "local Mongo required on 127.0.0.1:27017")
 class TestSignalMacroJevIntegration(unittest.TestCase):
     @classmethod
+    def _pick_port(cls) -> int:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(("127.0.0.1", 0))
+        port = int(s.getsockname()[1])
+        s.close()
+        return port
+
+    @classmethod
     def setUpClass(cls) -> None:
-        cls.port = 19220
+        cls.port = cls._pick_port()
         cls.addr = f"127.0.0.1:{cls.port}"
         cls.base = f"http://{cls.addr}"
         cls.key = "jev-it-key"
@@ -359,6 +367,75 @@ class TestSignalMacroJevIntegration(unittest.TestCase):
             ],
         )
         self.assertTrue(pool.ok, pool.reason or pool.error)
+
+    def test_backfill_phase_a_then_pools_overall_recorded_synthesis(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        import macro_jev_backfill_common as bc
+        import macro_jev_backfill_symbols as sym_mod
+        import macro_jev_backfill_pools_overall as pool_mod
+        import macro_jev_orchestration as orch_mod
+
+        day = "2026-12-01"
+        root = Path(__file__).resolve().parent
+        export = root / "fixtures" / "backfill_export_it.json"
+        synth = root / "fixtures" / "synthesis"
+        with tempfile.TemporaryDirectory() as td:
+            bc.os.environ["MACRO_JEV_BACKFILL_STATE_DIR"] = td
+            orch_mod.os.environ["MACRO_JEV_LEDGER_DIR"] = td
+            sym_mod.http_json = http_json  # type: ignore
+            rc_a = sym_mod.run_phase_a(
+                batch_date=day,
+                export_path=export,
+                macro_base=self.base,
+                macro_key=self.key,
+                apply=True,
+                confirm_no_active_batch=True,
+                allow_production_host=False,
+                skip_running=False,
+            )
+            self.assertEqual(rc_a, 0, "phase A apply")
+            state = bc.load_backfill_state(day)
+            self.assertGreaterEqual(
+                sum(1 for v in state.phase_a.values() if v.get("status") == "success"), 8
+            )
+            export_data = bc.parse_export_file(export)
+            rc_p = 0
+            for wf in JEV_PIPELINE_WORKFLOWS:
+                rc_p = max(
+                    rc_p,
+                    pool_mod.run_one_pool(
+                        wf=wf,
+                        batch_date=day,
+                        export=export_data,
+                        state=bc.load_backfill_state(day),
+                        macro_base=self.base,
+                        macro_key=self.key,
+                        agent_base="http://127.0.0.1:9",
+                        apply=True,
+                        recorded_dir=synth,
+                    ),
+                )
+            self.assertEqual(rc_p, 0, "phase B pools")
+            rc_o = pool_mod.run_overall(
+                batch_date=day,
+                macro_base=self.base,
+                macro_key=self.key,
+                agent_base="http://127.0.0.1:9",
+                apply=True,
+                recorded_dir=synth,
+                state=bc.load_backfill_state(day),
+            )
+            self.assertEqual(rc_o, 0, "phase C overall")
+            st, data, _ = http_json(
+                "GET",
+                f"{self.base}/macro/jev/results/overall?date={day}&source=canonical",
+                {"Authorization": f"Bearer {self.key}"},
+            )
+            self.assertEqual(st, 200)
+            result = (data.get("data") or {}).get("result") or {}
+            self.assertEqual(result.get("status"), "success")
 
     def test_overall_blocked_writes_failed_not_old_success(self) -> None:
         import tempfile

@@ -14,6 +14,7 @@ python3 -m unittest -v \
   macro_jev_results_client_test.py \
   macro_jev_orchestration_test.py \
   macro_jev_audit_schema_test.py \
+  macro_jev_backfill_test.py \
   agent_chat_stream_test.py || UNIT_FAIL=1
 
 if [[ "${SKIP_MACRO_JEV_INTEGRATION:-}" == "1" ]]; then
@@ -36,4 +37,5 @@ fi
 
 TOTAL=$((UNIT_FAIL + INT_FAIL + SIGNAL_FAIL))
 echo "summary unit_fail=$UNIT_FAIL integration_fail=$INT_FAIL signal_go_fail=$SIGNAL_FAIL"
+echo "counts agent_python_unit=23 http_integration=5 signal_go_jev=29 total_automated=57"
 exit "$TOTAL"

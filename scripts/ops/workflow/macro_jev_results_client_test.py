@@ -198,6 +198,43 @@ class TestMacroJevResultsClient(unittest.TestCase):
         self.assertEqual(len(rows), 7)
         self.assertEqual(rows[0]["pool_workflow"], "cn_a")
 
+    def test_put_network_retries_then_ok(self) -> None:
+        calls = {"n": 0}
+
+        def flaky_put(_m, _u, body, _h):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                return 503, {"message": "unavailable"}, "{}"
+            return (
+                200,
+                {"code": 100, "data": {"accepted": True, "result_id": "sym:retry-ok"}},
+                "{}",
+            )
+
+        reg = {"PUT http://sig/macro/jev/results/symbols": flaky_put}
+        w = MacroJevResultsWriter(
+            "http://sig",
+            "key",
+            "2026-11-17",
+            "us",
+            "run-1",
+            "2026-11-17T05:30:00+08:00",
+            mock_http(reg),
+            put_network_retries=3,
+        )
+        out = w.put_symbol(
+            symbol="SPY.US",
+            status="success",
+            revision=1,
+            jev_direction="long",
+            jev_reason="network retry integration reason",
+            agent_session_id="s",
+            agent_run_id="r",
+            detail_ref="buy:1",
+        )
+        self.assertTrue(out.ok, out.error)
+        self.assertEqual(calls["n"], 3)
+
     def test_put_blocked_without_batch_run_id(self) -> None:
         w = MacroJevResultsWriter(
             "http://sig",
