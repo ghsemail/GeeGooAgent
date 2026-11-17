@@ -31,18 +31,37 @@ func labDetailNow(in LabDetailInput) time.Time {
 // resolveMacroMonitorCutoffFromDailyBars picks the newest daily bar whose session day is complete at now.
 // Fail-closed (ok=false) when no spec, no bars, or no completed session.
 func resolveMacroMonitorCutoffFromDailyBars(code string, now time.Time, dailyBars []any) (MacroMonitorCutoff, bool) {
-	return resolveMacroMonitorCutoffFromDailyBarsWithChecker(context.Background(), nil, code, now, dailyBars)
+	return resolveMacroMonitorCutoffFromDailyBarsWithChecker(context.Background(), nil, false, code, now, dailyBars)
+}
+
+func resolveDailyMacroCutoff(ctx context.Context, in LabDetailInput, dailyBars []any) (MacroMonitorCutoff, bool, string) {
+	require := labDetailDailyMacro(in) && in.RequireTradingDayChecker
+	cut, ok := resolveMacroMonitorCutoffFromDailyBarsWithChecker(ctx, in.TradingDayChecker, require, in.Code, labDetailNow(in), dailyBars)
+	if ok {
+		return cut, true, ""
+	}
+	if require {
+		if in.TradingDayChecker == nil {
+			return MacroMonitorCutoff{}, false, "macro_trading_day_checker_unavailable"
+		}
+		return MacroMonitorCutoff{}, false, "macro_trading_day_check_failed"
+	}
+	return MacroMonitorCutoff{}, false, "macro_monitor_cutoff_unavailable"
 }
 
 func resolveMacroMonitorCutoffFromDailyBarsWithChecker(
 	ctx context.Context,
 	checker MacroTradingDayChecker,
+	requireChecker bool,
 	code string,
 	now time.Time,
 	dailyBars []any,
 ) (MacroMonitorCutoff, bool) {
 	spec, ok := macroSessionSpecForCode(code)
 	if !ok || len(dailyBars) == 0 || now.IsZero() {
+		return MacroMonitorCutoff{}, false
+	}
+	if requireChecker && checker == nil {
 		return MacroMonitorCutoff{}, false
 	}
 	todayCal := calendarDateInLoc(now, spec.loc)
@@ -53,6 +72,7 @@ func resolveMacroMonitorCutoffFromDailyBarsWithChecker(
 		barRaw string
 	}
 	var best *candidate
+	var checkErr error
 	for _, raw := range dailyBars {
 		row, ok := raw.(map[string]any)
 		if !ok {
@@ -69,7 +89,12 @@ func resolveMacroMonitorCutoffFromDailyBarsWithChecker(
 			continue
 		}
 		dayLabel := calDay.In(spec.loc).Format("2006-01-02")
-		if !macroBarEligibleTradingDay(ctx, checker, code, dayLabel) {
+		eligible, err := macroBarEligibleTradingDay(ctx, checker, code, dayLabel, requireChecker)
+		if err != nil {
+			checkErr = err
+			continue
+		}
+		if !eligible {
 			continue
 		}
 		closePx := slots.FloatAny(row["close"])
@@ -88,6 +113,9 @@ func resolveMacroMonitorCutoffFromDailyBarsWithChecker(
 		}
 	}
 	if best == nil {
+		if checkErr != nil && requireChecker {
+			return MacroMonitorCutoff{}, false
+		}
 		return MacroMonitorCutoff{}, false
 	}
 	sessionClose := sessionCloseInstant(best.calDay, spec)

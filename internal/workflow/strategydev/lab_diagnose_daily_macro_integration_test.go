@@ -97,7 +97,8 @@ func TestBuildLabEpisodeDetail_DailyMacroHistoricalBuyUsesMonitorCutoff(t *testi
 		TAClient:        ta,
 		KlineJEVProfile: LabKlineJEVProfileDailyMacro,
 		Now:             nowFn,
-		TradingDayChecker: mapTradingDayChecker{"2026-11-16": true, "2026-11-03": true},
+		TradingDayChecker:          mapTradingDayChecker{"2026-11-16": true, "2026-11-03": true},
+		RequireTradingDayChecker:   true,
 	}, LabDetailRef("buy", 0))
 	if err != nil {
 		t.Fatal(err)
@@ -137,8 +138,10 @@ func TestBuildLabEpisodeDetail_DailyMacroCutoffFail_NoPAOrUnified(t *testing.T) 
 		LabFetcher:      fetcher,
 		TAClient:        ta,
 		Jev:             NewJevClient(JevConfig{BaseURL: "http://127.0.0.1:9", APIKey: "k"}),
-		KlineJEVProfile: LabKlineJEVProfileDailyMacro,
-		Now:             nowFn,
+		KlineJEVProfile:          LabKlineJEVProfileDailyMacro,
+		Now:                      nowFn,
+		TradingDayChecker:        mapTradingDayChecker{"2026-11-16": true},
+		RequireTradingDayChecker: true,
 	}, LabDetailRef("buy", 0))
 	if err != nil {
 		t.Fatal(err)
@@ -173,6 +176,7 @@ func TestBuildLabEpisodeDetail_DailyMacroRejectsNonTradingDayBar(t *testing.T) {
 			"2026-11-15": false,
 			"2026-11-16": true,
 		},
+		RequireTradingDayChecker: true,
 	}, LabDetailRef("buy", 0))
 	if err != nil {
 		t.Fatal(err)

@@ -84,7 +84,8 @@ func prepareDailyMacroKlineProbe(
 		return
 	}
 	if in.Run != nil {
-		kp.HydrateDailyMacroMTFFromBarsForCalendarDay(ctx, kp.ToolRunner(in.Run), in.Code, in.Months, dailyBars, mtf, cut.CalendarDay)
+		asOf := cut.SessionClose
+		kp.HydrateDailyMacroMTFFromBarsForCalendarDay(ctx, kp.ToolRunner(in.Run), in.Code, in.Months, dailyBars, mtf, cut.CalendarDay, &asOf)
 		return
 	}
 	key := kp.NormalizeFrequency("daily")

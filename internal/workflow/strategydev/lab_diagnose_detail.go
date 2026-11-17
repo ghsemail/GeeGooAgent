@@ -60,6 +60,8 @@ type LabDetailInput struct {
 	Now func() time.Time
 	// TradingDayChecker optional exchange calendar (e.g. checkTradingDay). Nil leaves holiday/weekend placeholder bars eligible.
 	TradingDayChecker MacroTradingDayChecker
+	// RequireTradingDayChecker is set on production daily_macro HTTP; checker errors fail-closed.
+	RequireTradingDayChecker bool
 }
 
 // BuildLabEpisodeDetail loads MTF kline context and anchored price analysis for one ref.
@@ -163,9 +165,9 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		priceAnchorOK := false
 		spot := ent.Close
 		if dailyMacro {
-			if cut, ok := resolveMacroMonitorCutoffFromDailyBarsWithChecker(paCtx, in.TradingDayChecker, in.Code, labDetailNow(in), dailyForAnchor); ok {
-				fetchIn := in
-				fetchIn.LabFetcher = labFetcher
+			fetchIn := in
+			fetchIn.LabFetcher = labFetcher
+			if cut, ok, failTag := resolveDailyMacroCutoff(paCtx, fetchIn, dailyForAnchor); ok {
 				prepareDailyMacroKlineProbe(paCtx, fetchIn, mtf, dailyForAnchor, cut)
 				patIn, klineIdx, kOK := dailyMacroKlineDisplayInputAtCutoff(in.Code, cut, in.ProbeRaw, mtf)
 				if kOK {
@@ -181,6 +183,8 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 				} else {
 					out.Degraded = append(out.Degraded, "macro_monitor_cutoff_bar_mismatch")
 				}
+			} else if failTag != "" {
+				out.Degraded = append(out.Degraded, failTag)
 			} else {
 				out.Degraded = append(out.Degraded, "macro_monitor_cutoff_unavailable")
 			}
@@ -244,7 +248,7 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		}
 	} else if dailyMacro {
 		dailyForAnchor := dailyBarsForLabAnchorFromMTF(mtf)
-		if cut, ok := resolveMacroMonitorCutoffFromDailyBarsWithChecker(paCtx, in.TradingDayChecker, in.Code, labDetailNow(in), dailyForAnchor); ok {
+		if cut, ok, failTag := resolveDailyMacroCutoff(paCtx, in, dailyForAnchor); ok {
 			prepareDailyMacroKlineProbe(paCtx, in, mtf, dailyForAnchor, cut)
 			patIn, klineIdx, kOK := dailyMacroKlineDisplayInputAtCutoff(in.Code, cut, in.ProbeRaw, mtf)
 			if kOK {
@@ -254,6 +258,8 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 			} else {
 				out.Degraded = append(out.Degraded, "macro_monitor_cutoff_bar_mismatch")
 			}
+		} else if failTag != "" {
+			out.Degraded = append(out.Degraded, failTag)
 		} else {
 			out.Degraded = append(out.Degraded, "macro_monitor_cutoff_unavailable")
 		}
@@ -330,9 +336,9 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 				Bars: chartBars, LookbackBars: in.LookbackBars, LabFetcher: labFetcher,
 				SessionID: in.SessionID, RunID: in.RunID, Now: in.Now, TradingDayChecker: in.TradingDayChecker,
 			})
-			if cut, ok := resolveMacroMonitorCutoffFromDailyBarsWithChecker(paCtx, in.TradingDayChecker, in.Code, labDetailNow(in), dailyForAnchor); ok {
-				fetchIn := in
-				fetchIn.LabFetcher = labFetcher
+			fetchIn := in
+			fetchIn.LabFetcher = labFetcher
+			if cut, ok, failTag := resolveDailyMacroCutoff(paCtx, fetchIn, dailyForAnchor); ok {
 				prepareDailyMacroKlineProbe(paCtx, fetchIn, mtf, dailyForAnchor, cut)
 				patIn, klineIdx, kOK := dailyMacroKlineDisplayInputAtCutoff(in.Code, cut, in.ProbeRaw, mtf)
 				if kOK {
@@ -348,6 +354,8 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 				} else {
 					out.Degraded = append(out.Degraded, "macro_monitor_cutoff_bar_mismatch")
 				}
+			} else if failTag != "" {
+				out.Degraded = append(out.Degraded, failTag)
 			} else {
 				out.Degraded = append(out.Degraded, "macro_monitor_cutoff_unavailable")
 			}

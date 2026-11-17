@@ -70,7 +70,7 @@ func HydrateDailyMacroMTFFromBars(
 	dailyBars []any,
 	bundle *KlinePatternMTFBundle,
 ) {
-	HydrateDailyMacroMTFFromBarsForCalendarDay(ctx, run, code, months, dailyBars, bundle, "")
+	HydrateDailyMacroMTFFromBarsForCalendarDay(ctx, run, code, months, dailyBars, bundle, "", nil)
 }
 
 // HydrateDailyMacroMTFFromBarsForCalendarDay backfills pattern_hits; skips reuse when calendarDay is set and bars are not aligned to that exact day index.
@@ -82,6 +82,7 @@ func HydrateDailyMacroMTFFromBarsForCalendarDay(
 	dailyBars []any,
 	bundle *KlinePatternMTFBundle,
 	calendarDay string,
+	sessionAsOf *time.Time,
 ) {
 	if bundle == nil || run == nil || len(dailyBars) == 0 {
 		return
@@ -93,13 +94,14 @@ func HydrateDailyMacroMTFFromBarsForCalendarDay(
 	ser := bundle.ByFreq[key]
 	reuse := len(ser.Bars) > 0 && len(ser.PatternHits) == len(ser.Bars) &&
 		patternHitsSeriesPopulated(ser.PatternHits) && barSeriesSameTimes(ser.Bars, dailyBars)
-	if calendarDay != "" {
+	if calendarDay != "" || sessionAsOf != nil {
 		reuse = false
 	}
 	if reuse {
 		return
 	}
-	hits := ensurePatternHitsOnDailyBars(ctx, run, code, months, dailyBars, ser.PatternHits)
+	allowNil := sessionAsOf == nil
+	hits := ensurePatternHitsOnDailyBarsAt(ctx, run, code, months, dailyBars, ser.PatternHits, sessionAsOf, allowNil)
 	if len(hits) == 0 {
 		hits = ser.PatternHits
 	}
