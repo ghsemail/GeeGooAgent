@@ -6,8 +6,13 @@
 
 1. `POST /macro/decision/inline/ingest`
 2. `POST /macro/batch/runs`
+3. **canonical 真源**（与上并行，不改变旧集合）：`PUT /macro/jev/results/symbols` → `.../pools/{workflow}` → `.../overall`（见 GeeGooSignal `docs/MACRO_JEV_RESULTS_API.md` PR #23）
 
-契约详见 GeeGooSignal `docs/MACRO_LAB_BATCH.md`。
+`source_batch_id` **必须**与当次 `POST /macro/batch/runs` 返回的 `run.id` 一致（首次心跳锁定）；`batch_started_at` 与同次 run 的 `started_at` 一致，以便 batch manifest 解析预期标的集。读取侧产品 **`GET` 须 `source=canonical`**。
+
+分时段 crontab 与 **日账本**（overall 仅读本编排窗口，不捞跨池 latest）：见 `docs/MACRO_JEV_LEDGER_AND_REPLAY.md`。集成测试：`bash scripts/ops/workflow/run_macro_jev_integration_tests.sh`。
+
+契约 batch 心跳详见 GeeGooSignal `docs/MACRO_LAB_BATCH.md`。
 
 ## 当前线上缺口（2026-11-08 核查）
 
