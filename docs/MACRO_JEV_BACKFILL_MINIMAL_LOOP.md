@@ -46,7 +46,7 @@
 
 1. `POST /macro/batch/runs` **新心跳** → 新 `run.id` 作池层 `source_batch_id`（**每池独立**，与 Phase A 标的 run.id **不同**属正常）。
 2. 调用现有 **`synthesize_jev_with_retries`**（与 `run_pool_jev_only` 相同），输入为 **Phase A canonical 或 batch items 摘要**，拿到 **新** `session_id` / `run_id`。
-3. `PUT .../pools/{wf}`，`inputs[].result_id` 仅引用同日同池 success 标的；bond 用 **finalize merged manifest** 全量 expected（`try_finalize_bond_pool_jev` 语义）。
+3. `PUT .../pools/{wf}`，`inputs[].result_id` 仅引用同日同池 success 标的；bond **manifest 仅从审计 export**（`pools[].symbols` + success items，如 11/17 五券含 .SH），**禁止**代码硬编码 HYG/TLT=2（该二券仅 `fixtures/backfill_export_it.json` IT 用）。
 
 **成本**：**7 次** Agent 池级合成（chat），非 33 Lab。
 

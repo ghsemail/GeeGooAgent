@@ -37,5 +37,5 @@ fi
 
 TOTAL=$((UNIT_FAIL + INT_FAIL + SIGNAL_FAIL))
 echo "summary unit_fail=$UNIT_FAIL integration_fail=$INT_FAIL signal_go_fail=$SIGNAL_FAIL"
-echo "counts agent_python_unit=23 http_integration=5 signal_go_jev=29 total_automated=57"
+echo "counts agent_python_unit=24 http_integration=6 signal_go_jev=29 total_automated=59"
 exit "$TOTAL"

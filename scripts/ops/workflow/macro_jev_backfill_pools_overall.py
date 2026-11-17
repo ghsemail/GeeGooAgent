@@ -16,12 +16,14 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from macro_jev_backfill_common import (
     audit_export,
+    expected_symbols_for_pool_backfill,
     export_fingerprint,
     guard_apply_target,
     list_active_batch_runs,
     load_backfill_state,
     load_recorded_synthesis,
     parse_export_file,
+    pool_manifest_symbols_from_export,
     record_failure,
     require_confirm_no_active_batch,
     save_backfill_state,
@@ -50,9 +52,6 @@ from run_macro_monitor_lab_batch import (
     rfc3339_now,
     synthesize_jev_with_retries,
 )
-
-BOND_EXPECTED_DEFAULT = ("HYG.US", "TLT.US")
-
 
 def _symbol_items_from_state(
     export: dict[str, Any],
@@ -124,9 +123,22 @@ def run_one_pool(
 
     label = WORKFLOW_MONITOR_POOL.get(wf, wf)
     sym_ok = all(it.get("success") for it in items)
-    expected = list(BOND_EXPECTED_DEFAULT) if wf == "bond" else [str(it.get("symbol") or "") for it in items]
+    expected = expected_symbols_for_pool_backfill(export, wf, items)
+    if wf == "bond":
+        manifest = pool_manifest_symbols_from_export(export, wf)
+        frozen = {str(it.get("symbol") or "").strip().upper() for it in items}
+        if manifest:
+            missing = sorted(set(manifest) - frozen)
+            if missing:
+                print(
+                    f"  pool bond: export manifest missing frozen phase-A ids for {missing}",
+                    file=sys.stderr,
+                )
+                return 2
 
-    print(f"  pool {wf}: synth rows={len(items)} apply={apply}")
+    print(
+        f"  pool {wf}: synth rows={len(items)} manifest={len(expected)} apply={apply}"
+    )
     if not apply:
         return 0
 
@@ -199,7 +211,7 @@ def run_one_pool(
         all_symbols_ok=sym_ok,
         completed_at=finished,
         extra_symbol_result_ids=canon,
-        expected_symbols=expected if wf == "bond" else None,
+        expected_symbols=expected if wf == "bond" and expected else None,
     )
     st = {
         "status": "success" if (out and out.ok) else "failed",

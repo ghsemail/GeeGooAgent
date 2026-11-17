@@ -11,9 +11,11 @@ from macro_jev_backfill_common import (
     audit_export,
     guard_apply_target,
     parse_export_file,
+    pool_manifest_symbols_from_export,
     require_confirm_no_active_batch,
     validate_export_dates,
 )
+from macro_jev_backfill_fixtures import build_prod_shape_audit_export
 from macro_jev_backfill_symbols import run_phase_a
 
 
@@ -54,6 +56,15 @@ class TestBackfillGuards(unittest.TestCase):
         self.assertEqual(rep.pool_runs, 7)
         self.assertTrue(rep.canonical_import_symbols_ok)
         self.assertTrue(any(p.needs_resynthesis for p in rep.pool_rows if p.pool_workflow == "bond"))
+
+    def test_bond_manifest_five_from_export_not_hardcoded(self) -> None:
+        export = build_prod_shape_audit_export("2026-11-17")
+        manifest = pool_manifest_symbols_from_export(export, "bond")
+        self.assertEqual(len(manifest), 5)
+        self.assertIn("511260.SH", manifest)
+        self.assertIn("HYG.US", manifest)
+        rep = audit_export(export, "2026-11-17")
+        self.assertEqual(rep.success_symbols, 33)
 
     def test_phase_a_dry_run(self) -> None:
         root = Path(__file__).resolve().parent

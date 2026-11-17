@@ -200,6 +200,48 @@ def record_failure(state: BackfillState, *, phase: str, key: str, detail: str) -
     state.failures.append({"phase": phase, "key": key, "detail": detail})
 
 
+def pool_manifest_symbols_from_export(export: dict[str, Any], pool_workflow: str) -> list[str]:
+    """Merged pool manifest from audit export (`pools[].symbols` + success items), not monitor hardcode."""
+    run = (export.get("pool_runs_by_workflow") or {}).get(pool_workflow)
+    if not isinstance(run, dict):
+        return []
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for pool in run.get("pools") or []:
+        if not isinstance(pool, dict):
+            continue
+        for s in pool.get("symbols") or []:
+            u = str(s or "").strip().upper()
+            if u and u not in seen:
+                seen.add(u)
+                ordered.append(u)
+        for it in pool.get("items") or []:
+            if not isinstance(it, dict) or not it.get("success"):
+                continue
+            u = str(it.get("symbol") or "").strip().upper()
+            if u and u not in seen:
+                seen.add(u)
+                ordered.append(u)
+    return ordered
+
+
+def expected_symbols_for_pool_backfill(
+    export: dict[str, Any],
+    pool_workflow: str,
+    items: list[dict[str, Any]],
+) -> list[str]:
+    manifest = pool_manifest_symbols_from_export(export, pool_workflow)
+    if manifest:
+        return manifest
+    return sorted(
+        {
+            str(it.get("symbol") or "").strip().upper()
+            for it in items
+            if str(it.get("symbol") or "").strip()
+        }
+    )
+
+
 def iter_importable_symbols(
     export: dict[str, Any],
     report: DayAuditReport,

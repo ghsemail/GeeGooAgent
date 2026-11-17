@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for 2025-11-17–style production audit classification (no network)."""
+"""Tests for 2026-11-17–style production audit classification (no network)."""
 
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ def _run(
 class TestAuditSchema1117(unittest.TestCase):
     def test_production_like_pool_jev_missing_run_id(self) -> None:
         """Matches 11/17 audit: symbols importable, pool needs resynthesis."""
-        date = "2025-11-17"
+        date = "2026-11-17"
         pools = {
             wf: _run(f"run-{wf}", wf, date, pool_jev_agent=False, n_syms=5)
             for wf in JEV_PIPELINE_WORKFLOWS
@@ -82,21 +82,21 @@ class TestAuditSchema1117(unittest.TestCase):
 
     def test_distinct_source_batch_id_per_pool(self) -> None:
         sym, pool = classify_batch_run(
-            _run("id-us-only", "us", "2025-11-17"),
+            _run("id-us-only", "us", "2026-11-17"),
             pool_workflow="us",
         )
         self.assertEqual(pool.source_batch_id, "id-us-only")
         self.assertTrue(all(s.source_batch_id == "id-us-only" for s in sym))
 
     def test_symbol_not_importable_without_run_id(self) -> None:
-        run = _run("r1", "hk", "2025-11-17")
+        run = _run("r1", "hk", "2026-11-17")
         run["pools"][0]["items"][0].pop("agent_run_id")
         sym, _ = classify_batch_run(run, pool_workflow="hk")
         self.assertFalse(sym[0].importable)
         self.assertIn("agent_run_id", sym[0].missing)
 
     def test_cannot_full_replay_without_symbol_core(self) -> None:
-        date = "2025-11-18"
+        date = "2026-11-18"
         rep = classify_day_export(
             batch_date=date,
             pool_runs_by_workflow={},

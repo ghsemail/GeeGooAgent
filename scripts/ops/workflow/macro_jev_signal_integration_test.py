@@ -437,6 +437,70 @@ class TestSignalMacroJevIntegration(unittest.TestCase):
             result = (data.get("data") or {}).get("result") or {}
             self.assertEqual(result.get("status"), "success")
 
+    def test_prod_shape_33_symbols_bond5_manifest_http(self) -> None:
+        import json
+        import tempfile
+        from pathlib import Path
+
+        import macro_jev_backfill_common as bc
+        import macro_jev_backfill_fixtures as bfix
+        import macro_jev_backfill_pools_overall as pool_mod
+        import macro_jev_backfill_symbols as sym_mod
+        import macro_jev_orchestration as orch_mod
+
+        day = "2026-11-17"
+        export_data = bfix.build_prod_shape_audit_export(day)
+        synth = Path(__file__).resolve().parent / "fixtures" / "synthesis"
+        with tempfile.TemporaryDirectory() as td:
+            export_path = Path(td) / "export.json"
+            export_path.write_text(json.dumps(export_data, ensure_ascii=False), encoding="utf-8")
+            bc.os.environ["MACRO_JEV_BACKFILL_STATE_DIR"] = td
+            orch_mod.os.environ["MACRO_JEV_LEDGER_DIR"] = td
+            sym_mod.http_json = http_json  # type: ignore
+            rc_a = sym_mod.run_phase_a(
+                batch_date=day,
+                export_path=export_path,
+                macro_base=self.base,
+                macro_key=self.key,
+                apply=True,
+                confirm_no_active_batch=True,
+                allow_production_host=False,
+                skip_running=False,
+            )
+            self.assertEqual(rc_a, 0)
+            self.assertEqual(
+                sum(
+                    1
+                    for v in bc.load_backfill_state(day).phase_a.values()
+                    if v.get("status") == "success"
+                ),
+                33,
+            )
+            bond_manifest = bc.pool_manifest_symbols_from_export(export_data, "bond")
+            self.assertEqual(len(bond_manifest), 5)
+            self.assertTrue(any(s.endswith(".SH") for s in bond_manifest))
+            rc_p = pool_mod.run_one_pool(
+                wf="bond",
+                batch_date=day,
+                export=export_data,
+                state=bc.load_backfill_state(day),
+                macro_base=self.base,
+                macro_key=self.key,
+                agent_base="http://127.0.0.1:9",
+                apply=True,
+                recorded_dir=synth,
+            )
+            self.assertEqual(rc_p, 0)
+            st, data, _ = http_json(
+                "GET",
+                f"{self.base}/macro/jev/results/pools/bond?date={day}&source=canonical",
+                {"Authorization": f"Bearer {self.key}"},
+            )
+            self.assertEqual(st, 200)
+            result = (data.get("data") or {}).get("result") or {}
+            inputs = result.get("inputs") or []
+            self.assertEqual(len(inputs), 5, "bond pool must freeze five child result_ids")
+
     def test_overall_blocked_writes_failed_not_old_success(self) -> None:
         import tempfile
         import macro_jev_orchestration as mod
