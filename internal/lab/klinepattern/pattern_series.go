@@ -1,6 +1,9 @@
 package klinepattern
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // patternHitsSeriesPopulated is true when at least one bar has a TA-Lib pattern hit.
 func patternHitsSeriesPopulated(hits []any) bool {
@@ -52,9 +55,39 @@ func ensurePatternHitsOnDailyBars(
 	if len(existing) == len(bars) && patternHitsSeriesPopulated(existing) {
 		return existing
 	}
-	probeRaw := map[string]any{}
-	EnsurePatternHitsOnProbeRaw(ctx, run, code, "daily", months, bars, probeRaw)
-	hits := PatternHitsSeriesFromProbe(probeRaw)
+	return ensurePatternHitsOnDailyBarsAt(ctx, run, code, months, bars, existing, nil, true)
+}
+
+// ensurePatternHitsOnDailyBarsAt backfills pattern_hits with a fixed session as_of (macro monitor).
+func ensurePatternHitsOnDailyBarsAt(
+	ctx context.Context,
+	run ToolRunner,
+	code string,
+	months int,
+	bars []any,
+	existing []any,
+	sessionAsOf *time.Time,
+	allowNilAsOfRetry bool,
+) []any {
+	if run == nil || len(bars) == 0 {
+		return existing
+	}
+	if len(existing) == len(bars) && patternHitsSeriesPopulated(existing) && sessionAsOf == nil {
+		return existing
+	}
+	months = CapMonthsBack(months)
+	var hits []any
+	var ok bool
+	if sessionAsOf != nil && !sessionAsOf.IsZero() {
+		_, hits, ok, _ = fetchKlinePatternProbeSeriesWithRetry(ctx, run, code, klinePatternProbeFrequency("daily"), months, sessionAsOf)
+		if (!ok || len(hits) == 0) && allowNilAsOfRetry {
+			_, hits, ok, _ = fetchKlinePatternProbeSeriesWithRetry(ctx, run, code, klinePatternProbeFrequency("daily"), months, nil)
+		}
+	} else {
+		probeRaw := map[string]any{}
+		EnsurePatternHitsOnProbeRaw(ctx, run, code, "daily", months, bars, probeRaw)
+		hits = PatternHitsSeriesFromProbe(probeRaw)
+	}
 	if len(hits) == 0 {
 		return existing
 	}

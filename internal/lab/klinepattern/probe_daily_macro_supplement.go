@@ -7,6 +7,7 @@ import (
 
 // SupplementDailyMacroMTF re-probes daily pattern series when the initial macro bundle has no bars
 // (common for CRYPTO when window end was mis-inferred from 60m chart only).
+// Deprecated for macro monitor: use SupplementDailyMacroMTFAtAsOf with session as_of only.
 func SupplementDailyMacroMTF(
 	ctx context.Context,
 	run ToolRunner,
@@ -16,7 +17,22 @@ func SupplementDailyMacroMTF(
 	anchorIdx int,
 	bundle *KlinePatternMTFBundle,
 ) {
-	if bundle == nil || run == nil || len(chartBars) == 0 {
+	SupplementDailyMacroMTFAtAsOf(ctx, run, code, months, nil, bundle, true)
+	_ = anchorIdx
+	_ = chartBars
+}
+
+// SupplementDailyMacroMTFAtAsOf fetches daily pattern series anchored at session asOf (no chart buy idx).
+func SupplementDailyMacroMTFAtAsOf(
+	ctx context.Context,
+	run ToolRunner,
+	code string,
+	months int,
+	asOf *time.Time,
+	bundle *KlinePatternMTFBundle,
+	allowNilAsOfRetry bool,
+) {
+	if bundle == nil || run == nil {
 		return
 	}
 	key := klinePatternMTFTimeframeKey("daily")
@@ -24,26 +40,13 @@ func SupplementDailyMacroMTF(
 		len(ser.PatternHits) == len(ser.Bars) && patternHitsSeriesPopulated(ser.PatternHits) {
 		return
 	}
-	var asOf *time.Time
-	if anchorIdx >= 0 && anchorIdx < len(chartBars) {
-		if t := triggerTimeFromBars(chartBars, anchorIdx); !t.IsZero() {
-			ts := t
-			asOf = &ts
-		}
-	}
-	if asOf == nil {
-		_, latest := barSeriesTimeExtent(chartBars)
-		if !latest.IsZero() {
-			ts := latest
-			asOf = &ts
-		}
-	}
 	probeFreq := klinePatternProbeFrequency("daily")
 	m := CapMonthsBack(months)
 	bars, hits, ok, unsup := fetchKlinePatternProbeSeriesWithRetry(ctx, run, code, probeFreq, m, asOf)
 	if !ok || len(bars) == 0 {
-		// Retry without as_of in case anchor lies outside the first fetch window.
-		bars, hits, ok, unsup = fetchKlinePatternProbeSeriesWithRetry(ctx, run, code, probeFreq, m, nil)
+		if allowNilAsOfRetry {
+			bars, hits, ok, unsup = fetchKlinePatternProbeSeriesWithRetry(ctx, run, code, probeFreq, m, nil)
+		}
 	}
 	if len(bars) == 0 {
 		return
@@ -67,6 +70,20 @@ func HydrateDailyMacroMTFFromBars(
 	dailyBars []any,
 	bundle *KlinePatternMTFBundle,
 ) {
+	HydrateDailyMacroMTFFromBarsForCalendarDay(ctx, run, code, months, dailyBars, bundle, "", nil)
+}
+
+// HydrateDailyMacroMTFFromBarsForCalendarDay backfills pattern_hits; skips reuse when calendarDay is set and bars are not aligned to that exact day index.
+func HydrateDailyMacroMTFFromBarsForCalendarDay(
+	ctx context.Context,
+	run ToolRunner,
+	code string,
+	months int,
+	dailyBars []any,
+	bundle *KlinePatternMTFBundle,
+	calendarDay string,
+	sessionAsOf *time.Time,
+) {
 	if bundle == nil || run == nil || len(dailyBars) == 0 {
 		return
 	}
@@ -75,11 +92,16 @@ func HydrateDailyMacroMTFFromBars(
 	}
 	key := klinePatternMTFTimeframeKey("daily")
 	ser := bundle.ByFreq[key]
-	if len(ser.Bars) > 0 && len(ser.PatternHits) == len(ser.Bars) &&
-		patternHitsSeriesPopulated(ser.PatternHits) && barSeriesSameTimes(ser.Bars, dailyBars) {
+	reuse := len(ser.Bars) > 0 && len(ser.PatternHits) == len(ser.Bars) &&
+		patternHitsSeriesPopulated(ser.PatternHits) && barSeriesSameTimes(ser.Bars, dailyBars)
+	if calendarDay != "" || sessionAsOf != nil {
+		reuse = false
+	}
+	if reuse {
 		return
 	}
-	hits := ensurePatternHitsOnDailyBars(ctx, run, code, months, dailyBars, ser.PatternHits)
+	allowNil := sessionAsOf == nil
+	hits := ensurePatternHitsOnDailyBarsAt(ctx, run, code, months, dailyBars, ser.PatternHits, sessionAsOf, allowNil)
 	if len(hits) == 0 {
 		hits = ser.PatternHits
 	}

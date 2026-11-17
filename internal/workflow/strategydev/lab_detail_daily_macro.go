@@ -7,11 +7,39 @@ import (
 	kp "github.com/ghsemail/GeeGooAgent/internal/lab/klinepattern"
 )
 
+const (
+	// LabDetailDailyMacroCacheContract bumps when daily_macro lab-detail JSON contract changes (cache invalidation).
+	LabDetailDailyMacroCacheContract = 2
+)
+
 func labDetailDailyMacro(in LabDetailInput) bool {
 	return strings.TrimSpace(in.KlineJEVProfile) == LabKlineJEVProfileDailyMacro
 }
 
+// LabDetailCacheAcceptable returns false for stale daily_macro payloads missing session-close contract fields.
+func LabDetailCacheAcceptable(cached LabEpisodeDetail, wantProfile string) bool {
+	wantProfile = strings.TrimSpace(wantProfile)
+	if wantProfile != LabKlineJEVProfileDailyMacro {
+		return true
+	}
+	if !LabDetailProfileMatches(cached, wantProfile) {
+		return false
+	}
+	if cached.LabDetailCacheContract < LabDetailDailyMacroCacheContract {
+		return false
+	}
+	if strings.TrimSpace(cached.MonitorSessionClose) == "" {
+		return false
+	}
+	return true
+}
+
 // labDetailJEVSignalFreq is the TF label passed into JEV state for macro (daily only).
+// dailyMacroAnalysisGated is false when daily_macro must fail-closed without a completed session cutoff.
+func dailyMacroAnalysisGated(dailyMacro, cutoffOK bool) bool {
+	return !(dailyMacro && !cutoffOK)
+}
+
 func labDetailJEVSignalFreq(in LabDetailInput) string {
 	if labDetailDailyMacro(in) {
 		return "daily"
@@ -38,9 +66,9 @@ func LabDetailProfileMatches(cached LabEpisodeDetail, wantProfile string) bool {
 func prepareDailyMacroKlineProbe(
 	ctx context.Context,
 	in LabDetailInput,
-	chartBars []any,
 	mtf *KlinePatternMTFBundle,
 	dailyBarsHint []any,
+	cut MacroMonitorCutoff,
 ) {
 	if mtf == nil {
 		return
@@ -56,7 +84,8 @@ func prepareDailyMacroKlineProbe(
 		return
 	}
 	if in.Run != nil {
-		kp.HydrateDailyMacroMTFFromBars(ctx, kp.ToolRunner(in.Run), in.Code, in.Months, dailyBars, mtf)
+		asOf := cut.SessionClose
+		kp.HydrateDailyMacroMTFFromBarsForCalendarDay(ctx, kp.ToolRunner(in.Run), in.Code, in.Months, dailyBars, mtf, cut.CalendarDay, &asOf)
 		return
 	}
 	key := kp.NormalizeFrequency("daily")
@@ -71,16 +100,26 @@ func prepareDailyMacroKlineProbe(
 	}
 }
 
-func dailyMacroKlineDisplayInput(
-	chartBars []any,
-	chartIdx int,
+// dailyMacroKlineDisplayInputAtCutoff builds daily kline/three_bar at the macro monitor bar day,
+// not at historical buy/signal chartIdx.
+func dailyMacroKlineDisplayInputAtCutoff(
+	code string,
+	cut MacroMonitorCutoff,
 	probeRaw map[string]any,
 	mtf *KlinePatternMTFBundle,
-) (KlinePatternDisplayInput, int) {
+) (KlinePatternDisplayInput, int, bool) {
 	dailyBars := dailyBarsForLabAnchorFromMTF(mtf)
 	if len(dailyBars) == 0 {
-		return NewKlinePatternDisplayInputForDiagnose(true, "daily", chartBars, probeRaw, mtf), chartIdx
+		return KlinePatternDisplayInput{}, -1, false
 	}
-	idx := kp.AlignAnchorBarIndex(chartBars, chartIdx, dailyBars)
-	return NewKlinePatternDisplayInputForDiagnose(true, "daily", dailyBars, probeRaw, mtf), idx
+	spec, ok := macroSessionSpecForCode(code)
+	if !ok {
+		return KlinePatternDisplayInput{}, -1, false
+	}
+	idx := indexDailyBarByCalendarDayExact(dailyBars, cut.CalendarDay, spec)
+	if idx < 0 {
+		return KlinePatternDisplayInput{}, -1, false
+	}
+	patIn := NewKlinePatternDisplayInputForDiagnose(true, "daily", dailyBars, probeRaw, mtf)
+	return patIn, idx, true
 }

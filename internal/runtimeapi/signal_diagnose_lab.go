@@ -91,7 +91,7 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 	cacheRef := strategydev.LabDetailCacheRef(ref, wantProfile)
 	if !body.Rebuild {
 		if cached, ok := workflowchat.CachedLabEpisodeDetail(chat, runID, cacheRef); ok &&
-			strategydev.LabDetailProfileMatches(cached, wantProfile) {
+			strategydev.LabDetailCacheAcceptable(cached, wantProfile) {
 			strategydev.PrepareLabEpisodeDetailForEmit(&cached)
 			w.Header().Set("Content-Type", "application/json")
 			payload := map[string]any{
@@ -128,6 +128,18 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 	labHTTP := signalclient.NewHTTPClient(cfg.LabAPIURL(), cfg.LabAPIKey())
 	fetcher := lab.SignalBarsFetcher{Client: labHTTP}
 	jev := h.App.NewStrategyDevJevClient()
+	wantProfile = strings.TrimSpace(body.KlineJEVProfile)
+	dailyMacro := wantProfile == strategydev.LabKlineJEVProfileDailyMacro
+	var tradingDayChecker strategydev.MacroTradingDayChecker
+	requireTradingDay := dailyMacro
+	if dailyMacro {
+		mcpTok := strings.TrimSpace(toolCtx.MCPToken)
+		if h.App.MCP != nil && mcpTok != "" {
+			tradingDayChecker = strategydev.NewMCPMacroTradingDayChecker(h.App.MCP, mcpTok)
+		} else {
+			tradingDayChecker = strategydev.FailClosedMacroTradingDayChecker("mcp_token or MCP client unavailable for daily_macro")
+		}
+	}
 	detail, err := strategydev.BuildLabEpisodeDetail(r.Context(), strategydev.LabDetailInput{
 		Run: strategydev.ToolRunner(runner), Code: flow.StockCode, SignalFreq: freq, Months: months,
 		KeyLevels: keyLevelBandsFromFlowSnapshot(flow), ProbeRaw: flow.ProbeRaw, Bars: bars,
@@ -138,7 +150,9 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		JEVTimeout:    strategydev.DefaultLabDetailJEVTimeout,
 		CachedMTF: &flow.LabKlineMTF, SessionID: sessionID, RunID: flow.RunID, Jev: jev,
 		LongOnly: flow.TradeDirection.LongOnlyEpisodeEval(),
-		KlineJEVProfile: strings.TrimSpace(body.KlineJEVProfile),
+		KlineJEVProfile: wantProfile,
+		TradingDayChecker:        tradingDayChecker,
+		RequireTradingDayChecker: requireTradingDay,
 	}, ref)
 	if err != nil {
 		if strategydev.IsBadLabRef(err) {

@@ -114,6 +114,13 @@ func applyDailyMacroLabHeaderTime(out *LabEpisodeDetail) {
 		if c > 0 {
 			out.Close = c
 		}
+		return
+	}
+	if t := strings.TrimSpace(out.MonitorQuoteCutoffDisplay); t != "" {
+		out.Time = t
+		if out.PriceAnalysis != nil && out.PriceAnalysis.SpotPrice > 0 {
+			out.Close = out.PriceAnalysis.SpotPrice
+		}
 	}
 }
 
