@@ -1,8 +1,11 @@
 package strategydev
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 func calendarDateInLoc(ts time.Time, loc *time.Location) time.Time {
@@ -19,6 +22,9 @@ func macroBarCalendarDay(row map[string]any, spec macroSessionSpec) (time.Time, 
 	if row == nil || spec.loc == nil {
 		return time.Time{}, false
 	}
+	if spec.cryptoVendorLabel {
+		return macroBarVendorLabelDay(row)
+	}
 	if day, ok := macroBarDateLabelInLoc(row, spec.loc); ok {
 		return day, true
 	}
@@ -31,6 +37,84 @@ func macroBarCalendarDay(row map[string]any, spec macroSessionSpec) (time.Time, 
 		return time.Date(ts.Year(), ts.Month(), ts.Day(), 0, 0, 0, 0, spec.loc), true
 	}
 	return calendarDateInLoc(ts, spec.loc), true
+}
+
+// macroBarVendorLabelDay parses supplier daily K label YYYY-MM-DD without UTC/Asia/Shanghai day shift.
+func macroBarVendorLabelDay(row map[string]any) (time.Time, bool) {
+	for _, key := range []string{"time", "datetime", "date", "trade_date"} {
+		v := row[key]
+		if v == nil {
+			continue
+		}
+		var s string
+		switch tv := v.(type) {
+		case string:
+			s = strings.TrimSpace(tv)
+		case float64:
+			s = strings.TrimSpace(strconv.FormatInt(int64(tv), 10))
+		case int:
+			s = strconv.Itoa(tv)
+		case int64:
+			s = strconv.FormatInt(tv, 10)
+		default:
+			s = strings.TrimSpace(fmt.Sprint(v))
+		}
+		if s == "" {
+			continue
+		}
+		if parsed, err := time.Parse(time.RFC3339, s); err == nil {
+			return time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 0, 0, 0, 0, time.UTC), true
+		}
+		if ymd, ok := vendorLabelFromString(s); ok {
+			return ymd, true
+		}
+	}
+	return time.Time{}, false
+}
+
+func vendorLabelFromString(s string) (time.Time, bool) {
+	s = strings.TrimSpace(s)
+	if len(s) >= 10 && s[4] == '-' && s[7] == '-' && isYMDDigits(s[:10]) {
+		if t, err := time.Parse("2006-01-02", s[:10]); err == nil {
+			return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC), true
+		}
+	}
+	if len(s) >= 8 && isYMDCompact(s[:8]) {
+		if t, err := time.Parse("20060102", s[:8]); err == nil {
+			return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC), true
+		}
+	}
+	return time.Time{}, false
+}
+
+func isYMDDigits(s string) bool {
+	if len(s) != 10 {
+		return false
+	}
+	for i, c := range s {
+		if i == 4 || i == 7 {
+			if c != '-' {
+				return false
+			}
+			continue
+		}
+		if !unicode.IsDigit(c) {
+			return false
+		}
+	}
+	return true
+}
+
+func isYMDCompact(s string) bool {
+	if len(s) != 8 {
+		return false
+	}
+	for _, c := range s {
+		if !unicode.IsDigit(c) {
+			return false
+		}
+	}
+	return true
 }
 
 func macroBarDateLabelInLoc(row map[string]any, loc *time.Location) (time.Time, bool) {

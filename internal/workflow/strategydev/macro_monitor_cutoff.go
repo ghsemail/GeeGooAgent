@@ -64,7 +64,7 @@ func resolveMacroMonitorCutoffFromDailyBarsWithChecker(
 	if requireChecker && checker == nil {
 		return MacroMonitorCutoff{}, false
 	}
-	todayCal := calendarDateInLoc(now, spec.loc)
+	todayCal := macroMonitorUpperCalendarDay(now, spec, dailyBars)
 	type candidate struct {
 		calDay time.Time
 		close  float64
@@ -85,7 +85,11 @@ func resolveMacroMonitorCutoffFromDailyBarsWithChecker(
 		if calDay.After(todayCal) {
 			continue
 		}
-		if !sessionDayComplete(now, calDay, spec) {
+		if spec.cryptoVendorLabel {
+			if !cryptoVendorDailyBarComplete(row) {
+				continue
+			}
+		} else if !sessionDayComplete(now, calDay, spec) {
 			continue
 		}
 		dayLabel := calDay.In(spec.loc).Format("2006-01-02")
@@ -177,4 +181,45 @@ func formatMacroMonitorCutoffDocuments(code string) string {
 
 func resolveDailyMacroMonitorCutoff(code string, now time.Time, dailyBars []any) (MacroMonitorCutoff, bool) {
 	return resolveMacroMonitorCutoffFromDailyBars(code, now, dailyBars)
+}
+
+func macroMonitorUpperCalendarDay(now time.Time, spec macroSessionSpec, dailyBars []any) time.Time {
+	if spec.cryptoVendorLabel {
+		var max time.Time
+		for _, raw := range dailyBars {
+			row, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			cal, ok := macroBarCalendarDay(row, spec)
+			if !ok || cal.IsZero() {
+				continue
+			}
+			if cal.After(max) {
+				max = cal
+			}
+		}
+		if !max.IsZero() {
+			return max
+		}
+	}
+	return calendarDateInLoc(now, spec.loc)
+}
+
+func cryptoVendorDailyBarComplete(row map[string]any) bool {
+	if row == nil {
+		return false
+	}
+	closePx := slots.FloatAny(row["close"])
+	if closePx <= 0 {
+		return false
+	}
+	openPx := slots.FloatAny(row["open"])
+	highPx := slots.FloatAny(row["high"])
+	lowPx := slots.FloatAny(row["low"])
+	if openPx > 0 && highPx > 0 && lowPx > 0 {
+		return true
+	}
+	// Supplier may omit OHLC legs; close>0 still counts as a published vendor daily for the label.
+	return closePx > 0
 }

@@ -62,7 +62,7 @@ func TestResolveMacroMonitorCutoff_SevenPoolSuffixFixtures(t *testing.T) {
 		{"000300.SH", afterCN},
 		{"00700.HK", afterHK},
 		{"SPY.US", time.Date(2026, 11, 16, 22, 0, 0, 0, time.UTC)},
-		{"BTC-USD.CRYPTO", time.Date(2026, 11, 17, 0, 10, 0, 0, time.UTC)},
+		{"BTC-USDT.CRYPTO", time.Date(2026, 11, 16, 23, 58, 0, 0, time.UTC)},
 		{"DX-Y.NYB.US", time.Date(2026, 11, 16, 22, 0, 0, 0, time.UTC)},
 	}
 	for _, tc := range cases {
