@@ -44,6 +44,12 @@ func LabEpisodeSummaryForMacro(detail LabEpisodeDetail) map[string]any {
 	out := map[string]any{
 		"detail_ref": ref,
 	}
+	if d := strings.TrimSpace(detail.MonitorQuoteCutoffDay); d != "" {
+		out["monitor_quote_cutoff_day"] = d
+	}
+	if s := strings.TrimSpace(detail.MonitorQuoteCutoff); s != "" {
+		out["monitor_quote_cutoff"] = s
+	}
 	if klineLine != "" {
 		out["kline_pattern"] = klineLine
 	}

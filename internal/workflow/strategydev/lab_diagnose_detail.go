@@ -157,17 +157,20 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 			applyLabKlinePatternTopLevel(&out)
 		}
 		var asOf *time.Time
+		var macroCut *MacroMonitorCutoff
 		priceAnchorOK := false
 		spot := ent.Close
 		if dailyMacro {
-			priceAnchorTime, anchorClose, ok := anchorForDailyMacroMonitor(dailyForAnchor)
-			priceAnchorOK = ok
-			if ok {
-				t := priceAnchorTime
+			if cut, ok := resolveMacroMonitorCutoffFromDailyBars(in.Code, time.Now(), dailyForAnchor); ok {
+				macroCut = &cut
+				t := cut.AsOf
 				asOf = &t
-				if anchorClose > 0 {
-					spot = anchorClose
+				if cut.Close > 0 {
+					spot = cut.Close
 				}
+				priceAnchorOK = true
+			} else {
+				out.Degraded = append(out.Degraded, "macro_monitor_cutoff_unavailable")
 			}
 		} else {
 			priceAnchorTime, anchorClose, ok := anchorForSignalBar(row, dailyForAnchor)
@@ -219,7 +222,10 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 			out.IndexTrendJEV = &rec
 		}
 		applyLabJEVUnified(jevCtx, &out, side, in)
-		if !priceAnchorOK {
+		if macroCut != nil {
+			applyMacroMonitorCutoffToDetail(&out, *macroCut)
+		}
+		if !dailyMacro && !priceAnchorOK {
 			out.Degraded = append(out.Degraded, "price_anchor_missing")
 		}
 	} else if dailyMacro {
@@ -309,6 +315,7 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 	}
 	if labFetcher != nil && strings.TrimSpace(in.Code) != "" {
 		var asOf *time.Time
+		var macroCut *MacroMonitorCutoff
 		spot := ent.Close
 		if flowDailyMacro {
 			var dailyForAnchor []any
@@ -326,12 +333,15 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 					})
 				}
 			}
-			if at, closePx, ok := anchorForDailyMacroMonitor(dailyForAnchor); ok {
-				t := at
+			if cut, ok := resolveMacroMonitorCutoffFromDailyBars(in.Code, time.Now(), dailyForAnchor); ok {
+				macroCut = &cut
+				t := cut.AsOf
 				asOf = &t
-				if closePx > 0 {
-					spot = closePx
+				if cut.Close > 0 {
+					spot = cut.Close
 				}
+			} else {
+				out.Degraded = append(out.Degraded, "macro_monitor_cutoff_unavailable")
 			}
 		}
 		pa := priceanalysis.Run(paCtx, labFetcher, priceanalysis.RunRequest{
@@ -351,11 +361,11 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 		if in.TAClient != nil || in.IndexTrendClient != nil {
 			taCtx, taCancel := labDetailTAContext(cacheCtx, in.TATimeout)
 			if in.TAClient != nil {
-				ta = fetchLabTechnicalAnalysis(taCtx, in.TAClient, in, nil)
+				ta = fetchLabTechnicalAnalysis(taCtx, in.TAClient, in, asOf)
 				out.TechnicalAnalysis = ta
 			}
 			if in.IndexTrendClient != nil {
-				indexTrend = fetchLabIndexTrend(taCtx, in.IndexTrendClient, in, nil)
+				indexTrend = fetchLabIndexTrend(taCtx, in.IndexTrendClient, in, asOf)
 				out.IndexTrend = indexTrend
 			}
 			taCancel()
@@ -373,6 +383,9 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 			out.IndexTrendJEV = &rec
 		}
 		applyLabJEVUnified(jevCtx, &out, "flow", in)
+		if macroCut != nil {
+			applyMacroMonitorCutoffToDetail(&out, *macroCut)
+		}
 	}
 	PrepareLabEpisodeDetailForEmit(&out)
 	return out, nil

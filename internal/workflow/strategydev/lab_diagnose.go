@@ -52,7 +52,11 @@ type LabEpisodeDetail struct {
 	IndexTrendJEV         *IndexTrendJEV         `json:"index_trend_jev,omitempty"`
 	JEVUnified            *LabJEVUnified         `json:"jev_unified,omitempty"`
 	KlineJEVProfile       string                 `json:"kline_jev_profile,omitempty"`
-	Degraded          []string           `json:"degraded,omitempty"`
+	// MonitorQuoteCutoff* are macro daily_monitor facts (RFC3339 / YYYY-MM-DD / display); not agent run ids.
+	MonitorQuoteCutoff        string   `json:"monitor_quote_cutoff,omitempty"`
+	MonitorQuoteCutoffDay     string   `json:"monitor_quote_cutoff_day,omitempty"`
+	MonitorQuoteCutoffDisplay string   `json:"monitor_quote_cutoff_display,omitempty"`
+	Degraded                  []string `json:"degraded,omitempty"`
 }
 
 // LabKlinePatternDetail holds MTF tables and hit lists for one anchor bar.
