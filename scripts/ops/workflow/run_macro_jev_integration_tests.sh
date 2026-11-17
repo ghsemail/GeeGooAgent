@@ -13,6 +13,7 @@ python3 -m py_compile run_macro_monitor_lab_batch.py macro_jev_results_client.py
 python3 -m unittest -v \
   macro_jev_results_client_test.py \
   macro_jev_orchestration_test.py \
+  macro_jev_audit_schema_test.py \
   agent_chat_stream_test.py || UNIT_FAIL=1
 
 if [[ "${SKIP_MACRO_JEV_INTEGRATION:-}" == "1" ]]; then

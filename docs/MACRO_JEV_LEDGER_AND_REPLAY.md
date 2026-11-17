@@ -26,6 +26,10 @@
 - crontab：**09:10 overall** 早于当日 **16:15 ET crypto**（华东 pipeline 日对齐规则不变）。
 - 故 09:10 若账本缺 `crypto`：**预期** overall 写 **failed/incomplete**（新 `source_batch_id`），**不得**保留昨日 success 为 current。
 
+## 2025-11-17 生产只读审计（摘要）
+
+七池 **7×run.id**、**33** 标的 success 可导入；**7×pool_jev 无 agent_run_id**；**overall 0**；canonical **0**。最小闭环见 **`docs/MACRO_JEV_BACKFILL_MINIMAL_LOOP.md`**（Phase A 标的 PUT + Phase B/C 共 8 次合成，不重跑 33 Lab）。分类器：`macro_jev_audit_schema.py`。
+
 ## 历史同源原始记录 · 三层审计回放（可行性，只读设计）
 
 **现状（Signal main b3eb834 已上 macro-api，三表历史为 0）**
