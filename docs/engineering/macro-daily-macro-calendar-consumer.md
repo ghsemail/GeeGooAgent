@@ -45,6 +45,7 @@ App/Bot 扩仓由用户另行授权；本文档描述 **GeeGooAgent 已实现的
 2. **市场与时区**：响应能区分 `CRYPTO` 与 `US`/`HK`/`CN`；最好能携带 **IANA timezone** 或等价 `calendar_timezone`（避免 CRYPTO 复用美股 16ET）。
 3. **半日市 / 真实 session close**：能提供 **当日有效收盘时刻**（exchange-local 或 RFC3339），供 macro cutoff 取代固定 `macroSessionSpec` 16:00/15:00；固定 16ET **不能**冒充半日收盘。
 4. **CRYPTO（选项 C）**：日历日 = 供应商日 K 标签 `YYYY-MM-DD` 原文；**不用** UTC/上海 0:00 切日；**不用** UTC 23:59 作为 session 完成门闩；完成日以供应商已落库的完整日 K（close>0）为准；`checkTradingDay.date` 传该标签日。
+5. **CRYPTO 省略 `date`**（App）：HTTP 400，`body.code=400`，`message="缺少 date：CRYPTO 今日须使用供应商日K标签，无法推断"`，无成功信封、不回退今天。`daily_macro` 始终带 date，不走此路径；普通 `CheckTradingDay` 无 date 调 CRYPTO 得 error（非 `is_trading_day=false`）。
 4. **未知市场**：与现 Bot 一致返回 4xx 时，Agent 保持 fail-closed（不降级为「全日完成」）。
 
 未落地前：生产连旧 Bot 时，校验器会对「今天回显」响应报错 → **daily_macro 监控 fail-closed**（预期行为）。

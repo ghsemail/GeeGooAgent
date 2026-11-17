@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -89,7 +90,28 @@ func TestCheckTradingDayOnDate_AppContract_N3_InvalidDate(t *testing.T) {
 	}
 }
 
-// L1: omit date — four fields, no echo validation on consumer.
+// CRYPTO omit date: HTTP 400, body.code=400, no success envelope (App; no UTC/SH today fallback).
+func TestCheckTradingDay_AppContract_CRYPTO_OmitDate_400(t *testing.T) {
+	const wantMsg = "缺少 date：CRYPTO 今日须使用供应商日K标签，无法推断"
+	client := newContractTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"code": 400, "message": wantMsg,
+		})
+	})
+	_, err := client.CheckTradingDay(context.Background(), "tok", "BTC-USDT.CRYPTO")
+	if err == nil {
+		t.Fatal("expected error, not is_trading_day=false")
+	}
+	if api, ok := decodeClientCode(err); !ok || api != 400 {
+		t.Fatalf("want body code 400, err=%v", err)
+	}
+	if !strings.Contains(err.Error(), wantMsg) {
+		t.Fatalf("want message %q in err=%v", wantMsg, err)
+	}
+}
+
+// L1: omit date — four fields, no echo validation on consumer (non-CRYPTO).
 func TestCheckTradingDay_AppContract_L1_OmitDate(t *testing.T) {
 	client := newContractTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
