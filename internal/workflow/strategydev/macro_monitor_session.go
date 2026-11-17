@@ -49,11 +49,12 @@ func sessionCloseInstant(calDay time.Time, spec macroSessionSpec) time.Time {
 	return time.Date(d.Year(), d.Month(), d.Day(), spec.closeHour, spec.closeMin, 0, 0, spec.loc)
 }
 
-// sessionDayComplete is true when now is strictly after the exchange close for calDay.
+// sessionDayComplete is true when now is at or after the exchange close for calDay.
+// Half-days and exchange holiday calendars are not modeled here (missing bar only).
 func sessionDayComplete(now, calDay time.Time, spec macroSessionSpec) bool {
 	closeAt := sessionCloseInstant(calDay, spec)
 	if closeAt.IsZero() {
 		return false
 	}
-	return now.After(closeAt)
+	return !now.Before(closeAt)
 }

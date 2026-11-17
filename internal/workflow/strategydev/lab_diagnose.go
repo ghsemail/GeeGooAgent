@@ -52,7 +52,11 @@ type LabEpisodeDetail struct {
 	IndexTrendJEV         *IndexTrendJEV         `json:"index_trend_jev,omitempty"`
 	JEVUnified            *LabJEVUnified         `json:"jev_unified,omitempty"`
 	KlineJEVProfile       string                 `json:"kline_jev_profile,omitempty"`
-	// MonitorQuoteCutoff* are macro daily_monitor facts (RFC3339 / YYYY-MM-DD / display); not agent run ids.
+	// MonitorSessionClose is the exchange regular-session close instant (RFC3339 UTC).
+	// MonitorQuoteCutoff* are deprecated aliases of the same session instant for older FE builds.
+	MonitorSessionClose       string   `json:"monitor_session_close,omitempty"`
+	MonitorQuoteBarTime       string   `json:"monitor_quote_bar_time,omitempty"`
+	MonitorQuoteBarClose      float64  `json:"monitor_quote_bar_close,omitempty"`
 	MonitorQuoteCutoff        string   `json:"monitor_quote_cutoff,omitempty"`
 	MonitorQuoteCutoffDay     string   `json:"monitor_quote_cutoff_day,omitempty"`
 	MonitorQuoteCutoffDisplay string   `json:"monitor_quote_cutoff_display,omitempty"`

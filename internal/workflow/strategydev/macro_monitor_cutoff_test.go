@@ -54,7 +54,7 @@ func TestResolveMacroMonitorCutoff_SevenPoolSuffixFixtures(t *testing.T) {
 	afterCN := time.Date(2026, 11, 16, 16, 0, 0, 0, loc)
 	bar := []any{map[string]any{"time": "2026-11-16 00:00:00", "close": 1.0}}
 	locHK, _ := time.LoadLocation("Asia/Hong_Kong")
-	afterHK := time.Date(2026, 11, 16, 16, 5, 0, 0, locHK)
+	afterHK := time.Date(2026, 11, 16, 16, 0, 0, 0, locHK)
 	cases := []struct {
 		code string
 		when time.Time

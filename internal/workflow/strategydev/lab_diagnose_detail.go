@@ -148,14 +148,6 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 				LabFetcher: labFetcher, SessionID: in.SessionID, RunID: in.RunID,
 			})
 		}
-		if dailyMacro {
-			fetchIn := in
-			fetchIn.LabFetcher = labFetcher
-			prepareDailyMacroKlineProbe(paCtx, fetchIn, chartBars, mtf, dailyForAnchor)
-			patIn, klineIdx = dailyMacroKlineDisplayInput(chartBars, chartIdx, in.ProbeRaw, mtf)
-			out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
-			applyLabKlinePatternTopLevel(&out)
-		}
 		var asOf *time.Time
 		var macroCut *MacroMonitorCutoff
 		priceAnchorOK := false
@@ -163,7 +155,13 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		if dailyMacro {
 			if cut, ok := resolveMacroMonitorCutoffFromDailyBars(in.Code, time.Now(), dailyForAnchor); ok {
 				macroCut = &cut
-				t := cut.AsOf
+				fetchIn := in
+				fetchIn.LabFetcher = labFetcher
+				prepareDailyMacroKlineProbe(paCtx, fetchIn, chartBars, mtf, dailyForAnchor)
+				patIn, klineIdx = dailyMacroKlineDisplayInputAtCutoff(in.Code, cut, in.ProbeRaw, mtf)
+				out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
+				applyLabKlinePatternTopLevel(&out)
+				t := cut.SessionClose
 				asOf = &t
 				if cut.Close > 0 {
 					spot = cut.Close
@@ -183,45 +181,47 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 				}
 			}
 		}
-		pa := priceanalysis.Run(paCtx, labFetcher, priceanalysis.RunRequest{
-			Code:              in.Code,
-			Months:            CapMonthsBack(in.Months),
-			SignalFreq:        labDetailJEVSignalFreq(in),
-			AsOf:              asOf,
-			SpotPrice:         spot,
-			KeyLevels:         keyLevelsToLab(in.KeyLevels),
-			JEVDailyMacroOnly: dailyMacro,
-		})
-		pa = priceanalysis.RoundPriceAnalysisForOutput(pa)
-		converted := priceAnalysisFromLab(pa)
-		out.PriceAnalysis = &converted
-		var ta *LabTechnicalAnalysis
-		var indexTrend *LabIndexTrend
-		if in.TAClient != nil || in.IndexTrendClient != nil {
-			taCtx, taCancel := labDetailTAContext(cacheCtx, in.TATimeout)
-			if in.TAClient != nil {
-				ta = fetchLabTechnicalAnalysis(taCtx, in.TAClient, in, asOf)
-				out.TechnicalAnalysis = ta
+		if dailyMacroAnalysisGated(dailyMacro, priceAnchorOK) {
+			pa := priceanalysis.Run(paCtx, labFetcher, priceanalysis.RunRequest{
+				Code:              in.Code,
+				Months:            CapMonthsBack(in.Months),
+				SignalFreq:        labDetailJEVSignalFreq(in),
+				AsOf:              asOf,
+				SpotPrice:         spot,
+				KeyLevels:         keyLevelsToLab(in.KeyLevels),
+				JEVDailyMacroOnly: dailyMacro,
+			})
+			pa = priceanalysis.RoundPriceAnalysisForOutput(pa)
+			converted := priceAnalysisFromLab(pa)
+			out.PriceAnalysis = &converted
+			var ta *LabTechnicalAnalysis
+			var indexTrend *LabIndexTrend
+			if in.TAClient != nil || in.IndexTrendClient != nil {
+				taCtx, taCancel := labDetailTAContext(cacheCtx, in.TATimeout)
+				if in.TAClient != nil {
+					ta = fetchLabTechnicalAnalysis(taCtx, in.TAClient, in, asOf)
+					out.TechnicalAnalysis = ta
+				}
+				if in.IndexTrendClient != nil {
+					indexTrend = fetchLabIndexTrend(taCtx, in.IndexTrendClient, in, asOf)
+					out.IndexTrend = indexTrend
+				}
+				taCancel()
 			}
-			if in.IndexTrendClient != nil {
-				indexTrend = fetchLabIndexTrend(taCtx, in.IndexTrendClient, in, asOf)
-				out.IndexTrend = indexTrend
+			jevCtx, jevCancel := labDetailJEVContext(cacheCtx, in.JEVTimeout)
+			defer jevCancel()
+			applyPriceAnalysisJEV(jevCtx, &out, side, in.Jev, in.LongOnly)
+			applyKlineJEV(jevCtx, &out, side, in.Jev, in.LongOnly)
+			if ta != nil {
+				rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, side, labDetailJEVSignalFreq(in), in.LongOnly)
+				out.TechnicalAnalysisJEV = &rec
 			}
-			taCancel()
+			if indexTrend != nil {
+				rec := ResolveIndexTrendJEV(jevCtx, in.Jev, indexTrend, side, labDetailJEVSignalFreq(in), in.LongOnly)
+				out.IndexTrendJEV = &rec
+			}
+			applyLabJEVUnified(jevCtx, &out, side, in)
 		}
-		jevCtx, jevCancel := labDetailJEVContext(cacheCtx, in.JEVTimeout)
-		defer jevCancel()
-		applyPriceAnalysisJEV(jevCtx, &out, side, in.Jev, in.LongOnly)
-		applyKlineJEV(jevCtx, &out, side, in.Jev, in.LongOnly)
-		if ta != nil {
-			rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, side, labDetailJEVSignalFreq(in), in.LongOnly)
-			out.TechnicalAnalysisJEV = &rec
-		}
-		if indexTrend != nil {
-			rec := ResolveIndexTrendJEV(jevCtx, in.Jev, indexTrend, side, labDetailJEVSignalFreq(in), in.LongOnly)
-			out.IndexTrendJEV = &rec
-		}
-		applyLabJEVUnified(jevCtx, &out, side, in)
 		if macroCut != nil {
 			applyMacroMonitorCutoffToDetail(&out, *macroCut)
 		}
@@ -229,10 +229,16 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 			out.Degraded = append(out.Degraded, "price_anchor_missing")
 		}
 	} else if dailyMacro {
-		prepareDailyMacroKlineProbe(paCtx, in, chartBars, mtf, nil)
-		patIn, klineIdx := dailyMacroKlineDisplayInput(chartBars, chartIdx, in.ProbeRaw, mtf)
-		out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
-		applyLabKlinePatternTopLevel(&out)
+		dailyForAnchor := dailyBarsForLabAnchorFromMTF(mtf)
+		if cut, ok := resolveMacroMonitorCutoffFromDailyBars(in.Code, time.Now(), dailyForAnchor); ok {
+			prepareDailyMacroKlineProbe(paCtx, in, chartBars, mtf, dailyForAnchor)
+			patIn, klineIdx = dailyMacroKlineDisplayInputAtCutoff(in.Code, cut, in.ProbeRaw, mtf)
+			out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
+			applyLabKlinePatternTopLevel(&out)
+			applyMacroMonitorCutoffToDetail(&out, cut)
+		} else {
+			out.Degraded = append(out.Degraded, "macro_monitor_cutoff_unavailable")
+		}
 		out.Degraded = append(out.Degraded, "lab_price_fetch_unavailable")
 	}
 	PrepareLabEpisodeDetailForEmit(&out)
@@ -293,96 +299,84 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 	labFetcher := WrapCachedLabBarsFetcher(in.SessionID, in.RunID, in.LabFetcher)
 	paCtx, paCancel := labDetailPAContext(cacheCtx, in.PATimeout)
 	defer paCancel()
-	if flowDailyMacro && in.Run != nil {
-		var mtf *KlinePatternMTFBundle
-		if in.CachedMTF != nil && *in.CachedMTF != nil {
-			mtf = *in.CachedMTF
-		}
-		dailyForAnchor := dailyBarsForLabAnchorFromMTF(mtf)
-		if len(dailyForAnchor) == 0 && labFetcher != nil && strings.TrimSpace(in.Code) != "" {
-			dailyForAnchor = dailyBarsForLabAnchor(paCtx, LabDetailInput{
-				Run: in.Run, Code: in.Code, SignalFreq: in.SignalFreq, Months: in.Months,
-				Bars: chartBars, LookbackBars: in.LookbackBars, LabFetcher: labFetcher,
-				SessionID: in.SessionID, RunID: in.RunID,
-			})
-		}
-		fetchIn := in
-		fetchIn.LabFetcher = labFetcher
-		prepareDailyMacroKlineProbe(paCtx, fetchIn, chartBars, mtf, dailyForAnchor)
-		patIn, klineIdx := dailyMacroKlineDisplayInput(chartBars, idx, in.ProbeRaw, mtf)
-		out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
-		applyLabKlinePatternTopLevel(&out)
-	}
 	if labFetcher != nil && strings.TrimSpace(in.Code) != "" {
 		var asOf *time.Time
 		var macroCut *MacroMonitorCutoff
+		macroCutoffOK := false
 		spot := ent.Close
-		if flowDailyMacro {
-			var dailyForAnchor []any
-			if in.Run != nil {
-				var mtf *KlinePatternMTFBundle
-				if in.CachedMTF != nil && *in.CachedMTF != nil {
-					mtf = *in.CachedMTF
-				}
-				dailyForAnchor = dailyBarsForLabAnchorFromMTF(mtf)
-				if len(dailyForAnchor) == 0 {
-					dailyForAnchor = dailyBarsForLabAnchor(paCtx, LabDetailInput{
-						Run: in.Run, Code: in.Code, SignalFreq: in.SignalFreq, Months: in.Months,
-						Bars: chartBars, LookbackBars: in.LookbackBars, LabFetcher: labFetcher,
-						SessionID: in.SessionID, RunID: in.RunID,
-					})
-				}
+		var dailyForAnchor []any
+		if flowDailyMacro && in.Run != nil {
+			var mtf *KlinePatternMTFBundle
+			if in.CachedMTF != nil && *in.CachedMTF != nil {
+				mtf = *in.CachedMTF
+			}
+			dailyForAnchor = dailyBarsForLabAnchorFromMTF(mtf)
+			if len(dailyForAnchor) == 0 {
+				dailyForAnchor = dailyBarsForLabAnchor(paCtx, LabDetailInput{
+					Run: in.Run, Code: in.Code, SignalFreq: in.SignalFreq, Months: in.Months,
+					Bars: chartBars, LookbackBars: in.LookbackBars, LabFetcher: labFetcher,
+					SessionID: in.SessionID, RunID: in.RunID,
+				})
 			}
 			if cut, ok := resolveMacroMonitorCutoffFromDailyBars(in.Code, time.Now(), dailyForAnchor); ok {
 				macroCut = &cut
-				t := cut.AsOf
+				fetchIn := in
+				fetchIn.LabFetcher = labFetcher
+				prepareDailyMacroKlineProbe(paCtx, fetchIn, chartBars, mtf, dailyForAnchor)
+				patIn, klineIdx := dailyMacroKlineDisplayInputAtCutoff(in.Code, cut, in.ProbeRaw, mtf)
+				out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
+				applyLabKlinePatternTopLevel(&out)
+				t := cut.SessionClose
 				asOf = &t
 				if cut.Close > 0 {
 					spot = cut.Close
 				}
+				macroCutoffOK = true
 			} else {
 				out.Degraded = append(out.Degraded, "macro_monitor_cutoff_unavailable")
 			}
 		}
-		pa := priceanalysis.Run(paCtx, labFetcher, priceanalysis.RunRequest{
-			Code:              in.Code,
-			Months:            CapMonthsBack(in.Months),
-			SignalFreq:        labDetailJEVSignalFreq(in),
-			AsOf:              asOf,
-			SpotPrice:         spot,
-			KeyLevels:         keyLevelsToLab(in.KeyLevels),
-			JEVDailyMacroOnly: flowDailyMacro,
-		})
-		pa = priceanalysis.RoundPriceAnalysisForOutput(pa)
-		converted := priceAnalysisFromLab(pa)
-		out.PriceAnalysis = &converted
-		var ta *LabTechnicalAnalysis
-		var indexTrend *LabIndexTrend
-		if in.TAClient != nil || in.IndexTrendClient != nil {
-			taCtx, taCancel := labDetailTAContext(cacheCtx, in.TATimeout)
-			if in.TAClient != nil {
-				ta = fetchLabTechnicalAnalysis(taCtx, in.TAClient, in, asOf)
-				out.TechnicalAnalysis = ta
+		if dailyMacroAnalysisGated(flowDailyMacro, macroCutoffOK) {
+			pa := priceanalysis.Run(paCtx, labFetcher, priceanalysis.RunRequest{
+				Code:              in.Code,
+				Months:            CapMonthsBack(in.Months),
+				SignalFreq:        labDetailJEVSignalFreq(in),
+				AsOf:              asOf,
+				SpotPrice:         spot,
+				KeyLevels:         keyLevelsToLab(in.KeyLevels),
+				JEVDailyMacroOnly: flowDailyMacro,
+			})
+			pa = priceanalysis.RoundPriceAnalysisForOutput(pa)
+			converted := priceAnalysisFromLab(pa)
+			out.PriceAnalysis = &converted
+			var ta *LabTechnicalAnalysis
+			var indexTrend *LabIndexTrend
+			if in.TAClient != nil || in.IndexTrendClient != nil {
+				taCtx, taCancel := labDetailTAContext(cacheCtx, in.TATimeout)
+				if in.TAClient != nil {
+					ta = fetchLabTechnicalAnalysis(taCtx, in.TAClient, in, asOf)
+					out.TechnicalAnalysis = ta
+				}
+				if in.IndexTrendClient != nil {
+					indexTrend = fetchLabIndexTrend(taCtx, in.IndexTrendClient, in, asOf)
+					out.IndexTrend = indexTrend
+				}
+				taCancel()
 			}
-			if in.IndexTrendClient != nil {
-				indexTrend = fetchLabIndexTrend(taCtx, in.IndexTrendClient, in, asOf)
-				out.IndexTrend = indexTrend
+			jevCtx, jevCancel := labDetailJEVContext(cacheCtx, in.JEVTimeout)
+			defer jevCancel()
+			applyPriceAnalysisJEV(jevCtx, &out, "flow", in.Jev, in.LongOnly)
+			applyKlineJEV(jevCtx, &out, "flow", in.Jev, in.LongOnly)
+			if ta != nil {
+				rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, "flow", labDetailJEVSignalFreq(in), in.LongOnly)
+				out.TechnicalAnalysisJEV = &rec
 			}
-			taCancel()
+			if indexTrend != nil {
+				rec := ResolveIndexTrendJEV(jevCtx, in.Jev, indexTrend, "flow", labDetailJEVSignalFreq(in), in.LongOnly)
+				out.IndexTrendJEV = &rec
+			}
+			applyLabJEVUnified(jevCtx, &out, "flow", in)
 		}
-		jevCtx, jevCancel := labDetailJEVContext(cacheCtx, in.JEVTimeout)
-		defer jevCancel()
-		applyPriceAnalysisJEV(jevCtx, &out, "flow", in.Jev, in.LongOnly)
-		applyKlineJEV(jevCtx, &out, "flow", in.Jev, in.LongOnly)
-		if ta != nil {
-			rec := ResolveTechnicalAnalysisJEV(jevCtx, in.Jev, ta, "flow", labDetailJEVSignalFreq(in), in.LongOnly)
-			out.TechnicalAnalysisJEV = &rec
-		}
-		if indexTrend != nil {
-			rec := ResolveIndexTrendJEV(jevCtx, in.Jev, indexTrend, "flow", labDetailJEVSignalFreq(in), in.LongOnly)
-			out.IndexTrendJEV = &rec
-		}
-		applyLabJEVUnified(jevCtx, &out, "flow", in)
 		if macroCut != nil {
 			applyMacroMonitorCutoffToDetail(&out, *macroCut)
 		}

@@ -12,6 +12,11 @@ func labDetailDailyMacro(in LabDetailInput) bool {
 }
 
 // labDetailJEVSignalFreq is the TF label passed into JEV state for macro (daily only).
+// dailyMacroAnalysisGated is false when daily_macro must fail-closed without a completed session cutoff.
+func dailyMacroAnalysisGated(dailyMacro, cutoffOK bool) bool {
+	return !(dailyMacro && !cutoffOK)
+}
+
 func labDetailJEVSignalFreq(in LabDetailInput) string {
 	if labDetailDailyMacro(in) {
 		return "daily"
@@ -71,16 +76,25 @@ func prepareDailyMacroKlineProbe(
 	}
 }
 
-func dailyMacroKlineDisplayInput(
-	chartBars []any,
-	chartIdx int,
+// dailyMacroKlineDisplayInputAtCutoff builds daily kline/three_bar at the macro monitor bar day,
+// not at historical buy/signal chartIdx.
+func dailyMacroKlineDisplayInputAtCutoff(
+	code string,
+	cut MacroMonitorCutoff,
 	probeRaw map[string]any,
 	mtf *KlinePatternMTFBundle,
 ) (KlinePatternDisplayInput, int) {
 	dailyBars := dailyBarsForLabAnchorFromMTF(mtf)
 	if len(dailyBars) == 0 {
-		return NewKlinePatternDisplayInputForDiagnose(true, "daily", chartBars, probeRaw, mtf), chartIdx
+		return NewKlinePatternDisplayInputForDiagnose(true, "daily", nil, probeRaw, mtf), 0
 	}
-	idx := kp.AlignAnchorBarIndex(chartBars, chartIdx, dailyBars)
+	spec, ok := macroSessionSpecForCode(code)
+	if !ok {
+		return NewKlinePatternDisplayInputForDiagnose(true, "daily", dailyBars, probeRaw, mtf), len(dailyBars) - 1
+	}
+	idx := indexDailyBarByCalendarDay(dailyBars, cut.CalendarDay, spec)
+	if idx < 0 {
+		idx = len(dailyBars) - 1
+	}
 	return NewKlinePatternDisplayInputForDiagnose(true, "daily", dailyBars, probeRaw, mtf), idx
 }

@@ -91,7 +91,7 @@ func fetchLabTechnicalAnalysis(
 	if out.OK {
 		return out
 	}
-	if asOf != nil && !asOf.IsZero() && labCodeLooksCrypto(in.Code) {
+	if asOf != nil && !asOf.IsZero() && labCodeLooksCrypto(in.Code) && !labDetailDailyMacro(in) {
 		if retry := fetchLabTechnicalAnalysisAt(ctx, client, in, nil); retry.OK {
 			return retry
 		}
