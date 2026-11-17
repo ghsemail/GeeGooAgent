@@ -33,6 +33,13 @@ from agent_chat_stream import (  # noqa: E402
     result_from_stream_error,
     stream_chat_turn,
 )
+from macro_jev_results_client import (  # noqa: E402
+    MacroJevResultsWriter,
+    collect_overall_pool_inputs,
+    collect_pool_jev_rows_for_synthesis,
+    fetch_canonical_symbol_result_ids,
+    put_overall_result,
+)
 
 DEFAULT_MACRO = "http://146.56.225.252:3220"
 DEFAULT_AGENT = "http://127.0.0.1:3400"
@@ -574,8 +581,45 @@ def try_finalize_bond_pool_jev(
         ],
         "pool_jev": pool_jev,
     }
-    post_batch_run(macro_base, macro_key, body)
-    return 0 if pool_jev.get("success") else 1
+    bond_run_id = post_batch_run(macro_base, macro_key, body)
+    writer = MacroJevResultsWriter(
+        macro_base,
+        macro_key,
+        batch_date,
+        "bond",
+        bond_run_id or "",
+        started,
+        http_json,
+    )
+    if bond_run_id:
+        writer.bind_batch_run(bond_run_id)
+    canon_syms, sym_err = fetch_canonical_symbol_result_ids(
+        macro_base, macro_key, http_json, batch_date, "bond"
+    )
+    if sym_err:
+        print(f"[bond] canonical symbols: {sym_err}", flush=True)
+    missing = [s for s in expected if s.upper() not in canon_syms]
+    for it in merged:
+        sym = str(it.get("symbol") or "").strip().upper()
+        if sym in missing and it.get("success"):
+            writer.put_symbol_from_batch_item(it, completed_at=finished)
+    canon_syms, sym_err2 = fetch_canonical_symbol_result_ids(
+        macro_base, macro_key, http_json, batch_date, "bond"
+    )
+    if sym_err2:
+        print(f"[bond] canonical symbols reload: {sym_err2}", flush=True)
+    writer.put_pool_from_synthesis(
+        pool_jev,
+        symbol_items=merged,
+        all_symbols_ok=True,
+        completed_at=finished,
+        extra_symbol_result_ids=canon_syms,
+        expected_symbols=expected,
+    )
+    rc = 0 if pool_jev.get("success") else 1
+    if writer.has_errors():
+        rc = max(rc, 1)
+    return rc
 
 
 def collect_pool_inputs_from_pipeline(
@@ -875,6 +919,19 @@ def run_batch(
         return 2, None
 
     started = rfc3339_now()
+    pool_wf = api_workflow if api_workflow in WORKFLOW_MONITOR_POOL else workflow
+    batch_run_id = ""
+    jev_writer: MacroJevResultsWriter | None = None
+    if not dry_run and pool_wf in WORKFLOW_MONITOR_POOL:
+        jev_writer = MacroJevResultsWriter(
+            macro_base,
+            macro_key,
+            batch_date,
+            pool_wf,
+            "",
+            started,
+            http_json,
+        )
     batch_pools: list[dict[str, Any]] = []
     ingest_items: list[dict[str, Any]] = []
     ok_count = 0
@@ -906,6 +963,7 @@ def run_batch(
         final: bool = False,
         pool_jev: dict[str, Any] | None = None,
     ) -> None:
+        nonlocal batch_run_id
         if dry_run:
             return
         in_progress = not final and (ok_count + fail_count < total)
@@ -928,6 +986,10 @@ def run_batch(
             body["pool_jev"] = pool_jev
         rid = post_batch_run(macro_base, macro_key, body)
         if rid:
+            if not batch_run_id:
+                batch_run_id = rid
+            if jev_writer:
+                jev_writer.bind_batch_run(batch_run_id)
             print(f"batch progress id={rid} · {summary}", flush=True)
 
     if not dry_run:
@@ -955,6 +1017,9 @@ def run_batch(
             "error": DIAGNOSING_ERROR,
         }
         publish_progress(sym, final=False)
+
+        if jev_writer:
+            jev_writer.put_symbol_running(sym)
 
         if dry_run:
             batch_pools[pi]["items"][ii] = {
@@ -1017,6 +1082,12 @@ def run_batch(
             }
             print(f"  FAIL: {err[:240]}", flush=True)
 
+        if jev_writer:
+            jev_writer.put_symbol_from_batch_item(
+                batch_pools[pi]["items"][ii],
+                completed_at=rfc3339_now(),
+            )
+
         publish_progress(sym, final=False)
 
     summary = f"{workflow} ok={ok_count} fail={fail_count}/{total}; ingest upserted={len(ingest_items)} sent={len(ingest_items)}"
@@ -1050,7 +1121,6 @@ def run_batch(
                 if it.get("success"):
                     symbol_rows_for_pool.append(it)
 
-    pool_wf = api_workflow if api_workflow in WORKFLOW_MONITOR_POOL else workflow
     defer_pool = workflow in BOND_SEGMENT_WORKFLOWS
     pool_final_published = False
     if (
@@ -1104,6 +1174,18 @@ def run_batch(
                 pool_final_published = True
     if not dry_run and not pool_final_published:
         publish_progress("finished", final=True, pool_jev=pool_jev_out)
+    if jev_writer and not defer_pool:
+        all_items = [it for p in batch_pools for it in (p.get("items") or [])]
+        expected = [s for p in batch_pools for s in (p.get("symbols") or [])]
+        if batch_run_id:
+            jev_writer.bind_batch_run(batch_run_id)
+        jev_writer.put_pool_from_synthesis(
+            pool_jev_out,
+            symbol_items=all_items,
+            all_symbols_ok=(fail_count == 0 and ok_count == total and total > 0),
+            completed_at=rfc3339_now(),
+            expected_symbols=expected,
+        )
     pool_input = None
     if pool_jev_out and pool_jev_out.get("success"):
         pool_input = {
@@ -1112,6 +1194,8 @@ def run_batch(
             "jev_reason": pool_jev_out.get("jev_reason"),
         }
     rc = 0 if fail_count == 0 and (pool_jev_out is None or pool_jev_out.get("success")) else 1
+    if jev_writer and jev_writer.has_errors():
+        rc = max(rc, 1)
     if (
         not dry_run
         and fail_count == 0
@@ -1187,9 +1271,36 @@ def run_pool_jev_only(
             "pools": batch_pools,
             "pool_jev": pool_jev,
         }
-        post_batch_run(macro_base, macro_key, body)
+        pool_run_id = post_batch_run(macro_base, macro_key, body)
+        writer = MacroJevResultsWriter(
+            macro_base,
+            macro_key,
+            batch_date,
+            api_workflow,
+            pool_run_id or "",
+            started,
+            http_json,
+        )
+        if pool_run_id:
+            writer.bind_batch_run(pool_run_id)
+        canon, c_err = fetch_canonical_symbol_result_ids(
+            macro_base, macro_key, http_json, batch_date, api_workflow
+        )
+        if c_err:
+            print(f"  canonical symbols: {c_err}", flush=True)
+        writer.put_pool_from_synthesis(
+            pool_jev,
+            symbol_items=rows,
+            all_symbols_ok=sym_ok,
+            completed_at=finished,
+            extra_symbol_result_ids=canon,
+            expected_symbols=[str(r.get("symbol") or "") for r in rows],
+        )
         print(f"  pool JEV ok={pool_jev.get('jev_direction')}", flush=True)
-        return 0
+        rc = 0
+        if writer.has_errors():
+            rc = 1
+        return rc
     err = str(syn.get("error") or "pool jev failed")
     pool_jev = {
         "success": False,
@@ -1207,9 +1318,35 @@ def run_pool_jev_only(
         "pools": batch_pools,
         "pool_jev": pool_jev,
     }
-    post_batch_run(macro_base, macro_key, body)
+    pool_run_id = post_batch_run(macro_base, macro_key, body)
+    writer = MacroJevResultsWriter(
+        macro_base,
+        macro_key,
+        batch_date,
+        api_workflow,
+        pool_run_id or "",
+        started,
+        http_json,
+    )
+    if pool_run_id:
+        writer.bind_batch_run(pool_run_id)
+    canon, c_err = fetch_canonical_symbol_result_ids(
+        macro_base, macro_key, http_json, batch_date, api_workflow
+    )
+    if c_err:
+        print(f"  canonical symbols: {c_err}", flush=True)
+    writer.put_pool_from_synthesis(
+        pool_jev,
+        symbol_items=rows,
+        all_symbols_ok=False,
+        completed_at=finished,
+        extra_symbol_result_ids=canon,
+    )
     print(f"  pool JEV FAIL: {err[:240]}", flush=True)
-    return 1
+    rc = 1
+    if writer.has_errors():
+        rc = 1
+    return rc
 
 
 def run_overall_batch(
@@ -1220,28 +1357,66 @@ def run_overall_batch(
     pool_inputs: list[dict[str, Any]],
     dry_run: bool,
 ) -> int:
-    if len(pool_inputs) < len(JEV_PIPELINE_WORKFLOWS):
-        collected, err = collect_pool_inputs_from_pipeline(macro_base, macro_key, batch_date)
-        if collected and len(collected) >= len(JEV_PIPELINE_WORKFLOWS):
-            pool_inputs = collected
-            print(
-                f"overall: loaded {len(pool_inputs)} pool jev from pipeline",
-                flush=True,
-            )
-        else:
-            print(
-                f"overall skipped: only {len(pool_inputs)}/{len(JEV_PIPELINE_WORKFLOWS)} pool jev"
-                + (f"; pipeline: {err}" if err else ""),
-                file=sys.stderr,
-            )
-            return 2
-    runtime_key, mcp_token = load_geegoo_env()
-    started = rfc3339_now()
+    pool_refs, ref_err = collect_overall_pool_inputs(
+        macro_base, macro_key, http_json, batch_date
+    )
     if dry_run:
         return 0
-    print("[overall] macro JEV synthesize …", flush=True)
+    synth_rows, syn_err = collect_pool_jev_rows_for_synthesis(
+        macro_base, macro_key, http_json, batch_date
+    )
+    if not synth_rows or syn_err:
+        print(
+            f"overall blocked: canonical pool tier incomplete ({syn_err or ref_err})",
+            file=sys.stderr,
+        )
+        started = rfc3339_now()
+        finished = rfc3339_now()
+        overall_run_id = post_batch_run(
+            macro_base,
+            macro_key,
+            {
+                "workflow": "overall",
+                "date": batch_date,
+                "started_at": started,
+                "finished_at": finished,
+                "success": False,
+                "summary": "overall blocked: canonical pools incomplete",
+                "pools": [{"name": "宏观整体", "symbols": [], "items": []}],
+                "pool_jev": {
+                    "success": False,
+                    "error": syn_err or ref_err or "canonical pools incomplete",
+                },
+            },
+        )
+        if not overall_run_id:
+            print("overall blocked: batch/runs id missing; skip canonical PUT", file=sys.stderr)
+            return 2
+        out = put_overall_result(
+            macro_base,
+            macro_key,
+            http_json,
+            batch_date=batch_date,
+            source_batch_id=overall_run_id,
+            batch_started_at=started,
+            completed_at=finished,
+            pool_jev={
+                "success": False,
+                "error": syn_err or ref_err or "canonical pools incomplete",
+            },
+            pool_inputs=pool_refs or [],
+        )
+        if not out.ok:
+            print(
+                f"overall jev-results PUT not accepted: {out.reason or out.error}",
+                flush=True,
+            )
+        return 2
+    runtime_key, mcp_token = load_geegoo_env()
+    started = rfc3339_now()
+    print("[overall] macro JEV synthesize (canonical pool inputs) …", flush=True)
     syn = synthesize_jev_with_retries(
-        agent_base, runtime_key, mcp_token, "宏观整体", pool_inputs
+        agent_base, runtime_key, mcp_token, "宏观整体", synth_rows
     )
     finished = rfc3339_now()
     pool_jev: dict[str, Any]
@@ -1278,8 +1453,46 @@ def run_overall_batch(
         ],
         "pool_jev": pool_jev,
     }
-    post_batch_run(macro_base, macro_key, body)
-    return 0 if pool_jev.get("success") else 1
+    overall_run_id = post_batch_run(macro_base, macro_key, body)
+    ref_err = ""
+    if not pool_refs:
+        pool_refs, ref_err = collect_overall_pool_inputs(
+            macro_base, macro_key, http_json, batch_date
+        )
+    if pool_refs:
+        print(f"overall: canonical pool refs={len(pool_refs)}", flush=True)
+    ok_overall = (
+        bool(pool_jev.get("success"))
+        and pool_refs is not None
+        and len(pool_refs) == len(JEV_PIPELINE_WORKFLOWS)
+    )
+    if not ok_overall:
+        pool_jev = {
+            **pool_jev,
+            "success": False,
+            "error": ref_err or "pool_tier_incomplete_for_overall",
+        }
+    if not overall_run_id:
+        print("overall: batch/runs id missing; canonical PUT blocked", file=sys.stderr)
+        return 1
+    out = put_overall_result(
+        macro_base,
+        macro_key,
+        http_json,
+        batch_date=batch_date,
+        source_batch_id=overall_run_id,
+        batch_started_at=started,
+        completed_at=finished,
+        pool_jev=pool_jev,
+        pool_inputs=pool_refs or [],
+    )
+    if not out.ok:
+        print(
+            f"overall jev-results PUT not accepted: {out.reason or out.error}",
+            flush=True,
+        )
+    rc = 0 if ok_overall and out.ok else 1
+    return rc
 
 
 def main() -> int:
