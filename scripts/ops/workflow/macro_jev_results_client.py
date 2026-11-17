@@ -6,10 +6,9 @@ Contract: GeeGooSignal docs/MACRO_JEV_RESULTS_API.md (PR #23).
 
 from __future__ import annotations
 
-import json
 import re
+import time
 import urllib.error
-import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -95,21 +94,22 @@ class MacroJevResultsWriter:
     pool_result_id: str = ""
     errors: list[str] = field(default_factory=list)
     symbol_revision_final: int = 1
+    put_network_retries: int = 3
 
     def bind_batch_run(self, run_id: str) -> None:
         rid = (run_id or "").strip()
         if rid:
             self.source_batch_id = rid
 
-    def ensure_batch_identity(self) -> str:
-        if not self.source_batch_id.strip():
-            self.source_batch_id = make_source_batch_id(
-                self.pool_workflow, self.batch_date, self.batch_started_at
-            )
-            self.errors.append(
-                "batch_run_id_missing: using fallback source_batch_id (manifest may not link)"
-            )
-        return self.source_batch_id
+    def batch_identity_ready(self) -> bool:
+        return bool(self.source_batch_id.strip())
+
+    def _require_batch_identity(self, label: str) -> bool:
+        if self.batch_identity_ready():
+            return True
+        self.errors.append(f"{label}: batch_run_id_missing")
+        print(f"jev-results PUT {label} blocked: no macro batch run id", flush=True)
+        return False
 
     def _headers(self) -> dict[str, str]:
         return {
@@ -168,6 +168,8 @@ class MacroJevResultsWriter:
         lab_episode_summary: dict[str, Any] | None = None,
         revision: int | None = None,
     ) -> PutOutcome:
+        if not self._require_batch_identity(f"symbol {symbol}"):
+            return PutOutcome(http_status=0, accepted=False, error="batch_run_id_missing")
         body: dict[str, Any] = {
             "date": self.batch_date,
             "pool_workflow": self.pool_workflow,
@@ -195,16 +197,11 @@ class MacroJevResultsWriter:
             body["attempt"] = attempt
         if lab_episode_summary:
             body["lab_episode_summary"] = lab_episode_summary
-        self.ensure_batch_identity()
 
-        status_code, data, raw = self.http_json(
-            "PUT",
+        out = self._http_put_json(
             f"{self.macro_base.rstrip('/')}/macro/jev/results/symbols",
-            self._headers(),
             body,
-            timeout=120,
         )
-        out = self._parse_put_response(status_code, data, raw)
         sym = symbol.upper()
         rev = body["revision"]
         if out.ok and out.result_id:
@@ -214,6 +211,27 @@ class MacroJevResultsWriter:
         elif not out.ok:
             self._record_failure(f"symbol {sym}", out)
         return out
+
+    def _http_put_json(self, url: str, body: dict[str, Any]) -> PutOutcome:
+        last: PutOutcome = PutOutcome(http_status=0, accepted=False, error="no attempt")
+        for attempt in range(max(1, self.put_network_retries)):
+            try:
+                status_code, data, raw = self.http_json(
+                    "PUT",
+                    url,
+                    self._headers(),
+                    body,
+                    timeout=120,
+                )
+                out = self._parse_put_response(status_code, data, raw)
+                if out.http_status == 200:
+                    return out
+                last = out
+            except urllib.error.URLError as exc:
+                last = PutOutcome(http_status=0, accepted=False, error=str(exc))
+            if attempt + 1 < self.put_network_retries:
+                time.sleep(0.2 * (attempt + 1))
+        return last
 
     def put_symbol_running(self, symbol: str) -> PutOutcome:
         return self.put_symbol(
@@ -278,6 +296,8 @@ class MacroJevResultsWriter:
         inputs: list[dict[str, Any]] | None = None,
         revision: int | None = None,
     ) -> PutOutcome:
+        if not self._require_batch_identity(f"pool {self.pool_workflow}"):
+            return PutOutcome(http_status=0, accepted=False, error="batch_run_id_missing")
         body: dict[str, Any] = {
             "date": self.batch_date,
             "status": status,
@@ -304,16 +324,10 @@ class MacroJevResultsWriter:
             body["attempt"] = attempt
         if blocked_reason:
             body["blocked_reason"] = blocked_reason
-        self.ensure_batch_identity()
-
-        status_code, data, raw = self.http_json(
-            "PUT",
+        out = self._http_put_json(
             f"{self.macro_base.rstrip('/')}/macro/jev/results/pools/{self.pool_workflow}",
-            self._headers(),
             body,
-            timeout=120,
         )
-        out = self._parse_put_response(status_code, data, raw)
         if out.ok and out.result_id:
             self.pool_result_id = out.result_id
         elif not out.ok:
@@ -335,7 +349,7 @@ class MacroJevResultsWriter:
         extra_symbol_result_ids: dict[str, str] | None = None,
         expected_symbols: list[str] | None = None,
     ) -> PutOutcome | None:
-        if pool_jev is None and all_symbols_ok:
+        if pool_jev is None and all_symbols_ok and not extra_symbol_result_ids:
             return None
         if extra_symbol_result_ids:
             self.merge_symbol_result_ids(extra_symbol_result_ids)

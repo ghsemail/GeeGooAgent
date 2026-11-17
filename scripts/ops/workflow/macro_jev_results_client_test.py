@@ -198,9 +198,7 @@ class TestMacroJevResultsClient(unittest.TestCase):
         self.assertEqual(len(rows), 7)
         self.assertEqual(rows[0]["pool_workflow"], "cn_a")
 
-    def test_fallback_batch_id_only_when_run_id_missing(self) -> None:
-        fb = make_source_batch_id("bond", "2026-11-17", "2026-11-17T05:30:00+08:00")
-        self.assertIn("bond", fb)
+    def test_put_blocked_without_batch_run_id(self) -> None:
         w = MacroJevResultsWriter(
             "http://sig",
             "key",
@@ -210,8 +208,10 @@ class TestMacroJevResultsClient(unittest.TestCase):
             "2026-11-17T05:30:00+08:00",
             mock_http({}),
         )
-        self.assertEqual(w.ensure_batch_identity(), fb)
-        self.assertTrue(any("batch_run_id_missing" in e for e in w.errors))
+        out = w.put_symbol(symbol="HYG.US", status="running", revision=0)
+        self.assertFalse(out.ok)
+        self.assertEqual(out.error, "batch_run_id_missing")
+        self.assertTrue(w.has_errors())
 
 
 if __name__ == "__main__":
