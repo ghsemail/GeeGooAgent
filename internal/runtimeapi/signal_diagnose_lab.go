@@ -91,7 +91,7 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 	cacheRef := strategydev.LabDetailCacheRef(ref, wantProfile)
 	if !body.Rebuild {
 		if cached, ok := workflowchat.CachedLabEpisodeDetail(chat, runID, cacheRef); ok &&
-			strategydev.LabDetailProfileMatches(cached, wantProfile) {
+			strategydev.LabDetailCacheAcceptable(cached, wantProfile) {
 			strategydev.PrepareLabEpisodeDetailForEmit(&cached)
 			w.Header().Set("Content-Type", "application/json")
 			payload := map[string]any{

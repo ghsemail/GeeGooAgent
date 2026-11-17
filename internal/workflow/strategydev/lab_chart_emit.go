@@ -1,12 +1,19 @@
 package strategydev
 
-import kp "github.com/ghsemail/GeeGooAgent/internal/lab/klinepattern"
+import (
+	"strings"
+
+	kp "github.com/ghsemail/GeeGooAgent/internal/lab/klinepattern"
+)
 
 // PrepareLabEpisodeDetailForEmit strips non-anchor chart pattern markers from lab-detail JSON.
 // Call after PA-JEV and jev_unified so decision/display synthesis keeps full internal inputs.
 func PrepareLabEpisodeDetailForEmit(out *LabEpisodeDetail) {
 	if out == nil {
 		return
+	}
+	if strings.TrimSpace(out.KlineJEVProfile) == LabKlineJEVProfileDailyMacro {
+		out.LabDetailCacheContract = LabDetailDailyMacroCacheContract
 	}
 	applyDailyMacroKlineDisplayForEmit(out)
 	out.KlinePatternThreeBar = kp.ThreeBarWindowForChartEmit(out.KlinePatternThreeBar)

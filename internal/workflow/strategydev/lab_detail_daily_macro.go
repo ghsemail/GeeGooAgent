@@ -7,8 +7,31 @@ import (
 	kp "github.com/ghsemail/GeeGooAgent/internal/lab/klinepattern"
 )
 
+const (
+	// LabDetailDailyMacroCacheContract bumps when daily_macro lab-detail JSON contract changes (cache invalidation).
+	LabDetailDailyMacroCacheContract = 2
+)
+
 func labDetailDailyMacro(in LabDetailInput) bool {
 	return strings.TrimSpace(in.KlineJEVProfile) == LabKlineJEVProfileDailyMacro
+}
+
+// LabDetailCacheAcceptable returns false for stale daily_macro payloads missing session-close contract fields.
+func LabDetailCacheAcceptable(cached LabEpisodeDetail, wantProfile string) bool {
+	wantProfile = strings.TrimSpace(wantProfile)
+	if wantProfile != LabKlineJEVProfileDailyMacro {
+		return true
+	}
+	if !LabDetailProfileMatches(cached, wantProfile) {
+		return false
+	}
+	if cached.LabDetailCacheContract < LabDetailDailyMacroCacheContract {
+		return false
+	}
+	if strings.TrimSpace(cached.MonitorSessionClose) == "" {
+		return false
+	}
+	return true
 }
 
 // labDetailJEVSignalFreq is the TF label passed into JEV state for macro (daily only).
@@ -43,9 +66,9 @@ func LabDetailProfileMatches(cached LabEpisodeDetail, wantProfile string) bool {
 func prepareDailyMacroKlineProbe(
 	ctx context.Context,
 	in LabDetailInput,
-	chartBars []any,
 	mtf *KlinePatternMTFBundle,
 	dailyBarsHint []any,
+	cut MacroMonitorCutoff,
 ) {
 	if mtf == nil {
 		return
@@ -61,7 +84,7 @@ func prepareDailyMacroKlineProbe(
 		return
 	}
 	if in.Run != nil {
-		kp.HydrateDailyMacroMTFFromBars(ctx, kp.ToolRunner(in.Run), in.Code, in.Months, dailyBars, mtf)
+		kp.HydrateDailyMacroMTFFromBarsForCalendarDay(ctx, kp.ToolRunner(in.Run), in.Code, in.Months, dailyBars, mtf, cut.CalendarDay)
 		return
 	}
 	key := kp.NormalizeFrequency("daily")
@@ -83,18 +106,19 @@ func dailyMacroKlineDisplayInputAtCutoff(
 	cut MacroMonitorCutoff,
 	probeRaw map[string]any,
 	mtf *KlinePatternMTFBundle,
-) (KlinePatternDisplayInput, int) {
+) (KlinePatternDisplayInput, int, bool) {
 	dailyBars := dailyBarsForLabAnchorFromMTF(mtf)
 	if len(dailyBars) == 0 {
-		return NewKlinePatternDisplayInputForDiagnose(true, "daily", nil, probeRaw, mtf), 0
+		return KlinePatternDisplayInput{}, -1, false
 	}
 	spec, ok := macroSessionSpecForCode(code)
 	if !ok {
-		return NewKlinePatternDisplayInputForDiagnose(true, "daily", dailyBars, probeRaw, mtf), len(dailyBars) - 1
+		return KlinePatternDisplayInput{}, -1, false
 	}
-	idx := indexDailyBarByCalendarDay(dailyBars, cut.CalendarDay, spec)
+	idx := indexDailyBarByCalendarDayExact(dailyBars, cut.CalendarDay, spec)
 	if idx < 0 {
-		idx = len(dailyBars) - 1
+		return KlinePatternDisplayInput{}, -1, false
 	}
-	return NewKlinePatternDisplayInputForDiagnose(true, "daily", dailyBars, probeRaw, mtf), idx
+	patIn := NewKlinePatternDisplayInputForDiagnose(true, "daily", dailyBars, probeRaw, mtf)
+	return patIn, idx, true
 }

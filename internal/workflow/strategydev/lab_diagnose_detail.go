@@ -56,6 +56,10 @@ type LabDetailInput struct {
 	LongOnly bool
 	// KlineJEVProfile selects kline JEV facts (e.g. LabKlineJEVProfileDailyMacro for macro monitor).
 	KlineJEVProfile string
+	// Now overrides wall clock for macro monitor cutoff (tests only).
+	Now func() time.Time
+	// TradingDayChecker optional exchange calendar (e.g. checkTradingDay). Nil leaves holiday/weekend placeholder bars eligible.
+	TradingDayChecker MacroTradingDayChecker
 }
 
 // BuildLabEpisodeDetail loads MTF kline context and anchored price analysis for one ref.
@@ -98,9 +102,6 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 	}
 	if dailyMacro && in.Run != nil {
 		mtf = BuildKlinePatternDailyMacroForDiagnose(true, phaseCtx, in.Run, in.Code, in.Months, chartBars)
-		if mtf != nil {
-			kp.SupplementDailyMacroMTF(phaseCtx, kp.ToolRunner(in.Run), in.Code, in.Months, chartBars, chartIdx, mtf)
-		}
 		if in.CachedMTF != nil {
 			*in.CachedMTF = mtf
 		}
@@ -140,33 +141,46 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 	labFetcher := WrapCachedLabBarsFetcher(in.SessionID, in.RunID, wrapMTFFallbackBarsFetcher(in.LabFetcher, mtf))
 	if labFetcher != nil && strings.TrimSpace(in.Code) != "" {
 		row := anchorRow
-		dailyForAnchor := dailyBarsForLabAnchorFromMTF(mtf)
-		if len(dailyForAnchor) == 0 {
+		var dailyForAnchor []any
+		if dailyMacro {
 			dailyForAnchor = dailyBarsForLabAnchor(paCtx, LabDetailInput{
 				Run: in.Run, Code: in.Code, SignalFreq: in.SignalFreq, Months: in.Months,
 				KeyLevels: in.KeyLevels, ProbeRaw: in.ProbeRaw, Bars: chartBars, LookbackBars: in.LookbackBars,
-				LabFetcher: labFetcher, SessionID: in.SessionID, RunID: in.RunID,
+				LabFetcher: labFetcher, SessionID: in.SessionID, RunID: in.RunID, Now: in.Now, TradingDayChecker: in.TradingDayChecker,
 			})
+		} else {
+			dailyForAnchor = dailyBarsForLabAnchorFromMTF(mtf)
+			if len(dailyForAnchor) == 0 {
+				dailyForAnchor = dailyBarsForLabAnchor(paCtx, LabDetailInput{
+					Run: in.Run, Code: in.Code, SignalFreq: in.SignalFreq, Months: in.Months,
+					KeyLevels: in.KeyLevels, ProbeRaw: in.ProbeRaw, Bars: chartBars, LookbackBars: in.LookbackBars,
+					LabFetcher: labFetcher, SessionID: in.SessionID, RunID: in.RunID,
+				})
+			}
 		}
 		var asOf *time.Time
 		var macroCut *MacroMonitorCutoff
 		priceAnchorOK := false
 		spot := ent.Close
 		if dailyMacro {
-			if cut, ok := resolveMacroMonitorCutoffFromDailyBars(in.Code, time.Now(), dailyForAnchor); ok {
-				macroCut = &cut
+			if cut, ok := resolveMacroMonitorCutoffFromDailyBarsWithChecker(paCtx, in.TradingDayChecker, in.Code, labDetailNow(in), dailyForAnchor); ok {
 				fetchIn := in
 				fetchIn.LabFetcher = labFetcher
-				prepareDailyMacroKlineProbe(paCtx, fetchIn, chartBars, mtf, dailyForAnchor)
-				patIn, klineIdx = dailyMacroKlineDisplayInputAtCutoff(in.Code, cut, in.ProbeRaw, mtf)
-				out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
-				applyLabKlinePatternTopLevel(&out)
-				t := cut.SessionClose
-				asOf = &t
-				if cut.Close > 0 {
-					spot = cut.Close
+				prepareDailyMacroKlineProbe(paCtx, fetchIn, mtf, dailyForAnchor, cut)
+				patIn, klineIdx, kOK := dailyMacroKlineDisplayInputAtCutoff(in.Code, cut, in.ProbeRaw, mtf)
+				if kOK {
+					macroCut = &cut
+					out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
+					applyLabKlinePatternTopLevel(&out)
+					t := cut.SessionClose
+					asOf = &t
+					if cut.Close > 0 {
+						spot = cut.Close
+					}
+					priceAnchorOK = true
+				} else {
+					out.Degraded = append(out.Degraded, "macro_monitor_cutoff_bar_mismatch")
 				}
-				priceAnchorOK = true
 			} else {
 				out.Degraded = append(out.Degraded, "macro_monitor_cutoff_unavailable")
 			}
@@ -230,12 +244,16 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		}
 	} else if dailyMacro {
 		dailyForAnchor := dailyBarsForLabAnchorFromMTF(mtf)
-		if cut, ok := resolveMacroMonitorCutoffFromDailyBars(in.Code, time.Now(), dailyForAnchor); ok {
-			prepareDailyMacroKlineProbe(paCtx, in, chartBars, mtf, dailyForAnchor)
-			patIn, klineIdx = dailyMacroKlineDisplayInputAtCutoff(in.Code, cut, in.ProbeRaw, mtf)
-			out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
-			applyLabKlinePatternTopLevel(&out)
-			applyMacroMonitorCutoffToDetail(&out, cut)
+		if cut, ok := resolveMacroMonitorCutoffFromDailyBarsWithChecker(paCtx, in.TradingDayChecker, in.Code, labDetailNow(in), dailyForAnchor); ok {
+			prepareDailyMacroKlineProbe(paCtx, in, mtf, dailyForAnchor, cut)
+			patIn, klineIdx, kOK := dailyMacroKlineDisplayInputAtCutoff(in.Code, cut, in.ProbeRaw, mtf)
+			if kOK {
+				out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
+				applyLabKlinePatternTopLevel(&out)
+				applyMacroMonitorCutoffToDetail(&out, cut)
+			} else {
+				out.Degraded = append(out.Degraded, "macro_monitor_cutoff_bar_mismatch")
+			}
 		} else {
 			out.Degraded = append(out.Degraded, "macro_monitor_cutoff_unavailable")
 		}
@@ -269,9 +287,6 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 		if flowDailyMacro {
 			displayFreq = "daily"
 			mtf = BuildKlinePatternDailyMacroForDiagnose(true, phaseCtx, in.Run, in.Code, in.Months, chartBars)
-			if mtf != nil {
-				kp.SupplementDailyMacroMTF(phaseCtx, kp.ToolRunner(in.Run), in.Code, in.Months, chartBars, idx, mtf)
-			}
 		} else if in.CachedMTF != nil && *in.CachedMTF != nil {
 			mtf = *in.CachedMTF
 		} else if b := CachedLabKlineMTF(in.SessionID, in.RunID); b != nil {
@@ -310,28 +325,29 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 			if in.CachedMTF != nil && *in.CachedMTF != nil {
 				mtf = *in.CachedMTF
 			}
-			dailyForAnchor = dailyBarsForLabAnchorFromMTF(mtf)
-			if len(dailyForAnchor) == 0 {
-				dailyForAnchor = dailyBarsForLabAnchor(paCtx, LabDetailInput{
-					Run: in.Run, Code: in.Code, SignalFreq: in.SignalFreq, Months: in.Months,
-					Bars: chartBars, LookbackBars: in.LookbackBars, LabFetcher: labFetcher,
-					SessionID: in.SessionID, RunID: in.RunID,
-				})
-			}
-			if cut, ok := resolveMacroMonitorCutoffFromDailyBars(in.Code, time.Now(), dailyForAnchor); ok {
-				macroCut = &cut
+			dailyForAnchor = dailyBarsForLabAnchor(paCtx, LabDetailInput{
+				Run: in.Run, Code: in.Code, SignalFreq: in.SignalFreq, Months: in.Months,
+				Bars: chartBars, LookbackBars: in.LookbackBars, LabFetcher: labFetcher,
+				SessionID: in.SessionID, RunID: in.RunID, Now: in.Now, TradingDayChecker: in.TradingDayChecker,
+			})
+			if cut, ok := resolveMacroMonitorCutoffFromDailyBarsWithChecker(paCtx, in.TradingDayChecker, in.Code, labDetailNow(in), dailyForAnchor); ok {
 				fetchIn := in
 				fetchIn.LabFetcher = labFetcher
-				prepareDailyMacroKlineProbe(paCtx, fetchIn, chartBars, mtf, dailyForAnchor)
-				patIn, klineIdx := dailyMacroKlineDisplayInputAtCutoff(in.Code, cut, in.ProbeRaw, mtf)
-				out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
-				applyLabKlinePatternTopLevel(&out)
-				t := cut.SessionClose
-				asOf = &t
-				if cut.Close > 0 {
-					spot = cut.Close
+				prepareDailyMacroKlineProbe(paCtx, fetchIn, mtf, dailyForAnchor, cut)
+				patIn, klineIdx, kOK := dailyMacroKlineDisplayInputAtCutoff(in.Code, cut, in.ProbeRaw, mtf)
+				if kOK {
+					macroCut = &cut
+					out.KlinePattern = buildLabKlineDetail(klineIdx, patIn)
+					applyLabKlinePatternTopLevel(&out)
+					t := cut.SessionClose
+					asOf = &t
+					if cut.Close > 0 {
+						spot = cut.Close
+					}
+					macroCutoffOK = true
+				} else {
+					out.Degraded = append(out.Degraded, "macro_monitor_cutoff_bar_mismatch")
 				}
-				macroCutoffOK = true
 			} else {
 				out.Degraded = append(out.Degraded, "macro_monitor_cutoff_unavailable")
 			}

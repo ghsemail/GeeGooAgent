@@ -3,14 +3,21 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"strings"
 )
 
 // CheckTradingDay calls POST /checkTradingDay.
 func (c *Client) CheckTradingDay(ctx context.Context, mcpToken, code string) (*TradingDayData, error) {
-	payload, err := c.Post(ctx, "/checkTradingDay", map[string]any{
-		"mcp_token": mcpToken,
-		"code":      code,
-	})
+	return c.CheckTradingDayOnDate(ctx, mcpToken, code, "")
+}
+
+// CheckTradingDayOnDate calls POST /checkTradingDay with optional YYYY-MM-DD (exchange calendar).
+func (c *Client) CheckTradingDayOnDate(ctx context.Context, mcpToken, code, date string) (*TradingDayData, error) {
+	body := map[string]any{"mcp_token": mcpToken, "code": code}
+	if strings.TrimSpace(date) != "" {
+		body["date"] = strings.TrimSpace(date)
+	}
+	payload, err := c.Post(ctx, "/checkTradingDay", body)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package strategydev
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -18,9 +19,28 @@ type MacroMonitorCutoff struct {
 	BarTime      time.Time
 }
 
+func labDetailNow(in LabDetailInput) time.Time {
+	if in.Now != nil {
+		if t := in.Now(); !t.IsZero() {
+			return t
+		}
+	}
+	return time.Now()
+}
+
 // resolveMacroMonitorCutoffFromDailyBars picks the newest daily bar whose session day is complete at now.
 // Fail-closed (ok=false) when no spec, no bars, or no completed session.
 func resolveMacroMonitorCutoffFromDailyBars(code string, now time.Time, dailyBars []any) (MacroMonitorCutoff, bool) {
+	return resolveMacroMonitorCutoffFromDailyBarsWithChecker(context.Background(), nil, code, now, dailyBars)
+}
+
+func resolveMacroMonitorCutoffFromDailyBarsWithChecker(
+	ctx context.Context,
+	checker MacroTradingDayChecker,
+	code string,
+	now time.Time,
+	dailyBars []any,
+) (MacroMonitorCutoff, bool) {
 	spec, ok := macroSessionSpecForCode(code)
 	if !ok || len(dailyBars) == 0 || now.IsZero() {
 		return MacroMonitorCutoff{}, false
@@ -46,6 +66,10 @@ func resolveMacroMonitorCutoffFromDailyBars(code string, now time.Time, dailyBar
 			continue
 		}
 		if !sessionDayComplete(now, calDay, spec) {
+			continue
+		}
+		dayLabel := calDay.In(spec.loc).Format("2006-01-02")
+		if !macroBarEligibleTradingDay(ctx, checker, code, dayLabel) {
 			continue
 		}
 		closePx := slots.FloatAny(row["close"])

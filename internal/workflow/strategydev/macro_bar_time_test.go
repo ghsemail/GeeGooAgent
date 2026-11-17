@@ -31,6 +31,24 @@ func TestMacroBarCalendarDay_USDateLabelNotShanghaiInstant(t *testing.T) {
 	}
 }
 
+func TestMacroBarCalendarDay_CryptoRFC3339AndUnix(t *testing.T) {
+	spec, ok := macroSessionSpecForCode("BTC-USD.CRYPTO")
+	if !ok {
+		t.Fatal("spec")
+	}
+	rfc := map[string]any{"time": "2026-11-16T00:00:00Z", "close": 91000.0}
+	day, ok := macroBarCalendarDay(rfc, spec)
+	if !ok || day.In(spec.loc).Format("2006-01-02") != "2026-11-16" {
+		t.Fatalf("rfc day=%v", day)
+	}
+	unixBar := map[string]any{"time": float64(20261116), "close": 1.0} // YYYYMMDD int label via barTimeUnix number path is Shanghai — use trade_date
+	unixBar = map[string]any{"trade_date": "20261116", "close": 1.0}
+	day2, ok := macroBarCalendarDay(unixBar, spec)
+	if !ok || day2.In(spec.loc).Format("2006-01-02") != "2026-11-16" {
+		t.Fatalf("trade_date day=%v", day2)
+	}
+}
+
 func TestMacroBarCalendarDay_RejectsFutureSessionDay(t *testing.T) {
 	loc, _ := time.LoadLocation("Asia/Shanghai")
 	now := time.Date(2026, 11, 16, 10, 0, 0, 0, loc)

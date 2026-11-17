@@ -26,8 +26,8 @@ func TestDailyMacroKlineDisplayInputAtCutoff_IgnoresHistoricalChartIdx(t *testin
 		map[string]any{"time": "2026-11-03 10:00:00", "close": 99.0},
 	}
 	historicalBuyIdx := 0
-	_, idxAtCut := dailyMacroKlineDisplayInputAtCutoff("000300.SH", cut, nil, mtf)
-	if idxAtCut != 1 {
+	_, idxAtCut, ok2 := dailyMacroKlineDisplayInputAtCutoff("000300.SH", cut, nil, mtf)
+	if !ok2 || idxAtCut != 1 {
 		t.Fatalf("kline idx=%d want 1 (monitor day %s)", idxAtCut, cut.CalendarDay)
 	}
 	_, legacyIdx := dailyMacroKlineDisplayInputLegacyAlign(chartBars, historicalBuyIdx, nil, mtf)

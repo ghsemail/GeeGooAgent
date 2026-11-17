@@ -67,7 +67,8 @@ func macroBarDateLabelInLoc(row map[string]any, loc *time.Location) (time.Time, 
 	return time.Time{}, false
 }
 
-func indexDailyBarByCalendarDay(dailyBars []any, day string, spec macroSessionSpec) int {
+// indexDailyBarByCalendarDayExact returns the bar index for an exact session calendar day only (no nearest fallback).
+func indexDailyBarByCalendarDayExact(dailyBars []any, day string, spec macroSessionSpec) int {
 	day = strings.TrimSpace(day)
 	if day == "" || len(dailyBars) == 0 {
 		return -1
@@ -76,7 +77,6 @@ func indexDailyBarByCalendarDay(dailyBars []any, day string, spec macroSessionSp
 	if err != nil {
 		return -1
 	}
-	best := -1
 	for i, raw := range dailyBars {
 		row, ok := raw.(map[string]any)
 		if !ok {
@@ -89,9 +89,6 @@ func indexDailyBarByCalendarDay(dailyBars []any, day string, spec macroSessionSp
 		if cal.Equal(want) {
 			return i
 		}
-		if cal.Before(want) && (best < 0 || i > best) {
-			best = i
-		}
 	}
-	return best
+	return -1
 }

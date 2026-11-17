@@ -52,6 +52,7 @@ type LabEpisodeDetail struct {
 	IndexTrendJEV         *IndexTrendJEV         `json:"index_trend_jev,omitempty"`
 	JEVUnified            *LabJEVUnified         `json:"jev_unified,omitempty"`
 	KlineJEVProfile       string                 `json:"kline_jev_profile,omitempty"`
+	LabDetailCacheContract int                   `json:"lab_detail_cache_contract,omitempty"`
 	// MonitorSessionClose is the exchange regular-session close instant (RFC3339 UTC).
 	// MonitorQuoteCutoff* are deprecated aliases of the same session instant for older FE builds.
 	MonitorSessionClose       string   `json:"monitor_session_close,omitempty"`
