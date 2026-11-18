@@ -7,6 +7,9 @@ Chat 与 runtime 之间使用 agent_chat_stream：SSE 分块读、IncompleteRead
   --pool-jev-only --recover-session-id <chat-id>
 
 仅补写 pool_jev，不重跑标的。环境变量见 ``agent_chat_stream`` 模块说明。
+
+标的成功门禁与 Signal ``lab_jev_health`` 对齐：``lab-detail`` 四维 lane 健康后才 ``success``/ingest/PUT。
+可选：``MACRO_BATCH_LAB_DETAIL_TIMEOUT``（默认 240）、``MACRO_BATCH_LAB_DETAIL_RETRIES``（默认 2）、``MACRO_BATCH_LAB_DETAIL_RETRY_WAIT``（默认 20）。
 """
 
 from __future__ import annotations
@@ -50,6 +53,12 @@ from macro_jev_results_client import (  # noqa: E402
     fetch_canonical_symbol_result_ids,
     put_overall_result,
 )
+from macro_lab_batch_health import (  # noqa: E402
+    build_lab_episode_summary_from_detail,
+    direction_from_jev_unified,
+    item_refs_complete,
+    lab_episode_summary_failed,
+)
 
 DEFAULT_MACRO = "http://146.56.225.252:3220"
 DEFAULT_AGENT = "http://127.0.0.1:3400"
@@ -81,6 +90,9 @@ BOND_SEGMENT_WORKFLOWS = frozenset({"bond_sh", "bond_us"})
 BOND_SYMBOL_SUFFIX: dict[str, str] = {"bond_sh": ".SH", "bond_us": ".US"}
 
 CHAT_TIMEOUT = int(os.environ.get("MACRO_BATCH_CHAT_TIMEOUT", "360"))
+LAB_DETAIL_TIMEOUT = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_TIMEOUT", "240"))
+LAB_DETAIL_RETRIES = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_RETRIES", "2"))
+LAB_DETAIL_RETRY_WAIT = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_RETRY_WAIT", "20"))
 MIN_JEV_REASON_LEN = 20
 MAX_DIAGNOSE_RETRIES = 3
 # 单标的/池级合成失败：进程内等待 RETRY_DELAY_SEC（默认 600s = 10min）后重试，最多 MAX_DIAGNOSE_RETRIES 次。
@@ -424,16 +436,15 @@ def item_jev_complete(
     session_id: str,
     run_id: str,
     direction: str,
+    lab_episode_summary: dict[str, Any] | None = None,
 ) -> bool:
-    if len((jev_reason or "").strip()) < MIN_JEV_REASON_LEN:
+    ok, _ = item_refs_complete(
+        jev_reason, detail_ref, session_id, run_id, direction, min_reason_len=MIN_JEV_REASON_LEN
+    )
+    if not ok:
         return False
-    if not is_valid_detail_ref(detail_ref):
-        return False
-    if not (session_id or "").strip() or not (run_id or "").strip():
-        return False
-    if not (direction or "").strip():
-        return False
-    return True
+    failed, _ = lab_episode_summary_failed(lab_episode_summary)
+    return not failed
 
 
 def post_batch_run(
@@ -722,26 +733,41 @@ def diagnose_symbol_once(
     if len(jev_reason) < MIN_JEV_REASON_LEN:
         jev_reason = str(chat.get("reply") or "").strip() or jev_reason
     detail_ref = pick_detail_ref(data)
-    direction, conf = ("", None)
+    lab_summary: dict[str, Any] | None = None
+    direction, conf = "", None
     if session_id and run_id and detail_ref:
-        direction, conf = lab_detail_jev(
+        lab = lab_detail_symbol_gate(
             agent_base, runtime_key, mcp_token, session_id, run_id, detail_ref
         )
+        if not lab.get("ok"):
+            return {
+                "ok": False,
+                "error": str(lab.get("error") or "lab-detail failed"),
+                "session_id": session_id,
+                "run_id": run_id,
+                "jev_reason": jev_reason,
+                "detail_ref": detail_ref,
+            }
+        lab_summary = lab.get("lab_episode_summary")
+        direction = str(lab.get("direction") or "")
+        conf = lab.get("confidence")
     if not direction:
         direction = parse_direction_from_compose(jev_reason)
     if conf is None:
         conf = 1.0 if direction != "neutral" else 0.5
 
-    if not item_jev_complete(jev_reason, detail_ref, session_id, run_id, direction):
+    if not item_jev_complete(
+        jev_reason, detail_ref, session_id, run_id, direction, lab_summary
+    ):
+        refs_ok, refs_msg = item_refs_complete(
+            jev_reason, detail_ref, session_id, run_id, direction, min_reason_len=MIN_JEV_REASON_LEN
+        )
+        failed, sum_msg = lab_episode_summary_failed(lab_summary)
         parts: list[str] = []
-        if len(jev_reason) < MIN_JEV_REASON_LEN:
-            parts.append(f"jev_reason<{MIN_JEV_REASON_LEN}")
-        if not is_valid_detail_ref(detail_ref):
-            parts.append("missing buy:/sell: detail_ref")
-        if not session_id or not run_id:
-            parts.append("missing session/run")
-        if not direction:
-            parts.append("missing direction")
+        if not refs_ok:
+            parts.append(refs_msg)
+        if failed:
+            parts.append(sum_msg)
         return {
             "ok": False,
             "error": " · ".join(parts) or "incomplete jev",
@@ -760,6 +786,7 @@ def diagnose_symbol_once(
         "detail_ref": detail_ref,
         "direction": direction,
         "confidence": conf,
+        "lab_episode_summary": lab_summary,
     }
 
 
@@ -783,14 +810,14 @@ def diagnose_symbol_with_retries(
     return last
 
 
-def lab_detail_jev(
+def _post_lab_detail(
     agent_base: str,
     runtime_key: str,
     mcp_token: str,
     session_id: str,
     run_id: str,
     detail_ref: str,
-) -> tuple[str, float | None]:
+) -> tuple[int, dict[str, Any], str]:
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {runtime_key}",
@@ -804,41 +831,76 @@ def lab_detail_jev(
         "rebuild": True,
         "kline_jev_profile": "daily_macro",
     }
-    status, data, _ = http_json(
+    status, data, raw = http_json(
         "POST",
         f"{agent_base.rstrip('/')}/v1/signal-diagnose/lab-detail",
         headers,
         body,
-        timeout=180,
+        timeout=LAB_DETAIL_TIMEOUT,
+    )
+    if not isinstance(data, dict):
+        data = {}
+    return status, data, raw
+
+
+def lab_detail_symbol_gate(
+    agent_base: str,
+    runtime_key: str,
+    mcp_token: str,
+    session_id: str,
+    run_id: str,
+    detail_ref: str,
+) -> dict[str, Any]:
+    """Symbol batch: lab-detail with four-lane health gate (matches Signal pipeline)."""
+    last_err = "lab-detail failed"
+    for attempt in range(LAB_DETAIL_RETRIES + 1):
+        status, data, raw = _post_lab_detail(
+            agent_base, runtime_key, mcp_token, session_id, run_id, detail_ref
+        )
+        if status != 200:
+            last_err = f"lab-detail HTTP {status}: {raw[:240]}"
+        else:
+            detail = data.get("detail") if isinstance(data.get("detail"), dict) else {}
+            summary = build_lab_episode_summary_from_detail(detail, detail_ref)
+            failed, reason = lab_episode_summary_failed(summary)
+            if not failed and summary:
+                unified = summary.get("jev_unified")
+                if not isinstance(unified, dict):
+                    unified = detail.get("jev_unified") if isinstance(detail.get("jev_unified"), dict) else None
+                direction, conf = direction_from_jev_unified(unified)
+                if direction:
+                    return {
+                        "ok": True,
+                        "direction": direction,
+                        "confidence": conf,
+                        "lab_episode_summary": summary,
+                    }
+                last_err = "lab-detail missing jev direction"
+            else:
+                last_err = reason or "lab_episode_summary invalid"
+        if attempt < LAB_DETAIL_RETRIES:
+            print(f"  lab-detail retry {attempt + 1}/{LAB_DETAIL_RETRIES}: {last_err[:160]}", flush=True)
+            time.sleep(LAB_DETAIL_RETRY_WAIT)
+    return {"ok": False, "error": last_err}
+
+
+def lab_detail_jev(
+    agent_base: str,
+    runtime_key: str,
+    mcp_token: str,
+    session_id: str,
+    run_id: str,
+    detail_ref: str,
+) -> tuple[str, float | None]:
+    """Pool/overall synthesis: direction from jev_unified only (no four-lane gate)."""
+    status, data, _ = _post_lab_detail(
+        agent_base, runtime_key, mcp_token, session_id, run_id, detail_ref
     )
     if status != 200:
         return "", None
     detail = data.get("detail") if isinstance(data.get("detail"), dict) else {}
-    unified = detail.get("jev_unified") or data.get("jev_unified") or {}
-    if isinstance(unified, dict):
-        choice = str(
-            unified.get("choice")
-            or unified.get("direction")
-            or unified.get("recommended_choice")
-            or ""
-        ).strip().lower()
-        conf = unified.get("confidence")
-        try:
-            conf_f = float(conf) if conf is not None else None
-        except (TypeError, ValueError):
-            conf_f = None
-        direction = ""
-        if choice in ("long", "short", "neutral"):
-            direction = choice
-        elif choice in ("bull", "bear"):
-            direction = "long" if choice == "bull" else "short"
-        elif "多" in choice or "涨" in choice or "bull" in choice:
-            direction = "long"
-        elif "空" in choice or "跌" in choice or "bear" in choice:
-            direction = "short"
-        if direction:
-            return direction, conf_f
-    return "", None
+    unified = detail.get("jev_unified") or data.get("jev_unified")
+    return direction_from_jev_unified(unified if isinstance(unified, dict) else None)
 
 
 def synthesis_jev_message(title: str, rows: list[dict[str, Any]]) -> str:
@@ -1085,6 +1147,7 @@ def run_batch(
             detail_ref = str(outcome.get("detail_ref") or "")
             direction = str(outcome.get("direction") or "")
             conf = outcome.get("confidence")
+            lab_summary = outcome.get("lab_episode_summary")
             row = {
                 "symbol": sym,
                 "name": name,
@@ -1096,18 +1159,21 @@ def run_batch(
                 "agent_session_id": session_id or None,
                 "agent_run_id": run_id or None,
             }
+            if isinstance(lab_summary, dict) and lab_summary:
+                row["lab_episode_summary"] = lab_summary
             batch_pools[pi]["items"][ii] = row
-            ingest_items.append(
-                {
-                    "code": sym,
-                    "jev_direction": direction,
-                    "jev_reason": jev_reason,
-                    "detail_ref": detail_ref,
-                    "agent_session_id": session_id,
-                    "agent_run_id": run_id,
-                    "lab_supported": True,
-                }
-            )
+            ingest_item: dict[str, Any] = {
+                "code": sym,
+                "jev_direction": direction,
+                "jev_reason": jev_reason,
+                "detail_ref": detail_ref,
+                "agent_session_id": session_id,
+                "agent_run_id": run_id,
+                "lab_supported": True,
+            }
+            if isinstance(lab_summary, dict) and lab_summary:
+                ingest_item["lab_episode_summary"] = lab_summary
+            ingest_items.append(ingest_item)
             print(
                 f"  OK jev={direction} ref={detail_ref} run={run_id[:24] if run_id else ''}",
                 flush=True,
