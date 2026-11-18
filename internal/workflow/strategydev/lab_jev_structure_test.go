@@ -33,7 +33,7 @@ func TestLabDetailJEVPipelineFourChoiceCalls(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"})
+	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.14.0"})
 	ctx := context.Background()
 	detail := LabEpisodeDetail{
 		PriceAnalysis: &PriceAnalysis{
@@ -122,7 +122,7 @@ func TestBuildLabEpisodeDetailThreeJEVWhenNoKline(t *testing.T) {
 		LabFetcher: stubLabBarsOK{},
 		TAClient:         signalclient.NewHTTPClient(srv.URL, "k"),
 		IndexTrendClient: signalclient.NewHTTPClient(srv.URL, "k"),
-		Jev:              NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"}),
+		Jev:              NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.14.0"}),
 		JEVTimeout: 5 * time.Second,
 	}, LabDetailRef("buy", 0))
 	if err != nil {

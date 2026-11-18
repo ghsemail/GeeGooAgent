@@ -20,14 +20,14 @@ func TestJevClientDecisionChat(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"code": 0, "message": "ok",
 			"data": map[string]any{
-				"model":   "jev-1.13.0",
+				"model":   "jev-1.14.0",
 				"content": `{"buy_signal_id":"b1","sell_signal_id":"s1","reason":"ok"}`,
 			},
 		})
 	}))
 	defer srv.Close()
 
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "data-token", Model: "jev-1.13.0"})
+	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "data-token", Model: "jev-1.14.0"})
 	buy, sell, reason, err := jev.PickStrategies(context.Background(), RegimeUp, "long", "60m",
 		[]Candidate{{SignalID: "b1", Name: "B"}},
 		[]Candidate{{SignalID: "s1", Name: "S"}},
@@ -45,7 +45,7 @@ func TestJevClientDecisionChoiceAPIError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"})
+	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.14.0"})
 	_, _, _, _, err := jev.Choice(context.Background(), "state", "direction", "pick one", map[string]string{"看多": "up"})
 	if err == nil || !strings.Contains(err.Error(), "upstream failed") {
 		t.Fatalf("err=%v", err)

@@ -94,7 +94,7 @@ func TestResolveTechnicalAnalysisJEVMock(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"})
+	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.14.0"})
 	out := ResolveTechnicalAnalysisJEV(context.Background(), jev, sampleLabTA00700(), "sell", "60m", false)
 	if !out.OK {
 		t.Fatalf("expected ok, err=%q", out.Error)
@@ -197,7 +197,7 @@ func TestBuildLabEpisodeDetailIncludesTechnicalAnalysisJEV(t *testing.T) {
 
 	bars := []any{map[string]any{"time": float64(1_700_000_000), "close": 50.0}}
 	labHTTP := signalclient.NewHTTPClient(srv.URL, "k")
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"})
+	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.14.0"})
 	detail, err := BuildLabEpisodeDetail(context.Background(), LabDetailInput{
 		Code: "00700.HK", SignalFreq: "daily", Months: 1, Bars: bars,
 		LabFetcher: stubLabBarsOK{}, TAClient: labHTTP, Jev: jev,

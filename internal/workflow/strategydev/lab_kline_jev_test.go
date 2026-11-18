@@ -27,7 +27,7 @@ func TestBuildKlineJEVStateIncludesKlinePatterns(t *testing.T) {
 func TestResolveKlineJEVPatternOnly(t *testing.T) {
 	srv := jevTestServer(t, "看多")
 	defer srv.Close()
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "test-key", Model: "jev-1.13.0"})
+	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "test-key", Model: "jev-1.14.0"})
 	kline := &LabJEVKlineInput{
 		Summary: "锤子",
 		Bias:    &slots.KlinePatternBias{Bias: "看多"},
@@ -42,7 +42,7 @@ func TestResolveKlineJEVPatternOnly(t *testing.T) {
 func TestResolveKlineJEVConflictPicksSideNotUnclear(t *testing.T) {
 	srv := jevTestServer(t, "看空")
 	defer srv.Close()
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "test-key", Model: "jev-1.13.0"})
+	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "test-key", Model: "jev-1.14.0"})
 	kline := &LabJEVKlineInput{
 		Bias: &slots.KlinePatternBias{Bias: "看空"},
 		Hits: []slots.KlinePatternHit{{LabelCN: "射击之星", Direction: -1}},
@@ -56,7 +56,7 @@ func TestResolveKlineJEVConflictPicksSideNotUnclear(t *testing.T) {
 func TestApplyKlineJEVOnDetail(t *testing.T) {
 	srv := jevTestServer(t, "看多")
 	defer srv.Close()
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"})
+	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.14.0"})
 	detail := LabEpisodeDetail{
 		KlinePatternSummary: "锤子(看多)",
 		KlinePatternBias:    &slots.KlinePatternBias{Bias: "看多"},

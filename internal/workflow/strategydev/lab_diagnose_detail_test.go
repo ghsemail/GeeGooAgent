@@ -39,7 +39,7 @@ func TestLabDetailJEVContextSurvivesPhaseDeadline(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"code": 0, "message": "ok",
 				"data": map[string]any{
-					"model": "jev-1.13.0",
+					"model": "jev-1.14.0",
 					"answers": map[string]any{
 						"direction": map[string]any{
 							"type": "choice", "choice": "看多",
@@ -52,7 +52,7 @@ func TestLabDetailJEVContextSurvivesPhaseDeadline(t *testing.T) {
 		case "/v1/decision/chat":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"code": 0, "message": "ok",
-				"data": map[string]any{"model": "jev-1.13.0", "content": "60m 结构偏多。"},
+				"data": map[string]any{"model": "jev-1.14.0", "content": "60m 结构偏多。"},
 			})
 		default:
 			http.NotFound(w, r)
@@ -60,7 +60,7 @@ func TestLabDetailJEVContextSurvivesPhaseDeadline(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"})
+	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.14.0"})
 	pa := &PriceAnalysis{
 		Code: "00700.HK",
 		Rows: []PriceAnalysisRow{{Timeframe: "60m", Conclusion: "偏多", Structure: "HL", BosChoch: "-", Position: "中"}},
@@ -97,7 +97,7 @@ func TestBuildLabEpisodeDetailJEVAfterSlowPhase(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"code": 0, "message": "ok",
 				"data": map[string]any{
-					"model": "jev-1.13.0",
+					"model": "jev-1.14.0",
 					"answers": map[string]any{
 						"direction": map[string]any{
 							"type": "choice", "choice": "看空",
@@ -110,7 +110,7 @@ func TestBuildLabEpisodeDetailJEVAfterSlowPhase(t *testing.T) {
 		case "/v1/decision/chat":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"code": 0, "message": "ok",
-				"data": map[string]any{"model": "jev-1.13.0", "content": "更大周期偏空。"},
+				"data": map[string]any{"model": "jev-1.14.0", "content": "更大周期偏空。"},
 			})
 		default:
 			http.NotFound(w, r)
@@ -119,7 +119,7 @@ func TestBuildLabEpisodeDetailJEVAfterSlowPhase(t *testing.T) {
 	defer srv.Close()
 
 	bars := []any{map[string]any{"time": float64(1_700_000_000), "close": 50.0}}
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"})
+	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.14.0"})
 	detail, err := BuildLabEpisodeDetail(context.Background(), LabDetailInput{
 		Code: "00700.HK", SignalFreq: "60m", Months: 1, Bars: bars,
 		LabFetcher: blockingLabBarsFetcher{block: 120 * time.Millisecond},

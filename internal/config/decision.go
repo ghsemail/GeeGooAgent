@@ -10,7 +10,7 @@ type DecisionConfig struct {
 }
 
 const (
-	DefaultDecisionModel  = "jev-1.13.0"
+	DefaultDecisionModel  = "jev-1.14.0"
 	DefaultDecisionBaseURL  = "https://api.typesafe.ai/v1"
 	DefaultDecisionProvider = "typesafe"
 )

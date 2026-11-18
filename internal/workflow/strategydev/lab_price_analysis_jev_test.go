@@ -182,7 +182,7 @@ func mockDecisionChoiceResponse(w http.ResponseWriter, answers map[string]any) {
 		"code":    0,
 		"message": "ok",
 		"data": map[string]any{
-			"model":   "jev-1.13.0",
+			"model":   "jev-1.14.0",
 			"answers": answers,
 		},
 	})
@@ -193,7 +193,7 @@ func mockDecisionChatResponse(w http.ResponseWriter, content string) {
 		"code":    0,
 		"message": "ok",
 		"data": map[string]any{
-			"model":   "jev-1.13.0",
+			"model":   "jev-1.14.0",
 			"content": content,
 		},
 	})
@@ -240,7 +240,7 @@ func TestResolvePriceAnalysisJEVSuccess(t *testing.T) {
 	srv := jevTestServer(t, "看多")
 	defer srv.Close()
 
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "test-key", Model: "jev-1.13.0"})
+	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "test-key", Model: "jev-1.14.0"})
 	pa := &PriceAnalysis{
 		Code: "00700.HK",
 		Rows: []PriceAnalysisRow{{Timeframe: "60m", Conclusion: "偏多", Structure: "HL", BosChoch: "-", Position: "中"}},
@@ -281,7 +281,7 @@ func TestResolvePriceAnalysisJEVReasonSummaryFailureKeepsChoice(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"})
+	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.14.0"})
 	pa := &PriceAnalysis{Rows: []PriceAnalysisRow{{Timeframe: "日线", Conclusion: "偏空"}}}
 	out := ResolvePriceAnalysisJEV(context.Background(), jev, pa, "sell", false)
 	if !out.OK || out.RecommendedChoice != "看空" {
@@ -295,7 +295,7 @@ func TestResolvePriceAnalysisJEVReasonSummaryFailureKeepsChoice(t *testing.T) {
 func TestResolvePriceAnalysisJEVPAOnly(t *testing.T) {
 	srv := jevTestServer(t, "看空")
 	defer srv.Close()
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "test-key", Model: "jev-1.13.0"})
+	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "test-key", Model: "jev-1.14.0"})
 	pa := &PriceAnalysis{Rows: []PriceAnalysisRow{{Timeframe: "周线", Conclusion: "偏空"}}}
 	out := ResolvePriceAnalysisJEV(context.Background(), jev, pa, "buy", false)
 	if !out.OK || out.RecommendedChoice != "看空" {
@@ -304,7 +304,7 @@ func TestResolvePriceAnalysisJEVPAOnly(t *testing.T) {
 }
 
 func TestResolvePriceAnalysisJEVInsufficientState(t *testing.T) {
-	jev := NewJevClient(JevConfig{BaseURL: "http://unused", APIKey: "k", Model: "jev-1.13.0"})
+	jev := NewJevClient(JevConfig{BaseURL: "http://unused", APIKey: "k", Model: "jev-1.14.0"})
 	out := ResolvePriceAnalysisJEV(context.Background(), jev, nil, "buy", false)
 	if out.OK || !strings.Contains(out.Error, "empty") {
 		t.Fatalf("got %+v", out)
@@ -322,7 +322,7 @@ func TestResolvePriceAnalysisJEVFailureNoFallback(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "test-key", Model: "jev-1.13.0"})
+	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "test-key", Model: "jev-1.14.0"})
 	pa := &PriceAnalysis{Code: "X", Rows: []PriceAnalysisRow{{Timeframe: "日线", Conclusion: "偏多"}}}
 	out := ResolvePriceAnalysisJEV(context.Background(), jev, pa, "sell", false)
 	if out.OK {
@@ -362,7 +362,7 @@ func TestApplyPriceAnalysisJEVDualWrite(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.13.0"})
+	jev := NewJevClient(JevConfig{BaseURL: srv.URL, APIKey: "k", Model: "jev-1.14.0"})
 	detail := LabEpisodeDetail{PriceAnalysis: &PriceAnalysis{Code: "Y", Rows: []PriceAnalysisRow{{Timeframe: "5m", Conclusion: "震荡"}}}}
 	applyPriceAnalysisJEV(context.Background(), &detail, "buy", jev, false)
 	if detail.PriceAnalysisJEV == nil || detail.PriceAnalysis.PriceAnalysisJEV == nil {
