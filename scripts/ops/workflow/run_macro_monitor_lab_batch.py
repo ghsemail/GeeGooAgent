@@ -50,6 +50,7 @@ from macro_jev_results_client import (  # noqa: E402
     fetch_canonical_symbol_result_ids,
     put_overall_result,
 )
+from macro_lab_jev_health import lab_detail_four_lane_failed  # noqa: E402
 
 DEFAULT_MACRO = "http://146.56.225.252:3220"
 DEFAULT_AGENT = "http://127.0.0.1:3400"
@@ -724,9 +725,19 @@ def diagnose_symbol_once(
     detail_ref = pick_detail_ref(data)
     direction, conf = ("", None)
     if session_id and run_id and detail_ref:
-        direction, conf = lab_detail_jev(
+        direction, conf, _lab_detail, lab_lane_err = lab_detail_jev(
             agent_base, runtime_key, mcp_token, session_id, run_id, detail_ref
         )
+        if lab_lane_err:
+            return {
+                "ok": False,
+                "error": lab_lane_err,
+                "session_id": session_id,
+                "run_id": run_id,
+                "jev_reason": jev_reason,
+                "detail_ref": detail_ref,
+                "direction": direction,
+            }
     if not direction:
         direction = parse_direction_from_compose(jev_reason)
     if conf is None:
@@ -790,7 +801,7 @@ def lab_detail_jev(
     session_id: str,
     run_id: str,
     detail_ref: str,
-) -> tuple[str, float | None]:
+) -> tuple[str, float | None, dict[str, Any] | None, str]:
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {runtime_key}",
@@ -804,7 +815,7 @@ def lab_detail_jev(
         "rebuild": True,
         "kline_jev_profile": "daily_macro",
     }
-    status, data, _ = http_json(
+    status, data, raw = http_json(
         "POST",
         f"{agent_base.rstrip('/')}/v1/signal-diagnose/lab-detail",
         headers,
@@ -812,8 +823,18 @@ def lab_detail_jev(
         timeout=180,
     )
     if status != 200:
-        return "", None
+        msg = ""
+        if isinstance(data, dict):
+            msg = str(data.get("message") or data.get("error") or "").strip()
+        if not msg:
+            msg = str(raw or "")[:240]
+        return "", None, None, f"lab-detail HTTP {status}: {msg or 'request failed'}"
     detail = data.get("detail") if isinstance(data.get("detail"), dict) else {}
+    if not detail:
+        return "", None, None, "lab-detail empty detail"
+    failed, reason = lab_detail_four_lane_failed(detail)
+    if failed:
+        return "", None, detail, reason
     unified = detail.get("jev_unified") or data.get("jev_unified") or {}
     if isinstance(unified, dict):
         choice = str(
@@ -837,8 +858,8 @@ def lab_detail_jev(
         elif "空" in choice or "跌" in choice or "bear" in choice:
             direction = "short"
         if direction:
-            return direction, conf_f
-    return "", None
+            return direction, conf_f, detail, ""
+    return "", None, detail, "lab-detail missing jev_unified direction"
 
 
 def synthesis_jev_message(title: str, rows: list[dict[str, Any]]) -> str:
@@ -904,7 +925,9 @@ def synthesize_jev_with_retries(
             detail_ref = pick_detail_ref(res["data"] if isinstance(res.get("data"), dict) else {})
         direction = parse_direction_from_compose(jev_reason)
         if session_id and run_id and detail_ref:
-            d2, _ = lab_detail_jev(agent_base, runtime_key, mcp_token, session_id, run_id, detail_ref)
+            d2, _, _, _ = lab_detail_jev(
+                agent_base, runtime_key, mcp_token, session_id, run_id, detail_ref
+            )
             if d2:
                 direction = d2
         if len(jev_reason) < MIN_JEV_REASON_LEN or not direction:
