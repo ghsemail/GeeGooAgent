@@ -1,4 +1,4 @@
-# 宏观监控池日批（asia / us / crypto）
+# 宏观监控池日批（七池 + overall）
 
 ## 职责
 
@@ -6,80 +6,60 @@
 
 1. `POST /macro/decision/inline/ingest`
 2. `POST /macro/batch/runs`
-3. **canonical 真源**（与上并行，不改变旧集合）：`PUT /macro/jev/results/symbols` → `.../pools/{workflow}` → `.../overall`（见 GeeGooSignal `docs/MACRO_JEV_RESULTS_API.md` PR #23）
+3. **canonical 真源**：`PUT /macro/jev/results/symbols` → `.../pools/{workflow}` → `.../overall`（见 GeeGooSignal `docs/MACRO_JEV_RESULTS_API.md`）
 
-`source_batch_id` **必须**与当次 `POST /macro/batch/runs` 返回的 `run.id` 一致（首次心跳锁定）；`batch_started_at` 与同次 run 的 `started_at` 一致，以便 batch manifest 解析预期标的集。读取侧产品 **`GET` 须 `source=canonical`**。
+分时段 crontab 与日账本见 `docs/MACRO_JEV_LEDGER_AND_REPLAY.md`。集成测试：`bash scripts/ops/workflow/run_macro_jev_integration_tests.sh`。
 
-分时段 crontab 与 **日账本**（overall 仅读本编排窗口，不捞跨池 latest）：见 `docs/MACRO_JEV_LEDGER_AND_REPLAY.md`。集成测试：`bash scripts/ops/workflow/run_macro_jev_integration_tests.sh`。
+## 工作日时刻表（Asia/Shanghai，仅周一–周五）
 
-契约 batch 心跳详见 GeeGooSignal `docs/MACRO_LAB_BATCH.md`。
+| 时刻 | cron `--workflow` | 说明 |
+|------|-------------------|------|
+| 05:30 | `us` | 晨间块 |
+| 05:32 | `commodity_fx` | 晨间块（日期规则见下「推断」） |
+| 05:35 | `bond_us` | 美债分段；与 `bond_sh` 合并为 **单一** `bond` 池 |
+| 05:38 | `crypto` | 晨间块 |
+| 05:40 | `volatility` | 晨间块（日期规则见下「推断」） |
+| 15:30 | `cn_a` | 午后块 |
+| 16:00 | `bond_sh` | 上交所债分段 |
+| 16:30 | `hk` | 午后块 |
+| 17:00 | `overall` | 读本日账本七池后合成 |
 
-## 当前线上缺口（2026-11-08 核查）
+**旧生产时刻（仅供 diff）**：`cn_a` 07:00、`hk` 07:02、`volatility` 07:10、`bond_sh` 08:55、`overall` 09:10、crypto `America/New_York` 16:15（其余晨间时刻与上表前半相同）。
 
-日批 **能跑通**（summary 如 `asia ok=9/9; ingest upserted=9`），但 `pools[].items[]` **普遍缺少**：
+安装：`bash scripts/ops/workflow/install_macro_jev_crontab.sh`（**不**在本 PR 自动改生产 crontab）。
 
-| 字段 | 影响 |
-|------|------|
-| `agent_session_id` / `agent_run_id` | macro-api 无法自动 `lab-detail` enrich；运营台 prefetch 只能靠 Signal 诊断 log |
-| `jev_reason`（batch item 上） | 日批日志详情无 compose 长文 |
+## 分析日 / pipeline 日期（上海日历）
 
-**编排脚本未纳入本仓库 Git**（全库无 `ingest upserted` 源码）；请在实际触发方（本机 Automation / 外部 runner）按下列契约补齐字段。
+- **编排窗口（账本文件名、`--date auto` 的 orchestration 日）**：当日 **Asia/Shanghai 日历日** `D`。
+- **macro-api `date` 入库**：
+  - **产品明确确认**：`us`、`crypto` → **上一美股交易日**（相对 `D`，周末回退；**不含**美国联邦假日历）。
+  - **产品明确确认**：`cn_a`、`hk` → **同日历日 `D`**。
+  - **由晨/午分组推断（文档标注为推断，非口头逐名确认）**：`commodity_fx`、`volatility`、`bond_us` 与 `us`/`crypto` 同属晨间块 → 上一美股交易日；`bond_sh` 与 A 股同属午后块 → 日历日 `D`。
+  - **合并 `bond` 池级** canonical：编排日 `D`；标的来自 `bond_us` / `bond_sh` 两日 segment 合并。
 
-## 每个成功标的必须写入
+实现：`macro_jev_orchestration.resolve_run_dates` / `expected_pool_macro_date`。
 
-**inline ingest item** 与 **batch item** 保持一致：
+## 失败重试
 
-```json
-{
-  "code": "000001.SH",
-  "jev_direction": "short",
-  "jev_reason": "<compose 长文>",
-  "detail_ref": "buy:239",
-  "agent_session_id": "chat-…",
-  "agent_run_id": "flow-…"
-}
-```
+1. **单标的**：批内诊断失败时，进程内最多 3 次、间隔 `MACRO_BATCH_RETRY_DELAY_SEC`（默认 **600**，即 10 分钟）。见 `diagnose_symbol_with_retries`。
+2. **`overall` 17:00**：若账本中任七池尚无 `status=success`，**先**按 `POOL_RERUN_CRON_WORKFLOWS` 重跑对应 cron（`bond` 重跑 `bond_us`+`bond_sh` 并 finalize），再读本日账本做整体合成；**不**跳过缺池、**不**伪造 success。
 
-推荐在同一轮诊断结束后：
+## 夏令时（DST）说明
 
-1. `POST /v1/signal-diagnose/result` 取 `run_id` + `lab` 默认 `detail_ref`
-2. 可选 `POST /saveSignalDiagnoseLog`（运营台按标的 prefetch 兜底）
-3. 再 POST macro ingest + batch
+尚未单独编排 DST 专用 crontab。美东夏令时期间，美股/加密会话相对标准时的上海本地观感会 **早 1 小时**；本仓库 crontab 仍按 **Asia/Shanghai 固定钟点** 写入，**未**单独维护 DST 时刻表。
 
-## Agent 主机定时任务（正式脚本）
+## Agent 主机定时任务
 
-**分时段（推荐）**：在 Agent 主机执行  
-`bash scripts/ops/workflow/install_macro_jev_crontab.sh`  
-会写入七池 + overall + crypto（`CRON_TZ=America/New_York` 每日 16:15）任务，并移除旧的 `07:15 --workflow all`。
+单池：`--workflow cn_a|hk|us|commodity_fx|bond|crypto|volatility`。债券分段：`bond_sh` / `bond_us`。宏观合成：`--workflow overall`。
 
-单池：`--workflow cn_a|hk|us|commodity_fx|bond|crypto|volatility`。  
-债券分段：`bond_sh` / `bond_us`（合并后自动 `bond` 池级 JEV）。  
-宏观合成：`--workflow overall`（从当日 pipeline 读取七池 pool JEV）。  
-日期：`--date auto`（华东 pipeline 日；crypto 按 16:15 ET 触发时刻对齐）。
+日期：`--date auto`（编排日 = 上海当日）；macro 入库日由 workflow 自动映射（见上）。
 
-**过渡期一键**：`--workflow all` 仍可本地/临时使用。
+**过渡期**：`--workflow all` 仍可本地使用。
 
-重试：`MACRO_BATCH_RETRY_DELAY_SEC` 默认 **600**（10 分钟），标的与池级/宏观均最多 **3 次重试**。
+`agent.env` 需含 `MACRO_API_KEY`。
 
-`agent.env` 需含 `MACRO_API_KEY`（可与 Signal 的 `GEEGOO_SIGNAL_MACRO_API_KEY` 相同）。
-
-## crypto 与 Agent PG
-
-日批若报 `GEEGOO_PG_DSN is not connected`，在 Agent 主机执行：
-
-`python scripts/ops/fix/_fix_pg_session_remote.py`
-
-并确认 `agent-runtime` 健康 `:3400/health`。
-
-## 回补历史四维
-
-仅当 Signal 有该标的 `flow-*` 或 batch 已带 agent ids：
+## 本地集成
 
 ```bash
-python scripts/macro_backfill_lab_episode_summary.py --date YYYY-MM-DD
+bash scripts/ops/workflow/run_macro_jev_integration_tests.sh
 ```
-
-## 运营台展示
-
-- 合并 inline 使用 query **`date=`**（非 `decision_date`），见 `MacroServer.getQuotesSnapshot`
-- 行上需 `jev_batch_date` + 二次 dated GET 才会带出 `lab_episode_summary`
