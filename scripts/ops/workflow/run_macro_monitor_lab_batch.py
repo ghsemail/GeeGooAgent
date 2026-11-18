@@ -34,10 +34,14 @@ from agent_chat_stream import (  # noqa: E402
     stream_chat_turn,
 )
 from macro_jev_orchestration import (  # noqa: E402
+    POOL_RERUN_CRON_WORKFLOWS,
     load_pool_ledger,
+    macro_batch_date_for_cron,
     overall_inputs_from_ledger,
     pool_synth_rows_from_ledger,
+    pools_needing_rerun,
     record_pool_ledger,
+    resolve_run_dates,
     synthesis_pool_jev_valid,
 )
 from macro_jev_results_client import (  # noqa: E402
@@ -79,6 +83,7 @@ BOND_SYMBOL_SUFFIX: dict[str, str] = {"bond_sh": ".SH", "bond_us": ".US"}
 CHAT_TIMEOUT = int(os.environ.get("MACRO_BATCH_CHAT_TIMEOUT", "360"))
 MIN_JEV_REASON_LEN = 20
 MAX_DIAGNOSE_RETRIES = 3
+# 单标的/池级合成失败：进程内等待 RETRY_DELAY_SEC（默认 600s = 10min）后重试，最多 MAX_DIAGNOSE_RETRIES 次。
 RETRY_DELAY_SEC = int(os.environ.get("MACRO_BATCH_RETRY_DELAY_SEC", "600"))
 DIAGNOSING_ERROR = "诊断中"
 
@@ -131,22 +136,10 @@ def http_json(
         return e.code, parsed, raw
 
 
-def shanghai_today() -> str:
-    tz = timezone(timedelta(hours=8))
-    return datetime.now(tz).strftime("%Y-%m-%d")
-
-
 def resolve_batch_workflow(workflow: str) -> str:
     if workflow in BOND_SEGMENT_WORKFLOWS:
         return "bond"
     return workflow
-
-
-def batch_date_for_run(workflow: str, explicit: str | None = None) -> str:
-    if explicit and explicit.strip().lower() != "auto":
-        return explicit.strip()
-    # crypto 锚定美东 16:15 触发；入库日期与上海 pipeline 对齐（执行时刻华东日）。
-    return shanghai_today()
 
 
 def rfc3339_now() -> str:
@@ -529,16 +522,32 @@ def expected_bond_symbols(macro_base: str, macro_key: str) -> list[str]:
     return sorted(syms)
 
 
+def merged_bond_segments_for_orchestration(
+    macro_base: str,
+    macro_key: str,
+    orchestration_date: str,
+) -> list[dict[str, Any]]:
+    us_date = macro_batch_date_for_cron("bond_us", orchestration_date)
+    sh_date = macro_batch_date_for_cron("bond_sh", orchestration_date)
+    by_sym: dict[str, dict[str, Any]] = {}
+    for segment_date in (us_date, sh_date):
+        for row in merged_batch_symbol_rows(macro_base, macro_key, "bond", segment_date):
+            sym = str(row.get("symbol") or "").strip()
+            if sym:
+                by_sym[sym] = row
+    return list(by_sym.values())
+
+
 def try_finalize_bond_pool_jev(
     macro_base: str,
     macro_key: str,
     agent_base: str,
-    batch_date: str,
+    orchestration_date: str,
 ) -> int:
     expected = expected_bond_symbols(macro_base, macro_key)
     if not expected:
         return 0
-    merged = merged_batch_symbol_rows(macro_base, macro_key, "bond", batch_date)
+    merged = merged_bond_segments_for_orchestration(macro_base, macro_key, orchestration_date)
     have = {str(r.get("symbol") or "").strip() for r in merged}
     if set(expected) - have:
         missing = sorted(set(expected) - have)
@@ -571,6 +580,7 @@ def try_finalize_bond_pool_jev(
             "finished_at": finished,
         }
         print(f"  pool JEV FAIL: {pool_jev.get('error', '')[:240]}", flush=True)
+    batch_date = orchestration_date
     body = {
         "workflow": "bond",
         "date": batch_date,
@@ -599,21 +609,30 @@ def try_finalize_bond_pool_jev(
     )
     if bond_run_id:
         writer.bind_batch_run(bond_run_id)
-    canon_syms, sym_err = fetch_canonical_symbol_result_ids(
-        macro_base, macro_key, http_json, batch_date, "bond"
-    )
-    if sym_err:
-        print(f"[bond] canonical symbols: {sym_err}", flush=True)
+    us_date = macro_batch_date_for_cron("bond_us", orchestration_date)
+    sh_date = macro_batch_date_for_cron("bond_sh", orchestration_date)
+    canon_syms: dict[str, str] = {}
+    for seg_date, label in ((us_date, "bond_us"), (sh_date, "bond_sh"), (batch_date, "bond")):
+        part, sym_err = fetch_canonical_symbol_result_ids(
+            macro_base, macro_key, http_json, seg_date, "bond"
+        )
+        if sym_err:
+            print(f"[bond] canonical symbols ({label} @ {seg_date}): {sym_err}", flush=True)
+        canon_syms.update(part)
     missing = [s for s in expected if s.upper() not in canon_syms]
     for it in merged:
         sym = str(it.get("symbol") or "").strip().upper()
         if sym in missing and it.get("success"):
             writer.put_symbol_from_batch_item(it, completed_at=finished)
-    canon_syms, sym_err2 = fetch_canonical_symbol_result_ids(
-        macro_base, macro_key, http_json, batch_date, "bond"
-    )
-    if sym_err2:
-        print(f"[bond] canonical symbols reload: {sym_err2}", flush=True)
+    canon_syms_reload: dict[str, str] = {}
+    for seg_date in (us_date, sh_date, batch_date):
+        part, sym_err2 = fetch_canonical_symbol_result_ids(
+            macro_base, macro_key, http_json, seg_date, "bond"
+        )
+        if sym_err2:
+            print(f"[bond] canonical symbols reload @ {seg_date}: {sym_err2}", flush=True)
+        canon_syms_reload.update(part)
+    canon_syms = canon_syms_reload
     writer.put_pool_from_synthesis(
         pool_jev,
         symbol_items=merged,
@@ -628,7 +647,7 @@ def try_finalize_bond_pool_jev(
     if writer.pool_result_id and writer.batch_identity_ready():
         pool_st = "success" if pool_jev.get("success") else "failed"
         record_pool_ledger(
-            batch_date,
+            orchestration_date,
             "bond",
             result_id=writer.pool_result_id,
             source_batch_id=writer.source_batch_id,
@@ -926,7 +945,10 @@ def run_batch(
     agent_base: str,
     batch_date: str,
     dry_run: bool,
+    *,
+    orchestration_date: str | None = None,
 ) -> tuple[int, dict[str, Any] | None, dict[str, Any] | None]:
+    ledger_date = (orchestration_date or batch_date).strip()
     api_workflow = resolve_batch_workflow(workflow)
     runtime_key, mcp_token = load_geegoo_env()
     pool = fetch_monitor_pool(macro_base, macro_key)
@@ -1224,7 +1246,7 @@ def run_batch(
         if jev_writer.pool_result_id and jev_writer.batch_identity_ready():
             pool_st = "success" if pool_jev_out and pool_jev_out.get("success") else "failed"
             record_pool_ledger(
-                batch_date,
+                ledger_date,
                 pool_wf,
                 result_id=jev_writer.pool_result_id,
                 source_batch_id=jev_writer.source_batch_id,
@@ -1248,7 +1270,7 @@ def run_batch(
         and ok_count == total
         and workflow in BOND_SEGMENT_WORKFLOWS
     ):
-        rc = max(rc, try_finalize_bond_pool_jev(macro_base, macro_key, agent_base, batch_date))
+        rc = max(rc, try_finalize_bond_pool_jev(macro_base, macro_key, agent_base, ledger_date))
     pool_meta = None
     if jev_writer and jev_writer.pool_result_id:
         pool_meta = {
@@ -1412,6 +1434,54 @@ def run_pool_jev_only(
     return rc
 
 
+def refresh_ledger_before_overall(
+    macro_base: str,
+    macro_key: str,
+    agent_base: str,
+    orchestration_date: str,
+    dry_run: bool,
+) -> dict[str, dict[str, str]]:
+    """At 17:00 overall: rerun cron workflows for pools not yet successful in the ledger."""
+    ledger = load_pool_ledger(orchestration_date)
+    missing = pools_needing_rerun(ledger)
+    if not missing:
+        return ledger
+    printed = False
+    seen: set[str] = set()
+    for pool in missing:
+        crons = POOL_RERUN_CRON_WORKFLOWS.get(pool, (pool,))
+        for cron in crons:
+            if cron in seen:
+                continue
+            seen.add(cron)
+            macro_d = macro_batch_date_for_cron(cron, orchestration_date)
+            if not printed:
+                print(
+                    f"[overall] ledger incomplete orch={orchestration_date}; "
+                    f"rerun pools before aggregation …",
+                    flush=True,
+                )
+                printed = True
+            print(
+                f"[overall] rerun cron={cron} macro_date={macro_d} (pool={pool}) …",
+                flush=True,
+            )
+            run_batch(
+                cron,
+                macro_base,
+                macro_key,
+                agent_base,
+                macro_d,
+                dry_run,
+                orchestration_date=orchestration_date,
+            )
+        if pool == "bond":
+            try_finalize_bond_pool_jev(
+                macro_base, macro_key, agent_base, orchestration_date
+            )
+    return load_pool_ledger(orchestration_date)
+
+
 def run_overall_batch(
     macro_base: str,
     macro_key: str,
@@ -1421,10 +1491,17 @@ def run_overall_batch(
     dry_run: bool,
     *,
     pool_ledger: dict[str, dict[str, str]] | None = None,
+    skip_pool_rerun: bool = False,
 ) -> int:
     if dry_run:
         return 0
-    ledger = pool_ledger if pool_ledger is not None else load_pool_ledger(batch_date)
+    ledger = pool_ledger
+    if ledger is None and not skip_pool_rerun:
+        ledger = refresh_ledger_before_overall(
+            macro_base, macro_key, agent_base, batch_date, dry_run
+        )
+    if ledger is None:
+        ledger = load_pool_ledger(batch_date)
     pool_refs, ref_err = overall_inputs_from_ledger(
         macro_base, macro_key, http_json, batch_date, ledger
     )
@@ -1554,7 +1631,7 @@ def main() -> int:
     p.add_argument(
         "--date",
         default="auto",
-        help="YYYY-MM-DD Shanghai pipeline date, or auto (default)",
+        help="YYYY-MM-DD Shanghai orchestration window, or auto (default)",
     )
     p.add_argument("--macro-base", default=os.environ.get("MACRO_API_BASE", DEFAULT_MACRO))
     p.add_argument(
@@ -1582,27 +1659,35 @@ def main() -> int:
         return 2
 
     macro_key = args.macro_key.strip()
-    batch_date = batch_date_for_run(args.workflow, args.date)
+    orchestration_date, macro_batch_date = resolve_run_dates(args.workflow, args.date)
     pool_inputs: list[dict[str, Any]] = []
-    ledger = load_pool_ledger(batch_date)
+    ledger = load_pool_ledger(orchestration_date)
     rc = 0
     if args.workflow == "all":
         for wf in JEV_PIPELINE_WORKFLOWS:
+            macro_d = macro_batch_date_for_cron(wf, orchestration_date)
             code, pool_in, _pool_meta = run_batch(
-                wf, args.macro_base, macro_key, args.agent_base, batch_date, args.dry_run
+                wf,
+                args.macro_base,
+                macro_key,
+                args.agent_base,
+                macro_d,
+                args.dry_run,
+                orchestration_date=orchestration_date,
             )
             rc = max(rc, code)
             if pool_in:
                 pool_inputs.append(pool_in)
-        ledger = load_pool_ledger(batch_date)
+        ledger = load_pool_ledger(orchestration_date)
         code = run_overall_batch(
             args.macro_base,
             macro_key,
             args.agent_base,
-            batch_date,
+            orchestration_date,
             pool_inputs,
             args.dry_run,
             pool_ledger=ledger,
+            skip_pool_rerun=True,
         )
         rc = max(rc, code)
         return rc
@@ -1611,10 +1696,10 @@ def main() -> int:
             args.macro_base,
             macro_key,
             args.agent_base,
-            batch_date,
+            orchestration_date,
             pool_inputs,
             args.dry_run,
-            pool_ledger=ledger,
+            pool_ledger=None,
         )
     if args.pool_jev_only:
         if args.workflow in ("all", "overall") or args.workflow in BOND_SEGMENT_WORKFLOWS:
@@ -1625,11 +1710,17 @@ def main() -> int:
             args.macro_base,
             macro_key,
             args.agent_base,
-            batch_date,
+            macro_batch_date,
             recover_session_id=args.recover_session_id,
         )
     code, _, _ = run_batch(
-        args.workflow, args.macro_base, macro_key, args.agent_base, batch_date, args.dry_run
+        args.workflow,
+        args.macro_base,
+        macro_key,
+        args.agent_base,
+        macro_batch_date,
+        args.dry_run,
+        orchestration_date=orchestration_date,
     )
     return code
 

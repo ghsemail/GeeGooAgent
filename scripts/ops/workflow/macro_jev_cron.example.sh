@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 七池 JEV 编排示例 cron（Asia/Shanghai 主机时区）。
-# 复制到 Agent 主机后按需启用；正式线可先保留工作日 07:15 的 --workflow all，再逐步拆池。
+# 七池 JEV 编排示例 cron（Asia/Shanghai 主机时区，工作日 1-5）。
+# 复制到 Agent 主机后按需启用；勿将本示例直接写入生产 crontab，请用 install_macro_jev_crontab.sh。
 
 set -euo pipefail
 AGENT_ROOT="${AGENT_ROOT:-/home/ubuntu/.geegoo/geegoo-agent}"
@@ -15,14 +15,21 @@ run_one() {
   /usr/bin/python3 "$RUN" --workflow "$wf" >>"/tmp/macro_jev_${wf}.log" 2>&1
 }
 
-# --- 示例时刻（产品确认后写入 crontab）---
-# 07:00  cn_a + hk   run_one cn_a; run_one hk
-# 05:30  us + commodity_fx  （美东收盘后，上海清晨）
-# 08:55  bond（池内 .SH 段；.US 段另排 05:35 示例）
-# 05:35  bond US 段 — 需脚本扩展分标的 cron 后启用
-# 16:15  ET 锚点 crypto +24h — 用纽约 TZ cron 或单次 timer
-# 07:10  volatility
-# 七池池级均成功后：run_one overall
+# --- 确认工作日时刻表（Asia/Shanghai）---
+# 05:30  us
+# 05:32  commodity_fx
+# 05:35  bond_us（美债分段；仍汇入单一 bond 池）
+# 05:38  crypto
+# 05:40  volatility
+# 15:30  cn_a
+# 16:00  bond_sh（上交所债分段）
+# 16:30  hk
+# 17:00  overall（账本七池齐全后再合成；缺池则先按 cron 重跑该池）
 
-# 过渡期：与现网一致的一键全跑（含七池 + overall）
+# --- 旧生产时刻（对照用，勿再启用）---
+# us 05:30, commodity_fx 05:32, bond_us 05:35
+# cn_a 07:00, hk 07:02, volatility 07:10, bond_sh 08:55, overall 09:10
+# crypto 16:15 America/New_York
+
+# 过渡期：本地一键全跑仍可用 --workflow all（非分时段生产路径）
 # 15 7 * * 1-5 ... python3 run_macro_monitor_lab_batch.py --workflow all

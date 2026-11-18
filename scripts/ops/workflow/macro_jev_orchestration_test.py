@@ -7,12 +7,14 @@ import unittest
 from pathlib import Path
 
 from macro_jev_orchestration import (
+    expected_pool_macro_date,
     ledger_path,
     load_pool_ledger,
     overall_inputs_from_ledger,
     record_pool_ledger,
     synthesis_pool_jev_valid,
 )
+from macro_jev_results_client import JEV_PIPELINE_WORKFLOWS
 
 
 class TestOrchestrationLedger(unittest.TestCase):
@@ -69,6 +71,35 @@ class TestOrchestrationLedger(unittest.TestCase):
         )
         self.assertFalse(ok)
         self.assertIn("session", err)
+
+    def test_overall_accepts_per_pool_macro_dates(self) -> None:
+        orch = "2026-11-18"
+        ledger = {}
+        for wf in JEV_PIPELINE_WORKFLOWS:
+            ledger[wf] = {
+                "result_id": f"pool:{wf}",
+                "source_batch_id": "r",
+                "batch_started_at": f"{orch}T17:00:00+08:00",
+                "status": "success",
+            }
+
+        def http_json(_m, url, *_a, **_k):
+            wf = url.rsplit("/", 1)[-1].replace("pool:", "")
+            macro_d = expected_pool_macro_date(wf, orch)
+            return 200, {
+                "data": {
+                    "result": {
+                        "date": macro_d,
+                        "pool_workflow": wf,
+                        "status": "success",
+                    }
+                }
+            }, ""
+
+        refs, err = overall_inputs_from_ledger("http://x", "k", http_json, orch, ledger)
+        self.assertIsNotNone(refs)
+        self.assertEqual(err, "")
+        self.assertEqual(len(refs), len(JEV_PIPELINE_WORKFLOWS))
 
     def test_ledger_file_is_per_pipeline_date(self) -> None:
         p = ledger_path("2026-11-19")
