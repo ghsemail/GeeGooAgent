@@ -7,11 +7,11 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
-// Benchmark-backed compose default order (server 2026-10): flash → M3 disabled → M2.7.
+// Benchmark-backed compose default order: DeepSeek flash → MiniMax M3.1 → M3 (M2.x retired 2026-11).
 var signalDiagnoseComposeCatalogPrefs = []string{
 	"deepseek-v4-flash",
+	"MiniMax-M3.1-Flash",
 	"MiniMax-M3",
-	"MiniMax-M2.7",
 }
 
 func catalogModelNames(m admin.ConfiguredModel) (name, display string) {
