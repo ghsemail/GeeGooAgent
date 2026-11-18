@@ -13,6 +13,10 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 )
 
+// DefaultJevHTTPRequestTimeout caps one GeeGooData Decision API round-trip (Choice or chat).
+// Lab-detail runs several serial lane passes on a shared JEV phase ctx; each pass uses this per HTTP call.
+const DefaultJevHTTPRequestTimeout = 90 * time.Second
+
 // JevConfig holds GeeGooData Decision API credentials (data-api Bearer, never logged).
 type JevConfig struct {
 	BaseURL string
@@ -48,7 +52,7 @@ func NewJevClient(cfg JevConfig) *JevClient {
 	}
 	return &JevClient{
 		cfg: JevConfig{BaseURL: base, APIKey: strings.TrimSpace(cfg.APIKey), Model: model},
-		client: &http.Client{Timeout: 45 * time.Second},
+		client: &http.Client{Timeout: DefaultJevHTTPRequestTimeout},
 	}
 }
 

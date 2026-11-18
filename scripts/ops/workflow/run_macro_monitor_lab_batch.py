@@ -9,7 +9,7 @@ Chat 与 runtime 之间使用 agent_chat_stream：SSE 分块读、IncompleteRead
 仅补写 pool_jev，不重跑标的。环境变量见 ``agent_chat_stream`` 模块说明。
 
 标的成功门禁与 Signal ``lab_jev_health`` 对齐：``lab-detail`` 四维 lane 健康后才 ``success``/ingest/PUT。
-可选：``MACRO_BATCH_LAB_DETAIL_TIMEOUT``（默认 240）、``MACRO_BATCH_LAB_DETAIL_RETRIES``（默认 2）、``MACRO_BATCH_LAB_DETAIL_RETRY_WAIT``（默认 20）。
+可选：``MACRO_BATCH_LAB_DETAIL_TIMEOUT``（默认 360，须 ≥ Agent MTF+PA+TA+四维 JEV）、``MACRO_BATCH_LAB_DETAIL_RETRIES``（默认 2）、``MACRO_BATCH_LAB_DETAIL_RETRY_WAIT``（默认 20）。
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ BOND_SEGMENT_WORKFLOWS = frozenset({"bond_sh", "bond_us"})
 BOND_SYMBOL_SUFFIX: dict[str, str] = {"bond_sh": ".SH", "bond_us": ".US"}
 
 CHAT_TIMEOUT = int(os.environ.get("MACRO_BATCH_CHAT_TIMEOUT", "360"))
-LAB_DETAIL_TIMEOUT = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_TIMEOUT", "240"))
+LAB_DETAIL_TIMEOUT = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_TIMEOUT", "360"))
 LAB_DETAIL_RETRIES = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_RETRIES", "2"))
 LAB_DETAIL_RETRY_WAIT = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_RETRY_WAIT", "20"))
 MIN_JEV_REASON_LEN = 20

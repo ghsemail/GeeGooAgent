@@ -17,8 +17,10 @@ const (
 	DefaultLabDetailPhaseTimeout = 30 * time.Second
 	// DefaultLabDetailPATimeout is a separate budget for lab-api multi-TF price analysis (after MTF probe).
 	DefaultLabDetailPATimeout = 45 * time.Second
-	// DefaultLabDetailJEVTimeout is the dedicated JEV 决策 budget after PA / TA (matches JevClient HTTP timeout).
-	DefaultLabDetailJEVTimeout = 45 * time.Second
+	// DefaultLabDetailJEVTimeout is the shared budget for PA/kline/TA/index JEV lanes plus unified JEV
+	// (each lane: Decision Choice + synthesis reason, serial on one ctx). Callers should allow HTTP time
+	// for MTF+PA+TA plus this value (see macro batch LAB_DETAIL timeout).
+	DefaultLabDetailJEVTimeout = 4 * time.Minute
 )
 
 // LabDetailInput configures lazy lab drill-down for one trigger/episode anchor.
