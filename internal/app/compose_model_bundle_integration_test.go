@@ -14,17 +14,17 @@ func TestResolveComposeBundleCatalogPref(t *testing.T) {
 	// Simulate catalog pick path without HTTP: inject via pick function test already covers flash.
 	models := []admin.ConfiguredModel{
 		{Name: "deepseek-v4-pro", Token: "x", Type: "remote"},
-		{Name: "deepseek-v4-flash", Token: "y", Type: "remote"},
+		{Name: "deepseek-flash", Token: "y", Type: "remote"},
 	}
 	doc, _ := pickCatalogComposeModelWithDetail(models, signalDiagnoseComposeCatalogPrefs)
-	if doc.Name != "deepseek-v4-flash" {
+	if doc.Name != "deepseek-flash" {
 		t.Fatalf("pick %q", doc.Name)
 	}
 	p, err := a.composeProviderFromCatalogDoc(doc)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Model() != "deepseek-v4-flash" {
+	if p.Model() != "deepseek-flash" {
 		t.Fatalf("model %q", p.Model())
 	}
 	_ = llm.ClassifyProviderFromGateway

@@ -9,7 +9,7 @@ import (
 
 // Benchmark-backed compose default order: DeepSeek flash → MiniMax M3.1 → M3 (M2.x retired 2026-11).
 var signalDiagnoseComposeCatalogPrefs = []string{
-	"deepseek-v4-flash",
+	"deepseek-flash",
 	"MiniMax-M3.1-Flash",
 	"MiniMax-M3",
 }

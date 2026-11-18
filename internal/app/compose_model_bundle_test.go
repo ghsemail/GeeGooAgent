@@ -9,17 +9,17 @@ import (
 func TestPickCatalogComposeModelFlashNotPro(t *testing.T) {
 	models := []admin.ConfiguredModel{
 		{Name: "deepseek-v4-pro", Token: "sk-pro", Type: "remote"},
-		{Name: "deepseek-v4-flash", Token: "sk-flash", Type: "remote"},
+		{Name: "deepseek-flash", Token: "sk-flash", Type: "remote"},
 		{Name: "MiniMax-M3", Token: "sk-m3", Type: "remote"},
 	}
 	doc, detail := pickCatalogComposeModelWithDetail(models, signalDiagnoseComposeCatalogPrefs)
-	if doc.Name != "deepseek-v4-flash" {
+	if doc.Name != "deepseek-flash" {
 		t.Fatalf("picked %q detail=%q", doc.Name, detail)
 	}
 }
 
 func TestComposeCatalogExcludedByTypeEmbeddingNotRemote(t *testing.T) {
-	m := admin.ConfiguredModel{Name: "deepseek-v4-flash", Token: "sk", Type: "remote"}
+	m := admin.ConfiguredModel{Name: "deepseek-flash", Token: "sk", Type: "remote"}
 	if isComposeCatalogExcluded(m) {
 		t.Fatal("remote chat row should not be excluded")
 	}
