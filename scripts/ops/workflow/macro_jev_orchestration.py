@@ -26,19 +26,6 @@ MACRO_JEV_WEEKDAY_CRON_SHANGHAI: dict[str, str] = {
     "overall": "0 17",
 }
 
-# Legacy production times (docs / diff only).
-MACRO_JEV_LEGACY_WEEKDAY_CRON_SHANGHAI: dict[str, str] = {
-    "us": "30 5",
-    "commodity_fx": "32 5",
-    "bond_us": "35 5",
-    "cn_a": "0 7",
-    "hk": "2 7",
-    "volatility": "10 7",
-    "bond_sh": "55 8",
-    "overall": "10 9",
-    "crypto": "16:15 America/New_York",
-}
-
 # Explicit product confirmation.
 MORNING_MACRO_POOLS_EXPLICIT = frozenset({"us", "crypto"})
 AFTERNOON_MACRO_POOLS_EXPLICIT = frozenset({"cn_a", "hk"})

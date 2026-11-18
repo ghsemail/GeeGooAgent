@@ -5,7 +5,6 @@ import unittest
 from unittest.mock import patch
 
 from macro_jev_orchestration import (
-    MACRO_JEV_LEGACY_WEEKDAY_CRON_SHANGHAI,
     MACRO_JEV_WEEKDAY_CRON_SHANGHAI,
     expected_pool_macro_date,
     macro_batch_date_for_cron,
@@ -25,14 +24,6 @@ class TestMacroSchedule(unittest.TestCase):
         self.assertEqual(MACRO_JEV_WEEKDAY_CRON_SHANGHAI["cn_a"], "30 15")
         self.assertEqual(MACRO_JEV_WEEKDAY_CRON_SHANGHAI["overall"], "0 17")
         self.assertNotIn("America/New_York", str(MACRO_JEV_WEEKDAY_CRON_SHANGHAI.values()))
-
-    def test_legacy_cron_docs_differ_from_current(self) -> None:
-        self.assertEqual(MACRO_JEV_LEGACY_WEEKDAY_CRON_SHANGHAI["cn_a"], "0 7")
-        self.assertEqual(MACRO_JEV_LEGACY_WEEKDAY_CRON_SHANGHAI["overall"], "10 9")
-        self.assertNotEqual(
-            MACRO_JEV_LEGACY_WEEKDAY_CRON_SHANGHAI["overall"],
-            MACRO_JEV_WEEKDAY_CRON_SHANGHAI["overall"],
-        )
 
     def test_previous_us_trading_day_tuesday(self) -> None:
         self.assertEqual(previous_us_trading_day(_D), "2026-11-17")

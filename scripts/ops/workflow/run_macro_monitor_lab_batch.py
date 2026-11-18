@@ -23,7 +23,6 @@ import time
 import traceback
 import urllib.error
 import urllib.request
-from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -84,7 +83,6 @@ WORKFLOW_MONITOR_POOL: dict[str, str] = {
 }
 
 JEV_PIPELINE_WORKFLOWS = list(WORKFLOW_MONITOR_POOL.keys())
-LEGACY_WORKFLOWS = ("asia", "us", "crypto")
 # Bond split crons (batch/workflow id remains bond).
 BOND_SEGMENT_WORKFLOWS = frozenset({"bond_sh", "bond_us"})
 BOND_SYMBOL_SUFFIX: dict[str, str] = {"bond_sh": ".SH", "bond_us": ".US"}
@@ -176,8 +174,6 @@ def group_symbols_for_workflow(pool: list[dict[str, Any]], workflow: str) -> dic
     pool_name = WORKFLOW_MONITOR_POOL.get(workflow) or (
         WORKFLOW_MONITOR_POOL["bond"] if workflow in BOND_SEGMENT_WORKFLOWS else ""
     )
-    if workflow in LEGACY_WORKFLOWS:
-        return _group_symbols_legacy(pool, workflow)
     if not pool_name:
         return {}
     suffix = BOND_SYMBOL_SUFFIX.get(workflow, "")
@@ -194,36 +190,6 @@ def group_symbols_for_workflow(pool: list[dict[str, Any]], workflow: str) -> dic
     if not items:
         return {}
     return {pool_name: items}
-
-
-def _group_symbols_legacy(pool: list[dict[str, Any]], workflow: str) -> dict[str, list[dict[str, Any]]]:
-    legacy_pools: dict[str, set[str]] = {
-        "asia": {"A股池", "债券利率池", "港股池", "波动率池"},
-        "us": {"美股池", "商品货币池", "债券利率池", "波动率池"},
-        "crypto": {"虚拟货币池"},
-    }
-    allowed = legacy_pools.get(workflow, set())
-    sym_filter = lambda pn, sym: True  # noqa: E731
-    pools: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for it in pool:
-        name = (it.get("monitor_reason") or "").strip()
-        if name not in allowed:
-            continue
-        sym = (it.get("symbol") or "").strip().upper()
-        if not sym:
-            continue
-        if name == "债券利率池":
-            if workflow == "asia" and not sym.endswith(".SH"):
-                continue
-            if workflow == "us" and not sym.endswith(".US"):
-                continue
-        if name == "波动率池":
-            if workflow == "asia" and "HSIL" not in sym:
-                continue
-            if workflow == "us" and not sym.startswith("VIX"):
-                continue
-        pools[name].append(it)
-    return dict(pools)
 
 
 def diagnose_message(name: str, symbol: str) -> str:
@@ -1690,7 +1656,7 @@ def run_overall_batch(
 def main() -> int:
     wf_choices = (
         list(JEV_PIPELINE_WORKFLOWS)
-        + ["overall", "all", *BOND_SEGMENT_WORKFLOWS, *LEGACY_WORKFLOWS]
+        + ["overall", "all", *BOND_SEGMENT_WORKFLOWS]
     )
     p = argparse.ArgumentParser(description="Run macro monitor pool Lab batch workflow")
     p.add_argument("--workflow", choices=wf_choices, required=True)

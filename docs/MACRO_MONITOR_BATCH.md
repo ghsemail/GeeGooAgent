@@ -24,8 +24,6 @@
 | 16:30 | `hk` | 午后块 |
 | 17:00 | `overall` | 读本日账本七池后合成 |
 
-**旧生产时刻（仅供 diff）**：`cn_a` 07:00、`hk` 07:02、`volatility` 07:10、`bond_sh` 08:55、`overall` 09:10、crypto `America/New_York` 16:15（其余晨间时刻与上表前半相同）。
-
 安装：`bash scripts/ops/workflow/install_macro_jev_crontab.sh`（**不**在本 PR 自动改生产 crontab）。
 
 ## 分析日 / pipeline 日期（上海日历）
