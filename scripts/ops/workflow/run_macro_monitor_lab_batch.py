@@ -9,7 +9,7 @@ Chat 与 runtime 之间使用 agent_chat_stream：SSE 分块读、IncompleteRead
 仅补写 pool_jev，不重跑标的。环境变量见 ``agent_chat_stream`` 模块说明。
 
 标的成功门禁与 Signal ``lab_jev_health`` 对齐：``lab-detail`` 四维 lane 健康后才 ``success``/ingest/PUT。
-可选：``MACRO_BATCH_LAB_DETAIL_TIMEOUT``（默认 360，须 ≥ Agent MTF+PA+TA+四维 JEV）、``MACRO_BATCH_LAB_DETAIL_RETRIES``（默认 2）、``MACRO_BATCH_LAB_DETAIL_RETRY_WAIT``（默认 20）。
+可选：``MACRO_BATCH_LAB_DETAIL_TIMEOUT``（默认 480，须 ≥ Agent MTF+PA+TA+四维 JEV）、``MACRO_BATCH_LAB_DETAIL_RETRIES``（默认 2）、``MACRO_BATCH_LAB_DETAIL_RETRY_WAIT``（默认 20）。
 """
 
 from __future__ import annotations
@@ -88,7 +88,7 @@ BOND_SEGMENT_WORKFLOWS = frozenset({"bond_sh", "bond_us"})
 BOND_SYMBOL_SUFFIX: dict[str, str] = {"bond_sh": ".SH", "bond_us": ".US"}
 
 CHAT_TIMEOUT = int(os.environ.get("MACRO_BATCH_CHAT_TIMEOUT", "360"))
-LAB_DETAIL_TIMEOUT = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_TIMEOUT", "360"))
+LAB_DETAIL_TIMEOUT = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_TIMEOUT", "480"))
 LAB_DETAIL_RETRIES = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_RETRIES", "2"))
 LAB_DETAIL_RETRY_WAIT = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_RETRY_WAIT", "20"))
 MIN_JEV_REASON_LEN = 20
@@ -144,6 +144,12 @@ def http_json(
         except json.JSONDecodeError:
             parsed = {"raw": raw}
         return e.code, parsed, raw
+    except TimeoutError:
+        return 504, {"error": "timeout"}, "timeout"
+    except urllib.error.URLError as e:
+        reason = getattr(e, "reason", e)
+        msg = str(reason)
+        return 0, {"error": msg}, msg
 
 
 def resolve_batch_workflow(workflow: str) -> str:
@@ -966,6 +972,24 @@ def parse_direction_from_compose(text: str) -> str:
     return "neutral"
 
 
+def _filter_grouped_symbols(
+    grouped: dict[str, list[dict[str, Any]]], symbols: list[str]
+) -> dict[str, list[dict[str, Any]]]:
+    want = {s.strip() for s in symbols if s.strip()}
+    if not want:
+        return grouped
+    out: dict[str, list[dict[str, Any]]] = {}
+    for pool_name, items in grouped.items():
+        kept = [
+            it
+            for it in items
+            if str(it.get("symbol") or "").strip() in want
+        ]
+        if kept:
+            out[pool_name] = kept
+    return out
+
+
 def run_batch(
     workflow: str,
     macro_base: str,
@@ -975,12 +999,15 @@ def run_batch(
     dry_run: bool,
     *,
     orchestration_date: str | None = None,
+    symbol_filter: list[str] | None = None,
 ) -> tuple[int, dict[str, Any] | None, dict[str, Any] | None]:
     ledger_date = (orchestration_date or batch_date).strip()
     api_workflow = resolve_batch_workflow(workflow)
     runtime_key, mcp_token = load_geegoo_env()
     pool = fetch_monitor_pool(macro_base, macro_key)
     grouped = group_symbols_for_workflow(pool, workflow)
+    if symbol_filter:
+        grouped = _filter_grouped_symbols(grouped, symbol_filter)
     if not grouped:
         print(f"no symbols for workflow={workflow}", file=sys.stderr)
         return 2, None, None
@@ -1685,10 +1712,21 @@ def main() -> int:
         default="",
         help="With --pool-jev-only: load pool JEV from an existing agent chat session",
     )
+    p.add_argument(
+        "--symbols",
+        default="",
+        help="Comma-separated monitor symbols only (e.g. 000001.SH for 上证)",
+    )
     args = p.parse_args()
     if not args.macro_key.strip():
         print("MACRO_API_KEY required", file=sys.stderr)
         return 2
+
+    symbol_filter: list[str] | None = None
+    if str(args.symbols or "").strip():
+        symbol_filter = [
+            s.strip() for s in str(args.symbols).split(",") if s.strip()
+        ]
 
     macro_key = args.macro_key.strip()
     orchestration_date, macro_batch_date = resolve_run_dates(args.workflow, args.date)
@@ -1753,6 +1791,7 @@ def main() -> int:
         macro_batch_date,
         args.dry_run,
         orchestration_date=orchestration_date,
+        symbol_filter=symbol_filter,
     )
     return code
 
