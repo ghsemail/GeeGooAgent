@@ -6,6 +6,7 @@ import unittest
 from macro_lab_batch_health import (
     build_lab_episode_summary_from_detail,
     item_refs_complete,
+    lab_detail_four_lane_failed,
     lab_episode_summary_failed,
 )
 
@@ -35,6 +36,19 @@ class TestMacroLabBatchHealth(unittest.TestCase):
         failed, reason = lab_episode_summary_failed(summary)
         self.assertTrue(failed)
         self.assertIn("kline_jev", reason)
+
+    def test_trading_day_degraded(self) -> None:
+        detail = {
+            "jev_unified": {"ok": False, "error": "macro_trading_day_check_failed"},
+            "technical_analysis_jev": {"ok": True},
+            "index_trend_jev": {"ok": True},
+            "price_analysis_jev": {"ok": True},
+            "kline_jev": {"ok": True},
+            "degraded": ["macro_trading_day_check_failed"],
+        }
+        failed, reason = lab_detail_four_lane_failed(detail)
+        self.assertTrue(failed)
+        self.assertIn("jev_unified", reason)
 
     def test_item_refs_complete(self) -> None:
         ok, _ = item_refs_complete("x" * 20, "buy:9", "s", "r", "long", min_reason_len=20)

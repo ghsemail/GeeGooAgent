@@ -56,6 +56,7 @@ from macro_lab_batch_health import (  # noqa: E402
     build_lab_episode_summary_from_detail,
     direction_from_jev_unified,
     item_refs_complete,
+    lab_detail_four_lane_failed,
     lab_episode_summary_failed,
 )
 
@@ -833,8 +834,14 @@ def lab_detail_symbol_gate(
             last_err = f"lab-detail HTTP {status}: {raw[:240]}"
         else:
             detail = data.get("detail") if isinstance(data.get("detail"), dict) else {}
-            summary = build_lab_episode_summary_from_detail(detail, detail_ref)
-            failed, reason = lab_episode_summary_failed(summary)
+            failed, reason = lab_detail_four_lane_failed(detail)
+            summary: dict[str, Any] | None = None
+            if not failed:
+                summary = build_lab_episode_summary_from_detail(detail, detail_ref)
+                if summary:
+                    failed, reason = lab_episode_summary_failed(summary)
+                else:
+                    failed, reason = True, "lab_episode_summary build failed"
             if not failed and summary:
                 unified = summary.get("jev_unified")
                 if not isinstance(unified, dict):
@@ -865,10 +872,15 @@ def lab_detail_jev(
     detail_ref: str,
 ) -> tuple[str, float | None]:
     """Pool/overall synthesis: direction from jev_unified only (no four-lane gate)."""
-    status, data, _ = _post_lab_detail(
+    status, data, raw = _post_lab_detail(
         agent_base, runtime_key, mcp_token, session_id, run_id, detail_ref
     )
     if status != 200:
+        msg = ""
+        if isinstance(data, dict):
+            msg = str(data.get("message") or data.get("error") or "").strip()
+        if not msg:
+            msg = str(raw or "")[:240]
         return "", None
     detail = data.get("detail") if isinstance(data.get("detail"), dict) else {}
     unified = detail.get("jev_unified") or data.get("jev_unified")
@@ -938,7 +950,9 @@ def synthesize_jev_with_retries(
             detail_ref = pick_detail_ref(res["data"] if isinstance(res.get("data"), dict) else {})
         direction = parse_direction_from_compose(jev_reason)
         if session_id and run_id and detail_ref:
-            d2, _ = lab_detail_jev(agent_base, runtime_key, mcp_token, session_id, run_id, detail_ref)
+            d2, _ = lab_detail_jev(
+                agent_base, runtime_key, mcp_token, session_id, run_id, detail_ref
+            )
             if d2:
                 direction = d2
         if len(jev_reason) < MIN_JEV_REASON_LEN or not direction:

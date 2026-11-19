@@ -24,7 +24,7 @@ App/Bot 扩仓由用户另行授权；本文档描述 **GeeGooAgent 已实现的
 ```
 
 - 实现：`internal/clients/mcp/methods.go` → `CheckTradingDayOnDate`
-- **现行 Bot**：仅绑定 `mcp_token`+`code`；`date` 被忽略（Agent 仍发送，供未来 App）
+- **GeeGooBot（2026-11 起）**：接受可选 `date`（`YYYY-MM-DD`）；未传时仍按市场本地「当日」；回显 `data.date` 与查询日一致，满足 `ValidateCheckTradingDayData`
 
 **响应 `data`（已实现解析）** `internal/clients/mcp/types.go` → `TradingDayData`：
 

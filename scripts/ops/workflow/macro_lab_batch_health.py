@@ -19,6 +19,8 @@ FAIL_FRAGMENTS = (
     "timed out",
     "lane failed",
     "bar index out of range",
+    "macro_trading_day",
+    "macro_monitor_cutoff",
 )
 
 
@@ -58,6 +60,21 @@ def lab_episode_summary_failed(summary: dict[str, Any] | None) -> tuple[bool, st
             return True, f"{key}: " + _lane_text(lane)
     if missing:
         return True, "lanes missing: " + ",".join(missing)
+    return False, ""
+
+
+def lab_detail_four_lane_failed(detail: dict[str, Any] | None) -> tuple[bool, str]:
+    """lab-detail `detail` object uses the same lane keys as lab_episode_summary."""
+    failed, reason = lab_episode_summary_failed(detail)
+    if failed:
+        return True, reason
+    if not isinstance(detail, dict):
+        return False, ""
+    degraded = detail.get("degraded")
+    if isinstance(degraded, list) and degraded:
+        tags = [str(x).strip() for x in degraded if str(x).strip()]
+        if any("cutoff" in t or "trading_day" in t for t in tags):
+            return True, "degraded: " + ";".join(tags[:5])
     return False, ""
 
 
