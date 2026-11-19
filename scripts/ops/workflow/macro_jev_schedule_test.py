@@ -92,5 +92,38 @@ class TestSymbolRetryDelayDefault(unittest.TestCase):
         self.assertGreaterEqual(batch.MAX_DIAGNOSE_RETRIES, 1)
 
 
+class TestPoolSynthesisRows(unittest.TestCase):
+    def test_resolve_pool_complete(self) -> None:
+        from run_macro_monitor_lab_batch import resolve_pool_synthesis_rows
+
+        merged = [
+            {"symbol": "000001.SH", "success": True, "jev_direction": "short"},
+            {"symbol": "399001.SZ", "success": True, "jev_direction": "long"},
+        ]
+        with patch(
+            "run_macro_monitor_lab_batch.merged_batch_symbol_rows",
+            return_value=merged,
+        ):
+            rows, ok, reason = resolve_pool_synthesis_rows(
+                "http://m", "k", "cn_a", "2026-11-19", ["000001.SH", "399001.SZ"]
+            )
+        self.assertTrue(ok)
+        self.assertEqual(reason, "")
+        self.assertEqual([r["symbol"] for r in rows], ["000001.SH", "399001.SZ"])
+
+    def test_resolve_pool_missing_symbol(self) -> None:
+        from run_macro_monitor_lab_batch import resolve_pool_synthesis_rows
+
+        with patch(
+            "run_macro_monitor_lab_batch.merged_batch_symbol_rows",
+            return_value=[{"symbol": "000001.SH", "success": True}],
+        ):
+            _, ok, reason = resolve_pool_synthesis_rows(
+                "http://m", "k", "cn_a", "2026-11-19", ["000001.SH", "399001.SZ"]
+            )
+        self.assertFalse(ok)
+        self.assertIn("399001.SZ", reason)
+
+
 if __name__ == "__main__":
     unittest.main()

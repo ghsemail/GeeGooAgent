@@ -6,10 +6,10 @@ Chat 与 runtime 之间使用 agent_chat_stream：SSE 分块读、IncompleteRead
 
   --pool-jev-only --recover-session-id <chat-id>
 
-仅补写 pool_jev，不重跑标的。环境变量见 ``agent_chat_stream`` 模块说明。
+仅补写 pool_jev，不重跑标的。池合成在当日 monitor 池标的 canonical 全部 success 后自动触发（合并 batch 行，不仅当次 --symbols）。``overall`` 默认只读 ledger（``--rerun-missing-pools`` 才补跑缺池）。环境变量见 ``agent_chat_stream`` 模块说明。
 
 标的成功门禁与 Signal ``lab_jev_health`` 对齐：``lab-detail`` 四维 lane 健康后才 ``success``/ingest/PUT。
-可选：``MACRO_BATCH_LAB_DETAIL_TIMEOUT``（默认 900，对齐 agent-runtime 960s 写超时）、``MACRO_BATCH_LAB_DETAIL_HTTP_TRANSIENT_RETRIES``（默认 2）、``MACRO_BATCH_LAB_DETAIL_RETRIES``（默认 2）、``MACRO_BATCH_LAB_DETAIL_RETRY_WAIT``（默认 20）。
+可选：``MACRO_BATCH_CHAT_TIMEOUT``（默认 900，池/overall chat 合成）、``MACRO_BATCH_LAB_DETAIL_TIMEOUT``（默认 900，对齐 agent-runtime 960s 写超时）、``MACRO_BATCH_LAB_DETAIL_HTTP_TRANSIENT_RETRIES``（默认 2）、``MACRO_BATCH_LAB_DETAIL_RETRIES``（默认 2）、``MACRO_BATCH_LAB_DETAIL_RETRY_WAIT``（默认 20）。
 """
 
 from __future__ import annotations
@@ -53,6 +53,7 @@ from macro_jev_results_client import (  # noqa: E402
     fetch_canonical_symbol_result_ids,
     put_overall_result,
 )
+from macro_jev_synthesis_format import format_pool_jev_reason  # noqa: E402
 from macro_lab_batch_health import (  # noqa: E402
     build_lab_episode_summary_from_detail,
     direction_from_jev_unified,
@@ -89,7 +90,6 @@ JEV_PIPELINE_WORKFLOWS = list(WORKFLOW_MONITOR_POOL.keys())
 BOND_SEGMENT_WORKFLOWS = frozenset({"bond_sh", "bond_us"})
 BOND_SYMBOL_SUFFIX: dict[str, str] = {"bond_sh": ".SH", "bond_us": ".US"}
 
-CHAT_TIMEOUT = int(os.environ.get("MACRO_BATCH_CHAT_TIMEOUT", "360"))
 # Must exceed server lab-detail wall time (MTF+PA+TA+~4m JEV); agent-runtime WriteTimeout is 960s.
 LAB_DETAIL_TIMEOUT = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_TIMEOUT", "900"))
 LAB_DETAIL_HTTP_TRANSIENT_RETRIES = int(
@@ -534,6 +534,36 @@ def merged_batch_symbol_rows(
     return list(by_sym.values())
 
 
+def monitor_pool_symbols(grouped: dict[str, list[dict[str, Any]]]) -> list[str]:
+    syms: set[str] = set()
+    for items in grouped.values():
+        for it in items:
+            sym = str(it.get("symbol") or "").strip()
+            if sym:
+                syms.add(sym)
+    return sorted(syms)
+
+
+def resolve_pool_synthesis_rows(
+    macro_base: str,
+    macro_key: str,
+    workflow: str,
+    batch_date: str,
+    expected_symbols: list[str],
+) -> tuple[list[dict[str, Any]], bool, str]:
+    """Merged successful batch rows for the full monitor pool, or skip with reason."""
+    exp = [s.strip() for s in expected_symbols if s.strip()]
+    if not exp:
+        return [], False, "no monitor pool symbols"
+    merged = merged_batch_symbol_rows(macro_base, macro_key, workflow, batch_date)
+    by_sym = {str(r.get("symbol") or "").strip(): r for r in merged}
+    missing = [s for s in exp if s not in by_sym]
+    if missing:
+        return [], False, "canonical missing: " + ",".join(missing)
+    rows = [by_sym[s] for s in sorted(exp)]
+    return rows, True, ""
+
+
 def expected_bond_symbols(macro_base: str, macro_key: str) -> list[str]:
     syms = []
     for it in fetch_monitor_pool(macro_base, macro_key):
@@ -940,7 +970,11 @@ def synthesis_jev_message(title: str, rows: list[dict[str, Any]]) -> str:
     return (
         f"宏观 JEV 合成任务：{title}。根据以下各标的或各市场池级 JEV 结论，"
         f"再用 JEV 模型给出整体多空（long/short/neutral）与完整理由，"
-        f"禁止简单计数或涨跌幅规则。\n\n{joined}"
+        f"禁止简单计数或涨跌幅规则。\n\n"
+        "输出要求（必须遵守）：使用简体中文 Markdown；以「## 整体结论」开头，"
+        "列出方向、置信度、2-4 条核心依据；正文禁止英文 chain-of-thought，"
+        "禁止逐字复述输入。\n\n"
+        f"{joined}"
     )
 
 
@@ -1007,7 +1041,7 @@ def synthesize_jev_with_retries(
         return {
             "ok": True,
             "jev_direction": direction,
-            "jev_reason": jev_reason,
+            "jev_reason": format_pool_jev_reason(jev_reason),
             "session_id": session_id,
             "run_id": run_id,
             "attempt": attempt + 1,
@@ -1065,6 +1099,8 @@ def run_batch(
     if not grouped:
         print(f"no symbols for workflow={workflow}", file=sys.stderr)
         return 2, None, None
+
+    expected_pool_syms = monitor_pool_symbols(grouped)
 
     started = rfc3339_now()
     pool_wf = api_workflow if api_workflow in WORKFLOW_MONITOR_POOL else workflow
@@ -1272,28 +1308,36 @@ def run_batch(
         upserted = (data.get("data") or {}).get("upserted", data.get("upserted"))
         print(f"ingest upserted={upserted}", flush=True)
 
-    symbol_rows_for_pool: list[dict[str, Any]] = []
-    if fail_count == 0 and ok_count == total and total > 0:
-        for p in batch_pools:
-            for it in p.get("items") or []:
-                if it.get("success"):
-                    symbol_rows_for_pool.append(it)
+    batch_run_ok = fail_count == 0 and ok_count == total and total > 0
+    pool_synth_rows: list[dict[str, Any]] = []
+    pool_complete = False
+    pool_skip_reason = ""
+    if batch_run_ok and pool_wf in WORKFLOW_MONITOR_POOL:
+        pool_synth_rows, pool_complete, pool_skip_reason = resolve_pool_synthesis_rows(
+            macro_base,
+            macro_key,
+            api_workflow,
+            batch_date,
+            expected_pool_syms,
+        )
 
     defer_pool = workflow in BOND_SEGMENT_WORKFLOWS
     pool_final_published = False
     if (
         not dry_run
         and not defer_pool
-        and fail_count == 0
-        and ok_count == total
-        and total > 0
+        and batch_run_ok
+        and pool_complete
         and pool_wf in WORKFLOW_MONITOR_POOL
     ):
         label = WORKFLOW_MONITOR_POOL[pool_wf]
-        print(f"[{workflow}] pool JEV synthesize ({label}) …", flush=True)
+        print(
+            f"[{workflow}] pool JEV synthesize ({label}, {len(pool_synth_rows)} symbols) …",
+            flush=True,
+        )
         try:
             syn = synthesize_jev_with_retries(
-                agent_base, runtime_key, mcp_token, label, symbol_rows_for_pool
+                agent_base, runtime_key, mcp_token, label, pool_synth_rows
             )
             finished = rfc3339_now()
             valid, val_err = synthesis_pool_jev_valid(syn, min_reason_len=MIN_JEV_REASON_LEN)
@@ -1341,20 +1385,40 @@ def run_batch(
             if not dry_run:
                 publish_progress("finished", final=True, pool_jev=pool_jev_out)
                 pool_final_published = True
+    elif (
+        not dry_run
+        and batch_run_ok
+        and pool_wf in WORKFLOW_MONITOR_POOL
+        and not pool_complete
+        and pool_skip_reason
+    ):
+        print(
+            f"  pool JEV skipped: {pool_skip_reason}; "
+            "use --pool-jev-only when the full monitor pool is success",
+            flush=True,
+        )
     if not dry_run and not pool_final_published:
         publish_progress("finished", final=True, pool_jev=pool_jev_out)
     if jev_writer and not defer_pool:
         all_items = [it for p in batch_pools for it in (p.get("items") or [])]
-        expected = [s for p in batch_pools for s in (p.get("symbols") or [])]
-        sym_all_ok = fail_count == 0 and ok_count == total and total > 0
+        sym_all_ok = pool_complete
+        pool_items_for_put = pool_synth_rows if pool_complete else all_items
+        extra_canon: dict[str, str] | None = None
+        if pool_complete:
+            extra_canon, c_err = fetch_canonical_symbol_result_ids(
+                macro_base, macro_key, http_json, batch_date, api_workflow
+            )
+            if c_err:
+                print(f"  canonical symbols: {c_err}", flush=True)
         if batch_run_id:
             jev_writer.bind_batch_run(batch_run_id)
         jev_writer.put_pool_from_synthesis(
             pool_jev_out,
-            symbol_items=all_items,
+            symbol_items=pool_items_for_put,
             all_symbols_ok=sym_all_ok,
             completed_at=rfc3339_now(),
-            expected_symbols=expected,
+            expected_symbols=expected_pool_syms,
+            extra_symbol_result_ids=extra_canon,
         )
         if jev_writer.pool_result_id and jev_writer.batch_identity_ready():
             pool_st = "success" if pool_jev_out and pool_jev_out.get("success") else "failed"
@@ -1771,6 +1835,11 @@ def main() -> int:
         default="",
         help="Comma-separated monitor symbols only (e.g. 000001.SH for 上证)",
     )
+    p.add_argument(
+        "--rerun-missing-pools",
+        action="store_true",
+        help="With --workflow overall: rerun ledger-missing pools before synthesis (default: ledger-only, no auto rerun)",
+    )
     args = p.parse_args()
     if not args.macro_key.strip():
         print("MACRO_API_KEY required", file=sys.stderr)
@@ -1824,6 +1893,7 @@ def main() -> int:
             pool_inputs,
             args.dry_run,
             pool_ledger=None,
+            skip_pool_rerun=not args.rerun_missing_pools,
         )
     if args.pool_jev_only:
         if args.workflow in ("all", "overall") or args.workflow in BOND_SEGMENT_WORKFLOWS:
