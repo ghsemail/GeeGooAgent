@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ghsemail/GeeGooAgent/internal/config"
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
@@ -16,18 +17,28 @@ func (a *App) StrategyDevJevConfig() strategydev.JevConfig {
 	}
 	a.RefreshOpsDecision(false)
 	dec := a.Config.ResolvedDecision()
-	if !dec.Configured {
-		return strategydev.JevConfig{}
-	}
 	node := a.Config.ResolvedDecisionDataNode()
 	bearer := strings.TrimSpace(node.Bearer)
 	if bearer == "" {
 		return strategydev.JevConfig{}
 	}
+	model := dec.Model
+	if strings.TrimSpace(model) == "" {
+		model = config.DefaultDecisionModel
+	}
+	// Lab lanes call GeeGooData /v1/decision/choice with the data-node bearer. Ops catalog supplies
+	// the model id when configured; batch/cron paths must still work when only data tokens are set.
+	if !dec.Configured {
+		return strategydev.JevConfig{
+			BaseURL: node.BaseURL,
+			APIKey:  bearer,
+			Model:   model,
+		}
+	}
 	return strategydev.JevConfig{
 		BaseURL: node.BaseURL,
 		APIKey:  bearer,
-		Model:   dec.Model,
+		Model:   model,
 	}
 }
 
