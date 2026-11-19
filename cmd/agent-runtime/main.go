@@ -48,9 +48,12 @@ func main() {
 		handler = httpserver.CORS(rt.CORSOrigins, handler)
 		slog.Info("CORS enabled", "origins", rt.CORSOrigins)
 	}
+	// lab-detail (daily_macro): MTF+PA+TA+four JEV lanes can exceed 320s; macro batch client waits up to ~900s.
 	srv := httpserver.New(httpserver.Options{
-		Name: rt.ServiceName,
-		Port: rt.Port,
+		Name:            rt.ServiceName,
+		Port:            rt.Port,
+		ReadTimeoutSec:  960,
+		WriteTimeoutSec: 960,
 	}, handler)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

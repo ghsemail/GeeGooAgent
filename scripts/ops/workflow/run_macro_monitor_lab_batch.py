@@ -9,12 +9,13 @@ Chat 与 runtime 之间使用 agent_chat_stream：SSE 分块读、IncompleteRead
 仅补写 pool_jev，不重跑标的。环境变量见 ``agent_chat_stream`` 模块说明。
 
 标的成功门禁与 Signal ``lab_jev_health`` 对齐：``lab-detail`` 四维 lane 健康后才 ``success``/ingest/PUT。
-可选：``MACRO_BATCH_LAB_DETAIL_TIMEOUT``（默认 480，须 ≥ Agent MTF+PA+TA+四维 JEV）、``MACRO_BATCH_LAB_DETAIL_RETRIES``（默认 2）、``MACRO_BATCH_LAB_DETAIL_RETRY_WAIT``（默认 20）。
+可选：``MACRO_BATCH_LAB_DETAIL_TIMEOUT``（默认 900，对齐 agent-runtime 960s 写超时）、``MACRO_BATCH_LAB_DETAIL_HTTP_TRANSIENT_RETRIES``（默认 2）、``MACRO_BATCH_LAB_DETAIL_RETRIES``（默认 2）、``MACRO_BATCH_LAB_DETAIL_RETRY_WAIT``（默认 20）。
 """
 
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import re
@@ -89,7 +90,11 @@ BOND_SEGMENT_WORKFLOWS = frozenset({"bond_sh", "bond_us"})
 BOND_SYMBOL_SUFFIX: dict[str, str] = {"bond_sh": ".SH", "bond_us": ".US"}
 
 CHAT_TIMEOUT = int(os.environ.get("MACRO_BATCH_CHAT_TIMEOUT", "360"))
-LAB_DETAIL_TIMEOUT = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_TIMEOUT", "480"))
+# Must exceed server lab-detail wall time (MTF+PA+TA+~4m JEV); agent-runtime WriteTimeout is 960s.
+LAB_DETAIL_TIMEOUT = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_TIMEOUT", "900"))
+LAB_DETAIL_HTTP_TRANSIENT_RETRIES = int(
+    os.environ.get("MACRO_BATCH_LAB_DETAIL_HTTP_TRANSIENT_RETRIES", "2")
+)
 LAB_DETAIL_RETRIES = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_RETRIES", "2"))
 LAB_DETAIL_RETRY_WAIT = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_RETRY_WAIT", "20"))
 MIN_JEV_REASON_LEN = 20
@@ -125,32 +130,66 @@ def load_geegoo_env() -> tuple[str, str]:
     return runtime_key, mcp_token
 
 
+def _http_transient(exc: BaseException) -> bool:
+    if isinstance(
+        exc,
+        (TimeoutError, urllib.error.URLError, http.client.RemoteDisconnected, ConnectionResetError),
+    ):
+        return True
+    return "Remote end closed connection" in str(exc)
+
+
 def http_json(
     method: str,
     url: str,
     headers: dict[str, str],
     body: dict[str, Any] | None = None,
     timeout: int = 120,
+    *,
+    transient_retries: int = 0,
 ) -> tuple[int, Any, str]:
     data = json.dumps(body or {}, ensure_ascii=False).encode("utf-8") if body is not None else None
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-            return resp.status, json.loads(raw) if raw.strip() else {}, raw
-    except urllib.error.HTTPError as e:
-        raw = e.read().decode("utf-8", errors="replace")
+    attempts = max(0, transient_retries) + 1
+    last_msg = "request failed"
+    for attempt in range(attempts):
         try:
-            parsed = json.loads(raw) if raw.strip() else {}
-        except json.JSONDecodeError:
-            parsed = {"raw": raw}
-        return e.code, parsed, raw
-    except TimeoutError:
-        return 504, {"error": "timeout"}, "timeout"
-    except urllib.error.URLError as e:
-        reason = getattr(e, "reason", e)
-        msg = str(reason)
-        return 0, {"error": msg}, msg
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+                return resp.status, json.loads(raw) if raw.strip() else {}, raw
+        except urllib.error.HTTPError as e:
+            raw = e.read().decode("utf-8", errors="replace")
+            try:
+                parsed = json.loads(raw) if raw.strip() else {}
+            except json.JSONDecodeError:
+                parsed = {"raw": raw}
+            return e.code, parsed, raw
+        except TimeoutError:
+            last_msg = "timeout"
+            if attempt + 1 < attempts:
+                time.sleep(min(5 * (attempt + 1), 20))
+                continue
+            return 504, {"error": "timeout"}, "timeout"
+        except urllib.error.URLError as e:
+            reason = getattr(e, "reason", e)
+            last_msg = str(reason)
+            if attempt + 1 < attempts and _http_transient(e):
+                time.sleep(min(5 * (attempt + 1), 20))
+                continue
+            return 0, {"error": last_msg}, last_msg
+        except (http.client.RemoteDisconnected, ConnectionResetError) as e:
+            last_msg = str(e)
+            if attempt + 1 < attempts:
+                time.sleep(min(5 * (attempt + 1), 20))
+                continue
+            return 0, {"error": last_msg}, last_msg
+        except OSError as e:
+            last_msg = str(e)
+            if attempt + 1 < attempts and _http_transient(e):
+                time.sleep(min(5 * (attempt + 1), 20))
+                continue
+            return 0, {"error": last_msg}, last_msg
+    return 0, {"error": last_msg}, last_msg
 
 
 def resolve_batch_workflow(workflow: str) -> str:
@@ -810,6 +849,7 @@ def _post_lab_detail(
         headers,
         body,
         timeout=LAB_DETAIL_TIMEOUT,
+        transient_retries=LAB_DETAIL_HTTP_TRANSIENT_RETRIES,
     )
     if not isinstance(data, dict):
         data = {}
