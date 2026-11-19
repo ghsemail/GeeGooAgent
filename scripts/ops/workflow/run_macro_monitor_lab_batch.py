@@ -53,6 +53,7 @@ from macro_jev_results_client import (  # noqa: E402
     fetch_canonical_symbol_result_ids,
     put_overall_result,
 )
+from macro_jev_synthesis_format import format_pool_jev_reason  # noqa: E402
 from macro_lab_batch_health import (  # noqa: E402
     build_lab_episode_summary_from_detail,
     direction_from_jev_unified,
@@ -969,7 +970,11 @@ def synthesis_jev_message(title: str, rows: list[dict[str, Any]]) -> str:
     return (
         f"宏观 JEV 合成任务：{title}。根据以下各标的或各市场池级 JEV 结论，"
         f"再用 JEV 模型给出整体多空（long/short/neutral）与完整理由，"
-        f"禁止简单计数或涨跌幅规则。\n\n{joined}"
+        f"禁止简单计数或涨跌幅规则。\n\n"
+        "输出要求（必须遵守）：使用简体中文 Markdown；以「## 整体结论」开头，"
+        "列出方向、置信度、2-4 条核心依据；正文禁止英文 chain-of-thought，"
+        "禁止逐字复述输入。\n\n"
+        f"{joined}"
     )
 
 
@@ -1036,7 +1041,7 @@ def synthesize_jev_with_retries(
         return {
             "ok": True,
             "jev_direction": direction,
-            "jev_reason": jev_reason,
+            "jev_reason": format_pool_jev_reason(jev_reason),
             "session_id": session_id,
             "run_id": run_id,
             "attempt": attempt + 1,

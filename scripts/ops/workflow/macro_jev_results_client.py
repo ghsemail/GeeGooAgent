@@ -12,6 +12,8 @@ import urllib.error
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from macro_jev_synthesis_format import format_pool_jev_reason
+
 
 HttpJsonFn = Callable[..., tuple[int, Any, str]]
 
@@ -255,6 +257,10 @@ class MacroJevResultsWriter:
                 conf_f = float(conf) if conf is not None else 0.7
             except (TypeError, ValueError):
                 conf_f = 0.7
+            lab_summary = item.get("lab_episode_summary")
+            lab_arg: dict[str, Any] | None = None
+            if isinstance(lab_summary, dict) and lab_summary:
+                lab_arg = lab_summary
             return self.put_symbol(
                 symbol=sym,
                 status="success",
@@ -266,6 +272,7 @@ class MacroJevResultsWriter:
                 agent_run_id=str(item.get("agent_run_id") or ""),
                 detail_ref=str(item.get("detail_ref") or ""),
                 revision=fin_rev,
+                lab_episode_summary=lab_arg,
             )
         err = str(item.get("error") or "diagnose failed")
         reason = err if len(err) >= 8 else f"标的诊断失败: {err}"
@@ -392,7 +399,7 @@ class MacroJevResultsWriter:
                 status="success",
                 completed_at=completed_at,
                 jev_direction=str(pool_jev.get("jev_direction") or ""),
-                jev_reason=str(pool_jev.get("jev_reason") or ""),
+                jev_reason=format_pool_jev_reason(str(pool_jev.get("jev_reason") or "")),
                 confidence=conf,
                 agent_session_id=str(pool_jev.get("agent_session_id") or ""),
                 agent_run_id=str(pool_jev.get("agent_run_id") or ""),
