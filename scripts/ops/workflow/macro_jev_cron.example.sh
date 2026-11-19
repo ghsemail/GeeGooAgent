@@ -24,7 +24,8 @@ run_one() {
 # 15:30  cn_a
 # 16:00  bond_sh（上交所债分段）
 # 16:30  hk
-# 17:00  overall（账本七池齐全后再合成；缺池则先按 cron 重跑该池）
+# 17:00  overall（默认仅读本日 ledger 合成；缺池则 blocked，不重跑其它池）
+#         需补跑缺池后 overall 时：--workflow overall --rerun-missing-pools
 
 # 过渡期：本地一键全跑仍可用 --workflow all（非分时段生产路径）
 # 15 7 * * 1-5 ... python3 run_macro_monitor_lab_batch.py --workflow all
