@@ -267,6 +267,7 @@ func BuildLabEpisodeDetail(ctx context.Context, in LabDetailInput, ref string) (
 		}
 		out.Degraded = append(out.Degraded, "lab_price_fetch_unavailable")
 	}
+	ensureLabJEVUnifiedPlaceholder(&out, dailyMacro)
 	PrepareLabEpisodeDetailForEmit(&out)
 	return out, nil
 }
@@ -407,6 +408,7 @@ func buildLabFlowDetail(ctx context.Context, in LabDetailInput, ref string) (Lab
 			applyMacroMonitorCutoffToDetail(&out, *macroCut)
 		}
 	}
+	ensureLabJEVUnifiedPlaceholder(&out, flowDailyMacro)
 	PrepareLabEpisodeDetailForEmit(&out)
 	return out, nil
 }

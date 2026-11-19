@@ -2,6 +2,7 @@ package strategydev
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -112,8 +113,11 @@ func TestBuildLabEpisodeDetail_DailyMacroHistoricalBuyUsesMonitorCutoff(t *testi
 	if detail.PriceAnalysis == nil {
 		t.Fatal("expected PA")
 	}
-	if detail.JEVUnified != nil {
-		t.Fatal("unexpected unified without JEV client wiring")
+	if detail.JEVUnified == nil {
+		t.Fatal("expected jev_unified placeholder without JEV client wiring")
+	}
+	if detail.JEVUnified.OK {
+		t.Fatalf("unified should be fail-closed without Jev client: %+v", detail.JEVUnified)
 	}
 	if ta.nilHits != 0 {
 		t.Fatalf("ta nil asOf retries=%d", ta.nilHits)
@@ -149,8 +153,11 @@ func TestBuildLabEpisodeDetail_DailyMacroCutoffFail_NoPAOrUnified(t *testing.T) 
 	if detail.PriceAnalysis != nil {
 		t.Fatal("expected no PA when session incomplete")
 	}
-	if detail.JEVUnified != nil {
-		t.Fatal("expected no unified JEV")
+	if detail.JEVUnified == nil || detail.JEVUnified.OK {
+		t.Fatalf("expected fail-closed jev_unified when cutoff incomplete: %+v", detail.JEVUnified)
+	}
+	if !strings.Contains(detail.JEVUnified.Error, "degraded") {
+		t.Fatalf("unified error=%q", detail.JEVUnified.Error)
 	}
 	if ta.asOfHits+ta.nilHits > 0 {
 		t.Fatal("TA should not be called")

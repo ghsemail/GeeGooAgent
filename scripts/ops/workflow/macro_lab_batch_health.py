@@ -45,11 +45,6 @@ def lane_indicates_failure(lane: dict[str, Any] | None) -> bool:
 def lab_episode_summary_failed(summary: dict[str, Any] | None) -> tuple[bool, str]:
     if not summary:
         return True, "lab_episode_summary missing"
-    unified = summary.get("jev_unified")
-    if not isinstance(unified, dict):
-        return True, "jev_unified missing"
-    if lane_indicates_failure(unified):
-        return True, "jev_unified: " + _lane_text(unified)
     missing: list[str] = []
     for key in REQUIRED_LANES:
         lane = summary.get(key)
@@ -60,6 +55,11 @@ def lab_episode_summary_failed(summary: dict[str, Any] | None) -> tuple[bool, st
             return True, f"{key}: " + _lane_text(lane)
     if missing:
         return True, "lanes missing: " + ",".join(missing)
+    unified = summary.get("jev_unified")
+    if not isinstance(unified, dict):
+        return True, "jev_unified missing"
+    if lane_indicates_failure(unified):
+        return True, "jev_unified: " + _lane_text(unified)
     return False, ""
 
 

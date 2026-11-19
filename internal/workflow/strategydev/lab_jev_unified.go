@@ -188,6 +188,20 @@ func emptyLabJEVUnified(model string) LabJEVUnified {
 	}
 }
 
+// ensureLabJEVUnifiedPlaceholder makes daily_macro fail-closed payloads machine-readable when unified was skipped.
+func ensureLabJEVUnifiedPlaceholder(out *LabEpisodeDetail, dailyMacro bool) {
+	if !dailyMacro || out == nil || out.JEVUnified != nil {
+		return
+	}
+	fail := emptyLabJEVUnified(config.DefaultDecisionModel)
+	if len(out.Degraded) > 0 {
+		fail.Error = "daily_macro degraded: " + strings.Join(out.Degraded, "; ")
+	} else {
+		fail.Error = "daily_macro jev_unified absent"
+	}
+	out.JEVUnified = &fail
+}
+
 func labJEVUnifiedBreakdownFromLegs(legs []labJEVLegSnapshot) LabJEVUnifiedBreakdown {
 	var bd LabJEVUnifiedBreakdown
 	for _, leg := range legs {
@@ -402,6 +416,47 @@ func labJEVUnifiedBlocked(out *LabEpisodeDetail, plan labJEVUnifiedPlan) bool {
 	return false
 }
 
+func labJEVUnifiedBlockReason(out *LabEpisodeDetail, plan labJEVUnifiedPlan) string {
+	if out == nil {
+		return "lab detail nil"
+	}
+	type chk struct {
+		name    string
+		attempt bool
+		laneOK  func() bool
+	}
+	checks := []chk{
+		{"price_analysis_jev", plan.attemptPA, func() bool {
+			return out.PriceAnalysisJEV != nil && out.PriceAnalysisJEV.OK
+		}},
+		{"kline_jev", plan.attemptKline, func() bool {
+			return out.KlineJEV != nil && out.KlineJEV.OK
+		}},
+		{"technical_analysis_jev", plan.attemptTA, func() bool {
+			return out.TechnicalAnalysisJEV != nil && out.TechnicalAnalysisJEV.OK
+		}},
+		{"index_trend_jev", plan.attemptIndexTrend, func() bool {
+			return out.IndexTrendJEV != nil && out.IndexTrendJEV.OK
+		}},
+	}
+	var failed []string
+	for _, c := range checks {
+		if !c.attempt {
+			continue
+		}
+		if !c.laneOK() {
+			failed = append(failed, c.name+" not ok")
+		}
+	}
+	if len(failed) > 0 {
+		return "jev_unified blocked: " + strings.Join(failed, "; ")
+	}
+	if !plan.attemptPA && !plan.attemptKline && !plan.attemptTA && !plan.attemptIndexTrend {
+		return "jev_unified blocked: no participating JEV lanes"
+	}
+	return "jev_unified blocked"
+}
+
 func collectLabJEVUnifiedLegs(out *LabEpisodeDetail, plan labJEVUnifiedPlan, signalSide, signalFreq string, longOnly bool) []labJEVLegSnapshot {
 	var legs []labJEVLegSnapshot
 	if plan.attemptPA {
@@ -435,6 +490,13 @@ func applyLabJEVUnified(ctx context.Context, out *LabEpisodeDetail, side string,
 	}
 	plan := labJEVUnifiedPlanFor(in, out)
 	if labJEVUnifiedBlocked(out, plan) {
+		reason := labJEVUnifiedBlockReason(out, plan)
+		fail := emptyLabJEVUnified(config.DefaultDecisionModel)
+		if in.Jev != nil && strings.TrimSpace(in.Jev.cfg.Model) != "" {
+			fail.Model = strings.TrimSpace(in.Jev.cfg.Model)
+		}
+		fail.Error = reason
+		out.JEVUnified = &fail
 		return
 	}
 	rec := ResolveLabJEVUnified(ctx, in.Jev, out, plan, side, labDetailJEVSignalFreq(in), in.LongOnly)
