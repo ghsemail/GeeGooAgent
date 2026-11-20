@@ -97,6 +97,10 @@ LAB_DETAIL_HTTP_TRANSIENT_RETRIES = int(
 )
 LAB_DETAIL_RETRIES = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_RETRIES", "2"))
 LAB_DETAIL_RETRY_WAIT = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_RETRY_WAIT", "20"))
+# Brief pause after chat diagnose before lab-detail (JEV lanes under concurrent morning crons).
+LAB_DETAIL_POST_DIAGNOSE_DELAY_SEC = float(
+    os.environ.get("MACRO_BATCH_LAB_DETAIL_POST_DIAGNOSE_DELAY_SEC", "8")
+)
 MIN_JEV_REASON_LEN = 20
 MAX_DIAGNOSE_RETRIES = 3
 # 单标的/池级合成失败：进程内等待 RETRY_DELAY_SEC（默认 600s = 10min）后重试，最多 MAX_DIAGNOSE_RETRIES 次。
@@ -199,8 +203,37 @@ def resolve_batch_workflow(workflow: str) -> str:
 
 
 def rfc3339_now() -> str:
-    tz = timezone(timedelta(hours=8))
-    return datetime.now(tz).isoformat(timespec="seconds")
+    """UTC RFC3339 for macro batch/runs and jev-results (avoids batch_started_at lock skew)."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def ensure_diagnose_run_id(
+    agent_base: str,
+    runtime_key: str,
+    mcp_token: str,
+    session_id: str,
+    run_id: str,
+    *,
+    polls: int = 24,
+    poll_wait_sec: float = 5.0,
+) -> str:
+    """Backfill run_id after chat/stream when SSE omitted it (pool synthesis validation)."""
+    rid = (run_id or "").strip()
+    sid = (session_id or "").strip()
+    if rid or not sid:
+        return rid
+    for poll in range(polls):
+        res = fetch_diagnose_result(agent_base, runtime_key, mcp_token, sid, "")
+        if res.get("ok"):
+            data = res["data"]
+            if isinstance(data, dict) and isinstance(data.get("data"), dict):
+                data = data["data"]
+            rid = str(data.get("run_id") or "").strip()
+            if rid:
+                return rid
+        if poll + 1 < polls:
+            time.sleep(poll_wait_sec)
+    return ""
 
 
 def fetch_monitor_pool(macro_base: str, macro_key: str) -> list[dict[str, Any]]:
@@ -778,6 +811,8 @@ def diagnose_symbol_once(
     lab_summary: dict[str, Any] | None = None
     direction, conf = "", None
     if session_id and run_id and detail_ref:
+        if LAB_DETAIL_POST_DIAGNOSE_DELAY_SEC > 0:
+            time.sleep(LAB_DETAIL_POST_DIAGNOSE_DELAY_SEC)
         lab = lab_detail_symbol_gate(
             agent_base, runtime_key, mcp_token, session_id, run_id, detail_ref
         )
@@ -929,7 +964,10 @@ def lab_detail_symbol_gate(
                 last_err = reason or "lab_episode_summary invalid"
         if attempt < LAB_DETAIL_RETRIES:
             print(f"  lab-detail retry {attempt + 1}/{LAB_DETAIL_RETRIES}: {last_err[:160]}", flush=True)
-            time.sleep(LAB_DETAIL_RETRY_WAIT)
+            wait = LAB_DETAIL_RETRY_WAIT
+            if "lanes missing" in (last_err or ""):
+                wait = max(wait, int(os.environ.get("MACRO_BATCH_LAB_LANE_RETRY_WAIT", "45")))
+            time.sleep(wait)
     return {"ok": False, "error": last_err}
 
 
@@ -1010,6 +1048,9 @@ def synthesize_jev_with_retries(
             continue
         session_id = str(chat.get("session_id") or "").strip()
         run_id = str(chat.get("run_id") or "").strip()
+        run_id = ensure_diagnose_run_id(
+            agent_base, runtime_key, mcp_token, session_id, run_id, polls=12, poll_wait_sec=3.0
+        )
         jev_reason = str(chat.get("reply") or "").strip()
         res = fetch_diagnose_result(agent_base, runtime_key, mcp_token, session_id, run_id)
         if res.get("ok"):
@@ -1029,7 +1070,12 @@ def synthesize_jev_with_retries(
             )
             if d2:
                 direction = d2
-        if len(jev_reason) < MIN_JEV_REASON_LEN or not direction:
+        if (
+            len(jev_reason) < MIN_JEV_REASON_LEN
+            or not direction
+            or not session_id
+            or not run_id
+        ):
             last = {
                 "ok": False,
                 "error": "incomplete pool/overall jev",
@@ -1173,7 +1219,10 @@ def run_batch(
             if not batch_run_id:
                 batch_run_id = rid
             if jev_writer:
-                jev_writer.bind_batch_run(batch_run_id)
+                jev_writer.bind_batch_run(
+                    batch_run_id,
+                    batch_started_at=str(body.get("started_at") or started),
+                )
             print(f"batch progress id={rid} · {summary}", flush=True)
 
     if not dry_run:
@@ -1207,9 +1256,6 @@ def run_batch(
             "error": DIAGNOSING_ERROR,
         }
         publish_progress(sym, final=False)
-
-        if jev_writer:
-            jev_writer.put_symbol_running(sym)
 
         if dry_run:
             batch_pools[pi]["items"][ii] = {
