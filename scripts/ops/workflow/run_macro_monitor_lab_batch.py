@@ -105,6 +105,9 @@ MIN_JEV_REASON_LEN = 20
 MAX_DIAGNOSE_RETRIES = 3
 # 单标的/池级合成失败：进程内等待 RETRY_DELAY_SEC（默认 600s = 10min）后重试，最多 MAX_DIAGNOSE_RETRIES 次。
 RETRY_DELAY_SEC = int(os.environ.get("MACRO_BATCH_RETRY_DELAY_SEC", "600"))
+# Pool/overall synthesis: align run_id backfill with symbol diagnose (12×3s was too short).
+POOL_ENSURE_RUN_ID_POLLS = int(os.environ.get("MACRO_BATCH_POOL_RUN_ID_POLLS", "24"))
+POOL_ENSURE_RUN_ID_WAIT_SEC = float(os.environ.get("MACRO_BATCH_POOL_RUN_ID_WAIT_SEC", "5.0"))
 DIAGNOSING_ERROR = "诊断中"
 
 
@@ -1057,11 +1060,21 @@ def synthesize_jev_with_retries(
                 "attempt": attempt + 1,
                 "session_id": sid_fail or None,
             }
+            print(
+                f"  pool/overall attempt {attempt + 1} chat failed: {(last.get('error') or '')[:240]}",
+                flush=True,
+            )
             continue
         session_id = str(chat.get("session_id") or "").strip()
         run_id = str(chat.get("run_id") or "").strip()
         run_id = ensure_diagnose_run_id(
-            agent_base, runtime_key, mcp_token, session_id, run_id, polls=12, poll_wait_sec=3.0
+            agent_base,
+            runtime_key,
+            mcp_token,
+            session_id,
+            run_id,
+            polls=POOL_ENSURE_RUN_ID_POLLS,
+            poll_wait_sec=POOL_ENSURE_RUN_ID_WAIT_SEC,
         )
         jev_reason = str(chat.get("reply") or "").strip()
         res = fetch_diagnose_result(agent_base, runtime_key, mcp_token, session_id, run_id)
@@ -1088,13 +1101,19 @@ def synthesize_jev_with_retries(
             or not session_id
             or not run_id
         ):
+            err_detail = (
+                f"incomplete pool/overall jev"
+                f" reason_len={len(jev_reason)} direction={direction!r}"
+                f" session={bool(session_id)} run_id={run_id!r}"
+            )
             last = {
                 "ok": False,
-                "error": "incomplete pool/overall jev",
+                "error": err_detail,
                 "attempt": attempt + 1,
                 "session_id": session_id,
                 "run_id": run_id,
             }
+            print(f"  pool/overall attempt {attempt + 1} incomplete: {err_detail[:280]}", flush=True)
             continue
         return {
             "ok": True,
