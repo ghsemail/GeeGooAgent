@@ -110,8 +110,7 @@ type modelItem struct {
 }
 
 func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
-	if h.App == nil || h.App.Gateway == nil {
-		writeError(w, http.StatusServiceUnavailable, "LLM not configured")
+	if !h.ensureChatGateway(w) {
 		return
 	}
 	h.App.RefreshOpsEmbedding(false)

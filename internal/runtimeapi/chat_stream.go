@@ -53,8 +53,7 @@ func (h *Handler) registerChatStreamRoutes(mux *http.ServeMux) {
 
 // chatStream runs one persisted chat turn and streams ReAct progress over SSE.
 func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request) {
-	if h.App == nil || h.App.Gateway == nil {
-		writeError(w, http.StatusServiceUnavailable, "LLM not configured")
+	if !h.ensureChatGateway(w) {
 		return
 	}
 	h.App.RefreshOpsEmbedding(false)

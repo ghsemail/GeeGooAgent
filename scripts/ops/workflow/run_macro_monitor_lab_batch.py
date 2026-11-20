@@ -449,25 +449,37 @@ def pick_detail_ref(result: dict[str, Any]) -> str:
     from_summaries = _ref_from_lab_episode_summaries(lab)
     if from_summaries:
         return from_summaries
-    # Result API often inlines card summaries: lab is { "buy:9": {...}, "sell:43": {...} }.
-    if isinstance(lab, dict):
-        inline = _best_episode_ref([str(k) for k in lab.keys()])
-        if inline:
-            return inline
-    summaries = lab.get("lab_episode_summaries")
-    if isinstance(summaries, dict):
-        picked = _best_episode_ref([str(k) for k in summaries])
-        if picked:
-            return picked
     signal_eval = result.get("signal_eval") or {}
     eps: list[str] = []
     for ep in signal_eval.get("buy_details") or []:
         if isinstance(ep, dict):
-            eps.append(str(ep.get("detail_ref") or ep.get("ref") or ""))
+            eps.append(_detail_ref_from_signal_eval_episode(ep))
     for ep in signal_eval.get("sell_details") or []:
         if isinstance(ep, dict):
-            eps.append(str(ep.get("detail_ref") or ep.get("ref") or ""))
+            eps.append(_detail_ref_from_signal_eval_episode(ep))
     return _best_episode_ref(eps)
+
+
+def _detail_ref_from_signal_eval_episode(ep: dict[str, Any]) -> str:
+    ref = str(ep.get("detail_ref") or ep.get("ref") or "").strip()
+    if ref.startswith(("buy:", "sell:")):
+        return ref
+    start_idx = ep.get("start_idx")
+    if start_idx is None:
+        return ""
+    try:
+        idx = int(start_idx)
+    except (TypeError, ValueError):
+        return ""
+    side = str(ep.get("side") or "").strip().lower()
+    if side not in ("buy", "sell"):
+        for key in ("action", "signal_side"):
+            side = str(ep.get(key) or "").strip().lower()
+            if side in ("buy", "sell"):
+                break
+    if side not in ("buy", "sell"):
+        return ""
+    return f"{side}:{idx}"
 
 
 def is_valid_detail_ref(ref: str) -> bool:
