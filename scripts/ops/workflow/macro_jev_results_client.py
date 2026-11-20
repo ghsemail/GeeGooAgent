@@ -98,10 +98,12 @@ class MacroJevResultsWriter:
     symbol_revision_final: int = 1
     put_network_retries: int = 3
 
-    def bind_batch_run(self, run_id: str) -> None:
+    def bind_batch_run(self, run_id: str, *, batch_started_at: str | None = None) -> None:
         rid = (run_id or "").strip()
         if rid:
             self.source_batch_id = rid
+        if batch_started_at and str(batch_started_at).strip():
+            self.batch_started_at = str(batch_started_at).strip()
 
     def batch_identity_ready(self) -> bool:
         return bool(self.source_batch_id.strip())
@@ -149,6 +151,8 @@ class MacroJevResultsWriter:
     def _record_failure(self, label: str, out: PutOutcome) -> None:
         if out.http_status == 200 and not out.accepted:
             detail = out.reason or "accepted:false"
+            if not out.reason and out.raw:
+                detail = f"{detail} raw={out.raw[:200]}"
         else:
             detail = out.error or out.reason or "unknown"
         self.errors.append(f"{label}: {detail}")
