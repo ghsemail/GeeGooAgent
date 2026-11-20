@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -22,6 +23,10 @@ type resolvedLLMFields struct {
 	provider, tokenKey, model, baseURL string
 	source                             llmSource
 	catalogSrc                         string
+}
+
+func localLLMFallbackReady(cfg config.LLMConfig) bool {
+	return strings.TrimSpace(cfg.Model) != "" && strings.TrimSpace(cfg.TokenKey) != ""
 }
 
 func (a *App) adminQueryTargets() []admin.QueryTarget {
@@ -57,7 +62,14 @@ func (a *App) resolveLLMFromConfig(cfg config.LLMConfig) (*resolvedLLMFields, er
 
 	targets := a.adminQueryTargets()
 	if len(targets) == 0 {
-		if strings.TrimSpace(cfg.CatalogModelID) != "" || cfg.OpsModelEnabled() {
+		if strings.TrimSpace(cfg.CatalogModelID) != "" {
+			return nil, fmt.Errorf("no catalog query targets configured")
+		}
+		if cfg.OpsModelEnabled() {
+			if localLLMFallbackReady(cfg) {
+				fmt.Fprintf(os.Stderr, "警告: 无 catalog query targets，对话 LLM 回退 config.json 本地 llm\n")
+				return out, nil
+			}
 			return nil, fmt.Errorf("no catalog query targets configured")
 		}
 		return out, nil
@@ -84,6 +96,10 @@ func (a *App) resolveLLMFromConfig(cfg config.LLMConfig) (*resolvedLLMFields, er
 	if cfg.OpsModelEnabled() {
 		doc, src, err := admin.QueryConfiguredFromTargets(ctx, targets...)
 		if err != nil {
+			if localLLMFallbackReady(cfg) {
+				fmt.Fprintf(os.Stderr, "警告: ops configured model 不可用，对话 LLM 回退 config.json 本地 llm: %v\n", err)
+				return out, nil
+			}
 			return nil, fmt.Errorf("ops configured model: %w", err)
 		}
 		a.applyCatalogModelDoc(&doc, &providerName, &tokenKey, &model, &baseURL)

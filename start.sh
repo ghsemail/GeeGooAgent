@@ -57,6 +57,11 @@ start_runtime() {
     return 0
   fi
   export GEEGOO_CONFIG="$CONFIG_PATH"
+  # Inherit agent.env exports (catalog URL/key) so :3400 chat can resolve ops default LLM.
+  set -a
+  # shellcheck disable=SC1091
+  source "$GEEGOO_HOME/agent.env" 2>/dev/null || true
+  set +a
   nohup "$BIN_DIR/agentRuntimeServer" > "$LOG_RUNTIME" 2>&1 &
   echo $! > "$PID_RUNTIME"
   log "agent-runtime :${PORT_RUNTIME} PID=$(cat "$PID_RUNTIME") log=${LOG_RUNTIME}"

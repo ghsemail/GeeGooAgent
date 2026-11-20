@@ -96,6 +96,33 @@ func TestResolveLLMFromConfigCatalogFailsNoFallback(t *testing.T) {
 	}
 }
 
+func TestResolveLLMOpsFailsUsesLocalFallback(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "connection refused", http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	useOps := true
+	application := &App{
+		Config: &config.AppConfig{
+			LLM: config.LLMConfig{
+				Provider:    "openai",
+				Model:       "deepseek-v4-pro",
+				TokenKey:    "local",
+				UseOpsModel: &useOps,
+			},
+			SignalBaseURL: srv.URL,
+		},
+	}
+	resolved, err := application.resolveLLMFromConfig(application.Config.LLM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.source != llmSourceLocal || resolved.model != "deepseek-v4-pro" {
+		t.Fatalf("resolved=%+v", resolved)
+	}
+}
+
 func TestRebuildGatewayUsesOpsWhenUseOpsModelTrue(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/queryModel", func(w http.ResponseWriter, r *http.Request) {
