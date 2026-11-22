@@ -93,6 +93,25 @@ func TestRunOverallSingleCryptoSuccess(t *testing.T) {
 	}
 }
 
+func TestRunOverallDateEchoUnchanged(t *testing.T) {
+	srv := overallJEVSrv(t)
+	defer srv.Close()
+	const orch = "2026-11-22"
+	res, err := diagnoseskill.RunOverall(context.Background(), diagnoseskill.MacroOverallRunInput{
+		Date: orch,
+		Pools: []diagnoseskill.MacroOverallPoolRow{
+			{PoolWorkflow: "crypto", JEVDirection: "short", JEVReason: cryptoReason},
+		},
+		JEV: strategydev.NewJevClient(strategydev.JevConfig{BaseURL: srv.URL, APIKey: "k"}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res["date"] != orch {
+		t.Fatalf("date=%v", res["date"])
+	}
+}
+
 func TestRunOverallChoiceFailureNoFakeSuccess(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "down", http.StatusServiceUnavailable)

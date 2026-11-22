@@ -74,6 +74,7 @@ def main() -> int:
         "pool_workflow": "crypto",
         "live_model_called": mode == "live_jev",
         "blocked_reason": None if live_data else "无 GeeGooData decision token；使用本地 mock JEV",
+        "timing_note": "elapsed_ms 仅脚本/HTTP 外壳；mock 模式不代表模型壁钟。真实 JEV 待隔离环境凭据验证。",
     }
 
     body = build_macro_overall_skill_body(
