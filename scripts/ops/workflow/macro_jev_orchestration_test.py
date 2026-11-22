@@ -72,6 +72,39 @@ class TestOrchestrationLedger(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("session", err)
 
+    def test_synthesis_requires_choices(self) -> None:
+        ok, err = synthesis_pool_jev_valid(
+            {
+                "ok": True,
+                "jev_direction": "long",
+                "jev_reason": "x" * 25,
+                "session_id": "s1",
+                "run_id": "r1",
+            },
+            min_reason_len=20,
+        )
+        self.assertFalse(ok)
+        self.assertIn("choices", err)
+
+    def test_synthesis_ok_with_choices(self) -> None:
+        ok, err = synthesis_pool_jev_valid(
+            {
+                "ok": True,
+                "jev_direction": "long",
+                "jev_reason": "x" * 25,
+                "session_id": "s1",
+                "run_id": "r1",
+                "choices": [
+                    {"label": "看多", "probability": 0.7},
+                    {"label": "看空", "probability": 0.2},
+                    {"label": "不明确", "probability": 0.1},
+                ],
+            },
+            min_reason_len=20,
+        )
+        self.assertTrue(ok)
+        self.assertEqual(err, "")
+
     def test_overall_accepts_per_pool_macro_dates(self) -> None:
         orch = "2026-11-18"
         ledger = {}

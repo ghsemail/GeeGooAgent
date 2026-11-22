@@ -62,6 +62,11 @@
   "jev_reason": "简体中文池级结论…",
   "confidence": 0.78,
   "conflict": false,
+  "choices": [
+    {"label": "看多", "probability": 0.78},
+    {"label": "看空", "probability": 0.12},
+    {"label": "不明确", "probability": 0.10}
+  ],
   "input_refs": [
     {"symbol": "BTC-USD.CRYPTO", "result_id": "sym:…"},
     {"symbol": "ETH-USD.CRYPTO", "result_id": "sym:…"}
@@ -84,6 +89,7 @@ workflow 组包时必须满足：
 |------|------|
 | `jev_direction` | 唯一落库方向口径（long/short/neutral） |
 | `jev_reason` | 池级中文结论 |
+| `choices` | 当次 Choice 三档概率（与 `jev_unified.choices` 同形：`label` 为看多/看空/不明确） |
 | `confidence` / `conflict` | 落库与 UI |
 | `symbols[]` | 追溯 result_id + 最小依据摘要（非完整 lab_episode） |
 | `detail_ref` | 与 Signal / Monday 契约对齐 |

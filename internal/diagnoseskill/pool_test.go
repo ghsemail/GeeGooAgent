@@ -103,6 +103,13 @@ func TestRunPoolSuccessShape(t *testing.T) {
 	if !strings.Contains(refsJSON, "sym:btc") || !strings.Contains(refsJSON, "sym:eth") {
 		t.Fatalf("input_refs=%v", refsRaw)
 	}
+	ch, ok := res["choices"].([]map[string]any)
+	if !ok || len(ch) != 3 {
+		t.Fatalf("choices=%v", res["choices"])
+	}
+	if ch[0]["label"] != "看多" || ch[0]["probability"] != 0.75 {
+		t.Fatalf("choices[0]=%v", ch[0])
+	}
 }
 
 func TestRunPoolNeutralSuccessAllowed(t *testing.T) {

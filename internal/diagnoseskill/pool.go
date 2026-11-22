@@ -154,6 +154,10 @@ func RunPool(ctx context.Context, in MacroPoolRunInput) (Result, error) {
 	if len(reason) < in.MinReasonLen && in.MinReasonLen > 0 {
 		return nil, fmt.Errorf("pool jev_reason too short")
 	}
+	choices := poolChoicesForResult(rec.Choices)
+	if len(choices) == 0 {
+		return nil, fmt.Errorf("pool jev choices missing")
+	}
 	res := Result{
 		"date":             strings.TrimSpace(in.Date),
 		"pool_workflow":    strings.TrimSpace(in.PoolWorkflow),
@@ -163,7 +167,27 @@ func RunPool(ctx context.Context, in MacroPoolRunInput) (Result, error) {
 		"jev_reason":       reason,
 		"confidence":       rec.Confidence,
 		"conflict":         rec.Conflict,
+		"choices":          choices,
 		"input_refs":       inputRefs,
 	}
 	return res, nil
+}
+
+// poolChoicesForResult mirrors emit lane JEV: [{label, probability}] for the current Choice.
+func poolChoicesForResult(choices []strategydev.PriceAnalysisJEVChoice) []map[string]any {
+	if len(choices) == 0 {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(choices))
+	for _, c := range choices {
+		label := strings.TrimSpace(c.Label)
+		if label == "" {
+			continue
+		}
+		out = append(out, map[string]any{
+			"label":       label,
+			"probability": c.Probability,
+		})
+	}
+	return out
 }

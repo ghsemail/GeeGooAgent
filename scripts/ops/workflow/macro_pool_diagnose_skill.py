@@ -12,6 +12,7 @@ POOL_WORKFLOWS = frozenset(
     {"cn_a", "hk", "us", "commodity_fx", "bond", "crypto", "volatility"}
 )
 VALID_DIRECTIONS = frozenset({"long", "short", "neutral"})
+POOL_CHOICE_LABELS = frozenset({"看多", "看空", "不明确"})
 
 HttpJsonFn = Callable[..., tuple[int, Any, str]]
 
@@ -164,6 +165,30 @@ def run_diagnose_macro_pool_skill(
     return data
 
 
+def parse_pool_choice_distribution(raw: Any) -> list[dict[str, Any]] | None:
+    """Validate skill choices[] shaped like jev_unified.choices: [{label, probability}]."""
+    if raw is None:
+        return None
+    if not isinstance(raw, list) or not raw:
+        return None
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            return None
+        label = str(item.get("label") or "").strip()
+        if label not in POOL_CHOICE_LABELS:
+            return None
+        prob = item.get("probability")
+        try:
+            prob_f = float(prob) if prob is not None else 0.0
+        except (TypeError, ValueError):
+            return None
+        if prob_f < 0.0 or prob_f > 1.0:
+            return None
+        out.append({"label": label, "probability": prob_f})
+    return out if out else None
+
+
 def pool_jev_from_diagnose_macro_pool_skill_response(
     response: dict[str, Any],
     *,
@@ -205,10 +230,19 @@ def pool_jev_from_diagnose_macro_pool_skill_response(
             "session_id": session_id,
             "run_id": run_id,
         }
+    choices = parse_pool_choice_distribution(result.get("choices"))
+    if not choices:
+        return {
+            "ok": False,
+            "error": "missing or invalid choices",
+            "session_id": session_id,
+            "run_id": run_id,
+        }
     out: dict[str, Any] = {
         "ok": True,
         "jev_direction": direction,
         "jev_reason": reason,
+        "choices": choices,
         "session_id": session_id,
         "run_id": run_id,
         "detail_ref": str(result.get("detail_ref") or "diagnose_macro_pool"),

@@ -182,6 +182,7 @@ def run_one_pool(
             "jev_direction": syn.get("jev_direction"),
             "jev_reason": syn.get("jev_reason"),
             "confidence": syn.get("confidence"),
+            "choices": syn.get("choices"),
             "detail_ref": syn.get("detail_ref") or "diagnose_macro_pool",
             "agent_session_id": syn.get("session_id"),
             "agent_run_id": syn.get("run_id"),

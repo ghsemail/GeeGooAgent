@@ -9,9 +9,16 @@ import unittest
 from macro_pool_diagnose_skill import (
     PoolSkillPackError,
     build_macro_pool_skill_body,
+    parse_pool_choice_distribution,
     pool_jev_from_diagnose_macro_pool_skill_response,
     validate_pool_skill_pack,
 )
+
+SAMPLE_CHOICES = [
+    {"label": "看多", "probability": 0.72},
+    {"label": "看空", "probability": 0.18},
+    {"label": "不明确", "probability": 0.1},
+]
 
 
 CRYPTO_FIXTURE_ROWS = [
@@ -134,6 +141,7 @@ class TestMacroPoolDiagnoseSkillPack(unittest.TestCase):
                 "jev_reason": "## 整体结论\n看多，置信 0.72。\n1. BTC 强\n2. 综合权衡",
                 "confidence": 0.72,
                 "conflict": True,
+                "choices": SAMPLE_CHOICES,
                 "detail_ref": "diagnose_macro_pool",
                 "input_refs": [
                     {"symbol": "BTC-USD.CRYPTO", "result_id": RID["BTC-USD.CRYPTO"]},
@@ -145,6 +153,26 @@ class TestMacroPoolDiagnoseSkillPack(unittest.TestCase):
         self.assertEqual(out.get("jev_direction"), "long")
         self.assertEqual(out.get("confidence"), 0.72)
         self.assertTrue(out.get("conflict"))
+        self.assertEqual(out.get("choices"), SAMPLE_CHOICES)
+
+    def test_parse_choices_rejects_bad_shape(self) -> None:
+        self.assertIsNone(parse_pool_choice_distribution(None))
+        self.assertIsNone(parse_pool_choice_distribution([{"label": "up", "probability": 0.5}]))
+        self.assertIsNone(parse_pool_choice_distribution("not-a-list"))
+
+    def test_parse_success_requires_choices(self) -> None:
+        resp = {
+            "status": "ok",
+            "session_id": "s2",
+            "result": {
+                "jev_direction": "long",
+                "jev_reason": "## 整体结论\n" + "x" * 40,
+                "confidence": 0.7,
+            },
+        }
+        out = pool_jev_from_diagnose_macro_pool_skill_response(resp, min_reason_len=20)
+        self.assertFalse(out.get("ok"))
+        self.assertIn("choices", str(out.get("error")))
 
     def test_skill_failure_not_neutral(self) -> None:
         resp = {"status": "failed", "error": "jev down", "session_id": "s1"}
