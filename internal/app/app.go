@@ -1020,6 +1020,7 @@ func (a *App) RunSkill(skill string) (workflow.RunResult, error) {
 // SkillRunOptions carries per-run inputs for signal-triggered skills.
 type SkillRunOptions struct {
 	Intraday     *workflow.IntradayInput
+	Diagnose     *DiagnoseSkillOptions
 	MCPToken     string
 	Market       string
 	ReportDate   string
