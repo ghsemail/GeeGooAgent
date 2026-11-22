@@ -3,7 +3,7 @@
 
 单标的诊断经 ``POST /v1/skills/run``（``diagnose_macro``），不走 Agent Loop / lab-detail。
 池级合成经 ``POST /v1/skills/run``（``diagnose_macro_pool``），不走 Agent Loop。
-宏观 ``overall`` 仍经 chat（``agent_chat_stream``）。
+宏观 ``overall`` 经 ``POST /v1/skills/run``（``diagnose_macro_overall``），不走 Agent Loop / chat。
 
 ``--pool-jev-only`` 仅补写 pool_jev，不重跑标的。池合成在当日 monitor 池标的 canonical 全部 success 后自动触发（合并 batch 行，不仅当次 --symbols）。``overall`` 默认只读 ledger（``--rerun-missing-pools`` 才补跑缺池）。
 
@@ -54,6 +54,7 @@ from macro_jev_results_client import (  # noqa: E402
     put_overall_result,
 )
 from macro_jev_synthesis_format import format_pool_jev_reason  # noqa: E402
+from macro_overall_diagnose_skill import synthesize_overall_jev_with_skill_retries  # noqa: E402
 from macro_pool_diagnose_skill import synthesize_pool_jev_with_skill_retries  # noqa: E402
 from macro_lab_batch_health import (  # noqa: E402
     batch_item_from_diagnose_skill_response,
@@ -1875,9 +1876,22 @@ def run_overall_batch(
 
     runtime_key, mcp_token = load_geegoo_env()
     started = rfc3339_now()
-    print("[overall] macro JEV synthesize (ledger-bound pool rows) …", flush=True)
-    syn = synthesize_jev_with_retries(
-        agent_base, runtime_key, mcp_token, "宏观整体", synth_rows
+    print("[overall] macro JEV synthesize via diagnose_macro_overall skill …", flush=True)
+    overall_pool_inputs = [
+        {
+            "pool_workflow": str(r.get("label") or "").strip(),
+            "jev_direction": r.get("jev_direction"),
+            "jev_reason": r.get("jev_reason"),
+        }
+        for r in synth_rows
+    ]
+    syn = synthesize_overall_jev_with_skill_retries(
+        agent_base,
+        runtime_key,
+        orchestration_date=batch_date,
+        pools=overall_pool_inputs,
+        http_json=http_json,
+        min_reason_len=MIN_JEV_REASON_LEN,
     )
     finished = rfc3339_now()
     pool_jev: dict[str, Any]
@@ -1891,6 +1905,9 @@ def run_overall_batch(
             "agent_run_id": syn.get("run_id"),
             "finished_at": finished,
             "attempt": syn.get("attempt"),
+            "confidence": syn.get("confidence"),
+            "choices": syn.get("choices"),
+            "detail_ref": syn.get("detail_ref") or "diagnose_macro_overall",
         }
     else:
         pool_jev = {
