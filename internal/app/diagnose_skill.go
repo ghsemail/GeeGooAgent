@@ -10,9 +10,10 @@ import (
 
 // DiagnoseSkillOptions carries POST /v1/skills/run diagnose inputs.
 type DiagnoseSkillOptions struct {
-	Strategy   *DiagnoseStrategyInput
-	Macro      *DiagnoseMacroInput
-	MacroPool  *DiagnoseMacroPoolInput
+	Strategy      *DiagnoseStrategyInput
+	Macro         *DiagnoseMacroInput
+	MacroPool     *DiagnoseMacroPoolInput
+	MacroOverall  *DiagnoseMacroOverallInput
 }
 
 type DiagnoseStrategyInput struct {
@@ -33,6 +34,19 @@ type DiagnoseMacroPoolSymbol struct {
 	JEVDirection string  `json:"jev_direction"`
 	JEVReason    string  `json:"jev_reason"`
 	Confidence   float64 `json:"confidence,omitempty"`
+}
+
+// DiagnoseMacroOverallPool is one pool row for overall JEV skill.
+type DiagnoseMacroOverallPool struct {
+	PoolWorkflow string `json:"pool_workflow"`
+	JEVDirection string `json:"jev_direction"`
+	JEVReason    string `json:"jev_reason"`
+}
+
+// DiagnoseMacroOverallInput is workflow-assembled overall tier payload.
+type DiagnoseMacroOverallInput struct {
+	Date  string                     `json:"date"`
+	Pools []DiagnoseMacroOverallPool `json:"pools"`
 }
 
 // DiagnoseMacroPoolInput is workflow-assembled pool tier payload.
@@ -105,6 +119,37 @@ func (a *App) RunDiagnoseSkill(ctx context.Context, skill string, opts DiagnoseS
 		in.Code = strings.TrimSpace(opts.Macro.Code)
 		in.AsOf = strings.TrimSpace(opts.Macro.AsOf)
 		in.Macro = true
+	case "diagnose_macro_overall":
+		if opts.MacroOverall == nil {
+			return DiagnoseSkillResult{Status: "failed", Skill: skill, Error: "macro_overall body is required"},
+				fmt.Errorf("macro_overall body is required")
+		}
+		overallIn := diagnoseskill.MacroOverallRunInput{
+			Date:         strings.TrimSpace(opts.MacroOverall.Date),
+			SessionID:    sessionID,
+			RunID:        runID,
+			JEV:          jev,
+			MinReasonLen: 20,
+		}
+		for _, p := range opts.MacroOverall.Pools {
+			overallIn.Pools = append(overallIn.Pools, diagnoseskill.MacroOverallPoolRow{
+				PoolWorkflow: strings.TrimSpace(p.PoolWorkflow),
+				JEVDirection: strings.TrimSpace(p.JEVDirection),
+				JEVReason:    strings.TrimSpace(p.JEVReason),
+			})
+		}
+		a.EventBus.Emit("RunStarted", map[string]any{
+			"session_id": sessionID, "skill": skill, "date": overallIn.Date,
+		})
+		result, err := diagnoseskill.RunOverall(ctx, overallIn)
+		if err != nil {
+			return DiagnoseSkillResult{
+				Status: "failed", SessionID: sessionID, Skill: skill, Error: err.Error(),
+			}, err
+		}
+		return DiagnoseSkillResult{
+			Status: "ok", SessionID: sessionID, Skill: skill, Result: result,
+		}, nil
 	case "diagnose_macro_pool":
 		if opts.MacroPool == nil {
 			return DiagnoseSkillResult{Status: "failed", Skill: skill, Error: "macro_pool body is required"},

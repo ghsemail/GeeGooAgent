@@ -76,6 +76,27 @@ func TestSkillsRunDiagnoseMacroPoolValidation(t *testing.T) {
 	}
 }
 
+func TestSkillsRunDiagnoseMacroOverallValidation(t *testing.T) {
+	application, cfgPath := testAppForSkillsRun(t)
+	defer application.Close()
+	mux := httpserver.NewMux("agent-runtime")
+	runtimeapi.NewHandler(application, cfgPath).Register(mux)
+	handler := auth.SkipPaths(map[string]struct{}{"/health": {}}, auth.BearerAPIKey("test-runtime-key"))(mux)
+
+	body := map[string]any{
+		"skill": "diagnose_macro_overall",
+		"macro_overall": map[string]any{"date": "2026-11-22", "pools": []any{}},
+	}
+	raw, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/v1/skills/run", bytes.NewReader(raw))
+	req.Header.Set("Authorization", "Bearer test-runtime-key")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestSkillsRunDiagnoseMacroValidation(t *testing.T) {
 	application, cfgPath := testAppForSkillsRun(t)
 	defer application.Close()

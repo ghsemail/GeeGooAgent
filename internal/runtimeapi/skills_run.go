@@ -20,7 +20,8 @@ type skillsRunRequest struct {
 	Intraday *intradayRunInput      `json:"intraday,omitempty"`
 	Strategy *diagnoseStrategyInput `json:"strategy,omitempty"`
 	Macro      *diagnoseMacroInput      `json:"macro,omitempty"`
-	MacroPool  *diagnoseMacroPoolInput  `json:"macro_pool,omitempty"`
+	MacroPool     *diagnoseMacroPoolInput     `json:"macro_pool,omitempty"`
+	MacroOverall  *diagnoseMacroOverallInput  `json:"macro_overall,omitempty"`
 }
 
 type diagnoseStrategyInput struct {
@@ -40,6 +41,17 @@ type diagnoseMacroPoolSymbol struct {
 	JEVDirection string  `json:"jev_direction"`
 	JEVReason    string  `json:"jev_reason"`
 	Confidence   float64 `json:"confidence,omitempty"`
+}
+
+type diagnoseMacroOverallPool struct {
+	PoolWorkflow string `json:"pool_workflow"`
+	JEVDirection string `json:"jev_direction"`
+	JEVReason    string `json:"jev_reason"`
+}
+
+type diagnoseMacroOverallInput struct {
+	Date  string                     `json:"date"`
+	Pools []diagnoseMacroOverallPool `json:"pools"`
 }
 
 type diagnoseMacroPoolInput struct {
@@ -88,7 +100,7 @@ func (h *Handler) skillsRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if skill == "diagnose_strategy" || skill == "diagnose_macro" || skill == "diagnose_macro_pool" {
+	if skill == "diagnose_strategy" || skill == "diagnose_macro" || skill == "diagnose_macro_pool" || skill == "diagnose_macro_overall" {
 		h.skillsRunDiagnose(w, r, skill, req)
 		return
 	}
@@ -161,6 +173,15 @@ func (h *Handler) skillsRunDiagnose(w http.ResponseWriter, r *http.Request, skil
 			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "macro.code is required"})
 			return
 		}
+	} else if skill == "diagnose_macro_overall" {
+		if req.MacroOverall == nil || strings.TrimSpace(req.MacroOverall.Date) == "" {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "macro_overall.date is required"})
+			return
+		}
+		if len(req.MacroOverall.Pools) == 0 {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "macro_overall.pools required"})
+			return
+		}
 	} else {
 		if req.MacroPool == nil {
 			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "macro_pool body is required"})
@@ -180,6 +201,17 @@ func (h *Handler) skillsRunDiagnose(w http.ResponseWriter, r *http.Request, skil
 			Code: strings.TrimSpace(req.Macro.Code),
 			AsOf: strings.TrimSpace(req.Macro.AsOf),
 		}
+	}
+	if req.MacroOverall != nil {
+		mo := &app.DiagnoseMacroOverallInput{Date: strings.TrimSpace(req.MacroOverall.Date)}
+		for _, p := range req.MacroOverall.Pools {
+			mo.Pools = append(mo.Pools, app.DiagnoseMacroOverallPool{
+				PoolWorkflow: strings.TrimSpace(p.PoolWorkflow),
+				JEVDirection: strings.TrimSpace(p.JEVDirection),
+				JEVReason:    strings.TrimSpace(p.JEVReason),
+			})
+		}
+		opts.MacroOverall = mo
 	}
 	if req.MacroPool != nil {
 		mp := &app.DiagnoseMacroPoolInput{

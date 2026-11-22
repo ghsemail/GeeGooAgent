@@ -586,14 +586,19 @@ def put_overall_result(
         "Authorization": f"Bearer {macro_key}",
     }
     if pool_jev.get("success"):
+        conf = pool_jev.get("confidence")
+        try:
+            conf_f = float(conf) if conf is not None else None
+        except (TypeError, ValueError):
+            conf_f = None
         body: dict[str, Any] = {
             "date": batch_date,
             "status": "success",
             "jev_direction": pool_jev.get("jev_direction"),
             "jev_reason": pool_jev.get("jev_reason"),
-            "confidence": 0.6,
             "agent_session_id": pool_jev.get("agent_session_id"),
             "agent_run_id": pool_jev.get("agent_run_id"),
+            "detail_ref": pool_jev.get("detail_ref") or "diagnose_macro_overall",
             "source_batch_id": source_batch_id,
             "batch_started_at": batch_started_at,
             "completed_at": completed_at,
@@ -601,6 +606,11 @@ def put_overall_result(
             "inputs": pool_inputs,
             "attempt": pool_jev.get("attempt"),
         }
+        if conf_f is not None:
+            body["confidence"] = conf_f
+        choices = pool_jev.get("choices")
+        if isinstance(choices, list) and choices:
+            body["choices"] = choices
     else:
         body = {
             "date": batch_date,
