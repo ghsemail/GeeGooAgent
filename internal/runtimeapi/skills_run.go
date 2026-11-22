@@ -15,9 +15,22 @@ func (h *Handler) registerSkillsRunRoutes(mux *http.ServeMux) {
 }
 
 type skillsRunRequest struct {
-	Skill    string            `json:"skill"`
-	MCPToken string            `json:"mcp_token,omitempty"`
-	Intraday *intradayRunInput `json:"intraday,omitempty"`
+	Skill    string                 `json:"skill"`
+	MCPToken string                 `json:"mcp_token,omitempty"`
+	Intraday *intradayRunInput      `json:"intraday,omitempty"`
+	Strategy *diagnoseStrategyInput `json:"strategy,omitempty"`
+	Macro    *diagnoseMacroInput    `json:"macro,omitempty"`
+}
+
+type diagnoseStrategyInput struct {
+	Code            string `json:"code"`
+	SignalFrequency string `json:"signal_frequency"`
+	AsOf            string `json:"as_of,omitempty"`
+}
+
+type diagnoseMacroInput struct {
+	Code string `json:"code"`
+	AsOf string `json:"as_of,omitempty"`
 }
 
 type intradayRunInput struct {
@@ -36,6 +49,7 @@ type skillsRunResponse struct {
 	Status    string         `json:"status"`
 	SessionID string         `json:"session_id,omitempty"`
 	Skill     string         `json:"skill"`
+	Result    map[string]any `json:"result,omitempty"`
 	Decision  map[string]any `json:"decision,omitempty"`
 	Error     string         `json:"error,omitempty"`
 }
@@ -53,6 +67,11 @@ func (h *Handler) skillsRun(w http.ResponseWriter, r *http.Request) {
 	skill := normalizeSkillName(strings.TrimSpace(req.Skill))
 	if skill == "" {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "skill is required"})
+		return
+	}
+
+	if skill == "diagnose_strategy" || skill == "diagnose_macro" {
+		h.skillsRunDiagnose(w, r, skill, req)
 		return
 	}
 
@@ -101,6 +120,54 @@ func (h *Handler) skillsRun(w http.ResponseWriter, r *http.Request) {
 	}
 	if result.LastError != "" {
 		resp.Error = result.LastError
+	}
+	writeJSONStatus(w, http.StatusOK, resp)
+}
+
+func (h *Handler) skillsRunDiagnose(w http.ResponseWriter, r *http.Request, skill string, req skillsRunRequest) {
+	if skill == "diagnose_strategy" {
+		if req.Strategy == nil {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "strategy body is required"})
+			return
+		}
+		if strings.TrimSpace(req.Strategy.Code) == "" {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "strategy.code is required"})
+			return
+		}
+		if strings.TrimSpace(req.Strategy.SignalFrequency) == "" {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "strategy.signal_frequency is required"})
+			return
+		}
+	} else {
+		if req.Macro == nil || strings.TrimSpace(req.Macro.Code) == "" {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "macro.code is required"})
+			return
+		}
+	}
+	opts := app.DiagnoseSkillOptions{}
+	if req.Strategy != nil {
+		opts.Strategy = &app.DiagnoseStrategyInput{
+			Code: strings.TrimSpace(req.Strategy.Code),
+			SignalFrequency: strings.TrimSpace(req.Strategy.SignalFrequency),
+			AsOf: strings.TrimSpace(req.Strategy.AsOf),
+		}
+	}
+	if req.Macro != nil {
+		opts.Macro = &app.DiagnoseMacroInput{
+			Code: strings.TrimSpace(req.Macro.Code),
+			AsOf: strings.TrimSpace(req.Macro.AsOf),
+		}
+	}
+	dres, err := h.App.RunDiagnoseSkill(r.Context(), skill, opts)
+	if err != nil {
+		writeJSONStatus(w, http.StatusBadRequest, skillsRunResponse{
+			Status: "failed", Skill: skill, SessionID: dres.SessionID, Error: err.Error(),
+		})
+		return
+	}
+	resp := skillsRunResponse{
+		Status: dres.Status, SessionID: dres.SessionID, Skill: skill,
+		Result: dres.Result,
 	}
 	writeJSONStatus(w, http.StatusOK, resp)
 }

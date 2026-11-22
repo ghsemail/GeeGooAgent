@@ -26,6 +26,16 @@ func RegisterBuiltins(r *Registry) {
 		PerStock:    workflow.IntradayPerStockSteps,
 	})
 	r.Register(Spec{
+		Name:        "diagnose_strategy",
+		Description: "四路 diagnose 事实（macro-api :3220）+ 四路 JEV + jev_unified；HTTP skill，非 Agent Loop",
+		PhaseA:      emptySteps,
+	})
+	r.Register(Spec{
+		Name:        "diagnose_macro",
+		Description: "宏观日线四路 diagnose + JEV；HTTP skill，不写宏观日批 canonical 表",
+		PhaseA:      emptySteps,
+	})
+	r.Register(Spec{
 		Name:        "postmarket_stock",
 		Description: "盘后总结：小时级分析 + Bot 日志 + 盘前对照，生成 postmarket_stock 报告",
 		PhaseA:      workflow.PostMarketPhaseASteps,
