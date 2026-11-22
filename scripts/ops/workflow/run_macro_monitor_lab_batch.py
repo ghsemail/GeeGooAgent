@@ -692,6 +692,7 @@ def try_finalize_bond_pool_jev(
         pool_workflow="bond",
         source_batch_id=bond_run_id,
         title=WORKFLOW_MONITOR_POOL["bond"],
+        expected_symbols=expected,
         rows=merged,
         symbol_result_ids=canon_pre or None,
     )
@@ -1012,6 +1013,7 @@ def synthesize_pool_jev_skill(
     pool_workflow: str,
     source_batch_id: str,
     title: str,
+    expected_symbols: list[str],
     rows: list[dict[str, Any]],
     symbol_result_ids: dict[str, str] | None = None,
 ) -> dict[str, Any]:
@@ -1025,6 +1027,7 @@ def synthesize_pool_jev_skill(
         pool_workflow=pool_workflow,
         source_batch_id=source_batch_id.strip(),
         title=title,
+        expected_symbols=expected_symbols,
         symbol_rows=rows,
         symbol_result_ids=symbol_result_ids,
         http_json=http_json,
@@ -1447,6 +1450,7 @@ def run_batch(
                     pool_workflow=pool_wf,
                     source_batch_id=jev_writer.source_batch_id,
                     title=label,
+                    expected_symbols=expected_pool_syms,
                     rows=pool_synth_rows,
                     symbol_result_ids=jev_writer.symbol_result_ids,
                 )
@@ -1585,7 +1589,10 @@ def run_pool_jev_only(
     if api_workflow not in WORKFLOW_MONITOR_POOL:
         print(f"workflow {workflow} has no pool JEV step", file=sys.stderr)
         return 2
-    runtime_key, mcp_token = load_geegoo_env()
+    runtime_key, _mcp_token = load_geegoo_env()
+    pool_cfg = fetch_monitor_pool(macro_base, macro_key)
+    grouped = group_symbols_for_workflow(pool_cfg, api_workflow)
+    expected_monitor = monitor_pool_symbols(grouped)
     rows = merged_batch_symbol_rows(macro_base, macro_key, api_workflow, batch_date)
     if not rows:
         print(
@@ -1635,6 +1642,7 @@ def run_pool_jev_only(
         pool_workflow=api_workflow,
         source_batch_id=pool_run_id,
         title=label,
+        expected_symbols=expected_monitor,
         rows=rows,
         symbol_result_ids=canon or None,
     )

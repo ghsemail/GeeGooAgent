@@ -43,11 +43,12 @@ type diagnoseMacroPoolSymbol struct {
 }
 
 type diagnoseMacroPoolInput struct {
-	Date          string                    `json:"date"`
-	PoolWorkflow  string                    `json:"pool_workflow"`
-	SourceBatchID string                    `json:"source_batch_id"`
-	Title         string                    `json:"title,omitempty"`
-	Symbols       []diagnoseMacroPoolSymbol `json:"symbols"`
+	Date             string                    `json:"date"`
+	PoolWorkflow     string                    `json:"pool_workflow"`
+	SourceBatchID    string                    `json:"source_batch_id"`
+	Title            string                    `json:"title,omitempty"`
+	ExpectedSymbols  []string                  `json:"expected_symbols"`
+	Symbols          []diagnoseMacroPoolSymbol `json:"symbols"`
 }
 
 type intradayRunInput struct {
@@ -182,10 +183,11 @@ func (h *Handler) skillsRunDiagnose(w http.ResponseWriter, r *http.Request, skil
 	}
 	if req.MacroPool != nil {
 		mp := &app.DiagnoseMacroPoolInput{
-			Date:          strings.TrimSpace(req.MacroPool.Date),
-			PoolWorkflow:  strings.TrimSpace(req.MacroPool.PoolWorkflow),
-			SourceBatchID: strings.TrimSpace(req.MacroPool.SourceBatchID),
-			Title:         strings.TrimSpace(req.MacroPool.Title),
+			Date:             strings.TrimSpace(req.MacroPool.Date),
+			PoolWorkflow:     strings.TrimSpace(req.MacroPool.PoolWorkflow),
+			SourceBatchID:    strings.TrimSpace(req.MacroPool.SourceBatchID),
+			Title:            strings.TrimSpace(req.MacroPool.Title),
+			ExpectedSymbols:  append([]string{}, req.MacroPool.ExpectedSymbols...),
 		}
 		for _, s := range req.MacroPool.Symbols {
 			mp.Symbols = append(mp.Symbols, app.DiagnoseMacroPoolSymbol{

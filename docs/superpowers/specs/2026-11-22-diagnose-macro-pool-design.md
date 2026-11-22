@@ -36,6 +36,7 @@
     "pool_workflow": "crypto",
     "source_batch_id": "macro-batch-run-id",
     "title": "加密",
+    "expected_symbols": ["BTC-USD.CRYPTO", "ETH-USD.CRYPTO"],
     "symbols": [
       {
         "symbol": "BTC-USD.CRYPTO",
@@ -61,14 +62,9 @@
   "jev_reason": "简体中文池级结论…",
   "confidence": 0.78,
   "conflict": false,
-  "symbols": [
-    {
-      "symbol": "BTC-USD.CRYPTO",
-      "result_id": "sym:…",
-      "jev_direction": "long",
-      "confidence": 0.82,
-      "reason_excerpt": "前 240 字摘要"
-    }
+  "input_refs": [
+    {"symbol": "BTC-USD.CRYPTO", "result_id": "sym:…"},
+    {"symbol": "ETH-USD.CRYPTO", "result_id": "sym:…"}
   ]
 }
 ```

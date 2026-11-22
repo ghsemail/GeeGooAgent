@@ -26,6 +26,7 @@ workflow 在当日同池、同 `source_batch_id` 下齐套 success 标的后组�
     "pool_workflow": "crypto",
     "source_batch_id": "macro-batch-run-id",
     "title": "加密",
+    "expected_symbols": ["BTC-USD.CRYPTO", "ETH-USD.CRYPTO"],
     "symbols": [
       {
         "symbol": "BTC-USD.CRYPTO",
@@ -39,4 +40,6 @@ workflow 在当日同池、同 `source_batch_id` 下齐套 success 标的后组�
 }
 ```
 
-`result.jev_direction` 为 ledger：`long` / `short` / `neutral`；`detail_ref=diagnose_macro_pool`。
+`expected_symbols` 为 workflow 配置的监控池全集；skill 校验与 `symbols` 完全一致（防部分合成）。
+
+`result.jev_direction` 为 ledger：`long` / `short` / `neutral`；`conflict` 表示标的层 long/short 分歧（与池 Choice 是否不明确无关）；`detail_ref=diagnose_macro_pool`；`input_refs` 仅 `{symbol,result_id}` 追溯，不落库重复摘要。

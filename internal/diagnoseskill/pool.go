@@ -19,15 +19,16 @@ var (
 
 // MacroPoolRunInput is validated workflow payload for diagnose_macro_pool.
 type MacroPoolRunInput struct {
-	Date           string
-	PoolWorkflow   string
-	SourceBatchID  string
-	Title          string
-	Symbols        []MacroPoolSymbolRow
-	JEV            *strategydev.JevClient
-	SessionID      string
-	RunID          string
-	MinReasonLen   int
+	Date             string
+	PoolWorkflow     string
+	SourceBatchID    string
+	Title            string
+	ExpectedSymbols  []string
+	Symbols          []MacroPoolSymbolRow
+	JEV              *strategydev.JevClient
+	SessionID        string
+	RunID            string
+	MinReasonLen     int
 }
 
 // MacroPoolSymbolRow is one symbol line in the pool skill request.
@@ -52,9 +53,17 @@ func ValidateMacroPoolInput(in MacroPoolRunInput) error {
 	if strings.TrimSpace(in.SourceBatchID) == "" {
 		return fmt.Errorf("source_batch_id required")
 	}
+	if len(in.ExpectedSymbols) == 0 {
+		return fmt.Errorf("expected_symbols required")
+	}
 	if len(in.Symbols) == 0 {
 		return fmt.Errorf("symbols required")
 	}
+	expSet := normalizeSymbolSet(in.ExpectedSymbols)
+	if len(expSet) == 0 {
+		return fmt.Errorf("expected_symbols empty")
+	}
+	gotSet := map[string]struct{}{}
 	minLen := in.MinReasonLen
 	if minLen <= 0 {
 		minLen = 20
@@ -70,6 +79,7 @@ func ValidateMacroPoolInput(in MacroPoolRunInput) error {
 			return fmt.Errorf("duplicate symbol %s", code)
 		}
 		seen[upper] = struct{}{}
+		gotSet[upper] = struct{}{}
 		if strings.TrimSpace(sym.ResultID) == "" {
 			return fmt.Errorf("result_id required for %s", code)
 		}
@@ -81,7 +91,32 @@ func ValidateMacroPoolInput(in MacroPoolRunInput) error {
 			return fmt.Errorf("jev_reason too short for %s", code)
 		}
 	}
+	if len(gotSet) != len(expSet) {
+		return fmt.Errorf("symbols count %d != expected_symbols count %d", len(gotSet), len(expSet))
+	}
+	for upper := range expSet {
+		if _, ok := gotSet[upper]; !ok {
+			return fmt.Errorf("missing expected symbol %s", upper)
+		}
+	}
+	for upper := range gotSet {
+		if _, ok := expSet[upper]; !ok {
+			return fmt.Errorf("unexpected symbol %s", upper)
+		}
+	}
 	return nil
+}
+
+func normalizeSymbolSet(syms []string) map[string]struct{} {
+	out := map[string]struct{}{}
+	for _, s := range syms {
+		code := strings.TrimSpace(s)
+		if code == "" {
+			continue
+		}
+		out[strings.ToUpper(code)] = struct{}{}
+	}
+	return out
 }
 
 // RunPool executes pool JEV synthesis; does not PUT canonical tables.
@@ -90,7 +125,7 @@ func RunPool(ctx context.Context, in MacroPoolRunInput) (Result, error) {
 		return nil, err
 	}
 	var snapshots []strategydev.MacroPoolSymbolInput
-	var symbolOut []map[string]any
+	var inputRefs []map[string]any
 	for _, sym := range in.Symbols {
 		dir := strings.TrimSpace(strings.ToLower(sym.JEVDirection))
 		snapshots = append(snapshots, strategydev.MacroPoolSymbolInput{
@@ -100,20 +135,10 @@ func RunPool(ctx context.Context, in MacroPoolRunInput) (Result, error) {
 			JEVReason:    sym.JEVReason,
 			Confidence:   sym.Confidence,
 		})
-		excerpt := strings.TrimSpace(sym.JEVReason)
-		if len(excerpt) > 240 {
-			excerpt = excerpt[:239] + "…"
-		}
-		row := map[string]any{
-			"symbol":         strings.TrimSpace(sym.Symbol),
-			"result_id":      strings.TrimSpace(sym.ResultID),
-			"jev_direction":  dir,
-			"reason_excerpt": excerpt,
-		}
-		if sym.Confidence > 0 {
-			row["confidence"] = sym.Confidence
-		}
-		symbolOut = append(symbolOut, row)
+		inputRefs = append(inputRefs, map[string]any{
+			"symbol":    strings.TrimSpace(sym.Symbol),
+			"result_id": strings.TrimSpace(sym.ResultID),
+		})
 	}
 	jevCtx, cancel := context.WithTimeout(ctx, 4*time.Minute)
 	defer cancel()
@@ -122,8 +147,8 @@ func RunPool(ctx context.Context, in MacroPoolRunInput) (Result, error) {
 		return nil, fmt.Errorf("%s", strings.TrimSpace(rec.Error))
 	}
 	ledgerDir := DirectionToLedger(string(rec.Direction))
-	if ledgerDir == "" {
-		return nil, fmt.Errorf("pool jev direction empty")
+	if ledgerDir != "long" && ledgerDir != "short" && ledgerDir != "neutral" {
+		return nil, fmt.Errorf("pool jev direction invalid")
 	}
 	reason := strings.TrimSpace(rec.RecommendedReason)
 	if len(reason) < in.MinReasonLen && in.MinReasonLen > 0 {
@@ -138,7 +163,7 @@ func RunPool(ctx context.Context, in MacroPoolRunInput) (Result, error) {
 		"jev_reason":       reason,
 		"confidence":       rec.Confidence,
 		"conflict":         rec.Conflict,
-		"symbols":          symbolOut,
+		"input_refs":       inputRefs,
 	}
 	return res, nil
 }

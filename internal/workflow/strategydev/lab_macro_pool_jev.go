@@ -86,34 +86,19 @@ func BuildMacroPoolJEVState(title string, symbols []MacroPoolSymbolInput) string
 	return strings.TrimSpace(b.String())
 }
 
-func macroPoolSymbolConflict(symbols []MacroPoolSymbolInput, poolChoice string) bool {
-	poolChoice = strings.TrimSpace(poolChoice)
-	if poolChoice == "" || poolChoice == "不明确" {
-		return false
-	}
-	var choices []string
+// macroPoolSymbolDirectionConflict is true when symbol tier has both long and short (ledger) inputs.
+// Neutral-only disagreement does not set conflict; pool Choice may still be 不明确.
+func macroPoolSymbolDirectionConflict(symbols []MacroPoolSymbolInput) bool {
+	hasLong, hasShort := false, false
 	for _, sym := range symbols {
-		c := ledgerDirectionToChoice(sym.JEVDirection)
-		if c == "" || c == "不明确" {
-			continue
-		}
-		choices = append(choices, c)
-	}
-	if len(choices) < 2 {
-		return false
-	}
-	for _, c := range choices {
-		if c != poolChoice {
-			return true
+		switch strings.TrimSpace(strings.ToLower(sym.JEVDirection)) {
+		case "long":
+			hasLong = true
+		case "short":
+			hasShort = true
 		}
 	}
-	first := choices[0]
-	for _, c := range choices[1:] {
-		if c != first {
-			return true
-		}
-	}
-	return false
+	return hasLong && hasShort
 }
 
 func macroPoolReasonExcerpt(reason string) string {
@@ -145,9 +130,9 @@ func ResolveMacroPoolJEV(
 		base.Error = "jev not configured"
 		return base
 	}
-	instructions := "基于 state 中各标的 JEV 方向与依据摘要，综合判断该监控池当日整体方向。" +
-		"禁止对标的简单计数或固定权重计票；须按上下文权衡。" +
-		"只能从给定选项中选一项。规则：①多数标的同向且摘要支持时可倾向该方向；②冲突时须权衡后选看多或看空；" +
+	instructions := "基于 state 中各标的 JEV 方向、置信与各条「依据摘要」全文，综合判断该监控池当日整体方向。" +
+		"禁止对标的简单计数、固定权重或机械多数票；须阅读摘要中的事实与理由后权衡。" +
+		"只能从给定选项中选一项。规则：①摘要与方向一致且互相印证时可倾向该方向；②多空摘要冲突时须权衡后选看多或看空；" +
 		"③仅部分标的有明确倾向时跟随有信息的一方；④均不足时才选不明确。"
 	choice, probs, confidence, respModel, err := jev.Choice(ctx, state, "direction", instructions, labJEVUnifiedCriteria)
 	if err != nil {
@@ -173,7 +158,7 @@ func ResolveMacroPoolJEV(
 	if confidence > 0 {
 		conf = clampUnitInterval(confidence)
 	}
-	conflict := macroPoolSymbolConflict(symbols, choice)
+	conflict := macroPoolSymbolDirectionConflict(symbols)
 	if conflict && conf > labJEVUnifiedConflictConfidenceCap {
 		conf = labJEVUnifiedConflictConfidenceCap
 	}

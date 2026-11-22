@@ -47,6 +47,19 @@ func TestResolveMacroPoolJEVChoiceAndReason(t *testing.T) {
 	}
 }
 
+func TestBuildMacroPoolJEVStateIncludesReasonAndConfidence(t *testing.T) {
+	symbols := []strategydev.MacroPoolSymbolInput{
+		{Symbol: "BTC-USD.CRYPTO", JEVDirection: "long", JEVReason: "链上资金流改善", Confidence: 0.81},
+	}
+	state := strategydev.BuildMacroPoolJEVState("加密", symbols)
+	if !strings.Contains(state, "依据摘要") || !strings.Contains(state, "链上资金流") {
+		t.Fatalf("state missing reason facts: %s", state)
+	}
+	if !strings.Contains(state, "0.810") {
+		t.Fatalf("state missing confidence: %s", state)
+	}
+}
+
 func TestMacroPoolSymbolConflictCapsConfidence(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/decision/choice" {
@@ -67,6 +80,35 @@ func TestMacroPoolSymbolConflictCapsConfidence(t *testing.T) {
 	}
 	if !out.Conflict {
 		t.Fatal("expected conflict")
+	}
+	if out.Confidence > 0.75+1e-9 {
+		t.Fatalf("confidence=%v", out.Confidence)
+	}
+}
+
+func TestMacroPoolConflictPersistsWhenChoiceUnclear(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/decision/choice" {
+			_, _ = w.Write([]byte(`{"code":0,"data":{"model":"jev","answers":{"direction":{"choice":"不明确","probabilities":{"看多":0.35,"看空":0.35,"不明确":0.3},"confidence":0.88}}}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"code":0,"data":{"content":"## 整体结论\n不明确。"}}`))
+	}))
+	defer srv.Close()
+	jev := strategydev.NewJevClient(strategydev.JevConfig{BaseURL: srv.URL, APIKey: "k"})
+	symbols := []strategydev.MacroPoolSymbolInput{
+		{Symbol: "A", ResultID: "r1", JEVDirection: "long", JEVReason: "A long reason text here ok"},
+		{Symbol: "B", ResultID: "r2", JEVDirection: "short", JEVReason: "B short reason text here ok"},
+	}
+	out := strategydev.ResolveMacroPoolJEV(context.Background(), jev, "crypto", "", symbols)
+	if !out.OK {
+		t.Fatal(out.Error)
+	}
+	if out.Direction != strategydev.LabJEVUnifiedUnclear {
+		t.Fatalf("direction=%s", out.Direction)
+	}
+	if !out.Conflict {
+		t.Fatal("conflict must stay true when inputs disagree even if choice is 不明确")
 	}
 	if out.Confidence > 0.75+1e-9 {
 		t.Fatalf("confidence=%v", out.Confidence)

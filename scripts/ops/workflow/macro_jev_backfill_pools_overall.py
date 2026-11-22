@@ -88,6 +88,7 @@ def _resolve_synthesis(
     pool_workflow: str,
     batch_date: str,
     export: dict[str, Any],
+    expected_symbols: list[str] | None = None,
 ) -> dict[str, Any]:
     if recorded_dir:
         path = recorded_dir / f"{pool_workflow}.json"
@@ -105,6 +106,7 @@ def _resolve_synthesis(
     if not sbid:
         return {"ok": False, "error": "source_batch_id missing for pool skill backfill"}
     bd = (batch_date or str(export.get("date") or "")).strip()
+    exp = expected_symbols or [str(r.get("symbol") or "").strip() for r in rows if r.get("symbol")]
     return synthesize_pool_jev_skill(
         agent_base,
         runtime_key,
@@ -112,6 +114,7 @@ def _resolve_synthesis(
         pool_workflow=pool_workflow,
         source_batch_id=sbid,
         title=label,
+        expected_symbols=exp,
         rows=rows,
     )
 
@@ -167,6 +170,7 @@ def run_one_pool(
         pool_workflow=wf,
         batch_date=batch_date,
         export=export,
+        expected_symbols=expected,
     )
     started = rfc3339_now()
     finished = rfc3339_now()

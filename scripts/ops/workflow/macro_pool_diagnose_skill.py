@@ -27,11 +27,16 @@ def truncate_reason_excerpt(text: str, *, max_len: int = 800) -> str:
     return raw[: max_len - 1].rstrip() + "…"
 
 
+def _normalize_expected(expected_symbols: list[str]) -> set[str]:
+    return {s.strip().upper() for s in expected_symbols if (s or "").strip()}
+
+
 def validate_pool_skill_pack(
     *,
     batch_date: str,
     pool_workflow: str,
     source_batch_id: str,
+    expected_symbols: list[str],
     symbol_rows: list[dict[str, Any]],
     symbol_result_ids: dict[str, str] | None,
     min_reason_len: int,
@@ -48,6 +53,9 @@ def validate_pool_skill_pack(
         raise PoolSkillPackError("source_batch_id required")
     if not symbol_rows:
         raise PoolSkillPackError("no symbol rows")
+    exp = _normalize_expected(expected_symbols)
+    if not exp:
+        raise PoolSkillPackError("expected_symbols required")
     rid_map = {k.upper(): v.strip() for k, v in (symbol_result_ids or {}).items() if v}
     symbols_out: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -83,6 +91,16 @@ def validate_pool_skill_pack(
         except (TypeError, ValueError):
             pass
         symbols_out.append(entry)
+    got = {str(e["symbol"]).strip().upper() for e in symbols_out}
+    if got != exp:
+        missing = sorted(exp - got)
+        extra = sorted(got - exp)
+        parts: list[str] = []
+        if missing:
+            parts.append("missing expected: " + ",".join(missing))
+        if extra:
+            parts.append("unexpected: " + ",".join(extra))
+        raise PoolSkillPackError("; ".join(parts) or "expected_symbols mismatch")
     return symbols_out
 
 
@@ -92,6 +110,7 @@ def build_macro_pool_skill_body(
     pool_workflow: str,
     source_batch_id: str,
     title: str,
+    expected_symbols: list[str],
     symbol_rows: list[dict[str, Any]],
     symbol_result_ids: dict[str, str] | None = None,
     min_reason_len: int = 20,
@@ -100,10 +119,12 @@ def build_macro_pool_skill_body(
         batch_date=batch_date,
         pool_workflow=pool_workflow,
         source_batch_id=source_batch_id,
+        expected_symbols=expected_symbols,
         symbol_rows=symbol_rows,
         symbol_result_ids=symbol_result_ids,
         min_reason_len=min_reason_len,
     )
+    exp_sorted = sorted({s.strip() for s in expected_symbols if s.strip()}, key=str.upper)
     return {
         "skill": "diagnose_macro_pool",
         "macro_pool": {
@@ -111,6 +132,7 @@ def build_macro_pool_skill_body(
             "pool_workflow": pool_workflow.strip(),
             "source_batch_id": source_batch_id.strip(),
             "title": (title or "").strip(),
+            "expected_symbols": exp_sorted,
             "symbols": symbols,
         },
     }
@@ -206,6 +228,7 @@ def synthesize_pool_jev_with_skill_retries(
     pool_workflow: str,
     source_batch_id: str,
     title: str,
+    expected_symbols: list[str],
     symbol_rows: list[dict[str, Any]],
     symbol_result_ids: dict[str, str] | None,
     http_json: HttpJsonFn,
@@ -221,6 +244,7 @@ def synthesize_pool_jev_with_skill_retries(
             pool_workflow=pool_workflow,
             source_batch_id=source_batch_id,
             title=title,
+            expected_symbols=expected_symbols,
             symbol_rows=symbol_rows,
             symbol_result_ids=symbol_result_ids,
             min_reason_len=min_reason_len,

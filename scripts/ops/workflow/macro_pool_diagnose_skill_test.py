@@ -31,6 +31,8 @@ CRYPTO_FIXTURE_ROWS = [
     },
 ]
 
+CRYPTO_EXPECTED = ["BTC-USD.CRYPTO", "ETH-USD.CRYPTO"]
+
 RID = {
     "BTC-USD.CRYPTO": "sym:2026-11-20:crypto:BTC-USD.CRYPTO:batch-demo",
     "ETH-USD.CRYPTO": "sym:2026-11-20:crypto:ETH-USD.CRYPTO:batch-demo",
@@ -44,15 +46,30 @@ class TestMacroPoolDiagnoseSkillPack(unittest.TestCase):
             pool_workflow="crypto",
             source_batch_id="batch-demo",
             title="加密",
+            expected_symbols=CRYPTO_EXPECTED,
             symbol_rows=CRYPTO_FIXTURE_ROWS,
             symbol_result_ids=RID,
         )
         self.assertEqual(body["skill"], "diagnose_macro_pool")
         mp = body["macro_pool"]
         self.assertEqual(mp["date"], "2026-11-20")
+        self.assertEqual(set(mp["expected_symbols"]), set(CRYPTO_EXPECTED))
         self.assertEqual(len(mp["symbols"]), 2)
         syms = {s["symbol"] for s in mp["symbols"]}
-        self.assertEqual(syms, {"BTC-USD.CRYPTO", "ETH-USD.CRYPTO"})
+        self.assertEqual(syms, set(CRYPTO_EXPECTED))
+
+    def test_rejects_only_btc_when_eth_expected(self) -> None:
+        with self.assertRaises(PoolSkillPackError) as ctx:
+            validate_pool_skill_pack(
+                batch_date="2026-11-20",
+                pool_workflow="crypto",
+                source_batch_id="batch-demo",
+                expected_symbols=CRYPTO_EXPECTED,
+                symbol_rows=CRYPTO_FIXTURE_ROWS[:1],
+                symbol_result_ids=RID,
+                min_reason_len=20,
+            )
+        self.assertIn("ETH", str(ctx.exception))
 
     def test_rejects_duplicate_symbol(self) -> None:
         rows = [CRYPTO_FIXTURE_ROWS[0], {**CRYPTO_FIXTURE_ROWS[0]}]
@@ -61,7 +78,48 @@ class TestMacroPoolDiagnoseSkillPack(unittest.TestCase):
                 batch_date="2026-11-20",
                 pool_workflow="crypto",
                 source_batch_id="batch-demo",
+                expected_symbols=["BTC-USD.CRYPTO"],
                 symbol_rows=rows,
+                symbol_result_ids=RID,
+                min_reason_len=20,
+            )
+
+    def test_rejects_forged_result_id_gap(self) -> None:
+        with self.assertRaises(PoolSkillPackError):
+            validate_pool_skill_pack(
+                batch_date="2026-11-20",
+                pool_workflow="crypto",
+                source_batch_id="batch-demo",
+                expected_symbols=CRYPTO_EXPECTED,
+                symbol_rows=[
+                    {**CRYPTO_FIXTURE_ROWS[0], "result_id": ""},
+                    CRYPTO_FIXTURE_ROWS[1],
+                ],
+                symbol_result_ids={},
+                min_reason_len=20,
+            )
+
+    def test_rejects_invalid_batch_date(self) -> None:
+        with self.assertRaises(PoolSkillPackError):
+            build_macro_pool_skill_body(
+                batch_date="2026/11/20",
+                pool_workflow="crypto",
+                source_batch_id="batch-demo",
+                title="加密",
+                expected_symbols=CRYPTO_EXPECTED,
+                symbol_rows=CRYPTO_FIXTURE_ROWS,
+                symbol_result_ids=RID,
+            )
+
+    def test_rejects_wrong_pool_workflow_symbol_suffix(self) -> None:
+        """混池：crypto 期望集出现在 cn_a workflow 包内应被 workflow 字段校验拦截。"""
+        with self.assertRaises(PoolSkillPackError):
+            validate_pool_skill_pack(
+                batch_date="2026-11-20",
+                pool_workflow="not_a_pool",
+                source_batch_id="batch-demo",
+                expected_symbols=CRYPTO_EXPECTED,
+                symbol_rows=CRYPTO_FIXTURE_ROWS,
                 symbol_result_ids=RID,
                 min_reason_len=20,
             )
@@ -75,14 +133,18 @@ class TestMacroPoolDiagnoseSkillPack(unittest.TestCase):
                 "jev_direction": "long",
                 "jev_reason": "## 整体结论\n看多，置信 0.72。\n1. BTC 强\n2. 综合权衡",
                 "confidence": 0.72,
+                "conflict": True,
                 "detail_ref": "diagnose_macro_pool",
+                "input_refs": [
+                    {"symbol": "BTC-USD.CRYPTO", "result_id": RID["BTC-USD.CRYPTO"]},
+                ],
             },
         }
         out = pool_jev_from_diagnose_macro_pool_skill_response(resp, min_reason_len=20)
         self.assertTrue(out.get("ok"))
         self.assertEqual(out.get("jev_direction"), "long")
         self.assertEqual(out.get("confidence"), 0.72)
-        self.assertEqual(out.get("detail_ref"), "diagnose_macro_pool")
+        self.assertTrue(out.get("conflict"))
 
     def test_skill_failure_not_neutral(self) -> None:
         resp = {"status": "failed", "error": "jev down", "session_id": "s1"}
@@ -90,16 +152,46 @@ class TestMacroPoolDiagnoseSkillPack(unittest.TestCase):
         self.assertFalse(out.get("ok"))
         self.assertNotIn("jev_direction", out)
 
+    def test_source_batch_id_required_at_pack(self) -> None:
+        with self.assertRaises(PoolSkillPackError):
+            build_macro_pool_skill_body(
+                batch_date="2026-11-20",
+                pool_workflow="crypto",
+                source_batch_id="",
+                title="加密",
+                expected_symbols=CRYPTO_EXPECTED,
+                symbol_rows=CRYPTO_FIXTURE_ROWS,
+                symbol_result_ids=RID,
+            )
+
     def test_minimal_io_json_documented(self) -> None:
         body = build_macro_pool_skill_body(
             batch_date="2026-11-20",
             pool_workflow="crypto",
             source_batch_id="batch-demo",
             title="加密",
+            expected_symbols=CRYPTO_EXPECTED[:1],
             symbol_rows=CRYPTO_FIXTURE_ROWS[:1],
             symbol_result_ids=RID,
         )
         self.assertTrue(json.dumps(body, ensure_ascii=False))
+
+
+class TestPoolSkillPackBondExpectedSet(unittest.TestCase):
+    """bond/pool-jev-only：expected 集与 rows 不齐套时 workflow 先 fail，不 silent 部分合成。"""
+
+    def test_expected_set_mismatch_before_skill_http(self) -> None:
+        rows = [CRYPTO_FIXTURE_ROWS[0]]
+        with self.assertRaises(PoolSkillPackError):
+            build_macro_pool_skill_body(
+                batch_date="2026-11-20",
+                pool_workflow="crypto",
+                source_batch_id="batch-run-pool-only",
+                title="加密",
+                expected_symbols=CRYPTO_EXPECTED,
+                symbol_rows=rows,
+                symbol_result_ids=RID,
+            )
 
 
 if __name__ == "__main__":
