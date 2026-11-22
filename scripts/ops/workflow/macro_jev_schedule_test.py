@@ -84,6 +84,56 @@ class TestOverallRerun(unittest.TestCase):
         self.assertEqual(calls, ["hk"])
 
 
+class TestCrontabInstallAlignsOrchestration(unittest.TestCase):
+    def test_install_script_weekday_cron_matches_matrix(self) -> None:
+        import re
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parent
+        text = (root / "install_macro_jev_crontab.sh").read_text(encoding="utf-8")
+        found: dict[str, str] = {}
+        pat = re.compile(
+            r"^(\d+)\s+(\d+)\s+\*\s+\*\s+1-5\b.*--workflow\s+(\w+)\b",
+            re.MULTILINE,
+        )
+        for minute_s, hour_s, wf in pat.findall(text):
+            found[wf] = f"{minute_s} {hour_s}"
+        for wf, expect in MACRO_JEV_WEEKDAY_CRON_SHANGHAI.items():
+            self.assertIn(wf, found, msg=f"missing crontab line for {wf}")
+            self.assertEqual(found[wf], expect, msg=wf)
+
+
+class TestProductionBatchNoChatSynthesis(unittest.TestCase):
+    def test_run_batch_module_keeps_chat_synthesis_legacy_only(self) -> None:
+        import re
+        from pathlib import Path
+
+        src = (Path(__file__).resolve().parent / "run_macro_monitor_lab_batch.py").read_text(
+            encoding="utf-8"
+        )
+        # Only the `def synthesize_jev_with_retries(` header may mention the name.
+        call_sites = [
+            m
+            for m in re.finditer(r"(?<![\w.])synthesize_jev_with_retries\s*\(", src)
+            if src[max(0, m.start() - 5) : m.start()].strip() != "def"
+        ]
+        self.assertEqual(
+            len(call_sites),
+            0,
+            msg="synthesize_jev_with_retries must not be called from day-batch module",
+        )
+        chat_call_sites = [
+            m
+            for m in re.finditer(r"(?<![\w.])chat_diagnose\s*\(", src)
+            if src[max(0, m.start() - 5) : m.start()].strip() != "def"
+        ]
+        self.assertLessEqual(
+            len(chat_call_sites),
+            1,
+            msg="chat_diagnose may only be used inside legacy synthesize_jev_with_retries",
+        )
+
+
 class TestSymbolRetryDelayDefault(unittest.TestCase):
     def test_retry_delay_default_600_seconds(self) -> None:
         import run_macro_monitor_lab_batch as batch

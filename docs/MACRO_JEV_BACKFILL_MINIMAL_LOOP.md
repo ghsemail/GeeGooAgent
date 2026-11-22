@@ -59,7 +59,7 @@
 **动作**：
 
 1. `overall_inputs_from_ledger` + `pool_synth_rows_from_ledger`（**禁止** canonical GET latest 填洞）。
-2. **一次** `synthesize_jev_with_retries`「宏观整体」。
+2. **一次** `diagnose_macro_overall` skill（`synthesize_overall_jev_with_skill_retries`）「宏观整体」。
 3. 新 overall `batch/runs` → `PUT .../overall` 七条 pool `result_id`。
 
 **成本**：**1 次** Agent 整体合成。

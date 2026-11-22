@@ -1060,7 +1060,7 @@ def synthesis_jev_message(title: str, rows: list[dict[str, Any]]) -> str:
     )
 
 
-def synthesize_jev_with_retries(
+def synthesize_jev_with_retries(  # legacy chat path — not used by cron day-batch; backfill removed overall
     agent_base: str,
     runtime_key: str,
     mcp_token: str,

@@ -43,6 +43,8 @@ from macro_jev_results_client import (
     put_overall_result,
 )
 
+from macro_overall_diagnose_skill import synthesize_overall_jev_with_skill_retries
+
 from run_macro_monitor_lab_batch import (
     MIN_JEV_REASON_LEN,
     WORKFLOW_MONITOR_POOL,
@@ -50,7 +52,6 @@ from run_macro_monitor_lab_batch import (
     load_geegoo_env,
     post_batch_run,
     rfc3339_now,
-    synthesize_jev_with_retries,
     synthesize_pool_jev_skill,
 )
 
@@ -101,7 +102,22 @@ def _resolve_synthesis(
             return syn
     runtime_key, _mcp_token = load_geegoo_env()
     if pool_workflow == "overall":
-        return synthesize_jev_with_retries(agent_base, runtime_key, _mcp_token, label, rows)
+        pools = [
+            {
+                "pool_workflow": str(r.get("label") or "").strip(),
+                "jev_direction": r.get("jev_direction"),
+                "jev_reason": r.get("jev_reason"),
+            }
+            for r in rows
+        ]
+        return synthesize_overall_jev_with_skill_retries(
+            agent_base,
+            runtime_key,
+            orchestration_date=batch_date,
+            pools=pools,
+            http_json=http_json,
+            min_reason_len=MIN_JEV_REASON_LEN,
+        )
     sbid = str(export.get("source_batch_id") or export.get("batch_run_id") or "").strip()
     if not sbid:
         return {"ok": False, "error": "source_batch_id missing for pool skill backfill"}
