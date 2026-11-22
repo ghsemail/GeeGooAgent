@@ -97,6 +97,93 @@ class TestMacroJevResultsClient(unittest.TestCase):
         self.assertEqual(calls[0]["batch_started_at"], "2026-11-17T05:30:00+08:00")
         self.assertEqual(calls[0]["revision"], 0)
 
+    def test_put_pool_success_includes_choices(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def put_pool(_m, _u, body, _h):
+            captured.update(body or {})
+            return (
+                200,
+                {"code": 100, "data": {"accepted": True, "result_id": "pool:ch"}},
+                "{}",
+            )
+
+        reg = {"PUT http://sig/macro/jev/results/pools/crypto": put_pool}
+        w = MacroJevResultsWriter(
+            "http://sig",
+            "key",
+            "2026-11-20",
+            "crypto",
+            "run-pool",
+            "2026-11-20T09:00:00+08:00",
+            mock_http(reg),
+        )
+        choices = [
+            {"label": "看多", "probability": 0.75},
+            {"label": "看空", "probability": 0.15},
+            {"label": "不明确", "probability": 0.1},
+        ]
+        out = w.put_pool(
+            status="success",
+            completed_at="2026-11-20T09:10:00+08:00",
+            jev_direction="long",
+            jev_reason="y" * 30,
+            confidence=0.75,
+            choices=choices,
+        )
+        self.assertTrue(out.ok)
+        self.assertEqual(captured.get("choices"), choices)
+
+    def test_put_pool_from_synthesis_forwards_choices(self) -> None:
+        captured: list[dict[str, Any]] = []
+
+        def put_pool(_m, _u, body, _h):
+            captured.append(body or {})
+            return (
+                200,
+                {"code": 100, "data": {"accepted": True, "result_id": "pool:syn"}},
+                "{}",
+            )
+
+        reg = {"PUT http://sig/macro/jev/results/pools/crypto": put_pool}
+        w = MacroJevResultsWriter(
+            "http://sig",
+            "key",
+            "2026-11-20",
+            "crypto",
+            "run-pool",
+            "2026-11-20T09:00:00+08:00",
+            mock_http(reg),
+        )
+        w.bind_batch_run("run-pool")
+        w.symbol_result_ids["BTC-USD.CRYPTO"] = "sym:btc"
+        w.symbol_result_ids["ETH-USD.CRYPTO"] = "sym:eth"
+        choices = [
+            {"label": "看多", "probability": 0.6},
+            {"label": "看空", "probability": 0.25},
+            {"label": "不明确", "probability": 0.15},
+        ]
+        pool_jev = {
+            "success": True,
+            "jev_direction": "long",
+            "jev_reason": "z" * 30,
+            "confidence": 0.6,
+            "choices": choices,
+        }
+        out = w.put_pool_from_synthesis(
+            pool_jev,
+            symbol_items=[
+                {"symbol": "BTC-USD.CRYPTO", "success": True},
+                {"symbol": "ETH-USD.CRYPTO", "success": True},
+            ],
+            all_symbols_ok=True,
+            completed_at="2026-11-20T09:11:00+08:00",
+        )
+        self.assertIsNotNone(out)
+        assert out is not None
+        self.assertTrue(out.ok)
+        self.assertEqual(captured[-1].get("choices"), choices)
+
     def test_pool_incomplete_when_expected_symbols_missing(self) -> None:
         sym_put: dict[str, Any] = {}
 
@@ -145,7 +232,16 @@ class TestMacroJevResultsClient(unittest.TestCase):
             completed_at="2026-11-17T07:10:00+08:00",
         )
         out = w.put_pool_from_synthesis(
-            {"success": True, "jev_direction": "long", "jev_reason": "y" * 30},
+            {
+                "success": True,
+                "jev_direction": "long",
+                "jev_reason": "y" * 30,
+                "choices": [
+                    {"label": "看多", "probability": 0.8},
+                    {"label": "看空", "probability": 0.1},
+                    {"label": "不明确", "probability": 0.1},
+                ],
+            },
             symbol_items=[{"symbol": "000001.SH", "success": True}],
             all_symbols_ok=True,
             completed_at="2026-11-17T07:11:00+08:00",

@@ -2,11 +2,10 @@
 """宏观监控池日批：逐标的 ``diagnose_macro`` skill → macro inline/ingest + batch/runs.
 
 单标的诊断经 ``POST /v1/skills/run``（``diagnose_macro``），不走 Agent Loop / lab-detail。
-池级合成仍经 chat（``agent_chat_stream``）。池级失败后可用::
+池级合成经 ``POST /v1/skills/run``（``diagnose_macro_pool``），不走 Agent Loop。
+宏观 ``overall`` 仍经 chat（``agent_chat_stream``）。
 
-  --pool-jev-only --recover-session-id <chat-id>
-
-仅补写 pool_jev，不重跑标的。池合成在当日 monitor 池标的 canonical 全部 success 后自动触发（合并 batch 行，不仅当次 --symbols）。``overall`` 默认只读 ledger（``--rerun-missing-pools`` 才补跑缺池）。
+``--pool-jev-only`` 仅补写 pool_jev，不重跑标的。池合成在当日 monitor 池标的 canonical 全部 success 后自动触发（合并 batch 行，不仅当次 --symbols）。``overall`` 默认只读 ledger（``--rerun-missing-pools`` 才补跑缺池）。
 
 标的 success 门禁：skill 回包四路 JEV + ``jev_unified`` 健康后 ingest/PUT（``detail_ref=diagnose_macro``）。
 可选：``MACRO_BATCH_DIAGNOSE_SKILL_TIMEOUT``（默认 900s）、``MACRO_BATCH_CHAT_TIMEOUT``（池/overall chat）、
@@ -55,6 +54,7 @@ from macro_jev_results_client import (  # noqa: E402
     put_overall_result,
 )
 from macro_jev_synthesis_format import format_pool_jev_reason  # noqa: E402
+from macro_pool_diagnose_skill import synthesize_pool_jev_with_skill_retries  # noqa: E402
 from macro_lab_batch_health import (  # noqa: E402
     batch_item_from_diagnose_skill_response,
     build_lab_episode_summary_from_detail,
@@ -659,12 +659,43 @@ def try_finalize_bond_pool_jev(
         missing = sorted(set(expected) - have)
         print(f"[bond] pool JEV deferred; missing symbols: {missing}", flush=True)
         return 0
-    runtime_key, mcp_token = load_geegoo_env()
-    print("[bond] pool JEV synthesize (债券利率池, merged segments) …", flush=True)
-    syn = synthesize_jev_with_retries(
-        agent_base, runtime_key, mcp_token, WORKFLOW_MONITOR_POOL["bond"], merged
-    )
+    runtime_key, _mcp_token = load_geegoo_env()
     started = rfc3339_now()
+    batch_date = orchestration_date
+    pre_body = {
+        "workflow": "bond",
+        "date": batch_date,
+        "started_at": started,
+        "finished_at": started,
+        "success": False,
+        "summary": "bond pool JEV synthesize (in progress)",
+        "pools": [
+            {
+                "name": WORKFLOW_MONITOR_POOL["bond"],
+                "symbols": expected,
+                "items": merged,
+            }
+        ],
+    }
+    bond_run_id = post_batch_run(macro_base, macro_key, pre_body) or ""
+    if not bond_run_id.strip():
+        print("[bond] pool JEV blocked: no batch run id", flush=True)
+        return 1
+    print("[bond] pool JEV synthesize (债券利率池, merged segments) …", flush=True)
+    canon_pre, _ = fetch_canonical_symbol_result_ids(
+        macro_base, macro_key, http_json, batch_date, "bond"
+    )
+    syn = synthesize_pool_jev_skill(
+        agent_base,
+        runtime_key,
+        batch_date=batch_date,
+        pool_workflow="bond",
+        source_batch_id=bond_run_id,
+        title=WORKFLOW_MONITOR_POOL["bond"],
+        expected_symbols=expected,
+        rows=merged,
+        symbol_result_ids=canon_pre or None,
+    )
     finished = rfc3339_now()
     pool_jev: dict[str, Any]
     if syn.get("ok"):
@@ -672,8 +703,11 @@ def try_finalize_bond_pool_jev(
             "success": True,
             "jev_direction": syn.get("jev_direction"),
             "jev_reason": syn.get("jev_reason"),
+            "confidence": syn.get("confidence"),
+            "choices": syn.get("choices"),
             "agent_session_id": syn.get("session_id"),
             "agent_run_id": syn.get("run_id"),
+            "detail_ref": syn.get("detail_ref") or "diagnose_macro_pool",
             "finished_at": finished,
             "attempt": syn.get("attempt"),
         }
@@ -686,7 +720,6 @@ def try_finalize_bond_pool_jev(
             "finished_at": finished,
         }
         print(f"  pool JEV FAIL: {pool_jev.get('error', '')[:240]}", flush=True)
-    batch_date = orchestration_date
     body = {
         "workflow": "bond",
         "date": batch_date,
@@ -694,27 +727,20 @@ def try_finalize_bond_pool_jev(
         "finished_at": finished,
         "success": bool(pool_jev.get("success")),
         "summary": "bond finished (merged segments)",
-        "pools": [
-            {
-                "name": WORKFLOW_MONITOR_POOL["bond"],
-                "symbols": expected,
-                "items": merged,
-            }
-        ],
+        "pools": pre_body["pools"],
         "pool_jev": pool_jev,
     }
-    bond_run_id = post_batch_run(macro_base, macro_key, body)
+    post_batch_run(macro_base, macro_key, body)
     writer = MacroJevResultsWriter(
         macro_base,
         macro_key,
         batch_date,
         "bond",
-        bond_run_id or "",
+        bond_run_id,
         started,
         http_json,
     )
-    if bond_run_id:
-        writer.bind_batch_run(bond_run_id)
+    writer.bind_batch_run(bond_run_id)
     us_date = macro_batch_date_for_cron("bond_us", orchestration_date)
     sh_date = macro_batch_date_for_cron("bond_sh", orchestration_date)
     canon_syms: dict[str, str] = {}
@@ -978,6 +1004,38 @@ def lab_detail_jev(
     detail = data.get("detail") if isinstance(data.get("detail"), dict) else {}
     unified = detail.get("jev_unified") or data.get("jev_unified")
     return direction_from_jev_unified(unified if isinstance(unified, dict) else None)
+
+
+def synthesize_pool_jev_skill(
+    agent_base: str,
+    runtime_key: str,
+    *,
+    batch_date: str,
+    pool_workflow: str,
+    source_batch_id: str,
+    title: str,
+    expected_symbols: list[str],
+    rows: list[dict[str, Any]],
+    symbol_result_ids: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Pool-tier JEV via diagnose_macro_pool (no chat_diagnose)."""
+    if not (source_batch_id or "").strip():
+        return {"ok": False, "error": "source_batch_id required for pool skill"}
+    return synthesize_pool_jev_with_skill_retries(
+        agent_base,
+        runtime_key,
+        batch_date=batch_date,
+        pool_workflow=pool_workflow,
+        source_batch_id=source_batch_id.strip(),
+        title=title,
+        expected_symbols=expected_symbols,
+        symbol_rows=rows,
+        symbol_result_ids=symbol_result_ids,
+        http_json=http_json,
+        min_reason_len=MIN_JEV_REASON_LEN,
+        max_retries=MAX_DIAGNOSE_RETRIES,
+        retry_delay_sec=float(RETRY_DELAY_SEC),
+    )
 
 
 def synthesis_jev_message(title: str, rows: list[dict[str, Any]]) -> str:
@@ -1383,9 +1441,20 @@ def run_batch(
             flush=True,
         )
         try:
-            syn = synthesize_jev_with_retries(
-                agent_base, runtime_key, mcp_token, label, pool_synth_rows
-            )
+            if not jev_writer or not jev_writer.batch_identity_ready():
+                syn = {"ok": False, "error": "batch_run_id_missing for pool skill"}
+            else:
+                syn = synthesize_pool_jev_skill(
+                    agent_base,
+                    runtime_key,
+                    batch_date=batch_date,
+                    pool_workflow=pool_wf,
+                    source_batch_id=jev_writer.source_batch_id,
+                    title=label,
+                    expected_symbols=expected_pool_syms,
+                    rows=pool_synth_rows,
+                    symbol_result_ids=jev_writer.symbol_result_ids,
+                )
             finished = rfc3339_now()
             valid, val_err = synthesis_pool_jev_valid(syn, min_reason_len=MIN_JEV_REASON_LEN)
             if valid:
@@ -1393,8 +1462,11 @@ def run_batch(
                     "success": True,
                     "jev_direction": syn.get("jev_direction"),
                     "jev_reason": syn.get("jev_reason"),
+                    "confidence": syn.get("confidence"),
+                    "choices": syn.get("choices"),
                     "agent_session_id": syn.get("session_id"),
                     "agent_run_id": syn.get("run_id"),
+                    "detail_ref": syn.get("detail_ref") or "diagnose_macro_pool",
                     "finished_at": finished,
                     "attempt": syn.get("attempt"),
                 }
@@ -1519,7 +1591,10 @@ def run_pool_jev_only(
     if api_workflow not in WORKFLOW_MONITOR_POOL:
         print(f"workflow {workflow} has no pool JEV step", file=sys.stderr)
         return 2
-    runtime_key, mcp_token = load_geegoo_env()
+    runtime_key, _mcp_token = load_geegoo_env()
+    pool_cfg = fetch_monitor_pool(macro_base, macro_key)
+    grouped = group_symbols_for_workflow(pool_cfg, api_workflow)
+    expected_monitor = monitor_pool_symbols(grouped)
     rows = merged_batch_symbol_rows(macro_base, macro_key, api_workflow, batch_date)
     if not rows:
         print(
@@ -1538,26 +1613,54 @@ def run_pool_jev_only(
         }
     ]
     if recover_session_id.strip():
-        print(f"[{workflow}] recover pool JEV from session {recover_session_id} …", flush=True)
-        syn = pool_jev_from_session(
-            agent_base, runtime_key, mcp_token, recover_session_id.strip()
+        print(
+            "--recover-session-id is deprecated for pool JEV; use diagnose_macro_pool",
+            file=sys.stderr,
         )
-    else:
-        print(f"[{workflow}] pool JEV only ({label}) …", flush=True)
-        syn = synthesize_jev_with_retries(
-            agent_base, runtime_key, mcp_token, label, rows
-        )
+        return 2
+    print(f"[{workflow}] pool JEV only ({label}) …", flush=True)
+    pre_body = {
+        "workflow": api_workflow,
+        "date": batch_date,
+        "started_at": started,
+        "finished_at": started,
+        "success": False,
+        "summary": f"{api_workflow} pool JEV only (in progress)",
+        "pools": batch_pools,
+    }
+    pool_run_id = post_batch_run(macro_base, macro_key, pre_body) or ""
+    if not pool_run_id.strip():
+        print("pool JEV only blocked: no batch run id", file=sys.stderr)
+        return 1
+    canon, c_err = fetch_canonical_symbol_result_ids(
+        macro_base, macro_key, http_json, batch_date, api_workflow
+    )
+    if c_err:
+        print(f"  canonical symbols: {c_err}", flush=True)
+    syn = synthesize_pool_jev_skill(
+        agent_base,
+        runtime_key,
+        batch_date=batch_date,
+        pool_workflow=api_workflow,
+        source_batch_id=pool_run_id,
+        title=label,
+        expected_symbols=expected_monitor,
+        rows=rows,
+        symbol_result_ids=canon or None,
+    )
     finished = rfc3339_now()
     if syn.get("ok"):
         pool_jev = {
             "success": True,
             "jev_direction": syn.get("jev_direction"),
             "jev_reason": syn.get("jev_reason"),
+            "confidence": syn.get("confidence"),
+            "choices": syn.get("choices"),
             "agent_session_id": syn.get("session_id"),
             "agent_run_id": syn.get("run_id"),
+            "detail_ref": syn.get("detail_ref") or "diagnose_macro_pool",
             "finished_at": finished,
             "attempt": syn.get("attempt"),
-            "recovered": syn.get("recovered"),
         }
         sym_ok = all(r.get("success") for r in rows)
         body = {
@@ -1570,23 +1673,17 @@ def run_pool_jev_only(
             "pools": batch_pools,
             "pool_jev": pool_jev,
         }
-        pool_run_id = post_batch_run(macro_base, macro_key, body)
+        post_batch_run(macro_base, macro_key, body)
         writer = MacroJevResultsWriter(
             macro_base,
             macro_key,
             batch_date,
             api_workflow,
-            pool_run_id or "",
+            pool_run_id,
             started,
             http_json,
         )
-        if pool_run_id:
-            writer.bind_batch_run(pool_run_id)
-        canon, c_err = fetch_canonical_symbol_result_ids(
-            macro_base, macro_key, http_json, batch_date, api_workflow
-        )
-        if c_err:
-            print(f"  canonical symbols: {c_err}", flush=True)
+        writer.bind_batch_run(pool_run_id)
         writer.put_pool_from_synthesis(
             pool_jev,
             symbol_items=rows,

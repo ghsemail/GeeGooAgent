@@ -305,6 +305,7 @@ class MacroJevResultsWriter:
         attempt: int | None = None,
         blocked_reason: str = "",
         inputs: list[dict[str, Any]] | None = None,
+        choices: list[dict[str, Any]] | None = None,
         revision: int | None = None,
     ) -> PutOutcome:
         if not self._require_batch_identity(f"pool {self.pool_workflow}"):
@@ -335,6 +336,8 @@ class MacroJevResultsWriter:
             body["attempt"] = attempt
         if blocked_reason:
             body["blocked_reason"] = blocked_reason
+        if choices:
+            body["choices"] = choices
         out = self._http_put_json(
             f"{self.macro_base.rstrip('/')}/macro/jev/results/pools/{self.pool_workflow}",
             body,
@@ -398,17 +401,34 @@ class MacroJevResultsWriter:
                     jev_reason="池级合成完成但标的层未全部 success",
                     inputs=inputs,
                 )
-            conf = 0.65
+            conf_raw = pool_jev.get("confidence")
+            try:
+                conf_f = float(conf_raw) if conf_raw is not None else None
+            except (TypeError, ValueError):
+                conf_f = None
+            ch_raw = pool_jev.get("choices")
+            choices: list[dict[str, Any]] | None = None
+            if isinstance(ch_raw, list) and ch_raw:
+                choices = [
+                    {
+                        "label": str(c.get("label") or "").strip(),
+                        "probability": float(c.get("probability") or 0),
+                    }
+                    for c in ch_raw
+                    if isinstance(c, dict) and str(c.get("label") or "").strip()
+                ]
             return self.put_pool(
                 status="success",
                 completed_at=completed_at,
                 jev_direction=str(pool_jev.get("jev_direction") or ""),
                 jev_reason=format_pool_jev_reason(str(pool_jev.get("jev_reason") or "")),
-                confidence=conf,
+                confidence=conf_f,
                 agent_session_id=str(pool_jev.get("agent_session_id") or ""),
                 agent_run_id=str(pool_jev.get("agent_run_id") or ""),
+                detail_ref=str(pool_jev.get("detail_ref") or "diagnose_macro_pool"),
                 attempt=pool_jev.get("attempt"),
                 inputs=inputs,
+                choices=choices,
             )
         if not all_symbols_ok:
             blocked = "symbol_tier_incomplete"

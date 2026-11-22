@@ -19,7 +19,8 @@ type skillsRunRequest struct {
 	MCPToken string                 `json:"mcp_token,omitempty"`
 	Intraday *intradayRunInput      `json:"intraday,omitempty"`
 	Strategy *diagnoseStrategyInput `json:"strategy,omitempty"`
-	Macro    *diagnoseMacroInput    `json:"macro,omitempty"`
+	Macro      *diagnoseMacroInput      `json:"macro,omitempty"`
+	MacroPool  *diagnoseMacroPoolInput  `json:"macro_pool,omitempty"`
 }
 
 type diagnoseStrategyInput struct {
@@ -31,6 +32,23 @@ type diagnoseStrategyInput struct {
 type diagnoseMacroInput struct {
 	Code string `json:"code"`
 	AsOf string `json:"as_of,omitempty"`
+}
+
+type diagnoseMacroPoolSymbol struct {
+	Symbol       string  `json:"symbol"`
+	ResultID     string  `json:"result_id"`
+	JEVDirection string  `json:"jev_direction"`
+	JEVReason    string  `json:"jev_reason"`
+	Confidence   float64 `json:"confidence,omitempty"`
+}
+
+type diagnoseMacroPoolInput struct {
+	Date             string                    `json:"date"`
+	PoolWorkflow     string                    `json:"pool_workflow"`
+	SourceBatchID    string                    `json:"source_batch_id"`
+	Title            string                    `json:"title,omitempty"`
+	ExpectedSymbols  []string                  `json:"expected_symbols"`
+	Symbols          []diagnoseMacroPoolSymbol `json:"symbols"`
 }
 
 type intradayRunInput struct {
@@ -70,7 +88,7 @@ func (h *Handler) skillsRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if skill == "diagnose_strategy" || skill == "diagnose_macro" {
+	if skill == "diagnose_strategy" || skill == "diagnose_macro" || skill == "diagnose_macro_pool" {
 		h.skillsRunDiagnose(w, r, skill, req)
 		return
 	}
@@ -138,9 +156,14 @@ func (h *Handler) skillsRunDiagnose(w http.ResponseWriter, r *http.Request, skil
 			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "strategy.signal_frequency is required"})
 			return
 		}
-	} else {
+	} else if skill == "diagnose_macro" {
 		if req.Macro == nil || strings.TrimSpace(req.Macro.Code) == "" {
 			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "macro.code is required"})
+			return
+		}
+	} else {
+		if req.MacroPool == nil {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "macro_pool body is required"})
 			return
 		}
 	}
@@ -157,6 +180,25 @@ func (h *Handler) skillsRunDiagnose(w http.ResponseWriter, r *http.Request, skil
 			Code: strings.TrimSpace(req.Macro.Code),
 			AsOf: strings.TrimSpace(req.Macro.AsOf),
 		}
+	}
+	if req.MacroPool != nil {
+		mp := &app.DiagnoseMacroPoolInput{
+			Date:             strings.TrimSpace(req.MacroPool.Date),
+			PoolWorkflow:     strings.TrimSpace(req.MacroPool.PoolWorkflow),
+			SourceBatchID:    strings.TrimSpace(req.MacroPool.SourceBatchID),
+			Title:            strings.TrimSpace(req.MacroPool.Title),
+			ExpectedSymbols:  append([]string{}, req.MacroPool.ExpectedSymbols...),
+		}
+		for _, s := range req.MacroPool.Symbols {
+			mp.Symbols = append(mp.Symbols, app.DiagnoseMacroPoolSymbol{
+				Symbol:       strings.TrimSpace(s.Symbol),
+				ResultID:     strings.TrimSpace(s.ResultID),
+				JEVDirection: strings.TrimSpace(s.JEVDirection),
+				JEVReason:    strings.TrimSpace(s.JEVReason),
+				Confidence:   s.Confidence,
+			})
+		}
+		opts.MacroPool = mp
 	}
 	dres, err := h.App.RunDiagnoseSkill(r.Context(), skill, opts)
 	if err != nil {

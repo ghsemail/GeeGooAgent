@@ -36,6 +36,11 @@ func RegisterBuiltins(r *Registry) {
 		PhaseA:      emptySteps,
 	})
 	r.Register(Spec{
+		Name:        "diagnose_macro_pool",
+		Description: "宏观监控池 JEV 合成：workflow 冻结标的摘要 + Choice + 中文理由；不自动 PUT",
+		PhaseA:      emptySteps,
+	})
+	r.Register(Spec{
 		Name:        "postmarket_stock",
 		Description: "盘后总结：小时级分析 + Bot 日志 + 盘前对照，生成 postmarket_stock 报告",
 		PhaseA:      workflow.PostMarketPhaseASteps,

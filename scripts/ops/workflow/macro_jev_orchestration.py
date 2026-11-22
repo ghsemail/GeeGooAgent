@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from macro_jev_results_client import JEV_PIPELINE_WORKFLOWS, HttpJsonFn
+from macro_pool_diagnose_skill import parse_pool_choice_distribution
 
 SHANGHAI_TZ = timezone(timedelta(hours=8))
 
@@ -192,6 +193,8 @@ def synthesis_pool_jev_valid(syn: dict[str, Any], *, min_reason_len: int) -> tup
         return False, f"jev_reason too short (<{min_reason_len})"
     if not session_id or not run_id:
         return False, "missing agent session/run from synthesis"
+    if not parse_pool_choice_distribution(syn.get("choices")):
+        return False, "missing or invalid choices from synthesis"
     return True, ""
 
 
