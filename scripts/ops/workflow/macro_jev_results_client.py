@@ -398,15 +398,20 @@ class MacroJevResultsWriter:
                     jev_reason="池级合成完成但标的层未全部 success",
                     inputs=inputs,
                 )
-            conf = 0.65
+            conf_raw = pool_jev.get("confidence")
+            try:
+                conf_f = float(conf_raw) if conf_raw is not None else None
+            except (TypeError, ValueError):
+                conf_f = None
             return self.put_pool(
                 status="success",
                 completed_at=completed_at,
                 jev_direction=str(pool_jev.get("jev_direction") or ""),
                 jev_reason=format_pool_jev_reason(str(pool_jev.get("jev_reason") or "")),
-                confidence=conf,
+                confidence=conf_f,
                 agent_session_id=str(pool_jev.get("agent_session_id") or ""),
                 agent_run_id=str(pool_jev.get("agent_run_id") or ""),
+                detail_ref=str(pool_jev.get("detail_ref") or "diagnose_macro_pool"),
                 attempt=pool_jev.get("attempt"),
                 inputs=inputs,
             )

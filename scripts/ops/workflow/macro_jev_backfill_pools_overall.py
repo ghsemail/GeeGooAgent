@@ -51,6 +51,7 @@ from run_macro_monitor_lab_batch import (
     post_batch_run,
     rfc3339_now,
     synthesize_jev_with_retries,
+    synthesize_pool_jev_skill,
 )
 
 def _symbol_items_from_state(
@@ -85,6 +86,8 @@ def _resolve_synthesis(
     rows: list[dict[str, Any]],
     recorded_dir: Path | None,
     pool_workflow: str,
+    batch_date: str,
+    export: dict[str, Any],
 ) -> dict[str, Any]:
     if recorded_dir:
         path = recorded_dir / f"{pool_workflow}.json"
@@ -95,8 +98,22 @@ def _resolve_synthesis(
             syn.setdefault("session_id", syn.get("agent_session_id", ""))
             syn.setdefault("run_id", syn.get("agent_run_id", ""))
             return syn
-    runtime_key, mcp_token = load_geegoo_env()
-    return synthesize_jev_with_retries(agent_base, runtime_key, mcp_token, label, rows)
+    runtime_key, _mcp_token = load_geegoo_env()
+    if pool_workflow == "overall":
+        return synthesize_jev_with_retries(agent_base, runtime_key, _mcp_token, label, rows)
+    sbid = str(export.get("source_batch_id") or export.get("batch_run_id") or "").strip()
+    if not sbid:
+        return {"ok": False, "error": "source_batch_id missing for pool skill backfill"}
+    bd = (batch_date or str(export.get("date") or "")).strip()
+    return synthesize_pool_jev_skill(
+        agent_base,
+        runtime_key,
+        batch_date=bd,
+        pool_workflow=pool_workflow,
+        source_batch_id=sbid,
+        title=label,
+        rows=rows,
+    )
 
 
 def run_one_pool(
@@ -148,6 +165,8 @@ def run_one_pool(
         rows=items,
         recorded_dir=recorded_dir,
         pool_workflow=wf,
+        batch_date=batch_date,
+        export=export,
     )
     started = rfc3339_now()
     finished = rfc3339_now()
@@ -158,6 +177,8 @@ def run_one_pool(
             "success": True,
             "jev_direction": syn.get("jev_direction"),
             "jev_reason": syn.get("jev_reason"),
+            "confidence": syn.get("confidence"),
+            "detail_ref": syn.get("detail_ref") or "diagnose_macro_pool",
             "agent_session_id": syn.get("session_id"),
             "agent_run_id": syn.get("run_id"),
             "finished_at": finished,
@@ -277,6 +298,8 @@ def run_overall(
         rows=synth_rows,
         recorded_dir=recorded_dir,
         pool_workflow="overall",
+        batch_date=batch_date,
+        export={},
     )
     started = rfc3339_now()
     finished = rfc3339_now()

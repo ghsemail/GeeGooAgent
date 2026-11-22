@@ -11,7 +11,7 @@ REQUIRED_LANES = (
     "kline_jev",
 )
 
-SKILL_DETAIL_REFS = frozenset({"diagnose_macro", "diagnose_strategy"})
+SKILL_DETAIL_REFS = frozenset({"diagnose_macro", "diagnose_macro_pool", "diagnose_strategy"})
 
 FAIL_FRAGMENTS = (
     "deadline exceeded",

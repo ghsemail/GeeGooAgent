@@ -10,8 +10,9 @@ import (
 
 // DiagnoseSkillOptions carries POST /v1/skills/run diagnose inputs.
 type DiagnoseSkillOptions struct {
-	Strategy *DiagnoseStrategyInput
-	Macro    *DiagnoseMacroInput
+	Strategy   *DiagnoseStrategyInput
+	Macro      *DiagnoseMacroInput
+	MacroPool  *DiagnoseMacroPoolInput
 }
 
 type DiagnoseStrategyInput struct {
@@ -23,6 +24,24 @@ type DiagnoseStrategyInput struct {
 type DiagnoseMacroInput struct {
 	Code string `json:"code"`
 	AsOf string `json:"as_of,omitempty"`
+}
+
+// DiagnoseMacroPoolSymbol is one symbol line for pool JEV skill.
+type DiagnoseMacroPoolSymbol struct {
+	Symbol       string  `json:"symbol"`
+	ResultID     string  `json:"result_id"`
+	JEVDirection string  `json:"jev_direction"`
+	JEVReason    string  `json:"jev_reason"`
+	Confidence   float64 `json:"confidence,omitempty"`
+}
+
+// DiagnoseMacroPoolInput is workflow-assembled pool tier payload.
+type DiagnoseMacroPoolInput struct {
+	Date          string                    `json:"date"`
+	PoolWorkflow  string                    `json:"pool_workflow"`
+	SourceBatchID string                    `json:"source_batch_id"`
+	Title         string                    `json:"title,omitempty"`
+	Symbols       []DiagnoseMacroPoolSymbol `json:"symbols"`
 }
 
 // DiagnoseSkillResult is returned from diagnose_strategy / diagnose_macro skills.
@@ -75,6 +94,42 @@ func (a *App) RunDiagnoseSkill(ctx context.Context, skill string, opts DiagnoseS
 		in.Code = strings.TrimSpace(opts.Macro.Code)
 		in.AsOf = strings.TrimSpace(opts.Macro.AsOf)
 		in.Macro = true
+	case "diagnose_macro_pool":
+		if opts.MacroPool == nil {
+			return DiagnoseSkillResult{Status: "failed", Skill: skill, Error: "macro_pool body is required"},
+				fmt.Errorf("macro_pool body is required")
+		}
+		poolIn := diagnoseskill.MacroPoolRunInput{
+			Date:          strings.TrimSpace(opts.MacroPool.Date),
+			PoolWorkflow:  strings.TrimSpace(opts.MacroPool.PoolWorkflow),
+			SourceBatchID: strings.TrimSpace(opts.MacroPool.SourceBatchID),
+			Title:         strings.TrimSpace(opts.MacroPool.Title),
+			SessionID:     sessionID,
+			RunID:         runID,
+			JEV:           jev,
+			MinReasonLen:  20,
+		}
+		for _, s := range opts.MacroPool.Symbols {
+			poolIn.Symbols = append(poolIn.Symbols, diagnoseskill.MacroPoolSymbolRow{
+				Symbol:       strings.TrimSpace(s.Symbol),
+				ResultID:     strings.TrimSpace(s.ResultID),
+				JEVDirection: strings.TrimSpace(s.JEVDirection),
+				JEVReason:    strings.TrimSpace(s.JEVReason),
+				Confidence:   s.Confidence,
+			})
+		}
+		a.EventBus.Emit("RunStarted", map[string]any{
+			"session_id": sessionID, "skill": skill, "pool_workflow": poolIn.PoolWorkflow,
+		})
+		result, err := diagnoseskill.RunPool(ctx, poolIn)
+		if err != nil {
+			return DiagnoseSkillResult{
+				Status: "failed", SessionID: sessionID, Skill: skill, Error: err.Error(),
+			}, err
+		}
+		return DiagnoseSkillResult{
+			Status: "ok", SessionID: sessionID, Skill: skill, Result: result,
+		}, nil
 	default:
 		return DiagnoseSkillResult{Status: "failed", Skill: skill, Error: "unknown diagnose skill"},
 			fmt.Errorf("unknown diagnose skill: %s", skill)
