@@ -8,11 +8,21 @@ import (
 
 func TestFilteredKlinePatternsAtIndex_HighWaveSpacedName(t *testing.T) {
 	series := []any{
-		[]any{map[string]any{"name": "High Wave", "name_chs": "风高浪大线", "pattern": -1}},
+		[]any{map[string]any{"name": "High Wave", "pattern": -1}},
 	}
 	h := FilteredKlinePatternsAtIndex(series, 0)
 	if len(h) != 1 || h[0].Name != "HighWave" || h[0].LabelCN != "风高浪大线" {
 		t.Fatalf("high wave=%+v", h)
+	}
+}
+
+func TestFilteredKlinePatternsAtIndex_FormalCodeOnly(t *testing.T) {
+	series := []any{
+		[]any{map[string]any{"name": "DragonflyDoji", "pattern": 2}},
+	}
+	h := FilteredKlinePatternsAtIndex(series, 0)
+	if len(h) != 1 || h[0].Name != "DragonflyDoji" || h[0].LabelCN != "蜻蜓十字线" || h[0].Direction != 2 {
+		t.Fatalf("dragonfly=%+v", h)
 	}
 }
 
@@ -28,7 +38,7 @@ func TestFilteredKlinePatternsAtIndex_LabelCNOnly(t *testing.T) {
 
 func TestFilteredKlinePatternsAtIndex_GeeGooPatternField(t *testing.T) {
 	series := []any{
-		[]any{map[string]any{"name": "Engulfing", "name_chs": "吞没模式", "pattern": -1}},
+		[]any{map[string]any{"name": "Engulfing", "pattern": -1}},
 		[]any{map[string]any{"name": "Evening Star", "pattern": 1}},
 	}
 	h0 := FilteredKlinePatternsAtIndex(series, 0)
@@ -53,29 +63,29 @@ func TestKlinePatternLabelCN_MatchesSignalTalibList(t *testing.T) {
 		t.Fatalf("label map count=%d want 28 (GeeGooSignal pattern_list)", len(klinePatternLabelCN))
 	}
 	h := FilteredKlinePatternsAtIndex([]any{
-		[]any{map[string]any{"name": "HangingMan", "name_chs": "上吊线", "pattern": -1}},
+		[]any{map[string]any{"name": "HangingMan", "pattern": -1}},
 	}, 0)
 	if len(h) != 1 || h[0].Name != "HangingMan" || h[0].LabelCN != "上吊线" {
 		t.Fatalf("hanging man=%+v", h)
 	}
 }
 
-func TestFilteredKlinePatternsAtIndex_DisplayLabelPrefersNameCHS(t *testing.T) {
+func TestFilteredKlinePatternsAtIndex_DisplayLabelFromCatalog(t *testing.T) {
 	series := []any{
 		[]any{
 			map[string]any{"name": "Hammer", "pattern": 1},
-			map[string]any{"name": "Engulfing", "name_chs": "吞没模式", "pattern": -1},
+			map[string]any{"name": "Engulfing", "pattern": -1},
 		},
 	}
 	h := FilteredKlinePatternsAtIndex(series, 0)
 	if len(h) != 2 {
 		t.Fatalf("hits=%+v", h)
 	}
-	if h[0].LabelCN != "Hammer" {
-		t.Fatalf("no name_chs → show raw name, got %q", h[0].LabelCN)
+	if h[0].LabelCN != "锤子线" {
+		t.Fatalf("catalog label, got %q", h[0].LabelCN)
 	}
 	if h[1].LabelCN != "吞没模式" {
-		t.Fatalf("name_chs wins, got %q", h[1].LabelCN)
+		t.Fatalf("catalog label, got %q", h[1].LabelCN)
 	}
 }
 

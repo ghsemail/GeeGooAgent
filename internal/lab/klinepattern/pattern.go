@@ -7,7 +7,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
-// klinePatternLabelCN 仅用于探针只带 name_chs、缺英文 name 时的反向解析（展示以 Signal name_chs 为准，无则露英文 name）。
+// klinePatternLabelCN 与 GeeGooSignal pattern_list 对齐；展示文案由 Agent 按正式 code 映射，不依赖探针 name_chs/label_cn。
 var klinePatternLabelCN = map[string]string{
 	"Doji":               "十字线",
 	"DragonflyDoji":      "蜻蜓十字线",
@@ -79,10 +79,7 @@ func FilteredKlinePatternsAtIndex(series []any, idx int) []slots.KlinePatternHit
 			continue
 		}
 		if labelCN == "" {
-			labelCN = name
-		}
-		if name == "" {
-			name = labelCN
+			labelCN = klinePatternDisplayLabel(name)
 		}
 		out = append(out, slots.KlinePatternHit{
 			Name:      name,
@@ -200,21 +197,34 @@ func patternHitName(row map[string]any) string {
 
 func patternIdentityFromProbeRow(row map[string]any) (name, labelCN string, ok bool) {
 	rawName := strings.TrimSpace(patternHitName(row))
-	labelCN = firstString(row, "name_chs", "label_cn", "NameCHS")
 	name = canonicalPatternName(rawName)
-	if name == "" {
-		name = canonicalPatternNameFromLabelCN(labelCN)
-	}
 	if name == "" && rawName != "" {
 		name = rawName
 	}
-	if name == "" && labelCN != "" {
-		name = labelCN
+	if name == "" {
+		legacyCN := firstString(row, "name_chs", "label_cn", "NameCHS")
+		if legacyCN != "" {
+			name = canonicalPatternNameFromLabelCN(legacyCN)
+			if name == "" {
+				name = legacyCN
+			}
+		}
 	}
-	if name == "" && labelCN == "" {
+	if name == "" {
 		return "", "", false
 	}
-	return name, labelCN, true
+	return name, "", true
+}
+
+func klinePatternDisplayLabel(canonicalName string) string {
+	canonicalName = strings.TrimSpace(canonicalName)
+	if canonicalName == "" {
+		return ""
+	}
+	if cn := klinePatternLabelCN[canonicalName]; cn != "" {
+		return cn
+	}
+	return canonicalName
 }
 
 func patternIdentityFromProbeString(raw string) (name, labelCN string, ok bool) {
