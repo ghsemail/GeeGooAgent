@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""宏观监控池日批：逐标的 signal_diagnose → macro inline/ingest + batch/runs.
+"""宏观监控池日批：逐标的 ``diagnose_macro`` skill → macro inline/ingest + batch/runs.
 
-Chat 与 runtime 之间使用 agent_chat_stream：SSE 分块读、IncompleteRead 后按 session 轮询
-``GET /v1/sessions/status``，必要时 ``POST /v1/chat/workflow/resume``。池级失败后可用::
+单标的诊断经 ``POST /v1/skills/run``（``diagnose_macro``），不走 Agent Loop / lab-detail。
+池级合成仍经 chat（``agent_chat_stream``）。池级失败后可用::
 
   --pool-jev-only --recover-session-id <chat-id>
 
-仅补写 pool_jev，不重跑标的。池合成在当日 monitor 池标的 canonical 全部 success 后自动触发（合并 batch 行，不仅当次 --symbols）。``overall`` 默认只读 ledger（``--rerun-missing-pools`` 才补跑缺池）。环境变量见 ``agent_chat_stream`` 模块说明。
+仅补写 pool_jev，不重跑标的。池合成在当日 monitor 池标的 canonical 全部 success 后自动触发（合并 batch 行，不仅当次 --symbols）。``overall`` 默认只读 ledger（``--rerun-missing-pools`` 才补跑缺池）。
 
-标的成功门禁与 Signal ``lab_jev_health`` 对齐：``lab-detail`` 四维 lane 健康后才 ``success``/ingest/PUT。
-可选：``MACRO_BATCH_CHAT_TIMEOUT``（默认 900，池/overall chat 合成）、``MACRO_BATCH_LAB_DETAIL_TIMEOUT``（默认 900，对齐 agent-runtime 960s 写超时）、``MACRO_BATCH_LAB_DETAIL_HTTP_TRANSIENT_RETRIES``（默认 2）、``MACRO_BATCH_LAB_DETAIL_RETRIES``（默认 2）、``MACRO_BATCH_LAB_DETAIL_RETRY_WAIT``（默认 20）。
+标的 success 门禁：skill 回包四路 JEV + ``jev_unified`` 健康后 ingest/PUT（``detail_ref=diagnose_macro``）。
+可选：``MACRO_BATCH_DIAGNOSE_SKILL_TIMEOUT``（默认 900s）、``MACRO_BATCH_CHAT_TIMEOUT``（池/overall chat）、
+以及 lab-detail 相关变量（池级 recover 等遗留路径）。
 """
 
 from __future__ import annotations
@@ -55,9 +56,11 @@ from macro_jev_results_client import (  # noqa: E402
 )
 from macro_jev_synthesis_format import format_pool_jev_reason  # noqa: E402
 from macro_lab_batch_health import (  # noqa: E402
+    batch_item_from_diagnose_skill_response,
     build_lab_episode_summary_from_detail,
     direction_from_jev_unified,
     item_refs_complete,
+    is_skill_detail_ref,
     lab_detail_four_lane_failed,
     lab_episode_summary_failed,
 )
@@ -102,6 +105,8 @@ LAB_DETAIL_POST_DIAGNOSE_DELAY_SEC = float(
     os.environ.get("MACRO_BATCH_LAB_DETAIL_POST_DIAGNOSE_DELAY_SEC", "8")
 )
 MIN_JEV_REASON_LEN = 20
+# Whole diagnose_macro skill (3220 lanes + ~4m JEV); align with agent JEV wall time.
+DIAGNOSE_MACRO_SKILL_TIMEOUT = int(os.environ.get("MACRO_BATCH_DIAGNOSE_SKILL_TIMEOUT", "900"))
 MAX_DIAGNOSE_RETRIES = 3
 # 单标的/池级合成失败：进程内等待 RETRY_DELAY_SEC（默认 600s = 10min）后重试，最多 MAX_DIAGNOSE_RETRIES 次。
 RETRY_DELAY_SEC = int(os.environ.get("MACRO_BATCH_RETRY_DELAY_SEC", "600"))
@@ -487,7 +492,7 @@ def _detail_ref_from_signal_eval_episode(ep: dict[str, Any]) -> str:
 
 def is_valid_detail_ref(ref: str) -> bool:
     r = (ref or "").strip()
-    return r.startswith("buy:") or r.startswith("sell:")
+    return r.startswith("buy:") or r.startswith("sell:") or is_skill_detail_ref(r)
 
 
 def item_jev_complete(
@@ -797,6 +802,38 @@ def collect_pool_inputs_from_pipeline(
     return inputs, ""
 
 
+def run_diagnose_macro_skill(
+    agent_base: str,
+    runtime_key: str,
+    sym: str,
+    *,
+    as_of: str = "",
+) -> dict[str, Any]:
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {runtime_key}",
+    }
+    macro_body: dict[str, Any] = {"code": sym.strip()}
+    if (as_of or "").strip():
+        macro_body["as_of"] = as_of.strip()
+    body = {"skill": "diagnose_macro", "macro": macro_body}
+    status, data, raw = http_json(
+        "POST",
+        f"{agent_base.rstrip('/')}/v1/skills/run",
+        headers,
+        body,
+        timeout=DIAGNOSE_MACRO_SKILL_TIMEOUT,
+    )
+    if status != 200:
+        return {
+            "ok": False,
+            "error": f"skills/run HTTP {status}: {raw[:400]}",
+        }
+    if not isinstance(data, dict):
+        return {"ok": False, "error": "skills/run invalid json"}
+    return data
+
+
 def diagnose_symbol_once(
     agent_base: str,
     runtime_key: str,
@@ -804,82 +841,15 @@ def diagnose_symbol_once(
     name: str,
     sym: str,
 ) -> dict[str, Any]:
-    msg = diagnose_message(name, sym)
-    chat = chat_diagnose(agent_base, runtime_key, mcp_token, msg)
-    if not chat.get("ok"):
-        return {"ok": False, "error": chat.get("error") or "chat failed"}
-
-    session_id = str(chat.get("session_id") or "").strip()
-    hint_run = str(chat.get("run_id") or "").strip()
-    res = fetch_diagnose_result(agent_base, runtime_key, mcp_token, session_id, hint_run)
-    if not res.get("ok"):
-        return {"ok": False, "error": res.get("error") or "result failed"}
-
-    data = res["data"]
-    if isinstance(data, dict) and isinstance(data.get("data"), dict):
-        data = data["data"]
-    run_id = str(data.get("run_id") or hint_run or "").strip()
-    jev_reason = str(data.get("eval_judgment") or "").strip()
-    if len(jev_reason) < MIN_JEV_REASON_LEN:
-        jev_reason = str(chat.get("reply") or "").strip() or jev_reason
-    detail_ref = pick_detail_ref(data)
-    lab_summary: dict[str, Any] | None = None
-    direction, conf = "", None
-    if session_id and run_id and detail_ref:
-        if LAB_DETAIL_POST_DIAGNOSE_DELAY_SEC > 0:
-            time.sleep(LAB_DETAIL_POST_DIAGNOSE_DELAY_SEC)
-        lab = lab_detail_symbol_gate(
-            agent_base, runtime_key, mcp_token, session_id, run_id, detail_ref
-        )
-        if not lab.get("ok"):
-            return {
-                "ok": False,
-                "error": str(lab.get("error") or "lab-detail failed"),
-                "session_id": session_id,
-                "run_id": run_id,
-                "jev_reason": jev_reason,
-                "detail_ref": detail_ref,
-            }
-        lab_summary = lab.get("lab_episode_summary")
-        direction = str(lab.get("direction") or "")
-        conf = lab.get("confidence")
-    if not direction:
-        direction = parse_direction_from_compose(jev_reason)
-    if conf is None:
-        conf = 1.0 if direction != "neutral" else 0.5
-
-    if not item_jev_complete(
-        jev_reason, detail_ref, session_id, run_id, direction, lab_summary
-    ):
-        refs_ok, refs_msg = item_refs_complete(
-            jev_reason, detail_ref, session_id, run_id, direction, min_reason_len=MIN_JEV_REASON_LEN
-        )
-        failed, sum_msg = lab_episode_summary_failed(lab_summary)
-        parts: list[str] = []
-        if not refs_ok:
-            parts.append(refs_msg)
-        if failed:
-            parts.append(sum_msg)
-        return {
-            "ok": False,
-            "error": " · ".join(parts) or "incomplete jev",
-            "session_id": session_id,
-            "run_id": run_id,
-            "jev_reason": jev_reason,
-            "detail_ref": detail_ref,
-            "direction": direction,
-        }
-
-    return {
-        "ok": True,
-        "session_id": session_id,
-        "run_id": run_id,
-        "jev_reason": jev_reason,
-        "detail_ref": detail_ref,
-        "direction": direction,
-        "confidence": conf,
-        "lab_episode_summary": lab_summary,
-    }
+    del name, mcp_token  # skill path: macro.code only; Bearer runtime key auth
+    skill_resp = run_diagnose_macro_skill(agent_base, runtime_key, sym)
+    if skill_resp.get("ok") is False and "error" in skill_resp and "status" not in skill_resp:
+        return skill_resp
+    return batch_item_from_diagnose_skill_response(
+        skill_resp,
+        detail_ref="diagnose_macro",
+        min_reason_len=MIN_JEV_REASON_LEN,
+    )
 
 
 def diagnose_symbol_with_retries(

@@ -11,6 +11,8 @@ REQUIRED_LANES = (
     "kline_jev",
 )
 
+SKILL_DETAIL_REFS = frozenset({"diagnose_macro", "diagnose_strategy"})
+
 FAIL_FRAGMENTS = (
     "deadline exceeded",
     "deadline_exceeded",
@@ -134,6 +136,133 @@ def build_lab_episode_summary_from_detail(
     return out
 
 
+def is_skill_detail_ref(ref: str) -> bool:
+    r = (ref or "").strip()
+    if r in SKILL_DETAIL_REFS:
+        return True
+    return r.startswith("diagnose_")
+
+
+def direction_skill_to_ledger(unified: dict[str, Any] | None) -> tuple[str, float | None]:
+    """Map diagnose skill jev_unified.direction (bull/bear/unclear) to ledger long/short/neutral."""
+    if not isinstance(unified, dict):
+        return "", None
+    raw = str(unified.get("direction") or "").strip().lower()
+    conf = unified.get("confidence")
+    try:
+        conf_f = float(conf) if conf is not None else None
+    except (TypeError, ValueError):
+        conf_f = None
+    if raw == "bull":
+        return "long", conf_f
+    if raw == "bear":
+        return "short", conf_f
+    if raw == "unclear":
+        return "neutral", conf_f
+    direction, conf2 = direction_from_jev_unified(unified)
+    if direction:
+        return direction, conf2 if conf2 is not None else conf_f
+    if unified.get("ok") and not raw:
+        return "neutral", conf_f
+    return "", conf_f
+
+
+def build_lab_episode_summary_from_skill_result(
+    skill_result: dict[str, Any],
+    detail_ref: str = "diagnose_macro",
+) -> dict[str, Any] | None:
+    """Assemble Monday-facing lab_episode_summary from diagnose_macro skill `result`."""
+    if not isinstance(skill_result, dict) or not skill_result:
+        return None
+    ref = (detail_ref or "").strip() or "diagnose_macro"
+    out: dict[str, Any] = {"detail_ref": ref}
+    monitor = str(skill_result.get("monitor_session_close") or "").strip()
+    if monitor:
+        out["monitor_quote_cutoff"] = monitor
+    for key in (*REQUIRED_LANES, "jev_unified"):
+        lane = skill_result.get(key)
+        if isinstance(lane, dict) and lane:
+            out[key] = lane
+    if len(out) <= 1:
+        return None
+    return out
+
+
+def batch_item_from_diagnose_skill_response(
+    response: dict[str, Any],
+    *,
+    detail_ref: str = "diagnose_macro",
+    min_reason_len: int = 20,
+) -> dict[str, Any]:
+    """Map POST /v1/skills/run diagnose_macro JSON to diagnose_symbol_once outcome."""
+    session_id = str(response.get("session_id") or "").strip()
+    run_id = session_id
+    status = str(response.get("status") or "").strip().lower()
+    err = str(response.get("error") or "").strip()
+    if status != "ok":
+        return {
+            "ok": False,
+            "error": err or f"skill status={status or 'unknown'}",
+            "session_id": session_id,
+            "run_id": run_id,
+            "detail_ref": detail_ref,
+        }
+    result = response.get("result")
+    if not isinstance(result, dict):
+        return {
+            "ok": False,
+            "error": "missing skill result",
+            "session_id": session_id,
+            "run_id": run_id,
+            "detail_ref": detail_ref,
+        }
+    unified = result.get("jev_unified")
+    if not isinstance(unified, dict):
+        return {
+            "ok": False,
+            "error": "jev_unified missing",
+            "session_id": session_id,
+            "run_id": run_id,
+            "detail_ref": detail_ref,
+        }
+    jev_reason = str(unified.get("recommended_reason") or "").strip()
+    direction, conf = direction_skill_to_ledger(unified)
+    if not direction:
+        direction = "neutral"
+    if conf is None:
+        conf = 1.0 if direction != "neutral" else 0.5
+    lab_summary = build_lab_episode_summary_from_skill_result(result, detail_ref)
+    ok_refs, refs_msg = item_refs_complete(
+        jev_reason, detail_ref, session_id, run_id, direction, min_reason_len=min_reason_len
+    )
+    failed, sum_msg = lab_episode_summary_failed(lab_summary)
+    if not ok_refs or failed:
+        parts: list[str] = []
+        if not ok_refs:
+            parts.append(refs_msg)
+        if failed:
+            parts.append(sum_msg)
+        return {
+            "ok": False,
+            "error": " · ".join(parts) or "incomplete jev",
+            "session_id": session_id,
+            "run_id": run_id,
+            "jev_reason": jev_reason,
+            "detail_ref": detail_ref,
+            "direction": direction,
+        }
+    return {
+        "ok": True,
+        "session_id": session_id,
+        "run_id": run_id,
+        "jev_reason": jev_reason,
+        "detail_ref": detail_ref,
+        "direction": direction,
+        "confidence": conf,
+        "lab_episode_summary": lab_summary,
+    }
+
+
 def direction_from_jev_unified(unified: dict[str, Any] | None) -> tuple[str, float | None]:
     if not isinstance(unified, dict):
         return "", None
@@ -171,7 +300,10 @@ def item_refs_complete(
     if len((jev_reason or "").strip()) < min_reason_len:
         return False, f"jev_reason<{min_reason_len}"
     ref = (detail_ref or "").strip()
-    if not (ref.startswith("buy:") or ref.startswith("sell:")):
+    if is_skill_detail_ref(ref):
+        if not ref:
+            return False, "missing skill detail_ref"
+    elif not (ref.startswith("buy:") or ref.startswith("sell:")):
         return False, "missing buy:/sell: detail_ref"
     if not (session_id or "").strip() or not (run_id or "").strip():
         return False, "missing session/run"
