@@ -455,43 +455,66 @@ class MacroJevResultsWriter:
     ) -> PutOutcome:
         if not self._require_batch_identity(f"pool {self.pool_workflow}"):
             return PutOutcome(http_status=0, accepted=False, error="jev_source_batch_id_missing")
-        body: dict[str, Any] = {
-            "date": self.batch_date,
-            "status": status,
-            "source_batch_id": self.source_batch_id,
-            "batch_started_at": self.batch_started_at,
-            "revision": self.revision if revision is None else revision,
-            "inputs": inputs or [],
-        }
-        if jev_direction:
-            body["jev_direction"] = jev_direction
-        if jev_reason:
-            body["jev_reason"] = jev_reason
-        if confidence is not None:
-            body["confidence"] = confidence
-        if agent_session_id:
-            body["agent_session_id"] = agent_session_id
-        if agent_run_id:
-            body["agent_run_id"] = agent_run_id
-        if detail_ref:
-            body["detail_ref"] = detail_ref
-        if completed_at:
-            body["completed_at"] = completed_at
-        if attempt is not None:
-            body["attempt"] = attempt
-        if blocked_reason:
-            body["blocked_reason"] = blocked_reason
-        if choices:
-            body["choices"] = choices
-        out = self._http_put_json(
-            f"{self.macro_base.rstrip('/')}/macro/jev/results/pools/{self.pool_workflow}",
-            body,
-        )
-        if out.ok and out.result_id:
-            self.pool_result_id = out.result_id
-        elif not out.ok:
-            self._record_failure(f"pool {self.pool_workflow}", out)
-        return out
+        base_rev = max(self.revision, self.symbol_revision_final)
+        if revision is not None:
+            base_rev = revision
+        url = f"{self.macro_base.rstrip('/')}/macro/jev/results/pools/{self.pool_workflow}"
+        last: PutOutcome = PutOutcome(http_status=0, accepted=False, error="no attempt")
+        for bump in range(8):
+            rev = base_rev + bump
+            body: dict[str, Any] = {
+                "date": self.batch_date,
+                "status": status,
+                "source_batch_id": self.source_batch_id,
+                "batch_started_at": self.batch_started_at,
+                "revision": rev,
+                "inputs": inputs or [],
+            }
+            if jev_direction:
+                body["jev_direction"] = jev_direction
+            if jev_reason:
+                body["jev_reason"] = jev_reason
+            if confidence is not None:
+                body["confidence"] = confidence
+            if agent_session_id:
+                body["agent_session_id"] = agent_session_id
+            if agent_run_id:
+                body["agent_run_id"] = agent_run_id
+            if detail_ref:
+                body["detail_ref"] = detail_ref
+            if completed_at:
+                body["completed_at"] = completed_at
+            if attempt is not None:
+                body["attempt"] = attempt
+            if blocked_reason:
+                body["blocked_reason"] = blocked_reason
+            if choices:
+                body["choices"] = choices
+            out = self._http_put_json(url, body)
+            last = out
+            if out.ok:
+                self.revision = max(self.revision, rev)
+                if out.result_id:
+                    self.pool_result_id = out.result_id
+                return out
+            if out.reason == "batch_started_at_mismatch":
+                pool_row, _ = get_canonical_pool_result(
+                    self.macro_base,
+                    self.macro_key,
+                    self.http_json,
+                    self.batch_date,
+                    self.pool_workflow,
+                )
+                if isinstance(pool_row, dict):
+                    locked = str(pool_row.get("batch_started_at") or "").strip()
+                    if locked and locked != self.batch_started_at:
+                        self.batch_started_at = locked
+                        continue
+            if out.reason not in PUT_RETRY_REASONS:
+                break
+        if not last.ok:
+            self._record_failure(f"pool {self.pool_workflow}", last)
+        return last
 
     def merge_symbol_result_ids(self, extra: dict[str, str]) -> None:
         for sym, rid in extra.items():
