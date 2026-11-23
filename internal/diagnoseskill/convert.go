@@ -55,6 +55,7 @@ func convertPriceAnalysis(code string, rows []map[string]any, spot float64) *str
 	pa := &strategydev.PriceAnalysis{Code: code, SpotPrice: spot}
 	for _, row := range rows {
 		tf, _ := row["frequency"].(string)
+		tfLabel := frequencyDisplayLabel(tf)
 		structBits, _ := row["structure"].([]any)
 		var parts []string
 		for _, b := range structBits {
@@ -67,13 +68,13 @@ func convertPriceAnalysis(code string, rows []map[string]any, spot float64) *str
 			structure = strings.Join(parts, "")
 		}
 		bos := structureHits(row, "BOS", "CHOCH")
-		pos := ""
-		if rp, ok := row["range_position"].(float64); ok {
-			pos = fmt.Sprintf("%.2f", rp)
+		if bos == "" {
+			bos = "无"
 		}
-		conclusion := structure
+		pos := positionLabelFromRange(row)
+		conclusion := structureConclusion(structure)
 		r := strategydev.PriceAnalysisRow{
-			Timeframe:  tf,
+			Timeframe:  tfLabel,
 			Conclusion: conclusion,
 			Structure:  structure,
 			BosChoch:   bos,
@@ -86,14 +87,104 @@ func convertPriceAnalysis(code string, rows []map[string]any, spot float64) *str
 			r.RVOL = rv
 		}
 		if vr, ok := row["volume_ratio"].(float64); ok && vr > 0 {
-			r.VolumeNote = fmt.Sprintf("volume_ratio=%.3f", vr)
+			r.VolumeNote = volumeNoteFromRow(row, vr, r.RVOL)
+		} else if r.RVOL > 0 {
+			r.VolumeNote = volumeNoteFromRow(row, 0, r.RVOL)
 		}
 		pa.Rows = append(pa.Rows, r)
 	}
 	if len(pa.Rows) > 0 {
-		pa.Summary = pa.Rows[0].Conclusion
+		pa.Summary = multiRowPriceSummary(pa.Rows)
+		pa.AnchorTime, _ = rows[0]["time"].(string)
+		pa.AnchorClose = pa.SpotPrice
+		if pa.AnchorClose <= 0 {
+			if c, ok := rows[0]["close"].(float64); ok {
+				pa.AnchorClose = c
+			}
+		}
 	}
 	return pa
+}
+
+func frequencyDisplayLabel(freq string) string {
+	switch strategydev.NormalizeFrequency(freq) {
+	case "daily":
+		return "日线"
+	case "60m":
+		return "1小时"
+	case "15m":
+		return "15m"
+	case "5m":
+		return "5m"
+	case "weekly":
+		return "周线"
+	default:
+		if freq == "" {
+			return "—"
+		}
+		return freq
+	}
+}
+
+func positionLabelFromRange(row map[string]any) string {
+	rp, ok := row["range_position"].(float64)
+	if !ok {
+		return "-"
+	}
+	switch {
+	case rp <= 0.33:
+		return "靠近下沿"
+	case rp >= 0.67:
+		return "靠近上沿"
+	default:
+		return "中部"
+	}
+}
+
+func structureConclusion(structure string) string {
+	s := strings.ToUpper(strings.TrimSpace(structure))
+	if s == "" {
+		return "—"
+	}
+	if strings.Contains(s, "LL") && !strings.Contains(s, "HL") {
+		return "下跌"
+	}
+	if strings.Contains(s, "HH") || strings.Contains(s, "HL") {
+		return "上涨"
+	}
+	if strings.Contains(s, "LH") && strings.Contains(s, "HL") {
+		return "横盘"
+	}
+	return structure
+}
+
+func volumeNoteFromRow(row map[string]any, vr, rvol float64) string {
+	chgNote := "量价"
+	if vr > 1.05 {
+		chgNote = "上涨+量能"
+	} else if vr > 0 && vr < 0.95 {
+		chgNote = "下跌+量能"
+	}
+	if rvol > 0 {
+		return fmt.Sprintf("%s · RVOL %.2f", chgNote, rvol)
+	}
+	return chgNote
+}
+
+func multiRowPriceSummary(rows []strategydev.PriceAnalysisRow) string {
+	if len(rows) == 0 {
+		return ""
+	}
+	if len(rows) == 1 {
+		return rows[0].Conclusion
+	}
+	var parts []string
+	for _, r := range rows {
+		if r.Conclusion != "" {
+			parts = append(parts, r.Timeframe+" "+r.Conclusion)
+		}
+	}
+	return strings.Join(parts, "；")
 }
 
 func structureHits(row map[string]any, names ...string) string {

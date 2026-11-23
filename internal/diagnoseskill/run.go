@@ -86,15 +86,30 @@ func Run(ctx context.Context, in RunInput) (Result, error) {
 	profile := strings.TrimSpace(detail.KlineJEVProfile)
 	strategydev.ApplyDiagnoseJEVUnified(jevCtx, detail, in.JEV, signalFreq, profile)
 
-	res := Result{
-		"code": code,
-		"time": anchorTime,
-		"close": anchorClose,
-		"price_analysis":      jsonArray(bundle.PriceAnalysis, "price_analysis"),
-		"kline_pattern":       jsonArray(bundle.KlinePattern, "kline_pattern"),
-		"technical_analysis":  jsonArray(bundle.TechnicalAnalysis, "technical_analysis"),
-		"index_trend":         jsonArray(bundle.IndexTrend, "index_trend"),
+	detail.Time = anchorTime
+	detail.Close = anchorClose
+	if in.Macro {
+		detail.Ref = "diagnose_macro"
+	} else if strings.TrimSpace(detail.Ref) == "" {
+		detail.Ref = strategydev.LabDetailRef("buy", 0)
 	}
+	res := Result{
+		"code":  code,
+		"time":  anchorTime,
+		"close": anchorClose,
+	}
+	if ohlc := anchorOHLCFromBundle(bundle, in.Macro, signalFreq); ohlc != nil {
+		if ohlc.open > 0 {
+			res["open"] = ohlc.open
+		}
+		if ohlc.high > 0 {
+			res["high"] = ohlc.high
+		}
+		if ohlc.low > 0 {
+			res["low"] = ohlc.low
+		}
+	}
+	applySkillFactLanes(res, detail)
 	if !in.Macro {
 		res["signal_frequency"] = strings.TrimSpace(in.SignalFreq)
 	} else if monitorClose := macroMonitorSessionClose(code, anchorTime); monitorClose != "" {
