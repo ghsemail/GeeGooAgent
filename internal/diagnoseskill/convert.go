@@ -27,6 +27,12 @@ func populateDetailFromLanes(bundle LaneBundle, macro bool) (*strategydev.LabEpi
 	pa := convertPriceAnalysis(bundle.Code, paRows, bundle.SpotPrice)
 	out.PriceAnalysis = pa
 
+	if macro {
+		if tb := klineThreeBarFromLaneRaw(bundle.KlinePattern); tb != nil {
+			out.KlinePatternThreeBar = tb
+		}
+	}
+
 	if len(klineRows) > 0 {
 		populateKlineDetail(out, klineRows, signalFreq, macro)
 	}
@@ -347,7 +353,9 @@ func populateKlineDetail(out *strategydev.LabEpisodeDetail, rows []map[string]an
 				}
 			}
 		}
-		out.KlinePatternThreeBar = threeBarFromRow(row, anchorHits)
+		if out.KlinePatternThreeBar == nil {
+			out.KlinePatternThreeBar = threeBarFromRow(row, anchorHits)
+		}
 		out.KlineJEVProfile = strategydev.LabKlineJEVProfileDailyMacro
 	}
 	if len(tagged) > 0 {
@@ -372,6 +380,25 @@ func patternHitsFromRow(row map[string]any) []slots.KlinePatternHit {
 		out = append(out, slots.KlinePatternHit{Name: name, Direction: dir})
 	}
 	return out
+}
+
+func klineThreeBarFromLaneRaw(raw json.RawMessage) *slots.KlinePatternThreeBarWindow {
+	if len(raw) == 0 {
+		return nil
+	}
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &top); err != nil {
+		return nil
+	}
+	tbRaw, ok := top["kline_pattern_three_bar"]
+	if !ok || len(tbRaw) == 0 {
+		return nil
+	}
+	var win slots.KlinePatternThreeBarWindow
+	if err := json.Unmarshal(tbRaw, &win); err != nil || len(win.Bars) == 0 {
+		return nil
+	}
+	return &win
 }
 
 func threeBarFromRow(row map[string]any, hits []slots.KlinePatternHit) *slots.KlinePatternThreeBarWindow {
