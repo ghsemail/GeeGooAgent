@@ -1225,10 +1225,15 @@ def run_batch(
             started,
             http_json,
         )
-        prime_jev_writer_for_pool_day(jev_writer, batch_started_at=started)
+        prime_jev_writer_for_pool_day(
+            jev_writer,
+            batch_started_at=started,
+            probe_symbols=expected_pool_syms,
+        )
         print(
             f"  jev source_batch_id={jev_writer.source_batch_id} "
-            f"revision=r{jev_writer.symbol_revision_final}",
+            f"revision=r{jev_writer.symbol_revision_final} "
+            f"batch_started_at={jev_writer.batch_started_at}",
             flush=True,
         )
     batch_pools: list[dict[str, Any]] = []
@@ -1663,7 +1668,11 @@ def run_pool_jev_only(
         started,
         http_json,
     )
-    prime_jev_writer_for_pool_day(writer, batch_started_at=started)
+    prime_jev_writer_for_pool_day(
+        writer,
+        batch_started_at=started,
+        probe_symbols=expected_monitor,
+    )
     sym_rids, rid_err = resolve_pool_day_symbol_result_ids(
         macro_base,
         macro_key,

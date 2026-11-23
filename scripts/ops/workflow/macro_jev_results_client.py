@@ -36,6 +36,8 @@ PUT_ACCEPT_FALSE_REASONS = frozenset(
     }
 )
 
+PUT_RETRY_REASONS = frozenset({"immutable_version_conflict", "batch_started_at_mismatch"})
+
 
 def jev_stable_source_batch_id(pool_workflow: str, batch_date: str) -> str:
     """Canonical JEV 真源批次键：按池 workflow + 宏观分析日，不绑定 Mongo batch_run.id。"""
@@ -84,10 +86,60 @@ def next_jev_revision_for_stable_batch(
     return max(max_rev + 1, 1)
 
 
+def _jev_result_row(data: Any) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        return {}
+    block = data.get("data")
+    if not isinstance(block, dict):
+        return {}
+    res = block.get("result")
+    return res if isinstance(res, dict) else {}
+
+
+def fetch_locked_batch_started_at(
+    macro_base: str,
+    macro_key: str,
+    http_json: HttpJsonFn,
+    batch_date: str,
+    pool_workflow: str,
+    stable_source_batch_id: str,
+    probe_symbols: list[str],
+) -> str:
+    """同日 stable source_batch_id 已锁定的 batch_started_at（首次 PUT 锚点）。"""
+    stable = stable_source_batch_id.strip()
+    if not stable:
+        return ""
+    headers = {"Authorization": f"Bearer {macro_key}"}
+    base = macro_base.rstrip("/")
+    for sym in probe_symbols:
+        sym_u = sym.strip().upper()
+        if not sym_u:
+            continue
+        for src in ("auto", "canonical"):
+            q = f"date={batch_date}&pool_workflow={pool_workflow}&source={src}"
+            path_sym = urllib.parse.quote(sym_u, safe="")
+            status, data, _ = http_json(
+                "GET",
+                f"{base}/macro/jev/results/symbols/{path_sym}?{q}",
+                headers,
+                timeout=90,
+            )
+            if status != 200:
+                continue
+            row = _jev_result_row(data)
+            if str(row.get("source_batch_id") or "").strip() != stable:
+                continue
+            locked = str(row.get("batch_started_at") or "").strip()
+            if locked:
+                return locked
+    return ""
+
+
 def prime_jev_writer_for_pool_day(
     writer: MacroJevResultsWriter,
     *,
     batch_started_at: str,
+    probe_symbols: list[str] | None = None,
 ) -> None:
     stable = jev_stable_source_batch_id(writer.pool_workflow, writer.batch_date)
     rev = next_jev_revision_for_stable_batch(
@@ -97,7 +149,17 @@ def prime_jev_writer_for_pool_day(
         writer.batch_date,
         writer.pool_workflow,
     )
-    writer.bind_batch_run(stable, batch_started_at=batch_started_at)
+    locked_started = fetch_locked_batch_started_at(
+        writer.macro_base,
+        writer.macro_key,
+        writer.http_json,
+        writer.batch_date,
+        writer.pool_workflow,
+        stable,
+        probe_symbols or [],
+    )
+    started = locked_started or batch_started_at
+    writer.bind_batch_run(stable, batch_started_at=started)
     writer.symbol_revision_final = rev
     writer.revision = rev
 
@@ -277,7 +339,20 @@ class MacroJevResultsWriter:
                 if out.result_id:
                     self.symbol_result_ids[sym] = out.result_id
                 return out
-            if out.reason != "immutable_version_conflict":
+            if out.reason == "batch_started_at_mismatch":
+                locked = fetch_locked_batch_started_at(
+                    self.macro_base,
+                    self.macro_key,
+                    self.http_json,
+                    self.batch_date,
+                    self.pool_workflow,
+                    self.source_batch_id,
+                    [sym],
+                )
+                if locked and locked != self.batch_started_at:
+                    self.batch_started_at = locked
+                    continue
+            if out.reason not in PUT_RETRY_REASONS:
                 break
         if not last.ok:
             self._record_failure(f"symbol {sym}", last)
