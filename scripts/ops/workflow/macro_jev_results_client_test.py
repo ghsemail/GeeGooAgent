@@ -42,18 +42,28 @@ class TestMacroJevResultsClient(unittest.TestCase):
         self.assertEqual(rid0, "sym:2026-11-17:cn_a:000001.SH:run-1")
         self.assertEqual(rid1, "sym:2026-11-17:cn_a:000001.SH:run-1@r1")
 
-    def test_put_accepts_false_records_reason(self) -> None:
-        def put_symbol(*_a: Any, **_k: Any) -> tuple[int, Any, str]:
+    def test_put_bumps_revision_on_immutable_conflict(self) -> None:
+        calls: list[dict[str, Any]] = []
+
+        def put_symbol(_m, _url, body, _h):
+            calls.append(body or {})
+            rev = int((body or {}).get("revision") or 0)
+            if rev == 1:
+                return (
+                    200,
+                    {
+                        "code": 100,
+                        "data": {
+                            "accepted": False,
+                            "reason": "immutable_version_conflict",
+                            "result_id": "sym:x",
+                        },
+                    },
+                    "{}",
+                )
             return (
                 200,
-                {
-                    "code": 100,
-                    "data": {
-                        "accepted": False,
-                        "reason": "immutable_version_conflict",
-                        "result_id": "sym:x",
-                    },
-                },
+                {"code": 100, "data": {"accepted": True, "result_id": "sym:y"}},
                 "{}",
             )
 
@@ -67,11 +77,13 @@ class TestMacroJevResultsClient(unittest.TestCase):
             "2026-11-17T07:00:00+08:00",
             mock_http(reg),
         )
+        w.symbol_revision_final = 1
         out = w.put_symbol(symbol="000001.SH", status="success", jev_direction="long")
-        self.assertFalse(out.ok)
-        self.assertEqual(out.reason, "immutable_version_conflict")
-        self.assertEqual(w.symbol_result_ids.get("000001.SH"), "sym:x")
-        self.assertTrue(w.has_errors())
+        self.assertTrue(out.ok)
+        self.assertEqual(calls[0]["revision"], 1)
+        self.assertEqual(calls[1]["revision"], 2)
+        self.assertEqual(w.symbol_result_ids.get("000001.SH"), "sym:y")
+        self.assertFalse(w.has_errors())
 
     def test_bind_batch_run_matches_macro_api_run_id(self) -> None:
         calls: list[dict[str, Any]] = []

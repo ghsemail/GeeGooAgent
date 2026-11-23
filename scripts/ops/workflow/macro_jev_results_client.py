@@ -236,52 +236,57 @@ class MacroJevResultsWriter:
     ) -> PutOutcome:
         if not self._require_batch_identity(f"symbol {symbol}"):
             return PutOutcome(http_status=0, accepted=False, error="jev_source_batch_id_missing")
-        body: dict[str, Any] = {
-            "date": self.batch_date,
-            "pool_workflow": self.pool_workflow,
-            "symbol": symbol,
-            "status": status,
-            "source_batch_id": self.source_batch_id,
-            "batch_started_at": self.batch_started_at,
-            "revision": self.revision if revision is None else revision,
-        }
-        if jev_direction:
-            body["jev_direction"] = jev_direction
-        if jev_reason:
-            body["jev_reason"] = jev_reason
-        if confidence is not None:
-            body["confidence"] = confidence
-        if agent_session_id:
-            body["agent_session_id"] = agent_session_id
-        if agent_run_id:
-            body["agent_run_id"] = agent_run_id
-        if detail_ref:
-            body["detail_ref"] = detail_ref
-        if completed_at:
-            body["completed_at"] = completed_at
-        if attempt is not None:
-            body["attempt"] = attempt
-        if lab_episode_summary:
-            body["lab_episode_summary"] = lab_episode_summary
-
-        out = self._http_put_json(
-            f"{self.macro_base.rstrip('/')}/macro/jev/results/symbols",
-            body,
-        )
+        base_rev = self.symbol_revision_final if revision is None else revision
+        url = f"{self.macro_base.rstrip('/')}/macro/jev/results/symbols"
         sym = symbol.upper()
-        rev = body["revision"]
-        if out.ok and out.result_id:
-            prev = self.symbol_result_ids.get(sym)
-            if not prev or rev >= self.symbol_revision_final:
-                self.symbol_result_ids[sym] = out.result_id
-        elif not out.ok:
-            self._record_failure(f"symbol {sym}", out)
-            if (
-                out.result_id.strip()
-                and out.reason in PUT_ACCEPT_FALSE_REASONS
-            ):
-                self.symbol_result_ids[sym] = out.result_id.strip()
-        return out
+        last: PutOutcome = PutOutcome(http_status=0, accepted=False, error="no attempt")
+        for bump in range(8):
+            rev = base_rev + bump
+            body: dict[str, Any] = {
+                "date": self.batch_date,
+                "pool_workflow": self.pool_workflow,
+                "symbol": symbol,
+                "status": status,
+                "source_batch_id": self.source_batch_id,
+                "batch_started_at": self.batch_started_at,
+                "revision": rev,
+            }
+            if jev_direction:
+                body["jev_direction"] = jev_direction
+            if jev_reason:
+                body["jev_reason"] = jev_reason
+            if confidence is not None:
+                body["confidence"] = confidence
+            if agent_session_id:
+                body["agent_session_id"] = agent_session_id
+            if agent_run_id:
+                body["agent_run_id"] = agent_run_id
+            if detail_ref:
+                body["detail_ref"] = detail_ref
+            if completed_at:
+                body["completed_at"] = completed_at
+            if attempt is not None:
+                body["attempt"] = attempt
+            if lab_episode_summary:
+                body["lab_episode_summary"] = lab_episode_summary
+            out = self._http_put_json(url, body)
+            last = out
+            if out.ok:
+                self.symbol_revision_final = max(self.symbol_revision_final, rev)
+                self.revision = self.symbol_revision_final
+                if out.result_id:
+                    self.symbol_result_ids[sym] = out.result_id
+                return out
+            if out.reason != "immutable_version_conflict":
+                break
+        if not last.ok:
+            self._record_failure(f"symbol {sym}", last)
+            if last.result_id.strip() and last.reason in PUT_ACCEPT_FALSE_REASONS:
+                if last.reason == "immutable_version_conflict" and status == "success":
+                    pass
+                else:
+                    self.symbol_result_ids[sym] = last.result_id.strip()
+        return last
 
     def _http_put_json(self, url: str, body: dict[str, Any]) -> PutOutcome:
         last: PutOutcome = PutOutcome(http_status=0, accepted=False, error="no attempt")
