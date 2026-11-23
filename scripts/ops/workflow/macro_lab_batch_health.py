@@ -167,6 +167,50 @@ def direction_skill_to_ledger(unified: dict[str, Any] | None) -> tuple[str, floa
     return "", conf_f
 
 
+def skill_result_detail_snapshot(skill_result: dict[str, Any]) -> dict[str, Any]:
+    """Persist lab-detail-shaped fact lanes for macro FE (read-only popover, no live skill)."""
+    if not isinstance(skill_result, dict):
+        return {}
+    snap: dict[str, Any] = {}
+    for key in (
+        "code",
+        "time",
+        "close",
+        "open",
+        "high",
+        "low",
+        "price_analysis",
+        "technical_analysis",
+        "index_trend",
+        "kline_pattern",
+        "kline_jev_profile",
+        "monitor_session_close",
+    ):
+        val = skill_result.get(key)
+        if val is None:
+            continue
+        if isinstance(val, dict) and not val:
+            continue
+        if isinstance(val, list) and not val:
+            continue
+        snap[key] = val
+    return snap
+
+
+def stored_detail_snapshot_usable(snapshot: dict[str, Any] | None) -> bool:
+    if not isinstance(snapshot, dict) or not snapshot:
+        return False
+    pa = snapshot.get("price_analysis")
+    if isinstance(pa, dict):
+        rows = pa.get("rows")
+        if isinstance(rows, list) and rows:
+            return True
+    ta = snapshot.get("technical_analysis")
+    if isinstance(ta, dict) and ta.get("timeframes"):
+        return True
+    return False
+
+
 def build_lab_episode_summary_from_skill_result(
     skill_result: dict[str, Any],
     detail_ref: str = "diagnose_macro",
@@ -183,6 +227,9 @@ def build_lab_episode_summary_from_skill_result(
         lane = skill_result.get(key)
         if isinstance(lane, dict) and lane:
             out[key] = lane
+    snapshot = skill_result_detail_snapshot(skill_result)
+    if stored_detail_snapshot_usable(snapshot):
+        out["detail_snapshot"] = snapshot
     if len(out) <= 1:
         return None
     return out
