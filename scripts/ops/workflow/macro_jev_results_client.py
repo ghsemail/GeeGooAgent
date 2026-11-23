@@ -598,6 +598,30 @@ def _jev_get_symbol_result_id(data: Any) -> tuple[str, str]:
     )
 
 
+def _jev_get_symbol_current(
+    macro_base: str,
+    macro_key: str,
+    http_json: HttpJsonFn,
+    batch_date: str,
+    pool_workflow: str,
+    symbol: str,
+    *,
+    source: str,
+) -> tuple[str, str]:
+    headers = {"Authorization": f"Bearer {macro_key}"}
+    path_sym = urllib.parse.quote(symbol.strip().upper(), safe="")
+    q = f"date={batch_date}&pool_workflow={pool_workflow}&source={source}"
+    status, data, _ = http_json(
+        "GET",
+        f"{macro_base.rstrip('/')}/macro/jev/results/symbols/{path_sym}?{q}",
+        headers,
+        timeout=90,
+    )
+    if status != 200:
+        return "", ""
+    return _jev_get_symbol_result_id(data)
+
+
 def resolve_pool_day_symbol_result_ids(
     macro_base: str,
     macro_key: str,
@@ -608,45 +632,51 @@ def resolve_pool_day_symbol_result_ids(
     *,
     writer_map: dict[str, str] | None = None,
 ) -> tuple[dict[str, str], str]:
-    """池合成：按 (分析日, pool) 从 Signal 解析每标的 current result_id。
+    """池合成：按 (分析日, pool) 从 Signal 解析每标的 **success** result_id。
 
-    不依赖当次批跑 PUT 是否写入内存；canonical 与 legacy batch 投影均可。
+    池级 PUT 校验 inputs 必须 success；不得使用 running legacy 投影。
     """
     exp = [s.strip().upper() for s in expected_symbols if (s or "").strip()]
     if not exp:
         return {}, "expected_symbols empty"
-    out: dict[str, str] = {}
-    bulk, _ = fetch_symbol_result_ids_for_pool(
+    canon, _ = fetch_canonical_symbol_result_ids(
         macro_base, macro_key, http_json, batch_date, pool_workflow
     )
-    out.update(bulk)
-    headers = {"Authorization": f"Bearer {macro_key}"}
-    base = macro_base.rstrip("/")
+    stable, _ = fetch_symbol_result_ids_for_stable_batch(
+        macro_base, macro_key, http_json, batch_date, pool_workflow
+    )
+    out: dict[str, str] = {}
     for sym in exp:
-        if sym in out:
-            continue
-        q = f"date={batch_date}&pool_workflow={pool_workflow}&source=auto"
-        path_sym = urllib.parse.quote(sym, safe="")
-        status, data, _ = http_json(
-            "GET",
-            f"{base}/macro/jev/results/symbols/{path_sym}?{q}",
-            headers,
-            timeout=90,
-        )
-        if status != 200:
-            continue
-        rid, st = _jev_get_symbol_result_id(data)
-        if not rid:
-            continue
-        if st in ("success", "running", "failed", ""):
-            out[sym] = rid
-    if writer_map:
-        for k, v in writer_map.items():
-            if v and k.strip():
-                out[k.strip().upper()] = v.strip()
+        rid = (canon.get(sym) or stable.get(sym) or "").strip()
+        if rid:
+            _, st = _jev_get_symbol_current(
+                macro_base,
+                macro_key,
+                http_json,
+                batch_date,
+                pool_workflow,
+                sym,
+                source="auto",
+            )
+            if st == "success":
+                out[sym] = rid
+                continue
+        for src in ("canonical", "auto"):
+            rid2, st2 = _jev_get_symbol_current(
+                macro_base,
+                macro_key,
+                http_json,
+                batch_date,
+                pool_workflow,
+                sym,
+                source=src,
+            )
+            if rid2 and st2 == "success":
+                out[sym] = rid2
+                break
     missing = [s for s in exp if s not in out]
     if missing:
-        return out, f"missing result_id for: {', '.join(missing)}"
+        return out, f"missing success result_id for: {', '.join(missing)}"
     return out, ""
 
 

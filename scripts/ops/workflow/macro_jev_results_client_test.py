@@ -356,28 +356,33 @@ class TestMacroJevResultsClient(unittest.TestCase):
         )
 
     def test_resolve_pool_day_symbol_result_ids_per_symbol(self) -> None:
+        ok_sym = {
+            "code": 100,
+            "data": {
+                "result": {
+                    "result_id": "sym:legacy:000001",
+                    "status": "success",
+                }
+            },
+        }
         reg = {
-            "GET http://sig/macro/jev/results/symbols?date=2026-11-23&pool_workflow=cn_a&source=auto": (
+            "GET http://sig/macro/jev/results/symbols?date=2026-11-23&pool_workflow=cn_a&source=canonical": (
                 200,
                 {"code": 100, "data": {"items": []}},
                 "{}",
             ),
+            "GET http://sig/macro/jev/results/symbols/000001.SH?date=2026-11-23&pool_workflow=cn_a&source=canonical": (
+                200,
+                ok_sym,
+                "{}",
+            ),
             "GET http://sig/macro/jev/results/symbols/000001.SH?date=2026-11-23&pool_workflow=cn_a&source=auto": (
                 200,
-                {
-                    "code": 100,
-                    "data": {
-                        "result": {
-                            "result_id": "sym:legacy:000001",
-                            "status": "success",
-                        }
-                    },
-                },
+                ok_sym,
                 "{}",
             ),
         }
         http = mock_http(reg)
-        # empty bulk list path
         ids, err = resolve_pool_day_symbol_result_ids(
             "http://sig",
             "key",
