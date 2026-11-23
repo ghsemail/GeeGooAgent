@@ -216,6 +216,11 @@ class MacroJevResultsWriter:
                 self.symbol_result_ids[sym] = out.result_id
         elif not out.ok:
             self._record_failure(f"symbol {sym}", out)
+            if (
+                out.result_id.strip()
+                and out.reason in PUT_ACCEPT_FALSE_REASONS
+            ):
+                self.symbol_result_ids[sym] = out.result_id.strip()
         return out
 
     def _http_put_json(self, url: str, body: dict[str, Any]) -> PutOutcome:
@@ -455,6 +460,34 @@ class MacroJevResultsWriter:
         return len(self.errors) > 0
 
 
+def fetch_symbol_result_ids_for_pool(
+    macro_base: str,
+    macro_key: str,
+    http_json: HttpJsonFn,
+    batch_date: str,
+    pool_workflow: str,
+) -> tuple[dict[str, str], str]:
+    """池合成用：当日每标的 latest result_id（canonical ∪ legacy batch，source=auto）。"""
+    headers = {"Authorization": f"Bearer {macro_key}"}
+    q = f"date={batch_date}&pool_workflow={pool_workflow}&source=auto"
+    status, data, raw = http_json(
+        "GET",
+        f"{macro_base.rstrip('/')}/macro/jev/results/symbols?{q}",
+        headers,
+        timeout=90,
+    )
+    if status != 200:
+        return {}, f"GET symbols HTTP {status}: {raw[:200]}"
+    block = data.get("data") if isinstance(data, dict) else {}
+    items = block.get("items") if isinstance(block, dict) else []
+    if not isinstance(items, list):
+        return {}, "invalid symbols list"
+    out = _symbol_result_id_map(items)
+    if not out:
+        return {}, "no symbol result_id in auto list"
+    return out, ""
+
+
 def fetch_canonical_symbol_result_ids(
     macro_base: str,
     macro_key: str,
@@ -477,6 +510,11 @@ def fetch_canonical_symbol_result_ids(
     items = block.get("items") if isinstance(block, dict) else []
     if not isinstance(items, list):
         return {}, "invalid symbols list"
+    out = _symbol_result_id_map(items)
+    return out, ""
+
+
+def _symbol_result_id_map(items: list[Any]) -> dict[str, str]:
     out: dict[str, str] = {}
     for row in items:
         if not isinstance(row, dict):
@@ -485,7 +523,7 @@ def fetch_canonical_symbol_result_ids(
         rid = str(row.get("result_id") or "").strip()
         if sym and rid:
             out[sym] = rid
-    return out, ""
+    return out
 
 
 def get_canonical_pool_result(

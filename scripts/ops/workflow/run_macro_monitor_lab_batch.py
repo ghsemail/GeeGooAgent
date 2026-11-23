@@ -51,6 +51,7 @@ from macro_jev_results_client import (  # noqa: E402
     JEV_PIPELINE_WORKFLOWS,
     MacroJevResultsWriter,
     fetch_canonical_symbol_result_ids,
+    fetch_symbol_result_ids_for_pool,
     put_overall_result,
 )
 from macro_jev_synthesis_format import format_pool_jev_reason  # noqa: E402
@@ -1274,11 +1275,16 @@ def run_batch(
         }
         if pool_jev:
             body["pool_jev"] = pool_jev
+        if batch_run_id and not final:
+            # 进展只打日志，不再 POST 新 batch_run：否则会生成更大 source_batch_id 的 legacy
+            # 投影，导致 JEV Writer 锚定的首个 id 上 PUT canonical 被判 stale。
+            print(f"batch progress id={batch_run_id} · {summary}", flush=True)
+            return
         rid = post_batch_run(macro_base, macro_key, body)
         if rid:
             if not batch_run_id:
                 batch_run_id = rid
-            if jev_writer:
+            if jev_writer and not final:
                 jev_writer.bind_batch_run(
                     batch_run_id,
                     batch_started_at=str(body.get("started_at") or started),
@@ -1445,6 +1451,14 @@ def run_batch(
             if not jev_writer or not jev_writer.batch_identity_ready():
                 syn = {"ok": False, "error": "batch_run_id_missing for pool skill"}
             else:
+                sym_rids = dict(jev_writer.symbol_result_ids)
+                auto_ids, rid_err = fetch_symbol_result_ids_for_pool(
+                    macro_base, macro_key, http_json, batch_date, pool_wf
+                )
+                if rid_err:
+                    print(f"  symbol result_id autoload: {rid_err}", flush=True)
+                if auto_ids:
+                    sym_rids.update(auto_ids)
                 syn = synthesize_pool_jev_skill(
                     agent_base,
                     runtime_key,
@@ -1454,7 +1468,7 @@ def run_batch(
                     title=label,
                     expected_symbols=expected_pool_syms,
                     rows=pool_synth_rows,
-                    symbol_result_ids=jev_writer.symbol_result_ids,
+                    symbol_result_ids=sym_rids,
                 )
             finished = rfc3339_now()
             valid, val_err = synthesis_pool_jev_valid(syn, min_reason_len=MIN_JEV_REASON_LEN)
@@ -1633,11 +1647,11 @@ def run_pool_jev_only(
     if not pool_run_id.strip():
         print("pool JEV only blocked: no batch run id", file=sys.stderr)
         return 1
-    canon, c_err = fetch_canonical_symbol_result_ids(
+    sym_rids, rid_err = fetch_symbol_result_ids_for_pool(
         macro_base, macro_key, http_json, batch_date, api_workflow
     )
-    if c_err:
-        print(f"  canonical symbols: {c_err}", flush=True)
+    if rid_err:
+        print(f"  symbol result_id autoload: {rid_err}", flush=True)
     syn = synthesize_pool_jev_skill(
         agent_base,
         runtime_key,
@@ -1647,7 +1661,7 @@ def run_pool_jev_only(
         title=label,
         expected_symbols=expected_monitor,
         rows=rows,
-        symbol_result_ids=canon or None,
+        symbol_result_ids=sym_rids or None,
     )
     finished = rfc3339_now()
     if syn.get("ok"):

@@ -68,6 +68,7 @@ class TestMacroJevResultsClient(unittest.TestCase):
         out = w.put_symbol(symbol="000001.SH", status="success", jev_direction="long")
         self.assertFalse(out.ok)
         self.assertEqual(out.reason, "immutable_version_conflict")
+        self.assertEqual(w.symbol_result_ids.get("000001.SH"), "sym:x")
         self.assertTrue(w.has_errors())
 
     def test_bind_batch_run_matches_macro_api_run_id(self) -> None:
