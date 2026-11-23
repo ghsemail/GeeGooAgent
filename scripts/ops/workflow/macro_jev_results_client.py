@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 import time
 import urllib.error
+import urllib.parse
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -36,11 +37,69 @@ PUT_ACCEPT_FALSE_REASONS = frozenset(
 )
 
 
+def jev_stable_source_batch_id(pool_workflow: str, batch_date: str) -> str:
+    """Canonical JEV 真源批次键：按池 workflow + 宏观分析日，不绑定 Mongo batch_run.id。"""
+    wf = re.sub(r"[^a-zA-Z0-9_]", "_", (pool_workflow or "").strip())
+    d = re.sub(r"[^0-9\-]", "", (batch_date or "").strip())
+    return f"macro-jev-{wf}-{d}"
+
+
 def make_source_batch_id(pool_workflow: str, batch_date: str, batch_started_at: str) -> str:
     """Fallback batch id when macro batch/runs did not return run.id (non-prod only)."""
     compact = re.sub(r"[^0-9T]", "", batch_started_at.split("+")[0])[:15]
     safe_wf = re.sub(r"[^a-zA-Z0-9_]", "_", pool_workflow.strip())
     return f"batch-{safe_wf}-{batch_date}-{compact}"
+
+
+def next_jev_revision_for_stable_batch(
+    macro_base: str,
+    macro_key: str,
+    http_json: HttpJsonFn,
+    batch_date: str,
+    pool_workflow: str,
+) -> int:
+    """同日同池重跑：在稳定 source_batch_id 上递增 revision。"""
+    stable = jev_stable_source_batch_id(pool_workflow, batch_date)
+    headers = {"Authorization": f"Bearer {macro_key}"}
+    q = f"date={batch_date}&pool_workflow={pool_workflow}&source=canonical"
+    status, data, _ = http_json(
+        "GET",
+        f"{macro_base.rstrip('/')}/macro/jev/results/symbols?{q}",
+        headers,
+        timeout=90,
+    )
+    max_rev = 0
+    if status == 200:
+        items = (data.get("data") or {}).get("items") if isinstance(data, dict) else []
+        if isinstance(items, list):
+            for row in items:
+                if not isinstance(row, dict):
+                    continue
+                if str(row.get("source_batch_id") or "").strip() != stable:
+                    continue
+                try:
+                    max_rev = max(max_rev, int(row.get("revision") or 0))
+                except (TypeError, ValueError):
+                    pass
+    return max(max_rev + 1, 1)
+
+
+def prime_jev_writer_for_pool_day(
+    writer: MacroJevResultsWriter,
+    *,
+    batch_started_at: str,
+) -> None:
+    stable = jev_stable_source_batch_id(writer.pool_workflow, writer.batch_date)
+    rev = next_jev_revision_for_stable_batch(
+        writer.macro_base,
+        writer.macro_key,
+        writer.http_json,
+        writer.batch_date,
+        writer.pool_workflow,
+    )
+    writer.bind_batch_run(stable, batch_started_at=batch_started_at)
+    writer.symbol_revision_final = rev
+    writer.revision = rev
 
 
 def _safe_id_component(s: str) -> str:
@@ -99,6 +158,7 @@ class MacroJevResultsWriter:
     put_network_retries: int = 3
 
     def bind_batch_run(self, run_id: str, *, batch_started_at: str | None = None) -> None:
+        """绑定 JEV PUT 的 source_batch_id（请用 [jev_stable_source_batch_id]，而非 batch_run id）。"""
         rid = (run_id or "").strip()
         if rid:
             self.source_batch_id = rid
@@ -111,8 +171,8 @@ class MacroJevResultsWriter:
     def _require_batch_identity(self, label: str) -> bool:
         if self.batch_identity_ready():
             return True
-        self.errors.append(f"{label}: batch_run_id_missing")
-        print(f"jev-results PUT {label} blocked: no macro batch run id", flush=True)
+        self.errors.append(f"{label}: jev_source_batch_id_missing")
+        print(f"jev-results PUT {label} blocked: no jev source_batch_id", flush=True)
         return False
 
     def _headers(self) -> dict[str, str]:
@@ -175,7 +235,7 @@ class MacroJevResultsWriter:
         revision: int | None = None,
     ) -> PutOutcome:
         if not self._require_batch_identity(f"symbol {symbol}"):
-            return PutOutcome(http_status=0, accepted=False, error="batch_run_id_missing")
+            return PutOutcome(http_status=0, accepted=False, error="jev_source_batch_id_missing")
         body: dict[str, Any] = {
             "date": self.batch_date,
             "pool_workflow": self.pool_workflow,
@@ -314,7 +374,7 @@ class MacroJevResultsWriter:
         revision: int | None = None,
     ) -> PutOutcome:
         if not self._require_batch_identity(f"pool {self.pool_workflow}"):
-            return PutOutcome(http_status=0, accepted=False, error="batch_run_id_missing")
+            return PutOutcome(http_status=0, accepted=False, error="jev_source_batch_id_missing")
         body: dict[str, Any] = {
             "date": self.batch_date,
             "status": status,
@@ -460,6 +520,43 @@ class MacroJevResultsWriter:
         return len(self.errors) > 0
 
 
+def fetch_symbol_result_ids_for_stable_batch(
+    macro_base: str,
+    macro_key: str,
+    http_json: HttpJsonFn,
+    batch_date: str,
+    pool_workflow: str,
+) -> tuple[dict[str, str], str]:
+    """当日 stable source_batch_id 下已写入的标的 result_id（canonical）。"""
+    stable = jev_stable_source_batch_id(pool_workflow, batch_date)
+    headers = {"Authorization": f"Bearer {macro_key}"}
+    q = f"date={batch_date}&pool_workflow={pool_workflow}&source=canonical"
+    status, data, raw = http_json(
+        "GET",
+        f"{macro_base.rstrip('/')}/macro/jev/results/symbols?{q}",
+        headers,
+        timeout=90,
+    )
+    if status != 200:
+        return {}, f"GET symbols HTTP {status}: {raw[:200]}"
+    items = (data.get("data") or {}).get("items") if isinstance(data, dict) else []
+    if not isinstance(items, list):
+        return {}, "invalid symbols list"
+    out: dict[str, str] = {}
+    for row in items:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("source_batch_id") or "").strip() != stable:
+            continue
+        sym = str(row.get("symbol") or "").strip().upper()
+        rid = str(row.get("result_id") or "").strip()
+        if sym and rid:
+            out[sym] = rid
+    if not out:
+        return {}, f"no canonical rows for stable batch {stable}"
+    return out, ""
+
+
 def fetch_symbol_result_ids_for_pool(
     macro_base: str,
     macro_key: str,
@@ -467,7 +564,7 @@ def fetch_symbol_result_ids_for_pool(
     batch_date: str,
     pool_workflow: str,
 ) -> tuple[dict[str, str], str]:
-    """池合成用：当日每标的 latest result_id（canonical ∪ legacy batch，source=auto）。"""
+    """池合成兜底：当日每标的 latest result_id（canonical ∪ legacy，source=auto）。"""
     headers = {"Authorization": f"Bearer {macro_key}"}
     q = f"date={batch_date}&pool_workflow={pool_workflow}&source=auto"
     status, data, raw = http_json(
@@ -483,8 +580,73 @@ def fetch_symbol_result_ids_for_pool(
     if not isinstance(items, list):
         return {}, "invalid symbols list"
     out = _symbol_result_id_map(items)
-    if not out:
-        return {}, "no symbol result_id in auto list"
+    return out, ""
+
+
+def _jev_get_symbol_result_id(data: Any) -> tuple[str, str]:
+    if not isinstance(data, dict):
+        return "", ""
+    block = data.get("data")
+    if not isinstance(block, dict):
+        return "", ""
+    res = block.get("result")
+    if not isinstance(res, dict):
+        return "", ""
+    return (
+        str(res.get("result_id") or "").strip(),
+        str(res.get("status") or "").strip().lower(),
+    )
+
+
+def resolve_pool_day_symbol_result_ids(
+    macro_base: str,
+    macro_key: str,
+    http_json: HttpJsonFn,
+    batch_date: str,
+    pool_workflow: str,
+    expected_symbols: list[str],
+    *,
+    writer_map: dict[str, str] | None = None,
+) -> tuple[dict[str, str], str]:
+    """池合成：按 (分析日, pool) 从 Signal 解析每标的 current result_id。
+
+    不依赖当次批跑 PUT 是否写入内存；canonical 与 legacy batch 投影均可。
+    """
+    exp = [s.strip().upper() for s in expected_symbols if (s or "").strip()]
+    if not exp:
+        return {}, "expected_symbols empty"
+    out: dict[str, str] = {}
+    bulk, _ = fetch_symbol_result_ids_for_pool(
+        macro_base, macro_key, http_json, batch_date, pool_workflow
+    )
+    out.update(bulk)
+    headers = {"Authorization": f"Bearer {macro_key}"}
+    base = macro_base.rstrip("/")
+    for sym in exp:
+        if sym in out:
+            continue
+        q = f"date={batch_date}&pool_workflow={pool_workflow}&source=auto"
+        path_sym = urllib.parse.quote(sym, safe="")
+        status, data, _ = http_json(
+            "GET",
+            f"{base}/macro/jev/results/symbols/{path_sym}?{q}",
+            headers,
+            timeout=90,
+        )
+        if status != 200:
+            continue
+        rid, st = _jev_get_symbol_result_id(data)
+        if not rid:
+            continue
+        if st in ("success", "running", "failed", ""):
+            out[sym] = rid
+    if writer_map:
+        for k, v in writer_map.items():
+            if v and k.strip():
+                out[k.strip().upper()] = v.strip()
+    missing = [s for s in exp if s not in out]
+    if missing:
+        return out, f"missing result_id for: {', '.join(missing)}"
     return out, ""
 
 

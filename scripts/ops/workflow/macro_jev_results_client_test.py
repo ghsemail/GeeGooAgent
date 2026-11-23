@@ -9,8 +9,10 @@ from macro_jev_results_client import (
     MacroJevResultsWriter,
     PutOutcome,
     collect_overall_pool_inputs,
+    jev_stable_source_batch_id,
     local_symbol_result_id,
     make_source_batch_id,
+    resolve_pool_day_symbol_result_ids,
 )
 
 
@@ -344,8 +346,48 @@ class TestMacroJevResultsClient(unittest.TestCase):
         )
         out = w.put_symbol(symbol="HYG.US", status="running", revision=0)
         self.assertFalse(out.ok)
-        self.assertEqual(out.error, "batch_run_id_missing")
+        self.assertEqual(out.error, "jev_source_batch_id_missing")
         self.assertTrue(w.has_errors())
+
+    def test_jev_stable_source_batch_id_uses_date_not_mongo(self) -> None:
+        self.assertEqual(
+            jev_stable_source_batch_id("cn_a", "2026-11-23"),
+            "macro-jev-cn_a-2026-11-23",
+        )
+
+    def test_resolve_pool_day_symbol_result_ids_per_symbol(self) -> None:
+        reg = {
+            "GET http://sig/macro/jev/results/symbols?date=2026-11-23&pool_workflow=cn_a&source=auto": (
+                200,
+                {"code": 100, "data": {"items": []}},
+                "{}",
+            ),
+            "GET http://sig/macro/jev/results/symbols/000001.SH?date=2026-11-23&pool_workflow=cn_a&source=auto": (
+                200,
+                {
+                    "code": 100,
+                    "data": {
+                        "result": {
+                            "result_id": "sym:legacy:000001",
+                            "status": "success",
+                        }
+                    },
+                },
+                "{}",
+            ),
+        }
+        http = mock_http(reg)
+        # empty bulk list path
+        ids, err = resolve_pool_day_symbol_result_ids(
+            "http://sig",
+            "key",
+            http,
+            "2026-11-23",
+            "cn_a",
+            ["000001.SH", "399001.SZ"],
+        )
+        self.assertIn("399001.SZ", err or "")
+        self.assertEqual(ids.get("000001.SH"), "sym:legacy:000001")
 
 
 if __name__ == "__main__":

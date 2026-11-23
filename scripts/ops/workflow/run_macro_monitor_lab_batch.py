@@ -51,8 +51,10 @@ from macro_jev_results_client import (  # noqa: E402
     JEV_PIPELINE_WORKFLOWS,
     MacroJevResultsWriter,
     fetch_canonical_symbol_result_ids,
-    fetch_symbol_result_ids_for_pool,
+    fetch_symbol_result_ids_for_stable_batch,
+    prime_jev_writer_for_pool_day,
     put_overall_result,
+    resolve_pool_day_symbol_result_ids,
 )
 from macro_jev_synthesis_format import format_pool_jev_reason  # noqa: E402
 from macro_overall_diagnose_skill import synthesize_overall_jev_with_skill_retries  # noqa: E402
@@ -1223,6 +1225,12 @@ def run_batch(
             started,
             http_json,
         )
+        prime_jev_writer_for_pool_day(jev_writer, batch_started_at=started)
+        print(
+            f"  jev source_batch_id={jev_writer.source_batch_id} "
+            f"revision=r{jev_writer.symbol_revision_final}",
+            flush=True,
+        )
     batch_pools: list[dict[str, Any]] = []
     ingest_items: list[dict[str, Any]] = []
     ok_count = 0
@@ -1284,21 +1292,10 @@ def run_batch(
         if rid:
             if not batch_run_id:
                 batch_run_id = rid
-            if jev_writer and not final:
-                jev_writer.bind_batch_run(
-                    batch_run_id,
-                    batch_started_at=str(body.get("started_at") or started),
-                )
             print(f"batch progress id={rid} · {summary}", flush=True)
 
     if not dry_run:
         publish_progress("started", final=False)
-        if jev_writer and not batch_run_id:
-            print(
-                "jev-results symbol/pool PUT disabled: first batch/runs did not return run id",
-                file=sys.stderr,
-            )
-            jev_writer = None
 
     sym_index: dict[str, tuple[int, int]] = {}
     for pi, pool in enumerate(batch_pools):
@@ -1449,27 +1446,32 @@ def run_batch(
         )
         try:
             if not jev_writer or not jev_writer.batch_identity_ready():
-                syn = {"ok": False, "error": "batch_run_id_missing for pool skill"}
+                syn = {"ok": False, "error": "jev_source_batch_id missing for pool skill"}
             else:
-                sym_rids = dict(jev_writer.symbol_result_ids)
-                auto_ids, rid_err = fetch_symbol_result_ids_for_pool(
-                    macro_base, macro_key, http_json, batch_date, pool_wf
+                sym_rids, rid_err = resolve_pool_day_symbol_result_ids(
+                    macro_base,
+                    macro_key,
+                    http_json,
+                    batch_date,
+                    pool_wf,
+                    expected_pool_syms,
+                    writer_map=jev_writer.symbol_result_ids,
                 )
                 if rid_err:
-                    print(f"  symbol result_id autoload: {rid_err}", flush=True)
-                if auto_ids:
-                    sym_rids.update(auto_ids)
-                syn = synthesize_pool_jev_skill(
-                    agent_base,
-                    runtime_key,
-                    batch_date=batch_date,
-                    pool_workflow=pool_wf,
-                    source_batch_id=jev_writer.source_batch_id,
-                    title=label,
-                    expected_symbols=expected_pool_syms,
-                    rows=pool_synth_rows,
-                    symbol_result_ids=sym_rids,
-                )
+                    print(f"  pool symbol result_ids: {rid_err}", flush=True)
+                    syn = {"ok": False, "error": rid_err}
+                else:
+                    syn = synthesize_pool_jev_skill(
+                        agent_base,
+                        runtime_key,
+                        batch_date=batch_date,
+                        pool_workflow=pool_wf,
+                        source_batch_id=jev_writer.source_batch_id,
+                        title=label,
+                        expected_symbols=expected_pool_syms,
+                        rows=pool_synth_rows,
+                        symbol_result_ids=sym_rids,
+                    )
             finished = rfc3339_now()
             valid, val_err = synthesis_pool_jev_valid(syn, min_reason_len=MIN_JEV_REASON_LEN)
             if valid:
@@ -1539,13 +1541,18 @@ def run_batch(
         pool_items_for_put = pool_synth_rows if pool_complete else all_items
         extra_canon: dict[str, str] | None = None
         if pool_complete:
-            extra_canon, c_err = fetch_canonical_symbol_result_ids(
-                macro_base, macro_key, http_json, batch_date, api_workflow
+            extra_canon, c_err = resolve_pool_day_symbol_result_ids(
+                macro_base,
+                macro_key,
+                http_json,
+                batch_date,
+                api_workflow,
+                expected_pool_syms,
+                writer_map=jev_writer.symbol_result_ids,
             )
             if c_err:
-                print(f"  canonical symbols: {c_err}", flush=True)
-        if batch_run_id:
-            jev_writer.bind_batch_run(batch_run_id)
+                print(f"  pool symbol result_ids for PUT: {c_err}", flush=True)
+                extra_canon = dict(jev_writer.symbol_result_ids)
         jev_writer.put_pool_from_synthesis(
             pool_jev_out,
             symbol_items=pool_items_for_put,
@@ -1647,17 +1654,34 @@ def run_pool_jev_only(
     if not pool_run_id.strip():
         print("pool JEV only blocked: no batch run id", file=sys.stderr)
         return 1
-    sym_rids, rid_err = fetch_symbol_result_ids_for_pool(
-        macro_base, macro_key, http_json, batch_date, api_workflow
+    writer = MacroJevResultsWriter(
+        macro_base,
+        macro_key,
+        batch_date,
+        api_workflow,
+        "",
+        started,
+        http_json,
+    )
+    prime_jev_writer_for_pool_day(writer, batch_started_at=started)
+    sym_rids, rid_err = resolve_pool_day_symbol_result_ids(
+        macro_base,
+        macro_key,
+        http_json,
+        batch_date,
+        api_workflow,
+        expected_monitor,
+        writer_map=writer.symbol_result_ids,
     )
     if rid_err:
-        print(f"  symbol result_id autoload: {rid_err}", flush=True)
+        print(f"  pool symbol result_ids: {rid_err}", flush=True)
+        return 1
     syn = synthesize_pool_jev_skill(
         agent_base,
         runtime_key,
         batch_date=batch_date,
         pool_workflow=api_workflow,
-        source_batch_id=pool_run_id,
+        source_batch_id=writer.source_batch_id,
         title=label,
         expected_symbols=expected_monitor,
         rows=rows,
@@ -1689,22 +1713,12 @@ def run_pool_jev_only(
             "pool_jev": pool_jev,
         }
         post_batch_run(macro_base, macro_key, body)
-        writer = MacroJevResultsWriter(
-            macro_base,
-            macro_key,
-            batch_date,
-            api_workflow,
-            pool_run_id,
-            started,
-            http_json,
-        )
-        writer.bind_batch_run(pool_run_id)
         writer.put_pool_from_synthesis(
             pool_jev,
             symbol_items=rows,
             all_symbols_ok=sym_ok,
             completed_at=finished,
-            extra_symbol_result_ids=canon,
+            extra_symbol_result_ids=sym_rids,
             expected_symbols=[str(r.get("symbol") or "") for r in rows],
         )
         if writer.pool_result_id and writer.batch_identity_ready():
