@@ -725,6 +725,42 @@ def _jev_get_symbol_current(
     return _jev_get_symbol_result_id(data)
 
 
+def resolve_bond_pool_symbol_result_ids(
+    macro_base: str,
+    macro_key: str,
+    http_json: HttpJsonFn,
+    orchestration_date: str,
+    expected_symbols: list[str],
+) -> tuple[dict[str, str], str]:
+    """债券池：美债段 / 上交所段宏日不同，按标的分日解析 success result_id。"""
+    from macro_jev_orchestration import macro_batch_date_for_cron
+
+    us_date = macro_batch_date_for_cron("bond_us", orchestration_date)
+    sh_date = macro_batch_date_for_cron("bond_sh", orchestration_date)
+    exp = [s.strip().upper() for s in expected_symbols if (s or "").strip()]
+    us_syms = [s for s in exp if s.endswith(".US")]
+    sh_syms = [s for s in exp if s.endswith(".SH")]
+    out: dict[str, str] = {}
+    for seg_date, syms in ((us_date, us_syms), (sh_date, sh_syms)):
+        if not syms:
+            continue
+        part, err = resolve_pool_day_symbol_result_ids(
+            macro_base,
+            macro_key,
+            http_json,
+            seg_date,
+            "bond",
+            syms,
+        )
+        out.update(part)
+        if err:
+            return out, err
+    missing = [s for s in exp if s not in out]
+    if missing:
+        return out, f"missing success result_id for: {', '.join(missing)}"
+    return out, ""
+
+
 def resolve_pool_day_symbol_result_ids(
     macro_base: str,
     macro_key: str,

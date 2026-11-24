@@ -12,6 +12,7 @@ from macro_jev_results_client import (
     jev_stable_source_batch_id,
     local_symbol_result_id,
     make_source_batch_id,
+    resolve_bond_pool_symbol_result_ids,
     resolve_pool_day_symbol_result_ids,
 )
 
@@ -405,6 +406,40 @@ class TestMacroJevResultsClient(unittest.TestCase):
         )
         self.assertIn("399001.SZ", err or "")
         self.assertEqual(ids.get("000001.SH"), "sym:legacy:000001")
+
+
+    def test_resolve_bond_pool_splits_us_sh_dates(self) -> None:
+        us_body = {
+            "code": 100,
+            "data": {
+                "result": {
+                    "result_id": "sym:us",
+                    "status": "success",
+                }
+            },
+        }
+
+        def http_json(method, url, _h, body=None, timeout=120):
+            if "HYG.US" in url and "date=2026-11-23" in url:
+                return 200, us_body, "{}"
+            if "511010.SH" in url and "date=2026-11-24" in url:
+                return 200, us_body, "{}"
+            if "symbols?date=2026-11-23" in url:
+                return 200, {"code": 100, "data": {"items": []}}, "{}"
+            if "symbols?date=2026-11-24" in url:
+                return 200, {"code": 100, "data": {"items": []}}, "{}"
+            return 404, {}, "{}"
+
+        ids, err = resolve_bond_pool_symbol_result_ids(
+            "http://sig",
+            "key",
+            http_json,
+            "2026-11-24",
+            ["HYG.US", "511010.SH"],
+        )
+        self.assertEqual(err, "")
+        self.assertEqual(ids["HYG.US"], "sym:us")
+        self.assertEqual(ids["511010.SH"], "sym:us")
 
 
 if __name__ == "__main__":

@@ -54,6 +54,7 @@ from macro_jev_results_client import (  # noqa: E402
     fetch_symbol_result_ids_for_stable_batch,
     prime_jev_writer_for_pool_day,
     put_overall_result,
+    resolve_bond_pool_symbol_result_ids,
     resolve_pool_day_symbol_result_ids,
 )
 from macro_jev_synthesis_format import format_pool_jev_reason  # noqa: E402
@@ -661,7 +662,17 @@ def try_finalize_bond_pool_jev(
     have = {str(r.get("symbol") or "").strip() for r in merged}
     if set(expected) - have:
         missing = sorted(set(expected) - have)
-        print(f"[bond] pool JEV deferred; missing symbols: {missing}", flush=True)
+        print(f"[bond] pool JEV deferred; missing batch rows: {missing}", flush=True)
+        return 0
+    sym_rids, rid_err = resolve_bond_pool_symbol_result_ids(
+        macro_base,
+        macro_key,
+        http_json,
+        orchestration_date,
+        expected,
+    )
+    if rid_err:
+        print(f"[bond] pool JEV deferred; {rid_err}", flush=True)
         return 0
     runtime_key, _mcp_token = load_geegoo_env()
     started = rfc3339_now()
@@ -686,19 +697,35 @@ def try_finalize_bond_pool_jev(
         print("[bond] pool JEV blocked: no batch run id", flush=True)
         return 1
     print("[bond] pool JEV synthesize (债券利率池, merged segments) …", flush=True)
-    canon_pre, _ = fetch_canonical_symbol_result_ids(
-        macro_base, macro_key, http_json, batch_date, "bond"
+    pool_writer = MacroJevResultsWriter(
+        macro_base,
+        macro_key,
+        batch_date,
+        "bond",
+        "",
+        started,
+        http_json,
+    )
+    prime_jev_writer_for_pool_day(
+        pool_writer,
+        batch_started_at=started,
+        probe_symbols=expected,
+    )
+    print(
+        f"  bond pool jev source_batch_id={pool_writer.source_batch_id} "
+        f"revision=r{pool_writer.symbol_revision_final}",
+        flush=True,
     )
     syn = synthesize_pool_jev_skill(
         agent_base,
         runtime_key,
         batch_date=batch_date,
         pool_workflow="bond",
-        source_batch_id=bond_run_id,
+        source_batch_id=pool_writer.source_batch_id,
         title=WORKFLOW_MONITOR_POOL["bond"],
         expected_symbols=expected,
         rows=merged,
-        symbol_result_ids=canon_pre or None,
+        symbol_result_ids=sym_rids,
     )
     finished = rfc3339_now()
     pool_jev: dict[str, Any]
@@ -735,59 +762,25 @@ def try_finalize_bond_pool_jev(
         "pool_jev": pool_jev,
     }
     post_batch_run(macro_base, macro_key, body)
-    writer = MacroJevResultsWriter(
-        macro_base,
-        macro_key,
-        batch_date,
-        "bond",
-        bond_run_id,
-        started,
-        http_json,
-    )
-    writer.bind_batch_run(bond_run_id)
-    us_date = macro_batch_date_for_cron("bond_us", orchestration_date)
-    sh_date = macro_batch_date_for_cron("bond_sh", orchestration_date)
-    canon_syms: dict[str, str] = {}
-    for seg_date, label in ((us_date, "bond_us"), (sh_date, "bond_sh"), (batch_date, "bond")):
-        part, sym_err = fetch_canonical_symbol_result_ids(
-            macro_base, macro_key, http_json, seg_date, "bond"
-        )
-        if sym_err:
-            print(f"[bond] canonical symbols ({label} @ {seg_date}): {sym_err}", flush=True)
-        canon_syms.update(part)
-    missing = [s for s in expected if s.upper() not in canon_syms]
-    for it in merged:
-        sym = str(it.get("symbol") or "").strip().upper()
-        if sym in missing and it.get("success"):
-            writer.put_symbol_from_batch_item(it, completed_at=finished)
-    canon_syms_reload: dict[str, str] = {}
-    for seg_date in (us_date, sh_date, batch_date):
-        part, sym_err2 = fetch_canonical_symbol_result_ids(
-            macro_base, macro_key, http_json, seg_date, "bond"
-        )
-        if sym_err2:
-            print(f"[bond] canonical symbols reload @ {seg_date}: {sym_err2}", flush=True)
-        canon_syms_reload.update(part)
-    canon_syms = canon_syms_reload
-    writer.put_pool_from_synthesis(
+    pool_writer.put_pool_from_synthesis(
         pool_jev,
         symbol_items=merged,
         all_symbols_ok=True,
         completed_at=finished,
-        extra_symbol_result_ids=canon_syms,
+        extra_symbol_result_ids=sym_rids,
         expected_symbols=expected,
     )
     rc = 0 if pool_jev.get("success") else 1
-    if writer.has_errors():
+    if pool_writer.has_errors():
         rc = max(rc, 1)
-    if writer.pool_result_id and writer.batch_identity_ready():
+    if pool_writer.pool_result_id and pool_writer.batch_identity_ready():
         pool_st = "success" if pool_jev.get("success") else "failed"
         record_pool_ledger(
             orchestration_date,
             "bond",
-            result_id=writer.pool_result_id,
-            source_batch_id=writer.source_batch_id,
-            batch_started_at=writer.batch_started_at,
+            result_id=pool_writer.pool_result_id,
+            source_batch_id=pool_writer.source_batch_id,
+            batch_started_at=pool_writer.batch_started_at,
             status=pool_st,
             cron_workflow="bond_finalize",
         )
@@ -2024,6 +2017,11 @@ def main() -> int:
         help="Skip symbol diagnose; synthesize or recover pool JEV from existing batch rows",
     )
     p.add_argument(
+        "--bond-pool-finalize-only",
+        action="store_true",
+        help="Merge bond_us/bond_sh segments and run pool JEV (no symbol diagnose)",
+    )
+    p.add_argument(
         "--recover-session-id",
         default="",
         help="With --pool-jev-only: load pool JEV from an existing agent chat session",
@@ -2092,6 +2090,17 @@ def main() -> int:
             args.dry_run,
             pool_ledger=None,
             skip_pool_rerun=not args.rerun_missing_pools,
+        )
+    if args.bond_pool_finalize_only:
+        orch, _macro_d = resolve_run_dates(
+            "bond" if args.workflow in BOND_SEGMENT_WORKFLOWS else args.workflow,
+            args.date,
+        )
+        return try_finalize_bond_pool_jev(
+            args.macro_base,
+            macro_key,
+            args.agent_base,
+            orch,
         )
     if args.pool_jev_only:
         if args.workflow in ("all", "overall") or args.workflow in BOND_SEGMENT_WORKFLOWS:

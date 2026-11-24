@@ -19,13 +19,18 @@ ENV = "/home/ubuntu/.geegoo/agent.env"
 
 
 def _run_remote(client: paramiko.SSHClient, workflow: str, date: str, timeout: int) -> int:
+    wf = workflow
+    extra = ""
+    if workflow == "bond_finalize":
+        wf = "bond"
+        extra = "--bond-pool-finalize-only "
     cmd = (
         f"cd {INSTALL} && set -a && . {ENV} && set +a && "
         "export PYTHONUNBUFFERED=1 "
         "GEEGOO_AGENT_OP_HTTP_URL=http://127.0.0.1:3400 "
         "MACRO_API_BASE=http://146.56.225.252:3220 && "
         f"/usr/bin/python3 -u scripts/ops/workflow/run_macro_monitor_lab_batch.py "
-        f"--workflow {workflow} --date {date}"
+        f"{extra}--workflow {wf} --date {date}"
     )
     print(f"\n=== workflow={workflow} date={date} ===", flush=True)
     print("$", cmd, flush=True)
