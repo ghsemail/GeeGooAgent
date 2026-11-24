@@ -36,7 +36,9 @@ PUT_ACCEPT_FALSE_REASONS = frozenset(
     }
 )
 
-PUT_RETRY_REASONS = frozenset({"immutable_version_conflict", "batch_started_at_mismatch"})
+PUT_RETRY_REASONS = frozenset(
+    {"immutable_version_conflict", "batch_started_at_mismatch", "stale_attempt"}
+)
 
 
 def jev_stable_source_batch_id(pool_workflow: str, batch_date: str) -> str:
@@ -135,6 +137,29 @@ def fetch_locked_batch_started_at(
     return ""
 
 
+def next_jev_pool_revision_for_stable_batch(
+    macro_base: str,
+    macro_key: str,
+    http_json: HttpJsonFn,
+    batch_date: str,
+    pool_workflow: str,
+) -> int:
+    stable = jev_stable_source_batch_id(pool_workflow, batch_date)
+    row, _ = get_canonical_pool_result(
+        macro_base, macro_key, http_json, batch_date, pool_workflow
+    )
+    max_rev = 0
+    if isinstance(row, dict) and str(row.get("source_batch_id") or "").strip() == stable:
+        try:
+            max_rev = int(row.get("revision") or 0)
+        except (TypeError, ValueError):
+            pass
+    sym_rev = next_jev_revision_for_stable_batch(
+        macro_base, macro_key, http_json, batch_date, pool_workflow
+    )
+    return max(max_rev + 1, sym_rev, 1)
+
+
 def prime_jev_writer_for_pool_day(
     writer: MacroJevResultsWriter,
     *,
@@ -142,7 +167,7 @@ def prime_jev_writer_for_pool_day(
     probe_symbols: list[str] | None = None,
 ) -> None:
     stable = jev_stable_source_batch_id(writer.pool_workflow, writer.batch_date)
-    rev = next_jev_revision_for_stable_batch(
+    rev = next_jev_pool_revision_for_stable_batch(
         writer.macro_base,
         writer.macro_key,
         writer.http_json,
@@ -158,6 +183,16 @@ def prime_jev_writer_for_pool_day(
         stable,
         probe_symbols or [],
     )
+    if not locked_started:
+        pool_row, _ = get_canonical_pool_result(
+            writer.macro_base,
+            writer.macro_key,
+            writer.http_json,
+            writer.batch_date,
+            writer.pool_workflow,
+        )
+        if isinstance(pool_row, dict) and str(pool_row.get("source_batch_id") or "").strip() == stable:
+            locked_started = str(pool_row.get("batch_started_at") or "").strip()
     started = locked_started or batch_started_at
     writer.bind_batch_run(stable, batch_started_at=started)
     writer.symbol_revision_final = rev
