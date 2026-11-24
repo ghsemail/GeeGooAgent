@@ -11,6 +11,7 @@ import time
 import urllib.error
 import urllib.parse
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Callable
 
 from macro_jev_synthesis_format import format_pool_jev_reason
@@ -39,6 +40,10 @@ PUT_ACCEPT_FALSE_REASONS = frozenset(
 PUT_RETRY_REASONS = frozenset(
     {"immutable_version_conflict", "batch_started_at_mismatch", "stale_attempt"}
 )
+
+
+def _rfc3339_now_utc() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def jev_stable_source_batch_id(pool_workflow: str, batch_date: str) -> str:
@@ -545,6 +550,10 @@ class MacroJevResultsWriter:
                     if locked and locked != self.batch_started_at:
                         self.batch_started_at = locked
                         continue
+            if out.reason == "stale_attempt":
+                # legacy Mongo pool 占位时，用更新的 batch_started_at 使 stable 批次胜出
+                self.batch_started_at = _rfc3339_now_utc()
+                continue
             if out.reason not in PUT_RETRY_REASONS:
                 break
         if not last.ok:
