@@ -37,7 +37,7 @@ func TestPersistSignalDiagnoseResultStepwiseLabModeSticky(t *testing.T) {
 		t.Fatalf("lab_default_detail_ref=%q", ent.LabDefaultDetailRef)
 	}
 	resp := MondayAPIResponse(ent)
-	if resp.Lab == nil {
+	if resp.Diagnose == nil {
 		t.Fatal("Monday response must include lab when lab_mode")
 	}
 }
@@ -83,7 +83,7 @@ func TestPersistSignalDiagnoseResultStepwiseLabWithoutLabMode(t *testing.T) {
 		t.Fatalf("lab_default_detail_ref=%q", ent.LabDefaultDetailRef)
 	}
 	resp := MondayAPIResponse(ent)
-	if resp.Lab == nil {
+	if resp.Diagnose == nil {
 		t.Fatal("Monday response must include lab when probe has bars (no lab_mode)")
 	}
 }
@@ -126,8 +126,8 @@ func TestPersistSignalDiagnoseResultLongOnlyOmitsLabSell(t *testing.T) {
 	if sellKeys > 0 {
 		t.Fatalf("lab must omit sell:* keys, got %d", sellKeys)
 	}
-	if resp := MondayAPIResponse(ent); resp.Lab != nil {
-		if m, ok := resp.Lab.(strategydev.LabCardEpisodeSummaries); ok {
+	if resp := MondayAPIResponse(ent); resp.Diagnose != nil {
+		if m, ok := resp.Diagnose.(strategydev.LabCardEpisodeSummaries); ok {
 			for ref := range m {
 				if strings.HasPrefix(ref, "sell:") {
 					t.Fatalf("Monday lab still has %s", ref)
@@ -165,7 +165,7 @@ func TestPersistSignalDiagnoseResultAfterProbeTool(t *testing.T) {
 	if len(ent.LabEpisodeSummaries) == 0 {
 		t.Fatal("expected lab summaries on probe persist without lab_mode opts")
 	}
-	if resp := MondayAPIResponse(ent); resp.Lab == nil {
+	if resp := MondayAPIResponse(ent); resp.Diagnose == nil {
 		t.Fatal("Monday response must include lab after probe persist")
 	}
 }

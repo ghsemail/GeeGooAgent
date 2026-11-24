@@ -144,7 +144,7 @@ func CardPayloadForSession(rt *runtime.Session, chat *chatsession.ChatSession, f
 			ensureLabFlowDetailRef(flow)
 			out["lab_default_detail_ref"] = strategydev.LabFlowDetailRef
 			if sums := strategydev.FilterLabCardSummariesForLongOnly(flow.LabEpisodeSummaries, flow.TradeDirection.LongOnlyEpisodeEval()); len(sums) > 0 {
-				out["lab_episode_summaries"] = sums
+				out["diagnose_episode_summaries"] = sums
 			}
 			if s := strings.TrimSpace(flow.LabFlowPriceSummary); s != "" {
 				out["lab_flow_price_summary"] = s

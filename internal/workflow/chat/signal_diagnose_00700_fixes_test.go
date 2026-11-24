@@ -70,7 +70,7 @@ func TestCardLabDefaultDetailRefWhenNoTriggers(t *testing.T) {
 	if out["lab_default_detail_ref"] != strategydev.LabFlowDetailRef {
 		t.Fatalf("ref=%v", out["lab_default_detail_ref"])
 	}
-	sums, _ := out["lab_episode_summaries"].(strategydev.LabCardEpisodeSummaries)
+	sums, _ := out["diagnose_episode_summaries"].(strategydev.LabCardEpisodeSummaries)
 	if sums == nil || sums[strategydev.LabFlowDetailRef].DetailRef == "" {
 		t.Fatal("expected flow:0 summary entry")
 	}

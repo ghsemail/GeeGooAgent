@@ -27,7 +27,7 @@ class TestDetailRef(unittest.TestCase):
         ref = pick_detail_ref(
             {
                 "lab": {
-                    "lab_episode_summaries": {
+                    "diagnose_episode_summaries": {
                         "buy:7": {"start_idx": 190},
                     }
                 }

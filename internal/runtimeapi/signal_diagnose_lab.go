@@ -14,10 +14,10 @@ import (
 )
 
 func (h *Handler) registerSignalDiagnoseLabRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /v1/signal-diagnose/lab-detail", h.signalDiagnoseLabDetail)
+	mux.HandleFunc("POST /v1/signal-diagnose/diagnose-detail", h.signalDiagnoseDiagnoseDetail)
 }
 
-type signalDiagnoseLabDetailBody struct {
+type signalDiagnoseDetailBody struct {
 	SessionID string `json:"session_id"`
 	RunID     string `json:"run_id"`
 	DetailRef string `json:"detail_ref"`
@@ -28,7 +28,7 @@ type signalDiagnoseLabDetailBody struct {
 	KlineJEVProfile string `json:"kline_jev_profile,omitempty"`
 }
 
-func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) signalDiagnoseDiagnoseDetail(w http.ResponseWriter, r *http.Request) {
 	if h.App == nil {
 		writeError(w, http.StatusServiceUnavailable, "app not configured")
 		return
@@ -38,7 +38,7 @@ func (h *Handler) signalDiagnoseLabDetail(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusServiceUnavailable, err.Error())
 		return
 	}
-	var body signalDiagnoseLabDetailBody
+	var body signalDiagnoseDetailBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return

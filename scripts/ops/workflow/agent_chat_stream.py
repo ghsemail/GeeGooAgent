@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from http.client import IncompleteRead
 from typing import Any
 
-# Pool/overall JEV synthesis often exceeds 6m; align with lab-detail batch budget (900s).
+# Pool/overall JEV synthesis often exceeds 6m; align with diagnose-detail batch budget (900s).
 CHAT_TIMEOUT = int(os.environ.get("MACRO_BATCH_CHAT_TIMEOUT", "900"))
 RECOVER_POLL_SEC = int(os.environ.get("MACRO_BATCH_CHAT_RECOVER_POLL_SEC", "5"))
 RECOVER_MAX_SEC = int(os.environ.get("MACRO_BATCH_CHAT_RECOVER_MAX_SEC", "180"))

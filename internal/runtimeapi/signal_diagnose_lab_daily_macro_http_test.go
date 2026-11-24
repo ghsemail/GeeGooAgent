@@ -22,7 +22,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/workflow/strategydev"
 )
 
-// POST /v1/signal-diagnose/lab-detail with daily_macro must inject MCP trading-day checker and fail-closed when MCP rejects.
+// POST /v1/signal-diagnose/diagnose-detail with daily_macro must inject MCP trading-day checker and fail-closed when MCP rejects.
 func TestSignalDiagnoseLabDetailHTTP_DailyMacroMCPFailClosed(t *testing.T) {
 	mcpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
@@ -90,7 +90,7 @@ func TestSignalDiagnoseLabDetailHTTP_DailyMacroMCPFailClosed(t *testing.T) {
 		"kline_jev_profile": strategydev.LabKlineJEVProfileDailyMacro,
 		"mcp_token":         "user-mcp-token",
 	})
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL+"/v1/signal-diagnose/lab-detail", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL+"/v1/signal-diagnose/diagnose-detail", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}

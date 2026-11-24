@@ -97,7 +97,7 @@ func TestSignalDiagnoseLabDetailHTTP_DailyMacroLegacyDateEchoFailClosed(t *testi
 		"kline_jev_profile": strategydev.LabKlineJEVProfileDailyMacro,
 		"mcp_token":         "user-mcp-token",
 	})
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL+"/v1/signal-diagnose/lab-detail", bytes.NewReader(body))
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL+"/v1/signal-diagnose/diagnose-detail", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-MCP-Token", "user-mcp-token")
 	resp, err := http.DefaultClient.Do(req)

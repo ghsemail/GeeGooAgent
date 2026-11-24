@@ -152,8 +152,8 @@ type Flow struct {
 	ResolvedStrategyLabel  string         `json:"resolved_strategy_label,omitempty"`
 	TradeDirection         runtime.TradeDirection `json:"trade_direction,omitempty"`
 	LabMode                bool `json:"lab_mode,omitempty"`
-	LabFlowPriceSummary    string `json:"lab_flow_price_summary,omitempty"`
-	LabEpisodeSummaries    strategydev.LabCardEpisodeSummaries `json:"lab_episode_summaries,omitempty"`
+	LabFlowPriceSummary    string `json:"diagnose_flow_price_summary,omitempty"`
+	LabEpisodeSummaries    strategydev.LabCardEpisodeSummaries `json:"diagnose_episode_summaries,omitempty"`
 	// LabKlineMTF caches MTF kline probes for lazy lab-detail (same run, multiple detail_ref).
 	LabKlineMTF *strategydev.KlinePatternMTFBundle `json:"-"`
 	KeyLevels              KeyLevelSnapshot   `json:"key_levels,omitempty"`

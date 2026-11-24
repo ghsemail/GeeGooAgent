@@ -33,7 +33,7 @@ func TestCardPayloadLabModeSummaries(t *testing.T) {
 	if out["lab_mode"] != true {
 		t.Fatal("expected lab_mode in card")
 	}
-	if out["lab_episode_summaries"] == nil {
+	if out["diagnose_episode_summaries"] == nil {
 		t.Fatal("expected lab_episode_summaries")
 	}
 }

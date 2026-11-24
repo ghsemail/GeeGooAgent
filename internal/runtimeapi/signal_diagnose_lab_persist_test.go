@@ -53,7 +53,7 @@ func TestSignalDiagnoseLabDetailPersistResultWithoutArchiveSnapshot(t *testing.T
 	body, _ := json.Marshal(map[string]any{
 		"session_id": chat.ID, "run_id": mondayRun, "detail_ref": "not-a-ref",
 	})
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL+"/v1/signal-diagnose/lab-detail", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL+"/v1/signal-diagnose/diagnose-detail", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -44,9 +44,9 @@ def lane_indicates_failure(lane: dict[str, Any] | None) -> bool:
     return any(frag in txt for frag in FAIL_FRAGMENTS)
 
 
-def lab_episode_summary_failed(summary: dict[str, Any] | None) -> tuple[bool, str]:
+def diagnose_episode_summary_failed(summary: dict[str, Any] | None) -> tuple[bool, str]:
     if not summary:
-        return True, "lab_episode_summary missing"
+        return True, "diagnose_episode_summary missing"
     missing: list[str] = []
     for key in REQUIRED_LANES:
         lane = summary.get(key)
@@ -66,8 +66,8 @@ def lab_episode_summary_failed(summary: dict[str, Any] | None) -> tuple[bool, st
 
 
 def lab_detail_four_lane_failed(detail: dict[str, Any] | None) -> tuple[bool, str]:
-    """lab-detail `detail` object uses the same lane keys as lab_episode_summary."""
-    failed, reason = lab_episode_summary_failed(detail)
+    """diagnose-detail `detail` object uses the same lane keys as diagnose_episode_summary."""
+    failed, reason = diagnose_episode_summary_failed(detail)
     if failed:
         return True, reason
     if not isinstance(detail, dict):
@@ -80,7 +80,7 @@ def lab_detail_four_lane_failed(detail: dict[str, Any] | None) -> tuple[bool, st
     return False, ""
 
 
-def build_lab_episode_summary_from_detail(
+def build_diagnose_episode_summary_from_detail(
     detail: dict[str, Any],
     detail_ref: str,
 ) -> dict[str, Any] | None:
@@ -168,7 +168,7 @@ def direction_skill_to_ledger(unified: dict[str, Any] | None) -> tuple[str, floa
 
 
 def skill_result_detail_snapshot(skill_result: dict[str, Any]) -> dict[str, Any]:
-    """Persist lab-detail-shaped fact lanes for macro FE (read-only popover, no live skill)."""
+    """Persist diagnose-detail-shaped fact lanes for macro FE (read-only popover, no live skill)."""
     if not isinstance(skill_result, dict):
         return {}
     snap: dict[str, Any] = {}
@@ -211,11 +211,11 @@ def stored_detail_snapshot_usable(snapshot: dict[str, Any] | None) -> bool:
     return False
 
 
-def build_lab_episode_summary_from_skill_result(
+def build_diagnose_episode_summary_from_skill_result(
     skill_result: dict[str, Any],
     detail_ref: str = "diagnose_macro",
 ) -> dict[str, Any] | None:
-    """Assemble Monday-facing lab_episode_summary from diagnose_macro skill `result`."""
+    """Assemble Monday-facing diagnose_episode_summary from diagnose_macro skill `result`."""
     if not isinstance(skill_result, dict) or not skill_result:
         return None
     ref = (detail_ref or "").strip() or "diagnose_macro"
@@ -278,11 +278,11 @@ def batch_item_from_diagnose_skill_response(
         direction = "neutral"
     if conf is None:
         conf = 1.0 if direction != "neutral" else 0.5
-    lab_summary = build_lab_episode_summary_from_skill_result(result, detail_ref)
+    lab_summary = build_diagnose_episode_summary_from_skill_result(result, detail_ref)
     ok_refs, refs_msg = item_refs_complete(
         jev_reason, detail_ref, session_id, run_id, direction, min_reason_len=min_reason_len
     )
-    failed, sum_msg = lab_episode_summary_failed(lab_summary)
+    failed, sum_msg = diagnose_episode_summary_failed(lab_summary)
     if not ok_refs or failed:
         parts: list[str] = []
         if not ok_refs:
@@ -306,7 +306,7 @@ def batch_item_from_diagnose_skill_response(
         "detail_ref": detail_ref,
         "direction": direction,
         "confidence": conf,
-        "lab_episode_summary": lab_summary,
+        "diagnose_episode_summary": lab_summary,
     }
 
 

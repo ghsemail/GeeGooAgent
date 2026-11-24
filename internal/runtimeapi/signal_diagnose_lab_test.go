@@ -67,7 +67,7 @@ func TestSignalDiagnoseLabDetailCacheHitSkipsJEV(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{
 		"session_id": chat.ID, "run_id": runID, "detail_ref": ref,
 	})
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL+"/v1/signal-diagnose/lab-detail", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL+"/v1/signal-diagnose/diagnose-detail", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestSignalDiagnoseLabDetailInvalidRef(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{
 		"session_id": chat.ID, "run_id": runID, "detail_ref": "not-a-ref",
 	})
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL+"/v1/signal-diagnose/lab-detail", bytes.NewReader(body))
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL+"/v1/signal-diagnose/diagnose-detail", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-MCP-Token", "user-mcp-token")
 	resp, err := http.DefaultClient.Do(req)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """宏观监控池日批：逐标的 ``diagnose_macro`` skill → macro inline/ingest + batch/runs.
 
-单标的诊断经 ``POST /v1/skills/run``（``diagnose_macro``），不走 Agent Loop / lab-detail。
+单标的诊断经 ``POST /v1/skills/run``（``diagnose_macro``），不走 Agent Loop / diagnose-detail。
 池级合成经 ``POST /v1/skills/run``（``diagnose_macro_pool``），不走 Agent Loop。
 宏观 ``overall`` 经 ``POST /v1/skills/run``（``diagnose_macro_overall``），不走 Agent Loop / chat。
 
@@ -9,7 +9,7 @@
 
 标的 success 门禁：skill 回包四路 JEV + ``jev_unified`` 健康后 ingest/PUT（``detail_ref=diagnose_macro``）。
 可选：``MACRO_BATCH_DIAGNOSE_SKILL_TIMEOUT``（默认 900s）、``MACRO_BATCH_CHAT_TIMEOUT``（池/overall chat）、
-以及 lab-detail 相关变量（池级 recover 等遗留路径）。
+以及 diagnose-detail 相关变量（池级 recover 等遗留路径）。
 """
 
 from __future__ import annotations
@@ -62,12 +62,12 @@ from macro_overall_diagnose_skill import synthesize_overall_jev_with_skill_retri
 from macro_pool_diagnose_skill import synthesize_pool_jev_with_skill_retries  # noqa: E402
 from macro_lab_batch_health import (  # noqa: E402
     batch_item_from_diagnose_skill_response,
-    build_lab_episode_summary_from_detail,
+    build_diagnose_episode_summary_from_detail,
     direction_from_jev_unified,
     item_refs_complete,
     is_skill_detail_ref,
     lab_detail_four_lane_failed,
-    lab_episode_summary_failed,
+    diagnose_episode_summary_failed,
 )
 
 DEFAULT_MACRO = "http://146.56.225.252:3220"
@@ -98,14 +98,14 @@ JEV_PIPELINE_WORKFLOWS = list(WORKFLOW_MONITOR_POOL.keys())
 BOND_SEGMENT_WORKFLOWS = frozenset({"bond_sh", "bond_us"})
 BOND_SYMBOL_SUFFIX: dict[str, str] = {"bond_sh": ".SH", "bond_us": ".US"}
 
-# Must exceed server lab-detail wall time (MTF+PA+TA+~4m JEV); agent-runtime WriteTimeout is 960s.
+# Must exceed server diagnose-detail wall time (MTF+PA+TA+~4m JEV); agent-runtime WriteTimeout is 960s.
 LAB_DETAIL_TIMEOUT = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_TIMEOUT", "900"))
 LAB_DETAIL_HTTP_TRANSIENT_RETRIES = int(
     os.environ.get("MACRO_BATCH_LAB_DETAIL_HTTP_TRANSIENT_RETRIES", "2")
 )
 LAB_DETAIL_RETRIES = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_RETRIES", "2"))
 LAB_DETAIL_RETRY_WAIT = int(os.environ.get("MACRO_BATCH_LAB_DETAIL_RETRY_WAIT", "20"))
-# Brief pause after chat diagnose before lab-detail (JEV lanes under concurrent morning crons).
+# Brief pause after chat diagnose before diagnose-detail (JEV lanes under concurrent morning crons).
 LAB_DETAIL_POST_DIAGNOSE_DELAY_SEC = float(
     os.environ.get("MACRO_BATCH_LAB_DETAIL_POST_DIAGNOSE_DELAY_SEC", "8")
 )
@@ -424,8 +424,8 @@ def _best_episode_ref(candidates: list[str]) -> str:
     return keys[0]
 
 
-def _ref_from_lab_episode_summaries(lab: dict[str, Any]) -> str:
-    summaries = lab.get("lab_episode_summaries")
+def _ref_from_diagnose_episode_summaries(lab: dict[str, Any]) -> str:
+    summaries = lab.get("diagnose_episode_summaries")
     if not isinstance(summaries, dict):
         return ""
     best_ref = ""
@@ -459,7 +459,7 @@ def pick_detail_ref(result: dict[str, Any]) -> str:
     ref = (lab.get("lab_default_detail_ref") or "").strip()
     if ref.startswith(("buy:", "sell:")):
         return ref
-    from_summaries = _ref_from_lab_episode_summaries(lab)
+    from_summaries = _ref_from_diagnose_episode_summaries(lab)
     if from_summaries:
         return from_summaries
     signal_eval = result.get("signal_eval") or {}
@@ -506,14 +506,14 @@ def item_jev_complete(
     session_id: str,
     run_id: str,
     direction: str,
-    lab_episode_summary: dict[str, Any] | None = None,
+    diagnose_episode_summary: dict[str, Any] | None = None,
 ) -> bool:
     ok, _ = item_refs_complete(
         jev_reason, detail_ref, session_id, run_id, direction, min_reason_len=MIN_JEV_REASON_LEN
     )
     if not ok:
         return False
-    failed, _ = lab_episode_summary_failed(lab_episode_summary)
+    failed, _ = diagnose_episode_summary_failed(diagnose_episode_summary)
     return not failed
 
 
@@ -918,7 +918,7 @@ def _post_lab_detail(
     }
     status, data, raw = http_json(
         "POST",
-        f"{agent_base.rstrip('/')}/v1/signal-diagnose/lab-detail",
+        f"{agent_base.rstrip('/')}/v1/signal-diagnose/diagnose-detail",
         headers,
         body,
         timeout=LAB_DETAIL_TIMEOUT,
@@ -937,24 +937,24 @@ def lab_detail_symbol_gate(
     run_id: str,
     detail_ref: str,
 ) -> dict[str, Any]:
-    """Symbol batch: lab-detail with four-lane health gate (matches Signal pipeline)."""
-    last_err = "lab-detail failed"
+    """Symbol batch: diagnose-detail with four-lane health gate (matches Signal pipeline)."""
+    last_err = "diagnose-detail failed"
     for attempt in range(LAB_DETAIL_RETRIES + 1):
         status, data, raw = _post_lab_detail(
             agent_base, runtime_key, mcp_token, session_id, run_id, detail_ref
         )
         if status != 200:
-            last_err = f"lab-detail HTTP {status}: {raw[:240]}"
+            last_err = f"diagnose-detail HTTP {status}: {raw[:240]}"
         else:
             detail = data.get("detail") if isinstance(data.get("detail"), dict) else {}
             failed, reason = lab_detail_four_lane_failed(detail)
             summary: dict[str, Any] | None = None
             if not failed:
-                summary = build_lab_episode_summary_from_detail(detail, detail_ref)
+                summary = build_diagnose_episode_summary_from_detail(detail, detail_ref)
                 if summary:
-                    failed, reason = lab_episode_summary_failed(summary)
+                    failed, reason = diagnose_episode_summary_failed(summary)
                 else:
-                    failed, reason = True, "lab_episode_summary build failed"
+                    failed, reason = True, "diagnose_episode_summary build failed"
             if not failed and summary:
                 unified = summary.get("jev_unified")
                 if not isinstance(unified, dict):
@@ -965,13 +965,13 @@ def lab_detail_symbol_gate(
                         "ok": True,
                         "direction": direction,
                         "confidence": conf,
-                        "lab_episode_summary": summary,
+                        "diagnose_episode_summary": summary,
                     }
-                last_err = "lab-detail missing jev direction"
+                last_err = "diagnose-detail missing jev direction"
             else:
-                last_err = reason or "lab_episode_summary invalid"
+                last_err = reason or "diagnose_episode_summary invalid"
         if attempt < LAB_DETAIL_RETRIES:
-            print(f"  lab-detail retry {attempt + 1}/{LAB_DETAIL_RETRIES}: {last_err[:160]}", flush=True)
+            print(f"  diagnose-detail retry {attempt + 1}/{LAB_DETAIL_RETRIES}: {last_err[:160]}", flush=True)
             wait = LAB_DETAIL_RETRY_WAIT
             if "lanes missing" in (last_err or ""):
                 wait = max(wait, int(os.environ.get("MACRO_BATCH_LAB_LANE_RETRY_WAIT", "45")))
@@ -1337,7 +1337,7 @@ def run_batch(
             detail_ref = str(outcome.get("detail_ref") or "")
             direction = str(outcome.get("direction") or "")
             conf = outcome.get("confidence")
-            lab_summary = outcome.get("lab_episode_summary")
+            lab_summary = outcome.get("diagnose_episode_summary")
             row = {
                 "symbol": sym,
                 "name": name,
@@ -1350,7 +1350,7 @@ def run_batch(
                 "agent_run_id": run_id or None,
             }
             if isinstance(lab_summary, dict) and lab_summary:
-                row["lab_episode_summary"] = lab_summary
+                row["diagnose_episode_summary"] = lab_summary
             batch_pools[pi]["items"][ii] = row
             ingest_item: dict[str, Any] = {
                 "code": sym,
@@ -1362,7 +1362,7 @@ def run_batch(
                 "lab_supported": True,
             }
             if isinstance(lab_summary, dict) and lab_summary:
-                ingest_item["lab_episode_summary"] = lab_summary
+                ingest_item["diagnose_episode_summary"] = lab_summary
             ingest_items.append(ingest_item)
             print(
                 f"  OK jev={direction} ref={detail_ref} run={run_id[:24] if run_id else ''}",

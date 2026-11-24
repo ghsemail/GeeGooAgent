@@ -333,7 +333,7 @@ class MacroJevResultsWriter:
         agent_run_id: str = "",
         detail_ref: str = "",
         attempt: int | None = None,
-        lab_episode_summary: dict[str, Any] | None = None,
+        diagnose_episode_summary: dict[str, Any] | None = None,
         revision: int | None = None,
     ) -> PutOutcome:
         if not self._require_batch_identity(f"symbol {symbol}"):
@@ -369,8 +369,8 @@ class MacroJevResultsWriter:
                 body["completed_at"] = completed_at
             if attempt is not None:
                 body["attempt"] = attempt
-            if lab_episode_summary:
-                body["lab_episode_summary"] = lab_episode_summary
+            if diagnose_episode_summary:
+                body["diagnose_episode_summary"] = diagnose_episode_summary
             out = self._http_put_json(url, body)
             last = out
             if out.ok:
@@ -446,7 +446,7 @@ class MacroJevResultsWriter:
                 conf_f = float(conf) if conf is not None else 0.7
             except (TypeError, ValueError):
                 conf_f = 0.7
-            lab_summary = item.get("lab_episode_summary")
+            lab_summary = item.get("diagnose_episode_summary")
             lab_arg: dict[str, Any] | None = None
             if isinstance(lab_summary, dict) and lab_summary:
                 lab_arg = lab_summary
@@ -461,7 +461,7 @@ class MacroJevResultsWriter:
                 agent_run_id=str(item.get("agent_run_id") or ""),
                 detail_ref=str(item.get("detail_ref") or ""),
                 revision=fin_rev,
-                lab_episode_summary=lab_arg,
+                diagnose_episode_summary=lab_arg,
             )
         err = str(item.get("error") or "diagnose failed")
         reason = err if len(err) >= 8 else f"标的诊断失败: {err}"

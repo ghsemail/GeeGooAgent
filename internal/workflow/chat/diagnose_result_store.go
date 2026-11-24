@@ -41,9 +41,9 @@ type SignalDiagnoseResult struct {
 
 	LabMode               bool                                      `json:"lab_mode,omitempty"`
 	TradeDirection        runtime.TradeDirection                    `json:"trade_direction,omitempty"`
-	LabEpisodeSummaries   strategydev.LabCardEpisodeSummaries       `json:"lab_episode_summaries,omitempty"`
-	LabFlowPriceSummary   string                                    `json:"lab_flow_price_summary,omitempty"`
-	LabDefaultDetailRef   string                                    `json:"lab_default_detail_ref,omitempty"`
+	LabEpisodeSummaries   strategydev.LabCardEpisodeSummaries       `json:"diagnose_episode_summaries,omitempty"`
+	LabFlowPriceSummary   string                                    `json:"diagnose_flow_price_summary,omitempty"`
+	LabDefaultDetailRef   string                                    `json:"diagnose_default_detail_ref,omitempty"`
 
 	PriceAnalysis             *strategydev.PriceAnalysis             `json:"price_analysis,omitempty"`
 	PriceEpisodeFilterStats   *strategydev.EpisodeTriggerFilterStats `json:"price_episode_filter_stats,omitempty"`
@@ -166,7 +166,7 @@ type SignalDiagnoseResultMondayResponse struct {
 	ChartProbe     map[string]any          `json:"chart_probe,omitempty"`
 	SignalEval     slots.SignalEpisodeEval `json:"signal_eval,omitempty"`
 	EvalJudgment   string                  `json:"eval_judgment,omitempty"`
-	Lab            any                     `json:"lab,omitempty"`
+	Diagnose            any                     `json:"diagnose,omitempty"`
 }
 
 // MondayAPIResponse builds the Monday client field set (no ui-payload fallback).
@@ -191,20 +191,20 @@ func MondayAPIResponse(ent *SignalDiagnoseResult) SignalDiagnoseResultMondayResp
 	}
 	labSums := strategydev.FilterLabCardSummariesForLongOnly(ent.LabEpisodeSummaries, ent.TradeDirection.LongOnlyEpisodeEval())
 	if len(labSums) > 0 {
-		out.Lab = labSums
+		out.Diagnose = labSums
 	} else if strings.TrimSpace(ent.LabFlowPriceSummary) != "" || strings.TrimSpace(ent.LabDefaultDetailRef) != "" {
-		lab := map[string]any{}
+		diagnose := map[string]any{}
 		if len(labSums) > 0 {
-			lab["lab_episode_summaries"] = labSums
+			diagnose["diagnose_episode_summaries"] = labSums
 		}
 		if s := strings.TrimSpace(ent.LabFlowPriceSummary); s != "" {
-			lab["lab_flow_price_summary"] = s
+			diagnose["diagnose_flow_price_summary"] = s
 		}
 		if s := strings.TrimSpace(ent.LabDefaultDetailRef); s != "" {
-			lab["lab_default_detail_ref"] = s
+			diagnose["diagnose_default_detail_ref"] = s
 		}
-		if len(lab) > 0 {
-			out.Lab = lab
+		if len(diagnose) > 0 {
+			out.Diagnose = diagnose
 		}
 	}
 	return out

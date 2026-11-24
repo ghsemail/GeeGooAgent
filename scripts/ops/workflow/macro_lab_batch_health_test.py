@@ -5,12 +5,12 @@ import unittest
 
 from macro_lab_batch_health import (
     batch_item_from_diagnose_skill_response,
-    build_lab_episode_summary_from_detail,
-    build_lab_episode_summary_from_skill_result,
+    build_diagnose_episode_summary_from_detail,
+    build_diagnose_episode_summary_from_skill_result,
     direction_skill_to_ledger,
     item_refs_complete,
     lab_detail_four_lane_failed,
-    lab_episode_summary_failed,
+    diagnose_episode_summary_failed,
 )
 
 
@@ -24,9 +24,9 @@ class TestMacroLabBatchHealth(unittest.TestCase):
             "price_analysis_jev": {"ok": True},
             "kline_jev": {"ok": True},
         }
-        summary = build_lab_episode_summary_from_detail(detail, "buy:1")
+        summary = build_diagnose_episode_summary_from_detail(detail, "buy:1")
         assert summary is not None
-        failed, _ = lab_episode_summary_failed(summary)
+        failed, _ = diagnose_episode_summary_failed(summary)
         self.assertFalse(failed)
 
     def test_summary_timeout_lane_fails(self) -> None:
@@ -35,8 +35,8 @@ class TestMacroLabBatchHealth(unittest.TestCase):
             "jev_unified": {"ok": True, "choice": "neutral"},
             "kline_jev": {"ok": False, "error": "context deadline exceeded"},
         }
-        summary = build_lab_episode_summary_from_detail(detail, "buy:1")
-        failed, reason = lab_episode_summary_failed(summary)
+        summary = build_diagnose_episode_summary_from_detail(detail, "buy:1")
+        failed, reason = diagnose_episode_summary_failed(summary)
         self.assertTrue(failed)
         self.assertIn("kline_jev", reason)
 
@@ -75,7 +75,7 @@ class TestMacroLabBatchHealth(unittest.TestCase):
         self.assertEqual(direction_skill_to_ledger({"direction": "bear"})[0], "short")
         self.assertEqual(direction_skill_to_ledger({"direction": "unclear", "ok": True})[0], "neutral")
 
-    def test_build_lab_episode_summary_from_skill_result(self) -> None:
+    def test_build_diagnose_episode_summary_from_skill_result(self) -> None:
         result = {
             "monitor_session_close": "2026-01-01T08:00:00Z",
             "jev_unified": {"ok": True, "direction": "bull", "recommended_reason": "r" * 25},
@@ -84,9 +84,9 @@ class TestMacroLabBatchHealth(unittest.TestCase):
             "price_analysis_jev": {"ok": True},
             "kline_jev": {"ok": True},
         }
-        summary = build_lab_episode_summary_from_skill_result(result, "diagnose_macro")
+        summary = build_diagnose_episode_summary_from_skill_result(result, "diagnose_macro")
         assert summary is not None
-        failed, _ = lab_episode_summary_failed(summary)
+        failed, _ = diagnose_episode_summary_failed(summary)
         self.assertFalse(failed)
         self.assertEqual(summary.get("detail_ref"), "diagnose_macro")
 
@@ -110,7 +110,7 @@ class TestMacroLabBatchHealth(unittest.TestCase):
         self.assertEqual(out.get("detail_ref"), "diagnose_macro")
         self.assertEqual(out.get("session_id"), "sk-sess-abc")
         self.assertEqual(out.get("run_id"), "sk-sess-abc")
-        self.assertIn("lab_episode_summary", out)
+        self.assertIn("diagnose_episode_summary", out)
 
 
 if __name__ == "__main__":

@@ -17,12 +17,12 @@ func TestMondayAPIResponseLabSummaries(t *testing.T) {
 		},
 	}
 	resp := MondayAPIResponse(ent)
-	if resp.Lab == nil {
+	if resp.Diagnose == nil {
 		t.Fatal("expected lab")
 	}
-	sums, ok := resp.Lab.(strategydev.LabCardEpisodeSummaries)
+	sums, ok := resp.Diagnose.(strategydev.LabCardEpisodeSummaries)
 	if !ok || len(sums) != 1 {
-		t.Fatalf("lab=%T %v", resp.Lab, resp.Lab)
+		t.Fatalf("lab=%T %v", resp.Diagnose, resp.Diagnose)
 	}
 	if resp.TradeDirection != runtime.TradeDirectionBoth {
 		t.Fatalf("trade_direction=%q want both", resp.TradeDirection)
