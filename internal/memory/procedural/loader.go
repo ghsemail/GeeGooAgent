@@ -84,6 +84,32 @@ func (l *Loader) List() []Skill {
 	return out
 }
 
+// explicitSkillInvocation is true when the user names a skill via CLI-style text
+// (e.g. "geegoo run premarket_stock"). Workflow skills are excluded from casual
+// chat injection but should still match explicit run commands.
+func backtestPlaybookMatchName(name string) bool {
+	switch name {
+	case backtestRunPlaybook, "strategy-signal-probe", "strategy-backtest", "strategy-backtest-history":
+		return true
+	default:
+		return false
+	}
+}
+
+func explicitSkillInvocation(lowerMsg, skillName string) bool {
+	name := strings.ToLower(strings.TrimSpace(skillName))
+	if name == "" {
+		return false
+	}
+	if strings.Contains(lowerMsg, "geegoo run "+name) {
+		return true
+	}
+	if strings.Contains(lowerMsg, "geegoo "+name) {
+		return true
+	}
+	return false
+}
+
 // Match returns up to maxSkills skills whose keywords overlap the message.
 func (l *Loader) Match(message string, maxSkills int) []Skill {
 	if l == nil || strings.TrimSpace(message) == "" {
@@ -103,12 +129,18 @@ func (l *Loader) Match(message string, maxSkills int) []Skill {
 	policy := l.Policy()
 	for _, sk := range l.skills {
 		kind := ClassifyPath(sk.Path)
-		if !InjectInChat(kind) || !policy.Enabled(sk.Name, kind) {
+		if !policy.Enabled(sk.Name, kind) {
+			continue
+		}
+		explicitRun := explicitSkillInvocation(lowerMsg, sk.Name)
+		if !InjectInChat(kind) && !explicitRun {
 			continue
 		}
 		score := overlapScore(msgWords, sk.Name+" "+sk.Description)
 		if score < 2 {
-			if strings.Contains(lowerMsg, strings.ToLower(sk.Name)) {
+			if explicitRun || strings.Contains(lowerMsg, strings.ToLower(sk.Name)) {
+				score = 2
+			} else if BacktestRunIntent(message) && backtestPlaybookMatchName(sk.Name) {
 				score = 2
 			}
 		}
