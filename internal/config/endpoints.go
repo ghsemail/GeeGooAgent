@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// GeeGoo 服务默认端口（见 docs/refactor/ports.md）。
+// GeeGoo 服务默认端口（见 StudyPal GeeGooAgent/platform/README.md）。
 const (
 	DefaultBotMCPURL        = "http://127.0.0.1:3120"
 	DefaultSignalAPIURL     = "http://127.0.0.1:3200"

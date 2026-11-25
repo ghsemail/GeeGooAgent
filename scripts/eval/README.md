@@ -2,8 +2,8 @@
 
 TurnPlan 评测覆盖 **路由（domain/mode）**、**工具调用**、**回复语义（LLM judge）**。
 
-- 通用机制（给其他 Agent 复制）：[docs/architecture/platform-blueprint/eval-build-guide.md](../../docs/architecture/platform-blueprint/eval-build-guide.md)
-- 本仓库套件与操作：[docs/engineering/turnplan-eval.md](../../docs/engineering/turnplan-eval.md)
+- 通用机制（给其他 Agent 复制）：StudyPal [architecture/platform-blueprint/eval-build-guide.md](https://github.com/ghsemail/StudyPal/blob/main/GeeGoo/%E9%A1%B9%E7%9B%AE%E6%96%87%E6%A1%A3/GeeGooAgent/architecture/platform-blueprint/eval-build-guide.md)
+- 本仓库套件与操作：StudyPal [engineering/turnplan-eval.md](https://github.com/ghsemail/StudyPal/blob/main/GeeGoo/%E9%A1%B9%E7%9B%AE%E6%96%87%E6%A1%A3/GeeGooAgent/engineering/turnplan-eval.md)
 
 ## 目录
 

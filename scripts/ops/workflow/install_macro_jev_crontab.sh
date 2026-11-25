@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install seven-pool staggered macro Lab crons on GeeGooAgent host.
-# Times are Asia/Shanghai, weekdays (Mon–Fri) only — see docs/MACRO_MONITOR_BATCH.md.
+# Times are Asia/Shanghai, weekdays (Mon–Fri) only — see StudyPal GeeGooAgent/MACRO_MONITOR_BATCH.md.
 set -euo pipefail
 
 AGENT_ROOT="${AGENT_ROOT:-/home/ubuntu/.geegoo/geegoo-agent}"
