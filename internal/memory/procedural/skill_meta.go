@@ -11,6 +11,7 @@ type Kind string
 const (
 	KindPlaybook  Kind = "playbook"
 	KindWorkflow  Kind = "workflow"
+	KindSkill     Kind = "skill"
 	KindExtension Kind = "extension"
 	KindUser      Kind = "user"
 	KindOther     Kind = "other"
@@ -30,6 +31,27 @@ const (
 	ProvenanceOther    Provenance = "other"
 )
 
+var workflowSkillDirs = []string{
+	"premarket_market", "premarket_stock", "intraday_stock", "postmarket_stock",
+	"multi_strategy_compare", "param_tune", "strategy_dev",
+	"generate_strategy_cognition", "generate_strategy_archive",
+	"signal_diagnose",
+}
+
+var httpSkillDirs = []string{
+	"diagnose_strategy",
+	"diagnose_macro", "diagnose_macro_pool", "diagnose_macro_overall",
+}
+
+func pathHasSkillDir(p, dir string) bool {
+	dir = strings.ToLower(strings.TrimSpace(dir))
+	if dir == "" {
+		return false
+	}
+	needle := "skills/" + dir + "/"
+	return strings.Contains(p, needle) || strings.Contains(p, "/"+needle)
+}
+
 // ClassifyPath infers skill kind from filesystem path.
 func ClassifyPath(path string) Kind {
 	p := strings.ToLower(filepath.ToSlash(path))
@@ -38,21 +60,24 @@ func ClassifyPath(path string) Kind {
 		return KindExtension
 	case strings.Contains(p, "/playbooks/"):
 		return KindPlaybook
-	case strings.Contains(p, "/skills/premarket_market/"), strings.Contains(p, "skills/premarket_market/"),
-		strings.Contains(p, "/skills/premarket_stock/"), strings.Contains(p, "skills/premarket_stock/"),
-		strings.Contains(p, "/skills/intraday_stock/"), strings.Contains(p, "skills/intraday_stock/"),
-		strings.Contains(p, "/skills/postmarket_stock/"), strings.Contains(p, "skills/postmarket_stock/"),
-		strings.Contains(p, "/skills/multi_strategy_compare/"), strings.Contains(p, "skills/multi_strategy_compare/"),
-		strings.Contains(p, "/skills/param_tune/"), strings.Contains(p, "skills/param_tune/"),
-		strings.Contains(p, "/skills/strategy_dev/"), strings.Contains(p, "skills/strategy_dev/"),
-		strings.Contains(p, "/skills/generate_strategy_cognition/"), strings.Contains(p, "skills/generate_strategy_cognition/"),
-		strings.Contains(p, "/skills/generate_strategy_archive/"), strings.Contains(p, "skills/generate_strategy_archive/"):
+	case pathInDirs(p, workflowSkillDirs):
 		return KindWorkflow
+	case pathInDirs(p, httpSkillDirs):
+		return KindSkill
 	case strings.Contains(p, "/.geegoo/") && strings.Contains(p, "/skills/"):
 		return KindUser
 	default:
 		return KindOther
 	}
+}
+
+func pathInDirs(p string, dirs []string) bool {
+	for _, d := range dirs {
+		if pathHasSkillDir(p, d) {
+			return true
+		}
+	}
+	return false
 }
 
 // ClassifyProvenance infers skill provenance from path.
@@ -65,15 +90,7 @@ func ClassifyProvenance(path string) Provenance {
 		return ProvenanceOptional
 	case strings.Contains(p, "/playbooks/"):
 		return ProvenanceCore
-	case strings.Contains(p, "/skills/premarket_market/"), strings.Contains(p, "skills/premarket_market/"),
-		strings.Contains(p, "/skills/premarket_stock/"), strings.Contains(p, "skills/premarket_stock/"),
-		strings.Contains(p, "/skills/intraday_stock/"), strings.Contains(p, "skills/intraday_stock/"),
-		strings.Contains(p, "/skills/postmarket_stock/"), strings.Contains(p, "skills/postmarket_stock/"),
-		strings.Contains(p, "/skills/multi_strategy_compare/"), strings.Contains(p, "skills/multi_strategy_compare/"),
-		strings.Contains(p, "/skills/param_tune/"), strings.Contains(p, "skills/param_tune/"),
-		strings.Contains(p, "/skills/strategy_dev/"), strings.Contains(p, "skills/strategy_dev/"),
-		strings.Contains(p, "/skills/generate_strategy_cognition/"), strings.Contains(p, "skills/generate_strategy_cognition/"),
-		strings.Contains(p, "/skills/generate_strategy_archive/"), strings.Contains(p, "skills/generate_strategy_archive/"):
+	case pathInDirs(p, workflowSkillDirs), pathInDirs(p, httpSkillDirs):
 		return ProvenanceCore
 	default:
 		return ProvenanceOther
@@ -87,6 +104,8 @@ func KindLabel(k Kind) string {
 		return "Chat Playbook"
 	case KindWorkflow:
 		return "L5 Workflow"
+	case KindSkill:
+		return "HTTP Skill"
 	case KindExtension:
 		return "Extension Script"
 	case KindUser:
@@ -114,7 +133,12 @@ func ProvenanceLabel(p Provenance) string {
 
 // InjectInChat reports whether Match should consider this skill for chat injection.
 func InjectInChat(k Kind) bool {
-	return k != KindExtension
+	switch k {
+	case KindExtension, KindSkill, KindWorkflow:
+		return false
+	default:
+		return true
+	}
 }
 
 // SkillSummary is the API/dashboard view of one procedural skill.
