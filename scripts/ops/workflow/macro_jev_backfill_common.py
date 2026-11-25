@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared guards, state, and validation for macro JEV audit backfill (see docs/MACRO_JEV_BACKFILL_MINIMAL_LOOP.md)."""
+"""Shared guards, state, and validation for macro JEV audit backfill (see StudyPal GeeGooAgent/MACRO_JEV_BACKFILL_MINIMAL_LOOP.md)."""
 
 from __future__ import annotations
 

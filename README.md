@@ -6,14 +6,18 @@ The project now builds and runs as a single Go binary named `geegoo`. Configurat
 
 ## Documentation
 
-- [docs/platform/README.md](docs/platform/README.md) — **multi-repo platform map** (start here for the whole stack)
-- [docs/README.md](docs/README.md) — GeeGooAgent documentation index
-- [docs/architecture/overview.md](docs/architecture/overview.md) — system architecture
-- [docs/architecture/implementation-status.md](docs/architecture/implementation-status.md) — what's implemented
-- [docs/architecture/platform-blueprint/README.md](docs/architecture/platform-blueprint/README.md) — generic agent blueprint
-- [docs/architecture/layers/L2-tools/tools-status.md](docs/architecture/layers/L2-tools/tools-status.md) — registered tools (runtime SSOT)
+**Canonical project documentation is maintained only in [StudyPal](https://github.com/ghsemail/StudyPal/tree/main/GeeGoo/项目文档/GeeGooAgent)** (not mirrored in this repo).
 
-Development plans (archived): [docs/archive/](docs/archive/).
+| Topic | StudyPal path |
+| --- | --- |
+| Documentation index | [README.md](https://github.com/ghsemail/StudyPal/blob/main/GeeGoo/%E9%A1%B9%E7%9B%AE%E6%96%87%E6%A1%A3/GeeGooAgent/README.md) |
+| Multi-repo platform map | [platform/README.md](https://github.com/ghsemail/StudyPal/blob/main/GeeGoo/%E9%A1%B9%E7%9B%AE%E6%96%87%E6%A1%A3/GeeGooAgent/platform/README.md) |
+| System architecture | [architecture/overview.md](https://github.com/ghsemail/StudyPal/blob/main/GeeGoo/%E9%A1%B9%E7%9B%AE%E6%96%87%E6%A1%A3/GeeGooAgent/architecture/overview.md) |
+| Implementation status | [architecture/implementation-status.md](https://github.com/ghsemail/StudyPal/blob/main/GeeGoo/%E9%A1%B9%E7%9B%AE%E6%96%87%E6%A1%A3/GeeGooAgent/architecture/implementation-status.md) |
+| Agent blueprint | [architecture/platform-blueprint/README.md](https://github.com/ghsemail/StudyPal/blob/main/GeeGoo/%E9%A1%B9%E7%9B%AE%E6%96%87%E6%A1%A3/GeeGooAgent/architecture/platform-blueprint/README.md) |
+| Registered tools (runtime SSOT) | [architecture/layers/L2-tools/tools-status.md](https://github.com/ghsemail/StudyPal/blob/main/GeeGoo/%E9%A1%B9%E7%9B%AE%E6%96%87%E6%A1%A3/GeeGooAgent/architecture/layers/L2-tools/tools-status.md) |
+| Hermes parity & cutover | [deploy/hermes-parity-roadmap.md](https://github.com/ghsemail/StudyPal/blob/main/GeeGoo/%E9%A1%B9%E7%9B%AE%E6%96%87%E6%A1%A3/GeeGooAgent/deploy/hermes-parity-roadmap.md), [deploy/hermes-migration-checklist.md](https://github.com/ghsemail/StudyPal/blob/main/GeeGoo/%E9%A1%B9%E7%9B%AE%E6%96%87%E6%A1%A3/GeeGooAgent/deploy/hermes-migration-checklist.md) |
+| Archived development plans | [archive/](https://github.com/ghsemail/StudyPal/tree/main/GeeGoo/%E9%A1%B9%E7%9B%AE%E6%96%87%E6%A1%A3/GeeGooAgent/archive) |
 
 ## Quick Start
 
@@ -53,7 +57,7 @@ TTY 下 `geegoo chat` 默认进入 Hermes 风格 Bubble Tea TUI：
 - 写操作 `y/n` 审批；`Esc` / `Ctrl+C` 中断当前回合
 - 非 TTY、`GEEGOO_CHAT_PLAIN=1`、`--cli` 走经典 CLI
 
-配置见 `config.example.json` 的 `display` 段。TUI 设计稿见 [docs/archive/superpowers/specs/2026-07-12-chattui-hermes-parity-design.md](docs/archive/superpowers/specs/2026-07-12-chattui-hermes-parity-design.md)。
+配置见 `config.example.json` 的 `display` 段。TUI 设计稿见 StudyPal [archive/superpowers/specs/2026-07-12-chattui-hermes-parity-design.md](https://github.com/ghsemail/StudyPal/blob/main/GeeGoo/%E9%A1%B9%E7%9B%AE%E6%96%87%E6%A1%A3/GeeGooAgent/archive/superpowers/specs/2026-07-12-chattui-hermes-parity-design.md)。
 
 ## CLI
 
@@ -178,4 +182,4 @@ Key capabilities delivered in P1–P8:
 - **In-process scheduler**: cron-driven skill execution with exponential-backoff retry on non-pass verdicts.
 - **Cutover verification**: `geegoo verify` quantifies bot_id/bot_name/bot_type non-empty rate, enum validity, reason length, evidence_refs presence.
 
-Full roadmap and Hermes comparison: [`deploy/hermes-parity-roadmap.md`](deploy/hermes-parity-roadmap.md). Cutover runbook: [`deploy/hermes-migration-checklist.md`](deploy/hermes-migration-checklist.md).
+Full roadmap and Hermes comparison: StudyPal [deploy/hermes-parity-roadmap.md](https://github.com/ghsemail/StudyPal/blob/main/GeeGoo/%E9%A1%B9%E7%9B%AE%E6%96%87%E6%A1%A3/GeeGooAgent/deploy/hermes-parity-roadmap.md). Cutover runbook: [deploy/hermes-migration-checklist.md](https://github.com/ghsemail/StudyPal/blob/main/GeeGoo/%E9%A1%B9%E7%9B%AE%E6%96%87%E6%A1%A3/GeeGooAgent/deploy/hermes-migration-checklist.md).

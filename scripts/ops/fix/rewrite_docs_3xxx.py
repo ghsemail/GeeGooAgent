@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Rewrite GeeGooAgent docs from Trading 5xxx ports to GeeGoo Go 3xxx."""
+"""DEPRECATED: local docs/ removed; project docs live in StudyPal GeeGoo/项目文档/GeeGooAgent."""
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
 ROOT = Path(__file__).resolve().parents[1]
 ROOTS = [ROOT / "docs", ROOT / "rules", ROOT / "README.md"]
 
@@ -86,6 +88,13 @@ def rewrite(text: str) -> str:
 
 
 def main() -> None:
+    if not (REPO_ROOT / "docs").is_dir():
+        print(
+            "rewrite_docs_3xxx.py is deprecated: GeeGooAgent docs/ was removed; "
+            "edit StudyPal GeeGoo/项目文档/GeeGooAgent instead.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
     changed = 0
     paths: list[Path] = []
     for base in ROOTS:

@@ -16,7 +16,7 @@ type Rule struct {
 	Forbid  []string
 }
 
-// DefaultRules match docs/architecture/agent-runtime-architecture.md §5.
+// DefaultRules match StudyPal GeeGooAgent architecture/agent-runtime-architecture.md §5.
 var DefaultRules = []Rule{
 	{
 		Package: "github.com/ghsemail/GeeGooAgent/internal/cognition",

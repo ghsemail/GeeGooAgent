@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read-only classification of macro batch BSON/API exports for canonical backfill planning.
 
-Does not call production PUT. See docs/MACRO_JEV_BACKFILL_MINIMAL_LOOP.md.
+Does not call production PUT. See StudyPal GeeGooAgent/MACRO_JEV_BACKFILL_MINIMAL_LOOP.md.
 """
 
 from __future__ import annotations
