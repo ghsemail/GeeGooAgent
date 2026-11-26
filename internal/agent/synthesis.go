@@ -10,7 +10,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/tools"
 )
 
-// ReportSynthesizer runs evidence-only LLM report synthesis via the ops 主备 gateway.
+// ReportSynthesizer runs evidence-only LLM report synthesis via the ops primary/standby gateway.
 type ReportSynthesizer struct {
 	inner *report.Synthesizer
 	bus   tools.EventEmitter
@@ -27,7 +27,7 @@ func NewReportSynthesizer(gateway *llm.Gateway, model string, bus tools.EventEmi
 	}
 }
 
-// SetGateway swaps the synthesis LLM gateway (ops 主备; not affected by chat /model).
+// SetGateway swaps the synthesis LLM gateway (ops primary/standby; not affected by chat /model).
 func (s *ReportSynthesizer) SetGateway(gateway *llm.Gateway) {
 	if s == nil || s.inner == nil {
 		return

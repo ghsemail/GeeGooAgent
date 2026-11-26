@@ -38,7 +38,7 @@ type LabTechnicalAnalysisTF struct {
 	Error           string                                    `json:"error,omitempty"`
 }
 
-// TechnicalAnalysisJEV is the JEV 决策 directional read for lab technical analysis (parallel to PA JEV).
+// TechnicalAnalysisJEV is the JEV decision directional read for lab technical analysis (parallel to PA JEV).
 type TechnicalAnalysisJEV struct {
 	Source            string                   `json:"source"`
 	Model             string                   `json:"model"`

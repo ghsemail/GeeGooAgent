@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 七池 JEV 编排示例 cron（Asia/Shanghai 主机时区，工作日 1-5）。
-# 复制到 Agent 主机后按需启用；勿将本示例直接写入生产 crontab，请用 install_macro_jev_crontab.sh。
+# Example seven-pool JEV cron (Asia/Shanghai host TZ, weekdays Mon–Fri).
+# Copy to the Agent host and enable as needed; do not paste into prod crontab — use install_macro_jev_crontab.sh.
 
 set -euo pipefail
 AGENT_ROOT="${AGENT_ROOT:-/home/ubuntu/.geegoo/geegoo-agent}"
@@ -15,17 +15,17 @@ run_one() {
   /usr/bin/python3 "$RUN" --workflow "$wf" >>"/tmp/macro_jev_${wf}.log" 2>&1
 }
 
-# --- 确认工作日时刻表（Asia/Shanghai）---
+# --- Weekday schedule (Asia/Shanghai) ---
 # 05:30  us
 # 05:32  commodity_fx
-# 05:35  bond_us（美债分段；仍汇入单一 bond 池）
+# 05:35  bond_us (US Treasury segment; still rolls into single bond pool)
 # 05:38  crypto
 # 05:40  volatility
 # 15:30  cn_a
-# 16:00  bond_sh（上交所债分段）
+# 16:00  bond_sh (SSE bond segment)
 # 16:30  hk
-# 17:00  overall（默认仅读本日 ledger 合成；缺池则 blocked，不重跑其它池）
-#         需补跑缺池后 overall 时：--workflow overall --rerun-missing-pools
+# 17:00  overall (reads today's ledger synthesis by default; missing pools block without rerunning others)
+#         To overall after backfilling missing pools: --workflow overall --rerun-missing-pools
 
-# 过渡期：本地一键全跑仍可用 --workflow all（非分时段生产路径）
+# Transition: local run-all still works via --workflow all (not staged prod path)
 # 15 7 * * 1-5 ... python3 run_macro_monitor_lab_batch.py --workflow all

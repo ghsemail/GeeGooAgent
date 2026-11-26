@@ -1,6 +1,6 @@
 package app
 
-// SynthesisReady reports whether report LLM synthesis (ops 主备) is wired and callable.
+// SynthesisReady reports whether report LLM synthesis (ops primary/standby) is wired and callable.
 func (a *App) SynthesisReady() bool {
 	if a == nil || a.SynthesisGateway == nil {
 		return false

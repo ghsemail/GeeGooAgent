@@ -248,7 +248,7 @@ func (a *Agent) SetEventBus(bus tools.EventEmitter) {
 	}
 }
 
-// SetReportSynthesizer wires workflow report LLM synthesis (ops 主备 gateway).
+// SetReportSynthesizer wires workflow report LLM synthesis (ops primary/standby gateway).
 func (a *Agent) SetReportSynthesizer(s *ReportSynthesizer) {
 	if a == nil {
 		return

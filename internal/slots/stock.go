@@ -43,7 +43,7 @@ var knownStockAliases = []string{
 }
 
 // ExtractExplicitStockReference returns a stock only when the user clearly names one
-// (alias, code, or a multi-character Chinese name). Follow-up phrases like「分析 K 线」return empty.
+// (alias, code, or a multi-character Chinese name). Follow-up phrases like "analyze K-line" return empty.
 func ExtractExplicitStockReference(msg string) string {
 	msg = strings.TrimSpace(msg)
 	if msg == "" {
@@ -114,7 +114,7 @@ func ExtractStockQuery(msg string) string {
 	if m := reUSTicker.FindStringSubmatch(upper); len(m) > 1 {
 		tok := m[1]
 		if _, stop := tickerStopwords[tok]; !stop {
-			// 「K线图」「KDJ」等中文句里的单字母 Latin 不是美股代码。
+			// Single Latin letters inside Chinese sentences (e.g. "K-line", "KDJ") are not US tickers.
 			if len(tok) == 1 && containsHanRun(msg) {
 				// fall through to CJK extraction
 			} else {
@@ -202,7 +202,7 @@ func trimTrailingStockParticles(s string) string {
 	}
 }
 
-// IsLikelyStockUtterance reports bare stock names like「中际旭创呢」.
+// IsLikelyStockUtterance reports bare stock names like "Zhongji Innolight?".
 func IsLikelyStockUtterance(msg string) bool {
 	q := ExtractStockQuery(msg)
 	if q == "" {
@@ -249,7 +249,7 @@ func AutoPickStockItem(query string, items []map[string]any) (map[string]any, bo
 	return stockpick.AutoPick(query, items)
 }
 
-// StockResolveQuery normalizes dock labels like「五粮液 (000858.SZ)」for search_code.
+// StockResolveQuery normalizes dock labels like "Wuliangye (000858.SZ)" for search_code.
 func StockResolveQuery(query string) string {
 	query = strings.TrimSpace(query)
 	if query == "" {

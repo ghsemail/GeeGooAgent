@@ -23,7 +23,7 @@ Anything referencing the user's life, people, plans, or history → true.
 User message: %s`
 
 // LLMTimeout bounds the auxiliary gate model so the chat UI cannot stall
-// on “记忆门控” when the provider is slow.
+// on "memory gating" when the provider is slow.
 const LLMTimeout = 1500 * time.Millisecond
 
 // Decision is the parsed gate outcome.

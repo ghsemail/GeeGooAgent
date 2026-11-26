@@ -297,7 +297,7 @@ func FormatWeeklyAnalysis(raw string) string {
 	return s
 }
 
-// FormatEmbeddedHourlyAnalysis normalizes MCP hourly blocks for embedding under 今日行情.
+// FormatEmbeddedHourlyAnalysis normalizes MCP hourly blocks for embedding under today's session.
 func FormatEmbeddedHourlyAnalysis(raw string) string {
 	s := FormatWeeklyAnalysis(raw)
 	if strings.TrimSpace(s) == "" || s == "暂无周线技术分析。" {
@@ -596,7 +596,7 @@ func PolishStockNewsSection(section, stockName string) string {
 	return strings.TrimSpace(b.String())
 }
 
-// PolishStockNewsInReport fixes the ## 个股新闻 section inside a full report.
+// PolishStockNewsInReport fixes the ## stock news section inside a full report.
 func PolishStockNewsInReport(md, stockName string) string {
 	re := regexp.MustCompile(`(?m)^##\s+个股新闻\s*$`)
 	loc := re.FindStringIndex(md)

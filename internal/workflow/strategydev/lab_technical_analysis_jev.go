@@ -14,7 +14,7 @@ var technicalAnalysisJEVCriteria = map[string]string{
 	"不明确": "日线与信号周期严重冲突、Impulse 多为红区、或关键指标不足以可靠定向",
 }
 
-// BuildTechnicalAnalysisJEVState compresses multi-TF Elder indicators into state for JEV 决策.
+// BuildTechnicalAnalysisJEVState compresses multi-TF Elder indicators into state for JEV decision.
 func BuildTechnicalAnalysisJEVState(ta *LabTechnicalAnalysis, signalSide, signalFreq string, longOnly bool) string {
 	if ta == nil || len(ta.Timeframes) == 0 {
 		return ""

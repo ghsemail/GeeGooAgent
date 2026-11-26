@@ -13,7 +13,7 @@ import (
 const (
 	// DefaultLabDetailPhaseTimeout bounds kline MTF probe for one lab-detail call.
 	// Three upward probe_bot_signal_series calls (e.g. 60m+daily+weekly) run in parallel with up to
-	// three retries each; 8s was too tight on cold market fetch and surfaced as MTF「拉数失败」+ price_anchor_missing.
+	// three retries each; 8s was too tight on cold market fetch and surfaced as MTF fetch failure + price_anchor_missing.
 	DefaultLabDetailPhaseTimeout = 30 * time.Second
 	// DefaultLabDetailPATimeout is a separate budget for lab-api multi-TF price analysis (after MTF probe).
 	DefaultLabDetailPATimeout = 45 * time.Second
@@ -42,7 +42,7 @@ type LabDetailInput struct {
 	PATimeout time.Duration
 	// TATimeout caps lab-api technical-analysis fetch (daily + signal TF).
 	TATimeout time.Duration
-	// JEVTimeout is a separate budget for JEV 决策 after PA / TA completes.
+	// JEVTimeout is a separate budget for JEV decision pass after PA / TA completes.
 	JEVTimeout time.Duration
 	// CachedMTF when set, reuses MTF bundle across lab-detail calls for one diagnose run.
 	CachedMTF **KlinePatternMTFBundle
@@ -538,7 +538,7 @@ func labDetailPAContext(ctx context.Context, timeout time.Duration) (context.Con
 	return context.WithTimeout(ctx, timeout)
 }
 
-// labDetailJEVContext uses WithoutCancel so an expired phase deadline does not abort JEV 决策.
+// labDetailJEVContext uses WithoutCancel so an expired phase deadline does not abort JEV decision.
 func labDetailJEVContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	if timeout <= 0 {
 		timeout = DefaultLabDetailJEVTimeout

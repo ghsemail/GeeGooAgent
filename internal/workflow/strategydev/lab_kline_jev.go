@@ -8,7 +8,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/config"
 )
 
-// KlineJEV is the JEV 决策 directional read for lab K-line pattern hits at the anchor bar.
+// KlineJEV is the JEV decision directional read for lab K-line pattern hits at the anchor bar.
 type KlineJEV struct {
 	Source            string                   `json:"source"`
 	Model             string                   `json:"model"`
@@ -26,7 +26,7 @@ var klineJEVCriteria = map[string]string{
 	"不明确": "形态信息不足，或经权衡仍无法给出可靠方向（非仅因多方冲突就默认此项）",
 }
 
-// BuildKlineJEVState compresses anchor-bar kline pattern hits into state for JEV 决策.
+// BuildKlineJEVState compresses anchor-bar kline pattern hits into state for JEV decision.
 func BuildKlineJEVState(kline *LabJEVKlineInput, signalSide string, longOnly bool) string {
 	if labJEVKlineInputEmpty(kline) {
 		return ""

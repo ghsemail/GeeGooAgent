@@ -8,7 +8,7 @@ func displayToolName(name string) string {
 	case "web_search":
 		return "web_search"
 	case "get_ticker":
-		return "get_ticker" // MCP /getTicker — 盘中逐笔，非 get_current_price
+		return "get_ticker" // MCP /getTicker — intraday ticks, not get_current_price
 	case "get_current_price":
 		return "get_current_price"
 	default:

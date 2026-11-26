@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// SummarizeIndexTrendJEVReason calls Decision chat for index-trend JEV 决策 reason text.
+// SummarizeIndexTrendJEVReason calls Decision chat for index-trend JEV decision reason text.
 func (j *JevClient) SummarizeIndexTrendJEVReason(
 	ctx context.Context,
 	choice string,

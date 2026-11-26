@@ -15,7 +15,7 @@ type PriceAnalysisJEVChoice struct {
 	Probability float64 `json:"probability"`
 }
 
-// PriceAnalysisJEV is the JEV 决策 directional read for lab price analysis.
+// PriceAnalysisJEV is the JEV decision directional read for lab price analysis.
 type PriceAnalysisJEV struct {
 	Source            string                   `json:"source"`
 	Model             string                   `json:"model"`
@@ -61,7 +61,7 @@ type LabJEVKlineInput struct {
 
 const labJEVKlineNoNamedPatternSummary = "无命名形态命中（锚点三根K线结构）"
 
-// BuildPriceAnalysisJEVState compresses multi-TF PA into state for JEV 决策 (no kline patterns).
+// BuildPriceAnalysisJEVState compresses multi-TF PA into state for JEV decision (no kline patterns).
 func BuildPriceAnalysisJEVState(pa *PriceAnalysis, signalSide string, longOnly bool) string {
 	var b strings.Builder
 	if pa != nil {

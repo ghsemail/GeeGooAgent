@@ -14,7 +14,7 @@ var indexTrendJEVCriteria = map[string]string{
 	"不明确": "多周期三旗严重冲突、多数为平、或信息不足以可靠定向",
 }
 
-// BuildIndexTrendJEVState compresses multi-TF trend flags into state for JEV 决策.
+// BuildIndexTrendJEVState compresses multi-TF trend flags into state for JEV decision.
 func BuildIndexTrendJEVState(it *LabIndexTrend, signalSide, signalFreq string, longOnly bool) string {
 	if it == nil || len(it.Timeframes) == 0 {
 		return ""

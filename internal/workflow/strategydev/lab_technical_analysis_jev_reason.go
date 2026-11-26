@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// SummarizeTechnicalAnalysisJEVReason calls Decision chat for TA JEV 决策 reason text.
+// SummarizeTechnicalAnalysisJEVReason calls Decision chat for TA JEV decision reason text.
 func (j *JevClient) SummarizeTechnicalAnalysisJEVReason(
 	ctx context.Context,
 	choice string,

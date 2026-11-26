@@ -24,7 +24,7 @@ func ApplyCacheBreakpoints(messages []Message) []Message {
 }
 
 // stablePrefixEnd returns the index of the last stable message before the volatile
-// trailing user block (e.g. injected Tool 活动 + latest user question).
+// trailing user block (e.g. injected tool activity + latest user question).
 func stablePrefixEnd(messages []Message) int {
 	if len(messages) <= 1 {
 		return -1

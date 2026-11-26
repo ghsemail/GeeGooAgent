@@ -1,7 +1,7 @@
 // Command kline_pattern_validate runs probe_bot_signal_series on live symbols and prints
 // K-line pattern display JSON snippets for manual review.
 //
-// Fixed symbols: 00700.HK (腾讯 60m), SpaceX SPCX.US (5m, fallback 60m).
+// Fixed symbols: 00700.HK (Tencent 60m), SpaceX SPCX.US (5m, fallback 60m).
 //
 // Env: SIGNAL_API_URL, SIGNAL_API_KEY, MCP_TOKEN (for search_code / full probe payload)
 package main

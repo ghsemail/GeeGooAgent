@@ -21,7 +21,7 @@ DEPLOY = Path.home() / ".cursor/skills/remote-deploy/deploy.json"
 deploy = json.loads(DEPLOY.read_text(encoding="utf-8")) if DEPLOY.is_file() else {}
 targets = deploy.get("targets") or {}
 
-# deploy.json target 名 = skill 里的「服务器/target」ID（见 REFERENCE §1.2 / §2.1 / §3.1）
+# deploy.json target name = server/target id in the skill (see REFERENCE §1.2 / §2.1 / §3.1)
 host_to_targets: dict[str, list[str]] = {}
 for name, spec in targets.items():
     host = str((spec.get("ssh") or {}).get("host") or "")
@@ -66,7 +66,7 @@ if p.is_file():
 ssh = dict(existing.get("ssh") or {}) if isinstance(existing.get("ssh"), dict) else {}
 cos = dict(existing.get("cos") or {}) if isinstance(existing.get("cos"), dict) else {}
 
-# Cloud Secrets：按运维「服务器名」一条对应一台物理机（见下表）
+# Cloud Secrets: one entry per ops server name maps to one physical host (see table below)
 SERVER_SECRET_ALIASES: dict[str, tuple[str, ...]] = {
     "GEEGOO_BOT": ("geegoo-bot", "geegoo-tradingbot"),  # 118 GeeGooBot
     "GEEGOO_SIGNAL": (
@@ -75,8 +75,8 @@ SERVER_SECRET_ALIASES: dict[str, tuple[str, ...]] = {
         "trading-operation",
     ),  # 146 GeeGooSignal + Monday
     "TRADING_SERVER": ("geegoo-tradingserver",),  # 43
-    "TRADING_DATA_OVERSEAS": ("geegoo-data", "geegoo-tradingdata"),  # 47 海外
-    "GEEGOO_AGENT_DATA_CN": ("geegoo-data-cn", "geegoo-agent"),  # 82 国内
+    "TRADING_DATA_OVERSEAS": ("geegoo-data", "geegoo-tradingdata"),  # host 47 overseas
+    "GEEGOO_AGENT_DATA_CN": ("geegoo-data-cn", "geegoo-agent"),  # host 82 China
 }
 
 if os.environ.get("GEEGOO_SSH_PASSWORD", "").strip():

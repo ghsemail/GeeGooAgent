@@ -11,7 +11,7 @@ TMP="$(mktemp)"
 {
   crontab -l 2>/dev/null | grep -v "$PREFIX" | grep -v 'geegoo-macro-monitor-lab-batch' || true
   cat <<EOF
-# $PREFIX — 七池分时段（Asia/Shanghai，工作日 1-5）
+# $PREFIX — seven pools, staged windows (Asia/Shanghai, weekdays Mon–Fri)
 30 5 * * 1-5 cd $AGENT_ROOT && set -a && . /home/ubuntu/.geegoo/agent.env && set +a && export GEEGOO_AGENT_OP_HTTP_URL=\${GEEGOO_AGENT_OP_HTTP_URL:-http://127.0.0.1:3400} MACRO_BATCH_CHAT_TIMEOUT=\${MACRO_BATCH_CHAT_TIMEOUT:-900} && /usr/bin/python3 $RUN --workflow us --date auto >>/tmp/macro_jev_us.log 2>&1 # $PREFIX-us
 32 5 * * 1-5 cd $AGENT_ROOT && set -a && . /home/ubuntu/.geegoo/agent.env && set +a && export GEEGOO_AGENT_OP_HTTP_URL=\${GEEGOO_AGENT_OP_HTTP_URL:-http://127.0.0.1:3400} MACRO_BATCH_CHAT_TIMEOUT=\${MACRO_BATCH_CHAT_TIMEOUT:-900} && /usr/bin/python3 $RUN --workflow commodity_fx --date auto >>/tmp/macro_jev_commodity_fx.log 2>&1 # $PREFIX-commodity_fx
 35 5 * * 1-5 cd $AGENT_ROOT && set -a && . /home/ubuntu/.geegoo/agent.env && set +a && export GEEGOO_AGENT_OP_HTTP_URL=\${GEEGOO_AGENT_OP_HTTP_URL:-http://127.0.0.1:3400} MACRO_BATCH_CHAT_TIMEOUT=\${MACRO_BATCH_CHAT_TIMEOUT:-900} && /usr/bin/python3 $RUN --workflow bond_us --date auto >>/tmp/macro_jev_bond_us.log 2>&1 # $PREFIX-bond_us

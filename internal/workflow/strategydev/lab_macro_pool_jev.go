@@ -87,7 +87,7 @@ func BuildMacroPoolJEVState(title string, symbols []MacroPoolSymbolInput) string
 }
 
 // macroPoolSymbolDirectionConflict is true when symbol tier has both long and short (ledger) inputs.
-// Neutral-only disagreement does not set conflict; pool Choice may still be 不明确.
+// Neutral-only disagreement does not set conflict; pool Choice may still be unclear.
 func macroPoolSymbolDirectionConflict(symbols []MacroPoolSymbolInput) bool {
 	hasLong, hasShort := false, false
 	for _, sym := range symbols {

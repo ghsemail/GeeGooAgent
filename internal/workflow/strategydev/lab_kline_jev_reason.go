@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// SummarizeKlineJEVReason calls Decision chat for K-line JEV 决策 reason text.
+// SummarizeKlineJEVReason calls Decision chat for K-line JEV decision reason text.
 func (j *JevClient) SummarizeKlineJEVReason(
 	ctx context.Context,
 	choice string,

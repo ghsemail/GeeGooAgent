@@ -47,7 +47,7 @@ def _rfc3339_now_utc() -> str:
 
 
 def jev_stable_source_batch_id(pool_workflow: str, batch_date: str) -> str:
-    """Canonical JEV 真源批次键：按池 workflow + 宏观分析日，不绑定 Mongo batch_run.id。"""
+    """Canonical JEV truth batch key: pool workflow + macro analysis day; not tied to Mongo batch_run.id."""
     wf = re.sub(r"[^a-zA-Z0-9_]", "_", (pool_workflow or "").strip())
     d = re.sub(r"[^0-9\-]", "", (batch_date or "").strip())
     return f"macro-jev-{wf}-{d}"
@@ -67,7 +67,7 @@ def next_jev_revision_for_stable_batch(
     batch_date: str,
     pool_workflow: str,
 ) -> int:
-    """同日同池重跑：在稳定 source_batch_id 上递增 revision。"""
+    """Same-day same-pool rerun: bump revision on stable source_batch_id."""
     stable = jev_stable_source_batch_id(pool_workflow, batch_date)
     headers = {"Authorization": f"Bearer {macro_key}"}
     q = f"date={batch_date}&pool_workflow={pool_workflow}&source=canonical"
@@ -112,7 +112,7 @@ def fetch_locked_batch_started_at(
     stable_source_batch_id: str,
     probe_symbols: list[str],
 ) -> str:
-    """同日 stable source_batch_id 已锁定的 batch_started_at（首次 PUT 锚点）。"""
+    """batch_started_at locked for same-day stable source_batch_id (first PUT anchor)."""
     stable = stable_source_batch_id.strip()
     if not stable:
         return ""
@@ -260,7 +260,7 @@ class MacroJevResultsWriter:
     put_network_retries: int = 3
 
     def bind_batch_run(self, run_id: str, *, batch_started_at: str | None = None) -> None:
-        """绑定 JEV PUT 的 source_batch_id（请用 [jev_stable_source_batch_id]，而非 batch_run id）。"""
+        """source_batch_id for JEV PUT (use jev_stable_source_batch_id, not batch_run id)."""
         rid = (run_id or "").strip()
         if rid:
             self.source_batch_id = rid
@@ -551,7 +551,7 @@ class MacroJevResultsWriter:
                         self.batch_started_at = locked
                         continue
             if out.reason == "stale_attempt":
-                # legacy Mongo pool 占位时，用更新的 batch_started_at 使 stable 批次胜出
+                # When legacy Mongo pool placeholder exists, newer batch_started_at lets the stable batch win
                 self.batch_started_at = _rfc3339_now_utc()
                 continue
             if out.reason not in PUT_RETRY_REASONS:
@@ -674,7 +674,7 @@ def fetch_symbol_result_ids_for_stable_batch(
     batch_date: str,
     pool_workflow: str,
 ) -> tuple[dict[str, str], str]:
-    """当日 stable source_batch_id 下已写入的标的 result_id（canonical）。"""
+    """Symbol result_ids written under today's stable source_batch_id (canonical)."""
     stable = jev_stable_source_batch_id(pool_workflow, batch_date)
     headers = {"Authorization": f"Bearer {macro_key}"}
     q = f"date={batch_date}&pool_workflow={pool_workflow}&source=canonical"
@@ -711,7 +711,7 @@ def fetch_symbol_result_ids_for_pool(
     batch_date: str,
     pool_workflow: str,
 ) -> tuple[dict[str, str], str]:
-    """池合成兜底：当日每标的 latest result_id（canonical ∪ legacy，source=auto）。"""
+    """Pool synthesis fallback: per-symbol latest result_id today (canonical ∪ legacy, source=auto)."""
     headers = {"Authorization": f"Bearer {macro_key}"}
     q = f"date={batch_date}&pool_workflow={pool_workflow}&source=auto"
     status, data, raw = http_json(
@@ -776,7 +776,7 @@ def resolve_bond_pool_symbol_result_ids(
     orchestration_date: str,
     expected_symbols: list[str],
 ) -> tuple[dict[str, str], str]:
-    """债券池：美债段 / 上交所段宏日不同，按标的分日解析 success result_id。"""
+    """Bond pool: US Treasury vs SSE macro days differ; resolve success result_id per symbol/day."""
     from macro_jev_orchestration import macro_batch_date_for_cron
 
     us_date = macro_batch_date_for_cron("bond_us", orchestration_date)
@@ -815,9 +815,9 @@ def resolve_pool_day_symbol_result_ids(
     *,
     writer_map: dict[str, str] | None = None,
 ) -> tuple[dict[str, str], str]:
-    """池合成：按 (分析日, pool) 从 Signal 解析每标的 **success** result_id。
+    """Pool synthesis: resolve each symbol **success** result_id from Signal by (analysis day, pool).
 
-    池级 PUT 校验 inputs 必须 success；不得使用 running legacy 投影。
+    Pool-level PUT requires success inputs; do not use in-flight legacy projection.
     """
     exp = [s.strip().upper() for s in expected_symbols if (s or "").strip()]
     if not exp:
