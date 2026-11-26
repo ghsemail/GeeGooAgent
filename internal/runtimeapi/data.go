@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 func (h *Handler) registerDataRoutes(mux *http.ServeMux) {
@@ -76,7 +77,7 @@ func (h *Handler) dataNodeNewsSourcesPatch(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) dataNodeNewsHealth(w http.ResponseWriter, r *http.Request) {
-	h.proxyDataNode(w, r, http.MethodGet, "/v1/news/health", nil)
+	h.proxyDataNodeTimeout(w, r, http.MethodGet, "/v1/news/health", nil, dataBFFNewsHealthTimeout)
 }
 
 func (h *Handler) dataNodeMarketCapabilities(w http.ResponseWriter, r *http.Request) {
@@ -84,15 +85,19 @@ func (h *Handler) dataNodeMarketCapabilities(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *Handler) proxyDataNode(w http.ResponseWriter, r *http.Request, method, path string, body []byte) {
+	h.proxyDataNodeTimeout(w, r, method, path, body, dataBFFNodeTimeout)
+}
+
+func (h *Handler) proxyDataNodeTimeout(w http.ResponseWriter, r *http.Request, method, path string, body []byte, timeout time.Duration) {
 	nodeID := strings.TrimSpace(r.PathValue("id"))
 	node, ok := h.appConfig().DataNodeByID(nodeID)
 	if !ok {
 		writeError(w, http.StatusNotFound, "data node not found: "+nodeID)
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), dataBFFNodeTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
-	payload, status, err := newDataFleetCollector().proxy(ctx, node, method, path, body)
+	payload, status, err := newDataFleetCollectorTimeout(timeout).proxy(ctx, node, method, path, body)
 	if err != nil {
 		if status >= 400 && status < 600 {
 			writeError(w, status, err.Error())

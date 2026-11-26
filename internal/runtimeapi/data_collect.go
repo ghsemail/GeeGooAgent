@@ -15,9 +15,10 @@ import (
 )
 
 const (
-	dataBFFNodeTimeout    = 8 * time.Second
-	dataBFFOverviewTTL    = 30 * time.Second
-	dataBFFOverviewBudget = 30 * time.Second
+	dataBFFNodeTimeout       = 8 * time.Second
+	dataBFFNewsHealthTimeout = 50 * time.Second
+	dataBFFOverviewTTL       = 30 * time.Second
+	dataBFFOverviewBudget    = 30 * time.Second
 )
 
 type dataFleetCache struct {
@@ -54,10 +55,10 @@ type dataNodeCapabilities struct {
 }
 
 type dataNodeNewsSummary struct {
-	EnabledSources  int `json:"enabled_sources"`
-	HealthySources  int `json:"healthy_sources"`
-	CacheMarketTTL  int `json:"cache_market_ttl_sec,omitempty"`
-	CacheStockTTL   int `json:"cache_stock_ttl_sec,omitempty"`
+	EnabledSources int `json:"enabled_sources"`
+	HealthySources int `json:"healthy_sources"`
+	CacheMarketTTL int `json:"cache_market_ttl_sec,omitempty"`
+	CacheStockTTL  int `json:"cache_stock_ttl_sec,omitempty"`
 }
 
 type dataFleetNode struct {
@@ -77,8 +78,12 @@ type dataFleetCollector struct {
 }
 
 func newDataFleetCollector() *dataFleetCollector {
+	return newDataFleetCollectorTimeout(dataBFFNodeTimeout)
+}
+
+func newDataFleetCollectorTimeout(timeout time.Duration) *dataFleetCollector {
 	return &dataFleetCollector{
-		client: &http.Client{Timeout: dataBFFNodeTimeout},
+		client: &http.Client{Timeout: timeout},
 	}
 }
 
