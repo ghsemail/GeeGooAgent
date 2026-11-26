@@ -38,7 +38,7 @@ func TestCountEnabledNewsSourcesUnifiedCatalog(t *testing.T) {
 	sources := map[string]any{
 		"catalog": []any{
 			map[string]any{"id": "websearch", "label": "WebSearch", "enabled": true, "shared": true, "pools": []any{"cn_a", "crypto"}},
-			map[string]any{"id": "x_public", "label": "X", "enabled": true, "shared": true},
+			map[string]any{"id": "x_public", "label": "X", "enabled": true, "shared": true, "category": "other", "probe_exempt": true},
 			map[string]any{"id": "eastmoney_sector", "label": "东财板块", "enabled": true, "pools": []any{"cn_a"}},
 			map[string]any{"id": "finnhub", "label": "Finnhub", "enabled": false},
 		},
@@ -48,8 +48,8 @@ func TestCountEnabledNewsSourcesUnifiedCatalog(t *testing.T) {
 			},
 		},
 	}
-	if got := countEnabledNewsSources(sources); got != 3 {
-		t.Fatalf("enabled=%d want 3 from catalog", got)
+	if got := countEnabledNewsSources(sources); got != 2 {
+		t.Fatalf("enabled=%d want 2 from catalog (x_public exempt)", got)
 	}
 }
 
@@ -59,7 +59,7 @@ func TestFleetNewsSummaryDedupesSharedAcrossNodes(t *testing.T) {
 	shared := map[string]any{
 		"catalog": []any{
 			map[string]any{"id": "websearch", "enabled": true, "shared": true},
-			map[string]any{"id": "x_public", "enabled": true, "shared": true},
+			map[string]any{"id": "x_public", "enabled": true, "shared": true, "probe_exempt": true},
 		},
 	}
 	health := map[string]any{
@@ -78,8 +78,8 @@ func TestFleetNewsSummaryDedupesSharedAcrossNodes(t *testing.T) {
 	recordFleetNewsSourceIDs(fleetEnabled, fleetHealthy, shared, health)
 	recordFleetNewsSourceIDs(fleetEnabled, fleetHealthy, cnOnly, health)
 	total, healthy := fleetNewsSummaryCounts(fleetEnabled, fleetHealthy)
-	if total != 3 {
-		t.Fatalf("fleet total=%d want 3 (websearch,x_public,eastmoney_sector)", total)
+	if total != 2 {
+		t.Fatalf("fleet total=%d want 2 (websearch,eastmoney_sector; x_public exempt)", total)
 	}
 	if healthy != 1 {
 		t.Fatalf("fleet healthy=%d want 1 (websearch only)", healthy)

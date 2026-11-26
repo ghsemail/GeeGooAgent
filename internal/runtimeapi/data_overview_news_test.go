@@ -23,7 +23,7 @@ func TestDataOverviewFleetDedupesSharedSources(t *testing.T) {
 			_, _ = w.Write([]byte(`{
 				"catalog":[
 					{"id":"websearch","enabled":true,"shared":true},
-					{"id":"x_public","enabled":true,"shared":true},
+					{"id":"x_public","enabled":true,"shared":true,"probe_exempt":true},
 					{"id":"binance_headlines","enabled":true}
 				]
 			}`))
@@ -46,7 +46,7 @@ func TestDataOverviewFleetDedupesSharedSources(t *testing.T) {
 	payload := `{
 		"catalog":[
 			{"id":"websearch","enabled":true,"shared":true},
-			{"id":"x_public","enabled":true,"shared":true},
+			{"id":"x_public","enabled":true,"shared":true,"probe_exempt":true},
 			{"id":"eastmoney_sector","enabled":true}
 		]
 	}`
@@ -97,10 +97,10 @@ func TestDataOverviewFleetDedupesSharedSources(t *testing.T) {
 		t.Fatal(err)
 	}
 	summary := body["summary"].(map[string]any)
-	if int(summary["sources_total"].(float64)) != 4 {
-		t.Fatalf("sources_total=%v want 4 (websearch,x_public,eastmoney_sector,binance_headlines)", summary["sources_total"])
+	if int(summary["sources_total"].(float64)) != 3 {
+		t.Fatalf("sources_total=%v want 3 (websearch,eastmoney_sector,binance_headlines; x_public exempt)", summary["sources_total"])
 	}
-	if int(summary["sources_healthy"].(float64)) != 3 {
-		t.Fatalf("sources_healthy=%v want 3", summary["sources_healthy"])
+	if int(summary["sources_healthy"].(float64)) != 2 {
+		t.Fatalf("sources_healthy=%v want 2", summary["sources_healthy"])
 	}
 }

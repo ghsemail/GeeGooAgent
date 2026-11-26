@@ -1,5 +1,7 @@
 package runtimeapi
 
+import "strings"
+
 // News sources counting for fleet overview and per-node probes.
 //
 // GeeGooData (feat/stock-and-market-news-sources) returns a unified catalog on
@@ -72,6 +74,16 @@ func isNewsCatalogList(list []any) bool {
 	return false
 }
 
+func catalogEntryProbeExempt(m map[string]any) bool {
+	if m["probe_exempt"] == true {
+		return true
+	}
+	if strings.EqualFold(stringFromAny(m["category"]), "other") {
+		return true
+	}
+	return stringFromAny(m["id"]) == "x_public"
+}
+
 func enabledIDsFromCatalogEntries(entries []any) []string {
 	ids := make([]string, 0, len(entries))
 	seen := make(map[string]struct{}, len(entries))
@@ -80,7 +92,7 @@ func enabledIDsFromCatalogEntries(entries []any) []string {
 		if !ok {
 			continue
 		}
-		if m["enabled"] == false {
+		if m["enabled"] == false || catalogEntryProbeExempt(m) {
 			continue
 		}
 		id := stringFromAny(m["id"])
