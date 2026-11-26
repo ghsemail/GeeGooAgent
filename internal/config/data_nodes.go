@@ -6,6 +6,7 @@ import (
 )
 
 // DataNodeConfig describes one GeeGooData data-api node for BFF aggregation.
+// Production fleet is typically ashare-cn, us-hk, and crypto — see docs/data_nodes.md.
 type DataNodeConfig struct {
 	ID        string   `json:"id"`
 	Label     string   `json:"label"`
