@@ -1605,8 +1605,15 @@ def run_pool_jev_only(
     batch_date: str,
     *,
     recover_session_id: str = "",
+    orchestration_date: str = "",
 ) -> int:
-    """Re-run or recover pool-level JEV without re-diagnosing symbols (e.g. after SSE drop)."""
+    """Re-run or recover pool-level JEV without re-diagnosing symbols (e.g. after SSE drop).
+
+    `batch_date` is the pool's macro date (the US-side pools live on the
+    previous US trading day); `orchestration_date` is the day the ledger is
+    keyed by and must be passed so a recompute updates the same ledger file
+    the daily crons write.
+    """
     api_workflow = resolve_batch_workflow(workflow)
     if api_workflow not in WORKFLOW_MONITOR_POOL:
         print(f"workflow {workflow} has no pool JEV step", file=sys.stderr)
@@ -1725,7 +1732,7 @@ def run_pool_jev_only(
         )
         if writer.pool_result_id and writer.batch_identity_ready():
             record_pool_ledger(
-                batch_date,
+                orchestration_date or batch_date,
                 api_workflow,
                 result_id=writer.pool_result_id,
                 source_batch_id=writer.source_batch_id,
@@ -1874,7 +1881,15 @@ def run_overall_batch(
                 "finished_at": finished,
                 "success": False,
                 "summary": f"overall blocked: {reason[:120]}",
-                "pools": [{"name": "宏观整体", "symbols": [], "items": []}],
+                "pools": [
+                    {
+                        "name": "宏观整体",
+                        "symbols": [str(wf) for wf in JEV_PIPELINE_WORKFLOWS],
+                        "items": [
+                            {"symbol": str(wf), "success": False} for wf in JEV_PIPELINE_WORKFLOWS
+                        ],
+                    }
+                ],
                 "pool_jev": {"success": False, "error": reason},
             },
         )
@@ -1954,7 +1969,21 @@ def run_overall_batch(
         "finished_at": finished,
         "success": bool(pool_jev.get("success")),
         "summary": "overall JEV",
-        "pools": [{"name": "宏观整体", "symbols": [], "items": []}],
+        "pools": [
+            {
+                "name": "宏观整体",
+                "symbols": [str(r.get("label") or "") for r in synth_rows],
+                "items": [
+                    {
+                        "symbol": str(r.get("label") or ""),
+                        "success": True,
+                        "jev_direction": r.get("jev_direction"),
+                        "jev_reason": r.get("jev_reason"),
+                    }
+                    for r in synth_rows
+                ],
+            }
+        ],
         "pool_jev": pool_jev,
     }
     overall_run_id = post_batch_run(macro_base, macro_key, body)
@@ -2113,6 +2142,7 @@ def main() -> int:
             args.agent_base,
             macro_batch_date,
             recover_session_id=args.recover_session_id,
+            orchestration_date=orchestration_date,
         )
     code, _, _ = run_batch(
         args.workflow,
