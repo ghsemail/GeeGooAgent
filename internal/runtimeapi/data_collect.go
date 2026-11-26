@@ -18,7 +18,7 @@ const (
 	dataBFFNodeTimeout       = 8 * time.Second
 	dataBFFNewsHealthTimeout = 50 * time.Second
 	dataBFFOverviewTTL       = 30 * time.Second
-	dataBFFOverviewBudget    = 30 * time.Second
+	dataBFFOverviewBudget    = 55 * time.Second
 )
 
 type dataFleetCache struct {
@@ -55,10 +55,11 @@ type dataNodeCapabilities struct {
 }
 
 type dataNodeNewsSummary struct {
-	EnabledSources int `json:"enabled_sources"`
-	HealthySources int `json:"healthy_sources"`
-	CacheMarketTTL int `json:"cache_market_ttl_sec,omitempty"`
-	CacheStockTTL  int `json:"cache_stock_ttl_sec,omitempty"`
+	EnabledSources int  `json:"enabled_sources"`
+	HealthySources int  `json:"healthy_sources"`
+	ProbeComplete  bool `json:"probe_complete"`
+	CacheMarketTTL int  `json:"cache_market_ttl_sec,omitempty"`
+	CacheStockTTL  int  `json:"cache_stock_ttl_sec,omitempty"`
 }
 
 type dataFleetNode struct {
@@ -200,10 +201,12 @@ func (c *dataFleetCollector) probeNodeWithNews(ctx context.Context, node config.
 		if health, ok := c.getNewsHealth(ctx, node); ok {
 			healthRaw = health
 			out.News.HealthySources = countHealthyEnabledNewsSources(sources, health)
+			out.News.ProbeComplete = true
 		}
 	} else if health, ok := c.getNewsHealth(ctx, node); ok {
 		healthRaw = health
 		out.News.HealthySources = countHealthyNewsSources(health)
+		out.News.ProbeComplete = true
 	}
 	if nodeServesFutu(out.Regions) {
 		if futu, ok := c.getFutuHealth(ctx, node); ok {
@@ -260,7 +263,11 @@ func (c *dataFleetCollector) getNewsSources(ctx context.Context, node config.Res
 }
 
 func (c *dataFleetCollector) getNewsHealth(ctx context.Context, node config.ResolvedDataNode) (map[string]any, bool) {
-	body, status, err := c.doGET(ctx, node.BaseURL+"/v1/news/health", node.Bearer)
+	// News probes can outlast the 8s node check. A short client timeout used to
+	// drop a finished report and the overview then showed every source as failed.
+	body, status, err := (&dataFleetCollector{
+		client: &http.Client{Timeout: dataBFFNewsHealthTimeout},
+	}).doGET(ctx, node.BaseURL+"/v1/news/health", node.Bearer)
 	if err != nil || status < 200 || status >= 300 {
 		return nil, false
 	}
