@@ -18,6 +18,7 @@ func TestClassifyPath(t *testing.T) {
 		{`skills/signal_diagnose/SKILL.md`, KindWorkflow},
 		{`skills/diagnose_macro/SKILL.md`, KindSkill},
 		{`skills/diagnose_macro_pool/SKILL.md`, KindSkill},
+		{`skills/diagnose_macro_news/SKILL.md`, KindSkill},
 		{`skills/diagnose_macro_overall/SKILL.md`, KindSkill},
 		{`skills/diagnose_strategy/SKILL.md`, KindSkill},
 		{`skills/extensions/finance-news/SKILL.md`, KindExtension},

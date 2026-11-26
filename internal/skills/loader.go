@@ -41,6 +41,11 @@ func RegisterBuiltins(r *Registry) {
 		PhaseA:      emptySteps,
 	})
 	r.Register(Spec{
+		Name:        "diagnose_macro_news",
+		Description: "宏观监控池新闻分析：LLM 逐条解读 + Choice 池级 JEV + 中文理由；只返回结果，不写库",
+		PhaseA:      emptySteps,
+	})
+	r.Register(Spec{
 		Name:        "diagnose_macro_overall",
 		Description: "宏观整体风险偏好 JEV：1–7 池结论 + Choice + 中文理由；不自动 PUT",
 		PhaseA:      emptySteps,
