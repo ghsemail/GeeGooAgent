@@ -50,14 +50,14 @@ geegoo doctor
 
 ## Chat TUI
 
-TTY 下 `geegoo chat` 默认进入 Hermes 风格 Bubble Tea TUI：
+On a TTY, `geegoo chat` defaults to the Hermes-style Bubble Tea TUI:
 
-- `▸/▾` 折叠思考与工具；历史默认收起，直播展开
-- `/details`、`/verbose`、`/mouse`、`/sessions`（或 `Ctrl+X`）
-- 写操作 `y/n` 审批；`Esc` / `Ctrl+C` 中断当前回合
-- 非 TTY、`GEEGOO_CHAT_PLAIN=1`、`--cli` 走经典 CLI
+- `▸/▾` collapse and expand thinking and tool blocks; history is collapsed by default; live turns expand
+- `/details`, `/verbose`, `/mouse`, `/sessions` (or `Ctrl+X`)
+- Approve write operations with `y/n`; `Esc` / `Ctrl+C` abort the current turn
+- Non-TTY, `GEEGOO_CHAT_PLAIN=1`, or `--cli` uses the classic CLI
 
-配置见 `config.example.json` 的 `display` 段。TUI 设计稿见 StudyPal [archive/superpowers/specs/2026-07-12-chattui-hermes-parity-design.md](https://github.com/ghsemail/StudyPal/blob/main/GeeGoo/%E9%A1%B9%E7%9B%AE%E6%96%87%E6%A1%A3/GeeGooAgent/archive/superpowers/specs/2026-07-12-chattui-hermes-parity-design.md)。
+See the `display` section in `config.example.json`. TUI design spec: StudyPal [archive/superpowers/specs/2026-07-12-chattui-hermes-parity-design.md](https://github.com/ghsemail/StudyPal/blob/main/GeeGoo/%E9%A1%B9%E7%9B%AE%E6%96%87%E6%A1%A3/GeeGooAgent/archive/superpowers/specs/2026-07-12-chattui-hermes-parity-design.md).
 
 ## CLI
 
@@ -66,7 +66,7 @@ TTY 下 `geegoo chat` 默认进入 Hermes 风格 Bubble Tea TUI：
 | `geegoo setup` | Write a default config for the Go runtime. |
 | `geegoo doctor` | Check config, MCP connectivity, and LLM readiness. |
 | `geegoo update` | Pull the latest code and rebuild the Go binary. |
-| `geegoo chat` | Interactive ReAct chat. TTY 默认 Bubble Tea TUI（思考/工具可折叠）；`--cli` 旧界面；`--tui` 强制 TUI。 |
+| `geegoo chat` | Interactive ReAct chat. On a TTY, defaults to Bubble Tea TUI (collapsible thinking/tools); `--cli` legacy UI; `--tui` forces TUI. |
 | `geegoo run <skill>` | Run a skill workflow (e.g. `premarket_market`). See `geegoo skills list`. |
 | `geegoo resume --session <id>` | Resume a checkpointed workflow (idempotent by step key). |
 | `geegoo migrate [--dry-run]` | Migrate legacy file-based chat sessions to SQLite. |
