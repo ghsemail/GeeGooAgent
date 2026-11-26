@@ -71,7 +71,12 @@ func TestDataNodeNewsSourcesProxy(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"server_id":"test","regions":{}}`))
+		_, _ = w.Write([]byte(`{
+			"server_id":"test",
+			"catalog":[{"id":"websearch","label":"WebSearch","enabled":true,"shared":true,"pools":["cn_a","crypto"]}],
+			"pools":[{"id":"cn_a","label":"A股池"}],
+			"regions":{"CN":{"stock_sources":[],"market_sources":[]}}
+		}`))
 	}))
 	defer mock.Close()
 
@@ -91,6 +96,13 @@ func TestDataNodeNewsSourcesProxy(t *testing.T) {
 	}
 	if body["node_id"] != "cn" {
 		t.Fatalf("node_id=%v", body["node_id"])
+	}
+	catalog, ok := body["catalog"].([]any)
+	if !ok || len(catalog) != 1 {
+		t.Fatalf("catalog=%v", body["catalog"])
+	}
+	if pools, ok := body["pools"].([]any); !ok || len(pools) != 1 {
+		t.Fatalf("pools=%v", body["pools"])
 	}
 }
 

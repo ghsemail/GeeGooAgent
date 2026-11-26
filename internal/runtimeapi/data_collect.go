@@ -97,12 +97,21 @@ func (h *Handler) collectDataOverview(ctx context.Context, force bool) (map[stri
 	var botOK bool
 	var botDetail string
 
+	fleetEnabled := make(map[string]bool)
+	fleetHealthy := make(map[string]bool)
 	var wg sync.WaitGroup
+	var fleetMu sync.Mutex
 	for i, node := range nodes {
 		wg.Add(1)
 		go func(i int, node config.ResolvedDataNode) {
 			defer wg.Done()
-			outNodes[i] = collector.probeNode(ctx, node)
+			out, sources, health := collector.probeNodeWithNews(ctx, node)
+			outNodes[i] = out
+			if sources != nil || health != nil {
+				fleetMu.Lock()
+				recordFleetNewsSourceIDs(fleetEnabled, fleetHealthy, sources, health)
+				fleetMu.Unlock()
+			}
 		}(i, node)
 	}
 	wg.Add(1)
@@ -126,13 +135,12 @@ func (h *Handler) collectDataOverview(ctx context.Context, force bool) (map[stri
 		} else {
 			allOK = false
 		}
-		summary["sources_total"] += n.News.EnabledSources
-		summary["sources_healthy"] += n.News.HealthySources
 		raw, _ := json.Marshal(n)
 		var m map[string]any
 		_ = json.Unmarshal(raw, &m)
 		nodePayloads = append(nodePayloads, m)
 	}
+	summary["sources_total"], summary["sources_healthy"] = fleetNewsSummaryCounts(fleetEnabled, fleetHealthy)
 	if !botOK {
 		allOK = false
 	}
@@ -153,6 +161,13 @@ func (h *Handler) collectDataOverview(ctx context.Context, force bool) (map[stri
 }
 
 func (c *dataFleetCollector) probeNode(ctx context.Context, node config.ResolvedDataNode) dataFleetNode {
+	out, _, _ := c.probeNodeWithNews(ctx, node)
+	return out
+}
+
+func (c *dataFleetCollector) probeNodeWithNews(ctx context.Context, node config.ResolvedDataNode) (dataFleetNode, map[string]any, map[string]any) {
+	var sourcesRaw map[string]any
+	var healthRaw map[string]any
 	out := dataFleetNode{
 		ID:      node.ID,
 		Label:   node.Label,
@@ -173,13 +188,16 @@ func (c *dataFleetCollector) probeNode(ctx context.Context, node config.Resolved
 		out.Capabilities.Regions = caps.Regions
 	}
 	if sources, ok := c.getNewsSources(ctx, node); ok {
+		sourcesRaw = sources
 		out.News.EnabledSources = countEnabledNewsSources(sources)
 		out.News.CacheMarketTTL = intFromAny(sources["cache_market_ttl_sec"])
 		out.News.CacheStockTTL = intFromAny(sources["cache_stock_ttl_sec"])
 		if health, ok := c.getNewsHealth(ctx, node); ok {
+			healthRaw = health
 			out.News.HealthySources = countHealthyEnabledNewsSources(sources, health)
 		}
 	} else if health, ok := c.getNewsHealth(ctx, node); ok {
+		healthRaw = health
 		out.News.HealthySources = countHealthyNewsSources(health)
 	}
 	if nodeServesFutu(out.Regions) {
@@ -192,7 +210,7 @@ func (c *dataFleetCollector) probeNode(ctx context.Context, node config.Resolved
 			out.Exchange = &exchange
 		}
 	}
-	return out
+	return out, sourcesRaw, healthRaw
 }
 
 func (c *dataFleetCollector) getHealth(ctx context.Context, node config.ResolvedDataNode) dataNodeHealth {
@@ -404,44 +422,6 @@ func (c *dataFleetCache) clear() {
 	c.expiresAt = time.Time{}
 }
 
-func countEnabledNewsSources(sources map[string]any) int {
-	regions, ok := sources["regions"].(map[string]any)
-	if !ok {
-		return 0
-	}
-	total := 0
-	for _, rv := range regions {
-		region, ok := rv.(map[string]any)
-		if !ok {
-			continue
-		}
-		total += countEnabledSourceList(region["market_sources"])
-		total += countEnabledSourceList(region["stock_sources"])
-		// legacy flat list
-		total += countEnabledSourceList(region["sources"])
-	}
-	return total
-}
-
-func countEnabledSourceList(v any) int {
-	list, ok := v.([]any)
-	if !ok {
-		return 0
-	}
-	n := 0
-	for _, item := range list {
-		m, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		if m["enabled"] == false {
-			continue
-		}
-		n++
-	}
-	return n
-}
-
 func countHealthyNewsSources(health map[string]any) int {
 	list, ok := health["sources"].([]any)
 	if !ok {
@@ -458,16 +438,6 @@ func countHealthyNewsSources(health map[string]any) int {
 		}
 	}
 	return n
-}
-
-// countHealthyEnabledNewsSources counts enabled config slots whose source_id probe is ok.
-// Matches countEnabledNewsSources so overview ratios stay 1:1 when every probe passes.
-func countHealthyEnabledNewsSources(sources, health map[string]any) int {
-	probeOK := probeOKBySourceID(health)
-	return countEnabledNewsSourcesMatching(sources, func(id string) bool {
-		ok, known := probeOK[id]
-		return known && ok
-	})
 }
 
 func probeOKBySourceID(health map[string]any) map[string]bool {
@@ -488,46 +458,6 @@ func probeOKBySourceID(health map[string]any) map[string]bool {
 		out[id] = m["ok"] == true
 	}
 	return out
-}
-
-func countEnabledNewsSourcesMatching(sources map[string]any, match func(id string) bool) int {
-	regions, ok := sources["regions"].(map[string]any)
-	if !ok {
-		return 0
-	}
-	total := 0
-	for _, rv := range regions {
-		region, ok := rv.(map[string]any)
-		if !ok {
-			continue
-		}
-		total += countMatchingSourceList(region["market_sources"], match)
-		total += countMatchingSourceList(region["stock_sources"], match)
-		total += countMatchingSourceList(region["sources"], match)
-	}
-	return total
-}
-
-func countMatchingSourceList(v any, match func(id string) bool) int {
-	list, ok := v.([]any)
-	if !ok {
-		return 0
-	}
-	n := 0
-	for _, item := range list {
-		m, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		if m["enabled"] == false {
-			continue
-		}
-		id := stringFromAny(m["id"])
-		if id != "" && match(id) {
-			n++
-		}
-	}
-	return n
 }
 
 func stringListFromAny(v any) []string {
