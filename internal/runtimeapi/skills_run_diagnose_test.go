@@ -114,3 +114,28 @@ func TestSkillsRunDiagnoseMacroValidation(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
+func TestSkillsRunDiagnoseMacroNewsValidation(t *testing.T) {
+	application, cfgPath := testAppForSkillsRun(t)
+	defer application.Close()
+	mux := httpserver.NewMux("agent-runtime")
+	runtimeapi.NewHandler(application, cfgPath).Register(mux)
+	handler := auth.SkipPaths(map[string]struct{}{"/health": {}}, auth.BearerAPIKey("test-runtime-key"))(mux)
+
+	item := map[string]any{"news_id": "n1", "title": "上证指数收涨"}
+	for want, body := range map[string]map[string]any{
+		"macro_news body is required": {"skill": "diagnose_macro_news"},
+		"macro_news.pool_id is required": {"skill": "diagnose_macro_news", "macro_news": map[string]any{
+			"date": "2026-11-27", "items": []any{item}}},
+		"macro_news.items is required": {"skill": "diagnose_macro_news", "macro_news": map[string]any{
+			"date": "2026-11-27", "pool_id": "cn_a", "items": []any{}}},
+	} {
+		raw, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, "/v1/skills/run", bytes.NewReader(raw))
+		req.Header.Set("Authorization", "Bearer test-runtime-key")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest || !bytes.Contains(rec.Body.Bytes(), []byte(want)) {
+			t.Fatalf("want %q: status=%d body=%s", want, rec.Code, rec.Body.String())
+		}
+	}
+}

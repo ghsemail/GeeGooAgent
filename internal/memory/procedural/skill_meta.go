@@ -40,7 +40,7 @@ var workflowSkillDirs = []string{
 
 var httpSkillDirs = []string{
 	"diagnose_strategy",
-	"diagnose_macro", "diagnose_macro_pool", "diagnose_macro_overall",
+	"diagnose_macro", "diagnose_macro_pool", "diagnose_macro_overall", "diagnose_macro_news",
 }
 
 func pathHasSkillDir(p, dir string) bool {

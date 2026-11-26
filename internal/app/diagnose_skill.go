@@ -14,6 +14,7 @@ type DiagnoseSkillOptions struct {
 	Macro         *DiagnoseMacroInput
 	MacroPool     *DiagnoseMacroPoolInput
 	MacroOverall  *DiagnoseMacroOverallInput
+	MacroNews     *diagnoseskill.MacroNewsRequest
 }
 
 type DiagnoseStrategyInput struct {
@@ -119,6 +120,25 @@ func (a *App) RunDiagnoseSkill(ctx context.Context, skill string, opts DiagnoseS
 		in.Code = strings.TrimSpace(opts.Macro.Code)
 		in.AsOf = strings.TrimSpace(opts.Macro.AsOf)
 		in.Macro = true
+	case diagnoseskill.SkillMacroNews:
+		if opts.MacroNews == nil {
+			return DiagnoseSkillResult{Status: "failed", Skill: skill, Error: "macro_news body is required"},
+				fmt.Errorf("macro_news body is required")
+		}
+		a.EventBus.Emit("RunStarted", map[string]any{
+			"session_id": sessionID, "skill": skill, "pool_id": opts.MacroNews.PoolID,
+		})
+		result, err := diagnoseskill.RunMacroNews(ctx, diagnoseskill.MacroNewsRunInput{
+			Request: *opts.MacroNews, LLM: a.MacroNewsLLM(), JEV: jev,
+		})
+		if err != nil {
+			return DiagnoseSkillResult{
+				Status: "failed", SessionID: sessionID, Skill: skill, Error: err.Error(),
+			}, err
+		}
+		return DiagnoseSkillResult{
+			Status: "ok", SessionID: sessionID, Skill: skill, Result: result,
+		}, nil
 	case "diagnose_macro_overall":
 		if opts.MacroOverall == nil {
 			return DiagnoseSkillResult{Status: "failed", Skill: skill, Error: "macro_overall body is required"},

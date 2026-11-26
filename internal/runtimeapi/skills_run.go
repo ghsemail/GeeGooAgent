@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ghsemail/GeeGooAgent/internal/app"
+	"github.com/ghsemail/GeeGooAgent/internal/diagnoseskill"
 	"github.com/ghsemail/GeeGooAgent/internal/memory"
 	"github.com/ghsemail/GeeGooAgent/internal/workflow"
 )
@@ -22,6 +23,7 @@ type skillsRunRequest struct {
 	Macro      *diagnoseMacroInput      `json:"macro,omitempty"`
 	MacroPool     *diagnoseMacroPoolInput     `json:"macro_pool,omitempty"`
 	MacroOverall  *diagnoseMacroOverallInput  `json:"macro_overall,omitempty"`
+	MacroNews     *diagnoseskill.MacroNewsRequest `json:"macro_news,omitempty"`
 }
 
 type diagnoseStrategyInput struct {
@@ -100,7 +102,8 @@ func (h *Handler) skillsRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if skill == "diagnose_strategy" || skill == "diagnose_macro" || skill == "diagnose_macro_pool" || skill == "diagnose_macro_overall" {
+	if skill == "diagnose_strategy" || skill == "diagnose_macro" || skill == "diagnose_macro_pool" || skill == "diagnose_macro_overall" ||
+		skill == diagnoseskill.SkillMacroNews {
 		h.skillsRunDiagnose(w, r, skill, req)
 		return
 	}
@@ -173,6 +176,15 @@ func (h *Handler) skillsRunDiagnose(w http.ResponseWriter, r *http.Request, skil
 			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "macro.code is required"})
 			return
 		}
+	} else if skill == diagnoseskill.SkillMacroNews {
+		if req.MacroNews == nil {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "macro_news body is required"})
+			return
+		}
+		if err := diagnoseskill.ValidateMacroNewsRequest(*req.MacroNews); err != nil {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
 	} else if skill == "diagnose_macro_overall" {
 		if req.MacroOverall == nil || strings.TrimSpace(req.MacroOverall.Date) == "" {
 			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "macro_overall.date is required"})
@@ -188,7 +200,7 @@ func (h *Handler) skillsRunDiagnose(w http.ResponseWriter, r *http.Request, skil
 			return
 		}
 	}
-	opts := app.DiagnoseSkillOptions{}
+	opts := app.DiagnoseSkillOptions{MacroNews: req.MacroNews}
 	if req.Strategy != nil {
 		opts.Strategy = &app.DiagnoseStrategyInput{
 			Code: strings.TrimSpace(req.Strategy.Code),
