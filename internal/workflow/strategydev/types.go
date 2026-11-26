@@ -43,7 +43,7 @@ type Result struct {
 
 	Diagnose DiagnoseSummary `json:"diagnose"`
 
-	FinalVerdict string `json:"final_verdict"` // 通过 | 换一对 | 拉长窗口
+	FinalVerdict string `json:"final_verdict"` // pass | swap pair | extend window
 	VerdictReason string `json:"verdict_reason,omitempty"`
 	JevVerdict    string `json:"jev_verdict,omitempty"`
 

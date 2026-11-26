@@ -119,7 +119,7 @@ func extractComposedSideSignal(text, side string) string {
 	case "买入":
 		re = regexp.MustCompile(`(?i)用\s*(.+?)\s*作为\s*买入\s*信号`)
 	case "卖出":
-		// 避免从首个「用」非贪婪匹配一直延伸到「作为卖出信号」
+		// Prevent non-greedy match across long Chinese sell-signal phrasing after the first 'use' particle.
 		re = regexp.MustCompile(`(?i)(?:，|^)用\s*(.+?)\s*作为\s*卖出\s*信号`)
 	default:
 		return ""

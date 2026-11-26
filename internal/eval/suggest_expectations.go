@@ -10,7 +10,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/llm"
 )
 
-// SuggestedCaseExpectations is the auto-generated配套 for a TurnPlan live case.
+// SuggestedCaseExpectations is the auto-generated companion expectations for a TurnPlan live case.
 type SuggestedCaseExpectations struct {
 	Title             string              `json:"title"`
 	Description       string              `json:"description"`

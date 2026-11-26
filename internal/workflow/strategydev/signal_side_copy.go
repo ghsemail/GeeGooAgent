@@ -16,7 +16,7 @@ func SignalDiagnoseProbeHitLine(longOnly bool, buyHits, sellHits int) string {
 	return fmt.Sprintf("只做多 · 买入 %d 次", buyHits)
 }
 
-// LabSignalSideTriggerHeading labels the signal leg in lab JEV state (long_only: 平多卖出 vs 做空).
+// LabSignalSideTriggerHeading labels the signal leg in lab JEV state (long_only: long exit sell vs short).
 func LabSignalSideTriggerHeading(signalSide string, longOnly bool) string {
 	side := strings.ToLower(strings.TrimSpace(signalSide))
 	switch side {

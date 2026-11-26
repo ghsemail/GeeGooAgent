@@ -18,7 +18,7 @@ var composeSectionGlueRes []*regexp.Regexp
 func init() {
 	for _, title := range ComposeSectionTitles {
 		esc := regexp.QuoteMeta(title)
-		// ### 一、信号触发情况在腾讯... → break before body 在
+		// Glued ### numbered section heading immediately before a CJK body opener → insert a break.
 		composeSectionGlueRes = append(composeSectionGlueRes,
 			regexp.MustCompile(`(?m)(###\s*`+esc+`)([\p{Han}])`),
 		)
@@ -35,7 +35,7 @@ func NormalizeComposeSections(s string) string {
 	for _, re := range composeSectionGlueRes {
 		s = re.ReplaceAllString(s, "$1\n\n$2")
 	}
-	// Generic: ### 一、xxx情况在 / 下 / 本 → common body openers after 情况|评价|风险
+	// Generic: numbered headings (situation/assessment/risk suffix) glued to body preposition → break before body.
 	s = regexp.MustCompile(`(?m)(###\s*[一二三四]、[^\n]{2,12}(?:情况|评价|风险))([在对于对本据根])`).ReplaceAllString(s, "$1\n\n$2")
 	return strings.TrimSpace(s)
 }

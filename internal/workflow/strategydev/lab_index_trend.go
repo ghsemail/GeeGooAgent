@@ -34,7 +34,7 @@ type LabIndexTrendTF struct {
 	Error           string                          `json:"error,omitempty"`
 }
 
-// IndexTrendJEV is the JEV 决策 directional read for lab index trend flags.
+// IndexTrendJEV is the JEV decision directional read for lab index trend flags.
 type IndexTrendJEV struct {
 	Source            string                   `json:"source"`
 	Model             string                   `json:"model"`

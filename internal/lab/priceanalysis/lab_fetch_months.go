@@ -10,9 +10,9 @@ const LabKlineMaxBarsPerJob = 5000
 
 // MonthsBackForLabFetch computes calendar months_back for POST /v1/lab/kline/jobs per timeframe.
 //
-//	months_back(tf) = 信号锚点跨度(months) + 该周期分析窗所需月数 + 预热余量
+//	months_back(tf) = signal anchor span (months) + analysis-window months for TF + warmup slack
 //
-// 分析窗（锚点截断后 tailBarsForPriceAnalysis）仍为定稿根数；取数窗仅保证最早锚点处也能凑够 tail+minBars。
+// Analysis window (post-anchor tailBarsForPriceAnalysis) keeps fixed bar count; fetch window ensures earliest anchor can still supply tail+minBars.
 func MonthsBackForLabFetch(signalMonths int, freq string) (int, error) {
 	anchor := CapMonthsBack(signalMonths)
 	analysisM := analysisWindowCalendarMonths(freq)
@@ -49,7 +49,7 @@ func minFetchBarsRequired(freq string) int {
 	return want
 }
 
-// analysisWindowCalendarMonths is calendar months covered by the analysis tail window (定稿根数).
+// analysisWindowCalendarMonths is calendar months covered by the analysis tail window (fixed bar count).
 func analysisWindowCalendarMonths(freq string) int {
 	switch NormalizeFrequency(freq) {
 	case "5m":

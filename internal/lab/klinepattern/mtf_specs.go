@@ -12,7 +12,7 @@ type klinePatternMTFSpec struct {
 	Freq  string
 }
 
-// klinePatternMultiTimeframeSpecs matches internal/lab/priceanalysis multiTimeframeSpecs (5m / 1小时 / 日线 / 周线).
+// klinePatternMultiTimeframeSpecs matches internal/lab/priceanalysis multiTimeframeSpecs (5m / 1h / daily / weekly).
 var klinePatternMultiTimeframeSpecs = []klinePatternMTFSpec{
 	{"5m", "5m"},
 	{"1小时", "60m"},

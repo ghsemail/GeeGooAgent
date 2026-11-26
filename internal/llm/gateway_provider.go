@@ -6,7 +6,7 @@ import (
 )
 
 // ProviderFromGateway adapts a Gateway (primary + fallbacks) to the Provider interface.
-// Used for background LLM tasks that should follow ops model-management 主备.
+// Used for background LLM tasks that should follow ops model-management primary/standby.
 // Calls use TaskCompress policy (legacy behavior).
 func ProviderFromGateway(gw *Gateway) Provider {
 	if gw == nil {

@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// SARMACDCatalogSignalID is the live catalog combo「SAR信号配套MACD直方图趋势」
+// SARMACDCatalogSignalID is the live catalog combo "SAR + MACD histogram trend".
 // (sell in DB remains nosignal; Agent overrides sell on probe/backtest/diagnose only).
 const SARMACDCatalogSignalID = "662d0424c4cee7ffb800d0af"
 

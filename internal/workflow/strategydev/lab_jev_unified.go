@@ -18,7 +18,7 @@ const (
 	labJEVLegNameIndexTrend = "单指标趋势 JEV (index_trend_jev)"
 )
 
-// LabJEVUnifiedDirection is the final lab-detail direction from the unified JEV 决策 pass.
+// LabJEVUnifiedDirection is the final lab-detail direction from the unified JEV decision pass.
 type LabJEVUnifiedDirection string
 
 const (
@@ -373,7 +373,7 @@ func labJEVUnifiedPlanFor(in LabDetailInput, out *LabEpisodeDetail) labJEVUnifie
 	plan := labJEVUnifiedPlan{}
 	// Unified JEV "participation" matches whether the lane had informative raw input
 	// (same gates as single-leg JEV), not merely whether a fetch client was attached.
-	// e.g. TA/index-trend all-timeframe fetch failure → lane is 未参与; remaining legs still unify.
+	// e.g. TA/index-trend all-timeframe fetch failure → lane is not participating; remaining legs still unify.
 	if in.TAClient != nil && labTAInformative(out.TechnicalAnalysis) {
 		plan.attemptTA = true
 	}
@@ -483,7 +483,7 @@ func collectLabJEVUnifiedLegs(out *LabEpisodeDetail, plan labJEVUnifiedPlan, sig
 }
 
 // applyLabJEVUnified runs the final JEV pass when every participating leg succeeded.
-// Lanes without informative raw input are not participating (未参与) and do not block unified.
+// Lanes without informative raw input are not participating and do not block unified.
 func applyLabJEVUnified(ctx context.Context, out *LabEpisodeDetail, side string, in LabDetailInput) {
 	if out == nil {
 		return

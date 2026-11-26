@@ -26,7 +26,7 @@ type PriceAnalysis struct {
 	ScoreReason         string              `json:"score_reason,omitempty"`
 }
 
-// PriceAnalysisRow is one row (周期) in the multi-TF table.
+// PriceAnalysisRow is one row (timeframe) in the multi-TF table.
 type PriceAnalysisRow struct {
 	Timeframe  string  `json:"timeframe"`
 	Conclusion string  `json:"conclusion"`
@@ -64,7 +64,7 @@ const (
 	structurePriorTradingDayUnavailable = "前一交易日锚点不可用"
 )
 
-// RunRequest configures a lab price-analysis run (取数窗 + 分析窗).
+// RunRequest configures a lab price-analysis run (data-fetch window + analysis window).
 type RunRequest struct {
 	Code       string
 	Months     int
@@ -147,7 +147,7 @@ func Run(ctx context.Context, fetch BarsFetcher, req RunRequest) PriceAnalysis {
 	return out
 }
 
-// EnrichCompositeAnalysis attaches multi-TF composite score (周线 0.45 + 日线 0.35 + 60m 0.20).
+// EnrichCompositeAnalysis attaches multi-TF composite score (weekly 0.45 + daily 0.35 + 60m 0.20).
 func EnrichCompositeAnalysis(pa *PriceAnalysis, signalFreq string) {
 	if pa == nil || len(pa.Rows) == 0 {
 		return

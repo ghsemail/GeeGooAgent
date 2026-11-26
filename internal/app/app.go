@@ -301,7 +301,7 @@ func vectorEnabled() bool {
 
 // RebuildGateway recreates chat and synthesis LLM gateways.
 // Chat resolves from cfg: catalog_model_id → ops default → local llm fields.
-// Report synthesis (盘前/盘中/盘后) always uses ops model-management 主备.
+// Report synthesis (pre-market / intraday / post-market) always uses ops model-management primary/standby.
 func (a *App) RebuildGateway() error {
 	if a == nil || a.Config == nil {
 		return fmt.Errorf("app not configured")
@@ -341,7 +341,7 @@ func (a *App) BuildChatGatewayFromLLMConfig(cfg config.LLMConfig, syncGlobal boo
 	return a.buildGatewayFromLLMConfig(cfg, syncGlobal)
 }
 
-// BuildSynthesisGatewayFromOps builds the report-synthesis gateway from ops 主备.
+// BuildSynthesisGatewayFromOps builds the report-synthesis gateway from ops primary/standby.
 func (a *App) BuildSynthesisGatewayFromOps(cfg config.LLMConfig) (*llm.Gateway, error) {
 	if a == nil || a.Config == nil {
 		return nil, fmt.Errorf("app not configured")
@@ -771,7 +771,7 @@ func (a *App) OpsBackgroundPolicy() llm.Policy {
 	return a.opsBackgroundPolicy()
 }
 
-// opsBackgroundProvider returns the ops 主备 provider for non-chat LLM tasks.
+// opsBackgroundProvider returns the ops primary/standby provider for non-chat LLM tasks.
 func (a *App) opsBackgroundProvider() llm.Provider {
 	if a != nil && a.SynthesisGateway != nil {
 		return llm.ProviderFromGateway(a.SynthesisGateway)

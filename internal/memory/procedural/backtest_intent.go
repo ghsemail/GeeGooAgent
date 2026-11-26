@@ -9,7 +9,7 @@ var backtestRunIntentTokens = []string{
 	"backtest", "smarttrade",
 }
 
-// Phrases only — single words like 刚才/同样/上次 appear in ordinary follow-ups.
+// Phrases only — single words like "just now" / "same" / "last time" appear in ordinary follow-ups.
 var backtestContinueIntentTokens = []string{
 	"用现成的来回测", "不要新建", "继续回测", "再回测", "再跑回测",
 	"就用刚才那套", "刚才那套", "沿用上次回测", "沿用那套回测", "沿用上次", "沿用那套",

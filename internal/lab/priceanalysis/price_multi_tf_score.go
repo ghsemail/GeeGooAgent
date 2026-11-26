@@ -38,13 +38,13 @@ func PriceAnalysisScoreThreshold(threshold *float64) float64 {
 	return *threshold
 }
 
-// ComputeMultiTFPriceScore scores 周线/日线/60m for lab composite (signal entry TF e.g. 5m is display-only).
+// ComputeMultiTFPriceScore scores weekly/daily/60m for lab composite (signal entry TF e.g. 5m is display-only).
 func ComputeMultiTFPriceScore(pa PriceAnalysis, gateFreq string) MultiTFPriceScore {
 	return computeWeightedMultiTFPriceScore(pa, compositeScoreWantSpecs(gateFreq), gateFreq)
 }
 
-// compositeScoreWantSpecs selects TFs for composite: fixed 60m+日线+周线 when signal is intraday;
-// 日线 signal uses 日线+周线 only (weights renormalize; 60m is not fetched and not "missing").
+// compositeScoreWantSpecs selects TFs for composite: fixed 60m+daily+weekly when signal is intraday;
+// Daily signal uses daily+weekly only (weights renormalize; 60m is not fetched and not "missing").
 func compositeScoreWantSpecs(gateFreq string) []struct {
 	key   string
 	label string

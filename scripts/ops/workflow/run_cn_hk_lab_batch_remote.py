@@ -62,7 +62,7 @@ def main() -> int:
         key_filename=ssh_cfg.get("key_file"),
         timeout=60,
     )
-    # 单标的最坏 ~15min×重试；整池预留 3h
+    # Worst case per symbol ~15min × retries; reserve 3h for the pool
     per_pool_timeout = int(os.environ.get("MACRO_CN_HK_BATCH_SSH_TIMEOUT", str(3 * 3600)))
     rc = 0
     workflows = sys.argv[2:] if len(sys.argv) > 2 else ["cn_a", "hk"]

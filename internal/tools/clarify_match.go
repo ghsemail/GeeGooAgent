@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// MatchClarifyAnswer maps user text (A/B/C, 1/2, 第一, or full option) to a choice label.
+// MatchClarifyAnswer maps user text (A/B/C, 1/2, ordinals, or full option) to a choice label.
 func MatchClarifyAnswer(line string, choices []string) (string, bool) {
 	line = strings.TrimSpace(line)
 	if line == "" || len(choices) == 0 {

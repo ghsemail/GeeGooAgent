@@ -78,7 +78,7 @@ func IsResumeIntent(text string) bool {
 	return IsContinueAllIntent(text)
 }
 
-// IsContinueAllIntent reports batch-run phrasing like「挨个跑一下」.
+// IsContinueAllIntent reports batch-run phrasing like "run each one".
 func IsContinueAllIntent(text string) bool {
 	trim := strings.TrimSpace(text)
 	if trim == "" {

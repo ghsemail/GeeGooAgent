@@ -113,7 +113,7 @@ MIN_JEV_REASON_LEN = 20
 # Whole diagnose_macro skill (3220 lanes + ~4m JEV); align with agent JEV wall time.
 DIAGNOSE_MACRO_SKILL_TIMEOUT = int(os.environ.get("MACRO_BATCH_DIAGNOSE_SKILL_TIMEOUT", "900"))
 MAX_DIAGNOSE_RETRIES = 3
-# 单标的/池级合成失败：进程内等待 RETRY_DELAY_SEC（默认 600s = 10min）后重试，最多 MAX_DIAGNOSE_RETRIES 次。
+# Per-symbol/pool synthesis failure: in-process wait RETRY_DELAY_SEC (default 600s) then retry, up to MAX_DIAGNOSE_RETRIES.
 RETRY_DELAY_SEC = int(os.environ.get("MACRO_BATCH_RETRY_DELAY_SEC", "600"))
 # Pool/overall synthesis: align run_id backfill with symbol diagnose (12×3s was too short).
 POOL_ENSURE_RUN_ID_POLLS = int(os.environ.get("MACRO_BATCH_POOL_RUN_ID_POLLS", "24"))
@@ -1282,8 +1282,8 @@ def run_batch(
         if pool_jev:
             body["pool_jev"] = pool_jev
         if batch_run_id and not final:
-            # 进展只打日志，不再 POST 新 batch_run：否则会生成更大 source_batch_id 的 legacy
-            # 投影，导致 JEV Writer 锚定的首个 id 上 PUT canonical 被判 stale。
+            # Log progress only; do not POST a new batch_run or legacy projection gets a larger source_batch_id
+            # and the JEV Writer's anchored first id is rejected as stale on canonical PUT.
             print(f"batch progress id={batch_run_id} · {summary}", flush=True)
             return
         rid = post_batch_run(macro_base, macro_key, body)

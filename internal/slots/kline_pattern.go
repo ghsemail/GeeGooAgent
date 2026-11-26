@@ -15,7 +15,7 @@ type KlinePatternHit struct {
 // KlinePatternBias is a display-only aggregate from whitelisted pattern directions.
 type KlinePatternBias struct {
 	Score     float64 `json:"score"`
-	Bias      string  `json:"bias"`       // 看多 | 看空 | 中性
+	Bias      string  `json:"bias"`       // bullish | bearish | neutral
 	BiasColor string  `json:"bias_color"` // green | red | gray
 }
 

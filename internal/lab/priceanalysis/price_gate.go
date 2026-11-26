@@ -32,7 +32,7 @@ func priceAnalysisMinRank(gateFreq string) int {
 	}
 }
 
-// multiTimeframeSpecsForLabJEVData is the standard non-kline JEV data pull (60m + 日线 only).
+// multiTimeframeSpecsForLabJEVData is the standard non-kline JEV data pull (60m + daily only).
 func multiTimeframeSpecsForLabJEVData() []struct {
 	Label string
 	Freq  string
@@ -59,7 +59,7 @@ func multiTimeframeSpecsForLabDailyMacro() []struct {
 	}
 }
 
-// multiTimeframeSpecsForGate returns 5m/60m/日线/周线 rows to fetch and display:
+// multiTimeframeSpecsForGate returns 5m/60m/daily/weekly rows to fetch and display:
 // signal period plus coarser TFs only (never finer than the diagnose frequency).
 func multiTimeframeSpecsForGate(gateFreq string) []struct {
 	Label string

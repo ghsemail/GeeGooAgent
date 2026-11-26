@@ -19,7 +19,7 @@ type Client interface {
 	GetJob(ctx context.Context, jobID string) (Job, error)
 }
 
-// KlineJobRequest asks lab-api to fetch OHLCV (取数窗).
+// KlineJobRequest asks lab-api to fetch OHLCV (data-fetch window).
 // When AsOf is set, lab-api returns only bars with time <= as_of (Asia/Shanghai, same as probe).
 // When AsOf is nil, bars run through latest available.
 type KlineJobRequest struct {

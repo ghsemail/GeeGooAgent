@@ -38,7 +38,7 @@ func PriceAnalysisScoreThreshold(threshold *float64) float64 {
 	return *threshold
 }
 
-// ComputeMultiTFPriceScore scores 周线/日线/gate-TF rows for buy-direction bias.
+// ComputeMultiTFPriceScore scores weekly/daily/gate-TF rows for buy-direction bias.
 func ComputeMultiTFPriceScore(pa PriceAnalysis, gateFreq string) MultiTFPriceScore {
 	gate := NormalizeFrequency(gateFreq)
 	if gate == "" {

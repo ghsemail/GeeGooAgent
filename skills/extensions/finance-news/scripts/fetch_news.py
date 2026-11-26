@@ -34,7 +34,7 @@ MARKET_KEYWORDS = {
     "HK": ["港股", "恒生", "H股", "港交所", "红筹"],
 }
 
-# A股后过滤关键词
+# CN A-share post-filter keywords
 CN_FILTER_KW = [
     "A股", "上证", "深证", "沪指", "创业板", "科创板",
     "沪深", "大盘", "指数", "个股",
@@ -43,10 +43,10 @@ CN_FILTER_KW = [
     "中芯国际", "隆基绿能", "通威股份", "温氏股份",
 ]
 
-# 东财板块聚焦页面 URL（A股行业/板块新闻）
+# East Money sector-focus page URL (CN industry/sector news)
 EM_CBKJJ_URL = "https://stock.eastmoney.com/a/cbkjj.html"
 
-# 港股后过滤关键词
+# HK post-filter keywords
 HK_FILTER_KW = [
     "港股", "恒生", "H股", "港交所", "港币", "港元",
     "香港股市", "香港上市", "红筹",
@@ -61,7 +61,7 @@ ENGLISH_SOURCES = {
     "dj": "https://feeds.a.dj.com/rss/RSSMarketsMain.xml",
 }
 
-# 关键词：过滤美股行业层面的新闻（排除纯宏观/政治）
+# Keywords: keep US industry-level news (drop pure macro/politics)
 US_INDUSTRY_KEYWORDS = [
     "AI", "tech", "stock", "market", "earnings", "chip", "semiconductor",
     "Fed", "rate", "index", "rally", "selloff", "sector", "cloud",
@@ -92,7 +92,7 @@ def fetch_rss(url, max_items=15):
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             raw = resp.read()
-            # 尝试 GBK/GB2312（某些中文 RSS）
+            # Try GBK/GB2312 (some Chinese RSS feeds)
             for enc in ("utf-8", "gbk", "gb2312", "latin1"):
                 try:
                     text = raw.decode(enc)
@@ -111,7 +111,7 @@ def fetch_rss(url, max_items=15):
         return []
 
 
-# 宏观/政治：完全排除
+# Macro/politics: exclude entirely
 SKIP = [
     "iran", "ukraine", "russia", "china", "pakistan",
     "trump", "biden", "harris", "vance",
@@ -124,42 +124,42 @@ SKIP = [
     "personal finance", "real estate", "tax cut",
 ]
 
-# 强行业词：直接通过（不过滤正文）
+# Strong industry terms: pass without scanning body
 STRONG_TITLE_KW = [
-    # 公司/品牌
+    # Companies/brands
     "nvidia", "amazon", "apple", "meta", "google", "microsoft",
     "tesla", "openai", "amd", "berkshire", "goldman",
-    # 股票/市场词
+    # Equity/market terms
     "stock", "shares", "buy", "upgrade", "downgrade",
     "earnings", "investor", "hedge fund",
-    # 技术/行业
+    # Tech/sector terms
     "chip", "semiconductor", "cloud",
     "bitcoin", "crypto", "ipo", "treasury",
-    # ETF（标题有ETF通常是行业事件）
+    # ETF in title usually marks a sector event
     "etf",
 ]
 
-# 弱行业词：需要正文干净才能通过（WEAK_TITLE_KW 容易误匹配政治类）
+# Weak industry terms: require clean body (WEAK_TITLE_KW false-matches politics)
 WEAK_TITLE_KW = [
-    # "ai","tech" → 太泛，CNBC上几乎所有新闻都能匹配
-    # "fed","rate" → 政治新闻里也频繁出现（议员干预Fed）
-    # "car" → right-to-repair 等政治议题会误匹配
-    # 只保留真正的行业中性词
+    # "ai","tech" → too broad; matches most CNBC headlines
+    # "fed","rate" → common in political stories (congress vs Fed)
+    # "car" → right-to-repair politics false match
+    # Keep only neutral industry terms
     "market", "sector", "energy", "oil", "gas",
     "breaking", "alert", "forecast",
 ]
 
 
 def is_industry_news(title, desc):
-    """过滤宏观/政治类，只保留行业/市场相关"""
+    """Drop macro/politics; keep industry/market items."""
     title_lower = title.lower()
     text = (title + " " + desc).lower()
 
-    # 强行业词：直接通过
+    # Strong industry terms: pass
     if any(kw in title_lower for kw in STRONG_TITLE_KW):
         return True
 
-    # 弱行业词：正文有宏观/政治词则排除
+    # Weak industry terms: exclude if body has macro/politics
     if any(kw in title_lower for kw in WEAK_TITLE_KW):
         if any(s in text for s in SKIP):
             return False
@@ -172,7 +172,7 @@ def format_sina_news(news, label):
     lines = [f"\n## 【{label}】\n"]
     for i, item in enumerate(news, 1):
         title = item.get("title", "无标题")
-        # 东财格式: time="04-25"; 新浪格式: ctime=unix timestamp
+        # East Money: time="04-25"; Sina: ctime=unix timestamp
         time_val = item.get("time") or item.get("ctime", "")
         if time_val and not str(time_val).isdigit():
             time_str = time_val
@@ -199,7 +199,7 @@ def format_sina_news(news, label):
 
 def format_en_news(news_list, label="美股行业"):
     lines = [f"\n## 【{label}】（英文）\n"]
-    # news_list 已经在 fetch_us_english 里过滤过了，直接使用
+    # news_list is already filtered in fetch_us_english; use as-is
     for i, item in enumerate(news_list, 1):
         lines.append(f"**{i}. {item['title']}**")
         if item["desc"]:
@@ -209,7 +209,7 @@ def format_en_news(news_list, label="美股行业"):
 
 
 def fetch_us_english(limit=8):
-    """获取美股英文行业新闻（CNBC + Dow Jones）"""
+    """Fetch US English industry news (CNBC + Dow Jones)."""
     all_news = []
     seen = set()
 
@@ -222,12 +222,12 @@ def fetch_us_english(limit=8):
                 seen.add(t)
                 all_news.append(item)
 
-    # 时间/来源自然顺序，限制条数
+    # Natural time/source order; cap count
     return all_news[:limit]
 
 
 def fetch_cn_news(keywords, num):
-    """获取A股新闻：从东财板块聚焦页面提取行业/板块新闻"""
+    """Fetch CN news from East Money sector-focus page (industry/sector)."""
     all_news = []
     seen = set()
 
@@ -243,17 +243,17 @@ def fetch_cn_news(keywords, num):
         print(f"[EastMoney] 页面获取失败: {e}", file=sys.stderr)
         return []
 
-    # 从 HTML 提取文章链接及标题，按 A股关键词过滤
+    # Extract article links/titles from HTML; filter by CN keywords
     pattern = r'<a[^>]+href="(https://finance\.eastmoney\.com/a/\d+\.html)"[^>]*>([^<]+)</a>'
     for url, title in re.findall(pattern, html):
         title = title.strip()
-        # 跳过地缘政治类
+        # Skip geopolitical items
         skip_kw = ["伊朗", "巴基斯坦", "中东", "以色列", "俄罗斯", "乌克兰", "美国", "北约", "胡塞", "黎巴嫩"]
         if any(kw in title for kw in skip_kw):
             continue
         if title and title not in seen:
             seen.add(title)
-            # 从 URL 提取日期
+            # Parse date from URL
             m = re.search(r'/(\d{4})(\d{2})(\d{2})\d+\.html$', url)
             if m:
                 date_str = f"{m.group(2)}-{m.group(3)}"
@@ -271,17 +271,17 @@ def fetch_cn_news(keywords, num):
 
 
 def fetch_hk_news(keywords, num):
-    """获取港股新闻：取新浪全量 feed，按港股关键词过滤"""
+    """Fetch HK news: full Sina feed filtered by HK keywords."""
     all_news = []
     seen = set()
 
-    # 不带 k 参数取全量 feed（k 参数在 lid=2516 下不生效）
+    # Full feed without k (k is ignored for lid=2516)
     for item in fetch_sina(num=50):
         t = item.get("title", "")
         intro = item.get("intro", "")
         text = t + intro
         if t and t not in seen:
-            # 必须有港股相关关键词
+            # Require HK-related keywords
             if any(kw in text for kw in HK_FILTER_KW):
                 seen.add(t)
                 all_news.append(item)
@@ -290,20 +290,20 @@ def fetch_hk_news(keywords, num):
     return all_news[:num]
 
 
-# ===== 个股新闻获取 =====
+# ===== Per-stock news =====
 
 YAHOO_RSS_TEMPLATE = "https://feeds.finance.yahoo.com/rss/2.0/headline?s={ticker}&region=US&lang=en-US"
 
-# A股股票代码 → 东财ann_type 映射
+# CN symbol → East Money ann_type mapping
 EM_ANN_TYPES = {
     "SH": "SHA",
     "SZ": "SZA",
     "CYB": "CYB",
 }
 
-# 解析 code 格式：00700.HK → (HK, 00700)
+# Parse code: 00700.HK → (HK, 00700)
 def parse_code(code):
-    """解析代码格式，返回 (market, ticker)"""
+    """Parse code format; return (market, ticker)."""
     code = code.strip()
     if code.endswith(".HK"):
         return ("HK", code[:-3].lstrip("0"))
@@ -316,14 +316,14 @@ def parse_code(code):
     elif code.endswith(".CYB"):
         return ("CN", code[:-4])
     else:
-        # 纯数字 → 尝试判断 A股
+        # Bare digits → infer CN A-share
         if len(code) == 6 and code.isdigit():
             return ("CN", code)
         return (None, code)
 
 
 def fetch_yahoo_news(ticker, num=5):
-    """通过 Yahoo Finance RSS 获取个股英文新闻（港股/美股）"""
+    """Per-name English news via Yahoo Finance RSS (HK/US)."""
     url = YAHOO_RSS_TEMPLATE.format(ticker=ticker)
     headers = {"User-Agent": "Mozilla/5.0"}
     req = urllib.request.Request(url, headers=headers)
@@ -357,7 +357,7 @@ def fetch_yahoo_news(ticker, num=5):
 
 
 def fetch_cn_announcement(stock_code, market="SH", num=5):
-    """通过东财公告 API 获取 A股个股公告"""
+    """Fetch CN per-name announcements via East Money API."""
     # market: SH→SHA, SZ→SZA, CYB→CYB
     ann_type = EM_ANN_TYPES.get(market, "SHA,SZA,CYB")
     url = (
@@ -386,19 +386,19 @@ def fetch_cn_announcement(stock_code, market="SH", num=5):
 
 def fetch_stock_news(stock_name, code, num=5):
     """
-    获取个股新闻，按市场调用不同数据源：
-    - US: Yahoo Finance RSS (AAPL.US 格式) ✅
-    - HK: Yahoo Finance (TCEHY ADR) ⚠️ 有限（Yahoo 不直接支持港股 ticker）
-    - CN: 东财公告 API ⚠️ 有限（stock 参数不过滤，返回全量公告）
+    Fetch per-stock news by market:
+    - US: Yahoo Finance RSS (e.g. AAPL.US)
+    - HK: Yahoo Finance via ADR (e.g. TCEHY); limited — Yahoo has no native HK tickers
+    - CN: East Money announcements API; limited — stock filter not honored, returns broad feed
 
-    返回 dict: {HK: [...], US: [...], CN: [...]}（每项可能为空列表）
+    Returns dict {HK: [...], US: [...], CN: [...]} (each list may be empty).
     """
     market, ticker = parse_code(code)
     result = {"HK": [], "US": [], "CN": []}
 
     if market == "HK":
-        # Yahoo Finance 对港股 ticker 不返回真实个股新闻，返回通用宏观
-        # 尝试 ADR（腾讯→TCEHY、阿里→BABA 等）
+        # Yahoo Finance HK tickers rarely return true single-name news (macro fluff)
+        # Try ADR (Tencent→TCEHY, Alibaba→BABA, etc.)
         ADR_MAP = {
             "00700": "TCEHY", "09988": "BABA", "03690": "MPNGF",
             "01810": "XRTXF", "02382": "SNHNF", "01628": "KEHIY",
@@ -411,7 +411,7 @@ def fetch_stock_news(stock_name, code, num=5):
     elif market == "US":
         result["US"] = fetch_yahoo_news(ticker, num)
     elif market == "CN":
-        # 判断是上海还是深圳
+        # SH vs SZ board
         ann_type = "SHA" if code.startswith("6") else "SZA"
         if code.startswith("4") or code.startswith("8"):
             ann_type = "CYB"
@@ -433,10 +433,10 @@ def main():
 
     output = []
 
-    # 个股新闻模式
+    # Per-stock news mode
     if args.stock:
         code = args.stock.strip()
-        # stock_name 从 code 推断
+        # Infer stock_name from code
         stock_name = code.rsplit(".", 1)[0] if "." in code else code
         news = fetch_stock_news(stock_name, code, num=args.limit)
         lines = [f"\n## 【个股新闻：{stock_name} ({code})】\n"]
@@ -472,7 +472,7 @@ def main():
         print("\n".join(lines))
         return
 
-    # 市场新闻模式（原有逻辑）
+    # Market news mode (legacy path)
     if args.type in ("US", "ALL"):
         if args.type == "US":
             en_news = fetch_us_english(limit=args.limit)

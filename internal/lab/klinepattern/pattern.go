@@ -7,7 +7,7 @@ import (
 	"github.com/ghsemail/GeeGooAgent/internal/slots"
 )
 
-// klinePatternLabelCN 与 GeeGooSignal pattern_list 对齐；展示文案由 Agent 按正式 code 映射，不依赖探针 name_chs/label_cn。
+// klinePatternLabelCN aligns with GeeGooSignal pattern_list; display copy is mapped by Agent from canonical codes, not probe name_chs/label_cn.
 var klinePatternLabelCN = map[string]string{
 	"Doji":               "十字线",
 	"DragonflyDoji":      "蜻蜓十字线",

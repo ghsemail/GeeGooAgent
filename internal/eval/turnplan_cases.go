@@ -90,10 +90,10 @@ func DefaultTurnPlanLiveCases() []TurnPlanLiveCase {
 	return defaultTurnPlanLiveCases()
 }
 
-// defaultTurnPlanLiveCases — 每条用例 = 一个新 session；多轮对话写在 SetupMessages 里按序发送。
+// defaultTurnPlanLiveCases — one case per new session; multi-turn setup is ordered in SetupMessages.
 func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 	return []TurnPlanLiveCase{
-		// ── 股票分析 ──
+		// ── Stock analysis ──
 		{
 			ID: "stock_price", Category: TurnPlanCatStockAnalysis, Title: "单轮 · 查股价",
 			Description: "独立 session：查询腾讯控股现价（snapshot，非 MCP 分析）。",
@@ -152,9 +152,9 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			ExpectDomain: "dca_grid", ExpectMode: "gather", ExpectSOP: false,
 			RequireTools: []string{"get_signal_combinations"},
 		},
-		// ── 信号 / 回测（多轮） ──
+		// ── Signal / backtest (multi-turn) ──
 		{
-			ID: "signal_list_then_probe", Category: TurnPlanCatBacktest, Title: "多轮 · 分析腾讯后选策略回测", // 历史 id，分类是回测不是 probe
+			ID: "signal_list_then_probe", Category: TurnPlanCatBacktest, Title: "多轮 · 分析腾讯后选策略回测", // legacy id; category is backtest, not probe
 			Description: "同 session：先分析腾讯价格走势，再问适合策略，最后发起回测；澄清由 auto-clarify 自动应答。",
 			SetupMessages: []string{
 				"帮我分析一下腾讯的价格走势",
@@ -178,7 +178,7 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			ExpectDomain: "signal_probe", ExpectMode: "execute", ExpectSOP: false,
 			RequireTools: []string{"probe_bot_signal_series"},
 		},
-		// ── 策略回测 ──
+		// ── Strategy backtest ──
 		{
 			ID: "backtest_explicit", Category: TurnPlanCatBacktest, Title: "单轮 · 显式回测",
 			Description: "独立 session：指定 SAR+MACD 回测小米；若 Agent clarify 由 auto-clarify 自动应答。",
@@ -209,7 +209,7 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			ExpectDomain: "backtest_run", ExpectMode: "execute", ExpectSOP: false,
 			RequireTools: []string{"run_strategy_backtest"},
 		},
-		// ── 灰区 / 澄清 ──
+		// ── Ambiguous / clarify ──
 		{
 			ID: "ambiguous_bare_macd", Category: TurnPlanCatClarify, Title: "多轮 · 腾讯价后 MACD 信号搜索后选定",
 			Description: "同 session：先问腾讯近期价格，再问适合的 MACD 信号策略；第二句应先 search_signals 列候选，多命中时 clarify，选项由 JEV/自动选择后继续。",
@@ -240,7 +240,7 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			ExpectDomain: "ambiguous", ExpectMode: "clarify", ExpectSOP: false,
 			ForbidTools: []string{"run_strategy_backtest"},
 		},
-		// ── 闲聊 / QA ──
+		// ── Chat / QA ──
 		{
 			ID: "chat_definition", Category: TurnPlanCatChat, Title: "单轮 · 指标释义",
 			Description: "独立 session：纯知识问答，plan 路由 chat/talk，不调用业务工具。",
@@ -256,7 +256,7 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			ExpectDomain: "chat", ExpectMode: "talk", ExpectSOP: false,
 			ForbidTools: []string{"run_strategy_backtest", "probe_bot_signal_series"},
 		},
-		// ── Bot 管理 ──
+		// ── Bot management ──
 		{
 			ID: "bot_reminder_list", Category: TurnPlanCatBotManage, Title: "单轮 · Reminder 列表",
 			Description: "独立 session：查询 DCA reminder 列表。",
@@ -278,7 +278,7 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 			ExpectDomain: "bot_manage", ExpectMode: "gather", ExpectSOP: false,
 			RequireTools: []string{"list_smart_trades"},
 		},
-		// ── 历史 / 报告 / 知识 / 新闻 ──
+		// ── History / reports / knowledge / news ──
 		{
 			ID: "backtest_history", Category: TurnPlanCatHistoryReport, Title: "多轮 · 回测后查历史",
 			Description: "同 session：先跑回测，再问小米上次回测结果。",
@@ -319,7 +319,7 @@ func defaultTurnPlanLiveCases() []TurnPlanLiveCase {
 	}
 }
 
-// defaultTurnPlanRuleTurns — plan-only LLM classify 回归：用 LastDomain 模拟多轮上下文，不占 Chat session。
+// defaultTurnPlanRuleTurns — plan-only LLM classify regression: LastDomain simulates multi-turn context without a Chat session.
 func defaultTurnPlanRuleTurns() []TurnPlanTurn {
 	return []TurnPlanTurn{
 		{ID: "stock_price", Message: "帮我查一下腾讯控股现在的股价",

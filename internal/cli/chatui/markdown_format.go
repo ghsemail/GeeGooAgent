@@ -242,7 +242,7 @@ func normalizeGluedAnalysisMarkdown(text string) string {
 }
 
 // normalizeLoosePipeTablesInline splits welcome-style tables where only the header
-// row has leading pipes: |类型|说明| + ------|------ + DCA定投|描述|.
+// row has leading pipes: |type|desc| + ------|------ + DCA|description|.
 func normalizeLoosePipeTablesInline(text string) string {
 	text = reGlueEmojiHeading.ReplaceAllString(text, "$1\n$2 $3")
 	text = reGlueBeforeTypeTable.ReplaceAllString(text, "$1\n\n$2")
@@ -253,7 +253,7 @@ func normalizeLoosePipeTablesInline(text string) string {
 	text = reLooseSepRow.ReplaceAllString(text, "$1\n$2")
 	text = reLooseRowAfterBacktest.ReplaceAllString(text, "$1\n$2")
 	text = reFieldDetailHeader.ReplaceAllString(text, "$1\n\n$2\n")
-	// Split consecutive loose rows: 回测\nGRID... and 买卖\nSmartTrade...
+	// Split consecutive loose rows: backtest\nGRID... and buy/sell\nSmartTrade...
 	text = regexp.MustCompile(`(回测)\n?(GRID[^\n|]+\|)`).ReplaceAllString(text, "$1\n$2")
 	text = regexp.MustCompile(`(买卖)\n?(SmartTrade\|)`).ReplaceAllString(text, "$1\n$2")
 	text = regexp.MustCompile(`(配置)\n?(HDG[^\n|]+\|)`).ReplaceAllString(text, "$1\n$2")
@@ -678,7 +678,7 @@ func splitPipeHeadingGlue(line string) []string {
 }
 
 // normalizeGluedMarkdownTables splits model-glued table rows (||) and inline headers
-// such as "## 标题|#|名称|代码||1|foo|..." before card conversion.
+// such as "## title|#|name|code||1|foo|..." before card conversion.
 func normalizeGluedMarkdownTables(text string) string {
 	var out []string
 	for _, line := range strings.Split(text, "\n") {

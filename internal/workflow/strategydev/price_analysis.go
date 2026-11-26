@@ -28,7 +28,7 @@ type PriceAnalysis struct {
 	PriceAnalysisJEV    *PriceAnalysisJEV   `json:"price_analysis_jev,omitempty"`
 }
 
-// PriceAnalysisRow is one row (周期) in the multi-TF table.
+// PriceAnalysisRow is one row (timeframe) in the multi-TF table.
 type PriceAnalysisRow struct {
 	Timeframe  string  `json:"timeframe"`
 	Conclusion string  `json:"conclusion"`

@@ -119,7 +119,7 @@ class TestMacroPoolDiagnoseSkillPack(unittest.TestCase):
             )
 
     def test_rejects_wrong_pool_workflow_symbol_suffix(self) -> None:
-        """混池：crypto 期望集出现在 cn_a workflow 包内应被 workflow 字段校验拦截。"""
+        """Mixed pool: crypto expected set inside cn_a workflow pack must fail workflow field validation."""
         with self.assertRaises(PoolSkillPackError):
             validate_pool_skill_pack(
                 batch_date="2026-11-20",
@@ -206,7 +206,7 @@ class TestMacroPoolDiagnoseSkillPack(unittest.TestCase):
 
 
 class TestPoolSkillPackBondExpectedSet(unittest.TestCase):
-    """bond/pool-jev-only：expected 集与 rows 不齐套时 workflow 先 fail，不 silent 部分合成。"""
+    """bond/pool-jev-only: expected set vs rows mismatch fails in workflow without silent partial synthesis."""
 
     def test_expected_set_mismatch_before_skill_http(self) -> None:
         rows = [CRYPTO_FIXTURE_ROWS[0]]

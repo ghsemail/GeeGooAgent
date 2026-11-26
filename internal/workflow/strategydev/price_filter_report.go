@@ -32,7 +32,7 @@ func BuildPriceFilterInterceptionBasis(pf PriceFilterResult) string {
 }
 
 // AppendPriceEpisodeFilterMarkdown writes the full stripped-trigger section for diagnose reports.
-// When longOnly is true, sell-side trigger ledgers are omitted (probe 卖次为平多信号，非做空 Episode).
+// When longOnly is true, sell-side trigger ledgers are omitted (probe sells are long-exit signals, not short episodes).
 func AppendPriceEpisodeFilterMarkdown(b *strings.Builder, pf *PriceFilterResult, stats *EpisodeTriggerFilterStats, longOnly bool) {
 	if pf == nil || stats == nil {
 		return

@@ -23,7 +23,7 @@ type labJEVUnifiedReasonPayload struct {
 	LegConclusions    []labJEVUnifiedLegReasonInput `json:"leg_conclusions"`
 }
 
-// SummarizeLabJEVUnifiedReason calls Decision chat for unified JEV 决策 reason text.
+// SummarizeLabJEVUnifiedReason calls Decision chat for unified JEV decision reason text.
 func (j *JevClient) SummarizeLabJEVUnifiedReason(
 	ctx context.Context,
 	choice string,
