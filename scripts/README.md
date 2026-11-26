@@ -1,47 +1,47 @@
-# GeeGooAgent 运维脚本
+# GeeGooAgent ops scripts
 
-本目录集中存放 Agent 相关的部署、探测、验证与工作流脚本。
+This directory holds Agent-related deployment, probe, verification, and workflow scripts.
 
-## Workflow Skills 文档（`skills/`）
+## Workflow Skills docs (`skills/`)
 
-盘前 / 盘中 / 盘后仅保留：
+Pre-market / intraday / post-market keep only:
 
-| 文件 | 用途 |
+| File | Purpose |
 |------|------|
-| `SKILL.md` | Skills 模块展示 + Chat 程序性记忆 |
-| `template.md` | **仅盘前**（市场/个股）；运行时 LLM 合成加载 |
-| Go `internal/workflow/*.go` | 实际执行步骤（Skills 详情中的 Phase / 调度） |
+| `SKILL.md` | Skills module presentation + Chat procedural memory |
+| `template.md` | **Pre-market only** (market/stock); loaded at runtime by LLM synthesis |
+| Go `internal/workflow/*.go` | Actual execution steps (Phase / scheduling in the Skills details) |
 
-已移除仅作文档、不参与运行的 `workflow.md`、`manifest.yaml`、`supervisor_checks.yaml`。
+`workflow.md`, `manifest.yaml`, and `supervisor_checks.yaml` have been removed; they were documentation-only and not used at runtime.
 
-| 路径 | 用途 | 示例 |
+| Path | Purpose | Example |
 |------|------|------|
-| `install.sh` | 官方一键安装（GitHub raw 引用，**勿移动**） | `curl …/scripts/install.sh \| bash` |
-| `install-go.sh` / `ensure-go.sh` | Go 工具链安装 | 服务器初始化 |
-| `hooks/` | Git / CI 钩子示例 | `audit-tool.example.sh` |
-| `ops/deploy/` | 部署、nginx 补丁、快速上线 | `deploy_agent_server.py` |
-| `ops/probe/` | 联调探测、诊断、审计 | `probe_agent_bff.py` |
-| `ops/verify/` | 验收与 E2E 验证 | `verify_agent_chat_e2e.py` |
-| `ops/workflow/` | 盘前/盘中/盘后手工触发 | `run_hk_intraday_live.py` |
-| `ops/fix/` | 一次性修复、同步、迁移 | `fix_llm_key.py` |
-| `ops/misc/` | 其他运维工具 | `find_ghsemail_user.py` |
-| `dev/` | 本地开发 / bench / Go 小工具 | `bench_dashboard.py` |
+| `install.sh` | Official one-click install (referenced from GitHub raw; **do not move**) | `curl …/scripts/install.sh \| bash` |
+| `install-go.sh` / `ensure-go.sh` | Go toolchain install | Server bootstrap |
+| `hooks/` | Git / CI hook examples | `audit-tool.example.sh` |
+| `ops/deploy/` | Deploy, nginx patches, fast rollout | `deploy_agent_server.py` |
+| `ops/probe/` | Integration probes, diagnostics, audits | `probe_agent_bff.py` |
+| `ops/verify/` | Acceptance and E2E verification | `verify_agent_chat_e2e.py` |
+| `ops/workflow/` | Manual pre-market / intraday / post-market triggers | `run_hk_intraday_live.py` |
+| `ops/fix/` | One-off fixes, syncs, and migrations | `fix_llm_key.py` |
+| `ops/misc/` | Other ops tools | `find_ghsemail_user.py` |
+| `dev/` | Local development / bench / small Go tools | `bench_dashboard.py` |
 
-## 约定
+## Conventions
 
-- **临时脚本**：以 `_` 开头，仅本机使用，已在 `.gitignore` 忽略；用完删除。
-- **探测输出**：`probe_*_out.txt`、`*_result.json` 等不得提交；跑完即删。
-- **服务器**：`geegoo-agent` 与仓库 `scripts/` 对齐（`git pull`）；TradingBot/GeeGooBot 上散落的 `_*.py` 为历史临时文件，可安全删除。
+- **Temporary scripts**: names starting with `_` are for local use only, already ignored in `.gitignore`; delete them when done.
+- **Probe output**: do not commit files such as `probe_*_out.txt` or `*_result.json`; delete them after the run.
+- **Servers**: `geegoo-agent` should stay aligned with this repo's `scripts/` (`git pull`). Scattered `_*.py` files on TradingBot/GeeGooBot are historical temp files and can be safely deleted.
 
-## 常用命令
+## Common commands
 
 ```bash
-# 盘中决策 live 测试（港股）
+# Intraday decision live test (HK stocks)
 python scripts/ops/workflow/run_hk_intraday_live.py
 
-# 清空用户全部盘中报告
+# Clear all user intraday reports
 python scripts/ops/workflow/clear_all_intraday_reports.py
 
-# Agent 部署
+# Agent deploy
 python scripts/ops/deploy/deploy_agent_server.py
 ```
