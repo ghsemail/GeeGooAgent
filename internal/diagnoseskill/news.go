@@ -27,10 +27,13 @@ const (
 	// A few items per model call keeps each reply inside the output-token limit.
 	macroNewsChunkSize   = 3
 	macroNewsConcurrency = 5
-	// No new model call starts after the item budget. With the longest call and the
-	// pool budget this stays under the caller's 15 minute timeout.
-	macroNewsItemBudget = 8 * time.Minute
-	macroNewsPoolBudget = 3 * time.Minute
+	// The whole call must finish inside the 15 minute timeout of the caller and the
+	// agent BFF. A model call (primary plus one fallback) can take 210s and is not
+	// cancelled by a context; a Decision call can take 90s.
+	//   items:  no new call after 4.5 min, so done by 4.5 min + 210s = 8 min
+	//   pool:   Choice 90s + summary 210s + Decision chat backup 90s = 6.5 min
+	macroNewsItemBudget = 270 * time.Second
+	macroNewsPoolBudget = 390 * time.Second
 
 	itemStatusOK     = "ok"
 	itemStatusFailed = "failed"
@@ -616,7 +619,7 @@ func RunMacroNews(ctx context.Context, in MacroNewsRunInput) (Result, error) {
 
 	jevCtx, cancel := context.WithTimeout(ctx, macroNewsPoolBudget)
 	defer cancel()
-	pool := strategydev.ResolveMacroNewsPoolJEV(jevCtx, in.JEV, req.PoolID, label, verdicts)
+	pool := strategydev.ResolveMacroNewsPoolJEV(jevCtx, in.JEV, req.PoolID, label, verdicts, in.LLM)
 	if !pool.OK {
 		// Item analysis is still worth returning; the caller retries the rollup.
 		res["pool_error"] = clipRunes(pool.Error, 200)

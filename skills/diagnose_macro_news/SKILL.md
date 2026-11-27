@@ -1,7 +1,7 @@
 ---
 name: diagnose_macro_news
 description: 宏观监控池新闻分析与 JEV（HTTP skill，news-worker 负责落库）
-version: "1.1.0"
+version: "1.2.0"
 ---
 
 # diagnose_macro_news
@@ -11,7 +11,8 @@ GeeGooData `news-worker` 先把关键字命中的新闻写入本节点 `aidb.mac
 1. 校验 `pool_id`（七个监控池之一）与 `items[]`（1–40 条，`news_id` 唯一，标题非空）
 2. LLM 逐条先判断是否新闻、再判断对本池的重要性、最后判断方向，输出价值字段与中英标题与摘要、`attitude`、`jev_direction`、`jev_reason`、`theme`、`tags`（主模型失败时只允许一个备选模型）
 3. GeeGooData Decision **Choice** 决定池级方向（禁止 LLM 或代码计票）
-4. GeeGooData Decision **chat** 生成简体中文池级 `jev_reason`，引用最有力的新闻标题
+4. 综合模型（主模型加一个备选）按池级方向写全池结论 `jev_reason`：简体中文 Markdown，以「## 整体结论」开头（与 `diagnose_macro_pool` 的做法一致）。输入为最多 16 条支持方向的新闻与 8 条其他新闻；模型不能改方向
+5. 若两个模型都没有给出可用结论，改由 GeeGooData Decision **chat** 生成 `jev_reason`，池级结果不丢失
 
 **不写** Mongo，**不调用** GeeGooSignal（含 analyze-api 与 `/macro/news*`），**不取行情价格**（只看新闻）。落库由调用方完成。
 

@@ -96,12 +96,14 @@ const macroNewsPoolReasonSystem = `你是 GeeGoo 宏观新闻 JEV 决策助手�
 措辞：向交易者说明时用 JEV 决策或模型，不要出现 System One 等英文产品名。`
 
 // ResolveMacroNewsPoolJEV gets the pool direction from Decision Choice (never by
-// counting item votes) and the Chinese reason from Decision chat. It reads news only.
+// counting item votes). The Chinese reason is the synthesis model's summary of the
+// pool; Decision chat writes it when there is no usable summary. It reads news only.
 func ResolveMacroNewsPoolJEV(
 	ctx context.Context,
 	jev *JevClient,
 	poolID, poolLabel string,
 	items []MacroNewsPoolItem,
+	summarizer MacroNewsSummarizer,
 ) MacroPoolJEV {
 	model := config.DefaultDecisionModel
 	if jev != nil && strings.TrimSpace(jev.cfg.Model) != "" {
@@ -150,6 +152,13 @@ func ResolveMacroNewsPoolJEV(
 	}
 	out.Confidence = conf
 
+	if summary := summarizeMacroNewsPool(ctx, summarizer, poolID, poolLabel, out, items); summary != "" {
+		out.OK = true
+		out.Direction = choiceToLedgerDirection(choice)
+		out.RecommendedReason = summary
+		return out
+	}
+
 	payload := macroNewsReasonPayload{
 		PoolID: poolID, PoolLabel: poolLabel, RecommendedChoice: choice,
 		Confidence: conf, Conflict: out.Conflict, Choices: out.Choices,
@@ -168,7 +177,7 @@ func ResolveMacroNewsPoolJEV(
 		out.Error = err.Error()
 		return out
 	}
-	// Decision chat directly, not the synthesis-LLM override some JEV reasons use.
+	// The backup: Decision chat directly, so a model outage does not lose the verdict.
 	reason, err := jev.decisionChat(ctx, macroNewsPoolReasonSystem, string(raw))
 	if err != nil {
 		out.Error = err.Error()
