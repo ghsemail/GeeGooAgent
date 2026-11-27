@@ -1,7 +1,7 @@
 ---
 name: diagnose_macro_news
 description: 宏观监控池新闻分析与 JEV（HTTP skill，news-worker 负责落库）
-version: "1.0.0"
+version: "1.1.0"
 ---
 
 # diagnose_macro_news
@@ -9,7 +9,7 @@ version: "1.0.0"
 GeeGooData `news-worker` 先把关键字命中的新闻写入本节点 `aidb.macro_news`，再调用本 skill。skill 仅：
 
 1. 校验 `pool_id`（七个监控池之一）与 `items[]`（1–40 条，`news_id` 唯一，标题非空）
-2. LLM 逐条输出中英标题与摘要、`attitude`、`jev_direction`、`jev_reason`、`theme`、`tags`（主模型失败时只允许一个备选模型）
+2. LLM 逐条先判断是否新闻、再判断对本池的重要性、最后判断方向，输出价值字段与中英标题与摘要、`attitude`、`jev_direction`、`jev_reason`、`theme`、`tags`（主模型失败时只允许一个备选模型）
 3. GeeGooData Decision **Choice** 决定池级方向（禁止 LLM 或代码计票）
 4. GeeGooData Decision **chat** 生成简体中文池级 `jev_reason`，引用最有力的新闻标题
 
@@ -64,6 +64,24 @@ GeeGooData `news-worker` 先把关键字命中的新闻写入本节点 `aidb.mac
 | `theme` | `rates_central_bank`/`growth_inflation`/`geopolitics_risk`/`sector_theme`/`equity_etf_catalyst`/`other` |
 | `result.pool_status` | `ok`；`pending`（成功条目不足或 Decision 失败，见 `pool_error`）；`skipped` |
 | `result.jev_direction` / `jev_reason` / `confidence` / `choices` / `conflict` | 池级结论；非 `ok` 时方向与理由为空 |
+
+## 新闻价值（v1，仅记录）
+
+与方向（neutral 只表示方向不明）和 `analysis_status`（只表示处理是否完成）相互独立。`result.items[]` 另含：
+
+| 字段 | 取值 |
+|---|---|
+| `validity` | `news` / `non_news` / 空（未评级） |
+| `non_news_type` | `quote_page` / `listing` / `data_table` / `promo` / `other`，仅 `non_news` |
+| `materiality` | `high` / `medium` / `low` / `none`（真实新闻但与本池无关）/ 空 |
+| `value_reason` | 一句简体中文 |
+| `value_source` / `value_version` | `model` / `v1`；未评级为空 |
+| `pool_eligible` | 由代码计算，忽略模型给出的值：`non_news` 或 `none` 为 `false`，其余（含未评级）为 `true` |
+
+- 评级整体生效：任一价值字段缺失或非法，该条记为未评级；不影响其余分析，也不触发备选模型。
+- **本版本只记录**：不按价值隐藏条目，也不从池级 JEV 中剔除；提示词要求所有条目（含 `non_news`）照常输出完整分析。
+- 若模型对 `non_news` 同时未给 `attitude` 与 `jev_direction`，二者保持为空（不改写为 Neutral），摘要不带情绪行；该条没有方向可汇总，不进入池级合成，门槛分母也不计它。
+- 剔除不合格条目、`no_material_news`、`non_news` 短回复等留待启用阶段（见 `news.go` 中的 TODO）。
 
 规则：
 
