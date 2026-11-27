@@ -15,6 +15,8 @@ type DiagnoseSkillOptions struct {
 	MacroPool     *DiagnoseMacroPoolInput
 	MacroOverall  *DiagnoseMacroOverallInput
 	MacroNews     *diagnoseskill.MacroNewsRequest
+	// MacroNewsOverview is the diagnose_macro_news_overview input.
+	MacroNewsOverview *diagnoseskill.MacroNewsOverviewRequest
 }
 
 type DiagnoseStrategyInput struct {
@@ -130,6 +132,25 @@ func (a *App) RunDiagnoseSkill(ctx context.Context, skill string, opts DiagnoseS
 		})
 		result, err := diagnoseskill.RunMacroNews(ctx, diagnoseskill.MacroNewsRunInput{
 			Request: *opts.MacroNews, LLM: a.MacroNewsLLM(), JEV: jev,
+		})
+		if err != nil {
+			return DiagnoseSkillResult{
+				Status: "failed", SessionID: sessionID, Skill: skill, Error: err.Error(),
+			}, err
+		}
+		return DiagnoseSkillResult{
+			Status: "ok", SessionID: sessionID, Skill: skill, Result: result,
+		}, nil
+	case diagnoseskill.SkillMacroNewsOverview:
+		if opts.MacroNewsOverview == nil {
+			return DiagnoseSkillResult{Status: "failed", Skill: skill, Error: "macro_news_overview body is required"},
+				fmt.Errorf("macro_news_overview body is required")
+		}
+		a.EventBus.Emit("RunStarted", map[string]any{
+			"session_id": sessionID, "skill": skill, "date": opts.MacroNewsOverview.Date,
+		})
+		result, err := diagnoseskill.RunMacroNewsOverview(ctx, diagnoseskill.MacroNewsOverviewRunInput{
+			Request: *opts.MacroNewsOverview, LLM: a.MacroNewsLLM(), JEV: jev,
 		})
 		if err != nil {
 			return DiagnoseSkillResult{

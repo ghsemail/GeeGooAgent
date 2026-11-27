@@ -24,6 +24,8 @@ type skillsRunRequest struct {
 	MacroPool     *diagnoseMacroPoolInput     `json:"macro_pool,omitempty"`
 	MacroOverall  *diagnoseMacroOverallInput  `json:"macro_overall,omitempty"`
 	MacroNews     *diagnoseskill.MacroNewsRequest `json:"macro_news,omitempty"`
+
+	MacroNewsOverview *diagnoseskill.MacroNewsOverviewRequest `json:"macro_news_overview,omitempty"`
 }
 
 type diagnoseStrategyInput struct {
@@ -103,7 +105,7 @@ func (h *Handler) skillsRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if skill == "diagnose_strategy" || skill == "diagnose_macro" || skill == "diagnose_macro_pool" || skill == "diagnose_macro_overall" ||
-		skill == diagnoseskill.SkillMacroNews {
+		skill == diagnoseskill.SkillMacroNews || skill == diagnoseskill.SkillMacroNewsOverview {
 		h.skillsRunDiagnose(w, r, skill, req)
 		return
 	}
@@ -185,6 +187,15 @@ func (h *Handler) skillsRunDiagnose(w http.ResponseWriter, r *http.Request, skil
 			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
+	} else if skill == diagnoseskill.SkillMacroNewsOverview {
+		if req.MacroNewsOverview == nil {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "macro_news_overview body is required"})
+			return
+		}
+		if err := diagnoseskill.ValidateMacroNewsOverviewRequest(*req.MacroNewsOverview); err != nil {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
 	} else if skill == "diagnose_macro_overall" {
 		if req.MacroOverall == nil || strings.TrimSpace(req.MacroOverall.Date) == "" {
 			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "macro_overall.date is required"})
@@ -200,7 +211,7 @@ func (h *Handler) skillsRunDiagnose(w http.ResponseWriter, r *http.Request, skil
 			return
 		}
 	}
-	opts := app.DiagnoseSkillOptions{MacroNews: req.MacroNews}
+	opts := app.DiagnoseSkillOptions{MacroNews: req.MacroNews, MacroNewsOverview: req.MacroNewsOverview}
 	if req.Strategy != nil {
 		opts.Strategy = &app.DiagnoseStrategyInput{
 			Code: strings.TrimSpace(req.Strategy.Code),
