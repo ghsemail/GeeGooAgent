@@ -46,6 +46,11 @@ func RegisterBuiltins(r *Registry) {
 		PhaseA:      emptySteps,
 	})
 	r.Register(Spec{
+		Name:        "diagnose_macro_news_overview",
+		Description: "当日跨池宏观新闻结论：各池结论摘要 + Choice 整体方向 + 中文总结；只返回结果，不写库",
+		PhaseA:      emptySteps,
+	})
+	r.Register(Spec{
 		Name:        "diagnose_macro_overall",
 		Description: "宏观整体风险偏好 JEV：1–7 池结论 + Choice + 中文理由；不自动 PUT",
 		PhaseA:      emptySteps,

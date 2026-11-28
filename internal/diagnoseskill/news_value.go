@@ -4,7 +4,8 @@ import "strings"
 
 // News value rates whether an item is news and how much it matters to the pool. It
 // is separate from the direction (neutral means no clear direction) and from
-// analysis_status. All labels empty means unrated.
+// analysis_status. All labels empty means unrated. The caller stores only news
+// rated high.
 
 const (
 	macroNewsValueVersion = "v1"
@@ -12,6 +13,7 @@ const (
 
 	validityNews    = "news"
 	validityNonNews = "non_news"
+	materialityHigh = "high"
 	materialityNone = "none"
 )
 
@@ -34,6 +36,11 @@ type MacroNewsValue struct {
 	PoolEligible bool `json:"pool_eligible"`
 }
 
+// highValue is the one rating that gets a full analysis and is stored.
+func (v MacroNewsValue) highValue() bool {
+	return v.Validity == validityNews && v.Materiality == materialityHigh
+}
+
 func unratedValue() MacroNewsValue { return MacroNewsValue{PoolEligible: true} }
 
 func label(raw any) string {
@@ -42,7 +49,7 @@ func label(raw any) string {
 }
 
 // resolveValue accepts a rating only as a whole. Anything missing or invalid leaves
-// the item unrated; it never rejects the item or asks for the fallback model.
+// the item unrated.
 func resolveValue(rawValidity, rawType, rawMateriality, rawReason any) MacroNewsValue {
 	out := MacroNewsValue{
 		Validity:    strings.ToLower(label(rawValidity)),
